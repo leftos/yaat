@@ -728,8 +728,9 @@ public partial class VTdlsViewModel : ObservableObject
         }
 
         // The open editor was built from the DTO the item carried at selection time. Pushing the fresh one in updates
-        // the header, and the SID and transition with it when the route changed — every other dropdown already chosen
-        // survives, which is why the editor is amended in place rather than rebuilt.
+        // the header, and the SID and transition with it when the route changed, which resets the fields from the new
+        // transition; an amendment that leaves the route alone keeps every dropdown already chosen, which is why the
+        // editor is amended in place rather than rebuilt.
         if (ReferenceEquals(SelectedItem, vm) && (Editor is { } editor))
         {
             editor.ApplyAmendedFlightPlan(vm.FlightPlan);

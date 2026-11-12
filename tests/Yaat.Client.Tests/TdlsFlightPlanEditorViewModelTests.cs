@@ -183,7 +183,7 @@ public class TdlsFlightPlanEditorViewModelTests
         int notifications = 0;
         editor.SendCommand.CanExecuteChanged += (_, _) => notifications++;
 
-        editor.SelectedDepFreq = editor.DepFreqs[0];
+        editor.SelectedDepFreq = editor.DepFreqs[1];
 
         Assert.True(editor.IsSendEnabled);
         Assert.True(notifications > 0, "SendCommand.CanExecuteChanged never fired — a bound Button stays greyed out.");
@@ -415,7 +415,7 @@ public class TdlsFlightPlanEditorViewModelTests
 
         Assert.Equal("EAST1", editor.SelectedSid!.Name);
         Assert.Equal("EST", editor.SelectedTransition!.Name);
-        Assert.Equal(["cfg-east-east"], editor.Sids.Select(s => s.Id));
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearEntryId, "cfg-east-east"], editor.Sids.Select(s => s.Id));
     }
 
     [Fact]
@@ -490,6 +490,79 @@ public class TdlsFlightPlanEditorViewModelTests
     }
 
     [Fact]
+    public void FiledRoute_NamingNoSid_SelectsTheSidWhoseTransitionStartsAtARouteFix()
+    {
+        // Upstream: a route that names no SID but passes through a transition's first route point selects that SID
+        // and transition, rather than falling to the facility default.
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(BuildConfig(), "ALTAM V107 LAX");
+
+        Assert.Equal("OAKLAND4", sidId);
+        Assert.Equal("ALTAM", transitionId);
+    }
+
+    [Fact]
+    public void FiledRoute_NamingNoSid_FindsAFirstRoutePointPastTheFirstAirway()
+    {
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(BuildTwoSidConfig(), "KIAD J80 spacy BOS");
+
+        Assert.Equal("GUNNR7", sidId);
+        Assert.Equal("GUNNR7-SPACY", transitionId);
+    }
+
+    [Fact]
+    public void FiledRoute_NamingNoSid_FirstRouteFixWins_ThenTheFirstSidInConfigOrder()
+    {
+        // SPACY starts a transition of both GUNNR7 and CLTCH1; GUNNR7 comes first in the config. BOOKE, GAPP7's
+        // first route point, is earlier in the route still, so it wins over both.
+        TdlsConfigDto config = BuildTwoSidConfig() with
+        {
+            Sids =
+            [
+                .. BuildTwoSidConfig().Sids,
+                new TdlsSidDto("CLTCH1", "CLTCH1", [SidTransition("CLTCH1-SPACY", "SPACY", "10 MIN AFT DP", "3000FT", "125.05")]),
+            ],
+        };
+
+        Assert.Equal(("GUNNR7", "GUNNR7-SPACY"), TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(config, "J80 SPACY BOS"));
+        Assert.Equal(("GAPP7", "GAPP7-BOOKE"), TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(config, "BOOKE J80 SPACY BOS"));
+    }
+
+    [Fact]
+    public void FiledRoute_NamedSidWhoseNextTokenMatchesNothing_FindsAFirstRoutePointFurtherOn()
+    {
+        TdlsConfigDto cfg = BuildSfoLikeConfig("- - - -");
+
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "WESLA3 KEEDS ORRCA MOVDD");
+
+        Assert.Equal("WESLA3", sidId);
+        Assert.Equal("WESLA3-POINTHIT", transitionId);
+    }
+
+    [Fact]
+    public void ApplyAmendedFlightPlan_ToARouteNamingNoSid_ReseedsFromAFirstRoutePoint()
+    {
+        TdlsConfigDto cfg = BuildSfoLikeConfig("- - - -");
+        var fp = new TdlsFlightPlanInfoDto(
+            AssignedBeaconCode: 501,
+            Departure: "KSFO",
+            Destination: "KSEA",
+            Route: "SNTNA2 ORRCA STOKD KEEDS",
+            AircraftType: "B738",
+            EquipmentSuffix: "L",
+            Remarks: "",
+            Cid: "1234567",
+            CruiseAltitude: 35000
+        );
+        var editor = new TdlsFlightPlanEditorViewModel("ASA1234", cfg, seed: null, flightPlan: fp, isReadOnly: false, opConfigId: null);
+        Assert.Equal("SNTNA2", editor.SelectedSid?.Id);
+
+        editor.ApplyAmendedFlightPlan(fp with { Route = "STOKD KEEDS" });
+
+        Assert.Equal("OFFSH9", editor.SelectedSid?.Id);
+        Assert.Equal("OFFSH9-ORRCA", editor.SelectedTransition?.Id);
+    }
+
+    [Fact]
     public void ToClearanceDto_RoundTripsCurrentEditorState()
     {
         var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
@@ -501,6 +574,160 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("10 MIN", clearance.Expect);
         Assert.Equal("5000", clearance.InitialAlt);
         Assert.Equal("120.9", clearance.DepFreq);
+    }
+
+    // ── Clear entry: every field can go back to "- - - -" ──
+
+    private static TdlsFlightPlanEditorViewModel OakDefaultEditor(bool isReadOnly = false, ClearanceDto? seed = null) =>
+        new("N42416", BuildConfig(), seed, flightPlan: null, isReadOnly: isReadOnly, opConfigId: null);
+
+    /// <summary>A SID whose FE entry carries no transitions — a radar-vectors departure.</summary>
+    private static TdlsConfigDto BuildConfigWithTransitionlessSid() =>
+        BuildConfig() with
+        {
+            Sids = [.. BuildConfig().Sids, new TdlsSidDto("RV", "RADAR VECTORS", [])],
+        };
+
+    [Fact]
+    public void ClearEntry_IsOfferedFirstInTheSidAndEveryValueList()
+    {
+        TdlsFlightPlanEditorViewModel editor = OakDefaultEditor();
+
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearSid, editor.Sids[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.Expects[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.Climbouts[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.Climbvias[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.InitialAlts[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.DepFreqs[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.ContactInfos[0]);
+        Assert.Same(TdlsFlightPlanEditorViewModel.ClearValue, editor.LocalInfos[0]);
+        Assert.Equal("- - - -", editor.Sids[0].Name);
+        Assert.Equal("- - - -", editor.Expects[0].Value);
+    }
+
+    [Fact]
+    public void PickingTheClearEntry_EmptiesTheField()
+    {
+        TdlsFlightPlanEditorViewModel editor = OakDefaultEditor();
+        Assert.Equal("10 MIN", editor.Expect);
+        Assert.Equal("5000", editor.InitialAlt);
+        Assert.Equal("120.9", editor.DepFreq);
+
+        editor.SelectedExpect = editor.Expects[0];
+        editor.SelectedClimbout = editor.Climbouts[0];
+        editor.SelectedClimbvia = editor.Climbvias[0];
+        editor.SelectedInitialAlt = editor.InitialAlts[0];
+        editor.SelectedDepFreq = editor.DepFreqs[0];
+        editor.SelectedContactInfo = editor.ContactInfos[0];
+        editor.SelectedLocalInfo = editor.LocalInfos[0];
+
+        Assert.Null(editor.SelectedExpect);
+        Assert.Null(editor.SelectedClimbout);
+        Assert.Null(editor.SelectedClimbvia);
+        Assert.Null(editor.SelectedInitialAlt);
+        Assert.Null(editor.SelectedDepFreq);
+        Assert.Null(editor.SelectedContactInfo);
+        Assert.Null(editor.SelectedLocalInfo);
+    }
+
+    [Fact]
+    public void PickingTheClearEntryOnTheSid_ClearsTheTransitionToo()
+    {
+        TdlsFlightPlanEditorViewModel editor = OakDefaultEditor();
+        Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
+
+        editor.SelectedSid = editor.Sids[0];
+
+        Assert.Null(editor.SelectedSid);
+        Assert.Null(editor.SelectedTransition);
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearTransition], editor.Transitions);
+    }
+
+    [Fact]
+    public void ClearingAMandatoryField_LocksSendAndNamesTheField()
+    {
+        TdlsFlightPlanEditorViewModel editor = OakDefaultEditor();
+        Assert.True(editor.IsSendEnabled);
+
+        editor.SelectedDepFreq = editor.DepFreqs[0];
+
+        Assert.False(editor.IsSendEnabled);
+        Assert.Contains("Departure frequency", editor.MissingMandatoryFieldNames, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClearedFields_LeaveTheClearanceEmpty_NeverCarryingTheClearEntry()
+    {
+        TdlsFlightPlanEditorViewModel editor = OakDefaultEditor();
+        editor.SelectedExpect = editor.Expects[0];
+        editor.SelectedInitialAlt = editor.InitialAlts[0];
+        editor.SelectedDepFreq = editor.DepFreqs[0];
+        editor.SelectedSid = editor.Sids[0];
+
+        var clearance = editor.ToClearanceDto();
+
+        Assert.Null(clearance.Sid);
+        Assert.Null(clearance.Transition);
+        Assert.Null(clearance.Expect);
+        Assert.Null(clearance.InitialAlt);
+        Assert.Null(clearance.DepFreq);
+        Assert.DoesNotContain(TdlsFlightPlanEditorViewModel.ClearEntryId, clearance.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadOnly_ListsOfferNoClearEntry()
+    {
+        var seed = new ClearanceDto(
+            Expect: "20 MIN",
+            Sid: "OAKLAND4",
+            Transition: "ALTAM",
+            Climbout: null,
+            Climbvia: null,
+            InitialAlt: "7000",
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: "121.4"
+        );
+
+        TdlsFlightPlanEditorViewModel editor = OakDefaultEditor(isReadOnly: true, seed: seed);
+
+        Assert.DoesNotContain(TdlsFlightPlanEditorViewModel.ClearSid, editor.Sids);
+        Assert.DoesNotContain(TdlsFlightPlanEditorViewModel.ClearTransition, editor.Transitions);
+        TdlsClearanceValueDto[] values =
+        [
+            .. editor.Expects,
+            .. editor.Climbouts,
+            .. editor.Climbvias,
+            .. editor.InitialAlts,
+            .. editor.DepFreqs,
+            .. editor.ContactInfos,
+            .. editor.LocalInfos,
+        ];
+        Assert.DoesNotContain(TdlsFlightPlanEditorViewModel.ClearValue, values);
+    }
+
+    [Fact]
+    public void TransitionList_OffersTheClearEntryOnlyWhenTheSidHasNoTransitions()
+    {
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "N42416",
+            BuildConfigWithTransitionlessSid(),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+        Assert.Equal(["ALTAM"], editor.Transitions.Select(t => t.Id));
+
+        editor.SelectedSid = editor.Sids.Single(s => s.Id == "RV");
+
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearTransition], editor.Transitions);
+        Assert.Null(editor.SelectedTransition);
+
+        editor.SelectedTransition = editor.Transitions[0];
+
+        Assert.Null(editor.SelectedTransition);
+        Assert.Equal("RV", editor.SelectedSid?.Id);
     }
 
     /// <summary>
@@ -760,10 +987,10 @@ public class TdlsFlightPlanEditorViewModelTests
     }
 
     [Fact]
-    public void ChangingTheSid_LeavesFieldsTheNewTransitionDefinesNoDefaultFor()
+    public void ChangingTheSid_BlanksFieldsTheNewTransitionDefinesNoDefaultFor()
     {
-        // Neither transition defines a local info, so the controller's pick is the only value there is — a SID
-        // change must not blank it.
+        // Upstream sets all seven fields from the new transition: one it defines no default for comes out empty,
+        // so a clearance never carries a value composed for the SID the controller just left.
         var editor = new TdlsFlightPlanEditorViewModel(
             "UAL300",
             BuildTwoSidConfig(),
@@ -778,7 +1005,137 @@ public class TdlsFlightPlanEditorViewModelTests
 
         editor.SelectedSid = editor.Sids.Single(s => s.Id == "GUNNR7");
 
-        Assert.Equal("EXP RWY 19L", editor.LocalInfo);
+        Assert.Null(editor.SelectedLocalInfo);
+        Assert.Null(editor.LocalInfo);
+    }
+
+    [Fact]
+    public void ChangingTheTransition_BlanksFieldsTheNewTransitionDefinesNoDefaultFor()
+    {
+        TdlsConfigDto config = BuildTwoSidConfig() with
+        {
+            Sids =
+            [
+                new TdlsSidDto(
+                    "GAPP7",
+                    "GAPP7",
+                    [
+                        SidTransition("GAPP7-BOOKE", "BOOKE", "10 MIN AFT DP", "3000FT", "125.05"),
+                        SidTransition("GAPP7-JCOBY", "JCOBY", "20 MIN AFT DP", "5000FT", "126.650"),
+                    ]
+                ),
+            ],
+        };
+        var editor = new TdlsFlightPlanEditorViewModel("UAL300", config, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null)
+        {
+            LocalInfo = "EXP RWY 19L",
+        };
+
+        editor.SelectedTransition = editor.Transitions.Single(t => t.Id == "GAPP7-JCOBY");
+
+        Assert.Equal("GAPP7", editor.SelectedSid?.Id);
+        Assert.Equal("20 MIN AFT DP", editor.Expect);
+        Assert.Null(editor.SelectedLocalInfo);
+    }
+
+    [Fact]
+    public void ClearingTheSid_LeavesTheSevenFieldsAlone()
+    {
+        // Upstream vTDLS: "- - - -" on the SID empties the SID and the transition only. The all-seven overwrite
+        // belongs to choosing a real SID or transition.
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL300",
+            BuildTwoSidConfig(),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        )
+        {
+            LocalInfo = "EXP RWY 19L",
+        };
+
+        editor.SelectedSid = editor.Sids[0];
+
+        Assert.Null(editor.SelectedSid);
+        Assert.Null(editor.SelectedTransition);
+        AssertSevenFields(editor, expect: "10 MIN AFT DP", initialAlt: "3000FT", depFreq: "125.050", localInfo: "EXP RWY 19L");
+    }
+
+    [Fact]
+    public void ClearingTheTransition_LeavesTheSevenFieldsAlone()
+    {
+        // A SID with no transitions offers "- - - -" on the transition; picking it empties the transition only. Picking
+        // the transitionless SID itself brings no transition, so it sets nothing either.
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "N42416",
+            BuildConfigWithTransitionlessSid(),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+        editor.SelectedSid = editor.Sids.Single(s => s.Id == "RV");
+        AssertSevenFields(editor, expect: "10 MIN", initialAlt: "5000", depFreq: "120.9", localInfo: null);
+
+        editor.SelectedTransition = editor.Transitions[0];
+
+        Assert.Equal("RV", editor.SelectedSid?.Id);
+        Assert.Null(editor.SelectedTransition);
+        AssertSevenFields(editor, expect: "10 MIN", initialAlt: "5000", depFreq: "120.9", localInfo: null);
+    }
+
+    [Fact]
+    public void RePickingTheShownClearEntry_ChangesNothing()
+    {
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "N42416",
+            BuildConfigWithTransitionlessSid(),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+        editor.SelectedSid = editor.Sids[0];
+        var raised = new List<string?>();
+        editor.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        editor.SelectedSid = editor.Sids[0];
+        editor.SelectedTransition = editor.Transitions[0];
+
+        Assert.Null(editor.SelectedSid);
+        Assert.Null(editor.SelectedTransition);
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearTransition], editor.Transitions);
+        AssertSevenFields(editor, expect: "10 MIN", initialAlt: "5000", depFreq: "120.9", localInfo: null);
+        string[] sevenFields =
+        [
+            nameof(editor.SelectedExpect),
+            nameof(editor.SelectedClimbout),
+            nameof(editor.SelectedClimbvia),
+            nameof(editor.SelectedInitialAlt),
+            nameof(editor.SelectedDepFreq),
+            nameof(editor.SelectedContactInfo),
+            nameof(editor.SelectedLocalInfo),
+        ];
+        Assert.DoesNotContain(raised, name => (name is not null) && sevenFields.Contains(name));
+    }
+
+    /// <summary>The seven defaultable fields hold exactly these values; climb out, climb via and contact info are empty.</summary>
+    private static void AssertSevenFields(
+        TdlsFlightPlanEditorViewModel editor,
+        string? expect,
+        string? initialAlt,
+        string? depFreq,
+        string? localInfo
+    )
+    {
+        Assert.Equal(expect, editor.Expect);
+        Assert.Null(editor.SelectedClimbout);
+        Assert.Null(editor.SelectedClimbvia);
+        Assert.Equal(initialAlt, editor.InitialAlt);
+        Assert.Equal(depFreq, editor.DepFreq);
+        Assert.Null(editor.SelectedContactInfo);
+        Assert.Equal(localInfo, editor.LocalInfo);
     }
 
     // ── Climb via vs Maintain: 7110.65 §4-3-2 alternatives, never both ──
@@ -854,24 +1211,22 @@ public class TdlsFlightPlanEditorViewModelTests
         );
 
     [Fact]
-    public void SelectingAClimbVia_ClearsTheComposedMaintainAndLocksTheField()
+    public void SelectingAClimbVia_ClearsTheComposedMaintain()
     {
         // "Climb via SID [except maintain X]" and "maintain X" are alternatives (7110.65 §4-3-2). A clearance holding
         // both tells the pilot two different things about the same altitude.
         TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
-        Assert.True(editor.IsInitialAltEnabled);
 
         editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
 
         Assert.Null(editor.SelectedInitialAlt);
-        Assert.False(editor.IsInitialAltEnabled);
     }
 
     [Fact]
-    public void ClearingTheClimbVia_ReEnablesMaintainWithoutRestoringWhatWasCleared()
+    public void ClearingTheClimbVia_DoesNotRestoreWhatWasCleared()
     {
-        // The field comes back, empty: the controller chose an altitude for a clearance that no longer exists, and
+        // The field stays empty: the controller chose an altitude for a clearance that no longer exists, and
         // silently re-issuing it would put back a value they never picked for this one.
         TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
@@ -879,20 +1234,77 @@ public class TdlsFlightPlanEditorViewModelTests
 
         editor.SelectedClimbvia = null;
 
-        Assert.True(editor.IsInitialAltEnabled);
         Assert.Null(editor.SelectedInitialAlt);
+    }
+
+    [Fact]
+    public void PickingAMaintain_ClearsTheClimbVia()
+    {
+        // Upstream's exclusion runs both ways: a Maintain picked over a climb-via replaces it.
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+
+        editor.InitialAlt = "5000FT";
+
+        Assert.Equal("5000FT", editor.InitialAlt);
+        Assert.Null(editor.SelectedClimbvia);
+    }
+
+    [Fact]
+    public void PickingThePlaceholderMaintain_KeepsTheClimbVia()
+    {
+        // The FE's "- - - -" Maintain row instructs nothing, so it is no altitude to replace a climb-via with.
+        TdlsConfigDto config = BuildOakClimbViaConfig(mandatoryInitialAlt: false) with
+        {
+            InitialAlts = [new TdlsClearanceValueDto("5000", "5000FT"), new TdlsClearanceValueDto("none", "- - - -")],
+        };
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1234", config, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+
+        editor.SelectedInitialAlt = editor.InitialAlts.Single(v => v.Id == "none");
+
+        Assert.Equal("CLIMB VIA SID", editor.Climbvia);
+    }
+
+    [Fact]
+    public void Constructor_EditableSeedCarryingBoth_ClearsNeither()
+    {
+        // Construction copies a clearance already composed; the exclusion is a rule for the controller's picks, not
+        // for the editor reloading what it was given.
+        var seed = new ClearanceDto(
+            Expect: null,
+            Sid: "NUEVO8",
+            Transition: "NUEVO8-OAK",
+            Climbout: null,
+            Climbvia: "CLIMB VIA SID",
+            InitialAlt: "5000FT",
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: null
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "SWA1234",
+            BuildOakClimbViaConfig(mandatoryInitialAlt: false),
+            seed,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
+
+        Assert.Equal("CLIMB VIA SID", editor.Climbvia);
+        Assert.Equal("5000FT", editor.InitialAlt);
     }
 
     [Fact]
     public void PlaceholderClimbVia_IsNoClimbViaAtAll()
     {
-        // The FE's "- - - -" entry is selectable but instructs nothing, so it neither locks Maintain nor clears it.
+        // The FE's "- - - -" entry is selectable but instructs nothing, so it does not clear Maintain.
         TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
 
-        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "- - - -");
+        editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Id == "none");
 
-        Assert.True(editor.IsInitialAltEnabled);
         Assert.Equal("5000FT", editor.InitialAlt);
     }
 
@@ -906,7 +1318,6 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("NUEVO8", editor.SelectedSid?.Id);
         Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
         Assert.Null(editor.SelectedInitialAlt);
-        Assert.False(editor.IsInitialAltEnabled);
     }
 
     [Fact]
@@ -921,7 +1332,6 @@ public class TdlsFlightPlanEditorViewModelTests
 
         Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
         Assert.Null(editor.SelectedInitialAlt);
-        Assert.False(editor.IsInitialAltEnabled);
     }
 
     [Fact]
@@ -954,7 +1364,7 @@ public class TdlsFlightPlanEditorViewModelTests
         );
         Assert.True(editor.IsSendEnabled);
 
-        editor.SelectedDepFreq = editor.DepFreqs.Single(v => v.Value == "- - - -");
+        editor.SelectedDepFreq = editor.DepFreqs.Single(v => v.Id == "none");
 
         Assert.False(editor.IsSendEnabled);
         Assert.Contains("Departure frequency", editor.MissingMandatoryFieldNames, StringComparison.Ordinal);
@@ -969,14 +1379,12 @@ public class TdlsFlightPlanEditorViewModelTests
         TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("SUNOL V6 LIN"));
         Assert.Equal("SKYLINE7", editor.SelectedSid?.Id);
         editor.InitialAlt = "5000FT";
-        Assert.True(editor.IsInitialAltEnabled);
 
         editor.ApplyAmendedFlightPlan(OakFlightPlan("NUEVO8 OAK V6 LIN"));
 
         Assert.Equal("NUEVO8", editor.SelectedSid?.Id);
         Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
         Assert.Null(editor.SelectedInitialAlt);
-        Assert.False(editor.IsInitialAltEnabled);
     }
 
     [Fact]
@@ -1008,7 +1416,7 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Equal("CLIMB VIA SID", editor.Climbvia);
         Assert.Equal("5000FT", editor.InitialAlt);
         // Every dropdown is disabled in review, Maintain among them.
-        Assert.False(editor.IsInitialAltEnabled);
+        Assert.False(editor.IsEditable);
     }
 
     [Fact]

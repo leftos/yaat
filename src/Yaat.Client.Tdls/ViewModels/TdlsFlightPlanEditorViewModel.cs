@@ -17,10 +17,15 @@ namespace Yaat.Client.Tdls.ViewModels;
 /// applies SID + transition defaults on selection, and gates the Send button on
 /// mandatory-field completion.
 ///
+/// Every dropdown of an editable editor offers a clear entry ("- - - -") first,
+/// which empties the field when picked; on the SID it empties the transition too,
+/// and neither touches the other fields. The transition list offers it only when
+/// there is nothing else to pick: no SID, or a SID with no transitions.
+///
 /// Climb via and Maintain are alternatives, not companions (7110.65 §4-3-2): a
-/// climb-via clearance is itself the altitude instruction, so taking one into
-/// force clears the Maintain field, disables it (<see cref="IsInitialAltEnabled"/>)
-/// and satisfies it where the facility makes it mandatory.
+/// climb-via clearance is itself the altitude instruction, so picking one clears
+/// the Maintain field and picking a Maintain clears the climb-via. Neither field is
+/// disabled, and a climb-via satisfies a Maintain the facility makes mandatory.
 ///
 /// Owned by <see cref="VTdlsViewModel"/>; created fresh per selected item so the
 /// editor state doesn't bleed across selections.
@@ -36,9 +41,45 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 {
     private static readonly ILogger Log = SimLog.CreateLogger("TdlsFlightPlanEditorViewModel");
 
+    /// <summary>
+    /// Reserved id of the editor's own "clear this field" entries. No Facility Engineer id takes this form, so the
+    /// editor's entries never collide with an FE row — including the FE's own "- - - -" placeholder rows.
+    /// </summary>
+    public const string ClearEntryId = "__yaat_clear__";
+
+    private const string ClearEntryText = "- - - -";
+
+    /// <summary>
+    /// The clear entry offered first in every value dropdown of an editable editor. Picking it empties the field: the
+    /// selection hooks turn it into null at once, so it never reaches the clearance, the matcher or the mandatory check.
+    /// </summary>
+    public static TdlsClearanceValueDto ClearValue { get; } = new(ClearEntryId, ClearEntryText);
+
+    /// <summary>The clear entry offered first in the SID dropdown; picking it empties the SID and the transition.</summary>
+    public static TdlsSidDto ClearSid { get; } = new(ClearEntryId, ClearEntryText, []);
+
+    /// <summary>The clear entry the transition dropdown offers when the selected SID (or no SID) has no transitions.</summary>
+    public static TdlsSidTransitionDto ClearTransition { get; } =
+        new(
+            ClearEntryId,
+            ClearEntryText,
+            FirstRoutePoint: null,
+            DefaultExpect: null,
+            DefaultClimbout: null,
+            DefaultClimbvia: null,
+            DefaultInitialAlt: null,
+            DefaultDepFreq: null,
+            DefaultContactInfo: null,
+            DefaultLocalInfo: null
+        );
+
     private readonly TdlsConfigDto _config;
     private readonly string? _opConfigId;
     private readonly bool _suppressDefaults;
+
+    /// <summary>False until the constructor has copied the seed and back-filled the defaults; the field exclusions
+    /// that answer a controller's pick stay off until then.</summary>
+    private readonly bool _constructed;
 
     public string Callsign { get; }
 
@@ -65,13 +106,6 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// rather than the FE's "- - - -" placeholder, which is selectable but says nothing.
     /// </summary>
     private bool HasClimbVia => (SelectedClimbvia is not null) && !TdlsPlaceholder.IsPlaceholder(SelectedClimbvia.Value);
-
-    /// <summary>
-    /// Whether the Maintain (interim altitude) dropdown takes a selection — bound to its IsEnabled. A climb-via
-    /// clearance IS the altitude instruction, so "climb via SID [except maintain X]" and "maintain X" are alternatives
-    /// (7110.65 §4-3-2): the field greys out while a climb-via is in force and comes back, empty, when it is cleared.
-    /// </summary>
-    public bool IsInitialAltEnabled => IsEditable && !HasClimbVia;
 
     /// <summary>SIDs offered by the facility. Display via <c>Name</c>; the canonical command uses <c>Id</c>.</summary>
     public ObservableCollection<TdlsSidDto> Sids { get; } = [];
@@ -208,14 +242,15 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
         // Resolved, never config.Sids: a facility that enabled operational configurations ships an
         // empty facility-level SID array and keeps every SID inside the active config.
-        CopyInto(Sids, sentSid is null ? config.ResolveSids(opConfigId) : [sentSid]);
-        CopyInto(Climbouts, config.Climbouts);
-        CopyInto(Climbvias, config.Climbvias);
-        CopyInto(InitialAlts, config.InitialAlts);
-        CopyInto(DepFreqs, config.DepFreqs);
-        CopyInto(Expects, config.Expects);
-        CopyInto(ContactInfos, config.ContactInfos);
-        CopyInto(LocalInfos, config.LocalInfos);
+        // An editable editor offers its clear entries first in every list; a sent PDC under review offers none.
+        CopyInto(Sids, OfferClearEntry(ClearSid, sentSid is null ? config.ResolveSids(opConfigId) : [sentSid]));
+        CopyInto(Climbouts, OfferClearEntry(ClearValue, config.Climbouts));
+        CopyInto(Climbvias, OfferClearEntry(ClearValue, config.Climbvias));
+        CopyInto(InitialAlts, OfferClearEntry(ClearValue, config.InitialAlts));
+        CopyInto(DepFreqs, OfferClearEntry(ClearValue, config.DepFreqs));
+        CopyInto(Expects, OfferClearEntry(ClearValue, config.Expects));
+        CopyInto(ContactInfos, OfferClearEntry(ClearValue, config.ContactInfos));
+        CopyInto(LocalInfos, OfferClearEntry(ClearValue, config.LocalInfos));
 
         // Phase 1 — populate the dropdown selections WITHOUT firing the
         // default-propagation hooks; otherwise selected-changed callbacks
@@ -242,6 +277,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             BackFillTransitionDefaults(_selectedTransition);
         }
 
+        _constructed = true;
         RecomputeCanSend();
     }
 
@@ -249,11 +285,12 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// Pushes an amended flight plan into an open editor. The header always follows the amendment, and so do the SID
     /// and transition whenever the route itself changed — re-derived the way construction derives them, so a composed
     /// clearance can never name the SID of a route the aircraft no longer has. Assigning the selections runs the
-    /// ordinary change hooks, which back-fill the new transition's defaults into the fields still blank.
+    /// ordinary change hooks, so a re-seeded SID or transition sets all seven fields from the new transition, as a
+    /// controller's own pick does: a field it defines no default for comes out empty.
     ///
-    /// <para>Fields the route does not derive keep whatever the controller composed. An amended route naming no
-    /// configured SID leaves every selection alone — there is nothing to re-derive from — and so does a read-only
-    /// editor, where the sent PDC under review must keep showing exactly what was issued.</para>
+    /// <para>An amended route from which no configured SID can be derived leaves every selection alone — there is
+    /// nothing to re-derive from — and so does a read-only editor, where the sent PDC under review must keep showing
+    /// exactly what was issued.</para>
     /// </summary>
     public void ApplyAmendedFlightPlan(TdlsFlightPlanInfoDto? plan)
     {
@@ -287,12 +324,21 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     partial void OnSelectedSidChanged(TdlsSidDto? value)
     {
+        // The clear entry stands for "no SID": swap it for null at once. The null assignment re-enters this hook,
+        // which empties the transition along with it.
+        if (ReferenceEquals(value, ClearSid))
+        {
+            SelectedSid = null;
+            return;
+        }
+
         RebuildTransitions(value);
 
         // Auto-select the first transition (or the no-op transition) when the
         // SID changes. Without this the picker shows a blank dropdown after
-        // SID change and the user has to click twice.
-        SelectedTransition = Transitions.FirstOrDefault();
+        // SID change and the user has to click twice. A SID with no transitions
+        // leaves the transition empty, never on the clear entry.
+        SelectedTransition = Transitions.FirstOrDefault(t => !ReferenceEquals(t, ClearTransition));
 
         if (!_suppressDefaults)
         {
@@ -304,6 +350,12 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     partial void OnSelectedTransitionChanged(TdlsSidTransitionDto? value)
     {
+        if (ReferenceEquals(value, ClearTransition))
+        {
+            SelectedTransition = null;
+            return;
+        }
+
         if (!_suppressDefaults)
         {
             ApplyTransitionDefaults(value);
@@ -312,35 +364,103 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         RecomputeCanSend();
     }
 
-    partial void OnSelectedExpectChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+    partial void OnSelectedExpectChanged(TdlsClearanceValueDto? value)
+    {
+        if (!ClearedInstead(value, () => SelectedExpect = null))
+        {
+            RecomputeCanSend();
+        }
+    }
 
-    partial void OnSelectedClimboutChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+    partial void OnSelectedClimboutChanged(TdlsClearanceValueDto? value)
+    {
+        if (!ClearedInstead(value, () => SelectedClimbout = null))
+        {
+            RecomputeCanSend();
+        }
+    }
 
     /// <summary>
-    /// A climb-via coming into force drops whatever Maintain held and locks the field; clearing it back to nothing
-    /// unlocks the field, still empty — the altitude the controller chose belonged to a clearance that no longer
-    /// exists. A read-only editor clears nothing, the same carve-out the default propagation has: a sent PDC under
-    /// review shows exactly what was issued. The enabled state is re-raised either way, so the re-enable path reaches
-    /// the view too.
+    /// A climb-via coming into force drops whatever Maintain held; clearing it back to nothing leaves Maintain as it is,
+    /// so an altitude dropped here is never restored — it belonged to a clearance that no longer exists. A read-only editor clears
+    /// nothing, the same carve-out the default propagation has: a sent PDC under review shows exactly what was issued.
     /// </summary>
     partial void OnSelectedClimbviaChanged(TdlsClearanceValueDto? value)
     {
+        if (ClearedInstead(value, () => SelectedClimbvia = null))
+        {
+            return;
+        }
+
         if (HasClimbVia && !IsReadOnly)
         {
             SelectedInitialAlt = null;
         }
 
-        OnPropertyChanged(nameof(IsInitialAltEnabled));
         RecomputeCanSend();
     }
 
-    partial void OnSelectedInitialAltChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+    /// <summary>
+    /// The other half of the exclusion: a real Maintain picked over a climb-via drops the climb-via. Only an altitude
+    /// clears it — an emptied field or the FE's "- - - -" row instructs nothing — so the two hooks never feed each
+    /// other. Construction and a read-only editor clear nothing: they show a clearance as it was composed or issued.
+    /// </summary>
+    partial void OnSelectedInitialAltChanged(TdlsClearanceValueDto? value)
+    {
+        if (ClearedInstead(value, () => SelectedInitialAlt = null))
+        {
+            return;
+        }
 
-    partial void OnSelectedContactInfoChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+        if (_constructed && !IsReadOnly && (value is not null) && !TdlsPlaceholder.IsPlaceholder(value.Value))
+        {
+            SelectedClimbvia = null;
+        }
 
-    partial void OnSelectedLocalInfoChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+        RecomputeCanSend();
+    }
 
-    partial void OnSelectedDepFreqChanged(TdlsClearanceValueDto? value) => RecomputeCanSend();
+    partial void OnSelectedContactInfoChanged(TdlsClearanceValueDto? value)
+    {
+        if (!ClearedInstead(value, () => SelectedContactInfo = null))
+        {
+            RecomputeCanSend();
+        }
+    }
+
+    partial void OnSelectedLocalInfoChanged(TdlsClearanceValueDto? value)
+    {
+        if (!ClearedInstead(value, () => SelectedLocalInfo = null))
+        {
+            RecomputeCanSend();
+        }
+    }
+
+    partial void OnSelectedDepFreqChanged(TdlsClearanceValueDto? value)
+    {
+        if (!ClearedInstead(value, () => SelectedDepFreq = null))
+        {
+            RecomputeCanSend();
+        }
+    }
+
+    /// <summary>
+    /// Swaps the clear entry for null the moment a value dropdown takes it, through <paramref name="clear"/>, and says
+    /// so. The null assignment re-enters the field's hook, which does that hook's ordinary work for an empty field, so
+    /// the caller stops here.
+    /// </summary>
+    private static bool ClearedInstead(TdlsClearanceValueDto? value, Action clear)
+    {
+        if (!ReferenceEquals(value, ClearValue))
+        {
+            return false;
+        }
+        clear();
+        return true;
+    }
+
+    /// <summary>The list as an editable editor offers it, clear entry first; a read-only editor offers the list alone.</summary>
+    private IEnumerable<T> OfferClearEntry<T>(T clearEntry, IEnumerable<T> items) => IsReadOnly ? items : items.Prepend(clearEntry);
 
     /// <summary>Builds the current clearance state as a <see cref="ClearanceDto"/> for the canonical command builder.</summary>
     public ClearanceDto ToClearanceDto() =>
@@ -366,7 +486,9 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// Best-effort match of the filed route's leading SID token (e.g. "OAK6") against the
     /// facility config's SID names. Returns the matched SID id + optionally a transition id
     /// resolved by matching the route's second token against transition <c>FirstRoutePoint</c>
-    /// values and then against transition names. Returns (null, null) when no match is found —
+    /// values and then against transition names, and failing that against the first route
+    /// points of the later tokens. A route naming no SID selects the SID and transition whose
+    /// first route point it passes through. Returns (null, null) when no match is found —
     /// the caller falls through to the facility's <c>DefaultSidId</c>.
     /// </summary>
     internal static (string? SidId, string? TransitionId) MatchSidFromFiledRoute(TdlsConfigDto config, string? route) =>
@@ -384,26 +506,56 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             return (null, null);
         }
 
-        // Some flight plans encode SID + transition as "SID.TRANS" (e.g. "OAK6.OAK").
-        // Walk the first token's '.' components alongside the route tokens so both
-        // "OAK6 OAK V107 LAX" and "OAK6.OAK V107 LAX" route in the same path.
-        string[] firstParts = tokens[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
-        string sidToken = firstParts[0];
-        string? transitionHint =
-            firstParts.Length > 1 ? firstParts[1]
-            : tokens.Length > 1 ? tokens[1]
-            : null;
+        // Some flight plans encode SID + transition as "SID.TRANS" (e.g. "OAK6.OAK"). The tokenizer splits on '.', so
+        // "OAK6 OAK V107 LAX" and "OAK6.OAK V107 LAX" both yield the SID first and the transition hint second.
+        string sidToken = tokens[0];
+        string? transitionHint = tokens.Length > 1 ? tokens[1] : null;
 
-        TdlsSidDto? sid = config.ResolveSids(opConfigId).FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
+        IReadOnlyList<TdlsSidDto> sids = config.ResolveSids(opConfigId);
+        TdlsSidDto? sid = sids.FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
         if (sid is null)
         {
-            return (null, null);
+            return FindSidByFirstRoutePoint(sids, tokens);
         }
 
-        TdlsSidTransitionDto? transition = transitionHint is null ? null : MatchTransitionToHint(sid, transitionHint);
-
-        return (sid.Id, transition?.Id);
+        return (sid.Id, MatchTransitionOfNamedSid(sid, transitionHint, tokens)?.Id);
     }
+
+    /// <summary>
+    /// The transition of a SID the route names: the token after the SID names it when it can; otherwise any later
+    /// route fix that starts one of this SID's transitions does.
+    /// </summary>
+    private static TdlsSidTransitionDto? MatchTransitionOfNamedSid(TdlsSidDto sid, string? transitionHint, string[] tokens) =>
+        (transitionHint is null ? null : MatchTransitionToHint(sid, transitionHint)) ?? FindTransitionByFirstRoutePoint(sid, tokens.Skip(1));
+
+    /// <summary>
+    /// The route names no SID: upstream then selects the SID and transition whose first route point the route passes
+    /// through. Every token is tried in route order — past the first airway too — and the first that starts a
+    /// transition wins; a fix starting transitions of several SIDs goes to the first of them in config order.
+    /// </summary>
+    private static (string? SidId, string? TransitionId) FindSidByFirstRoutePoint(IReadOnlyList<TdlsSidDto> sids, string[] tokens)
+    {
+        foreach (string token in tokens)
+        {
+            foreach (TdlsSidDto sid in sids)
+            {
+                if (FindTransitionByFirstRoutePoint(sid, [token]) is { } transition)
+                {
+                    return (sid.Id, transition.Id);
+                }
+            }
+        }
+        return (null, null);
+    }
+
+    /// <summary>
+    /// The first of <paramref name="sid"/>'s transitions whose first route point is one of <paramref name="tokens"/>,
+    /// trying the tokens in route order. A placeholder first route point names no fix and never matches.
+    /// </summary>
+    private static TdlsSidTransitionDto? FindTransitionByFirstRoutePoint(TdlsSidDto sid, IEnumerable<string> tokens) =>
+        tokens
+            .Select(token => sid.Transitions.FirstOrDefault(t => CandidateMatchesHint(t.FirstRoutePoint, token)))
+            .FirstOrDefault(transition => transition is not null);
 
     /// <summary>
     /// Resolves the filed route's transition token against one SID's transitions. A facility config
@@ -518,7 +670,8 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     ///
     /// Order: exact ordinal (wins if both forms are listed), then trimmed/case-insensitive,
     /// then numeric equivalence. Non-numeric values like the "- - - -" placeholder or "3000FT"
-    /// never reach the numeric pass, so nothing is matched by coincidence.
+    /// never reach the numeric pass, so nothing is matched by coincidence. The editor's own clear
+    /// entry is never a candidate: a "- - - -" value resolves to the FE's row, or to nothing.
     /// </summary>
     private static TdlsClearanceValueDto? ResolveItem(IEnumerable<TdlsClearanceValueDto> items, string? wantedValue)
     {
@@ -527,7 +680,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             return null;
         }
 
-        IReadOnlyList<TdlsClearanceValueDto> candidates = items as IReadOnlyList<TdlsClearanceValueDto> ?? [.. items];
+        TdlsClearanceValueDto[] candidates = [.. items.Where(i => !ReferenceEquals(i, ClearValue))];
 
         TdlsClearanceValueDto? exact = candidates.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
         if (exact is not null)
@@ -563,26 +716,33 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         return numeric;
     }
 
+    /// <summary>
+    /// Refills the transition list for <paramref name="sid"/>. As upstream does, the clear entry is offered only when
+    /// there is nothing else to pick — no SID, or a SID with no transitions — and never in a read-only editor.
+    /// </summary>
     private void RebuildTransitions(TdlsSidDto? sid)
     {
         Transitions.Clear();
-        if (sid is null)
+        TdlsSidTransitionDto[] transitions = sid?.Transitions ?? [];
+        if ((transitions.Length == 0) && !IsReadOnly)
         {
+            Transitions.Add(ClearTransition);
             return;
         }
-        foreach (TdlsSidTransitionDto t in sid.Transitions)
+        foreach (TdlsSidTransitionDto t in transitions)
         {
             Transitions.Add(t);
         }
     }
 
     /// <summary>
-    /// Applies a newly selected transition's defaults, overwriting what the fields hold. Upstream's contract is that
-    /// "selecting a SID and transition pair also populates the remaining fields with default values defined by the
-    /// Facility Engineer", so a controller who switches SID gets that SID's clearance rather than a mix of two.
-    /// A field the transition defines no default for keeps its value — the FE said nothing about it — a field another
-    /// field has ruled out is skipped, and a read-only editor is never touched, because a sent PDC under review has to
-    /// keep showing what was issued.
+    /// Sets all seven fields from a newly selected transition, as upstream does: "selecting a SID and transition pair
+    /// also populates the remaining fields with default values defined by the Facility Engineer", so a controller who
+    /// switches SID gets that SID's clearance rather than a mix of two. A field the transition defines no default for
+    /// comes out empty. Only a real transition sets anything: no transition — the SID or the transition was cleared, the
+    /// SID has none, or the view emptied the selection while rebuilding the list — leaves all seven as they are, as
+    /// upstream's "- - - -" does. A field another field has ruled out is left alone, and a read-only editor is never
+    /// touched, because a sent PDC under review has to keep showing what was issued.
     /// </summary>
     private void ApplyTransitionDefaults(TdlsSidTransitionDto? transition)
     {
@@ -592,8 +752,9 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
         foreach (TransitionDefaultField field in TransitionDefaultFields(transition))
         {
-            if (!string.IsNullOrWhiteSpace(field.Default) && !field.Suppressed())
+            if (!field.Suppressed())
             {
+                // A blank default resolves to no entry, which empties the field.
                 field.Assign(field.Default);
             }
         }
@@ -668,7 +829,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// The mandatory fields still waiting on a value. A field holding the FE's "- - - -" entry counts as waiting: the
     /// placeholder is selectable but instructs nothing, so unlocking Send on it would issue a PDC reading "MAINT
     /// - - - -". Maintain is not checked at all while a climb-via is in force — the climb-via IS the altitude
-    /// instruction (7110.65 §4-3-2), and the field it would name is disabled.
+    /// instruction (7110.65 §4-3-2), and picking a Maintain would drop it.
     /// </summary>
     private List<string> EnumerateMissingMandatoryFields()
     {

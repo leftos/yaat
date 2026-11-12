@@ -1670,11 +1670,13 @@ Click a callsign in the DCL list to open the flight-plan editor at the bottom of
 
 A `$FREQ` in a configured Contact Info or Local Info value, or in a transition's default, is filled with the student position's primary frequency (a value of `CTC $FREQ FOR PUSH` reads `CTC 121.100 FOR PUSH`); it stays as written when the room has no student position or the position has no frequency.
 
-A dropdown reading **- - - -** means nothing is selected, or the facility offers no values for that field. Edit any field as needed. The footer status reads **CLEARANCE TYPE: PDC** when every mandatory field is filled and **MANDATORY FIELD NOT SET — <fields>** otherwise; the **Send** button is disabled until the editor reports valid.
+A dropdown reading **- - - -** means nothing is selected, or the facility offers no values for that field. Every editable dropdown lists **- - - -** first, and picking it empties that field; the Transition list offers it only when the SID has no transitions. A sent PDC opened for review lists none. Picking **- - - -** on the SID empties the SID and Transition and leaves the other fields as they are; picking it on the Transition empties the Transition only. Edit any field as needed.
+
+Choosing a real SID or transition, by hand or through a route amendment, sets Expect, Climb out, Climb via, Maintain, Contact info, Dep freq and Local info from that transition, and empties any field the transition has no default for. A filed or amended route that names no SID but passes through a transition's first route point selects that SID and transition. A route that names a SID whose next token matches no transition takes the transition from a later route fix. The footer status reads **CLEARANCE TYPE: PDC** when every mandatory field is filled and **MANDATORY FIELD NOT SET — <fields>** otherwise; the **Send** button is disabled until the editor reports valid.
 
 **Climb via and Maintain are alternatives, not companions.** A departure clearance carries one altitude instruction: *climb via SID* (optionally *except maintain*) on a SID with published crossing restrictions, or *maintain* an altitude otherwise.
 
-Picking a **Climb via** value therefore greys out the **Maintain** box and empties it, including when a flight-plan amendment moves the aircraft onto a climb-via SID while you are composing. Clear the Climb via box to get Maintain back. Where a facility marks Maintain mandatory, a Climb via satisfies it.
+The **Maintain** box is never greyed out. Picking a real **Maintain** value clears **Climb via**, and picking a real **Climb via** value clears **Maintain**, including when a flight-plan amendment moves the aircraft onto a climb-via SID while you are composing. Where a facility marks Maintain mandatory, a Climb via satisfies it.
 
 - **Ops Config** — some facilities (SFO, OAK, BOS) split their SIDs across operational configurations, so an east/west runway split issues different departure frequencies, maintain altitudes, or local info.
 

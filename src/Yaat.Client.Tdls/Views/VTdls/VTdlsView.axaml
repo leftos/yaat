@@ -563,7 +563,7 @@
               ItemsSource="{Binding InitialAlts}"
               SelectedItem="{Binding SelectedInitialAlt}"
               DisplayMemberBinding="{Binding Value}"
-              IsEnabled="{Binding IsInitialAltEnabled}"
+              IsEnabled="{Binding IsEditable}"
               HorizontalAlignment="Stretch"
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"

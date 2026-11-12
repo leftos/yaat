@@ -92,7 +92,7 @@ public class TdlsSendButtonEnablementTests
 
         Assert.False(button.IsEffectivelyEnabled);
 
-        editor.SelectedDepFreq = editor.DepFreqs[0];
+        editor.SelectedDepFreq = editor.DepFreqs[1];
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(editor.IsSendEnabled);

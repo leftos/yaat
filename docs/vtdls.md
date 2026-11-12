@@ -406,17 +406,12 @@ naming the field the controller just filled.
 two: "climb via SID" (optionally "except maintain (altitude)") when the
 SID publishes crossing restrictions, or "maintain (altitude)" when no SID
 is assigned, the SID publishes none, or it is a radar-vectors SID. So a
-climb-via value in force **disables and clears** the Maintain dropdown
-(`TdlsFlightPlanEditorViewModel.IsInitialAltEnabled`, which the view binds
-in place of `IsEditable` on that one ComboBox), and a mandatory
-`InitialAlt` counts as satisfied by a climb-via on both gates — the
-editor's missing-field list and the Sim's `ValidateMandatoryFields`.
-Without the second half, a facility setting `mandatoryInitialAlt` over a
-climb-via SID would be a dead end: the field disabled and reported
-missing at once. The rule is one-directional. Clearing the climb-via
-re-enables Maintain (it does not restore the cleared value), and picking a
-Maintain never disables climb-via, so the controller always has a way
-back.
+real climb-via pick **clears** Maintain and a real Maintain pick clears
+climb-via; neither dropdown is ever disabled, so the controller always has
+a way back. A mandatory `InitialAlt` counts as satisfied by a climb-via on
+both gates — the editor's missing-field list and the Sim's
+`ValidateMandatoryFields` — so a facility setting `mandatoryInitialAlt`
+over a climb-via SID is not a dead end.
 
 **The suppression has to read live state.** Some FE transitions define
 both defaults: ZOA's OAK `NUEVO8`/`SLNT3` pair `CLB VIA SID EXC MAINT
@@ -433,7 +428,7 @@ fields included.
 **The `- - - -` placeholder is no value.** It is a real selectable list
 entry at SMF, not just a display string for an empty dropdown.
 `TdlsPlaceholder` (Yaat.Sim) is the one predicate both sides use: a
-placeholder climb-via does not disable Maintain, a placeholder selection
+placeholder climb-via does not clear Maintain, a placeholder selection
 never satisfies a mandatory field, and `ClearancePayloadFromFields` nulls
 it on the way in, so a PDC no longer reaches the pilot reading
 `MAINT - - - -`.
@@ -450,8 +445,10 @@ Read the SID list through `TdlsConfig.ResolveSids(opConfigId)` (Sim) or
 facilities controllers use most. `ResolveDefaultSidId` / `ResolveDefaultTransitionId` follow the
 same rule; whether a config sets them is per-facility (SFO both, BOS SID only, OAK neither).
 
-`TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute` pre-selects the SID and transition from the filed route's first
-two tokens. The transition matches on its `FirstRoutePoint` first and falls back to its `Name`: both are
+`TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute` pre-selects the SID and transition from the filed route. A route
+that names a SID takes the transition from the token after it, or, when that matches none, from a later route fix that
+starts one of the SID's transitions; a route that names no SID selects the SID and transition whose first route point the
+route passes through (the first in route order, then config order). The transition matches on its `FirstRoutePoint` first and falls back to its `Name`: both are
 FE-authored pass-throughs of `tdlsConfiguration.opConfigs[].sids[].transitions[]`, and ZOA's SFO config sets
 `firstRoutePoint` on TRUKN2's ORRCA transition but not SNTNA2's, though both are named `ORRCA`. The no-transition
 placeholder (`- - - -`) never matches. `TdlsFlightPlanEditorViewModelTests` pins the fallback. An amendment pushed into an
@@ -461,10 +458,13 @@ the route changed and re-seeds SID + transition; a push that leaves the route al
 **A SID or transition change applies the transition's defaults** (upstream: "Selecting a SID and transition pair also
 populates the remaining fields with default values defined by the Facility Engineer", `docs/vtdls/vtdls.md`): every field
 the new transition defines a default for is overwritten (`ApplyTransitionDefaults`, run from the change hooks — a manual pick
-or the amended-route re-seed), and a field it defines none for keeps its value. Construction is the one back-fill site
+or the amended-route re-seed), and a field it defines none for is emptied. Only a real transition sets anything: clearing the
+SID or the transition with `- - - -` empties just those selections and leaves the seven fields as they are. Construction is the one back-fill site
 (`BackFillTransitionDefaults`): the seed there is a saved Pending clearance, which outranks the defaults, so only blanks are
 filled. Read-only editors apply nothing either way. Were the change hooks to back-fill only blanks, a SID
 change would keep the previous SID's departure frequency and altitude.
+
+**Every editable dropdown offers a leading `- - - -` clear entry** (`TdlsFlightPlanEditorViewModel.ClearValue`, `ClearSid`, `ClearTransition`, id `ClearEntryId`, distinct from the FE's own placeholder rows). Picking it is turned into null at once, so it never reaches the clearance or the mandatory check. The Transition list offers it only when the SID has no transitions, and a read-only (sent) editor offers none. Re-picking the shown entry changes nothing.
 
 The active config is **shared room state**, not a per-controller preference: it decides what a
 PDC contains, so `TdlsState.ActiveOpConfigIds` holds it engine-side, `TdlsStateDto.ActiveOpConfigs`

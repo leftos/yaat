@@ -5,6 +5,9 @@
 ### Changed
 
 - Wide-bodies such as the A380, 777 and 747 now turn on the ground on a radius set by their wheelbase, so they round taxi corners wider and slower.
+- Every vTDLS dropdown can be cleared back to `- - - -`, and Climb via and Maintain clear each other both ways, as in vTDLS.
+- Choosing a SID or transition in vTDLS fills all seven fields from it, emptying any it has no default for.
+- vTDLS picks the SID and transition from any filed route fix that starts a transition, not only a SID named first.
 
 ### Fixed
 

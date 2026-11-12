@@ -159,7 +159,7 @@ public class VTdlsViewInteractionTests
         Assert.True(view.FooterStatusIsWarning);
 
         // Filling it must flip the footer on the spot, not on the next tick.
-        vm.Editor!.SelectedDepFreq = vm.Editor.DepFreqs[0];
+        vm.Editor!.SelectedDepFreq = vm.Editor.DepFreqs[1];
         Dispatcher.UIThread.RunJobs();
         Assert.Equal("CLEARANCE TYPE: PDC", view.FooterStatusText);
         Assert.False(view.FooterStatusIsWarning);
@@ -181,19 +181,18 @@ public class VTdlsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
         Assert.Equal("MANDATORY FIELD NOT SET — Maintain, Departure frequency", view.FooterStatusText);
 
-        vm.Editor!.SelectedInitialAlt = vm.Editor.InitialAlts[0];
+        vm.Editor!.SelectedInitialAlt = vm.Editor.InitialAlts[1];
         Dispatcher.UIThread.RunJobs();
         Assert.Equal("MANDATORY FIELD NOT SET — Departure frequency", view.FooterStatusText);
     }
 
     /// <summary>
-    /// Climb via and Maintain are alternatives (7110.65 §4-3-2), and the editor's rule has to reach the rendered
-    /// control: the Maintain dropdown is the one field in the row bound to <c>IsInitialAltEnabled</c> rather than
-    /// <c>IsEditable</c>, so picking a climb-via greys it out instead of leaving a selectable field the clearance
-    /// can no longer carry.
+    /// Climb via and Maintain are alternatives (7110.65 §4-3-2), and upstream keeps both fields selectable: picking a
+    /// climb-via empties the rendered Maintain dropdown and leaves it enabled, so the controller can pick a Maintain
+    /// back over the climb-via.
     /// </summary>
     [AvaloniaFact]
-    public void ClimbViaSelection_GreysOutTheMaintainDropdown()
+    public void ClimbViaSelection_LeavesTheMaintainDropdownEnabled()
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithClimbVias());
@@ -207,14 +206,17 @@ public class VTdlsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
 
         ComboBox maintain = DropdownRowCombos(view)["Maintain"];
-        Assert.True(maintain.IsEffectivelyEnabled);
+        vm.Editor!.SelectedInitialAlt = vm.Editor.InitialAlts[1];
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(maintain.SelectedItem);
 
-        vm.Editor!.SelectedClimbvia = vm.Editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+        vm.Editor.SelectedClimbvia = vm.Editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
         Dispatcher.UIThread.RunJobs();
 
-        Assert.False(maintain.IsEffectivelyEnabled);
-        // Every other dropdown stays on IsEditable.
-        Assert.True(DropdownRowCombos(view)["Climb out"].IsEffectivelyEnabled);
+        Assert.True(maintain.IsEnabled);
+        Assert.True(maintain.IsEffectivelyEnabled);
+        Assert.Null(maintain.SelectedItem);
+        Assert.Null(vm.Editor.SelectedInitialAlt);
     }
 
     /// <summary>
@@ -234,7 +236,7 @@ public class VTdlsViewInteractionTests
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
         TdlsFlightPlanEditorViewModel editor = vm.Editor!;
-        TdlsClearanceValueDto composed = editor.DepFreqs[0];
+        TdlsClearanceValueDto composed = editor.DepFreqs[1];
         editor.SelectedDepFreq = composed;
         Dispatcher.UIThread.RunJobs();
 
@@ -359,6 +361,56 @@ public class VTdlsViewInteractionTests
     private static void AssertAtLeastWide(IReadOnlyDictionary<string, ComboBox> row, string field, double minWidth) =>
         Assert.True(row[field].Bounds.Width >= minWidth, $"{field} rendered {row[field].Bounds.Width}px wide, below its {minWidth}px floor");
 
+    /// <summary>
+    /// Picking "- - - -" through the rendered dropdowns, the way a controller does, empties the field in the view-model
+    /// and in the control. On the SID it empties the SID and the transition and leaves the seven fields alone, and the
+    /// next item's editor still opens on its defaults.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearEntry_PickedThroughTheRenderedDropdowns_EmptiesTheField()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithTwoSids());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL300", facilityId: "IAD"), Item("id2", "UAL301", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single(i => i.AircraftId == "UAL300");
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
+        Assert.Equal("125.050", editor.DepFreq);
+
+        ComboBox depFreq = EditorCombo(view, "Departure frequency");
+        depFreq.SelectedIndex = 0;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(editor.SelectedDepFreq);
+        Assert.Null(depFreq.SelectedItem);
+
+        ComboBox sid = DropdownRowCombos(view)["SID"];
+        sid.SelectedIndex = 0;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(editor.SelectedSid);
+        Assert.Null(editor.SelectedTransition);
+        Assert.Null(sid.SelectedItem);
+        Assert.Equal("10 MIN AFT DP", editor.Expect);
+
+        vm.SelectedItem = vm.DclItems.Single(i => i.AircraftId == "UAL301");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotSame(editor, vm.Editor);
+        Assert.Equal("GAPP7", vm.Editor!.SelectedSid?.Name);
+        Assert.Equal("10 MIN AFT DP", vm.Editor.Expect);
+        Assert.Equal("125.050", vm.Editor.DepFreq);
+    }
+
+    /// <summary>The editor dropdown whose tooltip names <paramref name="field"/>.</summary>
+    private static ComboBox EditorCombo(VTdlsView view, string field) =>
+        view.GetVisualDescendants().OfType<ComboBox>().Single(c => string.Equals(ToolTip.GetTip(c) as string, field, StringComparison.Ordinal));
+
     /// <summary>The five dropdowns of the editor's SID row, keyed by the tooltip naming each field.</summary>
     private static Dictionary<string, ComboBox> DropdownRowCombos(VTdlsView view)
     {
@@ -434,7 +486,7 @@ public class VTdlsViewInteractionTests
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal("sid-west", vm.Editor!.Sids.Single().Id);
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearEntryId, "sid-west"], vm.Editor!.Sids.Select(s => s.Id));
 
         // The server broadcasting a different active config drops the editor rather than
         // leaving it holding a SID id that no longer resolves.
@@ -450,7 +502,7 @@ public class VTdlsViewInteractionTests
         // Reopening builds from the new config's SID list.
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal("sid-east", vm.Editor!.Sids.Single().Id);
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearEntryId, "sid-east"], vm.Editor!.Sids.Select(s => s.Id));
     }
 
     [AvaloniaFact]
@@ -521,7 +573,7 @@ public class VTdlsViewInteractionTests
         Assert.Equal("OAK", vm.Config!.FacilityId);
         Assert.True(vm.AreOpConfigsEnabled);
         Assert.Equal("OAKE", vm.ActiveOpConfigName);
-        Assert.Equal("sid-east", vm.Editor!.Sids.Single().Id);
+        Assert.Equal([TdlsFlightPlanEditorViewModel.ClearEntryId, "sid-east"], vm.Editor!.Sids.Select(s => s.Id));
 
         // Moving to the SFO item swaps the whole configuration under the editor.
         vm.SelectedItem = vm.DclItems.Single(i => i.AircraftId == "SWA200");
@@ -695,7 +747,7 @@ public class VTdlsViewInteractionTests
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
         TdlsFlightPlanEditorViewModel editor = vm.Editor!;
-        editor.SelectedDepFreq = editor.DepFreqs[0];
+        editor.SelectedDepFreq = editor.DepFreqs[1];
         Dispatcher.UIThread.RunJobs();
 
         await editor.SendCommand.ExecuteAsync(null);
@@ -761,7 +813,7 @@ public class VTdlsViewInteractionTests
         vm.SelectedItem = item;
         Dispatcher.UIThread.RunJobs();
         TdlsFlightPlanEditorViewModel editor = vm.Editor!;
-        editor.SelectedDepFreq = editor.DepFreqs[0];
+        editor.SelectedDepFreq = editor.DepFreqs[1];
         Dispatcher.UIThread.RunJobs();
         SentCommands.Clear();
 
@@ -784,7 +836,7 @@ public class VTdlsViewInteractionTests
         vm.SetConnected(false);
         vm.SelectedItem = item;
         Dispatcher.UIThread.RunJobs();
-        vm.Editor!.SelectedDepFreq = vm.Editor.DepFreqs[0];
+        vm.Editor!.SelectedDepFreq = vm.Editor.DepFreqs[1];
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
@@ -1062,11 +1114,14 @@ public class VTdlsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
         VTdlsView view = BootView(vm);
 
-        // The editor opens one mandatory field short, so Send starts disabled; picking a climb-via disables Maintain.
+        // The editor opens one mandatory field short, so Send starts disabled. The climb-via pick gives the Climb via
+        // list a selected item for the open-list check to read.
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
         vm.Editor!.SelectedClimbvia = vm.Editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
         Dispatcher.UIThread.RunJobs();
+        // An editable editor has no disabled dropdown, so the test disables the Maintain control itself.
+        DropdownRowCombos(view)["Maintain"].IsEnabled = false;
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
@@ -1079,7 +1134,7 @@ public class VTdlsViewInteractionTests
         ToggleDarkMode(view, vm);
         Assert.Equal(opened, AssertEditorPalette(view, vm));
 
-        vm.Editor.SelectedDepFreq = vm.Editor.DepFreqs[0];
+        vm.Editor.SelectedDepFreq = vm.Editor.DepFreqs[1];
         Dispatcher.UIThread.RunJobs();
         Button send = EditorButton(view, "Send");
         Assert.True(send.IsEffectivelyEnabled);
