@@ -5,6 +5,7 @@
 ### Added
 
 - Airport sidecars accept a `spotEdges` section that links taxi spots and adds charted apron taxilanes the vNAS map lacks.
+- `ATXI` warns the instructor about each runway the helicopter's direct path crosses, in the order it meets them.
 
 ### Changed
 
@@ -18,6 +19,7 @@
 - Every vTDLS dropdown can be cleared back to `- - - -`, and Climb via and Maintain clear each other both ways, as in vTDLS.
 - Choosing a SID or transition in vTDLS fills all seven fields from it, emptying any it has no default for.
 - vTDLS picks the SID and transition from any filed route fix that starts a transition, not only a SID named first.
+- `ATXI` to a spot reads "Air taxi to spot D1", and its autocomplete offers runways, `@` stands and `$` spots instead of bare taxiways.
 - A climb via from the vTDLS default works its top out again when the departure runway changes before takeoff; a controller's `CVIA` keeps its top.
 
 ### Fixed

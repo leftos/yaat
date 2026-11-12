@@ -1298,7 +1298,7 @@ public static class CommandDescriber
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
             TimerCommand timer => DescribeTimerNatural(timer),
             BookmarkCommand bookmark => DescribeBookmarkNatural(bookmark),
-            AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
+            AirTaxiCommand atxi => DescribeAirTaxiNatural(atxi),
             LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}"
             : land.IsTaxiSpot ? $"Land at spot {land.SpotName}"
             : $"Land at {land.SpotName}",
@@ -1542,6 +1542,20 @@ public static class CommandDescriber
             AsdexVerb.InhibitAlerts => "ASDE-X inhibit alerts",
             _ => throw new InvalidOperationException($"Unhandled AsdexVerb: {cmd.Verb}"),
         };
+
+    /// <summary>
+    /// An air taxi named by its destination's kind: <c>Air taxi to runway 27</c>, <c>Air taxi to spot 27</c>,
+    /// <c>Air taxi to FDX1</c>.
+    /// </summary>
+    private static string DescribeAirTaxiNatural(AirTaxiCommand atxi) =>
+        atxi.Destination is not { } name
+            ? "Air taxi"
+            : atxi.TargetKind switch
+            {
+                AirTaxiTargetKind.Runway => $"Air taxi to runway {name}",
+                AirTaxiTargetKind.Spot => $"Air taxi to spot {name}",
+                _ => $"Air taxi to {name}",
+            };
 
     private static string DescribeTimerNatural(TimerCommand timer)
     {

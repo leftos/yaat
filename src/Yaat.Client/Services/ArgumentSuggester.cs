@@ -74,16 +74,34 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        return AddRegistrySuggestions(
-            parsed,
-            fullText,
-            targetAircraft,
-            aircraft,
-            suggestions,
-            primaryAirportId,
-            new LayoutNames(taxiwayNames, standNames, spotNames),
-            maxSuggestions
-        );
+        var names = new LayoutNames(taxiwayNames, standNames, spotNames);
+        if ((parsed.Definition.Type == CanonicalCommandType.AirTaxi) && (parsed.ParameterIndex == 0))
+        {
+            AddAirTaxiDestinationSuggestions(parsed, fullText, names, suggestions, primaryAirportId, maxSuggestions);
+            return true;
+        }
+
+        return AddRegistrySuggestions(parsed, fullText, targetAircraft, aircraft, suggestions, primaryAirportId, names, maxSuggestions);
+    }
+
+    /// <summary>
+    /// The <c>ATXI</c> destination: runways bare, stands as <c>@NAME</c> and spots as <c>$NAME</c>, the markers the air
+    /// taxi takes. Never bare taxiway names, which ATXI refuses; a typed sigil narrows the list to its own kind.
+    /// </summary>
+    private static void AddAirTaxiDestinationSuggestions(
+        CommandInputParseResult parsed,
+        string fullText,
+        LayoutNames names,
+        ObservableCollection<SuggestionItem> suggestions,
+        string? primaryAirportId,
+        int maxSuggestions
+    )
+    {
+        string partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
+        var slot = new TokenSlot(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial);
+        AddRunwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
+        AddLayoutNameSuggestions(slot, names.Stands, StandFlavor, suggestions, maxSuggestions);
+        AddLayoutNameSuggestions(slot, names.Spots, SpotFlavor, suggestions, maxSuggestions);
     }
 
     private static bool AddRegistrySuggestions(

@@ -18,20 +18,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   2. The helicopter takes off in place, climbs to 100 ft AGL, air-taxies
 ///      direct to the destination, and lands safely on the spot.
 ///
-/// Several sub-cases are expected to fail today and document concrete sim gaps:
-///   * `ATXI @FDX1` (and any `@`-prefixed destination): the ATXI parser at
-///     CommandParser.cs:645 just trims/uppercases the arg without stripping the
-///     '@', so FindSpotByName misses. TAXI/LAND handle this via StartsWith('@').
-///   * `ATXI 28R` (and any runway designator): TryAirTaxi resolves only via
-///     AirportGroundLayout.FindSpotByName, which covers helipad/parking/spot
-///     but not runways. AirportGroundLayout.FindRunway is not called.
-///   * Climb cap of 50 ft AGL during cruise: CategoryPerformance.AirTaxiAltitudeAgl
-///     returns 50 ft, even though FAA 7110.65 §3-11-1.c puts the ceiling at 100 ft.
-///   * Never lands at the destination: TryAirTaxi queues only AirTaxiPhase, so
-///     after the heli arrives and stops to a hover it sits there indefinitely.
-///     TryLand chains AirTaxiPhase → HelicopterLandingPhase → AtParkingPhase —
-///     ATXI should do the same.
-///
 /// The per-tick xUnit log on the full-flight test shows exactly what the
 /// helicopter actually does so the reader can answer "what happens" without
 /// rerunning the test.
@@ -74,8 +60,7 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
     /// Full-flight E2E: takeoff in place → climb to 100 ft AGL → air-taxi to
     /// FDX1 → land safely. Issues `ATXI @FDX1`
     /// so this test focuses on the climb/cruise/land behavior rather than the
-    /// destination-syntax gaps covered by the [Theory] above. Two assertions
-    /// are expected to fail today (peak AGL and never-lands).
+    /// destination forms covered by the [Theory] above.
     /// </summary>
     [Fact]
     public void Atxi_FromHeli_ToFdx1_LiftsClimbsAirTaxisAndLands()

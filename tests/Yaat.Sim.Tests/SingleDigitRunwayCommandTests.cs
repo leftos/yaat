@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -165,7 +166,8 @@ public class SingleDigitRunwayCommandTests
         {
             Callsign = "TEST1",
             AircraftType = "EC35",
-            Position = layout.Nodes.Values.OrderBy(n => n.Id).First().Position,
+            // The readback is pinned exactly, so the heli starts with no runway between it and the 9 bar.
+            Position = AirTaxiStands.FirstClearOfRunways(layout, "9").Position,
             TrueHeading = new TrueHeading(90),
             Altitude = 8,
             IndicatedAirspeed = 0,

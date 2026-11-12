@@ -2337,7 +2337,7 @@ Helicopters are detected automatically from the ICAO type designator (`H60`, `EC
 | `HPP` | Hover in place (no orbit, no movement) |
 | `HFIX SUNOL` | Navigate to fix SUNOL and hover (no orbit) |
 
-`ATXI` destinations take the same markers as `TAXI`: `@` for a parking position or helipad (`ATXI @H1`), `$` for a taxiway spot (`ATXI $M1`; the helicopter sets down and holds there), and a bare token is always a runway, so `ATXI H1` is refused with a hint to use `@H1` or `$H1`.
+`ATXI` destinations take the same markers as `TAXI`: `@` for a parking position or helipad (`ATXI @H1`), `$` for a taxiway spot (`ATXI $M1`; the helicopter sets down and holds there), and a bare token is always a runway, so `ATXI H1` is refused with a hint to use `@H1` or `$H1`. The helicopter flies the direct path, and the response adds a `direct path crosses runway 28R - 10L` warning for each runway that path crosses, in the order it meets them: each crossing still needs its own clearance. The command-input suggestions for `ATXI` offer runways, `@` stands and `$` spots, never bare taxiway names.
 
 A runway destination — `ATXI 28L`, or `ATXI 28L@J` for the holding-position bar on taxiway J — ends holding short of the runway as a departure, never on the pavement (`CTO`/`LUAW` line it up, `CROSS` taxis it across). Helicopters can also use the standard tower commands (`CTO`, `CLAND`, `LUAW`, etc.) when assigned to a runway — typical for IFR ops.
 

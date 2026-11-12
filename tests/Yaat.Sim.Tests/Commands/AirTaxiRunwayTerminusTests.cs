@@ -167,7 +167,8 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
         CommandResult result = engine.SendCommand("TEST1", $"ATXI {Runway}@{taxiway}");
         output.WriteLine($"ATXI {Runway}@{taxiway}: success={result.Success} message=\"{result.Message}\"");
         Assert.True(result.Success, result.Message);
-        Assert.Equal($"Air taxi to runway 28L at {taxiway}, holding short", result.Message);
+        // The straight path from the HELI pad to the bar on G crosses 28R - 10L.
+        Assert.Equal($"Air taxi to runway 28L at {taxiway}, holding short [direct path crosses runway 28R - 10L]", result.Message);
 
         HoldingShortPhase holding = TickToHoldShort(engine, heli, runway);
 
@@ -223,7 +224,8 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
 
         CommandResult result = engine.SendCommand("TEST1", "ATXI @FDX1");
         Assert.True(result.Success, result.Message);
-        Assert.Equal("Air taxi to FDX1", result.Message);
+        // The straight path from the HELI pad to FDX1 crosses 28R - 10L, then 28L - 10R.
+        Assert.Equal("Air taxi to FDX1 [direct path crosses runway 28R - 10L; direct path crosses runway 28L - 10R]", result.Message);
 
         AtParkingPhase phase = TickTo<AtParkingPhase>(engine, heli);
         Assert.NotNull(phase);

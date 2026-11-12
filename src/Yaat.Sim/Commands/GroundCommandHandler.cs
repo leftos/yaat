@@ -9336,7 +9336,7 @@ public static partial class GroundCommandHandler
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        return CommandDispatcher.Ok(BuildAirTaxiMessage(resolved)) with
+        return CommandDispatcher.Ok(BuildAirTaxiMessage(aircraft, resolved, groundLayout)) with
         {
             // The readback names the destination as the layout resolved it, not as typed: a bare "9" that
             // resolved to a runway reads back "air taxi to runway nine" instead of falling silent on the
@@ -9347,10 +9347,120 @@ public static partial class GroundCommandHandler
 
     /// <summary>
     /// The controller-facing result line. A runway terminus says where it ends, because an air taxi to a runway
-    /// stops at the holding position rather than on the pavement.
+    /// stops at the holding position rather than on the pavement; a spot says it is a spot. The line carries one
+    /// warning per runway the direct path crosses (<see cref="RunwaysCrossedByAirTaxi"/>), in the TAXI response's
+    /// <c> [w1; w2]</c> form, because the air taxi still needs a crossing clearance for each.
     /// </summary>
-    private static string BuildAirTaxiMessage(AirTaxiDestination resolved) =>
-        resolved.Kind == AirTaxiDestinationKind.Runway ? $"Air taxi to {resolved.Name}, holding short" : $"Air taxi to {resolved.Name}";
+    private static string BuildAirTaxiMessage(AircraftState aircraft, AirTaxiDestination resolved, AirportGroundLayout layout)
+    {
+        string msg = resolved.Kind switch
+        {
+            AirTaxiDestinationKind.Runway => $"Air taxi to {resolved.Name}, holding short",
+            AirTaxiDestinationKind.Spot => $"Air taxi to spot {resolved.Name}",
+            _ => $"Air taxi to {resolved.Name}",
+        };
+        List<string> warnings =
+        [
+            .. RunwaysCrossedByAirTaxi(aircraft.Position, resolved, layout).Select(name => $"direct path crosses runway {name}"),
+        ];
+        return WithResponseNotes(msg, warnings, null, null);
+    }
+
+    /// <summary>
+    /// The runways the straight path from <paramref name="start"/> to <paramref name="resolved"/>'s target crosses, by
+    /// <see cref="GroundRunway.Name"/>, in the order the path meets them. A runway is crossed when the path comes
+    /// within half its width of any segment of its centerline. The destination runway of a runway air taxi is not
+    /// crossed while the path stays on its own side (the air taxi ends at its bar); a path that cuts its centerline
+    /// to reach a far-side bar crosses it, since an assigned runway does not authorize crossing it (AIM 4-3-18.a.6).
+    /// Nor is a runway whose pavement the aircraft starts on crossed (it is leaving that runway, not crossing it).
+    /// </summary>
+    internal static IReadOnlyList<string> RunwaysCrossedByAirTaxi(LatLon start, AirTaxiDestination resolved, AirportGroundLayout layout)
+    {
+        var path = new AirTaxiPath(start, resolved.Target);
+        var crossed = new List<(string Name, double AlongNm)>();
+        foreach (GroundRunway runway in layout.Runways)
+        {
+            bool isDestination =
+                (resolved.Kind == AirTaxiDestinationKind.Runway) && runway.MatchesEnd(resolved.RunwayId!) && !CutsCenterline(runway, path);
+            if (isDestination || IsWithinRunwayHalfWidth(runway, path.Start))
+            {
+                continue;
+            }
+
+            if (FirstCenterlineHitAlongNm(runway, path) is { } alongNm)
+            {
+                crossed.Add((runway.Name, alongNm));
+            }
+        }
+
+        return [.. crossed.OrderBy(c => c.AlongNm).Select(c => c.Name)];
+    }
+
+    /// <summary>The straight path an air taxi flies, from where the aircraft is to its destination point.</summary>
+    private readonly record struct AirTaxiPath(LatLon Start, LatLon End)
+    {
+        public double LengthNm => GeoMath.DistanceNm(Start, End);
+    }
+
+    /// <summary>The runway's centerline as consecutive vertex pairs.</summary>
+    private static IEnumerable<(LatLon A, LatLon B)> CenterlineSegments(GroundRunway runway)
+    {
+        for (int i = 0; i < runway.Coordinates.Count - 1; i++)
+        {
+            yield return (
+                new LatLon(runway.Coordinates[i].Lat, runway.Coordinates[i].Lon),
+                new LatLon(runway.Coordinates[i + 1].Lat, runway.Coordinates[i + 1].Lon)
+            );
+        }
+    }
+
+    /// <summary>Whether <paramref name="path"/> cuts the runway's centerline, passing from one side of it to the other.</summary>
+    private static bool CutsCenterline(GroundRunway runway, AirTaxiPath path) =>
+        CenterlineSegments(runway).Any(s => GeoMath.SegmentsIntersect(path.Start, path.End, s.A, s.B) is not null);
+
+    /// <summary>Whether <paramref name="point"/> lies on the runway's pavement: within half its width of the centerline.</summary>
+    private static bool IsWithinRunwayHalfWidth(GroundRunway runway, LatLon point) =>
+        CenterlineSegments(runway).Any(s => GeoMath.DistanceToSegmentFt(point, s.A, s.B) <= runway.WidthFt / 2);
+
+    /// <summary>How far along <paramref name="path"/> it first comes within half the runway's width of its centerline, or null.</summary>
+    private static double? FirstCenterlineHitAlongNm(GroundRunway runway, AirTaxiPath path)
+    {
+        double? first = null;
+        foreach ((LatLon a, LatLon b) in CenterlineSegments(runway))
+        {
+            if (SegmentHitAlongNm(path, a, b, runway.WidthFt / 2) is { } alongNm)
+            {
+                first = Math.Min(first ?? double.MaxValue, alongNm);
+            }
+        }
+
+        return first;
+    }
+
+    /// <summary>
+    /// How far along <paramref name="path"/> it meets the centerline segment <paramref name="a"/>–<paramref name="b"/>:
+    /// where the two cut each other, else the nearest point where the path's end or a segment endpoint lies within
+    /// <paramref name="halfWidthFt"/> of the other. Null when they never come that close. The path's start is not
+    /// tested: a runway whose pavement the aircraft starts on is not crossed.
+    /// </summary>
+    private static double? SegmentHitAlongNm(AirTaxiPath path, LatLon a, LatLon b, double halfWidthFt)
+    {
+        if (GeoMath.SegmentsIntersect(path.Start, path.End, a, b) is { } cut)
+        {
+            return cut.T * path.LengthNm;
+        }
+
+        double? hit = GeoMath.DistanceToSegmentFt(path.End, a, b) <= halfWidthFt ? path.LengthNm : null;
+        foreach (LatLon vertex in (LatLon[])[a, b])
+        {
+            if (GeoMath.DistanceToSegmentFt(vertex, path.Start, path.End) <= halfWidthFt)
+            {
+                hit = Math.Min(hit ?? double.MaxValue, GeoMath.FootOfPerpendicular(vertex, path.Start, path.End).AlongNm);
+            }
+        }
+
+        return hit;
+    }
 
     /// <summary>
     /// The destination point moved back off a runway holding-position node by half the aircraft length, along the
@@ -9572,7 +9682,7 @@ public static partial class GroundCommandHandler
         if (!HoldShortTarget.TryParse(token, out HoldShortTarget target, out _) || (layout.FindRunway(target.Target) is null))
         {
             string typed = RunwayIdentifier.ToDisplayDesignator(token);
-            return $"Unable, no runway {typed} — use @{typed} for a helipad or gate, ${typed} for a spot";
+            return $"Unable, no runway {typed}, use @{typed} for a helipad or gate, ${typed} for a spot";
         }
 
         string runway = RunwayIdentifier.ToDisplayDesignator(target.Target);
