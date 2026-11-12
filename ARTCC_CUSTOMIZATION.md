@@ -135,10 +135,22 @@ Forbids one corner outright, in both directions: neither the auto-router nor an 
 
 ### standLeadIns
 
-Joins a parking stand to a named taxiway's vertex, for a stand the map draws no lead-in line for and the nearest taxiway edge is the wrong one (SFO's D12 hung off T6B without it, so `TAXI K A @D12` went through spot 6B). The stand connects to the vertex of that taxiway nearest `point`, within 0.15 nm; a bad entry warns at load or layout build and the stand keeps its nearest-edge connector. Unlike every other section, an edit changes the layout, so the airport's precompute-cache entry must be regenerated. Details: [`standLeadIns`](src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
+Joins a parking stand to a named taxiway's vertex, for a stand the map draws no lead-in line for and the nearest taxiway edge is the wrong one (SFO's D12 hung off T6B without it, so `TAXI K A @D12` went through spot 6B). The stand connects to the vertex of that taxiway nearest `point`, within 0.15 nm; a bad entry warns at load or layout build and the stand keeps its nearest-edge connector.
+
+Like `spotEdges` and unlike every other section, an edit changes the layout, so the airport's precompute-cache entry must be regenerated. Details: [`standLeadIns`](src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
 
 ```json
 "standLeadIns": [ { "stand": "D12", "taxiway": "A", "point": [-122.381946, 37.619622], "notes": "vNAS map draws no lead-in" } ]
+```
+
+### spotEdges
+
+Links a taxi spot the map leaves unlinked to the taxiway network, or draws a charted taxilane the map lacks, as a named chain of points joined in order by straight two-way edges. Each point is a `spot`, a `junction` of two taxiways, a `taxiway` with a `near` point, or a bare `point`. A plain link is named `RAMP`; a charted lane takes its chart name, and an apron lane is marked non-movement by listing that name in `nonMovementTaxilanes`.
+
+A bad entry is skipped whole with a warning at load or layout build, and an edit changes the layout, so the airport's precompute-cache entry must be regenerated. Details: [`spotEdges`](src/Yaat.Sim/Data/ARTCCs/README.md#spotedges).
+
+```json
+"spotEdges": [ { "name": "RAMP", "path": [ { "spot": "22" }, { "junction": ["N", "N7"] } ], "notes": "The vNAS map draws no edge to spot 22." } ]
 ```
 
 ### adw

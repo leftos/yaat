@@ -32,7 +32,7 @@ public class GroundViewModelStartBarHoldTests
             "OAK",
             File.ReadAllText(path),
             null,
-            new LayoutInputs([], VideoMap: null),
+            new LayoutInputs([], VideoMap: null, SpotEdges: []),
             FilletMode.Standard
         );
         GroundNode onB = layout.Nodes.Values.Where(n => n.Edges.Any(e => e.TaxiwayName == "B")).OrderBy(n => n.Id).First();

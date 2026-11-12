@@ -18,9 +18,7 @@ public class GroundArcRenderFilterTests
     private static AirportGroundLayout? LoadSfo()
     {
         string path = Path.Combine("TestData", "sfo.geojson");
-        return File.Exists(path)
-            ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null))
-            : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestLayoutInputs.For("SFO", videoMap: null)) : null;
     }
 
     [Fact]

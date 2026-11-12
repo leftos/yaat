@@ -191,12 +191,6 @@ public class RunwayStandoffCalibrationTests(ITestOutputHelper output)
     private static AirportGroundLayout ParseOak(TowerCabVideoMap? map)
     {
         TestVnasData.EnsureInitialized();
-        return GeoJsonParser.Parse(
-            "oak",
-            File.ReadAllText(OakLayoutPath),
-            "OAK",
-            new LayoutInputs(TestStandLeadIns.For("oak"), map),
-            FilletMode.None
-        );
+        return GeoJsonParser.Parse("oak", File.ReadAllText(OakLayoutPath), "OAK", TestLayoutInputs.For("oak", map), FilletMode.None);
     }
 }

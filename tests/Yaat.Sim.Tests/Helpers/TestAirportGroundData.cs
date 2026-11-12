@@ -80,7 +80,7 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
                 shortId,
                 File.ReadAllText(path),
                 runwayAirportCode,
-                new LayoutInputs(TestStandLeadIns.For(shortId), ReadVideoMap(shortId)),
+                TestLayoutInputs.For(shortId, ReadVideoMap(shortId)),
                 filletMode
             );
         }

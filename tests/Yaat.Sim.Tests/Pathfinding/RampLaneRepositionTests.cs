@@ -448,7 +448,7 @@ public class RampLaneRepositionTests
             "TST",
             MiniRampGeoJson(withTaxiwayBetween: true),
             "TST",
-            new LayoutInputs([], VideoMap: null)
+            new LayoutInputs([], VideoMap: null, SpotEdges: [])
         );
         GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
@@ -481,7 +481,7 @@ public class RampLaneRepositionTests
             "TST",
             MiniRampGeoJson(withTaxiwayBetween: false),
             "TST",
-            new LayoutInputs([], VideoMap: null)
+            new LayoutInputs([], VideoMap: null, SpotEdges: [])
         );
         GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
@@ -522,7 +522,12 @@ public class RampLaneRepositionTests
     [InlineData(300.0, true)]
     public void ResolvedRouteCut_TurnsOnTheDetourRatio(double laneLengthFt, bool expectCut)
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST", new LayoutInputs([], VideoMap: null));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TST",
+            MiniLoopRampGeoJson(laneLengthFt),
+            "TST",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+        );
         GroundNode stand = layout.FindParkingByName("H")!;
         GroundNode start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();
         TaxiRoute? route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);

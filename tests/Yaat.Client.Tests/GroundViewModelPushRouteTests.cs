@@ -799,7 +799,7 @@ public class GroundViewModelPushRouteTests
     {
         string path = Path.Combine("TestData", "sfo.geojson");
         return File.Exists(path)
-            ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard)
             : null;
     }
 

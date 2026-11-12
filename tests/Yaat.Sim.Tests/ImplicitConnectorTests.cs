@@ -123,12 +123,7 @@ public class ImplicitConnectorTests
         IReadOnlyList<ImplicitConnectorEntry> connectors = NavigationDatabase.Instance.AirportSidecars.GetImplicitConnectors("SFO");
         Assert.Contains(connectors, c => c.Connector == "LF" && c.Between.Count == 2 && c.Between.Contains("L") && c.Between.Contains("F"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse(
-            "SFO",
-            File.ReadAllText(path),
-            null,
-            new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null)
-        );
+        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestLayoutInputs.For("SFO", videoMap: null));
         GroundNode? startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("L")));
         Assert.NotNull(startNode);
 

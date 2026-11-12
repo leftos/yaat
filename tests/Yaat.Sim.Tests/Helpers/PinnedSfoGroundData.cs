@@ -40,7 +40,7 @@ internal sealed class PinnedSfoGroundData(string sfoGeoJsonPath) : IAirportGroun
                         "SFO",
                         File.ReadAllText(_sfoGeoJsonPath),
                         null,
-                        new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null),
+                        TestLayoutInputs.For("SFO", videoMap: null),
                         FilletMode.Standard
                     )
                     : null;

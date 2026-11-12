@@ -17,7 +17,11 @@ Run from the repo; every command takes `--airport <id>` (repeatable) to work on 
 - `-- --refresh-airports` rewrites `airports.txt`.
 - `-- --refresh-envelopes` rewrites `design-group-envelopes.json` and the pinned test copy of the FAA data.
 
-An entry's key carries the airport's sidecar hash, which stales the push targets alone, and its stand lead-in hash (`StandLeadInHash`, the sidecar `standLeadIns` section), which stales the layout too, since the layout build connects those stands. `--check` names it "the stand lead-in hash differs"; an entry stored without the field reads as layout-stale.
+An entry's key carries the airport's sidecar hash, which stales the push targets alone, and its layout sidecar hash (the key field `LayoutSidecarHash`, `AirportSidecarHash.ForLayoutSidecar`), which covers the sidecar `standLeadIns` and `spotEdges` sections and stales the layout too, since the layout build connects those stands and adds those chains. An edit to either section, notes aside, stales the layout and push halves alike; an airport with no `spotEdges` hashes as its lead-ins alone.
+
+An entry stored under the former key field `standLeadInHash` reads as layout-stale until the cache is regenerated.
+
+`--check` names it "the layout sidecar hash differs"; an entry stored without the field reads as layout-stale.
 
 Its tower-cab videomap hash (`VideoMapHash`, `TowerCabVideoMap.Hash`; "" = the airport has no map) is part of the layout match only. A parse with a videomap seats bars on its paint and calibrates each runway's S from it; the shipped entries are built with `VideoMap: null` and written with "", so an entry with a non-empty `VideoMapHash` reads as layout-stale, offline and online, naming "the videomap hash differs".
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 
@@ -80,35 +81,35 @@ public class PrecomputeKeyTests
     public void StandLeadInChange_BreaksBothMatches()
     {
         PrecomputeKey stored = Stored();
-        PrecomputeKey current = Stored() with { StandLeadInHash = "other" };
+        PrecomputeKey current = Stored() with { LayoutSidecarHash = "other" };
 
         Assert.False(current.LayoutMatches(stored));
         Assert.False(current.PushTargetsMatch(stored));
     }
 
     /// <summary>
-    /// An entry written before the lead-in hash existed still reads, and reads as layout-stale against a key computed now,
-    /// even for an airport with no lead-ins.
+    /// An entry written before the layout sidecar hash existed still reads, and reads as layout-stale against a key computed
+    /// now, even for an airport with no lead-ins.
     /// </summary>
     [Fact]
-    public void StoredKeyWithoutStandLeadInHash_ReadsAsLayoutStale()
+    public void StoredKeyWithoutLayoutSidecarHash_ReadsAsLayoutStale()
     {
         var current = PrecomputeKey.Current(
             "md5",
             7,
             "sidecar",
-            AirportSidecarHash.OfStandLeadIns([]),
+            AirportSidecarHash.OfLayoutSidecar([], []),
             string.Empty,
             standoffInputHash: string.Empty
         );
         JsonObject json = JsonSerializer.SerializeToNode(current, GroundLayoutSerializer.Options)!.AsObject();
         string field = json.Select(property => property.Key)
-            .Single(key => key.Equals(nameof(PrecomputeKey.StandLeadInHash), StringComparison.OrdinalIgnoreCase));
+            .Single(key => key.Equals(nameof(PrecomputeKey.LayoutSidecarHash), StringComparison.OrdinalIgnoreCase));
         json.Remove(field);
 
         PrecomputeKey old = json.Deserialize<PrecomputeKey>(GroundLayoutSerializer.Options)!;
 
-        Assert.Equal(string.Empty, old.StandLeadInHash);
+        Assert.Equal(string.Empty, old.LayoutSidecarHash);
         Assert.False(current.LayoutMatches(old));
     }
 
@@ -204,6 +205,72 @@ public class PrecomputeKeyTests
         Assert.False((stored with { PushSidecarHash = "other" }).PushTargetsMatchOffline(offline));
     }
 
+    /// <summary>
+    /// An airport with no spot-edge chains hashes as its stand lead-ins alone. The literals are the SHA-256 of that canonical
+    /// text.
+    /// </summary>
+    [Fact]
+    public void LayoutSidecarHash_OfAnAirportWithoutChains_HashesItsLeadInsAlone()
+    {
+        StandLeadIn leadIn = new("D12", "A", new LatLon(37.619622, -122.381946), "why");
+
+        Assert.Equal("ca4ba579105f36f4be57e228d868e15131c865b8ff280556153c190aa8d40502", AirportSidecarHash.OfLayoutSidecar([leadIn], []));
+        Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", AirportSidecarHash.OfLayoutSidecar([], []));
+    }
+
+    /// <summary>
+    /// The layout sidecar hash moves with a spot-edge chain and ignores its notes and every sidecar section the layout build
+    /// does not read.
+    /// </summary>
+    [Fact]
+    public void LayoutSidecarHash_FollowsSpotEdges_NotTheirNotesOrOtherSections()
+    {
+        const string LeadIns = """ "standLeadIns": [{ "stand": "D12", "taxiway": "A", "point": [-122.381946, 37.619622] }] """;
+        const string Chain = """ "spotEdges": [{ "name": "RAMP", "path": [{ "spot": "1" }, { "spot": "2" }], "notes": "first" }] """;
+        const string Renoted = """ "spotEdges": [{ "name": "RAMP", "path": [{ "spot": "1" }, { "spot": "2" }], "notes": "second" }] """;
+        const string Other = """ "nonMovementTaxilanes": [{ "name": "L1" }] """;
+
+        string bare = LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}} }""");
+        string chained = LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Chain}} }""");
+
+        Assert.Equal(AirportSidecarHash.OfLayoutSidecar([new StandLeadIn("D12", "A", new LatLon(37.619622, -122.381946), null)], []), bare);
+        Assert.NotEqual(bare, chained);
+        Assert.Equal(chained, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Renoted}} }"""));
+        Assert.Equal(chained, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Chain}}, {{Other}} }"""));
+        Assert.Equal(bare, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Other}} }"""));
+    }
+
+    /// <summary>Moving a chain's point, renaming the chain or reordering its path each change the layout sidecar hash.</summary>
+    [Fact]
+    public void LayoutSidecarHash_FollowsAChainsPointsNameAndOrder()
+    {
+        SpotEdgePoint spot = new(SpotEdgePointKind.Spot, "1", null, null, null, null);
+        SpotEdgePoint point = new(SpotEdgePointKind.Point, null, null, null, null, new LatLon(25.79, -80.27));
+        SpotEdgePoint moved = point with { Position = new LatLon(25.79, -80.2701) };
+        string chain = AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [spot, point], null)]);
+
+        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [spot, moved], null)]));
+        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("N8", [spot, point], null)]));
+        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [point, spot], null)]));
+    }
+
+    /// <summary><see cref="AirportSidecarHash.ForLayoutSidecar"/> of SFO with <paramref name="sidecarJson"/> its one sidecar.</summary>
+    private static string LayoutSidecarHashOf(string sidecarJson)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "layout-sidecar-hash-" + Guid.NewGuid());
+        string airports = Path.Combine(root, "ZOA", "Airports");
+        Directory.CreateDirectory(airports);
+        try
+        {
+            File.WriteAllText(Path.Combine(airports, "sfo.json"), sidecarJson);
+            return AirportSidecarHash.ForLayoutSidecar(root, "SFO");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static PrecomputeKey Stored() =>
         new()
         {
@@ -213,6 +280,6 @@ public class PrecomputeKeyTests
             LayoutSourceHash = "layout",
             PushTargetSourceHash = "push",
             PushSidecarHash = "sidecar",
-            StandLeadInHash = "lead-ins",
+            LayoutSidecarHash = "lead-ins",
         };
 }

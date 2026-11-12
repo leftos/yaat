@@ -186,7 +186,7 @@ public static class PrecomputeBuilder
             online is null ? committed.GeoJsonMd5 : (online.GeoJsonMd5ByAirport.GetValueOrDefault(faa) ?? ""),
             online?.NavDataSerial ?? committed.NavDataSerial,
             AirportSidecarHash.For(artccsDir, faa),
-            AirportSidecarHash.ForStandLeadIns(artccsDir, faa),
+            AirportSidecarHash.ForLayoutSidecar(artccsDir, faa),
             string.Empty,
             online is null ? committed.StandoffInputHash : HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, faa)
         );
@@ -203,9 +203,9 @@ public static class PrecomputeBuilder
             yield return "the layout source hash differs (a layout source file changed)";
         }
 
-        if (committed.StandLeadInHash != current.StandLeadInHash)
+        if (committed.LayoutSidecarHash != current.LayoutSidecarHash)
         {
-            yield return "the stand lead-in hash differs";
+            yield return "the layout sidecar hash differs";
         }
 
         if (committed.VideoMapHash != current.VideoMapHash)

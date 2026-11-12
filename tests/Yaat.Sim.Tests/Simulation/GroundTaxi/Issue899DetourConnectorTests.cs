@@ -682,8 +682,16 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// the search's pick passing the post-hoc filter (no dropped-bridge diagnostic).
     /// </summary>
     [Theory]
-    [InlineData("MIA", 1160, 120.0, "Z", "M")]
-    public void StandingOnARunway_ABridgeMayLeaveItWithinTheAllowance(string airportId, int startNodeId, double heading, string from, string to)
+    [InlineData("MIA", "RWY12/30", 25.795408, -80.294705, 120.0, "Z", "M")]
+    public void StandingOnARunway_ABridgeMayLeaveItWithinTheAllowance(
+        string airportId,
+        string runway,
+        double startLat,
+        double startLon,
+        double heading,
+        string from,
+        string to
+    )
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airportId);
@@ -692,7 +700,9 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             return;
         }
 
-        AssertABridgeLeavesTheStartRunwayWithinTheAllowance(layout, startNodeId, heading, from, to);
+        // The start is the runway end of the fillet joining the start taxiway to the runway the aircraft stands on.
+        GroundNode start = GroundNodeLookup.FilletEnd(layout, runway, from, new LatLon(startLat, startLon));
+        AssertABridgeLeavesTheStartRunwayWithinTheAllowance(layout, start.Id, heading, from, to);
     }
 
     /// <summary>

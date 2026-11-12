@@ -46,7 +46,7 @@ public class PushTargetPlannerParallelTests
             GeoJsonMd5,
             12_345,
             AirportSidecarHash.For(ArtccsDir, airport),
-            AirportSidecarHash.ForStandLeadIns(ArtccsDir, airport),
+            AirportSidecarHash.ForLayoutSidecar(ArtccsDir, airport),
             string.Empty,
             standoffInputHash: string.Empty
         );

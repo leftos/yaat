@@ -25,7 +25,7 @@ public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
             shortId,
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            TestLayoutInputs.For(shortId, videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
@@ -62,7 +62,7 @@ public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
             "oak",
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For("oak"), VideoMap: null),
+            TestLayoutInputs.For("oak", videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);

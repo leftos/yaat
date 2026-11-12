@@ -388,7 +388,7 @@ public class StandFitTests
             "FCM",
             File.ReadAllText(Path.Combine("TestData", "FCM.geojson")),
             null,
-            new LayoutInputs([], VideoMap: null),
+            new LayoutInputs([], VideoMap: null, SpotEdges: []),
             FilletMode.None
         );
         AirplaneDesignGroup ceiling = AirplaneDesignGroups.AirportCeiling(layout);
@@ -401,7 +401,7 @@ public class StandFitTests
     }
 
     private static AirportGroundLayout Parse(JsonNode geo) =>
-        GeoJsonParser.Parse("SFO", geo.ToJsonString(), null, new LayoutInputs([], VideoMap: null), FilletMode.None);
+        GeoJsonParser.Parse("SFO", geo.ToJsonString(), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.None);
 
     private static JsonObject Copy() => (JsonObject)SfoJson.Value.DeepClone();
 

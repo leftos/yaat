@@ -35,6 +35,8 @@ Step 5: Detect runway crossings → insert hold-short nodes
     ↓
 Step 6: Connect parking/helipads to a lead-in vertex or the nearest taxiway
     ↓
+Step 6c: Add the sidecar spot-edge chains
+    ↓
 Step 7: Wire up node adjacency lists
     ↓
 Step 8: Generate fillet arcs at intersections
@@ -46,7 +48,11 @@ AirportGroundLayout (complete graph)
 
 **Entry points**: the `GeoJsonParser.Parse*` overloads (`Parse`, `ParseWithDiagnostics`, `ParseMultiple`) in `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`, which all build through `ParseCollectingIssues` / `BuildLayout`.
 
-**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap)` (`LayoutInputs.cs`). `StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none. Step 5 pairs the videomap's painted bars with the generated hold-short points (Step 5d). yaat-server passes the map it fetched (`TowerCabMapDownloader`), and the test harness, the precompute builder, `GroundMapCheck` and LayoutInspector pass `VideoMap: null`.
+**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap, SpotEdges)` (`LayoutInputs.cs`), all required.
+
+`StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `SpotEdges` is its sidecar `spotEdges` chains (Step 6c, `AirportSidecarCatalog.GetSpotEdges`), empty when it has none and set at every production site; `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none.
+
+Step 5 pairs the videomap's painted bars with the generated hold-short points (Step 5d). yaat-server passes the map it fetched (`TowerCabMapDownloader`), and the test harness, the precompute builder, `GroundMapCheck` and LayoutInspector pass `VideoMap: null`.
 
 **Critical invariant**: During Steps 2-6, `GroundNode.Edges` adjacency lists remain EMPTY. All edges are added to `layout.Edges` only. At the end of Step 7, `RebuildAdjacencyLists()` populates each node's `Edges` list from `AllEdges` (`layout.Edges` plus the arcs, which exist only after Step 8 and join the lists when it rebuilds them). This timing is essential because earlier steps need to perform lookups on `layout.Edges` directly.
 
@@ -215,9 +221,23 @@ Spots are existing nodes (created in Step 2) and get no connector. For each park
 
 **Derived heading** (`ApplyDerivedStandHeading`): a parking stand whose GeoJSON heading is absent, JSON null, empty or unparsable gets its true heading from the bearing of the foot back to the stand (nose-in, facing away from the pavement it rolled in from), rounded to whole degrees with 360 as 0, set through `GroundNode.SetTrueHeading` once the stand is connected. The foot is, in order: the connection foot (the sidecar lead-in vertex, else the nearest-taxiway connector foot); the perpendicular foot on the nearest eligible taxiway edge at any distance (heading only, the stand stays unconnected); else the heading stays 0 with a warning. A foot under 1 ft from the stand falls to the next source. An authored heading, 0 included, is kept; a helipad with no heading stays 0. A derived stand classifies as a push-back stand by the rule below; a GA ramp that is really pull-through takes a sidecar `standDeparture` override, never a name rule in the parser.
 
-A parking stand's departure (`StandDepartures.Classify`) is then classified from the foot of the perpendicular onto the edge its connector joined, or from the lead-in vertex. After all the parking nodes and helipads, `ConnectGateGroupsToAnchors()` adds `GeoJson:gate-group-connector` RAMP edges joining each gate to the connected anchor of its gate group. The layout build reads the sidecar's `standLeadIns` only; see [`standLeadIns`](../src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
+A parking stand's departure (`StandDepartures.Classify`) is then classified from the foot of the perpendicular onto the edge its connector joined, or from the lead-in vertex.
+
+After all the parking nodes and helipads, `ConnectGateGroupsToAnchors()` adds `GeoJson:gate-group-connector` RAMP edges joining each gate to the connected anchor of its gate group. The layout build reads the sidecar's `standLeadIns` and `spotEdges` only; see [`standLeadIns`](../src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
 
 **RAMP edges**: Edges with `TaxiwayName = "RAMP"`. Used for parking connections, not part of normal taxi routes.
+
+### Step 6c: Sidecar Spot-Edge Chains
+
+**Function**: `SpotEdgeBuilder.Apply()` (`SpotEdgeBuilder.cs`)
+
+Runs after the stand and gate-group connectors, so every stand keeps the connection it gets without the chains, and before the adjacency lists and fillets. Each chain of the airport's sidecar `spotEdges` has its points resolved to nodes: a spot, the node two taxiways share, a taxiway's vertex nearest a position (within 0.15 nm), or a position, which reuses a node within the snap tolerance or mints a new node.
+
+Consecutive points are joined by one straight edge named after the chain, origin `Sidecar:spot-edge`. The fillet pass re-mints an edge it cuts at a junction under its own origin.
+
+A plain spot link is a `RAMP` edge; a charted lane carries its chart name, and the sidecar's `nonMovementTaxilanes` marks it non-movement when it is apron. A pair already joined by an edge of that name gets no second edge.
+
+An entry whose point does not resolve, resolves to a runway hold-short, parking, helipad or runway centreline node, is a `point` within snap tolerance of a stand or helipad, or repeats a node in consecutive points is skipped whole with a warning. The loader refuses a chain named with an `RWY` prefix or a crossing-link suffix. Schema: [`spotEdges`](../src/Yaat.Sim/Data/ARTCCs/README.md#spotedges).
 
 ### Step 7: Wire Up Adjacency Lists
 

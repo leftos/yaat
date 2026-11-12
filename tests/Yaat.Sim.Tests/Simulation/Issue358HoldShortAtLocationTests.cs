@@ -31,7 +31,9 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null)) : null;
+        return File.Exists(path)
+            ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []))
+            : null;
     }
 
     /// <summary>

@@ -31,15 +31,13 @@ public static class GroundMapCheck
 
         try
         {
+            AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
             IReadOnlyList<GroundMapIssue> issues = GeoJsonParser
                 .ParseWithDiagnostics(
                     faaId.ToLowerInvariant(),
                     fetched.Content,
                     faaId,
-                    new LayoutInputs(
-                        (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaId),
-                        VideoMap: null
-                    )
+                    new LayoutInputs(sidecars.GetStandLeadIns(faaId), VideoMap: null, SpotEdges: sidecars.GetSpotEdges(faaId))
                 )
                 .Issues;
             return new GroundMapCheckResult(faaId, GroundMapOutcome.Ok, Error: null, issues, Exception: null);

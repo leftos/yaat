@@ -34,7 +34,7 @@ public class SfoTwoLetterConnectorTests
             return null;
         }
 
-        return GeoJsonParser.Parse("SFO", File.ReadAllText(FixturePath), null, new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null));
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(FixturePath), null, TestLayoutInputs.For("SFO", videoMap: null));
     }
 
     private static bool Traverses(TaxiRoute route, string twy) =>

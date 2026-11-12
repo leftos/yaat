@@ -170,7 +170,7 @@ public class PrecomputeBuilderTests
                         Md5(),
                         NavDataSerial,
                         AirportSidecarHash.For(artccs, "OAK"),
-                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK"),
+                        AirportSidecarHash.ForLayoutSidecar(artccs, "OAK"),
                         string.Empty,
                         standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
                     )
@@ -211,7 +211,7 @@ public class PrecomputeBuilderTests
                         Md5(),
                         NavDataSerial,
                         AirportSidecarHash.For(artccs, "OAK"),
-                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK"),
+                        AirportSidecarHash.ForLayoutSidecar(artccs, "OAK"),
                         string.Empty,
                         standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
                     )
@@ -225,7 +225,7 @@ public class PrecomputeBuilderTests
                 PrecomputeCheckResult online = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, Online(Md5(), NavDataSerial)));
                 Assert.Equal(PrecomputeCheckStatus.LayoutStale, offline.Status);
                 Assert.Equal(PrecomputeCheckStatus.LayoutStale, online.Status);
-                Assert.Contains("stand lead-in hash", offline.Describe(), StringComparison.Ordinal);
+                Assert.Contains("layout sidecar hash", offline.Describe(), StringComparison.Ordinal);
             });
         }
         finally

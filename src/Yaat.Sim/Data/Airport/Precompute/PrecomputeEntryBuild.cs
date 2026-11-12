@@ -38,7 +38,7 @@ public static class PrecomputeEntryBuild
             GeoJsonMd5.Of(geoJson),
             navDataSerial,
             AirportSidecarHash.For(artccsDir, faa),
-            AirportSidecarHash.ForStandLeadIns(artccsDir, faa),
+            AirportSidecarHash.ForLayoutSidecar(artccsDir, faa),
             videoMap?.Hash ?? string.Empty,
             HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, faa)
         );
@@ -69,7 +69,7 @@ public static class PrecomputeEntryBuild
             faa.ToLowerInvariant(),
             geoJson,
             faa,
-            new LayoutInputs(context.Sidecars.GetStandLeadIns(faa), VideoMap: null)
+            new LayoutInputs(context.Sidecars.GetStandLeadIns(faa), VideoMap: null, SpotEdges: context.Sidecars.GetSpotEdges(faa))
         );
         IReadOnlyList<PushTargetEntry> targets = standNames is null
             ? PushTargetPlanner.Compute(layout, context.Envelopes, context.Sidecars, context.StandLoop)

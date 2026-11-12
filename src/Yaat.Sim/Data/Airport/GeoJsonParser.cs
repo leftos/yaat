@@ -19,10 +19,10 @@ public static class GeoJsonParser
     private static readonly ILogger Log = SimLog.CreateLogger("GeoJsonParser");
 
     /// <summary>Snap tolerance in degrees (~10 feet ≈ 0.00003°).</summary>
-    private const double SnapToleranceDeg = 0.00003;
+    internal const double SnapToleranceDeg = 0.00003;
 
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
-    private const double ParkingConnectMaxNm = 0.15;
+    internal const double ParkingConnectMaxNm = 0.15;
 
     /// <summary>
     /// How close to the stand its connection foot may sit before the bearing to it is unusable as a derived heading, feet: a
@@ -103,7 +103,7 @@ public static class GeoJsonParser
     /// <param name="airportId">The layout's airport id.</param>
     /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
     /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
-    /// <param name="inputs">The airport's stand lead-ins and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
+    /// <param name="inputs">The airport's stand lead-ins, spot-edge chains and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
     /// <returns>The layout.</returns>
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, LayoutInputs inputs) =>
         Parse(airportId, geoJson, runwayAirportCode, inputs, FilletMode.Standard);
@@ -126,7 +126,7 @@ public static class GeoJsonParser
     /// <param name="airportId">The layout's airport id.</param>
     /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
     /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
-    /// <param name="inputs">The airport's stand lead-ins and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
+    /// <param name="inputs">The airport's stand lead-ins, spot-edge chains and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
     /// <returns>The layout and the dropped features, in feature order.</returns>
     public static (AirportGroundLayout Layout, IReadOnlyList<GroundMapIssue> Issues) ParseWithDiagnostics(
         string airportId,
@@ -147,7 +147,7 @@ public static class GeoJsonParser
 
     /// <summary>
     /// What a layout is built for: its airport id, the code its runway widths are looked up by, and its per-airport inputs
-    /// (stand lead-ins and tower-cab videomap).
+    /// (stand lead-ins, spot-edge chains and tower-cab videomap).
     /// </summary>
     private sealed record LayoutSource(string AirportId, string? RunwayAirportCode, LayoutInputs Inputs);
 
@@ -434,6 +434,10 @@ public static class GeoJsonParser
         }
 
         ConnectGateGroupsToAnchors(parkingNodes, layout);
+
+        // Step 6c: add the sidecar spot-edge chains, after the stand connectors so every stand keeps the connection it gets
+        // without them; new nodes take ids after every existing node
+        SpotEdgeBuilder.Apply(layout, source.Inputs.SpotEdges, airportId, coordIndex, ref nextNodeId);
 
         // Step 7: Wire up adjacency lists
         layout.RebuildAdjacencyLists();
@@ -915,7 +919,7 @@ public static class GeoJsonParser
         return ((best is { } found) && (found.DistanceNm <= maxDistNm)) ? found : null;
     }
 
-    private static bool CanConnectToEdge(GroundEdge edge)
+    internal static bool CanConnectToEdge(GroundEdge edge)
     {
         if (edge.IsRamp || edge.IsRunwayCenterline || edge.IsRunwayCrossingLink)
         {

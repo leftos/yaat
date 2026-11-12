@@ -172,7 +172,7 @@ public class HoldShortBarFlagTests
             "oak",
             File.ReadAllText(layoutPath),
             "OAK",
-            new LayoutInputs(TestStandLeadIns.For("oak"), map),
+            TestLayoutInputs.For("oak", map),
             FilletMode.Standard
         );
 

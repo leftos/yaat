@@ -132,6 +132,7 @@ public static class AirportSidecarLoader
                 StandDepartureOverrides = ParseStandDepartures(file, filePath, result),
                 StandDepartureAreas = ParseStandDepartureAreas(file, filePath, result),
                 StandLeadIns = ParseStandLeadIns(file, filePath, result),
+                SpotEdges = ParseSpotEdges(file, filePath, result),
                 AsdexLandingTaxiways = ParseAsdexLandingTaxiways(file.AsdexLandingTaxiways, filePath, result),
             }
         );
@@ -211,6 +212,184 @@ public static class AirportSidecarLoader
 
         return entry.Point is { Length: 2 } ? null : "point must be [lon, lat]";
     }
+
+    /// <summary>
+    /// The <c>spotEdges</c> section, in file order: each chain's name trimmed and upper-cased, each point normalised by
+    /// <see cref="ToSpotEdgePoint"/>. An entry with any problem (<see cref="SpotEdgeEntryProblem"/>) is warned and skipped
+    /// whole; a second entry with the same name and path warns and replaces the earlier one in its place.
+    /// </summary>
+    private static List<SpotEdgeChain> ParseSpotEdges(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var chains = new List<SpotEdgeChain>();
+        var entryIndices = new List<int>();
+        for (int i = 0; i < file.SpotEdges.Count; i++)
+        {
+            SpotEdgeEntry entry = file.SpotEdges[i];
+            string location = $"{filePath}: spotEdges[{i}] ({(string.IsNullOrWhiteSpace(entry.Name) ? "?" : entry.Name)})";
+            if (SpotEdgeEntryProblem(entry) is { } problem)
+            {
+                result.Warnings.Add($"{location}: {problem}, skipping");
+                continue;
+            }
+
+            SpotEdgeChain chain = ToSpotEdgeChain(entry);
+            int existing = chains.FindIndex(c => c.HasSameNameAndPath(chain));
+            if (existing >= 0)
+            {
+                result.Warnings.Add($"{location}: duplicate of spotEdges[{entryIndices[existing]}], last wins");
+                chains[existing] = chain;
+                entryIndices[existing] = i;
+                continue;
+            }
+
+            chains.Add(chain);
+            entryIndices.Add(i);
+        }
+
+        return chains;
+    }
+
+    /// <summary>What is wrong with an authored spot-edge entry, or null when every point is usable.</summary>
+    private static string? SpotEdgeEntryProblem(SpotEdgeEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry.Name))
+        {
+            return "no name";
+        }
+
+        // A name the layout reads as a runway centreline or crossing link would give the chain's edges that class.
+        string name = entry.Name.Trim();
+        if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || GroundEdge.IsRunwayCrossingLinkName(name))
+        {
+            return "name reserved for runway edges";
+        }
+
+        if (entry.Path is not { Count: >= 2 } path)
+        {
+            return "fewer than two points";
+        }
+
+        for (int j = 0; j < path.Count; j++)
+        {
+            if (SpotEdgePointProblem(path[j]) is { } problem)
+            {
+                return $"point {j} {problem}";
+            }
+        }
+
+        return entry.Unknown is { Count: > 0 } unknown ? $"has unknown key '{unknown.Keys.First()}'" : null;
+    }
+
+    /// <summary>What is wrong with one authored spot-edge point, worded to follow <c>point {j}</c>, or null when it is usable.</summary>
+    private static string? SpotEdgePointProblem(SpotEdgePointEntry? point)
+    {
+        if (point is null)
+        {
+            return "has no resolver";
+        }
+
+        int resolvers = CountSpotEdgeResolvers(point);
+        if (resolvers != 1)
+        {
+            return resolvers == 0 ? "has no resolver" : "has more than one resolver";
+        }
+
+        if ((point.Near is not null) != (point.Taxiway is not null))
+        {
+            return point.Near is not null ? "has near without taxiway" : "has taxiway without near";
+        }
+
+        return SpotEdgeShapeProblem(point) ?? SpotEdgeUnknownKeyProblem(point) ?? SpotEdgeBlankNameProblem(point);
+    }
+
+    /// <summary>How many of the four resolvers (spot, junction, taxiway, point) a point sets; <c>near</c> is not one.</summary>
+    private static int CountSpotEdgeResolvers(SpotEdgePointEntry point) =>
+        (point.Spot is null ? 0 : 1) + (point.Junction is null ? 0 : 1) + (point.Taxiway is null ? 0 : 1) + (point.Point is null ? 0 : 1);
+
+    /// <summary>A junction that is not two non-blank names, or a <c>near</c> or <c>point</c> that is not two finite numbers.</summary>
+    private static string? SpotEdgeShapeProblem(SpotEdgePointEntry point) => SpotEdgeJunctionProblem(point) ?? SpotEdgeCoordinateProblem(point);
+
+    /// <summary>A junction that is not two non-blank, different taxiway names.</summary>
+    private static string? SpotEdgeJunctionProblem(SpotEdgePointEntry point)
+    {
+        if ((point.Junction is { } junction) && ((junction.Count != 2) || junction.Any(string.IsNullOrWhiteSpace)))
+        {
+            return "junction needs two taxiway names";
+        }
+
+        return (point.Junction is { } pair) && string.Equals(pair[0].Trim(), pair[1].Trim(), StringComparison.OrdinalIgnoreCase)
+            ? "junction needs two different taxiway names"
+            : null;
+    }
+
+    /// <summary>A <c>near</c> or <c>point</c> that is not two finite numbers.</summary>
+    private static string? SpotEdgeCoordinateProblem(SpotEdgePointEntry point)
+    {
+        if ((point.Near is { } near) && !IsLonLat(near))
+        {
+            return "near needs [lon, lat]";
+        }
+
+        return (point.Point is { } position) && !IsLonLat(position) ? "point needs [lon, lat]" : null;
+    }
+
+    /// <summary>The first key a point carries that the schema does not define, or null when it has none.</summary>
+    private static string? SpotEdgeUnknownKeyProblem(SpotEdgePointEntry point) =>
+        point.Unknown is { Count: > 0 } unknown ? $"has unknown key '{unknown.Keys.First()}'" : null;
+
+    /// <summary>A spot or taxiway name that is blank once normalised.</summary>
+    private static string? SpotEdgeBlankNameProblem(SpotEdgePointEntry point)
+    {
+        if ((point.Spot is { } spot) && (NormaliseSpotName(spot).Length == 0))
+        {
+            return "spot is blank";
+        }
+
+        return (point.Taxiway is { } taxiway) && string.IsNullOrWhiteSpace(taxiway) ? "taxiway is blank" : null;
+    }
+
+    private static bool IsLonLat(List<double> coordinates) =>
+        (coordinates.Count == 2) && double.IsFinite(coordinates[0]) && double.IsFinite(coordinates[1]);
+
+    /// <summary>A spot name trimmed, with one leading <c>$</c> stripped, and upper-cased.</summary>
+    private static string NormaliseSpotName(string spot)
+    {
+        string trimmed = spot.Trim();
+        return (trimmed.StartsWith('$') ? trimmed[1..] : trimmed).ToUpperInvariant();
+    }
+
+    /// <summary>A validated chain from an entry <see cref="SpotEdgeEntryProblem"/> passed.</summary>
+    private static SpotEdgeChain ToSpotEdgeChain(SpotEdgeEntry entry) =>
+        new(entry.Name!.Trim().ToUpperInvariant(), [.. entry.Path!.Select(point => ToSpotEdgePoint(point!))], entry.Notes);
+
+    /// <summary>
+    /// A validated point from one with a single resolver: spot trimmed, with one leading <c>$</c> stripped, and upper-cased, taxiway names
+    /// trimmed and upper-cased, <c>[lon, lat]</c> read as a <see cref="LatLon"/>.
+    /// </summary>
+    private static SpotEdgePoint ToSpotEdgePoint(SpotEdgePointEntry point)
+    {
+        if (point.Spot is { } spot)
+        {
+            return new SpotEdgePoint(SpotEdgePointKind.Spot, NormaliseSpotName(spot), null, null, null, null);
+        }
+
+        if (point.Junction is { } junction)
+        {
+            string first = junction[0].Trim().ToUpperInvariant();
+            string second = junction[1].Trim().ToUpperInvariant();
+            return new SpotEdgePoint(SpotEdgePointKind.Junction, null, first, second, null, null);
+        }
+
+        if (point.Taxiway is { } taxiway)
+        {
+            return new SpotEdgePoint(SpotEdgePointKind.TaxiwayNear, null, null, null, taxiway.Trim().ToUpperInvariant(), ToLatLon(point.Near!));
+        }
+
+        return new SpotEdgePoint(SpotEdgePointKind.Point, null, null, null, null, ToLatLon(point.Point!));
+    }
+
+    /// <summary>A GeoJSON-order <c>[lon, lat]</c> pair as a <see cref="LatLon"/>.</summary>
+    private static LatLon ToLatLon(List<double> lonLat) => new(lonLat[1], lonLat[0]);
 
     /// <summary>The stand-departure names a sidecar may give, quoted, for a warning.</summary>
     private static string StandDepartureNames => string.Join(", ", Enum.GetNames<StandDeparture>().Select(n => $"'{n}'"));

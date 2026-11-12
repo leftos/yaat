@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Airport sidecars accept a `spotEdges` section that links taxi spots and adds charted apron taxilanes the vNAS map lacks.
+
 ### Changed
 
 - Pushback and tug planning keep taxiway clearances from AC 150/5300-13B, so an SFO alley push now stays 126.5 ft from taxiway A.
@@ -19,6 +23,7 @@
 - A climb via whose SID publishes no top, such as SFO TRUKN2, now climbs to FL190 instead of levelling at an "at or above" altitude.
 - Taxiing aircraft slow to a tight turn's own speed before they enter it, so stand roll-ins and turns off an offset line no longer swing in too fast.
 - An aircraft cleared across a runway crosses even when traffic blocks the far side, and the RPO is warned when it stops on the runway.
+- At MIA, every ramp spot links to the taxiways along its charted lanes, so taxi and push routes reach spots that had none.
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.
 - A push that would carry the aircraft well past a taxiway's dead end is refused, measured from the end the airport chart shows.
 - Aircraft at Oakland stands PCM1-PCM3 taxi out under their own power instead of needing a pushback.

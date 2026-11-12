@@ -36,7 +36,7 @@ public class PrecomputeBuilderBuildTests
                 md5,
                 NavDataSerial,
                 AirportSidecarHash.For(ArtccsDir, "OAK"),
-                AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"),
+                AirportSidecarHash.ForLayoutSidecar(ArtccsDir, "OAK"),
                 string.Empty,
                 standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
             );

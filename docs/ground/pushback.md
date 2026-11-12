@@ -253,7 +253,7 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 - **Stand departure.** A stand whose `StandDepartures.StandDepartureOf` is `TaxiOut` gets an empty target list for every group. The layout build classifies each parking node from the foot of the perpendicular from the stand onto the edge its parking connector joins (for a stand its sidecar `standLeadIns` entry connects, the taxiway vertex it joins): a foot less than 90° off the stand's heading is `TaxiOut`, a foot within 1 ft of the stand or exactly broadside is `PushBack`.
 
   The airport sidecar overrides it in two ways, read in this order by `StandDepartureOf`: `standDeparture` by stand name (KOAK MTN1-MTN8, MTN1A, MTN2A and MTN6A are `Either`; S8B, S5A, S5B, S7, RON9, RON10, PT1 and PT2 are `PushBack`; PCM1, PCM2 and PCM3 are `TaxiOut`; KSFO CG2-CG4), then the first matching `standDepartureAreas` rule, a runway end and a side of its extended centerline (KOAK: right of 28R is `TaxiOut`, the whole North Field).
-  Each rule is applied at read time, never at layout build, so the layout and its snapshots do not change; `standLeadIns` is the exception, read at layout build.
+  Each rule is applied at read time, never at layout build, so the layout and its snapshots do not change; `standLeadIns` and `spotEdges` are the exceptions, read at layout build.
 
   `Either` means a tug push and a normal taxi-out are both normal there: the stand gets push targets, a push off it carries no taxi-out note, the client keeps the push entries, and the pilot AI still answers ready-to-taxi with TAXIAUTO.
 
@@ -285,7 +285,13 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
   A held aircraft has no seed, so its submenu shows `Computing targets…` until the plan lands.
 
   The client keeps one in-flight plan per callsign, shared by the quick-command and All Commands copies of the entry, and reuses it while the layout, design group and origin are the same: the same stand name, or a held pose within 1 ft and 1° of the earlier one.
-- **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files (`Tug*.cs`, outside the layout source set) or the airport's sidecar recomputes the push half only, except a `standLeadIns` edit: its `StandLeadInHash` (stand, taxiway and point, not notes) is part of the layout match, so it stales the layout and the push half (reason "the stand lead-in hash differs"). An entry stored without the field reads as layout-stale. The tower-cab videomap's `VideoMapHash` ("" = no map) is likewise part of the layout match only, and an entry written with a non-empty one reads as layout-stale ("the videomap hash differs").
+- **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files (`Tug*.cs`, outside the layout source set) or the airport's sidecar recomputes the push half only. An edit to `standLeadIns` or `spotEdges` is the exception.
+
+  Their combined layout sidecar hash (the key's `LayoutSidecarHash`, `AirportSidecarHash.ForLayoutSidecar`; notes left out) is part of the layout match, so it stales the layout and the push half (reason "the layout sidecar hash differs").
+
+  An entry stored without the field, or under its former name `standLeadInHash`, reads as layout-stale until the cache is regenerated.
+
+  The tower-cab videomap's `VideoMapHash` ("" = no map) is likewise part of the layout match only, and an entry written with a non-empty one reads as layout-stale ("the videomap hash differs").
 - **Producing entries.** `dotnet run -c Release --project tools/Yaat.PrecomputeCache` computes the entry of every airport in `Data/PrecomputeCache/airports.txt` (the airports a training scenario names as `primaryAirportId` or an aircraft's `airportId` that have a vNAS ground map: 190), or of each `--airport`.
 
   An entry is keyed on the live vNAS NavData serial (the run fails when only a cached serial loads), the MD5 of the GeoJSON vNAS serves now (`GeoJsonMd5`), the sidecar hash and the source hashes; a current entry is skipped unless `--force`.

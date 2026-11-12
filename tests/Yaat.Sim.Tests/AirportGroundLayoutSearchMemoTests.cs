@@ -27,7 +27,13 @@ public class AirportGroundLayoutSearchMemoTests
             return;
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", geoJson, "OAK", new LayoutInputs([], VideoMap: null), FilletMode.Standard);
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            geoJson,
+            "OAK",
+            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            FilletMode.Standard
+        );
         Assert.NotEmpty(Assert.IsAssignableFrom<IReadOnlyList<ExitAheadDto>>(ListExitsAheadOnRollout(layout, runway)));
         Assert.True(layout.HoldsExitSearchMemo());
 

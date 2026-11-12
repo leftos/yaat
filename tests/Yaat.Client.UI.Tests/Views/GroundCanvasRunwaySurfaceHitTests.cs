@@ -693,7 +693,7 @@ public class GroundCanvasRunwaySurfaceHitTests
     {
         string path = Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson");
         return MenuGoldenFixtures.ToGroundLayoutDto(
-            GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard)
         );
     });
 

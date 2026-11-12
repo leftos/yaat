@@ -39,7 +39,7 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
     {
         string path = Path.Combine("TestData", "oak.geojson");
         return File.Exists(path)
-            ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard)
             : null;
     }
 

@@ -42,7 +42,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             shortId,
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            TestLayoutInputs.For(shortId, videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
@@ -109,7 +109,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             shortId,
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            TestLayoutInputs.For(shortId, videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
@@ -172,7 +172,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             shortId,
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            TestLayoutInputs.For(shortId, videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
@@ -238,7 +238,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             shortId,
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            TestLayoutInputs.For(shortId, videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
@@ -327,7 +327,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             shortId,
             File.ReadAllText(path),
             null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            TestLayoutInputs.For(shortId, videoMap: null),
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);

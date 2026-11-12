@@ -497,7 +497,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             return; // silently skip if TestData missing
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("KSFO", File.ReadAllText(path), "KSFO", new LayoutInputs([], VideoMap: null));
+        AirportGroundLayout layout = GeoJsonParser.Parse("KSFO", File.ReadAllText(path), "KSFO", new LayoutInputs([], VideoMap: null, SpotEdges: []));
 
         var combinedId = RunwayIdentifier.Parse("10R/28L");
         GroundRunway rwy = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(combinedId));
@@ -547,7 +547,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             return; // silently skip if TestData missing
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK", new LayoutInputs([], VideoMap: null));
+        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK", new LayoutInputs([], VideoMap: null, SpotEdges: []));
 
         PublishedBar[] rows =
         [
@@ -624,7 +624,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             return; // silently skip if TestData missing
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK", new LayoutInputs([], VideoMap: null));
+        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK", new LayoutInputs([], VideoMap: null, SpotEdges: []));
 
         GroundRunway rwy28R = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(RunwayIdentifier.Parse("28R/10L")));
         double hs28R = RunwayCrossingDetector.BuildRunwayRectangle(rwy28R).HoldShortNm * FeetPerNm;
@@ -672,7 +672,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         using var tap = new CapturingSimLogProvider(LogLevel.Debug, 1000);
         SimLogBuilder.CreateForTest(output).CaptureInto(tap).InitializeSimLog();
 
-        GeoJsonParser.Parse("oak", File.ReadAllText(path), "OAK", new LayoutInputs([], VideoMap: null));
+        GeoJsonParser.Parse("oak", File.ReadAllText(path), "OAK", new LayoutInputs([], VideoMap: null, SpotEdges: []));
 
         List<string> warnings = [.. tap.Drain().Where(r => r.Category == "HoldShortStandoff").Select(r => r.Message)];
         string warning = Assert.Single(warnings);

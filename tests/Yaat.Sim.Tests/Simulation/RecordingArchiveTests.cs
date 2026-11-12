@@ -487,7 +487,7 @@ public class RecordingArchiveTests
             airportId,
             File.ReadAllText(Path.Combine("TestData", geoJsonFile)),
             null,
-            new LayoutInputs([], VideoMap: null)
+            new LayoutInputs([], VideoMap: null, SpotEdges: [])
         );
         AirportGroundLayout restored = WriteAndReadLayout(parsed);
 

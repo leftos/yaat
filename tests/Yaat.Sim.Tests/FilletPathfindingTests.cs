@@ -17,7 +17,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null));
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
     }
 
     private static AirportGroundLayout? LoadSfo()
@@ -28,7 +28,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null));
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestLayoutInputs.For("SFO", videoMap: null));
     }
 
     [Fact]

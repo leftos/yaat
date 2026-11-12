@@ -1022,6 +1022,6 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     internal static AirportGroundLayout ParseOak(TowerCabVideoMap? map, FilletMode filletMode)
     {
         TestVnasData.EnsureInitialized();
-        return GeoJsonParser.Parse("oak", File.ReadAllText(OakLayoutPath), "OAK", new LayoutInputs(TestStandLeadIns.For("oak"), map), filletMode);
+        return GeoJsonParser.Parse("oak", File.ReadAllText(OakLayoutPath), "OAK", TestLayoutInputs.For("oak", map), filletMode);
     }
 }

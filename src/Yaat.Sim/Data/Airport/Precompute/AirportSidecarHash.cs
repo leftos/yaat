@@ -42,15 +42,16 @@ public static class AirportSidecarHash
     }
 
     /// <summary>
-    /// The hash of the airport's stand lead-ins, the one sidecar section the layout build reads: the airport's sidecars
-    /// (the files <see cref="For"/> hashes) are loaded and their merged lead-ins hashed by <see cref="OfStandLeadIns"/>, so a
-    /// lead-in edit stales the layout half of a precompute entry while any other sidecar edit leaves it current.
+    /// The hash of the sidecar sections the layout build reads, the stand lead-ins and the spot-edge chains: the airport's
+    /// sidecars (the files <see cref="For"/> hashes) are loaded and their merged sections hashed by
+    /// <see cref="OfLayoutSidecar"/>, so an edit to either stales the layout half of a precompute entry while any other
+    /// sidecar edit leaves it current.
     /// </summary>
     /// <param name="artccsBaseDir">The ARTCCs data directory.</param>
     /// <param name="airportId">The airport, with or without its K prefix.</param>
     /// <returns>The hash, lowercase hex.</returns>
     /// <exception cref="DirectoryNotFoundException"><paramref name="artccsBaseDir"/> does not exist.</exception>
-    public static string ForStandLeadIns(string artccsBaseDir, string airportId)
+    public static string ForLayoutSidecar(string artccsBaseDir, string airportId)
     {
         if (!Directory.Exists(artccsBaseDir))
         {
@@ -59,17 +60,21 @@ public static class AirportSidecarHash
 
         // The load's warnings are dropped here: the sidecar catalog's own load reports them.
         var catalog = new AirportSidecarCatalog(AirportSidecarLoader.LoadFiles(SidecarFilesOf(artccsBaseDir, airportId)).Airports);
-        return OfStandLeadIns(catalog.GetStandLeadIns(airportId));
+        return OfLayoutSidecar(catalog.GetStandLeadIns(airportId), catalog.GetSpotEdges(airportId));
     }
 
     /// <summary>
-    /// The SHA-256 of a canonical form of <paramref name="leadIns"/>: one line per entry, in order, of its stand, taxiway,
-    /// latitude and longitude (round-trip invariant text), tab-separated. Notes are left out, since they do not shape the
-    /// layout. No entries give the SHA-256 of the empty string.
+    /// The SHA-256 of a canonical form of <paramref name="leadIns"/> and <paramref name="spotEdges"/>: one line per lead-in,
+    /// in order, of its stand, taxiway, latitude and longitude (round-trip invariant text), tab-separated; then, only when
+    /// there are chains, a <c>spotEdges</c> line and per chain, in order, a <c>chain</c> line with its name followed by one
+    /// tab-led line per point of its kind, spot, junction taxiways, taxiway, latitude and longitude (empty when absent).
+    /// Notes are left out, since they do not shape the layout. An airport without chains so hashes exactly as its lead-ins
+    /// alone; no lead-ins and no chains give the SHA-256 of the empty string.
     /// </summary>
     /// <param name="leadIns">An airport's stand lead-ins (<see cref="AirportSidecarCatalog.GetStandLeadIns"/>).</param>
+    /// <param name="spotEdges">An airport's spot-edge chains (<see cref="AirportSidecarCatalog.GetSpotEdges"/>).</param>
     /// <returns>The hash, lowercase hex.</returns>
-    public static string OfStandLeadIns(IReadOnlyList<StandLeadIn> leadIns)
+    public static string OfLayoutSidecar(IReadOnlyList<StandLeadIn> leadIns, IReadOnlyList<SpotEdgeChain> spotEdges)
     {
         var canonical = new StringBuilder();
         foreach (StandLeadIn leadIn in leadIns)
@@ -77,7 +82,36 @@ public static class AirportSidecarHash
             canonical.Append(CultureInfo.InvariantCulture, $"{leadIn.Stand}\t{leadIn.Taxiway}\t{leadIn.Point.Lat:R}\t{leadIn.Point.Lon:R}\n");
         }
 
+        if (spotEdges.Count > 0)
+        {
+            canonical.Append("spotEdges\n");
+            foreach (SpotEdgeChain chain in spotEdges)
+            {
+                AppendChain(canonical, chain);
+            }
+        }
+
         return Sha256Hex(Encoding.UTF8.GetBytes(canonical.ToString()));
+    }
+
+    private static void AppendChain(StringBuilder canonical, SpotEdgeChain chain)
+    {
+        canonical.Append(CultureInfo.InvariantCulture, $"chain\t{chain.Name}\n");
+        foreach (SpotEdgePoint point in chain.Path)
+        {
+            string lat = string.Empty;
+            string lon = string.Empty;
+            if (point.Position is { } position)
+            {
+                lat = position.Lat.ToString("R", CultureInfo.InvariantCulture);
+                lon = position.Lon.ToString("R", CultureInfo.InvariantCulture);
+            }
+
+            canonical.Append(
+                CultureInfo.InvariantCulture,
+                $"\t{point.Kind}\t{point.Spot}\t{point.JunctionA}\t{point.JunctionB}\t{point.Taxiway}\t{lat}\t{lon}\n"
+            );
+        }
     }
 
     private static IEnumerable<string> SidecarFilesOf(string artccsBaseDir, string airportId)

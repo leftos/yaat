@@ -657,6 +657,147 @@ public class AirportSidecarLoaderTests
         }
     }
 
+    /// <summary>A valid sibling entry the spot-edge warning cases load beside the bad one.</summary>
+    private const string ValidSpotEdge = """{ "name": "RAMP", "path": [ { "spot": "1" }, { "spot": "2" } ] }""";
+
+    /// <summary>
+    /// A chain of all four point kinds loads normalised: the name, junction names and taxiway trimmed and upper-cased, the
+    /// spot's leading <c>$</c> stripped, and each <c>[lon, lat]</c> read as <c>LatLon(lat, lon)</c>.
+    /// </summary>
+    [Fact]
+    public void SpotEdges_FourKindChain_ParsesNormalised()
+    {
+        (AirportSidecarLoadResult result, _) = LoadSpotEdges(
+            """
+            {
+              "name": " n8 ",
+              "notes": "charted lane",
+              "path": [
+                { "spot": " $22 " },
+                { "junction": [" n ", "n7"] },
+                { "taxiway": " p ", "near": [-80.275657, 25.789645] },
+                { "point": [-80.2751, 25.7902] }
+              ]
+            }
+            """
+        );
+
+        Assert.Empty(result.Warnings);
+        SpotEdgeChain chain = Assert.Single(Assert.Single(result.Airports).SpotEdges);
+        Assert.Equal("N8", chain.Name);
+        Assert.Equal("charted lane", chain.Notes);
+        Assert.Equal(
+            [
+                new SpotEdgePoint(SpotEdgePointKind.Spot, "22", null, null, null, null),
+                new SpotEdgePoint(SpotEdgePointKind.Junction, null, "N", "N7", null, null),
+                new SpotEdgePoint(SpotEdgePointKind.TaxiwayNear, null, null, null, "P", new LatLon(25.789645, -80.275657)),
+                new SpotEdgePoint(SpotEdgePointKind.Point, null, null, null, null, new LatLon(25.7902, -80.2751)),
+            ],
+            chain.Path
+        );
+    }
+
+    /// <summary>
+    /// Each authored problem warns with its exact text and skips the whole entry, while a valid sibling entry in the same
+    /// file still loads.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "path": [ { "spot": "1" }, { "spot": "2" } ] }""", "?", "no name")]
+    [InlineData("""{ "name": " ", "path": [ { "spot": "1" }, { "spot": "2" } ] }""", "?", "no name")]
+    [InlineData("""{ "name": "a", "path": [ { "spot": "1" } ] }""", "a", "fewer than two points")]
+    [InlineData("""{ "name": "a" }""", "a", "fewer than two points")]
+    [InlineData("""{ "name": "A", "path": [ { "spot": "1" }, { } ] }""", "A", "point 1 has no resolver")]
+    [InlineData("""{ "name": "A", "path": [ { "near": [-80.1, 25.1] }, { "spot": "2" } ] }""", "A", "point 0 has no resolver")]
+    [InlineData(
+        """{ "name": "A", "path": [ { "spot": "1", "point": [-80.1, 25.1] }, { "spot": "2" } ] }""",
+        "A",
+        "point 0 has more than one resolver"
+    )]
+    [InlineData("""{ "name": "A", "path": [ { "spot": "1", "near": [-80.1, 25.1] }, { "spot": "2" } ] }""", "A", "point 0 has near without taxiway")]
+    [InlineData("""{ "name": "A", "path": [ { "spot": "1" }, { "taxiway": "N" } ] }""", "A", "point 1 has taxiway without near")]
+    [InlineData("""{ "name": "A", "path": [ { "junction": ["N"] }, { "spot": "2" } ] }""", "A", "point 0 junction needs two taxiway names")]
+    [InlineData("""{ "name": "A", "path": [ { "junction": ["N", " "] }, { "spot": "2" } ] }""", "A", "point 0 junction needs two taxiway names")]
+    [InlineData("""{ "name": "A", "path": [ { "taxiway": "N", "near": [-80.1] }, { "spot": "2" } ] }""", "A", "point 0 near needs [lon, lat]")]
+    [InlineData("""{ "name": "A", "path": [ { "spot": "1" }, { "point": [-80.1, 25.1, 3] } ] }""", "A", "point 1 point needs [lon, lat]")]
+    [InlineData("""{ "name": "A", "path": [ { "spot": "1", "snap": "foot" }, { "spot": "2" } ] }""", "A", "point 0 has unknown key 'snap'")]
+    [InlineData("""{ "name": "A", "path": [ { "spot": " " }, { "spot": "2" } ] }""", "A", "point 0 spot is blank")]
+    [InlineData("""{ "name": "A", "path": [ { "taxiway": " ", "near": [-80.1, 25.1] }, { "spot": "2" } ] }""", "A", "point 0 taxiway is blank")]
+    [InlineData("""{ "name": "A", "oneWay": true, "path": [ { "spot": "1" }, { "spot": "2" } ] }""", "A", "has unknown key 'oneWay'")]
+    [InlineData(
+        """{ "name": "A", "path": [ { "junction": ["N", " n "] }, { "spot": "2" } ] }""",
+        "A",
+        "point 0 junction needs two different taxiway names"
+    )]
+    [InlineData("""{ "name": "A", "path": [ null, { "spot": "2" } ] }""", "A", "point 0 has no resolver")]
+    [InlineData("""{ "name": "rwy10L", "path": [ { "spot": "1" }, { "spot": "2" } ] }""", "rwy10L", "name reserved for runway edges")]
+    [InlineData("""{ "name": "N:LINK", "path": [ { "spot": "1" }, { "spot": "2" } ] }""", "N:LINK", "name reserved for runway edges")]
+    [InlineData("""{ "name": "A", "path": [ { "spot": "1" }, { "junction": [] } ] }""", "A", "point 1 junction needs two taxiway names")]
+    public void SpotEdges_BadEntry_WarnsAndSkipsOnlyThatEntry(string badEntry, string warnedName, string problem)
+    {
+        (AirportSidecarLoadResult result, string filePath) = LoadSpotEdges($"{badEntry}, {ValidSpotEdge}");
+
+        Assert.Equal([$"{filePath}: spotEdges[0] ({warnedName}): {problem}, skipping"], result.Warnings);
+        SpotEdgeChain chain = Assert.Single(Assert.Single(result.Airports).SpotEdges);
+        Assert.Equal("RAMP", chain.Name);
+        Assert.Equal(["1", "2"], [.. chain.Path.Select(p => p.Spot!)]);
+    }
+
+    /// <summary>
+    /// A second entry in one file with the same name and the same normalised path warns and replaces the first in its
+    /// place; an entry with the same name and another path is a separate chain.
+    /// </summary>
+    [Fact]
+    public void SpotEdges_DuplicateInFile_WarnsAndLastWinsInPlace()
+    {
+        (AirportSidecarLoadResult result, string filePath) = LoadSpotEdges(
+            """
+            { "name": "RAMP", "notes": "first", "path": [ { "spot": "1" }, { "spot": "2" } ] },
+            { "name": "RAMP", "path": [ { "spot": "3" }, { "spot": "4" } ] },
+            { "name": "ramp", "notes": "second", "path": [ { "spot": "$1" }, { "spot": " 2" } ] }
+            """
+        );
+
+        Assert.Equal([$"{filePath}: spotEdges[2] (ramp): duplicate of spotEdges[0], last wins"], result.Warnings);
+        IReadOnlyList<SpotEdgeChain> chains = Assert.Single(result.Airports).SpotEdges;
+        Assert.Equal(2, chains.Count);
+        Assert.Equal("second", chains[0].Notes);
+        Assert.Equal(["1", "2"], [.. chains[0].Path.Select(p => p.Spot!)]);
+        Assert.Equal(["3", "4"], [.. chains[1].Path.Select(p => p.Spot!)]);
+    }
+
+    /// <summary>A spot name loads upper-cased, so two entries whose spots differ only in case are duplicates.</summary>
+    [Fact]
+    public void SpotEdges_SpotNames_LoadUpperCased_AndDuplicateCaseInsensitively()
+    {
+        (AirportSidecarLoadResult result, string filePath) = LoadSpotEdges(
+            """
+            { "name": "RAMP", "path": [ { "spot": "a1" }, { "spot": "2" } ] },
+            { "name": "RAMP", "path": [ { "spot": "$A1" }, { "spot": "2" } ] }
+            """
+        );
+
+        Assert.Equal([$"{filePath}: spotEdges[1] (RAMP): duplicate of spotEdges[0], last wins"], result.Warnings);
+        SpotEdgeChain chain = Assert.Single(Assert.Single(result.Airports).SpotEdges);
+        Assert.Equal(["A1", "2"], [.. chain.Path.Select(p => p.Spot!)]);
+    }
+
+    /// <summary>Loads one KMIA sidecar file whose <c>spotEdges</c> section holds the given entries, through <c>LoadFiles</c>.</summary>
+    private static (AirportSidecarLoadResult Result, string FilePath) LoadSpotEdges(string entries)
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        string filePath = Path.Combine(tempDir, "mia.json");
+        try
+        {
+            File.WriteAllText(filePath, $$"""{ "airportId": "KMIA", "spotEdges": [ {{entries}} ] }""");
+            return (AirportSidecarLoader.LoadFiles([filePath]), filePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     /// <summary>Loads one KOAK sidecar file with the given content.</summary>
     private static AirportSidecarLoadResult LoadOakSidecar(string json)
     {

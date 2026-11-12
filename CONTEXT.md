@@ -270,6 +270,10 @@ _Avoid_: intersection takeoff (the AIM's term for the same departure; the code a
 A clearance for a hold short still ahead of a rolling aircraft, set before it reaches the bar so it taxis through without stopping: `CROSS` for a runway crossing, a bare `RES` for the next taxiway or spot bar (`GroundCommandHandler.TryPreClearNextTaxiwayHoldShort`, docs/command-handlers.md). Only the one bar named is cleared; later bars stay armed.
 _Avoid_: release (a release lifts a hold the aircraft is already stopped at)
 
+**Spot edge**:
+An edge a sidecar `spotEdges` chain adds at layout build, linking a taxi spot the vNAS map leaves unlinked to the network, or drawing a charted taxilane the map lacks; a plain link is a RAMP edge, a charted lane carries its chart name.
+_Avoid_: stand lead-in (that joins a parking stand, not a spot)
+
 **Spot line-up**:
 The route a `TAXI … $spot` from the ramp is re-planned into: across the apron, a ~90° turn onto the spot's lane on the ramp side, and a slow pull onto the mark facing the movement-area taxiway the lane joins (`RampLaneReposition.TryPlanSpotLineUp`, docs/ground/pathfinder.md).
 _Avoid_: ramp cut (a ramp cut is a free-space shortcut between lanes; a line-up decides which way the aircraft ends facing)

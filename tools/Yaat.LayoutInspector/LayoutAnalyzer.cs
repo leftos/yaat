@@ -15,14 +15,12 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
     {
         string geoJson = File.ReadAllText(geoJsonPath);
         string airportId = Path.GetFileNameWithoutExtension(geoJsonPath).ToUpperInvariant();
+        AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
         AirportGroundLayout layout = GeoJsonParser.Parse(
             airportId,
             geoJson,
             airportCode,
-            new LayoutInputs(
-                (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(airportId),
-                VideoMap: videoMap
-            ),
+            new LayoutInputs(sidecars.GetStandLeadIns(airportId), VideoMap: videoMap, SpotEdges: sidecars.GetSpotEdges(airportId)),
             filletMode
         );
         return new LayoutAnalyzer(layout);

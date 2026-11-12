@@ -39,6 +39,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, Dictionary<string, StandDeparture>> _standDeparturesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<StandDepartureArea>> _standDepartureAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<StandLeadIn>> _standLeadInsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<SpotEdgeChain>> _spotEdgesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _asdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _emptyAsdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _listedAsdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
@@ -72,6 +73,7 @@ public sealed class AirportSidecarCatalog
             MergeStandDepartures(key, airport.StandDepartureOverrides);
             MergeStandDepartureAreas(key, airport.StandDepartureAreas);
             MergeStandLeadIns(key, airport.StandLeadIns);
+            MergeSpotEdges(key, airport.SpotEdges);
             MergeAsdexLandingTaxiways(key, airport);
         }
     }
@@ -179,6 +181,49 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _standLeadInsByAirport.TryGetValue(key, out List<StandLeadIn>? list) ? list : [];
+    }
+
+    private void MergeSpotEdges(string key, IReadOnlyList<SpotEdgeChain> chains)
+    {
+        if (chains.Count == 0)
+        {
+            return;
+        }
+
+        if (!_spotEdgesByAirport.TryGetValue(key, out List<SpotEdgeChain>? list))
+        {
+            list = [];
+            _spotEdgesByAirport[key] = list;
+        }
+
+        // A chain with the same name and path as one an earlier file merged replaces it in its place; others append.
+        foreach (SpotEdgeChain chain in chains)
+        {
+            int existing = list.FindIndex(merged => merged.HasSameNameAndPath(chain));
+            if (existing >= 0)
+            {
+                list[existing] = chain;
+            }
+            else
+            {
+                list.Add(chain);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The airport sidecar's spot-edge chains, in load order, one per name and path. Never null — returns an empty list
+    /// when the airport has none. Passed to <see cref="GeoJsonParser"/> through <see cref="LayoutInputs.SpotEdges"/>.
+    /// </summary>
+    public IReadOnlyList<SpotEdgeChain> GetSpotEdges(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _spotEdgesByAirport.TryGetValue(key, out List<SpotEdgeChain>? list) ? list : [];
     }
 
     private void MergeStandDepartureAreas(string key, IReadOnlyList<StandDepartureArea> areas)

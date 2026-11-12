@@ -556,7 +556,7 @@ Whether a stand is left by a push back, by taxiing out, or either way, overridin
 | `standDepartureAreas[].departure` | string | Yes | `"PushBack"`, `"TaxiOut"` or `"Either"` |
 | `standDepartureAreas[].notes` | string | No | Facility rationale. Informational only |
 
-Precedence is the per-name `standDeparture`, then the first matching area rule (files concatenate in load order), then the layout's geometry. A rule is applied when the answer is read, never at layout build; the one sidecar section the layout build does read is [`standLeadIns`](#standleadins), whose vertex is the foot the geometry answer is classified from.
+Precedence is the per-name `standDeparture`, then the first matching area rule (files concatenate in load order), then the layout's geometry. A rule is applied when the answer is read, never at layout build; the sidecar sections the layout build does read are [`standLeadIns`](#standleadins), whose vertex is the foot the geometry answer is classified from, and [`spotEdges`](#spotedges).
 
 Files load in the ordinal order of each file's path relative to `Data/ARTCCs`, written with forward slashes, so `ZOA/Airports/B.json` loads before `ZOA/Airports/a.json` — an upper-case name or folder sorts before a lower-case one. This is the same order on every OS, never the filesystem's own listing order. Where two files disagree, the last file wins for a per-name `standDeparture` entry, and the first file's rule comes first among `standDepartureAreas`.
 
@@ -582,6 +582,45 @@ The taxiway a parking stand's connector joins, for a stand the vNAS map draws no
 At layout build (before the gate-group connectors and the fillet pass) the stand connects to the vertex nearest `point` among the nodes with an edge of the named taxiway that a stand may connect to, within 0.15 nm of the point. A stand never connects to a runway centreline, a crossing link, or an edge touching a parking or helipad node. That connector (origin `GeoJson:parking-connector`) replaces the stand's nearest-edge one, and the vertex is the stand's foot for push classification.
 
 An entry that fails a check is skipped with a warning at load: a blank stand or taxiway, a `point` that is not two numbers, or a second entry for the same stand in one file (the last entry wins; across files the last file wins). An entry whose stand names no parking stand on the layout or several, finds no vertex of its taxiway within 0.15 nm, or joins the taxiway at a node on the stand warns at layout build and keeps the nearest-edge connector. Editing this section stales the airport's layout and push-target cache entries, while any other sidecar edit stales the push-target entry alone. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
+
+### `spotEdges`
+
+Named chains of points the layout build joins in order by straight edges, to link a taxi spot the vNAS map leaves unlinked to the network, or to draw a charted taxilane the map lacks. A spot with no edge cannot be routed to or from.
+
+```json
+"spotEdges": [
+  {
+    "name": "RAMP",
+    "path": [ { "spot": "22" }, { "point": [-80.2951, 25.7945] }, { "junction": ["N", "N7"] } ],
+    "notes": "The vNAS map draws no edge to spot 22."
+  },
+  {
+    "name": "TC",
+    "path": [ { "taxiway": "N", "near": [-80.2960, 25.7950] }, { "point": [-80.2965, 25.7960] } ]
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `spotEdges[].name` | string | Yes | The name every edge of the chain carries. `RAMP` for a plain spot link; a charted taxilane takes its chart name. Upper-cased. Never an `RWY`-prefixed name or a runway crossing-link name |
+| `spotEdges[].path` | object[] | Yes | At least two points, in order; each consecutive pair is joined by one straight edge. There is no one-way field: every edge is two-way |
+| `spotEdges[].path[].spot` | string | One resolver | A taxi spot's name, case-insensitive; a leading `$` is accepted |
+| `spotEdges[].path[].junction` | string[2] | One resolver | Two different taxiway names; the point is the one node their edges share |
+| `spotEdges[].path[].taxiway` | string | One resolver | A taxiway name, with `near`; the point is that taxiway's vertex nearest `near` |
+| `spotEdges[].path[].near` | number[2] | With `taxiway` | `[lon, lat]` (GeoJSON order); the vertex must lie within 0.15 nm |
+| `spotEdges[].path[].point` | number[2] | One resolver | `[lon, lat]` (GeoJSON order) of a node the chain passes through; an existing node within snap tolerance is reused, else a new one is made |
+| `spotEdges[].notes` | string | No | Facility rationale. Informational only |
+
+A point sets exactly one resolver (`taxiway` and `near` count as one). The chains are built after the stand connectors and before the fillet pass, so every stand keeps the connection it gets without them. A chain's edges carry its name and the origin `Sidecar:spot-edge`; a chain named for a taxiway the map already draws joins that taxiway's name, and a pair already joined by an edge of that name gets no second edge.
+
+A charted lane is movement area or ramp by the usual inference from its name. To mark an apron lane non-movement, list its name in [`nonMovementTaxilanes`](#movementareataxiways--nonmovementtaxilanes). A plain `RAMP` link needs no entry.
+
+An entry that fails a check is skipped whole with a warning at load: a missing name, fewer than two points, a point with no resolver or more than one, a `junction` that is not two different names, a `near` or `point` that is not two numbers, `taxiway` without `near` or the reverse, a blank spot or taxiway, an unknown key, or a reserved name (`RWY` prefix or a crossing-link suffix). A second entry with the same name and path in one file replaces the earlier one (across files the last file wins).
+
+An entry that fails at layout build is likewise skipped whole with a warning and adds nothing: a spot, junction or `taxiway`/`near` that does not resolve (a spot matching several nodes, a junction whose taxiways share no node or several, no vertex within 0.15 nm), a point that resolves to a runway hold-short, parking, helipad or runway centreline node, a `point` within snap tolerance of a stand or helipad, or two consecutive points on one node.
+
+Editing this section stales the airport's layout and push-target cache entries. Worked example: [`ZMA/Airports/mia.json`](ZMA/Airports/mia.json).
 
 ### `asdexLandingTaxiways`
 

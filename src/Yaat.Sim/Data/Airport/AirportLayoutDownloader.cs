@@ -132,14 +132,12 @@ public sealed class AirportLayoutDownloader : IDisposable
 
         try
         {
+            AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
             return GeoJsonParser.Parse(
                 faaCode.ToLowerInvariant(),
                 geoJson,
                 faaCode,
-                new LayoutInputs(
-                    (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaCode),
-                    VideoMap: null
-                )
+                new LayoutInputs(sidecars.GetStandLeadIns(faaCode), VideoMap: null, SpotEdges: sidecars.GetSpotEdges(faaCode))
             );
         }
         catch (Exception ex)

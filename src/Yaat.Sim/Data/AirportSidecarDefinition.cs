@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -300,6 +301,96 @@ public sealed class StandLeadInEntry
 public sealed record StandLeadIn(string Stand, string Taxiway, LatLon Point, string? Notes);
 
 /// <summary>
+/// On-disk shape of one entry of the unified per-airport sidecar's <c>spotEdges</c> section: a named chain of points the
+/// layout build joins in order by straight edges, linking a taxi spot the vNAS map leaves unlinked or drawing a charted
+/// taxilane the map lacks.
+/// </summary>
+public sealed class SpotEdgeEntry
+{
+    /// <summary>The name the chain's edges carry: <c>"RAMP"</c> for a plain spot link, or the charted taxilane's name.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>The chain's points in order, at least two; consecutive points are joined by one straight edge.</summary>
+    [JsonPropertyName("path")]
+    public List<SpotEdgePointEntry>? Path { get; set; }
+
+    /// <summary>Optional human-readable rationale. Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+
+    /// <summary>Any key the entry does not define; an entry carrying one is warned and skipped.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+}
+
+/// <summary>
+/// On-disk shape of one point of a <see cref="SpotEdgeEntry"/>'s path. Exactly one resolver is set: <see cref="Spot"/>,
+/// <see cref="Junction"/>, <see cref="Taxiway"/> (with <see cref="Near"/>) or <see cref="Point"/>.
+/// </summary>
+public sealed class SpotEdgePointEntry
+{
+    /// <summary>The taxi spot's name, e.g. <c>"22"</c>; a leading <c>$</c> is accepted and stripped.</summary>
+    [JsonPropertyName("spot")]
+    public string? Spot { get; set; }
+
+    /// <summary>Two taxiway names whose shared node is the point, e.g. <c>["N", "N7"]</c>.</summary>
+    [JsonPropertyName("junction")]
+    public List<string>? Junction { get; set; }
+
+    /// <summary>The taxiway whose vertex nearest <see cref="Near"/> is the point.</summary>
+    [JsonPropertyName("taxiway")]
+    public string? Taxiway { get; set; }
+
+    /// <summary><c>[lon, lat]</c> (GeoJSON order) near the <see cref="Taxiway"/> vertex the point resolves to.</summary>
+    [JsonPropertyName("near")]
+    public List<double>? Near { get; set; }
+
+    /// <summary><c>[lon, lat]</c> (GeoJSON order) of a new node the chain passes through.</summary>
+    [JsonPropertyName("point")]
+    public List<double>? Point { get; set; }
+
+    /// <summary>Any key the point does not define; a point carrying one is warned and its entry skipped.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+}
+
+/// <summary>How a validated <see cref="SpotEdgePoint"/> resolves to a layout node.</summary>
+public enum SpotEdgePointKind
+{
+    /// <summary>The taxi spot named <see cref="SpotEdgePoint.Spot"/>.</summary>
+    Spot,
+
+    /// <summary>The node shared by taxiways <see cref="SpotEdgePoint.JunctionA"/> and <see cref="SpotEdgePoint.JunctionB"/>.</summary>
+    Junction,
+
+    /// <summary>The vertex of <see cref="SpotEdgePoint.Taxiway"/> nearest <see cref="SpotEdgePoint.Position"/>.</summary>
+    TaxiwayNear,
+
+    /// <summary>A node at <see cref="SpotEdgePoint.Position"/>.</summary>
+    Point,
+}
+
+/// <summary>
+/// One validated point of a <see cref="SpotEdgeChain"/>: <see cref="Spot"/> trimmed, with one leading <c>$</c> stripped, and upper-cased;
+/// <see cref="JunctionA"/>, <see cref="JunctionB"/> and <see cref="Taxiway"/> trimmed and upper-cased;
+/// <see cref="Position"/> the <c>near</c> point for <see cref="SpotEdgePointKind.TaxiwayNear"/> and the point itself for
+/// <see cref="SpotEdgePointKind.Point"/>, null otherwise.
+/// </summary>
+public sealed record SpotEdgePoint(SpotEdgePointKind Kind, string? Spot, string? JunctionA, string? JunctionB, string? Taxiway, LatLon? Position);
+
+/// <summary>
+/// One airport's validated spot-edge chain, produced by <see cref="AirportSidecarLoader"/> from a
+/// <see cref="SpotEdgeEntry"/>: <see cref="Name"/> trimmed and upper-cased, at least two points in order.
+/// </summary>
+public sealed record SpotEdgeChain(string Name, IReadOnlyList<SpotEdgePoint> Path, string? Notes)
+{
+    /// <summary>True when <paramref name="other"/> has the same name and the same points in the same order; notes are ignored.</summary>
+    public bool HasSameNameAndPath(SpotEdgeChain other) =>
+        string.Equals(Name, other.Name, StringComparison.Ordinal) && Path.SequenceEqual(other.Path);
+}
+
+/// <summary>
 /// On-disk shape of a unified per-airport ground sidecar: one airport per JSON file under
 /// <c>Data/ARTCCs/{ARTCC}/Airports/{airport}.json</c>. Consolidates the per-airport ground-routing
 /// overrides (avoided taxiways, preset taxi routes, implicit connectors) that were previously split
@@ -376,6 +467,10 @@ internal sealed class AirportSidecarFile
     [JsonPropertyName("standLeadIns")]
     public List<StandLeadInEntry> StandLeadIns { get; set; } = [];
 
+    /// <summary>Named chains of points the layout build joins by straight edges: spot links and charted taxilanes.</summary>
+    [JsonPropertyName("spotEdges")]
+    public List<SpotEdgeEntry> SpotEdges { get; set; } = [];
+
     /// <summary>
     /// Taxiways the ASDE-X safety logic alerts a landing on, as the ground layout spells them. Absent means any taxiway; an
     /// empty list means no taxiway-landing alert at all.
@@ -435,9 +530,15 @@ public sealed record AirportSidecar(string AirportId)
 
     /// <summary>
     /// Stands whose connector the layout build draws to a named taxiway's vertex, in file order, one entry per stand
-    /// (<see cref="GeoJsonParser"/>). The only section the layout build reads.
+    /// (<see cref="GeoJsonParser"/>). The layout build reads this section and <see cref="SpotEdges"/>.
     /// </summary>
     public IReadOnlyList<StandLeadIn> StandLeadIns { get; init; } = [];
+
+    /// <summary>
+    /// The spot-edge chains in file order, an in-file duplicate (same name and path) replacing the earlier one. The layout
+    /// build reads this section and <see cref="StandLeadIns"/>.
+    /// </summary>
+    public IReadOnlyList<SpotEdgeChain> SpotEdges { get; init; } = [];
 
     /// <summary>
     /// Upper-cased taxiway names the ASDE-X safety logic alerts a landing on, as the ground layout spells them. Null when the

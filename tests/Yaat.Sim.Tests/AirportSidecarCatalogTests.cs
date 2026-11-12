@@ -195,6 +195,57 @@ public class AirportSidecarCatalogTests
         Assert.Empty(catalog.GetStandDepartureAreas(""));
     }
 
+    /// <summary>Spot-edge chains from several files for one airport concatenate in load order, by ICAO and FAA alike.</summary>
+    [Fact]
+    public void GetSpotEdges_ConcatenatesFilesInLoadOrder()
+    {
+        SpotEdgeChain first = SpotChain("RAMP", "1", "2", notes: null);
+        SpotEdgeChain second = SpotChain("N8", "3", "4", notes: null);
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KMIA") { SpotEdges = [first] },
+            new AirportSidecar("MIA") { SpotEdges = [second] },
+        ]);
+
+        Assert.Equal([first, second], catalog.GetSpotEdges("KMIA"));
+        Assert.Equal([first, second], catalog.GetSpotEdges("mia"));
+    }
+
+    /// <summary>A chain with the same name and path as one an earlier file merged replaces it, so it appears once.</summary>
+    [Fact]
+    public void GetSpotEdges_IdenticalChainAcrossFiles_AppearsOnceLastWins()
+    {
+        SpotEdgeChain first = SpotChain("RAMP", "1", "2", notes: "first");
+        SpotEdgeChain other = SpotChain("RAMP", "3", "4", notes: null);
+        SpotEdgeChain again = SpotChain("RAMP", "1", "2", notes: "again");
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KMIA") { SpotEdges = [first, other] },
+            new AirportSidecar("KMIA") { SpotEdges = [again] },
+        ]);
+
+        Assert.Equal([again, other], catalog.GetSpotEdges("KMIA"));
+    }
+
+    /// <summary>An airport no sidecar gives spot edges, or a blank id, has none.</summary>
+    [Fact]
+    public void GetSpotEdges_UnknownAirport_IsEmpty()
+    {
+        var catalog = new AirportSidecarCatalog([new AirportSidecar("KMIA") { SpotEdges = [SpotChain("RAMP", "1", "2", notes: null)] }]);
+
+        Assert.Empty(catalog.GetSpotEdges("KSFO"));
+        Assert.Empty(catalog.GetSpotEdges(""));
+    }
+
+    /// <summary>A chain of the given name joining two spots.</summary>
+    private static SpotEdgeChain SpotChain(string name, string fromSpot, string toSpot, string? notes) =>
+        new(
+            name,
+            [
+                new SpotEdgePoint(SpotEdgePointKind.Spot, fromSpot, null, null, null, null),
+                new SpotEdgePoint(SpotEdgePointKind.Spot, toSpot, null, null, null, null),
+            ],
+            notes
+        );
+
     [Fact]
     public void GetOneWayConstraints_ByIcaoAndFaa()
     {

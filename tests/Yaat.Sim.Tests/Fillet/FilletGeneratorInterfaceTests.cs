@@ -47,7 +47,13 @@ public class FilletGeneratorInterfaceTests
     [Fact]
     public void GeoJsonParser_None_SkipsFilletPass()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", MinimalGeoJson(), null, new LayoutInputs([], VideoMap: null), FilletMode.None);
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TEST",
+            MinimalGeoJson(),
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            FilletMode.None
+        );
         Assert.Empty(layout.Arcs);
     }
 

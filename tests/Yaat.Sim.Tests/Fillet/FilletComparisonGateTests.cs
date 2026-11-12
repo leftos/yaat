@@ -77,13 +77,7 @@ public class FilletComparisonGateTests
             return null;
         }
 
-        return GeoJsonParser.Parse(
-            shortId,
-            File.ReadAllText(path),
-            null,
-            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
-            FilletMode.None
-        );
+        return GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestLayoutInputs.For(shortId, videoMap: null), FilletMode.None);
     }
 
     private static AirportGroundLayout BuildSimple90Layout()

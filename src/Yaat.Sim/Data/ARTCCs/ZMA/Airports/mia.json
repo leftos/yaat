@@ -36,5 +36,185 @@
       "innerNm": -0.1,
       "notes": "ZMA D11 Miami ATCT SOP 3-9.F, under 7110.65 3-9-9.b — published as one row for arrivals 26L/26R."
     }
+  ],
+  "spotEdges": [
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "N13", "near": [-80.270808, 25.800419] },
+        { "spot": "2" },
+        { "point": [-80.269802, 25.799241] },
+        { "spot": "1" }
+      ],
+      "notes": "10-9B: the northern of the two apron lanes leaving the south-east end of N13 past spot 2, curving east onto the C-apron lane through spot 1."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "N13", "near": [-80.270808, 25.800419] },
+        { "spot": "3" },
+        { "point": [-80.269802, 25.799241] }
+      ],
+      "notes": "10-9B: the dashed line between the two N13 apron lanes, through spot 3 to where the lanes merge west of spot 1."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "N13", "near": [-80.271266, 25.800016] },
+        { "spot": "4" },
+        { "point": [-80.269802, 25.799241] }
+      ],
+      "notes": "10-9B: the southern of the two apron lanes leaving the south-east end of N13 past spot 4, merging west of spot 1."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "junction": ["N", "N6"] },
+        { "spot": "10" },
+        { "spot": "9" },
+        { "spot": "8" },
+        { "spot": "7" },
+        { "spot": "6" },
+        { "spot": "5" },
+        { "junction": ["N", "N11"] }
+      ],
+      "notes": "10-9B: the Concourse D apron lane south of N past spots 10, 9, 8, 7, 6 and 5, joined to N at its west end by spot 10 and at its east end by spot 5."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "spot": "9" }, { "junction": ["N", "N7"] }],
+      "notes": "10-9B: N7 continuing south across N to spot 9 on the Concourse D apron lane."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "spot": "8" }, { "junction": ["N", "N8"] }],
+      "notes": "10-9B: N8 continuing south across N to spot 8 on the Concourse D apron lane."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "spot": "7" }, { "junction": ["N", "N9"] }],
+      "notes": "10-9B: N9 continuing south across N to spot 7 on the Concourse D apron lane."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "spot": "6" }, { "junction": ["N", "N10"] }],
+      "notes": "10-9B: the unnamed connector from spot 6 up to N; the vNAS N has no vertex above the spot, so it joins the nearer charted crossing, N10."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "N4", "near": [-80.287349, 25.799295] },
+        { "spot": "11" }
+      ],
+      "notes": "10-9B: spot 11 at the south end of N4, where N4 crosses N into the Remote Commuter Facility apron."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "junction": ["W", "Y1"] }, { "spot": "12" }],
+      "notes": "10-9B: spot 12 where the D60 apron lane leaves W eastward; the vNAS W has no vertex there, so the link runs to the nearest one, at Y1."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "Y1", "near": [-80.287935, 25.796440] },
+        { "spot": "13" }
+      ],
+      "notes": "10-9B: spot 13 at the east end of Y1, east of W."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "Y1", "near": [-80.287935, 25.796440] },
+        { "spot": "14" }
+      ],
+      "notes": "10-9B: spot 14 on the dashed apron line east of W between Y1 and Y2, joined to the Y1 end it fillets from."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "Y2", "near": [-80.287862, 25.795648] },
+        { "spot": "15" }
+      ],
+      "notes": "10-9B: spot 15 at the east end of Y2, east of W, on the E Remote apron lane."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "spot": "16" },
+        { "point": [-80.285615, 25.793294] },
+        { "spot": "17" },
+        { "point": [-80.282621, 25.793560] },
+        { "spot": "18" },
+        { "taxiway": "U", "near": [-80.283932, 25.792156] }
+      ],
+      "notes": "10-9B: the apron lane south of E Remote, down from spot 16, east past spot 17, then south-west past the spot the chart numbers 19 (vNAS spot 18) to the north end of U."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "point": [-80.285615, 25.793294] },
+        { "taxiway": "P", "near": [-80.286091, 25.793213] }
+      ],
+      "notes": "10-9B: the lane south from the bend below spot 16 to P by V."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "P", "near": [-80.281075, 25.790290] },
+        { "spot": "19" }
+      ],
+      "notes": "10-9B: the Concourse F/G apron edge north of P at the spot the chart numbers 20, where the vNAS map puts spot 19."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "P", "near": [-80.278456, 25.789389] },
+        { "spot": "20" }
+      ],
+      "notes": "10-9B: the Concourse G/H apron lane down to P at the spot the chart numbers 21, where the vNAS map puts spot 20."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "P", "near": [-80.275658, 25.789645] },
+        { "spot": "21" },
+        { "spot": "22" },
+        { "spot": "23" },
+        { "point": [-80.274957, 25.789490] },
+        { "spot": "24" },
+        { "point": [-80.272968, 25.789243] },
+        { "spot": "25" },
+        { "spot": "26" },
+        { "spot": "27" }
+      ],
+      "notes": "10-9B: the apron lane south of Concourses H and J, from the east end of P past the spots the chart numbers 22, 23 and 24, down to 25 and east to 26, 27 and 28 (vNAS spots 21 to 27)."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "spot": "21" }, { "junction": ["Q", "Q10"] }],
+      "notes": "10-9B: the west lane between Concourses H and J, south from the spot the chart numbers 22 (vNAS spot 21) to where Q crosses Q10."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "spot": "22" },
+        { "point": [-80.275111, 25.789170] },
+        { "junction": ["Q", "Q10"] }
+      ],
+      "notes": "10-9B: the dashed centre lane between Concourses H and J, south from the spot the chart numbers 23 (vNAS spot 22), bending south-west to where Q crosses Q10."
+    },
+    {
+      "name": "RAMP",
+      "path": [{ "spot": "24" }, { "junction": ["Q", "Q10"] }],
+      "notes": "10-9B: Q's continuation east of Q10 up to the spot the chart numbers 25 (vNAS spot 24)."
+    },
+    {
+      "name": "RAMP",
+      "path": [
+        { "taxiway": "K", "near": [-80.275460, 25.805100] },
+        { "spot": "52" }
+      ],
+      "notes": "Spot 52 is not on the 10-9B; linked to the nearest vertex of K, the taxiway the vNAS map draws it beside."
+    }
   ]
 }
