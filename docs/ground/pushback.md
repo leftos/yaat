@@ -105,7 +105,7 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
    - The chosen candidate then goes through the **alley clearance** (below), which may swap it for one that stays clear of the taxiways' object-free areas.
    - D15 `PUSH $6A` (B738): the pull-side T0 wins — push-off, straight push, push capturing the 6A lane, reversal, `Pull ViaLine` creeping onto 6A; four moves, one reversal, done in 126 s flown. `PUSHM $6A $6B` passes 6A as a hint: the pull onto the 6A lane is no longer a creep and carries on through 6A (6A and 6B sit abeam, so the reversal there stays), then `Push ViaLine` onto the 6B lane and `Pull ViaLine` creeping onto 6B.
 
-     The path is within 2 ft of the old stop-at-6A plan. The outline's nearest point to taxiway A's centreline (the nose) is 172.9 ft planned, 173.6 ft flown — outside A's 129.5 ft ADG IV half-width plus the 5 ft margin.
+     The path is within 2 ft of the old stop-at-6A plan. The outline's nearest point to taxiway A's centreline (the nose) is 172.9 ft planned, 173.6 ft flown — outside A's 121.5 ft ADG IV half-width plus the 5 ft margin.
 3. **`Node` with no facing.** Push when the node is more than 90° off the nose, else pull; shape `ToPoint`.
 4. **`Facing`.** Push-off, `Push TurnTo(F)` (`Tight` over 135°), then a straight push for whatever remains of the simple pushback distance.
 5. **`Clear`.** `Push Straight(SimplePushbackDistanceNm)`.
@@ -177,10 +177,10 @@ An alley push is ramp traffic; the object-free area is the zone either side of a
 
 - **Design group per taxiway** (`AirplaneDesignGroups.ForTaxiway`).
 
-  The layout carries no ADG, width or object-free area, so each is derived: the smaller of the airport's group, read from its widest runway with a recorded width (the `HoldShortAnnotator` width buckets: < 75 ft I, < 100 ft II, < 150 ft III, < 200 ft V, else VI — 150 ft reads V because KOAK 30 carries MD-11s and B744Fs; no recorded width → VI), and the largest group whose taxiway-to-taxiway separation (1.2 W + 10 ft) fits the spacing to the nearest parallel movement-area taxiway.
+  The layout carries no ADG, width or object-free area, so each is derived: the smaller of the airport's group, read from its widest runway with a recorded width (the `HoldShortAnnotator` width buckets: < 75 ft I, < 100 ft II, < 150 ft III, < 200 ft V, else VI — 150 ft reads V because KOAK 30 carries MD-11s and B744Fs; no recorded width → VI), and the largest group whose taxiway-to-taxiway separation (`AirplaneDesignGroups.TaxiwaySeparationFt`, AC 150/5300-13B Table 4-1) fits the spacing to the nearest parallel movement-area taxiway.
 
   A parallel runs within 15° of the taxiway's heading within 400 ft of it; its spacing is the 12th-smallest of the per-25-ft-sample distances, the least distance that holds over at least 300 ft. Cached per layout and movement-area classification.
-- **Half-widths** (`TaxiwayObjectFreeHalfWidthFt`, AC 150/5300-13B Table 4-1, 0.7 W + 10 ft of the group's span ceiling W): I 44.5, II 65.5, III 93, IV 129.5, V 160, VI 193 ft. SFO's taxiway A is ADG IV (Y runs parallel 218 ft away, ≥ IV's 215 ft), so an alley push keeps its outline 134.5 ft from A's centreline.
+- **Half-widths** (`TaxiwayObjectFreeHalfWidthFt`, AC 150/5300-13B Table 4-1, whose basis is Appendix J.4.1: half the wingspan plus a lateral deviation and a safety buffer): I 44.5, II 62, III 85.5, IV 121.5, V 142.5, VI 167.5 ft. SFO's taxiway A is ADG IV (Y runs parallel 218 ft away, ≥ IV's 207 ft), so an alley push keeps its outline 126.5 ft from A's centreline.
 - **What is measured.** A taxiway's centreline is its straight movement-area edges plus the arcs joining two pieces of the same taxiway; a fillet turning onto it from another taxiway or lane is not.
 
   Each piece is **clipped** where it lies inside a narrower-zoned taxiway's object-free half-width (5 ft stretches, judged at their midpoints): the part of a wider taxiway inside A's zone is A's, so a taxiway beyond A — SFO's D, ADG VI for want of a parallel, running up to and across A — never constrains an alley on the near side of A. A taxiway meeting one as narrow or wider is not cut.
@@ -458,7 +458,7 @@ The stand-vs-surface rule is [phases.md](../phases.md)'s: only a stand parks. `H
 
 A tug-moved aircraft (push or pull) against a **parked or held** neighbour is judged by sweeping its `GroundOutline` — a cross of the fuselage segment (extended 30 ft ahead of the nose tip for the tug on a pull, which overstates a towbar rig by ~15 ft since the 30–40 ft figure is measured from the nose gear; conservative), the wing at the reference point and a tailplane 40 % of the span wide at the tail — along `RemainingPath` against the neighbour's outline.
 
-The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738, a judgement call below AC 150/5300-13B's taxilane wingtip clearance (that AC is not in the repo's references, so no figure from it is quoted):
+The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738, a judgement call below AC 150/5300-13B Table 5-1's parking-position wingtip clearance (5.6.2.2: 10 ft for ADG I-II, 25 ft for ADG III-VI; the AC is extracted under `.claude/reference/faa/ac-150-5300-13b/`):
 
 - **Floor.** The clearance may never drop below `min(WingtipBufferFt = 25 ft, clearance at the move's start, row clearance) − 0.5 ft`, and never below the 0.5 ft slack. The **row clearance** (`GroundOutlineSweep.RowClearanceFt`, #475a) is the least clearance as the mover's outline at the pose the tow started from (`TugRowAnchor.TowStartPose`) slides along its own nose axis in the first move's direction (aft for a push, forward for a pull) past the neighbour: the row's own wingtip gap.
 
@@ -538,7 +538,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 
 A brief touching one of these names the open issue and says which side of the change it assumes. The open issues are node goals judged by overshoot (YAAT-37), under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41).
 
-They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the taxilane wingtip figure, cited as 0.05 × span + 10 ft here and quoted differently in `GroundOutlineSweep.cs` (YAAT-179).
+They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the outline wingtip floor's basis, AC 150/5300-13B Table 5-1 (YAAT-179).
 
 ## Designing a push shape
 

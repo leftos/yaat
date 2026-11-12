@@ -15,7 +15,7 @@ Core code: `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` (`PlanRunways`,
 
 ## The standoff distance
 
-The bar is placed by the reviewed standoff rule (`HoldShortStandoff`; AIM 2-3-5.a.1, with the distances from AC 150/5300-13B, which is not in the local references). It has two parts: a **base separation S** per runway, and a **centerline point D** per crossing.
+The bar is placed by the reviewed standoff rule (`HoldShortStandoff`; AIM 2-3-5.a.1, with the distances from AC 150/5300-13B, extracted under `.claude/reference/faa/ac-150-5300-13b/`). It has two parts: a **base separation S** per runway, and a **centerline point D** per crossing.
 
 **S** is the distance from the runway centerline to the *nearest point* of the hold line, resolved once per runway by `HoldShortStandoff.BaseSeparationFt` (`RunwayCrossingDetector.PlanRunways`, through `ResolveStandoff`) and stored as `GroundRunway.HoldShortStandoffFt` (nullable, omitted from the JSON when null, so no layout format bump). `RunwayRectangle.HoldShortNm` and `MarkShortBars` hold S, never D. By first match:
 

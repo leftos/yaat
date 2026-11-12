@@ -17,15 +17,15 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
     internal const string Regional = "CRJ7";
     private const string Narrowbody = "B738";
 
-    /// <summary>How far from A's centreline the planner holds an alley push: A's ADG IV half-width, 129.5 ft, plus its 5 ft margin.</summary>
-    private const double AHeldClearFt = 134.5;
+    /// <summary>How far from A's centreline the planner holds an alley push: A's ADG IV half-width, 121.5 ft, plus its 5 ft margin.</summary>
+    private const double AHeldClearFt = 126.5;
 
     /// <summary>
-    /// SFO's A runs 218 ft from Y and 236 ft from B, an ADG IV spacing, so its object-free half-width is 129.5 ft, not the
-    /// airport's ADG VI 193 ft.
+    /// SFO's A runs 218 ft from Y and 236 ft from B, an ADG IV spacing, so its object-free half-width is 121.5 ft, not the
+    /// airport's ADG VI 167.5 ft.
     /// </summary>
     [Fact]
-    public void TaxiwayAdg_SfoA_IsGroupIV_129_5Ft()
+    public void TaxiwayAdg_SfoA_IsGroupIV_121_5Ft()
     {
         if (LoadSfo() is not { } layout)
         {
@@ -40,7 +40,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
             $"SFO widest runway {layout.Runways.Max(r => r.WidthFt):F0} ft; taxiway A ADG {group}; taxiway D ADG {AirplaneDesignGroups.ForTaxiway(layout, movementArea, "D")}"
         );
         Assert.Equal(AirplaneDesignGroup.IV, group);
-        Assert.Equal(129.5, AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(group));
+        Assert.Equal(121.5, AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(group));
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
 
     /// <summary>
     /// F8 → 7A under the straight-then-line push brought the right wingtip to 58.7 ft from A's centreline. The push now
-    /// pivots onto the lane after a shorter straight and keeps every sampled outline at least A's 129.5 ft half-width
+    /// pivots onto the lane after a shorter straight and keeps every sampled outline at least A's 121.5 ft half-width
     /// plus the planner's 5 ft margin from A, with no encroachment warning.
     /// </summary>
     [Fact]

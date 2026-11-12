@@ -854,9 +854,9 @@ A `PUSH $spot` lines the aircraft up straight on the marking the way a tug posit
 
 Off a gate the preferred shape is **straight, then onto the lane**: the tug pushes straight back along the gate's lead-in line, pivots onto the spot's lane, then pulls forward onto the mark. With no facing given it ends **nose-out**, facing the parent taxiway ready to taxi — add `FACE <dir>` / `TAIL <dir>` to override. Like `@gate` it never routes onto a movement-area taxiway to get there.
 
-**Alley pushes keep clear of the taxiways.** A push to a `$spot`, `@gate` or `#node` (and every `PUSHM`) keeps the whole aircraft — nose, tail and wingtips — outside the object-free area of every movement-area taxiway it passes, with a 5 ft margin: the zone either side of a taxiway's centreline that traffic taxiing on it must find clear (AC 150/5300-13B, 0.7 × the design group's span + 10 ft: 44.5 / 65.5 / 93 / 129.5 / 160 / 193 ft for groups I–VI).
+**Alley pushes keep clear of the taxiways.** A push to a `$spot`, `@gate` or `#node` (and every `PUSHM`) keeps the whole aircraft — nose, tail and wingtips — outside the object-free area of every movement-area taxiway it passes, with a 5 ft margin: the zone either side of a taxiway's centreline that traffic taxiing on it must find clear (AC 150/5300-13B Table 4-1: 44.5 / 62 / 85.5 / 121.5 / 142.5 / 167.5 ft for groups I–VI).
 
-The design group of each taxiway is estimated from the airport's widest runway and the spacing to the nearest parallel taxiway — SFO's taxiway A is group IV, so an alley push stays 134.5 ft from A's centreline. The taxiways the command names, the taxiway straight behind the gate, and one the aircraft already reaches into where it starts are not protected.
+The design group of each taxiway is estimated from the airport's widest runway and the spacing to the nearest parallel taxiway — SFO's taxiway A is group IV, so an alley push stays 126.5 ft from A's centreline. The taxiways the command names, the taxiway straight behind the gate, and one the aircraft already reaches into where it starts are not protected.
 
 When no path stays clear the push is still flown, on the path that reaches in least, and the readback says so: `(right wing will foul taxiway A, coordinate with ground)`. A `PUSH <taxiway>`, a bare `PUSH` and `PUSH FACE` are not held to this.
 

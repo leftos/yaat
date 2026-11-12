@@ -140,10 +140,10 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode b13 = ground.Layout.FindParkingByName("B13") ?? throw new InvalidOperationException("SFO gate B13 missing");
-        (string readback, _) = Send(ground, "B12", Narrowbody, $"PUSH #{b13.Id}");
+        GroundNode b9 = ground.Layout.FindParkingByName("B9") ?? throw new InvalidOperationException("SFO gate B9 missing");
+        (string readback, _) = Send(ground, "B8", Narrowbody, $"PUSH #{b9.Id}");
 
-        Assert.Equal("Push to gate B13, park (tail will foul taxiway A, coordinate with ground)", readback);
+        Assert.Equal("Push to gate B9, park (tail will foul taxiway A, coordinate with ground)", readback);
     }
 
     [Fact]
@@ -163,12 +163,12 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PushToGate_ReadsGateParkOnTheStand()
     {
-        if (Push("B12", Narrowbody, "PUSH @B13") is not { } pushed)
+        if (Push("B8", Narrowbody, "PUSH @B9") is not { } pushed)
         {
             return;
         }
 
-        Assert.Equal("Push to gate B13, park on the stand (tail will foul taxiway A, coordinate with ground)", pushed.Readback);
+        Assert.Equal("Push to gate B9, park on the stand (tail will foul taxiway A, coordinate with ground)", pushed.Readback);
     }
 
     [Fact]

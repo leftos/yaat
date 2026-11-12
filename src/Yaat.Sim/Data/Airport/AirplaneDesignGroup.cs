@@ -22,8 +22,7 @@ public enum AirplaneDesignGroup
 /// from its widest runway, a taxiway's from that capped by the spacing to its nearest parallel taxiway.
 ///
 /// <para>Sources: the span ceilings are AC 150/5300-13B Table 1-2. The taxiway centreline-to-object and
-/// taxiway-to-taxiway separations are AC 150/5300-13B Table 4-1 (0.7·W + 10 ft and 1.2·W + 10 ft of the group's span
-/// ceiling W).</para>
+/// taxiway-to-taxiway separations are AC 150/5300-13B Table 4-1.</para>
 /// </summary>
 public static class AirplaneDesignGroups
 {
@@ -169,7 +168,8 @@ public static class AirplaneDesignGroups
     /// <summary>
     /// The taxiway centreline-to-object separation for the group, feet: half the taxiway object-free area, the
     /// distance from the centreline inside which nothing may stand while an aircraft of the group taxis on it
-    /// (AC 150/5300-13B Table 4-1, 0.7·W + 10 ft).
+    /// (AC 150/5300-13B Table 4-1; Appendix J.4.1 builds it from half the group's wingspan plus a lateral deviation
+    /// allowance and a safety buffer).
     /// </summary>
     /// <param name="group">The taxiway's design group.</param>
     /// <returns>The half-width, feet.</returns>
@@ -177,29 +177,28 @@ public static class AirplaneDesignGroups
         group switch
         {
             AirplaneDesignGroup.I => 44.5,
-            AirplaneDesignGroup.II => 65.5,
-            AirplaneDesignGroup.III => 93.0,
-            AirplaneDesignGroup.IV => 129.5,
-            AirplaneDesignGroup.V => 160.0,
-            AirplaneDesignGroup.VI => 193.0,
+            AirplaneDesignGroup.II => 62.0,
+            AirplaneDesignGroup.III => 85.5,
+            AirplaneDesignGroup.IV => 121.5,
+            AirplaneDesignGroup.V => 142.5,
+            AirplaneDesignGroup.VI => 167.5,
             _ => throw new ArgumentOutOfRangeException(nameof(group), group, "Unknown Airplane Design Group"),
         };
 
     /// <summary>
-    /// The taxiway centreline-to-taxiway centreline separation for the group, feet (AC 150/5300-13B Table 4-1,
-    /// 1.2·W + 10 ft).
+    /// The taxiway centreline-to-taxiway centreline separation for the group, feet (AC 150/5300-13B Table 4-1).
     /// </summary>
     /// <param name="group">The design group.</param>
     /// <returns>The separation, feet.</returns>
     public static double TaxiwaySeparationFt(AirplaneDesignGroup group) =>
         group switch
         {
-            AirplaneDesignGroup.I => 69.0,
-            AirplaneDesignGroup.II => 105.0,
-            AirplaneDesignGroup.III => 152.0,
-            AirplaneDesignGroup.IV => 215.0,
-            AirplaneDesignGroup.V => 267.0,
-            AirplaneDesignGroup.VI => 324.0,
+            AirplaneDesignGroup.I => 70.0,
+            AirplaneDesignGroup.II => 101.5,
+            AirplaneDesignGroup.III => 144.5,
+            AirplaneDesignGroup.IV => 207.0,
+            AirplaneDesignGroup.V => 249.5,
+            AirplaneDesignGroup.VI => 298.5,
             _ => throw new ArgumentOutOfRangeException(nameof(group), group, "Unknown Airplane Design Group"),
         };
 

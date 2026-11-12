@@ -1095,7 +1095,7 @@ public class TugMovePlannerTests
     /// T7A edge, so the push turns the tail to T7A and pushes straight back along the lead-in onto that junction (about
     /// 251 ft) rather than straight back along the stand heading to the first T7A edge on the ray (about 300 ft, ending
     /// with the right wingtip on A's centreline). The swept outline stays clear of A's object-free area (an ADG IV
-    /// half-width of 129.5 ft) and its 5 ft planning margin.
+    /// half-width of 121.5 ft) and its 5 ft planning margin.
     /// </summary>
     [Fact]
     public void F8BarePushT7A_PushesAlongTheLeadInOntoT7A()
@@ -1129,7 +1129,7 @@ public class TugMovePlannerTests
             noseOffLeadInDeg <= 2.0,
             $"ended with the nose {noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}° back from node {junction.Id}"
         );
-        Assert.True(fromAlphaFt >= 134.5, $"the swept outline came within {fromAlphaFt:F1} ft of A's centreline");
+        Assert.True(fromAlphaFt >= 126.5, $"the swept outline came within {fromAlphaFt:F1} ft of A's centreline");
         Assert.Equal(TugTaxiwayApproach.Across, plan.TaxiwayApproach);
     }
 

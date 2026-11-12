@@ -147,13 +147,19 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
             swingDeg <= MaxPushSwingBeforeHintDeg,
             $"{aircraftType} {command}: the nose swung {swingDeg:F1}° before reaching {spotName} — past {MaxPushSwingBeforeHintDeg:F0}°"
         );
-        AssertNoReversalBeforeFinalCreep(run);
+        AssertNoReversalBeforeFinalCreep(run, lastMayEndOnSpot: true);
         AssertRestsOnSpot(ground.Layout, ac, spotName, aircraftType);
         Assert.True(ac.GroundSpeed <= AtRestSpeedKts, $"the aircraft was still moving at {ac.GroundSpeed:F2} kt when the move ended");
     }
 
-    /// <summary>Every flown move but the last continues the one before it, and the last is the creep onto the spot.</summary>
-    private static void AssertNoReversalBeforeFinalCreep(MoveRun run)
+    /// <summary>
+    /// Every flown move but the last continues the one before it. Unless the caller allows a last move that ends on the
+    /// spot without being flagged the final creep (<paramref name="lastMayEndOnSpot"/>), the last is the creep onto it.
+    /// A caller that allows it proves the last move ends on the spot with its own rest-on-spot check.
+    /// </summary>
+    /// <param name="run">The flown moves.</param>
+    /// <param name="lastMayEndOnSpot">True when a last move that ends on the spot need not be flagged the final creep.</param>
+    private static void AssertNoReversalBeforeFinalCreep(MoveRun run, bool lastMayEndOnSpot)
     {
         List<PushbackPhase> moves = [.. run.Samples.Select(s => s.Phase).OfType<PushbackPhase>().Distinct()];
         Assert.NotEmpty(moves);
@@ -162,7 +168,10 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
             Assert.False(moves[i].Move.DwellBefore, $"move {i + 1} ({moves[i].Kind} {moves[i].Move.Shape}) reverses the one before the final creep");
         }
 
-        Assert.True(moves[^1].Move.Creep, $"the last move ({moves[^1].Kind} {moves[^1].Move.Shape}) is no creep onto the spot");
+        if (!lastMayEndOnSpot)
+        {
+            Assert.True(moves[^1].Move.Creep, $"the last move ({moves[^1].Kind} {moves[^1].Move.Shape}) is no creep onto the spot");
+        }
     }
 
     /// <summary>

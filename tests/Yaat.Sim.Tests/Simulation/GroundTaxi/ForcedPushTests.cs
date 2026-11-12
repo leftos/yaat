@@ -545,12 +545,12 @@ public partial class ForcedPushTests(ITestOutputHelper output)
 
     /// <summary>
     /// The forced notes for the alley clearance, the overshoot past a taxiway pushed onto and the overswing filter, on the
-    /// real cases that break them (measured 2026-09-25): F20 <c>PUSHF $8</c> reaches its left wing into A with a 202°
-    /// swing where the lane turns 166°; C8 <c>PUSHF Y FACE S</c> runs 64 ft past Y; B25 <c>PUSHF $1</c> noses into Y.
+    /// real cases that break them: F20 <c>PUSHF $9</c> reaches its left wing into A with a 223° swing where the lane turns
+    /// 166°; C8 <c>PUSHF Y FACE S</c> runs 64 ft past Y; B25 <c>PUSHF $1</c> noses into Y.
     /// </summary>
     [Theory]
-    [InlineData("F20", "PUSHF $8", "(forced: left wing fouls taxiway A, coordinate with ground)")]
-    [InlineData("F20", "PUSHF $8", "(forced: nose swings 202°, lane needs 166°)")]
+    [InlineData("F20", "PUSHF $9", "(forced: left wing fouls taxiway A, coordinate with ground)")]
+    [InlineData("F20", "PUSHF $9", "(forced: nose swings 223°, lane needs 166°)")]
     [InlineData("C8", "PUSHF Y FACE S", "(forced: tow runs past taxiway Y, coordinate with ground)")]
     [InlineData("B25", "PUSHF $1", "(forced: nose fouls taxiway Y, coordinate with ground)")]
     public void ForcedPlan_NotesTheRuleItBreaks(string stand, string command, string note)
