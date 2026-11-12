@@ -30,6 +30,7 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-2112 Favorites: pasting a copied button adds a new button instead of filling an empty one · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
 ## Context-menu quick commands (#471)
@@ -339,8 +340,8 @@
 - [ ] YAAT-1975 Measure taxi stop distances from the aircraft when it is past its segment's end node, and brake on node-arrival sub-ticks
 - [ ] YAAT-1993 Arm the nose-at-spot stop early enough when the last two legs are shorter than half the aircraft
 
-### 2 Refinements and rulings (1/14 done)
-- [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps · release vNext
+### 2 Refinements and rulings (1/15 done)
+- [/] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps · release vNext
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
 - [ ] YAAT-744 Turn heavies through sub-135° corners on their own turn radius
 - [ ] YAAT-745 Turn a just-pushed heavy about on its own radius, toward the stand side
@@ -353,6 +354,7 @@
 - [ ] YAAT-1994 Stop corner-capping opposite-sign centreline jogs (LAX RWY06R/24L node 347 at 10.4 kt)
 - [ ] YAAT-2013 Jog a ramp-lane turn about toward the side with room, clear of a same-type aircraft on the next taxiway
 - [ ] YAAT-2017 Check a ramp-lane turn about's swept wingtip circle against parked aircraft and occupied stands
+- [ ] YAAT-2104 Measure, then re-tune CornerSpeedForAngle for straight-cut corners under 45°
 
 ### 3 Hygiene and tests (1/7 done)
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
@@ -415,7 +417,7 @@
 
 ## Pushback, tug moves and stands
 
-### 1 Defects (11/22 done)
+### 1 Defects (11/23 done)
 - [ ] YAAT-1245 Push holds indefinitely for an aircraft parked at a neighbouring stand
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 - [ ] YAAT-701 Make push-plan seeds deterministic under read errors and sidecar reloads
@@ -427,9 +429,9 @@
 - [ ] YAAT-737 Keep a stand occupied by a tow until the tow leaves it
 - [ ] YAAT-884 PUSH B FACE SW from SFO G10 holds 113 ft off taxiway B
 - [ ] YAAT-2065 Read back the turn-about note when a post-push taxi reverses after a short first leg
+- [ ] YAAT-2110 Measure a C208 taxi-out from OAK PCM1 past an occupied PCM2's tail
 
-### 2 Refinements and rulings (0/13 done)
-- [/] YAAT-35 Measure push overshoot against the taxiway polyline clamped at its ends · release vNext
+### 2 Refinements and rulings (1/18 done)
 - [ ] YAAT-37 Judge tug node goals by overshoot and drop the name exemption; PUSHM from draw · release vNext
 - [ ] YAAT-38 Tug-move follow-ups: span-scaled tug clearance, tow speed, steering limit · release vNext
 - [ ] YAAT-176 Measure clear push-plan swing over SFO alleys; rule the overswing filter · release vNext
@@ -442,11 +444,17 @@
 - [ ] YAAT-686 Store no stop on a push line move the envelope captures past its stop
 - [ ] YAAT-2014 Size the tug planner's protected taxiway area by design group (SFO A carries ADG V/VI)
 - [ ] YAAT-2066 Rule on the B738 tail fouling taxiway A after PUSH BC from SFO C10
+- [ ] YAAT-2108 Give the push outline's fuselage its half-width
+- [ ] YAAT-2109 Align stand-fit clearances and runway-chapter AC citations with AC 150/5300-13B
+- [ ] YAAT-2113 Catch a hold-short stub swallowed by a later push sample
+- [ ] YAAT-2114 Decide whether the push check's early wingtip refusal at a taxiway stub stays
+- [ ] YAAT-2115 Rule on refusing a push across another movement-area taxiway's centreline
 
-### 3 Hygiene and tests (1/4 done)
+### 3 Hygiene and tests (1/5 done)
 - [ ] YAAT-39 Push-rethink leftovers: wingtip allowance comments, turning-tow yield test, perf · release vNext
   - [ ] YAAT-2073 Re-judge a hold-short bar after the navigator's internal hand-over makes it the target · release vNext
   - [ ] YAAT-2074 Rule and measure the tow turn-entry overspeed above the 5 kt tug pace · release vNext
+- [ ] YAAT-2111 Check push overshoot at a bend made of two fused fillet arcs
 
 ### No milestone
 - [ ] YAAT-2015 Draw the past-spot line-up's lane, outbound and turn-about legs in the Ground View overlay
@@ -1197,7 +1205,6 @@
 - [ ] YAAT-2033 Show a held approach's landing clearance in the aircraft status line
 - [ ] YAAT-2055 Split TargetRenderer.DrawOneAircraft and the radar Render signatures under the hard limits
 - [ ] YAAT-2076 Review the vTDLS emulation against tdls.virtualnas.net; list gaps and improvements · release vNext
-- [ ] YAAT-2083 Keep a sent PDC's SID in the vTDLS review after an ops-config change · release vNext
 - [ ] YAAT-2084 Copy vTDLS's keyboard model: highlight, Enter to open, Tab between lists and fields · release vNext
 - [ ] YAAT-2085 Infer the SID and transition from any route fix, as vTDLS does · release vNext
 - [ ] YAAT-2086 Add vTDLS's temporary and override departure frequencies to the facility menu · release vNext
@@ -1205,6 +1212,9 @@
 - [ ] YAAT-2088 Decide whether vTDLS Climb via and Maintain clear each other both ways, as upstream · release vNext
 - [ ] YAAT-2089 Decide whether a vTDLS SID change blanks fields the new transition has no default for · release vNext
 - [ ] YAAT-2090 Decide whether vTDLS ignores row clicks while an editor is open, as upstream · release vNext
+- [ ] YAAT-2105 Gate vTDLS F4 and F12 on a read-only session, as upstream
+- [ ] YAAT-2106 Persist vTDLS temporary and override departure frequencies across reloads
+- [ ] YAAT-2107 Add vTDLS's 'Add current frequency' checkbox to the departure frequency menu
 
 ## Client-driver MCP and automation pipe
 
@@ -1486,3 +1496,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-131, YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
+- [yaat60-unbarred-escapes-triage.md](yaat60-unbarred-escapes-triage.md) — YAAT-60
