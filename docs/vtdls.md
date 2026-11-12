@@ -117,7 +117,7 @@ status flips on the issuer's vTDLS tab
 | `Sequence`      | Monotonic per-state, for sort stability                               |
 | `CreatedUtc` / `SentUtc` / `WilcoUtc` | Lifecycle timestamps on the **session clock** (`SimScenarioState.SimTimeUtc` = `SessionStartUtc` + elapsed), never `DateTime.UtcNow` — a rewind or bundle reconstruction reproduces them |
 | `ExpiresUtc`    | `CreatedUtc + 2 hours` (upstream TTL) in sim time: a paused room expires nothing, a 4× room expires after 2 sim hours |
-| `SentPayload`   | Snapshot of the `ClearanceDto` at TDLSS time (null while Pending)     |
+| `SentPayload`   | Snapshot of the clearance at TDLSS time (null while Pending). On the wire it is the YAAT-only `TdlsClearanceDto`: the nine `ClearanceDto` fields plus `SidName` / `TransitionName`, resolved at send time (null on a payload stored before names were kept). CRC's `ClearanceDto` is unchanged |
 
 ## vNAS data-api config integration
 
@@ -210,9 +210,11 @@ so they can follow the student's PDC stream while focused on radar.
 
 `TdlsState` is the engine's (`SimulationEngine.Tdls`, `src/Yaat.Sim/Simulation/Tdls/TdlsState.cs`),
 and `TdlsItemRecord` is the simulation's model: `Status` is the Sim enum `TdlsItemStatus` and
-`SentPayload` the Sim record `TdlsClearance` (the nine canonical `TDLSS` fields). The CRC wire
-types `TdlsStatus` and `ClearanceDto` stay in yaat-server, pinned by `CrcWireContractTests`;
-`DtoConverter.ToTdlsItem` / `ToClearanceDto` project onto them. The mutation bodies are the
+`SentPayload` the Sim record `TdlsClearance` (the nine canonical `TDLSS` fields plus the SID and
+transition names resolved at send time). The CRC wire types `TdlsStatus` and `ClearanceDto` (the
+`TDLSS` body) stay in yaat-server, pinned by `CrcWireContractTests`; `DtoConverter.ToTdlsItem` /
+`ToTdlsClearanceDto` project the item onto them and the payload onto the YAAT-only
+`TdlsClearanceDto`. The mutation bodies are the
 engine's too: `TdlsMutations` and `TdlsCommandHandler` in
 `src/Yaat.Sim/Simulation/Tdls/`, and the auto-queue / auto-WILCO / expiry / track-removal tick steps as
 `SimulationEngine.TickAutoTdlsQueue` / `TickTdlsAutoWilco` / `TickTdlsExpiry` / `TickTdlsTrackRemoval`
@@ -480,7 +482,8 @@ naturally.
 > ⚠️ **SID ids are not stable across configs.** The same SID name carries a different id in each
 > config at OAK and BOS (SFO happens to reuse one), and the clearance sends the id. So changing
 > the active config **closes any open editor** (`VTdlsViewModel.ApplyActiveOpConfig`) rather than
-> leaving `SelectedSid` holding an id that no longer resolves.
+> leaving `SelectedSid` holding an id that no longer resolves. A sent PDC under review is immune: it
+> carries the SID and transition names it was sent with (see "Reviewing a sent PDC").
 
 Upstream renders the Ops Config menu in the footer only "when enabled" — `AreOpConfigsEnabled`
 gates the button, which opens a Save/Cancel picker mirroring `docs/vtdls/img/opsconfig.png`.
@@ -517,7 +520,13 @@ false so F12 can't resend. Read-only construction skips
 `ApplyTransitionDefaults`, so the panel shows exactly what was issued
 and never back-fills FE defaults into fields that were sent blank. The
 footer reads "CLEARANCE TYPE: PDC — SENT (READ ONLY)". Dump and Cancel
-remain available. (Selecting a Pending DCL item opens the same editor
+remain available. The SID dropdown offers only the SID the PDC was sent
+with, built from the payload's `SidName` and `TransitionName` rather than
+looked up by id, so a later `TDLSOPS` change cannot alter what the review
+shows; the transition dropdown holds that one transition, or is empty when
+none was sent. A payload stored before names were kept (no `SidName`) still
+resolves its ids against the active config. Find (Ctrl+F) matches the SID
+and transition names as well as their ids. (Selecting a Pending DCL item opens the same editor
 editable, `IsReadOnly == false`.)
 
 Auto-WILCO at 3 sim seconds simulates the real FMS auto-acknowledgement (which

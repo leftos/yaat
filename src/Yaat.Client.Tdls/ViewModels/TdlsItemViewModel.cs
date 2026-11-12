@@ -121,6 +121,8 @@ public partial class TdlsItemViewModel : ObservableObject, IFindableItem
             Add(clearance.Expect);
             Add(clearance.Sid);
             Add(clearance.Transition);
+            Add(clearance.SidName);
+            Add(clearance.TransitionName);
             Add(clearance.Climbout);
             Add(clearance.Climbvia);
             Add(clearance.InitialAlt);

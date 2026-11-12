@@ -51,7 +51,10 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     [ObservableProperty]
     private TdlsFlightPlanInfoDto? _flightPlan;
 
-    /// <summary>True when the editor is showing an already-sent PDC for review — every dropdown is disabled, Send is hidden, and no resend is possible. False for the normal compose-a-new-PDC flow.</summary>
+    /// <summary>
+    /// True when the editor is showing an already-sent PDC for review — every dropdown is disabled, Send is hidden, and no
+    /// resend is possible. False for the normal compose-a-new-PDC flow.
+    /// </summary>
     public bool IsReadOnly { get; }
 
     /// <summary>Convenience inverse of <see cref="IsReadOnly"/> for binding control IsEnabled/IsVisible.</summary>
@@ -118,7 +121,10 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DepFreq))]
     private TdlsClearanceValueDto? _selectedDepFreq;
 
-    /// <summary>String facade kept for ClearanceDto round-trips and test assertions. Reads SelectedExpect.Value; the setter resolves the matching item in <see cref="Expects"/> (null if no match).</summary>
+    /// <summary>
+    /// String facade kept for ClearanceDto round-trips and test assertions. Reads SelectedExpect.Value; the setter resolves
+    /// the matching item in <see cref="Expects"/> (null if no match).
+    /// </summary>
     public string? Expect
     {
         get => SelectedExpect?.Value;
@@ -172,7 +178,10 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     private bool _canSend;
 
-    /// <summary>True when every mandatory field is set and the editor is editable. Bound to the Send button's IsEnabled; also gates the F12 send shortcut.</summary>
+    /// <summary>
+    /// True when every mandatory field is set and the editor is editable. Bound to the Send button's IsEnabled; also gates
+    /// the F12 send shortcut.
+    /// </summary>
     public bool IsSendEnabled => CanSend && !IsReadOnly;
 
     /// <summary>Human-readable list of mandatory fields that are still blank — drives the footer status string.</summary>
@@ -193,69 +202,30 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         FlightPlan = flightPlan;
         IsReadOnly = isReadOnly;
 
+        // A sent PDC under review offers only the SID it was sent with, by the names stored at send time:
+        // its ids may name nothing in the ops config now in force.
+        TdlsSidDto? sentSid = isReadOnly ? SentSidFromSeed(seed) : null;
+
         // Resolved, never config.Sids: a facility that enabled operational configurations ships an
         // empty facility-level SID array and keeps every SID inside the active config.
-        foreach (TdlsSidDto sid in config.ResolveSids(opConfigId))
-        {
-            Sids.Add(sid);
-        }
-        foreach (TdlsClearanceValueDto v in config.Climbouts)
-        {
-            Climbouts.Add(v);
-        }
-        foreach (TdlsClearanceValueDto v in config.Climbvias)
-        {
-            Climbvias.Add(v);
-        }
-        foreach (TdlsClearanceValueDto v in config.InitialAlts)
-        {
-            InitialAlts.Add(v);
-        }
-        foreach (TdlsClearanceValueDto v in config.DepFreqs)
-        {
-            DepFreqs.Add(v);
-        }
-        foreach (TdlsClearanceValueDto v in config.Expects)
-        {
-            Expects.Add(v);
-        }
-        foreach (TdlsClearanceValueDto v in config.ContactInfos)
-        {
-            ContactInfos.Add(v);
-        }
-        foreach (TdlsClearanceValueDto v in config.LocalInfos)
-        {
-            LocalInfos.Add(v);
-        }
+        CopyInto(Sids, sentSid is null ? config.ResolveSids(opConfigId) : [sentSid]);
+        CopyInto(Climbouts, config.Climbouts);
+        CopyInto(Climbvias, config.Climbvias);
+        CopyInto(InitialAlts, config.InitialAlts);
+        CopyInto(DepFreqs, config.DepFreqs);
+        CopyInto(Expects, config.Expects);
+        CopyInto(ContactInfos, config.ContactInfos);
+        CopyInto(LocalInfos, config.LocalInfos);
 
-        // Initial SID + transition come from either the existing Pending
-        // item's pre-filled clearance (if any), the filed-route's first SID
-        // token (best-effort match against config.Sids by name), or the
-        // facility's defaults — in that priority order.
         // Phase 1 — populate the dropdown selections WITHOUT firing the
         // default-propagation hooks; otherwise selected-changed callbacks
         // overwrite the seed before we get a chance to copy its values in.
         _suppressDefaults = true;
         try
         {
-            (string? filedSidId, string? filedTransitionId) = MatchSidFromFiledRoute(config, flightPlan?.Route, opConfigId);
-
-            _selectedSid = ResolveSid(seed?.Sid ?? filedSidId ?? config.ResolveDefaultSidId(opConfigId));
+            (_selectedSid, _selectedTransition) = InitialSidSelection(seed, sentSid, flightPlan?.Route);
             RebuildTransitions(_selectedSid);
-            _selectedTransition = ResolveTransition(
-                _selectedSid,
-                seed?.Transition ?? filedTransitionId ?? config.ResolveDefaultTransitionId(opConfigId)
-            );
-
-            // Field setters drop through to the matching SelectedXxxItem via
-            // ResolveItem against the per-field ObservableCollection.
-            Expect = seed?.Expect;
-            Climbout = seed?.Climbout;
-            Climbvia = seed?.Climbvia;
-            InitialAlt = seed?.InitialAlt;
-            ContactInfo = seed?.ContactInfo;
-            LocalInfo = seed?.LocalInfo;
-            DepFreq = seed?.DepFreq;
+            ApplySeedValues(seed);
         }
         finally
         {
@@ -456,6 +426,77 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     private static bool CandidateMatchesHint(string? candidate, string transitionHint) =>
         !TdlsPlaceholder.IsPlaceholder(candidate) && string.Equals(candidate, transitionHint, StringComparison.OrdinalIgnoreCase);
 
+    private static void CopyInto<T>(ObservableCollection<T> target, IEnumerable<T> source)
+    {
+        foreach (T item in source)
+        {
+            target.Add(item);
+        }
+    }
+
+    /// <summary>
+    /// The SID and transition the editor opens on, in priority order: a read-only editor's SID built from the stored
+    /// names (<paramref name="sentSid"/>), then the seed clearance's ids (an existing item's pre-filled or sent
+    /// clearance), then the filed route's first SID token (best-effort match by name), then the facility's defaults.
+    /// </summary>
+    private (TdlsSidDto? Sid, TdlsSidTransitionDto? Transition) InitialSidSelection(ClearanceDto? seed, TdlsSidDto? sentSid, string? route)
+    {
+        if (sentSid is not null)
+        {
+            return (sentSid, sentSid.Transitions.FirstOrDefault());
+        }
+        (string? filedSidId, string? filedTransitionId) = MatchSidFromFiledRoute(_config, route, _opConfigId);
+        TdlsSidDto? sid = ResolveSid(seed?.Sid ?? filedSidId ?? _config.ResolveDefaultSidId(_opConfigId));
+        string? transitionId = seed?.Transition ?? filedTransitionId ?? _config.ResolveDefaultTransitionId(_opConfigId);
+        return (sid, ResolveTransition(sid, transitionId));
+    }
+
+    /// <summary>
+    /// Copies the seed's free-value fields in. Each setter drops through to the matching SelectedXxxItem via ResolveItem
+    /// against the per-field collection.
+    /// </summary>
+    private void ApplySeedValues(ClearanceDto? seed)
+    {
+        Expect = seed?.Expect;
+        Climbout = seed?.Climbout;
+        Climbvia = seed?.Climbvia;
+        InitialAlt = seed?.InitialAlt;
+        ContactInfo = seed?.ContactInfo;
+        LocalInfo = seed?.LocalInfo;
+        DepFreq = seed?.DepFreq;
+    }
+
+    /// <summary>
+    /// The SID a sent payload was issued with, built from the names the server resolved at send time: one SID carrying
+    /// one transition, or none when the payload names no transition. Null when the payload carries no SID name (one
+    /// stored before names were kept), which leaves the ids to resolve against the given ops config.
+    /// </summary>
+    private static TdlsSidDto? SentSidFromSeed(ClearanceDto? seed)
+    {
+        if (seed?.SidName is not { } sidName)
+        {
+            return null;
+        }
+        TdlsSidTransitionDto[] transitions = seed.TransitionName is { } transitionName
+            ?
+            [
+                new TdlsSidTransitionDto(
+                    Id: seed.Transition ?? "",
+                    Name: transitionName,
+                    FirstRoutePoint: null,
+                    DefaultExpect: null,
+                    DefaultClimbout: null,
+                    DefaultClimbvia: null,
+                    DefaultInitialAlt: null,
+                    DefaultDepFreq: null,
+                    DefaultContactInfo: null,
+                    DefaultLocalInfo: null
+                ),
+            ]
+            : [];
+        return new TdlsSidDto(seed.Sid ?? "", sidName, transitions);
+    }
+
     private TdlsSidDto? ResolveSid(string? sidId) =>
         sidId is null ? null : _config.ResolveSids(_opConfigId).FirstOrDefault(s => string.Equals(s.Id, sidId, StringComparison.Ordinal));
 
@@ -601,7 +642,10 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// <summary>Nothing in a clearance can rule these fields out, so their defaults always apply.</summary>
     private static readonly Func<bool> NeverSuppressed = () => false;
 
-    /// <summary>One defaultable field: the transition's value for it, the editor's current entry, the assignment that resolves a value, and a live test of whether another field has ruled this one out.</summary>
+    /// <summary>
+    /// One defaultable field: the transition's value for it, the editor's current entry, the assignment that resolves a
+    /// value, and a live test of whether another field has ruled this one out.
+    /// </summary>
     private readonly record struct TransitionDefaultField(
         string? Default,
         TdlsClearanceValueDto? Current,

@@ -81,4 +81,45 @@ public class GetFindTextTests
         Assert.Contains("SSTIK2", text);
         Assert.Contains("1234", text); // beacon formatted as D4
     }
+
+    [Fact]
+    public void TdlsItem_IncludesTheSentSidAndTransitionNames()
+    {
+        var clearance = new ClearanceDto(
+            Expect: null,
+            Sid: "cfg-west-cndel",
+            Transition: "t-sns",
+            Climbout: null,
+            Climbvia: null,
+            InitialAlt: null,
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: null
+        )
+        {
+            SidName = "CNDEL5",
+            TransitionName = "SNS",
+        };
+        var dto = new TdlsItemDto(
+            "id1",
+            "UAL123",
+            Cid: "123",
+            FacilityId: "OAK",
+            TdlsStatus.Sent,
+            Sequence: 1,
+            CreatedUtc: default,
+            SentUtc: null,
+            WilcoUtc: null,
+            ExpiresUtc: default,
+            SentPayload: clearance,
+            FlightPlan: null
+        );
+        var vm = new TdlsItemViewModel(dto);
+
+        string text = vm.GetFindText();
+
+        Assert.Contains("CNDEL5", text);
+        Assert.Contains("SNS", text);
+        Assert.Contains("cfg-west-cndel", text);
+    }
 }

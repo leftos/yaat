@@ -1689,7 +1689,7 @@ When something goes wrong the footer shows the reason in the warning colour in p
 
 An item that arrives before the facility page has loaded is not listed; it appears once the page loads.
 
-Click a callsign in the **PDC** list to re-open the editor on the clearance that was sent, **read-only** — the fields show exactly what was issued, every dropdown is disabled, and there is no Send button (a sent PDC can't be edited or resent). The footer reads **CLEARANCE TYPE: PDC — SENT (READ ONLY)**. Dump (F4) still works.
+Click a callsign in the **PDC** list to re-open the editor on the clearance that was sent, **read-only** — the fields show exactly what was issued, every dropdown is disabled, and there is no Send button (a sent PDC can't be edited or resent). The SID and transition shown are the ones it was sent with, even if the Ops Config has changed since; the SID list holds just that one SID. Find (Ctrl+F) matches their names as well as their ids. The footer reads **CLEARANCE TYPE: PDC — SENT (READ ONLY)**. Dump (F4) still works.
 
 A bare `CTO` to an IFR departure with no PDC sent takes the altitude the SID's TDLS defaults would have filled in (a climb via, or the Initial Alt as a maintain). When there is none and the departure files a SID its airport publishes, the instructor gets a warning to assign an altitude.
 

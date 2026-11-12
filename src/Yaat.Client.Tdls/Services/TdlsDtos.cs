@@ -98,9 +98,10 @@ public record TdlsStateDto(TdlsItemDto[] Items, TdlsDumpedEntryDto[] Dumped)
 public record TdlsItemRemovedDto(string ItemId, string FacilityId, string Callsign, bool Dumped);
 
 // ── ClearanceDto ───────────────────────────────────────────────────────
-// Mirrors the wire shape of yaat-server's ClearanceDto. The vTDLS editor
-// reads and writes this — it's both the snapshot payload on Sent items
-// (TdlsItemDto.SentPayload) and the body of every TDLSS canonical command.
+// The vTDLS editor reads and writes this. As the snapshot payload on Sent
+// items (TdlsItemDto.SentPayload) it mirrors yaat-server's TdlsClearanceDto,
+// names included; as the body of every TDLSS canonical command it mirrors
+// yaat-server's ClearanceDto, and the names stay null.
 
 public record ClearanceDto(
     string? Expect,
@@ -112,7 +113,18 @@ public record ClearanceDto(
     string? ContactInfo,
     string? LocalInfo,
     string? DepFreq
-);
+)
+{
+    /// <summary>
+    /// The name of the SID <see cref="Sid"/> names, resolved by the server at send time against the ops config then in
+    /// force. Set on a sent item's payload only, and never sent. Null when the id did not resolve at send time, and on a
+    /// payload stored before names were kept.
+    /// </summary>
+    public string? SidName { get; init; }
+
+    /// <summary>The name of the transition <see cref="Transition"/> names, resolved beside <see cref="SidName"/>.</summary>
+    public string? TransitionName { get; init; }
+}
 
 // ── TdlsConfigDto + nested ─────────────────────────────────────────────
 // Per-facility bootstrap. Drives the flight-plan editor's SID/transition

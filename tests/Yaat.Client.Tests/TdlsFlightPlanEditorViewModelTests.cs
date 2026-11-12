@@ -318,6 +318,106 @@ public class TdlsFlightPlanEditorViewModelTests
         Assert.Null(editor.DepFreq);
     }
 
+    private static TdlsSidTransitionDto BareTransition(string id, string name) => new(id, name, null, null, null, null, null, null, null, null);
+
+    /// <summary>
+    /// A facility with operational configurations whose SID ids differ per config, the way OAK, SFO and BOS ship them:
+    /// <c>cfg-west</c> offers CNDEL5 (transition SNS), <c>cfg-east</c> offers only EAST1 (transition EST).
+    /// </summary>
+    private static TdlsConfigDto BuildOpsConfig() =>
+        BuildConfig() with
+        {
+            DclOpConfigsEnabled = true,
+            OpConfigs =
+            [
+                new TdlsOpConfigDto(
+                    "cfg-west",
+                    "WEST",
+                    [new TdlsSidDto("cfg-west-cndel", "CNDEL5", [BareTransition("t-sns", "SNS")])],
+                    DefaultSidId: "cfg-west-cndel",
+                    DefaultTransitionId: "t-sns"
+                ),
+                new TdlsOpConfigDto(
+                    "cfg-east",
+                    "EAST",
+                    [new TdlsSidDto("cfg-east-east", "EAST1", [BareTransition("t-est", "EST")])],
+                    DefaultSidId: "cfg-east-east",
+                    DefaultTransitionId: "t-est"
+                ),
+            ],
+        };
+
+    private static ClearanceDto SentSeed(string? sid, string? transition, string? sidName, string? transitionName) =>
+        new(
+            Expect: null,
+            Sid: sid,
+            Transition: transition,
+            Climbout: null,
+            Climbvia: null,
+            InitialAlt: "7000",
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: null
+        )
+        {
+            SidName = sidName,
+            TransitionName = transitionName,
+        };
+
+    [Fact]
+    public void ReadOnly_ShowsTheSentSidAndTransitionNames_WhenTheActiveOpsConfigLacksTheirIds()
+    {
+        // The PDC went out under cfg-west; the facility has since switched to cfg-east, which has no SID with the
+        // sent id. The review shows the sent SID and transition by the names stored at send time.
+        ClearanceDto seed = SentSeed("cfg-west-cndel", "t-sns", "CNDEL5", "SNS");
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildOpsConfig(), seed, flightPlan: null, isReadOnly: true, opConfigId: "cfg-east");
+
+        Assert.Single(editor.Sids);
+        Assert.Equal("CNDEL5", editor.SelectedSid!.Name);
+        Assert.Equal("SNS", editor.SelectedTransition!.Name);
+        Assert.Single(editor.Transitions);
+        Assert.Equal("7000", editor.InitialAlt);
+        Assert.False(editor.IsSendEnabled);
+    }
+
+    [Fact]
+    public void ReadOnly_ShowsTheSentSidWithNoTransition_WhenTheSeedNamesNone()
+    {
+        ClearanceDto seed = SentSeed("cfg-west-cndel", transition: null, "CNDEL5", transitionName: null);
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildOpsConfig(), seed, flightPlan: null, isReadOnly: true, opConfigId: "cfg-east");
+
+        Assert.Equal("CNDEL5", editor.SelectedSid!.Name);
+        Assert.Null(editor.SelectedTransition);
+        Assert.Empty(editor.Transitions);
+    }
+
+    [Fact]
+    public void ReadOnly_OlderPayloadWithoutNames_StillResolvesIdsAgainstTheGivenConfig()
+    {
+        ClearanceDto seed = SentSeed("cfg-east-east", "t-est", sidName: null, transitionName: null);
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildOpsConfig(), seed, flightPlan: null, isReadOnly: true, opConfigId: "cfg-east");
+
+        Assert.Equal("EAST1", editor.SelectedSid!.Name);
+        Assert.Equal("EST", editor.SelectedTransition!.Name);
+    }
+
+    [Fact]
+    public void Editable_WithANamedSeed_StillResolvesTheSidById()
+    {
+        // Stored names only stand in for the ids in a read-only review; an editable editor composes against the
+        // ops config in force and offers its full SID list.
+        ClearanceDto seed = SentSeed("cfg-east-east", "t-est", "STALE9", "OLD");
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildOpsConfig(), seed, flightPlan: null, isReadOnly: false, opConfigId: "cfg-east");
+
+        Assert.Equal("EAST1", editor.SelectedSid!.Name);
+        Assert.Equal("EST", editor.SelectedTransition!.Name);
+        Assert.Equal(["cfg-east-east"], editor.Sids.Select(s => s.Id));
+    }
+
     [Fact]
     public void FiledRoute_PrepopulatesSidAndTransition_FromLeadingTokens()
     {

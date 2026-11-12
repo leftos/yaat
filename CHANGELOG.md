@@ -18,7 +18,7 @@
 - vTDLS shows in its footer why a clearance could not open, send or dump, instead of leaving the row highlighted with nothing open.
 - vTDLS disables Send and Dump while disconnected and hides Dump on a sent PDC, as vTDLS does.
 - Browser vTDLS rejoins its room after a reconnect and reloads its page when a scenario is loaded or unloaded.
-- A sent PDC names its SID and transition at ops-config airports such as OAK and SFO, and keeps them after the ops config changes.
+- A sent PDC keeps its SID and transition, in its text and its vTDLS review, at ops-config airports like OAK and SFO, across ops config changes.
 - `$FREQ` in vTDLS contact and local info is replaced with the student position's frequency.
 - vTDLS no longer lists airborne arrivals, departed or tracked aircraft, and an expired PDC no longer comes back as a new DCL row.
 - Amending an aircraft's departure airport moves its vTDLS entry to the new airport's facility.
