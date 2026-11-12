@@ -26,9 +26,6 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
     public HoldShortArrival Arrival { get; } = arrival;
     private bool _hasAnnouncedReady;
 
-    // Set once the pilot has said it is holding short, cleared across, for traffic beyond the far side. Snapshotted.
-    private bool _saidTrafficAhead;
-
     // Set while the phase holds at its bar, any runway bar the crossing clearance releases, for the lead of the follow armed
     // behind it. Snapshotted.
     private bool _waitingForLead;
@@ -253,14 +250,6 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
             if (req.IsSatisfied)
             {
                 _holdShort.IsCleared = true;
-                // Cleared across, but traffic beyond the far marking leaves no room to clear the runway (AIM 4-3-18.b): hold at
-                // the line until it opens, then cross by itself.
-                if (RunwayCrossingFarSideGate.HoldsAtBar(ctx, _holdShort))
-                {
-                    SayHeldForTraffic(ctx);
-                    return false;
-                }
-
                 if (HoldsForFollowLead(ctx))
                 {
                     return false;
@@ -377,21 +366,6 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
     /// </summary>
     private static FollowingPhase? ArmedFollow(PhaseList? phases) =>
         phases?.Phases.Skip(phases.CurrentIndex + 1).SkipWhile(static p => p is CrossingRunwayPhase).FirstOrDefault() as FollowingPhase;
-
-    /// <summary>
-    /// Says once that the aircraft, cleared across, is holding short for traffic beyond the far side
-    /// (<see cref="RunwayCrossingFarSideGate.SayHoldingShortForTraffic"/>).
-    /// </summary>
-    private void SayHeldForTraffic(PhaseContext ctx)
-    {
-        if (_saidTrafficAhead)
-        {
-            return;
-        }
-
-        _saidTrafficAhead = true;
-        RunwayCrossingFarSideGate.SayHoldingShortForTraffic(ctx, _holdShort.TargetName);
-    }
 
     /// <summary>
     /// Where the after-taxi-arrival call is made from when this bar is the stop the spawn's preset taxi ends at
@@ -623,7 +597,6 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
             RunwayId = _holdShort.TargetName ?? string.Empty,
             Reason = _holdShort.Reason,
             HasAnnouncedReady = _hasAnnouncedReady,
-            SaidTrafficAhead = _saidTrafficAhead ? true : null,
             WaitingForLead = _waitingForLead ? true : null,
             SaidWaitForLead = _saidWaitForLead ? true : null,
             DisplayEnd = _displayEnd,
@@ -642,7 +615,6 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
         var phase = new HoldingShortPhase(holdShort, dto.Arrival ?? HoldShortArrival.HeldShort)
         {
             _hasAnnouncedReady = dto.HasAnnouncedReady,
-            _saidTrafficAhead = dto.SaidTrafficAhead ?? false,
             _waitingForLead = dto.WaitingForLead ?? false,
             _saidWaitForLead = dto.SaidWaitForLead ?? false,
             _displayEnd = dto.DisplayEnd,

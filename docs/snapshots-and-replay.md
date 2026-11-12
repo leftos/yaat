@@ -289,9 +289,7 @@ Older snapshots read them as `TaxiTurnAboutShape.None` and null.
 
 A mismatch drops the playback with a warning and builds the segment afresh from the aircraft's pose; a virtual (negative-id) from-node is not compared: its id hashes its position (`VirtualNode.IdFor`), but it sits at the aircraft's pose when the route was built (`RunwayExitPhase`'s approach leg), so a rebuild puts it somewhere else.
 
-More fields are the same kind (nullable, written only when set, null on older snapshots; no schema bump), each latching a once-only pilot call so a restore does not repeat it: `TaxiingPhaseDto.SaidFarSideBlockedNodeId` (int?, the cleared crossing bar it said "holding short of runway …, traffic ahead" at).
-
-`HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), `HoldingShortPhaseDto.WaitingForLead` (bool?, the hold, cleared across, is waiting at its bar for the lead of the follow armed behind it) with `SaidWaitForLead` (bool?, the "waiting for the traffic to pass" call made for the current wait; a restore does not repeat it), both omitted when null.
+More fields are the same kind (nullable, written only when set, null on older snapshots; no schema bump): `HoldingShortPhaseDto.WaitingForLead` (bool?, the hold, cleared across, is waiting at its bar for the lead of the follow armed behind it) with `SaidWaitForLead` (bool?, the "waiting for the traffic to pass" call made for the current wait; a restore does not repeat it), both omitted when null.
 
 `HoldingShortPhaseDto.DisplayEnd` (string, `1R`) is the end the phase's `Name` gives its runway, chosen once when the hold starts from the room's active runways and kept to the hold's end; omitted when no end was active (the name carries the combined id) and on older snapshots (no schema bump).
 

@@ -326,7 +326,6 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   Each runway is named by `RunwayCrossingEnd.Spoken` (its active end, else the end nearest the aircraft), as the hold-short texts name one — the crew reports the runway it cannot clear (AIM 4-3-21.b). Either is routed by tuned position, once per hold, and stands in for `BuildLostTrafficHolding` in that hold: one line, the runway one.
 
-  `BuildHoldingShortTrafficAhead` is the one call of an aircraft cleared across a runway that holds at the near line because the far side lacks room (`RunwayCrossingFarSideGate`): Terminal "Holding short of runway {X}, traffic ahead", Tts "{callsign}, holding short of runway {X}, traffic ahead.". The runway is named by `RunwayCrossingEnd.Spoken` (its active end, else the end nearest the aircraft), and no form names the traffic.
 
   Said once per bar, by tuned position (`RouteByTunedPosition`) or as an RPO's pilot speech.
 
@@ -336,7 +335,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   It is made only for a real wait (the merge ahead of the lead, or the lead moving below 1 kt), judged again each second while the wait lasts and said at most once per wait; the short wait for a lead moving away to clear its tail past the merge is silent. Routed as a solo or RPO transmission, with the warning "{callsign} cleared across RWY {X}, holding for the follow traffic".
 
-  `BuildHoldingPositionNotClearTrafficAhead` is the not-clear call of an aircraft brought to rest on the runway by traffic with part of it inside the far marking: Terminal "Holding position, not clear of runway {X}, traffic ahead", Tts "{callsign}, holding position, not clear of {X}, traffic ahead.". Routed by tuned position (`RouteByTunedPosition`).
+  `BuildHoldingPositionNotClearTrafficAhead` is the not-clear call of an aircraft brought to rest on the runway by traffic with part of it inside the far marking: Terminal "Holding position, not clear of runway {X}, traffic ahead", Tts "{callsign}, holding position, not clear of {X}, traffic ahead.". Routed by tuned position (`RouteByTunedPosition`). `CrossingRunwayPhase.TickNotClearCall` also warns the controller in every room: "{callsign} stopped on RWY {X} behind traffic, blocking the runway".
 
   Said once per crossing, about three seconds after it stops; a GIVEWAY does not silence it, a HOLD does (a HOLD that ends the crossing at rest makes the break-off hold's own not-clear call instead, above).
 

@@ -111,26 +111,10 @@ public sealed class TaxiingPhase : Phase
     // set and consumed within the same completing tick, never snapshotted.
     private bool _completingIntoMovingCrossing;
 
-    // The cleared crossing bar the last BrakeForUnclearedBar braked for because the crossing's far side was blocked
-    // (RunwayCrossingFarSideGate). Transient: recomputed on every call, never snapshotted.
-    private HoldShortPoint? _farSideBlockedBar;
-
     // Node of the bar the firm-braking debug line was logged for in the firm episode under way, so it is logged once per episode
     // rather than every sub-tick; reset on any sub-tick that does not publish the firm rate, so a second episode at the same bar
     // logs again. Logging only: transient, never snapshotted.
     private int? _loggedFirmBrakingNodeId;
-
-    // Node of the crossing bar the "holding short, traffic ahead" call was made at, so it is said once per bar. Snapshotted.
-    private int? _saidFarSideBlockedNodeId;
-
-    /// <summary>Ground speed (kt) under which an aircraft holding short for a blocked far side counts as at rest and reports it.</summary>
-    private const double FarSideHoldReportKts = 1.0;
-
-    /// <summary>
-    /// Seconds of travel beyond its taxi-rate stopping distance at which the near-line gate starts judging a crossing bar ahead,
-    /// so the braking curve onto the bar's painted stop is still the gentle one when the gate first binds.
-    /// </summary>
-    private const double FarSideReachSeconds = 2.0;
 
     public TaxiingPhase() { }
 
@@ -382,7 +366,6 @@ public sealed class TaxiingPhase : Phase
         }
 
         CapAtUnclearedBar(ctx, route);
-        ReportFarSideHold(ctx);
 
         // Update current taxiway name
         if (route.CurrentSegment is { } seg)
@@ -466,7 +449,6 @@ public sealed class TaxiingPhase : Phase
             PrevDistToTarget = _nav.PrevDistToTarget,
             Navigator = _nav.ToSnapshot(),
             PassedStartBarNodeId = _passedStartBarNodeId,
-            SaidFarSideBlockedNodeId = _saidFarSideBlockedNodeId,
             PullUpCapKts = _pullUpCapKts,
             PullUpCapBarNodeId = _pullUpCapBarNodeId,
         };
@@ -631,7 +613,6 @@ public sealed class TaxiingPhase : Phase
             // route (a snapshot without the primitive builds it afresh from the aircraft's pose). Without the set-up,
             // the next Tick would find no primitive, return ArrivedAtNode, and skip the segment the aircraft was on.
             _initialized = false,
-            _saidFarSideBlockedNodeId = dto.SaidFarSideBlockedNodeId,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _passedStartBarNodeId = dto.PassedStartBarNodeId,
             _pullUpCapKts = dto.PullUpCapKts,
@@ -702,30 +683,11 @@ public sealed class TaxiingPhase : Phase
     public static double AlongRouteDistanceToHoldShortFt(AirportGroundLayout layout, TaxiRoute route, LatLon position, HoldShortPoint holdShort) =>
         AlongRouteDistanceToHoldShortFt(layout, route, Math.Max(0, route.CurrentSegmentIndex), position, holdShort);
 
-    /// <summary>
-    /// How far (ft) <paramref name="holdShort"/>'s painted stop lies along <paramref name="route"/> from the node before its segment
-    /// <paramref name="startSegmentIndex"/>, every segment counted whole: the measure for an aircraft that is not on its route at
-    /// all, a crossing aircraft at the end of its crossing slice, whose route cursor stays on the crossing's entry segment
-    /// (<see cref="CrossingRunwayPhase.HandRouteBack"/> is its only writer).
-    /// <see cref="double.PositiveInfinity"/> when the bar has no computed position or is on no segment from that index on.
-    /// </summary>
-    /// <param name="layout">Ground layout the route is resolved on.</param>
-    /// <param name="route">The route being read.</param>
-    /// <param name="startSegmentIndex">Segment the measure starts at the start node of.</param>
-    /// <param name="holdShort">The bar to measure to.</param>
-    /// <returns>Distance in feet.</returns>
-    internal static double AlongRouteDistanceToHoldShortFt(
-        AirportGroundLayout layout,
-        TaxiRoute route,
-        int startSegmentIndex,
-        HoldShortPoint holdShort
-    ) => AlongRouteDistanceToHoldShortFt(layout, route, startSegmentIndex, position: null, holdShort);
-
     private static double AlongRouteDistanceToHoldShortFt(
         AirportGroundLayout layout,
         TaxiRoute route,
         int startSegmentIndex,
-        LatLon? position,
+        LatLon position,
         HoldShortPoint holdShort
     )
     {
@@ -743,16 +705,12 @@ public sealed class TaxiingPhase : Phase
             }
 
             double setbackFt = route.HoldShortSetbackNm(i, start, holdShort) * GeoMath.FeetPerNm;
-            if (position is not { } from)
-            {
-                return route.PrefixDistanceFt(i + 1) - route.PrefixDistanceFt(start) - setbackFt;
-            }
 
             // Measured as TaxiRoute.RemainingDistanceFt measures it, the in-progress leg straight to its end node, except that a
             // fillet arc in progress carrying the bar's stop is measured along the arc, the geometry its setback is measured on.
-            return (i == start) && (InProgressArcToEndFt(route, i, from, holdShort) is { } alongArcFt)
+            return (i == start) && (InProgressArcToEndFt(route, i, position, holdShort) is { } alongArcFt)
                 ? alongArcFt - setbackFt
-                : route.RemainingDistanceFt(from, i + 1) - setbackFt;
+                : route.RemainingDistanceFt(position, i + 1) - setbackFt;
         }
 
         return double.PositiveInfinity;
@@ -1571,17 +1529,13 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private static bool IsHeldByAnother(PhaseContext ctx, HoldShortPoint bar) => ctx.IsHoldShortNodeOccupied?.Invoke(bar.NodeId) == true;
 
-    /// <summary>The first uncleared bar on a segment from the current one on, with the index of the segment that ends at it.</summary>
-    internal static (int SegmentIndex, HoldShortPoint Bar)? FirstUnclearedBarAhead(TaxiRoute route) =>
-        FirstUnclearedBarAhead(route, Math.Max(0, route.CurrentSegmentIndex));
-
     /// <summary>
-    /// <see cref="FirstUnclearedBarAhead(TaxiRoute)"/> searched from segment <paramref name="startSegmentIndex"/> on rather than
-    /// from the route's cursor: the read for a crossing aircraft, whose cursor stays on the crossing's entry segment.
+    /// The first uncleared bar on a segment from the route's cursor on, with the index of the segment that ends at it: the bar a
+    /// taxiing aircraft brakes for and holds short of.
     /// </summary>
-    internal static (int SegmentIndex, HoldShortPoint Bar)? FirstUnclearedBarAhead(TaxiRoute route, int startSegmentIndex)
+    internal static (int SegmentIndex, HoldShortPoint Bar)? FirstUnclearedBarAhead(TaxiRoute route)
     {
-        for (int i = Math.Max(0, startSegmentIndex); i < route.Segments.Count; i++)
+        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
             if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is { IsCleared: false } bar)
             {
@@ -1822,7 +1776,6 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private double? BrakeForUnclearedBar(PhaseContext ctx, TaxiRoute route)
     {
-        _farSideBlockedBar = null;
         int? loggedFirmNodeId = _loggedFirmBrakingNodeId;
         _loggedFirmBrakingNodeId = null;
         if (PassedStartBar(ctx, route) is { } startBar)
@@ -1834,26 +1787,21 @@ public sealed class TaxiingPhase : Phase
         if (
             (ctx.GroundLayout is not { } layout)
             || (
-                FirstStoppingBarAhead(ctx, route, layout, judgeLeadersGates: true)
-                is not {
-                    SegmentIndex: var barSegmentIndex,
-                    Bar: { Unable: false, Reason: not HoldShortReason.RouteIncomplete } bar,
-                    FarSideBlocked: var farSideBlocked,
-                }
+                FirstUnclearedBarAhead(route)
+                is not { SegmentIndex: var barSegmentIndex, Bar: { Unable: false, Reason: not HoldShortReason.RouteIncomplete } bar }
             )
         )
         {
             return null;
         }
 
-        _farSideBlockedBar = farSideBlocked ? bar : null;
         double toStopFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
         GroundStopBraking.StopBraking braking = GroundStopBraking.ChooseStopBraking(ctx, toStopFt);
         if (braking == GroundStopBraking.StopBraking.Routine)
         {
             return GroundStopBraking.StopCurveKts(
                 ctx,
-                RoutineAimFt(route, barSegmentIndex, bar, toStopFt, farSideBlocked),
+                RoutineAimFt(route, barSegmentIndex, bar, toStopFt),
                 CategoryPerformance.TaxiDecelRate(ctx.Category)
             );
         }
@@ -1889,132 +1837,11 @@ public sealed class TaxiingPhase : Phase
     /// <summary>
     /// Where the routine taxi-rate curve onto <paramref name="bar"/>'s painted stop, <paramref name="toStopFt"/> ahead, reaches
     /// zero: <see cref="GroundNavigator.SetBackStopMarginFt"/> beyond it when the navigator also aims at that stop (it reads its
-    /// curve a tick behind), else at the stop itself — always so for a far-side hold, since the navigator aims at a cleared
-    /// bar's node, not its painted stop, so the hold rides this curve alone. A runway crossing braking onto a stop past its
-    /// slice end aims where this does, so the onward taxi takes over on the same curve with no step in the target
-    /// (<see cref="CrossingRunwayPhase"/>).
+    /// curve a tick behind), else at the stop itself. A runway crossing braking onto a stop past its slice end aims where this
+    /// does, so the onward taxi takes over on the same curve with no step in the target (<see cref="CrossingRunwayPhase"/>).
     /// </summary>
-    internal static double RoutineAimFt(TaxiRoute route, int barSegmentIndex, HoldShortPoint bar, double toStopFt, bool farSideBlocked) =>
-        !farSideBlocked && route.StopLiesOnSegment(barSegmentIndex, bar) ? toStopFt + GroundNavigator.SetBackStopMarginFt : toStopFt;
-
-    /// <summary>
-    /// The first bar ahead <paramref name="ctx"/>'s aircraft brakes for on <paramref name="route"/>: the first uncleared bar, or
-    /// before it a cleared runway-crossing bar whose far side is blocked (<see cref="IsFarSideBlockedAhead"/>), which acts as an
-    /// uncleared bar until the room opens. Once a cleared crossing bar lies beyond the gate's reach (<see cref="FarSideReachFt"/>)
-    /// every later one does too, so from there only an uncleared bar is looked for. <paramref name="judgeLeadersGates"/> is passed
-    /// to the gate (<see cref="RunwayCrossingFarSideGate.IsBlocked"/>).
-    /// </summary>
-    internal static (int SegmentIndex, HoldShortPoint Bar, bool FarSideBlocked)? FirstStoppingBarAhead(
-        PhaseContext ctx,
-        TaxiRoute route,
-        AirportGroundLayout layout,
-        bool judgeLeadersGates
-    ) =>
-        FirstStoppingBarAhead(
-            new StoppingScan(ctx, route, layout, judgeLeadersGates, Math.Max(0, route.CurrentSegmentIndex), 0.0, ctx.Aircraft.Position)
-        );
-
-    /// <summary>
-    /// <see cref="FirstStoppingBarAhead(PhaseContext, TaxiRoute, AirportGroundLayout, bool)"/> searched from
-    /// <paramref name="start"/> on, every stop measured from the node before its segment rather than from the aircraft's position:
-    /// the read for a crossing aircraft, which is off its route while it crosses with its route cursor still on the crossing's
-    /// entry segment. <see cref="BarSearchStart.LeadFt"/> is added to every distance judged, so the stretch of path the aircraft
-    /// still has to drive to reach that segment counts from where it is.
-    /// </summary>
-    internal static (int SegmentIndex, HoldShortPoint Bar, bool FarSideBlocked)? FirstStoppingBarAhead(
-        PhaseContext ctx,
-        TaxiRoute route,
-        AirportGroundLayout layout,
-        bool judgeLeadersGates,
-        BarSearchStart start
-    ) => FirstStoppingBarAhead(new StoppingScan(ctx, route, layout, judgeLeadersGates, start.SegmentIndex, start.LeadFt, null));
-
-    /// <summary>
-    /// Where a stopping-bar search starts for an aircraft that is off its route: the segment it will search from, and how far
-    /// (ft) the aircraft still has to drive to reach that segment's start node.
-    /// </summary>
-    /// <param name="SegmentIndex">Segment the search starts at.</param>
-    /// <param name="LeadFt">Distance (ft) still to drive to the start node of <paramref name="SegmentIndex"/>.</param>
-    internal readonly record struct BarSearchStart(int SegmentIndex, double LeadFt);
-
-    /// <summary>
-    /// A stopping-bar scan: the context and route it runs over, the segment it starts at, how far the aircraft still has to drive
-    /// to reach that segment, and the position its in-progress leg is measured from (null with none: from that segment's start
-    /// node, each segment counted whole).
-    /// </summary>
-    private readonly record struct StoppingScan(
-        PhaseContext Ctx,
-        TaxiRoute Route,
-        AirportGroundLayout Layout,
-        bool JudgeLeadersGates,
-        int StartSegmentIndex,
-        double LeadFt,
-        LatLon? Position
-    );
-
-    private static (int SegmentIndex, HoldShortPoint Bar, bool FarSideBlocked)? FirstStoppingBarAhead(StoppingScan scan)
-    {
-        bool gateInReach = true;
-        for (int i = scan.StartSegmentIndex; i < scan.Route.Segments.Count; i++)
-        {
-            if (scan.Route.GetHoldShortAt(scan.Route.Segments[i].ToNodeId) is not { } bar)
-            {
-                continue;
-            }
-
-            if (!bar.IsCleared)
-            {
-                return (i, bar, false);
-            }
-
-            if (!gateInReach || !NeedsRunwayCrossing(bar, scan.Layout))
-            {
-                continue;
-            }
-
-            double toStopFt = scan.LeadFt + AlongRouteDistanceToHoldShortFt(scan.Layout, scan.Route, scan.StartSegmentIndex, scan.Position, bar);
-            gateInReach = toStopFt <= FarSideReachFt(scan.Ctx);
-            if (gateInReach && IsFarSideBlockedAhead(scan.Ctx, (scan.Route, scan.Layout), (i, bar, toStopFt), scan.JudgeLeadersGates))
-            {
-                return (i, bar, true);
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Whether the cleared crossing bar <c>Bar</c>, ending segment <c>SegmentIndex</c> of the route and <c>ToStopFt</c> from its
-    /// painted stop, is the near bar of a runway crossing the aircraft must not enter yet: its far side is blocked
-    /// (<see cref="RunwayCrossingFarSideGate.IsBlocked"/>) and the aircraft has not committed
-    /// (<see cref="RunwayCrossingFarSideGate.IsCommitted"/>, the way across read from the segment after the bar). The caller judges
-    /// it only once the stop is within reach (<see cref="FarSideReachFt"/>), so traffic far ahead does not stop the aircraft
-    /// early. An aircraft at rest (<see cref="StoppedGroundSpeedKts"/>) resumes only on the gate's wider room.
-    /// </summary>
-    private static bool IsFarSideBlockedAhead(
-        PhaseContext ctx,
-        (TaxiRoute Route, AirportGroundLayout Layout) on,
-        (int SegmentIndex, HoldShortPoint Bar, double ToStopFt) near,
-        bool judgeLeadersGates
-    )
-    {
-        if (
-            (FarBarAfter(on.Route, near.SegmentIndex, near.Bar, on.Layout) is not { } far)
-            || !on.Layout.Nodes.TryGetValue(near.Bar.NodeId, out GroundNode? nearNode)
-        )
-        {
-            return false;
-        }
-
-        double acrossDeg = on.Route.Segments[near.SegmentIndex + 1].Edge.DepartureBearing;
-        if (RunwayCrossingFarSideGate.IsCommitted(ctx, near.ToStopFt, nearNode.Position, acrossDeg))
-        {
-            return false;
-        }
-
-        bool resuming = ctx.Aircraft.GroundSpeed < StoppedGroundSpeedKts;
-        return RunwayCrossingFarSideGate.IsBlocked(ctx, (near.Bar.NodeId, far.NodeId), (on.Route, far.SegmentIndex + 1), resuming, judgeLeadersGates);
-    }
+    internal static double RoutineAimFt(TaxiRoute route, int barSegmentIndex, HoldShortPoint bar, double toStopFt) =>
+        route.StopLiesOnSegment(barSegmentIndex, bar) ? toStopFt + GroundNavigator.SetBackStopMarginFt : toStopFt;
 
     /// <summary>
     /// A HOLD — not a GIVEWAY, which does not act on the runway — met in the stretch before a crossing starts
@@ -2282,14 +2109,13 @@ public sealed class TaxiingPhase : Phase
     /// reaches the near bar's node, half a length after the nose crossed the marking: the cleared crossing ahead
     /// (<see cref="CrossingAhead"/>) whose painted stop lies inside the aircraft's stopping distance at the rate the
     /// HOLD brakes at (<see cref="CrossingRunwayPhase.HoldBrakeRateKtsPerSec"/>), so that braking would carry the nose
-    /// past the near marking, unless the near-line gate already brakes the aircraft onto a bar
-    /// (<see cref="BrakeForUnclearedBar"/>). A crossing whose near bar is the route's start node has no painted stop ahead to
+    /// past the near marking. A crossing whose near bar is the route's start node has no painted stop ahead to
     /// measure to, so it is met while the nose is past its marking. The bar and how far (ft) the nose is past its marking; null
     /// otherwise.
     /// </summary>
     private (HoldShortPoint Bar, double NosePastFt)? HoldAtCrossingAhead(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
     {
-        if ((_farSideBlockedBar is not null) || (CrossingAhead(aircraft, route, layout) is not { } crossing))
+        if (CrossingAhead(aircraft, route, layout) is not { } crossing)
         {
             return null;
         }
@@ -2364,18 +2190,6 @@ public sealed class TaxiingPhase : Phase
     private readonly record struct CrossingStart(HoldShortPoint Bar, LatLon NearBar, double AcrossDeg, bool AtStart);
 
     /// <summary>
-    /// How far (ft) ahead the near-line gate starts judging a crossing bar: the taxi-rate stopping distance,
-    /// <see cref="FarSideReachSeconds"/> of travel and <see cref="RunwayTailClearance.MarginFt"/>.
-    /// </summary>
-    private static double FarSideReachFt(PhaseContext ctx)
-    {
-        double speedKts = ctx.Aircraft.GroundSpeed;
-        return GroundStopBraking.StoppingDistanceFt(speedKts, CategoryPerformance.TaxiDecelRate(ctx.Category))
-            + (speedKts * GroundStopBraking.FeetPerSecondPerKt * FarSideReachSeconds)
-            + RunwayTailClearance.MarginFt;
-    }
-
-    /// <summary>
     /// The far-side bar of the crossing <paramref name="bar"/> enters — the next runway hold-short of the same runway on the route
     /// after segment <paramref name="barSegmentIndex"/> — with the index of the segment that ends at it. Pure: clears nothing.
     /// </summary>
@@ -2403,22 +2217,6 @@ public sealed class TaxiingPhase : Phase
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Once the aircraft has come to rest short of a crossing bar for its blocked far side (<see cref="BrakeForUnclearedBar"/>),
-    /// says once per bar that it is holding short with traffic ahead (<see cref="RunwayCrossingFarSideGate.SayHoldingShortForTraffic"/>).
-    /// </summary>
-    private void ReportFarSideHold(PhaseContext ctx)
-    {
-        if ((_farSideBlockedBar is not { } bar) || (_saidFarSideBlockedNodeId == bar.NodeId) || (ctx.Aircraft.GroundSpeed >= FarSideHoldReportKts))
-        {
-            return;
-        }
-
-        _saidFarSideBlockedNodeId = bar.NodeId;
-        Log.LogDebug("[Taxi] {Callsign}: holding short of {Target} for traffic beyond its far side", ctx.Aircraft.Callsign, bar.TargetName);
-        RunwayCrossingFarSideGate.SayHoldingShortForTraffic(ctx, bar.TargetName);
     }
 
     /// <summary>

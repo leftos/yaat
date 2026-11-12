@@ -33,6 +33,10 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
     /// <summary>Points sampled along a fillet arc for the traffic's path.</summary>
     private const int ArcSamples = 32;
 
+    /// <summary>
+    /// The recording's own clearances replayed to t=2098. The test then removes UAL512 and clears UAL2237 across 1R: UAL2237 is
+    /// stopped on 1L behind the 1R queue, since a cleared crossing goes ahead, and UAL512 is frozen there under a HOLD (YAAT-2123).
+    /// </summary>
     [Fact]
     public void UAL2237_GiveWayToUAL926OnF_WaitsUntilUAL926HasPassed()
     {
@@ -50,6 +54,8 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
         {
             var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
             engine.Replay(archive.ToBaseSessionRecording(), 2098);
+            RemoveTheFrozenOneRightHolder(engine);
+            CrossOneRight(engine);
 
             AircraftState held = Assert.IsType<AircraftState>(engine.FindAircraft(HeldCallsign));
             AircraftState traffic = Assert.IsType<AircraftState>(engine.FindAircraft(TrafficCallsign));
@@ -69,9 +75,11 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
 
             double heldPastFt = double.NaN;
             double trafficPastFt = double.NaN;
+            bool heldMoved = false;
             for (int t = 2099; t <= 2400; t++)
             {
                 engine.TickOneSecond();
+                heldMoved |= held.GroundSpeed > 1;
                 heldPastFt = CentrePastFt(held, nodeId);
                 trafficPastFt = CentrePastFt(traffic, nodeId);
                 double trafficTailPastFt = trafficPastFt - trafficHalfLengthFt;
@@ -101,6 +109,7 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 );
             }
 
+            Assert.True(heldMoved, "test premise: UAL2237 never taxied above 1 kt between t=2099 and t=2400, so the give-way was never exercised");
             Assert.True(
                 trafficPastFt > heldPastFt,
                 $"at t=2400 UAL926 is {trafficPastFt:F0} ft past node {nodeId}, behind UAL2237 at {heldPastFt:F0} ft"
@@ -111,6 +120,8 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
     /// <summary>
     /// YAAT-1266: the same clearance as one deferred <c>GIVEWAY UAL926 TAXI GL L LF F 28L</c> issued at t=2082. UAL2237 is held short with
     /// no route to it yet and its heading is 60-120 degrees off UAL926's, where the geometry alone would release it at once.
+    /// The 1R queue ahead of it (UAL512, UAL2344) is removed so UAL2237 holds short of 1R, as it did before a cleared crossing could
+    /// go ahead with the far side blocked.
     /// </summary>
     [Fact]
     public void DeferredGiveWayTaxi_CrossingTraffic_WaitsForTheTailPastTheSharedNode()
@@ -126,6 +137,22 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 );
                 Assert.True(InCrossingBand(held, traffic), "test setup: the pair must be in the 60-120 degree band");
 
+                RemoveTheFrozenOneRightHolder(engine);
+                Assert.NotNull(engine.FindAircraft("UAL2344"));
+                engine.DeleteAircraft("UAL2344", "test setup");
+                int deferredAt = FirstBandSecond;
+                while ((held.Phases?.CurrentPhase is not HoldingShortPhase) && (deferredAt < FirstBandSecond + 120))
+                {
+                    engine.TickOneSecond();
+                    deferredAt++;
+                }
+
+                Assert.True(
+                    held.Phases?.CurrentPhase is HoldingShortPhase,
+                    $"test premise: UAL2237 should hold short of 1R within 120 s, phase {held.Phases?.CurrentPhase?.GetType().Name}"
+                );
+                output.WriteLine($"t={deferredAt} UAL2237 holding short of 1R");
+                Assert.True(InCrossingBand(held, traffic), $"test setup: the pair must still be in the 60-120 degree band at t={deferredAt}");
                 DeferredDispatch deferral = Defer(engine, held, DeferredTaxi);
                 TaxiRoute preview = Assert.IsType<TaxiRoute>(Preview(engine, held, deferral));
                 GroundConflictDetector.GiveWayJunction? junction = GroundConflictDetector.GiveWayJunctionOf(held, traffic, preview);
@@ -137,7 +164,8 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = TrafficCallsign };
                 int secondsGeometryAloneWouldRelease = 0;
                 int? firedAt = null;
-                for (int t = FirstBandSecond + 1; t <= 2400; t++)
+                bool movedAfterFiring = false;
+                for (int t = deferredAt + 1; t <= 2400; t++)
                 {
                     engine.TickOneSecond();
                     if (
@@ -165,6 +193,7 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
 
                     if (firedAt is not null)
                     {
+                        movedAfterFiring |= held.GroundSpeed > 1;
                         double heldPastFt = CentrePastFt(held, nodeId);
                         Assert.True(
                             (heldPastFt < 0) || (heldPastFt < trafficTailPastFt),
@@ -174,6 +203,7 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 }
 
                 Assert.True(firedAt is not null, $"the deferral never fired, so UAL2237 never taxied (UAL926 gs {traffic.GroundSpeed:F1})");
+                Assert.True(movedAfterFiring, "test premise: UAL2237 never taxied above 1 kt once the deferral fired");
                 Assert.True(
                     secondsGeometryAloneWouldRelease > 0,
                     "test setup: the geometry alone should have released the deferral while the shared node held it"
@@ -245,7 +275,9 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
     /// <summary>
     /// A GiveWay block queued behind a TAXI has no TAXI of its own to preview, so the route UAL2237 is driving decides: in the band the
     /// routes still meet at a node UAL926 has to clear, so the block waits. The TAXI holds short of F, so UAL2237 is still short of the
-    /// node when UAL926 clears it and the block passes: a queued block stops nothing, and run on it would enter F first.
+    /// node when UAL926 clears it and the block passes: a queued block stops nothing, and run on it would enter F first. UAL512 is
+    /// removed and 1R cleared after the TAXI: UAL2237 is stopped on 1L behind the 1R queue, since a cleared crossing goes ahead, and
+    /// UAL512 is frozen there under a HOLD (YAAT-2123).
     /// </summary>
     [Fact]
     public void QueuedGiveWayBlock_DrivingARoute_WaitsForTheTail()
@@ -257,13 +289,17 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 AircraftState traffic = Assert.IsType<AircraftState>(engine.FindAircraft(TrafficCallsign));
                 CommandResult result = engine.SendCommand(HeldCallsign, "TAXI GL L LF F 28L HS F@LF; GIVEWAY UAL926 RWY 28L");
                 Assert.True(result.Success, result.Message);
+                RemoveTheFrozenOneRightHolder(engine);
+                CrossOneRight(engine);
                 CommandBlock block = Assert.Single(held.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.GiveWay);
 
                 int secondsWaited = 0;
+                bool heldMoved = false;
                 for (int t = FirstBandSecond + 1; t <= 2400; t++)
                 {
                     bool mustWait = GroundConflictDetector.GiveWayJunctionOf(held, traffic) is { TrafficPast: false };
                     engine.TickOneSecond();
+                    heldMoved |= held.GroundSpeed > 1;
                     if (mustWait && (GroundConflictDetector.GiveWayJunctionOf(held, traffic) is { TrafficPast: false }))
                     {
                         secondsWaited++;
@@ -271,6 +307,7 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                     }
                 }
 
+                Assert.True(heldMoved, "test premise: UAL2237 never taxied above 1 kt on the route it is driving");
                 Assert.True(secondsWaited > 0, "test setup: the pair should spend time with UAL926 short of the node");
                 Assert.True(block.TriggerMet, "the queued block never passed, though UAL926 cleared the shared node");
             }
@@ -391,7 +428,11 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
         );
     }
 
-    /// <summary>The queued form of the head-on rule: the block waits on the route being driven while UAL926 comes the other way along it.</summary>
+    /// <summary>
+    /// The queued form of the head-on rule: the block waits on the route being driven while UAL926 comes the other way along it.
+    /// UAL512 is removed and 1R cleared after the TAXI: UAL2237 is stopped on 1L behind the 1R queue, since a cleared crossing goes
+    /// ahead, and UAL512 is frozen there under a HOLD (YAAT-2123).
+    /// </summary>
     [Fact]
     public void QueuedGiveWayBlock_HeadOnAlongItsRoute_Holds()
     {
@@ -402,14 +443,18 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 AircraftState traffic = Assert.IsType<AircraftState>(engine.FindAircraft(TrafficCallsign));
                 CommandResult result = engine.SendCommand(HeldCallsign, $"{HeadOnTaxi}; GIVEWAY UAL926 RWY 28L");
                 Assert.True(result.Success, result.Message);
+                RemoveTheFrozenOneRightHolder(engine);
+                CrossOneRight(engine);
                 CommandBlock block = Assert.Single(held.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.GiveWay);
                 TaxiRoute route = RouteOf(held);
 
                 int secondsDecidedByHeadOn = 0;
+                bool heldMoved = false;
                 for (int t = FirstBandSecond + 1; t <= FirstBandSecond + 60; t++)
                 {
                     bool nothingElseHolds = LeftToTheHeadOnRule(held, traffic, route) && InCrossingBand(held, traffic);
                     engine.TickOneSecond();
+                    heldMoved |= held.GroundSpeed > 1;
                     if (nothingElseHolds && HeldByTheHeadOnRule(held, traffic, route))
                     {
                         secondsDecidedByHeadOn++;
@@ -417,6 +462,7 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                     }
                 }
 
+                Assert.True(heldMoved, "test premise: UAL2237 never taxied above 1 kt on the route it is driving");
                 Assert.True(secondsDecidedByHeadOn > 0, "test setup: the head-on rule alone should hold the block in the band");
             }
         );
@@ -464,7 +510,9 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
 
     /// <summary>
     /// The queued form of the same geometry: a GiveWay block behind a TAXI that holds UAL2237 short of F at L on a route that runs on
-    /// west along F into UAL926. The block passes only once UAL926's tail has cleared node 278.
+    /// west along F into UAL926. The block passes only once UAL926's tail has cleared node 278. UAL512 is removed and 1R cleared
+    /// after the TAXI: UAL2237 is stopped on 1L behind the 1R queue, since a cleared crossing goes ahead, and UAL512 is frozen there
+    /// under a HOLD (YAAT-2123).
     /// </summary>
     [Fact]
     public void QueuedGiveWayBlock_HeldAtTheJunction_HeadOn_Holds()
@@ -476,14 +524,18 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 AircraftState traffic = Assert.IsType<AircraftState>(engine.FindAircraft(TrafficCallsign));
                 CommandResult result = engine.SendCommand(HeldCallsign, $"{MoveUpToTheJunction}; GIVEWAY UAL926 RWY 28L");
                 Assert.True(result.Success, result.Message);
+                RemoveTheFrozenOneRightHolder(engine);
+                CrossOneRight(engine);
                 CommandBlock block = Assert.Single(held.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.GiveWay);
                 double requiredTailPastFt = HalfSpanFt(held.AircraftType) + GroundOutlineSweep.WingtipBufferFt;
                 double trafficHalfLengthFt = AircraftLength.ResolveFt(traffic.AircraftType) / 2.0;
 
                 int? passedAt = null;
+                bool heldMoved = false;
                 for (int t = FirstBandSecond + 1; (t <= 2400) && (passedAt is null); t++)
                 {
                     engine.TickOneSecond();
+                    heldMoved |= held.GroundSpeed > 1;
                     if (block.TriggerMet)
                     {
                         passedAt = t;
@@ -498,6 +550,7 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
                 }
 
                 Assert.True(passedAt is not null, "the queued block never passed, though UAL926 cleared node 278");
+                Assert.True(heldMoved, "test premise: UAL2237 never taxied above 1 kt toward F before the queued block passed");
             }
         );
     }
@@ -1076,11 +1129,18 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
     /// <summary>
     /// Ticks UAL2237 forward to F on <see cref="MoveUpToTheJunction"/> until it stands held short of F at L, short of
     /// <see cref="StartNodeId"/>; returns the second it stopped.
+    ///
+    /// <para>
+    /// From <see cref="FirstBandSecond"/> UAL2237 is stopped on 1L behind the 1R queue (a cleared crossing goes ahead with the far
+    /// side blocked), so the setup removes UAL512, frozen under a HOLD at the 1R bar, and clears 1R.
+    /// </para>
     /// </summary>
     private int HoldShortOfFAtL(SimulationEngine engine, AircraftState held)
     {
+        RemoveTheFrozenOneRightHolder(engine);
         CommandResult result = engine.SendCommand(HeldCallsign, MoveUpToTheJunction);
         Assert.True(result.Success, result.Message);
+        CrossOneRight(engine);
         bool moved = false;
         for (int t = FirstBandSecond + 1; t <= 2300; t++)
         {
@@ -1100,6 +1160,24 @@ public class SfoGiveWayCrossingTests(ITestOutputHelper output)
 
         Assert.Fail("test setup: UAL2237 never stopped short of F at L");
         return 0;
+    }
+
+    /// <summary>
+    /// Removes UAL512, frozen under a HOLD at the 1R bar that a later RES never released (YAAT-2123), from the 1R queue UAL2237
+    /// stands behind on 1L.
+    /// </summary>
+    private static void RemoveTheFrozenOneRightHolder(SimulationEngine engine)
+    {
+        AircraftState frozen = Assert.IsType<AircraftState>(engine.FindAircraft("UAL512"));
+        Assert.True(frozen.Ground.Hold is { Kind: HoldKind.HoldPosition }, $"test setup: UAL512 should be under a HOLD, hold {frozen.Ground.Hold}");
+        engine.DeleteAircraft("UAL512", "test setup");
+    }
+
+    /// <summary>Clears UAL2237 across 1R; sent after its taxi clearance.</summary>
+    private static void CrossOneRight(SimulationEngine engine)
+    {
+        CommandResult cross = engine.SendCommand(HeldCallsign, "CROSS 1R");
+        Assert.True(cross.Success, cross.Message);
     }
 
     /// <summary>

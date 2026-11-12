@@ -3155,8 +3155,8 @@ public static class GroundConflictDetector
         IsCrossingRunway(aircraft) || (_crossingStopCurveCarried?.Contains(aircraft) == true);
 
     /// <summary>
-    /// Whether <paramref name="aircraft"/> is crossing a runway: in a <see cref="CrossingRunwayPhase"/>, not merely past the
-    /// near-line gate's commit point. A crossing takes no slowdown behind traffic on the runway, where it should not linger — by
+    /// Whether <paramref name="aircraft"/> is crossing a runway: in a <see cref="CrossingRunwayPhase"/>, not merely
+    /// taxiing toward a cleared crossing's near bar. A crossing takes no slowdown behind traffic on the runway, where it should not linger — by
     /// analogy with AIM 4-3-21.a, which says a pilot "should not stop or reverse course on the runway without first obtaining ATC
     /// approval": the trail match, the proximity trail and the convergence slowdown give it instead the braking onto the stop
     /// (<see cref="CrossingStopCurveKts"/>), and the detector's stops (the stop ring, a hold) still apply.

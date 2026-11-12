@@ -975,7 +975,6 @@
     "Yaat.Sim.Tests.Simulation.FollowEntryLeadPathTests": 0,
     "Yaat.Sim.Tests.Simulation.FollowOutsidePatternRefusalTests": 0,
     "Yaat.Sim.Tests.Simulation.FollowPursuitNewLeadTests": 0,
-    "Yaat.Sim.Tests.Simulation.GroundTaxi.RunwayCrossingFarSideGateTests": 0,
     "Yaat.Sim.Tests.Simulation.GroundTaxi.SeaCrossingNotYetReachedTests": 0,
     "Yaat.Sim.Tests.Simulation.GroundTaxi.TaxiCollinearNodeArrivalTests": 0,
     "Yaat.Sim.Tests.Simulation.GroundTaxi.TaxiStartNodeEdgelessSpotTests": 0,

@@ -272,7 +272,7 @@ The centre is too close within `RequiredLateralClearanceFt` (both half-spans plu
 
 `CrossingRunwayPhase` ignores a GIVEWAY for the rest of a crossing (AIM 4-3-21.a/b: no stopping on the runway, clear only past the far marking), and the give-way applies once `TaxiingPhase` takes over beyond it.
 
-So does the landing runway: a GIVEWAY given on the rollout or exit (once a TAXI stored a route, [landing-and-runway-exit.md](landing-and-runway-exit.md) § TAXI on the rollout) is pending while `LandingPhase` or `RunwayExitPhase` is current (`AircraftState.HasGiveWayPendingOnLandingRunway`). It sets no give-way stop (`RunwayCrossingFarSideGate` skips it), is not aged by `FlightPhysics.UpdateGiveWayResume`, and the hold is kept for `TaxiingPhase`. `StuckAircraftRule` does not treat it as an ordered stop, so an arrival that stops on its exit under one is still flagged stuck.
+So does the landing runway: a GIVEWAY given on the rollout or exit (once a TAXI stored a route, [landing-and-runway-exit.md](landing-and-runway-exit.md) § TAXI on the rollout) is pending while `LandingPhase` or `RunwayExitPhase` is current (`AircraftState.HasGiveWayPendingOnLandingRunway`). It sets no give-way stop, is not aged by `FlightPhysics.UpdateGiveWayResume`, and the hold is kept for `TaxiingPhase`. `StuckAircraftRule` does not treat it as an ordered stop, so an arrival that stops on its exit under one is still flagged stuck.
 
 A HOLD mid-crossing brakes onto the near marking when it fits, else stops on the runway (piston and helicopter at 4.5 kt/s, jet and turboprop at the taxi rate); the braking is the crossing phase's own ([ground/navigator.md](ground/navigator.md) § Inputs and outputs, The hold contract), not this detector's.
 
@@ -307,7 +307,7 @@ A crosser yields to a runway aircraft across the whole trail band (`ResolveCross
 - **Closing skip:** `ComputeClosingLimit` skips an off-runway, stopped obstacle only for a runway user, never for a vacating mover, whose path leads off the runway.
 - **Cost:** `IsVacating` first rules out a runway the tail cannot reach (`TailCanBeInside`, a flat-plane prefilter on a per-layout cached `RunwayReach`). `World.GroundConflict` took about 0.08 ms per sub-tick on the AMX669 SFO replay.
 
-An aircraft cleared across a runway is held at the **near line** while the far side lacks room, by `RunwayCrossingFarSideGate` in the phases, not by this detector; it is committed (so the gate no longer holds it) once it can no longer stop with its nose at the near marking even at the firm rate, or, at rest, with its nose past the marking ([ground/navigator.md](ground/navigator.md) § Relationship to sibling ground phases). The detector's stop curve takes over only inside `CrossingRunwayPhase`.
+An aircraft cleared across a runway is not held at the **near line** for a blocked far side: it crosses regardless ([ground/navigator.md](ground/navigator.md) § Relationship to sibling ground phases). The detector's stop curve takes over only inside `CrossingRunwayPhase`, which stops it behind the traffic and, when that is on the runway, warns the controller.
 
 
 With no route on either side, or no node shared with the traffic's route that the traffic has still to clear, a GIVEWAY stops where it is, as HOLD does; the Debug log names which.

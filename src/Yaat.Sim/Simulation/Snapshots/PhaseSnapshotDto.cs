@@ -411,13 +411,6 @@ public sealed class HoldingShortPhaseDto : PhaseDto
     public bool HasAnnouncedReady { get; init; }
 
     /// <summary>
-    /// True once the phase, cleared across, said "holding short of runway …, traffic ahead" for traffic beyond the crossing's far
-    /// side, so a restored phase does not say it again. Null before that, and in snapshots written before the field existed.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? SaidTrafficAhead { get; init; }
-
-    /// <summary>
     /// True while the phase, cleared across, holds for the lead of the follow armed behind it to be ahead on their shared route.
     /// Null otherwise, and in snapshots written before the field existed.
     /// </summary>
@@ -630,14 +623,6 @@ public sealed class TaxiingPhaseDto : PhaseDto
     /// stopping for at the firm rate until it takes the hold or the bar is cleared. Null whenever no such stop is under way.
     /// </summary>
     public int? PassedStartBarNodeId { get; init; }
-
-    /// <summary>
-    /// Node of the cleared crossing bar the phase already said "holding short of runway …, traffic ahead" at, holding for traffic
-    /// beyond the crossing's far side, so a restored phase does not say it again there. Null until that call is made, and in
-    /// snapshots written before the field existed.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? SaidFarSideBlockedNodeId { get; init; }
 
     /// <summary>
     /// The speed (kts) a pull-up handed off at speed from a runway exit holds its taxi to until the parallel runway's bar

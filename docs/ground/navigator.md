@@ -94,17 +94,10 @@ The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** res
 
   `CrossingRunwayPhase.PathAhead` returns the path actually ahead as segment indices (the rest of the slice, then the aircraft's own route past the tail clearance) for a reader that needs it.
 
-  An aircraft cleared across does not enter the runway while the far side lacks room: the **near-line gate** (`RunwayCrossingFarSideGate`) holds it at the near line and lets it go by itself when the room opens.
-
-  The gate reads a leader inside `CrossingRunwayPhase` from the crossing's own progress (`PathAhead`), not from the assigned route's cursor, which stays on the entry segment: its known stop is the slice still to go, then the onward route from where the tail clearance cuts into `OnwardStart` (`CrossingRunwayPhase.TailCutFt`) to the first bar the leader stops at or to the route's end, every distance judged from the leader's true position, so a cleared bar beyond reach is not yet a stop, as for a taxiing leader. A crossing on its own path is measured to the slice's end. The gate never advances the cursor (`HandRouteBack` stays its only writer).
-
-  `TaxiingPhase` brakes onto the near bar for it until the aircraft has passed its commit point (`IsCommitted`), and `HoldingShortPhase` keeps a cleared aircraft at the bar (`HoldsAtBar`). It says "Holding short of runway {X}, traffic ahead" once per bar, and logs under the category `RunwayCrossingFarSideGate` (`[FarSideGate]` lines).
+  An aircraft cleared across enters the runway even when the far side lacks room for it to clear: nothing holds it at the near line for traffic beyond the crossing (there is no far-side gate). It crosses and brakes onto the stop the detector gives it behind that traffic, which may be on the runway; `CrossingRunwayPhase.TickNotClearCall` then says the not-clear call and adds the controller warning "{callsign} stopped on RWY {runway} behind traffic, blocking the runway".
 
   A cleared aircraft with a `FOLLOWG` armed behind the crossing also holds at the bar while the lead of that follow, whose route merges with its own beyond the bar, has yet to pass (`HoldingShortPhase.HoldsForFollowLead`; [give way at the merge](#followg-driving-the-follow-route)). The clearance stays armed, and it goes once the lead is ahead.
 
-  The room needed is the aircraft's own length, the pair's stop gap (`GroundConflictDetector.StopGapFt`) and 10 ft, past the far holding-position marking, against the stop point projected for each aircraft on the path across and beyond.
-
-  At rest it resumes only with 10 ft more room than it needs, and it is committed only with its nose past the marking. A leader held by its speed limit, or by its own gate at a cleared bar ahead, counts as stopping; one slowing for a corner does not. Oncoming traffic beyond the far bar blocks. A steady taxier queued behind traffic at rest counts as stopping there, and a crosswise mover briefly blocks (accepted).
 
   It used to extend straight along the entry taxiway's graph continuation and hand the route back one segment past the exit, so a route that turned right after the crossing resumed on a fillet 60 ft behind the aircraft (the SFO G → B case the no-teleport guard caught).
 - Route end with a parking destination → `AtParkingPhase`; otherwise `HoldingInPositionPhase` (a stored departure clearance lines up). A taxi whose route is already complete when it starts ends the same way (`CompleteRoute`), rather than ending with no phase inserted.

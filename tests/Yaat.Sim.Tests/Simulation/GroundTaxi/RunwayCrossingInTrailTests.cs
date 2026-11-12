@@ -34,7 +34,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
 
     private const int BudgetSeconds = 120;
 
-    /// <summary>The aircraft standing just past the far bar in the near-line tests.</summary>
+    /// <summary>The aircraft standing just past the far bar in the far-side-blocked and stop-ring tests.</summary>
     private const string TrafficCallsign = "SKW403";
 
     /// <summary>How far (ft) past the far holding-position marking the standing traffic's tail is: well inside a follower's need.</summary>
@@ -48,11 +48,11 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     /// <summary>Seconds watched after the first second at rest in the crossing for the not-clear call (made about 3 s in).</summary>
     private const int NotClearWatchSeconds = 5;
 
-    /// <summary>The runway a taxi to 28L on F crosses next, beyond <see cref="SfoGroundHarness.CrossingRunway"/>.</summary>
-    private const string NextRunway = "01R/19L";
-
-    /// <summary>Ground speed (kt) the follower must be above to be sampled past its commit point: moving, never at rest.</summary>
-    private const double CommitSampleMinKts = 3.0;
+    /// <summary>
+    /// Ground speed (kt) the follower must be above to be sampled inside its stopping distance of the near marking: moving,
+    /// never at rest.
+    /// </summary>
+    private const double MovingSampleMinKts = 3.0;
 
     /// <summary>How far (ft) short of the near holding-position marking the nose is in the held-on-runway readback test.</summary>
     private const double NoseShortOfTheMarkingFt = 5.0;
@@ -393,7 +393,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
             double nosePastFt = NosePastNearMarkingFt(follower, crossing);
             double holdStopFt = follower.GroundSpeed * follower.GroundSpeed / (2.0 * holdRate) * FeetPerSecondPerKt;
             bool placed = nosePastTheMarking ? nosePastFt > 0.0 : (nosePastFt < 0.0) && (-nosePastFt < holdStopFt);
-            return placed && (follower.Phases?.CurrentPhase is TaxiingPhase) && (follower.GroundSpeed > CommitSampleMinKts);
+            return placed && (follower.Phases?.CurrentPhase is TaxiingPhase) && (follower.GroundSpeed > MovingSampleMinKts);
         }
 
         int subTick = 0;
@@ -511,129 +511,6 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         Assert.Equal(onRunway ? RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty) : null, end);
     }
 
-    /// <summary>
-    /// The near-line gate's holding-short call, made before a snapshot, is not made again by the phase restored from it
-    /// (through the recording JSON) while the follower waits on at the near line: the taxi's when it braked there pre-cleared,
-    /// the hold-short's when a CROSS reached it holding short.
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void NearLine_TrafficAheadCallMadeBeforeASnapshot_IsNotRepeatedAfterTheRestore(bool preCleared)
-    {
-        if (SfoGroundHarness.Build(output, autoCrossMode: preCleared ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off) is not { } ground)
-        {
-            return;
-        }
-
-        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        SpawnTrafficPastTheFarBar(ground, crossing);
-        AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
-        List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
-        bool enteredCrossing = false;
-        TickUntilAtRest(ground, follower, ref enteredCrossing);
-        if (!preCleared)
-        {
-            string end = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
-            Assert.True(ground.Engine.SendCommand(follower.Callsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
-            TickUntilAtRest(ground, follower, ref enteredCrossing);
-        }
-
-        Assert.Single(TrafficAheadCalls(warnings));
-        SfoGround restored = RestoreFrom(SnapshotJson(ground), preCleared ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off);
-        List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
-        for (int second = 0; second < 2 * NearLineRestSeconds; second++)
-        {
-            restored.Engine.TickOneSecond();
-        }
-
-        AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(FollowingCallsign));
-        Assert.IsNotType<CrossingRunwayPhase>(restoredFollower.Phases?.CurrentPhase);
-        Assert.Empty(TrafficAheadCalls(restoredWarnings));
-    }
-
-    /// <summary>
-    /// A snapshot taken the second before the pre-cleared follower, braked to rest at the near line, makes its holding-short
-    /// call is restored (through the recording JSON) into a run that still makes the call, once.
-    /// </summary>
-    [Fact]
-    public void NearLine_SnapshotTheSecondBeforeTheTrafficAheadCall_StillMakesTheCallAfterTheRestore()
-    {
-        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
-        {
-            return;
-        }
-
-        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        SpawnTrafficPastTheFarBar(ground, crossing);
-        AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
-        List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
-        string json = SnapshotJson(ground);
-        int calledAt = -1;
-        for (int second = 1; (second <= BudgetSeconds) && (calledAt < 0); second++)
-        {
-            json = SnapshotJson(ground);
-            ground.Engine.TickOneSecond();
-            calledAt = TrafficAheadCalls(warnings).Count > 0 ? second : -1;
-        }
-
-        Assert.True(calledAt > 0, $"{follower.Callsign} never made the holding-short call");
-        output.WriteLine($"{follower.Callsign} made the call at t={calledAt}; restoring the snapshot taken before that second");
-        SfoGround restored = RestoreFrom(json, autoCrossMode: AutoCrossRunwayMode.All);
-        List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
-        for (int second = 0; second < 2 * NearLineRestSeconds; second++)
-        {
-            restored.Engine.TickOneSecond();
-        }
-
-        Assert.Single(TrafficAheadCalls(restoredWarnings));
-    }
-
-    /// <summary>
-    /// A run rewound to the follower holding short of the crossing, the traffic at rest just past the far bar, and then given
-    /// its CROSS still makes the holding-short call once, though the hold-short phase was restored from the snapshot.
-    /// </summary>
-    [Fact]
-    public void NearLine_RewoundToHoldingShortThenCrossed_StillMakesTheTrafficAheadCall()
-    {
-        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
-        {
-            return;
-        }
-
-        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        SpawnTrafficPastTheFarBar(ground, crossing);
-        AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
-        bool enteredCrossing = false;
-        TickUntilAtRest(ground, follower, ref enteredCrossing);
-        Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
-
-        SfoGround restored = RestoreFrom(SnapshotJson(ground), autoCrossMode: AutoCrossRunwayMode.Off);
-        List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
-        AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(FollowingCallsign));
-        string end = RunwayCrossingEnd.Spoken(restoredFollower, SfoGroundHarness.CrossingRunway, restored.Layout, ActiveRunways.Empty);
-        Assert.True(restored.Engine.SendCommand(FollowingCallsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
-        for (int second = 0; second < NearLineRestSeconds; second++)
-        {
-            restored.Engine.TickOneSecond();
-        }
-
-        Assert.Single(TrafficAheadCalls(restoredWarnings));
-    }
-
-    /// <summary>The engine's snapshot as the recording JSON carries it.</summary>
-    private static string SnapshotJson(SfoGround ground) => JsonSerializer.Serialize(ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-
-    /// <summary>A fresh SFO engine restored from <paramref name="json"/> (<see cref="SnapshotJson"/>).</summary>
-    private SfoGround RestoreFrom(string json, AutoCrossRunwayMode autoCrossMode)
-    {
-        SfoGround restored = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCrossMode));
-        restored.Engine.RestoreFromSnapshot(
-            Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
-        );
-        return restored;
-    }
-
     /// <summary>The largest speed loss (kt) between two samples one second apart, and the second it ended at.</summary>
     private static (double LossKts, int AtSecond) LargestLossOverConsecutiveSeconds(List<(int Second, double SpeedKts)> speeds)
     {
@@ -650,75 +527,91 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         return largest;
     }
 
+    /// <summary>How the follower in the far-side-blocked tests comes to be cleared across 01L/19R.</summary>
+    public enum CrossingEntry
+    {
+        /// <summary>A taxi clearance that names the crossing (<c>TAXI F CROSS … RWY 28L</c>).</summary>
+        TaxiNamingTheCrossing,
+
+        /// <summary>A CROSS given once the follower holds short of the bar.</summary>
+        CrossFromTheHoldShort,
+
+        /// <summary>The room's auto-cross (<see cref="AutoCrossRunwayMode.All"/>).</summary>
+        AutoCross,
+    }
+
     /// <summary>
-    /// YAAT-483, the near-line gate: traffic at rest just past 01L/19R's far bar leaves less room beyond the far holding-position
-    /// marking than the follower's length, the pair's stop gap and 10 ft, so the follower cleared across stops with its nose at or
-    /// short of the near marking rather than entering the crossing, says once that it is holding short of the runway with traffic
-    /// ahead, and crosses by itself once the traffic taxis on.
+    /// Traffic at rest just past 01L/19R's far bar leaves the follower too little room to clear the runway. Cleared across — by a
+    /// taxi clearance naming the crossing, a CROSS at the hold short, or the room's auto-cross — the follower crosses anyway, comes
+    /// to rest behind the traffic no nearer than the pair's stop gap, still inside the far holding-position marking, and the RPO is
+    /// warned once that it blocks the runway.
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void NearLine_TrafficAtRestJustPastTheFarBar_FollowerHoldsAtTheNearMarkingOnceThenCrossesWhenItMovesOn(bool preCleared)
+    [InlineData(CrossingEntry.TaxiNamingTheCrossing)]
+    [InlineData(CrossingEntry.CrossFromTheHoldShort)]
+    [InlineData(CrossingEntry.AutoCross)]
+    public void FarSideBlocked_FollowerCrossesAndStopsBehindTheTrafficOnTheRunway_AndTheRpoIsWarnedOnce(CrossingEntry entry)
     {
-        if (SfoGroundHarness.Build(output, autoCrossMode: preCleared ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off) is not { } ground)
+        AutoCrossRunwayMode mode = entry == CrossingEntry.AutoCross ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off;
+        if (SfoGroundHarness.Build(output, autoCrossMode: mode) is not { } ground)
         {
             return;
         }
 
         SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        var crossingBearing = new TrueHeading(GeoMath.BearingTo(crossing.ApproachBar.Position, crossing.FarBar.Position));
-        SpawnTrafficPastTheFarBar(ground, crossing);
-        AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
+        AircraftState traffic = SpawnTrafficPastTheFarBar(ground, crossing);
         List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
-
-        bool enteredCrossing = false;
-        int restSeconds = TickUntilAtRest(ground, follower, ref enteredCrossing);
-        if (!preCleared)
+        AircraftState follower = SpawnFollowerClearedAcross(ground, crossing, entry);
+        double maxNosePastFt = double.MinValue;
+        double minGapFt = double.MaxValue;
+        void Sample()
         {
-            // Not cleared across, the follower holds short of the bar; the CROSS given there is held for the traffic.
-            Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
-            string end = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
-            Assert.True(ground.Engine.SendCommand(follower.Callsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
-            restSeconds = TickUntilAtRest(ground, follower, ref enteredCrossing);
+            maxNosePastFt = Math.Max(maxNosePastFt, NosePastNearMarkingFt(follower, crossing));
+            minGapFt = Math.Min(minGapFt, NoseToTailFt(follower, traffic));
         }
 
-        double nosePastFt = NosePastNearMarkingFt(follower, crossing);
-        output.WriteLine($"{follower.Callsign}: {follower.Phases?.CurrentPhase?.Name}, nose {nosePastFt:F1} ft past the near marking");
-        Assert.False(
-            enteredCrossing,
-            $"{follower.Callsign} entered the crossing with traffic at rest {TrafficTailPastFarBarFt:F0} ft past the far bar"
-        );
-        Assert.True(restSeconds >= NearLineRestSeconds, $"{follower.Callsign} never came to rest short of the crossing");
-        Assert.True(nosePastFt <= 0.0, $"{follower.Callsign} stopped with its nose {nosePastFt:F1} ft past the near holding-position marking");
-        string runway = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
-        Assert.Equal([$"Holding short of runway {runway}, traffic ahead"], TrafficAheadCalls(warnings));
-
-        Assert.True(ground.Engine.SendCommand(TrafficCallsign, TaxiCommand).Success, $"'{TaxiCommand}' was refused for {TrafficCallsign}");
-        if (!preCleared)
-        {
-            // Holding short of the next runway just ahead, the traffic would still leave the follower no room: clear it across too.
-            AircraftState traffic = Assert.IsType<AircraftState>(ground.Engine.FindAircraft(TrafficCallsign));
-            string next = RunwayCrossingEnd.Spoken(traffic, NextRunway, ground.Layout, ActiveRunways.Empty);
-            Assert.True(ground.Engine.SendCommand(TrafficCallsign, $"CROSS {next}").Success, $"'CROSS {next}' was refused for {TrafficCallsign}");
-        }
-
-        int clearedAt = SfoGroundHarness.TickUntil(
+        int restedAt = SfoGroundHarness.TickUntil(
             ground.Engine,
-            () => HasClearedTheCrossing(follower, crossing, crossingBearing),
+            () => (follower.Phases?.CurrentPhase is CrossingRunwayPhase) && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
             BudgetSeconds,
-            eachSecond: null
+            eachSecond: _ => Sample()
         );
-        Assert.True(clearedAt > 0, $"{follower.Callsign} did not cross once the traffic taxied on");
-        Assert.Single(TrafficAheadCalls(warnings));
+        for (int second = 0; second < NotClearWatchSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            Sample();
+        }
+
+        double stopGapFt = GroundConflictDetector.StopGapFt(AircraftLength.ResolveFt(AircraftType), AircraftLength.ResolveFt(AircraftType));
+        string runway = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
+        string expected = $"{follower.Callsign} stopped on RWY {runway} behind traffic, blocking the runway";
+        output.WriteLine(
+            $"{entry}: {follower.Phases?.CurrentPhase?.Name}, nose at most {maxNosePastFt:F1} ft past the near marking, "
+                + $"rested t+{restedAt}, closest {minGapFt:F1} ft nose to tail (gap {stopGapFt:F1}): {string.Join(" | ", warnings)}"
+        );
+        Assert.True(
+            maxNosePastFt > 0.0,
+            $"{follower.Callsign} never entered the runway: its nose stayed {-maxNosePastFt:F1} ft short of the near marking "
+                + $"({follower.Phases?.CurrentPhase?.Name})"
+        );
+        Assert.True(restedAt > 0, $"{follower.Callsign} never came to rest in the crossing behind the traffic");
+        // The same margin under the ring the file's other stop-ring tests allow while the detector's cap takes effect.
+        Assert.True(
+            minGapFt >= stopGapFt - StopRingMarginFt,
+            $"{follower.Callsign} closed to {minGapFt:F1} ft nose to tail, inside the {stopGapFt:F1} ft stop gap"
+        );
+        CrossingRunwayPhase onCrossing = Assert.IsType<CrossingRunwayPhase>(follower.Phases?.CurrentPhase);
+        Assert.True(onCrossing.IsNotClearOfFarMarking(follower, ground.Layout), $"{follower.Callsign} came to rest clear of the far marking");
+        Assert.Single(warnings, w => w == expected);
     }
 
     /// <summary>
-    /// YAAT-483, the commit point: the traffic comes to rest just past the far bar only once the follower can no longer stop with
-    /// its nose at the near marking even at the firm rate, so the follower commits and enters the crossing still rolling.
+    /// The traffic just past the far bar is at rest, inside the follower's clearing room, when the follower is cleared across
+    /// (auto-cross) and enters the crossing; it is released to taxi on once the follower has entered the crossing, so the follower
+    /// never comes to rest in the crossing: no warning that it blocks the runway, and no not-clear call.
     /// </summary>
     [Fact]
-    public void NearLine_TrafficStopsOnceTheFollowerIsPastItsCommitPoint_FollowerCommitsToTheCrossing()
+    public void FarSideBlockedThenClearsBeforeTheFollowerStops_NoWarning()
     {
         if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
@@ -726,27 +619,109 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         }
 
         SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        (AircraftState follower, int spawnedAt) = RunUntilPastTheCommitPoint(ground, crossing);
+        var crossingBearing = new TrueHeading(GeoMath.BearingTo(crossing.ApproachBar.Position, crossing.FarBar.Position));
+        AircraftState traffic = SpawnTrafficPastTheFarBar(ground, crossing);
+        List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
+        AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
+        double roomFt =
+            AircraftLength.ResolveFt(AircraftType)
+            + GroundConflictDetector.StopGapFt(AircraftLength.ResolveFt(AircraftType), AircraftLength.ResolveFt(AircraftType));
         int enteredAt = SfoGroundHarness.TickUntil(
             ground.Engine,
             () => follower.Phases?.CurrentPhase is CrossingRunwayPhase,
             BudgetSeconds,
-            eachSecond: second =>
-                Assert.True(
-                    follower.GroundSpeed >= SfoGroundHarness.StationarySpeedKts,
-                    $"t+{second}: {follower.Callsign} stopped short of the crossing after the traffic stopped at t={spawnedAt}, "
-                        + $"nose {NosePastNearMarkingFt(follower, crossing):F1} ft past the near marking"
-                )
+            eachSecond: null
         );
-        Assert.True(enteredAt > 0, $"{follower.Callsign} never entered the crossing");
+        Assert.True(enteredAt > 0, $"{follower.Callsign} never entered the crossing within {BudgetSeconds}s");
+        double trafficTailPastFarBarAtEntryFt =
+            (GeoMath.AlongTrackDistanceNm(traffic.Position, crossing.FarBar.Position, crossingBearing) * GeoMath.FeetPerNm)
+            - (AircraftLength.ResolveFt(AircraftType) / 2.0);
+        Assert.True(
+            trafficTailPastFarBarAtEntryFt < roomFt,
+            $"test premise: {TrafficCallsign}'s tail was already {trafficTailPastFarBarAtEntryFt:F1} ft past the far bar when "
+                + $"{follower.Callsign} entered the crossing, outside its {roomFt:F1} ft clearing room"
+        );
+        Assert.True(ground.Engine.SendCommand(TrafficCallsign, TaxiCommand).Success, $"'{TaxiCommand}' was refused for {TrafficCallsign}");
+        int restedInCrossingAt = -1;
+        int clearedAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => HasClearedTheCrossing(follower, crossing, crossingBearing),
+            BudgetSeconds,
+            eachSecond: second =>
+            {
+                double toFarBarFt = -GeoMath.AlongTrackDistanceNm(follower.Position, crossing.FarBar.Position, crossingBearing) * GeoMath.FeetPerNm;
+                double tailPastFt =
+                    (GeoMath.AlongTrackDistanceNm(traffic.Position, crossing.FarBar.Position, crossingBearing) * GeoMath.FeetPerNm)
+                    - (AircraftLength.ResolveFt(AircraftType) / 2.0);
+                output.WriteLine(
+                    $"t+{second}: {follower.Callsign} gs {follower.GroundSpeed:F1} kt, {toFarBarFt:F1} ft to the far bar; "
+                        + $"{TrafficCallsign} gs {traffic.GroundSpeed:F1} kt, tail {tailPastFt:F1} ft past it"
+                );
+                bool atRestInCrossing =
+                    (follower.Phases?.CurrentPhase is CrossingRunwayPhase) && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts);
+                restedInCrossingAt = ((restedInCrossingAt < 0) && atRestInCrossing) ? second : restedInCrossingAt;
+            }
+        );
+
+        output.WriteLine(
+            $"{follower.Callsign} entered the crossing at t+{enteredAt} with {TrafficCallsign}'s tail {trafficTailPastFarBarAtEntryFt:F1} ft "
+                + $"past the far bar (room {roomFt:F1} ft), cleared it {clearedAt} s later: {string.Join(" | ", warnings)}"
+        );
+        Assert.True(clearedAt > 0, $"{follower.Callsign} did not clear the crossing within {BudgetSeconds}s");
+        Assert.True(restedInCrossingAt < 0, $"{follower.Callsign} came to rest in the crossing at t+{restedInCrossingAt}");
+        Assert.DoesNotContain(warnings, static w => w.EndsWith("blocking the runway", StringComparison.Ordinal));
+        Assert.Empty(NotClearCalls(warnings));
     }
+
+    /// <summary>
+    /// Spawns the follower at <see cref="SfoCrossing.ApproachNode"/> cleared across by <paramref name="entry"/>: a taxi naming the
+    /// crossing; or <see cref="TaxiCommand"/>, then, held short of the bar, a CROSS; or <see cref="TaxiCommand"/> under auto-cross.
+    /// </summary>
+    private static AircraftState SpawnFollowerClearedAcross(SfoGround ground, SfoCrossing crossing, CrossingEntry entry)
+    {
+        if (entry != CrossingEntry.TaxiNamingTheCrossing)
+        {
+            AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
+            if (entry == CrossingEntry.CrossFromTheHoldShort)
+            {
+                TickUntilAtRest(ground, follower);
+                Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+                string end = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
+                Assert.True(ground.Engine.SendCommand(follower.Callsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
+            }
+
+            return follower;
+        }
+
+        var heading = new TrueHeading(GeoMath.BearingTo(crossing.ApproachNode.Position, crossing.ApproachBar.Position));
+        AircraftState named = SfoGroundHarness.SpawnAt(
+            ground,
+            FollowingCallsign,
+            AircraftType,
+            (crossing.ApproachNode, heading),
+            new HoldingInPositionPhase()
+        );
+        string crossEnd = RunwayCrossingEnd.Spoken(named, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
+        string taxi = $"TAXI F CROSS {crossEnd} RWY 28L";
+        CommandResult result = ground.Engine.SendCommand(named.Callsign, taxi);
+        Assert.True(result.Success, $"'{taxi}' was refused for {named.Callsign}: {result.Message}");
+        return named;
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="follower"/>'s nose is from <paramref name="leader"/>'s tail: centres apart less both
+    /// half-lengths.
+    /// </summary>
+    private static double NoseToTailFt(AircraftState follower, AircraftState leader) =>
+        (GeoMath.DistanceNm(follower.Position, leader.Position) * GeoMath.FeetPerNm)
+        - ((AircraftLength.ResolveFt(follower.AircraftType) + AircraftLength.ResolveFt(leader.AircraftType)) / 2.0);
 
     /// <summary>
     /// Spawns the follower at <see cref="SfoCrossing.ApproachNode"/> and taxis it, ticking each second until its nose is short
     /// of the near marking by less than its firm-rate stopping distance (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>),
     /// then spawns the traffic at rest just past the far bar. Returns the follower and the second the traffic appeared.
     /// </summary>
-    private (AircraftState Follower, int SpawnedAt) RunUntilPastTheCommitPoint(SfoGround ground, SfoCrossing crossing)
+    private (AircraftState Follower, int SpawnedAt) RunUntilInsideTheFirmStopOfTheNearMarking(SfoGround ground, SfoCrossing crossing)
     {
         AircraftState follower = SpawnFollowerAndTaxi(ground, crossing);
         double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet);
@@ -756,21 +731,22 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
             double shortFt = -NosePastNearMarkingFt(follower, crossing);
             double firmStopFt = follower.GroundSpeed * follower.GroundSpeed / (2.0 * firmRate) * FeetPerSecondPerKt;
             output.WriteLine($"t={second}: {follower.Callsign} {shortFt:F1} ft short at {follower.GroundSpeed:F1} kt (firm stop {firmStopFt:F1} ft)");
-            // Past the commit point, nose short of the marking or already over it, and still taxiing toward the crossing: a
-            // window wider than a second's travel, so the per-second sampling cannot step over it.
-            if ((follower.Phases?.CurrentPhase is TaxiingPhase) && (follower.GroundSpeed > CommitSampleMinKts) && (shortFt < firmStopFt))
+            // Nose within the firm-rate stopping distance of the marking, short of it or already over it, and still taxiing
+            // toward the crossing: a window wider than a second's travel, so the per-second sampling cannot step over it.
+            if ((follower.Phases?.CurrentPhase is TaxiingPhase) && (follower.GroundSpeed > MovingSampleMinKts) && (shortFt < firmStopFt))
             {
                 SpawnTrafficPastTheFarBar(ground, crossing);
                 return (follower, second);
             }
         }
 
-        Assert.Fail($"{follower.Callsign} was never sampled between its commit point and the near marking");
+        Assert.Fail($"{follower.Callsign} was never sampled with its nose within its firm-rate stopping distance of the near marking");
         return (follower, -1);
     }
 
     /// <summary>
-    /// Committed to the crossing, the follower comes to rest behind the traffic with its whole length still inside the far
+    /// Within its firm-rate stopping distance of the near marking when the traffic appears, the follower crosses and comes to rest
+    /// behind the traffic with its whole length still inside the far
     /// holding-position marking. About 3 s after coming to rest it says once that it is holding position, not clear of the
     /// runway, with traffic ahead — and never again while it waits. A GIVEWAY given once it is at rest does not silence the
     /// call: only a HOLD, which stops it on the runway by the controller's own word, does.
@@ -786,7 +762,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         }
 
         SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        (AircraftState follower, _) = RunUntilPastTheCommitPoint(ground, crossing);
+        (AircraftState follower, _) = RunUntilInsideTheFirmStopOfTheNearMarking(ground, crossing);
         List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
         int restedAt = TickUntilAtRestInTheCrossing(ground, follower);
         if (giveWay)
@@ -810,6 +786,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         Assert.Equal(giveWay ? HoldKind.GiveWay : null, follower.Ground.Hold?.Kind);
         Assert.IsType<CrossingRunwayPhase>(follower.Phases?.CurrentPhase);
         Assert.Equal([$"Holding position, not clear of runway {runway}, traffic ahead"], NotClearCalls(warnings));
+        Assert.Single(warnings, w => w == $"{follower.Callsign} stopped on RWY {runway} behind traffic, blocking the runway");
     }
 
     /// <summary>
@@ -825,7 +802,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         }
 
         SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
-        (AircraftState follower, _) = RunUntilPastTheCommitPoint(ground, crossing);
+        (AircraftState follower, _) = RunUntilInsideTheFirmStopOfTheNearMarking(ground, crossing);
         List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
         TickUntilAtRestInTheCrossing(ground, follower);
         int calledAt = SfoGroundHarness.TickUntil(ground.Engine, () => NotClearCalls(warnings).Count > 0, NotClearWatchSeconds, eachSecond: null);
@@ -845,6 +822,38 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(FollowingCallsign));
         Assert.IsType<CrossingRunwayPhase>(restoredFollower.Phases?.CurrentPhase);
         Assert.Empty(NotClearCalls(restoredWarnings));
+        Assert.DoesNotContain(restoredWarnings, static w => w.EndsWith("blocking the runway", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A follower at rest in the crossing behind the traffic, stopped there by a controller's HOLD before its not-clear wait has run,
+    /// makes no not-clear call and raises no warning that it blocks the runway while the HOLD stands.
+    /// </summary>
+    [Fact]
+    public void Crossing_HeldOnTheRunwayByHold_MakesNoNotClearCallAndNoBlockingWarning()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
+        {
+            return;
+        }
+
+        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
+        (AircraftState follower, _) = RunUntilInsideTheFirmStopOfTheNearMarking(ground, crossing);
+        List<string> warnings = CaptureWarnings(ground.Engine, FollowingCallsign);
+        int restedAt = TickUntilAtRestInTheCrossing(ground, follower);
+        Assert.Empty(NotClearCalls(warnings));
+        CommandResult hold = ground.Engine.SendCommand(follower.Callsign, "HOLD");
+        Assert.True(hold.Success, $"'HOLD' was refused for {follower.Callsign}: {hold.Message}");
+        for (int second = 0; second < 2 * NotClearWatchSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+        }
+
+        output.WriteLine($"{follower.Callsign} at rest in the crossing from t+{restedAt}, held: {string.Join(" | ", warnings)}");
+        Assert.Equal(HoldKind.HoldPosition, follower.Ground.Hold?.Kind);
+        Assert.IsType<CrossingRunwayPhase>(follower.Phases?.CurrentPhase);
+        Assert.Empty(NotClearCalls(warnings));
+        Assert.DoesNotContain(warnings, static w => w.EndsWith("blocking the runway", StringComparison.Ordinal));
     }
 
     /// <summary>Ticks each second until <paramref name="follower"/> is at rest in its crossing; returns the second it was.</summary>
@@ -865,16 +874,15 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         [.. warnings.Where(static w => w.StartsWith("Holding position, not clear of runway", StringComparison.Ordinal))];
 
     /// <summary>
-    /// Ticks each second until <paramref name="follower"/> has been at rest for <see cref="NearLineRestSeconds"/>, noting in
-    /// <paramref name="enteredCrossing"/> whether it was ever in the crossing. Returns the seconds at rest it ended on.
+    /// Ticks each second until <paramref name="follower"/> has been at rest for <see cref="NearLineRestSeconds"/>. Returns the
+    /// seconds at rest it ended on.
     /// </summary>
-    private static int TickUntilAtRest(SfoGround ground, AircraftState follower, ref bool enteredCrossing)
+    private static int TickUntilAtRest(SfoGround ground, AircraftState follower)
     {
         int restSeconds = 0;
         for (int second = 1; (second <= BudgetSeconds) && (restSeconds < NearLineRestSeconds); second++)
         {
             ground.Engine.TickOneSecond();
-            enteredCrossing |= follower.Phases?.CurrentPhase is CrossingRunwayPhase;
             restSeconds = follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts ? restSeconds + 1 : 0;
         }
 
@@ -941,14 +949,6 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         };
         return warnings;
     }
-
-    /// <summary>The near-line gate's holding-short calls among <paramref name="warnings"/>.</summary>
-    private static List<string> TrafficAheadCalls(List<string> warnings) =>
-        [
-            .. warnings.Where(static w =>
-                w.StartsWith("Holding short of runway", StringComparison.Ordinal) && w.EndsWith(", traffic ahead", StringComparison.Ordinal)
-            ),
-        ];
 
     /// <summary>
     /// Spawns the pair on <see cref="SfoGroundHarness.CrossingTaxiway"/>, the leader <see cref="TrailFt"/> ahead of the follower,

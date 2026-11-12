@@ -2956,21 +2956,6 @@ public static partial class PilotResponder
     }
 
     /// <summary>
-    /// Pilot transmission when the aircraft, cleared across a runway, holds short of it because traffic beyond the far
-    /// holding-position marking leaves it no room to clear (AIM 4-3-18.b): "Holding short of runway 1L, traffic ahead".
-    /// <paramref name="runwayId"/> is a single runway end as the hold-short texts name it — the end a pilot names it by
-    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Spoken"/>: the active end, else the nearest). Every form says "traffic", never the traffic's callsign.
-    /// </summary>
-    public static PilotSpeechText BuildHoldingShortTrafficAhead(AircraftState aircraft, string runwayId)
-    {
-        string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText(
-            $"Holding short of runway {PhraseologyVerbalizer.CompactRunway(runwayId)}, traffic ahead",
-            $"{spoken}, holding short of runway {PhraseologyVerbalizer.SpellRunway(runwayId)}, traffic ahead."
-        );
-    }
-
-    /// <summary>
     /// Pilot transmission when the aircraft, cleared across a runway with a follow armed, holds short of it until the traffic it
     /// follows has passed where their routes meet: "Holding short of runway 1R, waiting for the traffic to pass". The leader is
     /// "the traffic" in the spoken and solo forms, like every follow call; its callsign is the RPO diagnostic.

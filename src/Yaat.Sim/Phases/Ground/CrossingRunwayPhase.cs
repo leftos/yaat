@@ -299,8 +299,10 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// position not clear of the runway with traffic ahead (<see cref="PilotResponder.BuildHoldingPositionNotClearTrafficAhead"/>,
     /// the end a pilot names it by, <see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest; AIM 2-3-5.a, 4-3-18.b): a transmission to
     /// the position the pilot is tuned to in solo training (<see cref="PilotResponder.RouteByTunedPosition"/>), else the RPO's
-    /// pilot speech or warning. Moving again, or a HOLD, restarts the wait; a GIVEWAY does not, since it does not
-    /// stop the aircraft on the runway.
+    /// pilot speech or warning. With the call, the controller is warned in every room that the aircraft has stopped on the
+    /// runway behind traffic and blocks it ("{callsign} stopped on RWY {runway} behind traffic, blocking the runway"): a crossing
+    /// cleared with the far side blocked goes ahead and stops behind the traffic, on the runway when the room runs out. Moving
+    /// again, or a HOLD, restarts the wait; a GIVEWAY does not, since it does not stop the aircraft on the runway.
     /// </summary>
     private void TickNotClearCall(PhaseContext ctx)
     {
@@ -329,6 +331,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             PilotReportRouting.From(ctx),
             PilotResponder.BuildHoldingPositionNotClearTrafficAhead(ctx.Aircraft, runway)
         );
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} stopped on RWY {runway} behind traffic, blocking the runway");
     }
 
     /// <summary>
@@ -628,7 +631,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>
     /// How far (ft) <paramref name="aircraft"/>'s nose is past a holding-position marking, negative while short of it: the
     /// marking is the line through <paramref name="nearBar"/> square to the way across, <paramref name="acrossDeg"/>, and the nose
-    /// is half the fuselage ahead of the centre. The one measure the crossing, the taxi before it and the near-line gate share.
+    /// is half the fuselage ahead of the centre. The one measure the crossing and the taxi before it share.
     /// </summary>
     internal static double NosePastMarkingFt(AircraftState aircraft, LatLon nearBar, double acrossDeg)
     {
@@ -730,7 +733,6 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>
     /// The crossing's speed floor (kt): <see cref="CategoryPerformance.RunwayCrossingSpeed"/>, lowered to a commanded <c>SPD</c>
     /// below it (<paramref name="commandedKts"/>, the cap <see cref="ApplySpeedCap"/> sets), so a commanded speed caps the crossing.
-    /// The far-side gate sizes its look-ahead by the same floor (<see cref="RunwayCrossingFarSideGate"/>).
     /// </summary>
     internal static double CrossingFloorKts(AircraftCategory cat, double? commandedKts) =>
         commandedKts is { } commanded
@@ -873,9 +875,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// beyond it, as for a stop on its bar's own segment.
     /// </summary>
     private static double StopAimFt(TaxiRoute route, OnwardStop stop, double toStopFt) =>
-        stop.Bar is { } bar
-            ? TaxiingPhase.RoutineAimFt(route, stop.BarSegmentIndex, bar, toStopFt, farSideBlocked: false)
-            : toStopFt + GroundNavigator.SetBackStopMarginFt;
+        stop.Bar is { } bar ? TaxiingPhase.RoutineAimFt(route, stop.BarSegmentIndex, bar, toStopFt) : toStopFt + GroundNavigator.SetBackStopMarginFt;
 
     /// <summary>
     /// How near past the slice end (ft) the onward stop must lie for the stop cap to act: the taxi-rate stopping distance from

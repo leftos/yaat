@@ -339,8 +339,8 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
         }
 
         // Once its tail is within HoldTailMarginFt of the merge, the leader is far enough past it that, held from taxi speed, its
-        // tail stops with room for the follower beyond 1R's far marking: the far-side gate (AIM 4-3-18.b) does not take the hold,
-        // and the wait for the follow's lead does. Stepped a sub-tick at a time, since a whole second at taxi speed overshoots it.
+        // tail stops with room for the follower beyond 1R's far marking (AIM 4-3-18.b), and the hold at the bar is the wait for
+        // the follow's lead. Stepped a sub-tick at a time, since a whole second at taxi speed overshoots it.
         int marginAt = StepSubTicksUntil(
             ground.Engine,
             () => LeaderTailMarginFt(ground, follower, leader) >= -HoldTailMarginFt,

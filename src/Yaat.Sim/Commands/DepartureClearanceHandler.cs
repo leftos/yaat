@@ -1091,7 +1091,7 @@ internal static class DepartureClearanceHandler
 
     /// <summary>
     /// The nearest aircraft at rest on the ground standing on the implicit taxi's route, from where <paramref name="aircraft"/> stands
-    /// up to the destination runway's hold-short bar on that route (<see cref="RunwayCrossingFarSideGate.StandingOnPathAhead"/>), and
+    /// up to the destination runway's hold-short bar on that route (<see cref="TaxiPathTraffic.StandingOnPathAhead"/>), and
     /// the taxiway of the route segment it stands on. The route is resolved as the taxi would resolve it, with nothing installed; its
     /// path joins the segments' end nodes, a fillet's chord standing in for its arc. An aircraft on the runway itself is beyond the bar
     /// and not counted. Null when nothing stands there, or when there is no layout, no world or no
@@ -1135,7 +1135,7 @@ internal static class DepartureClearanceHandler
             }
         }
 
-        if (RunwayCrossingFarSideGate.StandingOnPathAhead(aircraft, listAircraft(), path) is not [var nearest, ..])
+        if (TaxiPathTraffic.StandingOnPathAhead(aircraft, listAircraft(), path) is not [var nearest, ..])
         {
             return null;
         }
