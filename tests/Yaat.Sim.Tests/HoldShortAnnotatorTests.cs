@@ -388,10 +388,11 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// ATL E11 off 08R/26L meets B10 at a T with no fillet, and the 26L bar sits on B10 itself. Leaving the runway on E11 and
-    /// turning onto B10, a hold short of B10 binds that bar: the edge past it is a straight edge of B10, so binding past the bar
-    /// would drive the aircraft onto the taxiway it holds short of. Both turns onto B10 hold at the bar. The route stands for the
-    /// far side of a crossing whose entry hold sits on the other bar, so it carries no runway hold on the leaving bar.
+    /// ATL E11 off 08R/26L meets B10 at a T with no fillet, and the 26L bar sits on the stretch both names share, so one bar
+    /// carries E11 and B10. Leaving the runway on E11 and turning onto B10, a hold short of B10 binds that bar: the edge past it
+    /// is a straight edge of B10, so binding past the bar would drive the aircraft onto the taxiway it holds short of. The turn
+    /// onto B10 from the E11 approach that leaves the runway holds at the bar. The route stands for the far side of a crossing
+    /// whose entry hold sits on the other bar, so it carries no runway hold on the leaving bar.
     /// </summary>
     [Fact]
     public void BindsPastLeavingBar_NextEdgeIsAStraightEdgeOfTheTarget_HoldsAtTheBar()
@@ -403,9 +404,14 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         }
 
         GroundNode bar = Assert.Single(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "26L", "E11"), b => StraightNeighbours(b, "B10").Count > 0);
-        GroundNode offRunway = Assert.Single(StraightNeighbours(bar, "E11"), n => LeavesRunwayAt(layout, n, bar, "E11"));
-        List<GroundNode> ontoB10 = StraightNeighbours(bar, "B10");
-        Assert.Equal(2, ontoB10.Count);
+        List<GroundNode> b10Neighbours = StraightNeighbours(bar, "B10");
+        List<GroundNode> ontoB10 = [.. b10Neighbours.Where(n => !LeavesRunwayAt(layout, n, bar, "B10"))];
+        GroundNode offRunway = Assert.Single(
+            StraightNeighbours(bar, "E11"),
+            n => LeavesRunwayAt(layout, n, bar, "E11") && !b10Neighbours.Any(b10 => b10.Id == n.Id)
+        );
+        output.WriteLine($"ATL 26L bar #{bar.Id}: E11 approach #{offRunway.Id}, B10 far side [{string.Join(", ", ontoB10.Select(n => $"#{n.Id}"))}]");
+        Assert.Single(ontoB10);
 
         foreach (GroundNode next in ontoB10)
         {

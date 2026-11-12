@@ -1056,6 +1056,7 @@ internal static class RunwayCrossingDetector
         coordIndex.Add(hsLat, hsLon, hsId);
 
         SplitEdgeAtOneNode(layout, edge, hsNode);
+        SplitTwinEdgesAtNode(layout, edge, hsNode);
 
         Log.LogDebug(
             "Runway crossing: {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
@@ -1736,6 +1737,7 @@ internal static class RunwayCrossingDetector
         coordIndex.Add(hsLat, hsLon, hsId);
 
         SplitEdgeAtOneNode(layout, edge, hsNode);
+        SplitTwinEdgesAtNode(layout, edge, hsNode);
 
         Log.LogDebug(
             "Runway crossing (walker): {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
@@ -2275,6 +2277,47 @@ internal static class RunwayCrossingDetector
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Splits every other non-centreline edge joining <paramref name="barredEdge"/>'s two nodes at the same bar node, so a
+    /// taxiway the vNAS map draws twice under two names cannot route around the bar on the name the bar was seated for. The
+    /// twins are collected before any split, so removing one from <see cref="AirportGroundLayout.Edges"/> never disturbs the
+    /// walk. Touches only <see cref="AirportGroundLayout.Edges"/>: node adjacency lists are stale until the caller runs
+    /// <see cref="AirportGroundLayout.RebuildAdjacencyLists"/>.
+    /// </summary>
+    private static void SplitTwinEdgesAtNode(AirportGroundLayout layout, GroundEdge barredEdge, GroundNode hsNode)
+    {
+        int firstId = barredEdge.Nodes[0].Id;
+        int secondId = barredEdge.Nodes[1].Id;
+        List<GroundEdge> twins =
+        [
+            .. layout.Edges.Where(edge =>
+                !edge.IsRunwayCenterline
+                && (
+                    ((edge.Nodes[0].Id == firstId) && (edge.Nodes[1].Id == secondId))
+                    || ((edge.Nodes[0].Id == secondId) && (edge.Nodes[1].Id == firstId))
+                )
+            ),
+        ];
+
+        List<string> split = [];
+        foreach (GroundEdge twin in twins)
+        {
+            SplitEdgeAtOneNode(layout, twin, hsNode);
+            split.Add(twin.TaxiwayName);
+        }
+
+        if (split.Count > 0)
+        {
+            Log.LogDebug(
+                "Runway crossing: split twin edge(s) {Taxiways} between nodes {FirstId}-{SecondId} at hold-short node {NodeId}",
+                string.Join("|", split),
+                firstId,
+                secondId,
+                hsNode.Id
+            );
+        }
     }
 
     /// <summary>

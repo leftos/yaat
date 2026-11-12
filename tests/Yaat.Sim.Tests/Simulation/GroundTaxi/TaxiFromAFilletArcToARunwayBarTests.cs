@@ -43,9 +43,6 @@ public class TaxiFromAFilletArcToARunwayBarTests(ITestOutputHelper output)
     /// <summary>How far (ft) in from the arc's far end an aircraft on it stands, clear of the node it is heading for.</summary>
     private const double ArcEndClearanceFt = 40.0;
 
-    /// <summary>The ATL bar the census lists with a taxi fillet arc on the bar's own runway side.</summary>
-    private const int RunwaySideBarId = 768;
-
     private const string StartingConditionsToken = "\"STARTING_CONDITIONS\"";
 
     private const string Scenario = """
@@ -230,8 +227,8 @@ public class TaxiFromAFilletArcToARunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Bar #768's A - D fillet lies on the bar's own runway side, so the aircraft standing on it has already passed the bar: a
-    /// route leading away from the runway must not drive it to the bar.
+    /// The 08L/26R bar carrying A's fillet onto D has that fillet on its own runway side, so the aircraft standing on it has
+    /// already passed the bar: a route leading away from the runway must not drive it to the bar.
     /// </summary>
     [Fact]
     public void OnARunwaySideArc_RouteLeadingAwayFromTheRunway_IsNotDrivenToTheBar()
@@ -360,14 +357,18 @@ public class TaxiFromAFilletArcToARunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Bar <see cref="RunwaySideBarId"/>'s A - D fillet arc, with the farthest pose on it (from the bar) that is on the arc and on
-    /// no straight edge.
+    /// The 08L/26R bar carrying A's fillet onto D, and its A - D fillet arc with the farthest pose on it (from the bar) that is
+    /// on the arc and on no straight edge.
     /// </summary>
     private static (GroundNode Bar, GroundArc Arc, double AlongFt) RunwaySideArcPose(AirportGroundLayout layout)
     {
-        Assert.True(layout.Nodes.TryGetValue(RunwaySideBarId, out GroundNode? maybeBar), $"the ATL layout has no node #{RunwaySideBarId}");
-        GroundNode bar = Assert.IsType<GroundNode>(maybeBar);
-        Assert.True(IsRunwayBar(bar), $"node #{RunwaySideBarId} is not a runway bar");
+        GroundNode bar = Assert.Single(
+            layout.Nodes.Values,
+            node =>
+                IsRunwayBar(node)
+                && (node.RunwayId?.ToString() == "08L/26R")
+                && node.Edges.OfType<GroundArc>().Any(candidate => candidate.MatchesTaxiway("A") && candidate.MatchesTaxiway("D"))
+        );
 
         List<string> measured = [];
         foreach (GroundArc arc in bar.Edges.OfType<GroundArc>().Where(candidate => candidate.MatchesTaxiway("A") && candidate.MatchesTaxiway("D")))
@@ -380,7 +381,7 @@ public class TaxiFromAFilletArcToARunwayBarTests(ITestOutputHelper output)
             measured.Add($"arc {arc.TaxiwayName} {arc.DistanceNm * GeoMath.FeetPerNm:F0} ft has no pose on the arc alone");
         }
 
-        Assert.Fail($"bar #{RunwaySideBarId} has no A - D arc an aircraft can stand on alone: {string.Join("; ", measured)}");
+        Assert.Fail($"bar #{bar.Id} has no A - D arc an aircraft can stand on alone: {string.Join("; ", measured)}");
         return default;
     }
 

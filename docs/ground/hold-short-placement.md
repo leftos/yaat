@@ -62,6 +62,8 @@ the crossing's ideal cross-track, D (S itself for a perpendicular taxiway or whe
   before reaching the ideal: it seats the bar at the farthest reachable point and logs a warning. This
   is the one path that legitimately lands short of the standoff.
 
+The interpolate and walk paths also split twin edges. vNAS maps draw one taxiway under two or more names on the same vertices, so the graph holds several edges between one node pair; once a bar node is minted on one, `SplitTwinEdgesAtNode` splits every other straight non-centreline edge between the same two nodes at that node, so no name reaches the runway around the bar. Coincident bars on twins merge into one bar that carries both names. `DeadEndFallback` does not split twins.
+
 ### The reuse tolerance is deliberately tight
 
 `HoldShortSnapFt` is **5 ft**, not a loose window. A generous reuse tolerance snaps the bar to whatever
@@ -360,7 +362,7 @@ An `HS E` target driven on the way to a destination is cut too (`GroundCommandHa
 
   Fallback bars never count as the bar a route reaches, so the verdict does not depend on processing order, and a removed split node's edge goes back to its old place in the edge list so node ids and route choice stay as they were. A route that passes the holding distance without a bar keeps the fallback bar (ATL R3/R7/R11, C, A4, SG2).
 
-  `RunwayCrossingDetectorTests` sweeps every TestData layout for routes that reach a runway without crossing a bar and pins the pre-existing ones (`KnownUnbarredEscapes`) as a ratchet. See `docs/landing-and-runway-exit.md`, "Exits whose bar sits inside the holding distance", for how exits treat the remaining short bars.
+  `RunwayCrossingDetectorTests` sweeps every TestData layout for routes that reach a runway without crossing a bar and pins the pre-existing ones (`KnownUnbarredEscapes`) as a ratchet; a twin-named taxiway no longer escapes around its bar. See `docs/landing-and-runway-exit.md`, "Exits whose bar sits inside the holding distance", for how exits treat the remaining short bars.
 - **A standoff bar can coincide with a fillet start and then carries the crossing taxiway's arcs** (KCOS A2's 17R/35L bar at A), so anything that finds "the first node on taxiway X" by its edges stops on the bar.
 - **`holdShortDistance` is from centerline, not from the runway edge.** Do not add half-width.
 

@@ -807,6 +807,22 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         AssertBarAt(airport, runwayEnd, taxiway, expectedFt, 2.0, every: true);
 
     /// <summary>
+    /// A taxiway drawn twice under two names gives two edges between one pair of nodes; the bar seated on one of them splits
+    /// the other too, so neither name reaches the runway around it: FLL B12 over B, A1 and A8 over A, J12 over J, LAX E6 over E,
+    /// MIA N13 over M11 and P over M1.
+    /// </summary>
+    [Theory]
+    [InlineData("FLL", "10L", "B12", 250.2)]
+    [InlineData("FLL", "10L", "A1", 250.1)]
+    [InlineData("FLL", "10L", "A8", 250.1)]
+    [InlineData("FLL", "10R", "J12", 251.0)]
+    [InlineData("LAX", "6R", "E6", 253.0)]
+    [InlineData("MIA", "8R", "N13", 301.5)]
+    [InlineData("MIA", "8R", "P", 315.7)]
+    public void DetectRunwayCrossings_TwinOfABarredEdge_HasABarAtTheSameDistance(string airport, string runwayEnd, string twin, double barFt) =>
+        AssertBarAt(airport, runwayEnd, twin, barFt, 0.5);
+
+    /// <summary>
     /// A path segment running alongside another runway, under 30° to it, judges that runway's holding area by S + 5 ft
     /// alone, with no angle term: HKY A runs about 301 ft off 6/24, beyond its S + 5 ft, so 1/19's bars on A stay at D.
     /// </summary>
@@ -1306,49 +1322,37 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "atl 9R - 27L: R12",
         "atl 9R - 27L: R6",
         "atl 9R - 27L: R10",
-        "atl 8R - 26L: B2/E1",
         "atl 8L - 26R: B",
         "atl 8L - 26R: A",
         "atl 8L - 26R: B2/B - B2",
         "atl 8L - 26R: B",
         "atl 8L - 26R: A",
-        // Routes that pass the holding distance set by the rule's S without a bar; tracked by YAAT-1214:
-        "fll 10L - 28R: B1/B",
-        "fll 10L - 28R: B12/B",
-        "fll 10L - 28R: A/A8",
-        "fll 10R - 28L: J12/J",
+        // Unbarred escapes still open at FLL: a route that passes the holding distance set by the rule's S without a bar.
         "fll 10R - 28L: J4",
-        // Pre-existing bar-placement gaps the hky fixture exposes, not regressions (YAAT-60):
-        // the 01/19 bar is seated on the centreline (node #14), not at holding distance, and the escape reads at the A3/B
-        // and B/RWY06/24 nodes.
+        // Pre-existing bar-placement gaps the hky fixture exposes, not regressions (YAAT-60): runway 1/19 is closed and the
+        // vNAS map still draws it, so the 01/19 bars seat by the rule's distance and the escape reads at the A3/B and
+        // B/RWY06/24 nodes.
         "hky 1 - 19: A3/A3 - B",
         "hky 1 - 19: B - RWY06/24",
         "mia 8R - 26L: M1L/M1L - Q1",
         "mia 8R - 26L: N/Q/Q1/M1L",
-        "mia 8R - 26L: P/M1/M/PAD",
-        "mia 8R - 26L: M/PAD - M",
         "mia 12 - 30: Q1/PAD - Q1",
-        // Routes that pass the holding distance without a bar, read where the check's holding distance is S + W_twy / 2,
-        // the angle term's ceiling; tracked by YAAT-1214:
+        // Unbarred escapes still open at ATL, AUS, FLL, HKY, MIA and SEA: a route that passes the holding distance without a
+        // bar, read where the check's holding distance is S + W_twy / 2, the angle term's ceiling.
         "atl 8L - 26R: A3/R20 - A3",
         "atl 8L - 26R: A5/A5 - RAMP",
         "atl 8L - 26R: A7/A7 - RAMP",
         "atl 8L - 26R: V",
         "atl 9R - 27L: T/N - T",
         "aus 18L - 36R: H/H - A",
-        "fll 10L - 28R: A/A1",
         "fll 10R - 28L: J1",
         "fll 10R - 28L: J1/J",
         "hky 1 - 19: NRAMP",
-        "lax 6R - 24L: E",
-        "lax 6R - 24L: E6",
         "mia 12 - 30: M1L/M1L - PAD",
         "mia 12 - 30: PAD",
         "mia 12 - 30: PAD/PAD - Q1",
         "mia 12 - 30: PAD/Q1",
         "mia 12 - 30: Q1",
-        "mia 8R - 26L: M11/M",
-        "mia 8R - 26L: M11/N13/M",
         "mia 8R - 26L: Q1/M1L - Q1",
         "mia 9 - 27: V/T - V",
         "sea 34R - 16L: J/J - H",
@@ -1362,9 +1366,6 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "ABQ 8 - 26: M3/A8 - M3/M3 - A8",
         "AGC 13 - 31: A3/A - A3",
         "AGC 13 - 31: A3/B - A3",
-        "AGS 17 - 35: A1/A",
-        "AVL 17 - 35: B",
-        "AVL 17 - 35: B1",
         "BFL 30L - 12R: H/H - G",
         "BJC 3 - 21: A/A - B/A - R4",
         "BJC 3 - 21: B - RWY12L/30R",
@@ -1400,8 +1401,6 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "FMN 7 - 25: J/A - J",
         "FTW 17-35: RAMP",
         "FTW 17-35: RAMP",
-        "HIO 13R - 31L: A6/A - A6",
-        "HIO 13R - 31L: A9/A",
         "HNL 4L - 22R: D/D - RWY04R/22L",
         "HNL 4L - 22R: F/F - RWY04R/22L",
         "HNL 8L - 26R: S/S - A",
@@ -1426,36 +1425,17 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "JNU 8 - 26: RAMP",
         "JNU 8C - 26C: E/RWY08/26:link/RAMP",
         "JNU 8C - 26C: RAMP/RWY08/26 - RAMP",
-        "LAF 10 - 28: C4/C",
-        "LAF 10 - 28: C4/C",
-        "LAF 5 - 23: B",
-        "LAS 1L - 19R: F",
-        "LAS 1L - 19R: F/F - H",
-        "LAS 1L - 19R: F/F - H",
-        "LAS 1L - 19R: H",
-        "LAS 1L - 19R: H/E - H",
-        "LAS 1L - 19R: H/F",
-        "LAS 1L - 19R: H/F - H",
-        "LAS 1L - 19R: H/F - H",
         "LAS 1R - 19L: Y",
         "LGA 4 - 22: AA",
         "LZU 7 - 25: ZHP/RAMP/ZHP - RAMP",
         "MDW 22L - 4R: Y",
         "MDW 22L - 4R: Y/Y1",
         "MDW 22L - 4R: Y/Y1",
-        "MDW 31R - 13L: E/E3",
-        "MKE 19R - 1L: E/F - E",
-        "MKE 19R - 1L: F/E",
-        "MKE 25L - 7R: A5/A",
         "MKE 25R - 7L: Z",
         "MSP 4 - 22: R3/R3 - RAMP",
         "OKC 35L - 17R: B",
         "OPF 12 - 30: N/T/N - N1",
         "OPF 12 - 30: N1",
-        "OPF 12 - 30: N1/T - N1",
-        "OPF 12 - 30: T/N",
-        "OPF 12 - 30: Y/Y - Y5",
-        "OPF 12 - 30: Y5/Y - Y5",
         "ORD 22L - 4R: N/N - V",
         "PAE 16L - 34R: D/D - G",
         "PAE 16L - 34R: D/D - G",
@@ -1504,7 +1484,6 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "ROC 10 - 28: H_LINK1",
         "ROC 10 - 28: H_LINK2",
         "ROC 10 - 28: H_LINK2",
-        "SAN 9 - 27: B/B1",
         "SAT 13R - 31L: Z",
         "SAT 4 - 22: N",
         "SIG 9 - 27: BG",
@@ -1538,9 +1517,6 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "SJU 10 - 28: RAMP/N3 - RAMP",
         "SLC 14 - 32: L",
         "SLC 14 - 32: L1",
-        "TCL 12 - 30: D6",
-        "TCL 4 - 22: A/A5",
-        "TCL 4 - 22: A1/F",
         "TCL 4 - 22: B/B5 - B",
         "TPA 1L - 19R: V",
         "TTD 7 - 25: RAMP",
@@ -1554,11 +1530,6 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "TUS 12 - 30: D/D - D3",
         "TYS 5L - 23R: B8/B",
         "TYS 5R - 23L: A",
-        "TYS 5R - 23L: A/A4 - A",
-        "TYS 5R - 23L: A4/A4 - A",
-        "UAO 17 - 35: A/A - A1",
-        "UAO 17 - 35: A/A1",
-        "VNY 9 - 27: B/B1",
     ];
 
     /// <summary>
