@@ -388,6 +388,76 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         );
     }
 
+    /// <summary>
+    /// A jet at taxi speed on a 1500 ft leg ending in a 90° corner onto another 1500 ft leg brakes to the corner arc's own
+    /// turn-rate-limited speed by the tangent point where the arc begins, not by the node 25 ft further on: the arc is entered
+    /// at the speed the gear can track on its radius, so the nose swings no faster than the ground turn rate.
+    /// </summary>
+    [Fact]
+    public void JetNinetyDegreeCorner_BetweenLongLegs_ArrivesAtTheTangentAtArcSpeed()
+    {
+        const double LegFt = 1500.0;
+        GroundNode n0 = MakeNode(1, 37.0, -122.0);
+        (double l1, double o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(90.0), LegFt / GeoMath.FeetPerNm);
+        GroundNode n1 = MakeNode(2, l1, o1);
+        (double l2, double o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(180.0), LegFt / GeoMath.FeetPerNm);
+        GroundNode n2 = MakeNode(3, l2, o2);
+        var route = new TaxiRoute { Segments = [MakeStraightSegment(n0, n1), MakeStraightSegment(n1, n2)], HoldShortPoints = [] };
+
+        (AircraftState aircraft, PhaseContext ctx) = MakeFixture(n0.Position, acHeadingDeg: 90.0, startSpeedKts: 10.0);
+        var nav = new GroundNavigator { MaxSpeedKts = 30.0 };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        double radiusFt = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, aircraft.AircraftType, 90.0, LegFt, LegFt);
+        double arcSpeedKts = CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Jet, radiusFt);
+        double peakStraightKts = 0.0;
+        double? entryGsKts = null;
+        double peakYawDegPerSec = 0.0;
+        double prevHeading = aircraft.TrueHeading.Degrees;
+        for (int tick = 0; tick < 4000; tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
+            NavigatorResult result = nav.Tick(ctx, last, _ => true);
+            bool onCornerArc = (route.CurrentSegmentIndex == 1) && (nav.CurrentPrimitive is PathPrimitiveSlowTurn);
+            if (onCornerArc)
+            {
+                entryGsKts ??= aircraft.GroundSpeed;
+                double yawDegPerSec = new TrueHeading(prevHeading).AbsAngleTo(aircraft.TrueHeading) / ctx.DeltaSeconds;
+                peakYawDegPerSec = Math.Max(peakYawDegPerSec, yawDegPerSec);
+            }
+            else if (route.CurrentSegmentIndex == 0)
+            {
+                peakStraightKts = Math.Max(peakStraightKts, aircraft.GroundSpeed);
+            }
+
+            prevHeading = aircraft.TrueHeading.Degrees;
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                if (last)
+                {
+                    break;
+                }
+
+                route.CurrentSegmentIndex++;
+                nav.SetupSegment(route, ctx, _ => true);
+            }
+        }
+
+        double turnRateDegPerSec = CategoryPerformance.GroundTurnRate(AircraftCategory.Jet);
+        _out.WriteLine(
+            $"radius {radiusFt:F1} ft, arc speed {arcSpeedKts:F2} kt: straight peak {peakStraightKts:F1} kt, "
+                + $"first arc tick {entryGsKts:F2} kt, peak yaw {peakYawDegPerSec:F1} deg/s (limit {turnRateDegPerSec:F1})"
+        );
+        Assert.True(entryGsKts is not null, "the corner was never flown as a slow-turn arc");
+        Assert.True(peakStraightKts > arcSpeedKts + 5.0, $"the straight never got up to taxi speed (peak {peakStraightKts:F1} kt)");
+        Assert.True(entryGsKts <= arcSpeedKts + 0.5, $"entered the corner arc at {entryGsKts:F2} kt, above its {arcSpeedKts:F2} kt arc speed");
+        Assert.True(
+            peakYawDegPerSec <= turnRateDegPerSec + 1.0,
+            $"the nose swung at {peakYawDegPerSec:F1} deg/s on the arc, past the {turnRateDegPerSec:F1} deg/s ground turn rate"
+        );
+    }
+
     // ---- Short-chord chain (runway-exit polyline) ----
 
     /// <summary>

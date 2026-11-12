@@ -637,7 +637,7 @@ public sealed class GroundNavigator
     /// <see cref="TaxiRouteSegment"/> iteration. A bar stop is dropped once its bar is cleared; every other constraint,
     /// the route-end stop included, always applies.
     /// </summary>
-    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId, bool IsBarStop)> _speedConstraints = [];
+    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId, bool IsBarStop, bool IsArcEntry)> _speedConstraints = [];
 
     /// <summary>
     /// Heading-misalignment threshold (deg) above which a new segment gets a
@@ -647,7 +647,7 @@ public sealed class GroundNavigator
     /// a stationary aircraft (e.g. just after pushback) to the route start
     /// direction. The slow-turn lets the aircraft taxi forward at the
     /// turn-rate-limited speed for the main-gear turn radius
-    /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>, ~5 kt for a jet) while
+    /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>, 3.10 kt for a jet's 25 ft radius at 12 °/s) while
     /// gradually rotating through a real arc geometry — no in-place pivot, no snap.
     ///
     /// <para>
@@ -982,7 +982,7 @@ public sealed class GroundNavigator
         // build a slow-turn from its current pose to the segment's start direction and stash the real
         // segment primitive for swap-in when the slow-turn completes. The aircraft taxis forward through
         // the arc at the turn-rate-limited speed for the main-gear turn radius (TurnRateLimitedSpeedKts —
-        // v = ω·r, ~5 kt for a jet), rounding the corner at the main-gear turn radius instead of snapping to
+        // v = ω·r, 3.10 kt for a jet's 25 ft radius at 12 °/s), rounding the corner at the main-gear turn radius instead of snapping to
         // the tangent.
         //
         // Fires for any corner sharper than EntryAlignmentThresholdDeg regardless of segment length. A bend
@@ -1455,7 +1455,7 @@ public sealed class GroundNavigator
                     radiusFt: freeSpaceRadiusFt,
                     targetLat: firstAim.Lat,
                     targetLon: firstAim.Lon,
-                    maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, freeSpaceRadiusFt),
+                    maxSpeedKts: CategoryPerformance.ArcSpeedForRadiusKts(ctx.Category, freeSpaceRadiusFt),
                     toNodeId: seg.FromNodeId
                 );
 
@@ -1521,7 +1521,7 @@ public sealed class GroundNavigator
                 radiusFt: roundingRadiusFt,
                 targetLat: reversalAim.Lat,
                 targetLon: reversalAim.Lon,
-                maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
+                maxSpeedKts: CategoryPerformance.ArcSpeedForRadiusKts(ctx.Category, roundingRadiusFt),
                 toNodeId: seg.FromNodeId,
                 rightTurn: rightTurn
             );
@@ -1549,9 +1549,10 @@ public sealed class GroundNavigator
             toHdgDeg: seg.Edge.DepartureBearing,
             radiusFt: roundingRadiusFt,
             // Round at the fastest speed the gear-limited turn rate can track this radius (v = ω·r),
-            // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft main-gear radius near
-            // ~5 kt (aviation-reviewed). Floored at SlowTurnSpeedKts for degenerate radii.
-            maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
+            // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft main-gear radius at
+            // 3.10 kt (12 °/s × 25 ft; aviation-reviewed). Not floored at SlowTurnSpeedKts: an adapted or fitted radius tighter than the one
+            // the gear can track at 3 kt runs at its own, slower ω·r, so the nose stays on the arc.
+            maxSpeedKts: CategoryPerformance.ArcSpeedForRadiusKts(ctx.Category, roundingRadiusFt),
             toNodeId: seg.FromNodeId,
             rightTurn: rightTurn
         );
@@ -1596,27 +1597,61 @@ public sealed class GroundNavigator
         double plannedRadiusFt
     )
     {
-        bool isRollIn =
-            (route.CurrentSegmentIndex == route.Segments.Count - 1)
-            && VirtualNode.IsVirtualEdge(seg.Edge.Edge)
-            && (seg.Edge.ToNode.Type is GroundNodeType.Parking or GroundNodeType.Helipad);
+        bool isRollIn = (route.CurrentSegmentIndex == route.Segments.Count - 1) && IsRollInEdge(seg);
         if (!isRollIn || (deflectionDeg >= ReversalEntryThresholdDeg))
         {
             return null;
         }
 
-        double lineBearing = seg.Edge.DepartureBearing;
-        double offFt =
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, seg.Edge.FromNode.Position, new TrueHeading(lineBearing)) * GeoMath.FeetPerNm;
-        double closingSin = Math.Sin(GeoMath.SignedBearingDifference(lineBearing, ctx.Aircraft.TrueHeading.Degrees) * Math.PI / 180.0);
-        if ((offFt * closingSin) >= 0.0)
+        return RollInFitRadiusFt(
+            ctx.Aircraft.Position,
+            ctx.Aircraft.TrueHeading.Degrees,
+            new RollInLine(seg.Edge.FromNode.Position, seg.Edge.DepartureBearing),
+            deflectionDeg,
+            (CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category), plannedRadiusFt)
+        );
+    }
+
+    /// <summary>Whether <paramref name="seg"/> is a stand roll-in: a virtual edge into a parking or helipad node.</summary>
+    private static bool IsRollInEdge(TaxiRouteSegment seg) =>
+        VirtualNode.IsVirtualEdge(seg.Edge.Edge) && (seg.Edge.ToNode.Type is GroundNodeType.Parking or GroundNodeType.Helipad);
+
+    /// <summary>A stand roll-in line: the point it starts from and its bearing (degrees true).</summary>
+    internal readonly record struct RollInLine(LatLon From, double BearingDeg);
+
+    /// <summary>
+    /// The tangent length (ft) T′ = |cross-track| / |sin(heading − line)| from <paramref name="position"/>, heading
+    /// <paramref name="headingDeg"/>, to where that heading meets <paramref name="line"/>. Null when the aircraft is not closing
+    /// on the line.
+    /// </summary>
+    private static double? RollInTangentFt(LatLon position, double headingDeg, RollInLine line)
+    {
+        double offFt = GeoMath.SignedCrossTrackDistanceNm(position, line.From, new TrueHeading(line.BearingDeg)) * GeoMath.FeetPerNm;
+        double closingSin = Math.Sin(GeoMath.SignedBearingDifference(line.BearingDeg, headingDeg) * Math.PI / 180.0);
+        return ((offFt * closingSin) >= 0.0) ? null : Math.Abs(offFt / closingSin);
+    }
+
+    /// <summary>
+    /// The radius (ft) that makes an arc turning <paramref name="deflectionDeg"/> (δ) from <paramref name="position"/>, heading
+    /// <paramref name="headingDeg"/>, tangent to the roll-in <paramref name="line"/>: r = T′ / tan(δ/2)
+    /// (<see cref="RollInTangentFt"/>), clamped to <paramref name="bounds"/> (the category's tight-turn floor and the planned
+    /// radius). Null when the aircraft is not closing on the line. Pure — extracted for unit testing.
+    /// </summary>
+    internal static double? RollInFitRadiusFt(
+        LatLon position,
+        double headingDeg,
+        RollInLine line,
+        double deflectionDeg,
+        (double FloorFt, double PlannedFt) bounds
+    )
+    {
+        if (RollInTangentFt(position, headingDeg, line) is not { } tangentFt)
         {
             return null;
         }
 
-        double tangentFt = Math.Abs(offFt / closingSin);
         double fitFt = tangentFt / Math.Tan(deflectionDeg * 0.5 * Math.PI / 180.0);
-        return Math.Clamp(fitFt, CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category), plannedRadiusFt);
+        return Math.Clamp(fitFt, bounds.FloorFt, bounds.PlannedFt);
     }
 
     /// <summary>
@@ -4397,6 +4432,21 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// The tangent length (nm) of a corner rounded at <paramref name="radiusFt"/> through <paramref name="turnDeg"/>: the arc
+    /// starts r·tan(δ/2) short of the node. Zero for a corner that is not turned (δ ≤ 0) or one that cannot be rounded tangent
+    /// to both legs (δ ≥ 180°). Pure — extracted for unit testing.
+    /// </summary>
+    internal static double RoundedCornerTangentNm(double radiusFt, double turnDeg)
+    {
+        if ((turnDeg <= 0.0) || (turnDeg >= 180.0))
+        {
+            return 0.0;
+        }
+
+        return radiusFt * Math.Tan(turnDeg * 0.5 * Math.PI / 180.0) / GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
     /// Arrival threshold (nm) for a straight segment. When a sharp turn onto the next straight leg is
     /// coming up, applies tangent corner-rounding — arrive at the tangent point T = r·tan(δ/2)
     /// (r = <paramref name="roundingRadiusFt"/>, δ = corner deflection) and report
@@ -4474,6 +4524,23 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// The arrival of the straight held on a turn about's offset line (<see cref="OffsetLineArrivalThresholdNm"/>): its
+    /// threshold (nm) and the tangent length (nm) the braking curve aims the corner's speed at. The node turn begins where
+    /// the straight arrives, so the corner's speed is aimed at the threshold itself, where the turn's fit equals
+    /// <paramref name="radiusFt"/>. Pure — extracted for unit testing.
+    /// </summary>
+    internal static (double ThresholdNm, double TangentNm) OffsetLineArrival(
+        double cornerTurnDeg,
+        double edgeLengthNm,
+        double radiusFt,
+        double offsetFt
+    )
+    {
+        double thresholdNm = OffsetLineArrivalThresholdNm(cornerTurnDeg, edgeLengthNm, radiusFt, offsetFt);
+        return (thresholdNm, thresholdNm);
+    }
+
+    /// <summary>
     /// Perpendicular distance (ft) from <paramref name="position"/> to the infinite line through the current segment's
     /// from-point and target, read by the establish-straight gate. Zero for a zero-length segment, which has no line.
     /// </summary>
@@ -4523,65 +4590,10 @@ public sealed class GroundNavigator
             crossTrackOffsetFt = GeoMath.DistanceNm(ctx.Aircraft.Position, foot) * GeoMath.FeetPerNm;
         }
 
-        // Tight arrival threshold when any of:
-        //   - last segment of the route (always stop precisely),
-        //   - the current target is a stop (_currentNodeRequiredSpeed <= 0),
-        //   - the current target carries a hold-short, cleared or not (a cleared
-        //     crossing hands off to CrossingRunwayPhase at the bar, not short of it),
-        //   - the next segment is an arc — TickBezier writes position directly
-        //     from curve state at engagement (invariant I2), so the
-        //     loose 91 ft threshold would teleport the aircraft up to 91 ft
-        //     to the arc entry node on the first TickBezier call. Tight
-        //     threshold bounds the teleport to <2 ft (imperceptible).
-        //   - the effective edge (segment start to current TargetLat/Lon) is
-        //     shorter than 1.5× the loose threshold.
-        // The last case handles the hold-short override — TaxiingPhase moves
-        // the target from the graph to-node to a virtual HS position closer
-        // to the aircraft, which makes the effective edge short even when
-        // the underlying segment is long. Without this check, the loose
-        // 91 ft arrival threshold can fire 10-80 ft short of a hold-short
-        // stop, leaving the aircraft parked well behind the painted line.
-        bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
+        StraightArrival arrival = ResolveStraightArrival(ctx, prim, edgeLengthNm, isLastSegment);
         bool isStopTarget = _currentNodeRequiredSpeed <= 0.0;
-
-        // Tangent corner-rounding: when a SHARP turn onto the next (straight)
-        // segment is coming up, arrive at the tangent point T = r·tan(δ/2)
-        // before the vertex (r = main-gear radius, δ = corner deflection)
-        // instead of at the vertex. The next segment's entry-alignment slow-turn
-        // then anchors at that tangent point, so its main-gear-turn-radius arc is
-        // tangent to BOTH legs and exits ON the outgoing centerline (aligned, no
-        // lateral offset) — eliminating the pure-pursuit re-acquisition that
-        // otherwise overshoots ~40° per corner. This is judgmental oversteer /
-        // corner-cutting (aviation-reviewed: T is the tangent length of a simple
-        // circular curve, AC 150/5300-13). Skipped when the next segment is
-        // itself an arc (the arc rounds the corner) or the target is a stop /
-        // route end / a node carrying a hold-short (cleared or not), which the
-        // aircraft arrives at exactly. T is clamped into the current leg so the arc start can't
-        // precede the segment.
-        double cornerTurnDeg = (!_nextSegmentIsArc && _nextSegmentBearing is { } nb) ? GeoMath.AbsBearingDifference(prim.BearingDeg, nb) : 0.0;
-        double arrivalThresholdNm = StraightArrivalThresholdNm(
-            cornerTurnDeg,
-            edgeLengthNm,
-            MainGearRadiusFt(ctx),
-            _cornerRoundingRadiusFt,
-            isLastSegment,
-            isStopTarget,
-            _targetHasHoldShort,
-            shortEdge,
-            _nextSegmentIsArc,
-            _nextSegmentIsShort,
-            out bool sharpCornerAhead
-        );
-        if (sharpCornerAhead && (_turnAboutRollOutOffsetFt > 0.0))
-        {
-            arrivalThresholdNm = OffsetLineArrivalThresholdNm(cornerTurnDeg, edgeLengthNm, _cornerRoundingRadiusFt, _turnAboutRollOutOffsetFt);
-        }
-
-        if (isStopTarget && PlansStopsOnSubTicks)
-        {
-            arrivalThresholdNm = SubTickStopArrivalThresholdNm(ctx);
-        }
-
+        double arrivalThresholdNm = arrival.ThresholdNm;
+        bool sharpCornerAhead = arrival.SharpCornerAhead;
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
         bool straightArrived = distNm <= arrivalThresholdNm;
@@ -4705,7 +4717,12 @@ public sealed class GroundNavigator
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
 
         double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
-        double targetSpeed = StraightTargetSpeed(ctx, distNm, lineOffsetFt, isLastSegment, isHoldShortCleared);
+        double targetSpeed = StraightTargetSpeed(
+            ctx,
+            new StraightApproach(distNm, arrival.TangentNm, lineOffsetFt),
+            isLastSegment,
+            isHoldShortCleared
+        );
         PublishSpeed(ctx, targetSpeed);
 
         PrevDistToTarget = distNm;
@@ -4746,14 +4763,120 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// The target speed (kts) on a straight <paramref name="distNm"/> short of its to-node: the braking-curve target
-    /// (<see cref="ComputeTargetSpeed"/>), held to <see cref="ReacquireSpeedKts"/> while <paramref name="lineOffsetFt"/> puts the
-    /// aircraft more than <see cref="ReacquireOffsetFt"/> off the segment line, and capped so one step covers no more than
-    /// 80 % of the remaining distance where the aircraft must arrive at the node precisely.
+    /// Where a straight ends: its arrival threshold (nm), whether a sharp corner is rounded at its tangent point, the tangent
+    /// length (nm) the braking curve aims the corner's speed at (zero where the node itself is the aim; on the offset line a
+    /// turn about holds, the arrival threshold, where the node turn begins).
     /// </summary>
-    private double StraightTargetSpeed(PhaseContext ctx, double distNm, double lineOffsetFt, bool isLastSegment, Func<int, bool> isHoldShortCleared)
+    private readonly record struct StraightArrival(double ThresholdNm, bool SharpCornerAhead, double TangentNm);
+
+    /// <summary>
+    /// The straight's own approach to its to-node: <see cref="DistNm"/> to the node, the corner's <see cref="TangentNm"/> short
+    /// of it where the arc begins, and the aircraft's <see cref="LineOffsetFt"/> off the segment line.
+    /// </summary>
+    private readonly record struct StraightApproach(double DistNm, double TangentNm, double LineOffsetFt);
+
+    /// <summary>
+    /// The distances a braking limit is measured over: <see cref="ToEndpointNm"/> to the current node, the rounded corner's
+    /// <see cref="TangentNm"/> short of it (zero where the node itself is the aim), and <see cref="LookaheadNm"/>, this tick's
+    /// travel. An arc's entry speed (a rounded slow-turn corner, a future slow-turn corner, a painted fillet's profile sample)
+    /// is planned from where the aircraft will be after this tick, so it is still on its braking curve when the arc begins;
+    /// every other term (a gentle corner's speed, the route-end hand-off, a bar, a connector, a stop) keeps its exact distance.
+    /// </summary>
+    private readonly record struct BrakingDistances(double ToEndpointNm, double TangentNm, double LookaheadNm)
     {
-        double targetSpeed = ComputeTargetSpeed(ctx, distNm, isHoldShortCleared);
+        /// <summary>
+        /// The distance to the current node's speed: to a rounded corner's tangent point, one tick ahead; the node itself
+        /// otherwise.
+        /// </summary>
+        public double NodeNm(double reqSpeed) =>
+            ((TangentNm > 0.0) && (reqSpeed > 0.0)) ? Math.Max(0.0, ToEndpointNm - TangentNm - LookaheadNm) : ToEndpointNm;
+
+        /// <summary>The distance to a future constraint <paramref name="pathDist"/> past the node, one tick ahead for an arc's entry speed.</summary>
+        public double FutureNm(double pathDist, double reqSpeed, bool isArcEntry) =>
+            Math.Max(0.0, ToEndpointNm + pathDist - ((isArcEntry && (reqSpeed > 0.0)) ? LookaheadNm : 0.0));
+    }
+
+    /// <summary>The distance (nm) the aircraft covers in one tick at its current ground speed.</summary>
+    private static double OneTickTravelNm(PhaseContext ctx) => Math.Max(0.0, ctx.Aircraft.GroundSpeed) / 3600.0 * ctx.DeltaSeconds;
+
+    /// <summary>
+    /// The arrival of the straight <paramref name="prim"/>. Tight arrival threshold when any of:
+    /// <list type="bullet">
+    /// <item>last segment of the route (always stop precisely);</item>
+    /// <item>the current target is a stop (<see cref="_currentNodeRequiredSpeed"/> &lt;= 0);</item>
+    /// <item>the current target carries a hold-short, cleared or not (a cleared crossing hands off to CrossingRunwayPhase at
+    /// the bar, not short of it);</item>
+    /// <item>the next segment is an arc — TickBezier writes position directly from curve state at engagement (invariant I2),
+    /// so the loose 91 ft threshold would teleport the aircraft up to 91 ft to the arc entry node on the first TickBezier
+    /// call; the tight threshold bounds the teleport to &lt;2 ft (imperceptible);</item>
+    /// <item>the effective edge (segment start to current TargetLat/Lon) is shorter than 1.5× the loose threshold. This
+    /// handles the hold-short override — TaxiingPhase moves the target from the graph to-node to a virtual HS position closer
+    /// to the aircraft, which makes the effective edge short even when the underlying segment is long. Without this check,
+    /// the loose 91 ft arrival threshold can fire 10-80 ft short of a hold-short stop, leaving the aircraft parked well behind
+    /// the painted line.</item>
+    /// </list>
+    /// <para>
+    /// Tangent corner-rounding: when a SHARP turn onto the next (straight) segment is coming up, arrive at the tangent point
+    /// T = r·tan(δ/2) before the vertex (r = main-gear radius, δ = corner deflection) instead of at the vertex. The next
+    /// segment's entry-alignment slow-turn then anchors at that tangent point, so its main-gear-turn-radius arc is tangent to
+    /// BOTH legs and exits ON the outgoing centerline (aligned, no lateral offset) — eliminating the pure-pursuit
+    /// re-acquisition that otherwise overshoots ~40° per corner. This is judgmental oversteer / corner-cutting
+    /// (aviation-reviewed: T is the tangent length of a simple circular curve, AC 150/5300-13). Skipped when the next segment
+    /// is itself an arc (the arc rounds the corner) or the target is a stop / route end / a node carrying a hold-short
+    /// (cleared or not), which the aircraft arrives at exactly. T is clamped into the current leg so the arc start can't
+    /// precede the segment. The braking curve aims the corner's speed at that tangent point.
+    /// </para>
+    /// </summary>
+    private StraightArrival ResolveStraightArrival(PhaseContext ctx, PathPrimitiveStraight prim, double edgeLengthNm, bool isLastSegment)
+    {
+        bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
+        bool isStopTarget = _currentNodeRequiredSpeed <= 0.0;
+        double cornerTurnDeg = (!_nextSegmentIsArc && _nextSegmentBearing is { } nb) ? GeoMath.AbsBearingDifference(prim.BearingDeg, nb) : 0.0;
+        double thresholdNm = StraightArrivalThresholdNm(
+            cornerTurnDeg,
+            edgeLengthNm,
+            MainGearRadiusFt(ctx),
+            _cornerRoundingRadiusFt,
+            isLastSegment,
+            isStopTarget,
+            _targetHasHoldShort,
+            shortEdge,
+            _nextSegmentIsArc,
+            _nextSegmentIsShort,
+            out bool sharpCornerAhead
+        );
+        if (sharpCornerAhead && (_turnAboutRollOutOffsetFt > 0.0))
+        {
+            (double offsetThresholdNm, double offsetTangentNm) = OffsetLineArrival(
+                cornerTurnDeg,
+                edgeLengthNm,
+                _cornerRoundingRadiusFt,
+                _turnAboutRollOutOffsetFt
+            );
+            return new StraightArrival(offsetThresholdNm, SharpCornerAhead: true, TangentNm: offsetTangentNm);
+        }
+
+        if (isStopTarget && PlansStopsOnSubTicks)
+        {
+            thresholdNm = SubTickStopArrivalThresholdNm(ctx);
+        }
+
+        double tangentNm = sharpCornerAhead ? Math.Min(RoundedCornerTangentNm(_cornerRoundingRadiusFt, cornerTurnDeg), thresholdNm) : 0.0;
+        return new StraightArrival(thresholdNm, sharpCornerAhead, tangentNm);
+    }
+
+    /// <summary>
+    /// The target speed (kts) on a straight <see cref="StraightApproach.DistNm"/> short of its to-node: the braking-curve target
+    /// (<see cref="ComputeTargetSpeed"/>, the corner's speed aimed at its tangent point), held to <see cref="ReacquireSpeedKts"/>
+    /// while <see cref="StraightApproach.LineOffsetFt"/> puts the aircraft more than <see cref="ReacquireOffsetFt"/> off the
+    /// segment line, and capped so one step covers no more than 80 % of the remaining distance where the aircraft must arrive
+    /// at the node precisely.
+    /// </summary>
+    private double StraightTargetSpeed(PhaseContext ctx, StraightApproach approach, bool isLastSegment, Func<int, bool> isHoldShortCleared)
+    {
+        double distNm = approach.DistNm;
+        double lineOffsetFt = approach.LineOffsetFt;
+        double targetSpeed = ComputeTargetSpeed(ctx, distNm, approach.TangentNm, isHoldShortCleared);
 
         // Establish-straight gate (Boeing FCTM "roll straight, then add thrust";
         // AIM 4-3-19.4 positive control): while displaced off the segment
@@ -4829,7 +4952,7 @@ public sealed class GroundNavigator
         {
             double tang = prim.Curve.TangentBearing(_bezierT);
             ctx.Targets.TargetTrueHeading = new TrueHeading(tang);
-            PublishSpeed(ctx, ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared));
+            PublishSpeed(ctx, ComputeTargetSpeed(ctx, BezierRemainingNm(prim), 0.0, isHoldShortCleared));
             return NavigatorResult.Navigating;
         }
 
@@ -4851,7 +4974,7 @@ public sealed class GroundNavigator
 
         // Mirror into targets so physics does not fight the closed-form state.
         ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
-        double targetSpeed = ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared);
+        double targetSpeed = ComputeTargetSpeed(ctx, BezierRemainingNm(prim), 0.0, isHoldShortCleared);
         PublishSpeed(ctx, targetSpeed);
 
         double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
@@ -5054,13 +5177,14 @@ public sealed class GroundNavigator
         switch (_currentPrimitive)
         {
             case PathPrimitiveBezier bezier:
-                PublishSpeed(ctx, ComputeTargetSpeed(ctx, BezierRemainingNm(bezier), isHoldShortCleared));
+                PublishSpeed(ctx, ComputeTargetSpeed(ctx, BezierRemainingNm(bezier), 0.0, isHoldShortCleared));
                 break;
-            case PathPrimitiveStraight:
+            case PathPrimitiveStraight straight:
                 double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
                 double edgeLengthNm = GeoMath.DistanceNm(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
                 double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
-                PublishSpeed(ctx, StraightTargetSpeed(ctx, distNm, lineOffsetFt, isLastSegment, isHoldShortCleared));
+                double tangentNm = ResolveStraightArrival(ctx, straight, edgeLengthNm, isLastSegment).TangentNm;
+                PublishSpeed(ctx, StraightTargetSpeed(ctx, new StraightApproach(distNm, tangentNm, lineOffsetFt), isLastSegment, isHoldShortCleared));
                 break;
             case PathPrimitiveSlowTurn slowTurn:
                 PublishSpeed(ctx, slowTurn.MaxSpeedKts);
@@ -5068,19 +5192,25 @@ public sealed class GroundNavigator
         }
     }
 
-    private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, Func<int, bool> isHoldShortCleared)
+    /// <summary>
+    /// The target speed (kts) <paramref name="distToEndpointNm"/> short of the current endpoint, the corner's speed aimed
+    /// <paramref name="tangentNm"/> short of it (zero where the node itself is the aim), every braking limit planned one tick
+    /// ahead (<see cref="BrakingDistances"/>).
+    /// </summary>
+    private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, double tangentNm, Func<int, bool> isHoldShortCleared)
     {
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         bool stopCurveBinds = false;
+        var distances = new BrakingDistances(distToEndpointNm, tangentNm, OneTickTravelNm(ctx));
         double brakingLimit = SlowdownDecelRateKts is { } slowdownRate
             ? SplitRateBrakingLimit(
-                distToEndpointNm,
+                distances,
                 isHoldShortCleared,
                 (decelRate, slowdownRate),
                 PlansStopsOnSubTicks ? ctx.DeltaSeconds : null,
                 out stopCurveBinds
             )
-            : SingleRateBrakingLimit(distToEndpointNm, isHoldShortCleared, decelRate, PlansStopsOnSubTicks ? ctx.DeltaSeconds : null);
+            : SingleRateBrakingLimit(distances, isHoldShortCleared, decelRate, PlansStopsOnSubTicks ? ctx.DeltaSeconds : null);
         decelRate = SlowdownDecelRateKts ?? decelRate;
 
         // Quadratic scaling by heading error so the aircraft slows during
@@ -5126,17 +5256,17 @@ public sealed class GroundNavigator
     /// constraint, which <see cref="BuildSpeedConstraints"/> back-propagated at the same rate. With
     /// <paramref name="subTickSeconds"/> set, each stop's curve is the sub-ticked one (<see cref="PlansStopsOnSubTicks"/>).
     /// </summary>
-    private double SingleRateBrakingLimit(double distToEndpointNm, Func<int, bool> isHoldShortCleared, double decelRate, double? subTickSeconds)
+    private double SingleRateBrakingLimit(BrakingDistances distances, Func<int, bool> isHoldShortCleared, double decelRate, double? subTickSeconds)
     {
-        double brakingLimit = CurveKts(_currentNodeRequiredSpeed, distToEndpointNm, decelRate, subTickSeconds);
+        double brakingLimit = CurveKts(_currentNodeRequiredSpeed, distances.NodeNm(_currentNodeRequiredSpeed), decelRate, subTickSeconds);
 
-        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
+        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop, bool isArcEntry) in _speedConstraints)
         {
             if (isBarStop && isHoldShortCleared(nodeId))
             {
                 continue;
             }
-            double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
+            double totalDist = distances.FutureNm(pathDist, reqSpeed, isArcEntry);
             double limit = CurveKts(reqSpeed, totalDist, decelRate, subTickSeconds);
             brakingLimit = Math.Min(brakingLimit, limit);
         }
@@ -5170,7 +5300,7 @@ public sealed class GroundNavigator
     /// <paramref name="stopBinds"/> says whether a stop's curve set it.
     /// </summary>
     private double SplitRateBrakingLimit(
-        double distToEndpointNm,
+        BrakingDistances distances,
         Func<int, bool> isHoldShortCleared,
         (double Stop, double Slowdown) rates,
         double? subTickSeconds,
@@ -5182,17 +5312,17 @@ public sealed class GroundNavigator
                 ? CurveKts(0.0, Math.Max(0.0, distNm), rates.Stop, subTickSeconds)
                 : CurveKts(reqSpeed, Math.Max(0.0, distNm), rates.Slowdown, null);
 
-        double brakingLimit = ConstraintCurveKts(_currentNodeRequiredSpeed, distToEndpointNm);
+        double brakingLimit = ConstraintCurveKts(_currentNodeRequiredSpeed, distances.NodeNm(_currentNodeRequiredSpeed));
         stopBinds = _currentNodeRequiredSpeed <= 0.0;
 
-        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
+        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop, bool isArcEntry) in _speedConstraints)
         {
             if (isBarStop && isHoldShortCleared(nodeId))
             {
                 continue;
             }
 
-            double limit = ConstraintCurveKts(reqSpeed, distToEndpointNm + pathDist);
+            double limit = ConstraintCurveKts(reqSpeed, distances.FutureNm(pathDist, reqSpeed, isArcEntry));
             if (limit < brakingLimit)
             {
                 brakingLimit = limit;
@@ -5403,7 +5533,7 @@ public sealed class GroundNavigator
             if (turn > ConnectorCornerThresholdDeg)
             {
                 // A sharp corner (over the entry-alignment threshold) is rounded by a main-gear-turn-radius
-                // slow-turn at ~TurnRateLimitedSpeedKts (~5 kt for a jet), well below the angle-only comfort
+                // slow-turn at ~TurnRateLimitedSpeedKts (3.10 kt for a jet's 25 ft radius), well below the angle-only comfort
                 // cap; a gentler one is taken at the angle comfort speed. Use the actual traversal speed so
                 // the whole connector holds one steady low speed rather than surging between the turns.
                 return turn > EntryAlignmentThresholdDeg
@@ -5445,7 +5575,7 @@ public sealed class GroundNavigator
             && !route.StopLiesOnSegment(route.CurrentSegmentIndex, bar)
         )
         {
-            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId, true));
+            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId, true, false));
         }
     }
 
@@ -5459,7 +5589,7 @@ public sealed class GroundNavigator
     {
         int nodeId = route.Segments[barSegmentIndex].ToNodeId;
         double beforeNodeNm = route.GetHoldShortAt(nodeId) is { } bar ? StopDistanceBeforeNodeNm(route, barSegmentIndex, bar) : 0.0;
-        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId, true));
+        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId, true, false));
         _speedConstraints.Sort((a, b) => a.PathDistNm.CompareTo(b.PathDistNm));
     }
 
@@ -5510,7 +5640,6 @@ public sealed class GroundNavigator
             TaxiRouteSegment nextSeg = route.Segments[nextIdx];
             double turnAngle = SingleCornerTurnAngle(route, route.CurrentSegmentIndex);
             (double intoNm, double outNm) = CornerLegsNm(route, route.CurrentSegmentIndex, turnAngle);
-            _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, intoNm, outNm);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
             _nextSegmentIsShort = nextSeg.Edge.DistanceNm < NodeArrivalThresholdNm;
@@ -5529,6 +5658,8 @@ public sealed class GroundNavigator
                     nextSeg.Edge.DistanceNm * GeoMath.FeetPerNm
                 );
             }
+
+            _currentNodeRequiredSpeed = CurrentCornerSpeedKts(ctx.Category, turnAngle, intoNm, outNm);
         }
         else
         {
@@ -5563,6 +5694,28 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// The speed (kts) of the corner at the current segment's end, turning <paramref name="turnAngleDeg"/> between legs
+    /// <paramref name="intoNm"/> and <paramref name="outNm"/> long. A slow-turn corner (<see cref="IsSlowTurnCorner"/>) is
+    /// entered at its arc's own turn-rate-limited speed for the radius it will be rounded on
+    /// (<see cref="_cornerRoundingRadiusFt"/>), which the straight's braking curve aims at the tangent point where the arc
+    /// begins; any other corner keeps <see cref="CornerSpeed"/>. A reversal keeps the corner speed here: on a taxiway it is
+    /// flown as a turn about at its own pivot speed, and on a ramp, apron or stand lead-in it is rounded (its entry speed is
+    /// booked separately).
+    /// </summary>
+    private double CurrentCornerSpeedKts(AircraftCategory category, double turnAngleDeg, double intoNm, double outNm) =>
+        IsSlowTurnCorner(turnAngleDeg, _nextSegmentIsArc)
+            ? CategoryPerformance.ArcSpeedForRadiusKts(category, _cornerRoundingRadiusFt)
+            : CornerSpeed(category, turnAngleDeg, intoNm, outNm);
+
+    /// <summary>
+    /// Whether a corner turning <paramref name="turnAngleDeg"/> is a slow-turn corner, entered at its arc's turn-rate-limited
+    /// speed: over <see cref="EntryAlignmentThresholdDeg"/>, under <see cref="ReversalEntryThresholdDeg"/>, and onto a
+    /// straight rather than an arc (<paramref name="nextIsArc"/>).
+    /// </summary>
+    private static bool IsSlowTurnCorner(double turnAngleDeg, bool nextIsArc) =>
+        (turnAngleDeg > EntryAlignmentThresholdDeg) && (turnAngleDeg < ReversalEntryThresholdDeg) && !nextIsArc;
+
+    /// <summary>
     /// The backward propagation of <see cref="BuildSpeedConstraints"/>: a kinematic decel curve between adjacent constraints,
     /// then the first future constraint folded back into the current node's required speed.
     /// </summary>
@@ -5570,19 +5723,19 @@ public sealed class GroundNavigator
     {
         for (int i = _speedConstraints.Count - 2; i >= 0; i--)
         {
-            (double dist, double speed, int nodeId, bool isBarStop) = _speedConstraints[i];
-            (double nextDist, double nextSpeed, int _, bool _) = _speedConstraints[i + 1];
+            (double dist, double speed, int nodeId, bool isBarStop, bool isArcEntry) = _speedConstraints[i];
+            (double nextDist, double nextSpeed, int _, bool _, bool _) = _speedConstraints[i + 1];
             double legDist = nextDist - dist;
             double backProp = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
             if (backProp < speed)
             {
-                _speedConstraints[i] = (dist, backProp, nodeId, isBarStop);
+                _speedConstraints[i] = (dist, backProp, nodeId, isBarStop, isArcEntry);
             }
         }
 
         if (_speedConstraints.Count > 0)
         {
-            (double firstDist, double firstSpeed, int _, bool _) = _speedConstraints[0];
+            (double firstDist, double firstSpeed, int _, bool _, bool _) = _speedConstraints[0];
             double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * Math.Max(0.0, firstDist) * 3600.0);
             if (backProp < _currentNodeRequiredSpeed)
             {
@@ -5614,7 +5767,7 @@ public sealed class GroundNavigator
                     if (sample.SpeedKts < MaxSpeedKts)
                     {
                         _speedConstraints.Add(
-                            (arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId, false)
+                            (arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId, false, true)
                         );
                     }
                 }
@@ -5626,24 +5779,48 @@ public sealed class GroundNavigator
                 break;
             }
 
-            int nextNextIdx = i + 1;
-            double reqSpeed;
-            if (nextNextIdx < route.Segments.Count)
-            {
-                double futureTurnAngle = SingleCornerTurnAngle(route, i);
-                (double intoNm, double outNm) = CornerLegsNm(route, i, futureTurnAngle);
-                reqSpeed = CornerSpeed(ctx.Category, futureTurnAngle, intoNm, outNm);
-            }
-            else
-            {
-                reqSpeed = RouteEndSpeedKts;
-            }
-
+            (double reqSpeed, double atNm, bool isArcEntry) =
+                (i + 1 < route.Segments.Count)
+                    ? FutureCornerConstraint(route, ctx, i, cumulativeDistNm)
+                    : (RouteEndSpeedKts, cumulativeDistNm, false);
             if (reqSpeed < MaxSpeedKts)
             {
-                _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId, false));
+                _speedConstraints.Add((atNm, reqSpeed, futureSeg.ToNodeId, false, isArcEntry));
             }
         }
+    }
+
+    /// <summary>
+    /// The speed (kts) of the future corner where segment <paramref name="segIdx"/> ends, <paramref name="nodeDistNm"/> along
+    /// the route, and the distance it applies at. A slow-turn corner (over <see cref="EntryAlignmentThresholdDeg"/> and under
+    /// <see cref="ReversalEntryThresholdDeg"/>, onto a straight) is entered at its arc's turn-rate-limited speed for the planned
+    /// adaptive radius, at the tangent point short of the node where that arc begins when a straight leads into it; any other
+    /// corner keeps <see cref="CornerSpeed"/> at the node. A reversal keeps the corner speed here: on a taxiway it is flown as
+    /// a turn about at its own pivot speed, and on a ramp, apron or stand lead-in it is rounded (its entry speed is booked
+    /// separately). <c>IsArcEntry</c> says it is the slow-turn arc's entry speed, which the braking curve plans one tick ahead.
+    /// </summary>
+    private (double SpeedKts, double AtNm, bool IsArcEntry) FutureCornerConstraint(TaxiRoute route, PhaseContext ctx, int segIdx, double nodeDistNm)
+    {
+        TaxiRouteSegment seg = route.Segments[segIdx];
+        TaxiRouteSegment next = route.Segments[segIdx + 1];
+        double turnAngle = SingleCornerTurnAngle(route, segIdx);
+        if (!IsSlowTurnCorner(turnAngle, next.Edge.Edge is GroundArc))
+        {
+            (double intoNm, double outNm) = CornerLegsNm(route, segIdx, turnAngle);
+            return (CornerSpeed(ctx.Category, turnAngle, intoNm, outNm), nodeDistNm, false);
+        }
+
+        double deflectionDeg = GeoMath.AbsBearingDifference(seg.Edge.DepartureBearing, next.Edge.DepartureBearing);
+        double radiusFt = AdaptiveCornerRadiusFt(
+            ctx.Category,
+            ctx.Aircraft.AircraftType,
+            deflectionDeg,
+            seg.Edge.DistanceNm * GeoMath.FeetPerNm,
+            next.Edge.DistanceNm * GeoMath.FeetPerNm
+        );
+        bool roundedFromAStraight = (seg.Edge.Edge is not GroundArc) && (route.GetHoldShortAt(seg.ToNodeId) is null);
+        double tangentNm = roundedFromAStraight ? Math.Min(RoundedCornerTangentNm(radiusFt, deflectionDeg), seg.Edge.DistanceNm) : 0.0;
+        return (CategoryPerformance.ArcSpeedForRadiusKts(ctx.Category, radiusFt), nodeDistNm - tangentNm, true);
     }
 
     /// <summary>

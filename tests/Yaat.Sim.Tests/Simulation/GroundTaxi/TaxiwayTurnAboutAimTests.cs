@@ -361,6 +361,54 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// N152SP's node turn onto H, laid from the offset line it held after its reversal, is entered no faster than the
+    /// turn-rate-limited speed of the radius it is fitted to (the slow turn's own published speed, its first tick's target)
+    /// and flown within the category's ground turn rate: the held straight brakes for the point where the node turn begins.
+    /// </summary>
+    [Fact]
+    public void N152sp_NodeTurnFromTheOffsetLine_EntersAtItsArcSpeed()
+    {
+        if (StartN152spRolling(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, null) is not { } started)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState aircraft, TaxiRoute route, _) = started;
+        double prevHdg = aircraft.TrueHeading.Degrees;
+        double entryKts = double.NaN;
+        double arcKts = double.NaN;
+        double maxYawDegPerSec = 0.0;
+        for (int sub = 0; (sub < MaxReplaySubTicks) && !EstablishedOnOrPast(aircraft, route, 1); sub++)
+        {
+            engine.ReplayOneSubTick();
+            if ((route.CurrentSegmentIndex == 1) && (aircraft.Ground.LastNavDiag is { OnArc: true } diag))
+            {
+                if (double.IsNaN(entryKts))
+                {
+                    entryKts = aircraft.GroundSpeed;
+                    arcKts = diag.TargetSpeedKts;
+                }
+
+                double yaw = Math.Abs(GeoMath.SignedBearingDifference(prevHdg, aircraft.TrueHeading.Degrees)) * SimulationEngine.PhysicsSubTickRate;
+                maxYawDegPerSec = Math.Max(maxYawDegPerSec, yaw);
+            }
+
+            prevHdg = aircraft.TrueHeading.Degrees;
+        }
+
+        double ceilingDegPerSec = CategoryPerformance.GroundTurnRate(AircraftCategory.Piston);
+        output.WriteLine(
+            $"node turn onto H: entry {entryKts:F2} kt, arc speed {arcKts:F2} kt, max yaw {maxYawDegPerSec:F1}°/s (ceiling {ceilingDegPerSec:F1}°/s)"
+        );
+        Assert.False(double.IsNaN(entryKts), "N152SP never flew a node turn onto H");
+        Assert.True(entryKts <= arcKts + 0.5, $"entered the node turn onto H at {entryKts:F2} kt, above its {arcKts:F2} kt arc speed");
+        Assert.True(
+            maxYawDegPerSec <= ceilingDegPerSec + 1.0,
+            $"the node turn onto H yawed at {maxYawDegPerSec:F1}°/s, above the {ceilingDegPerSec:F1}°/s ground turn rate"
+        );
+    }
+
+    /// <summary>
     /// N152SP moved <see cref="CapShiftAlongDFt"/> on along D before its TAXI: its reversal now ends further short of abeam
     /// node 366 than the roll-out hold's cap, so the straight after it re-centres on the node instead of holding the offset,
     /// and the navigator says why.

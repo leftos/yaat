@@ -226,6 +226,7 @@ On a plan made with no route to drive (`Plan`: the first plan, or one after the 
 - `PathOffsetFt` turns a `PathPosition` into a distance from the path's start.
 - `FollowerToMergeFt` is the follower's distance to the merge: minus its path offset once it stands on the lead's path from the merge (it is past the merge, as a follower that joined behind the lead on its edge is from the start); before that, the rest of its route to the merge. It is null with no route segment left and the follower on no path edge, where a straight distance back to the merge could read with the wrong sign.
 - `AlongPathGapFt` is the nose-to-tail gap: the follower's distance to the merge plus the lead's path offset, less half of each aircraft's length. It is null when either input is unknown; the caller then falls back to the straight-line nose-to-tail distance.
+- `LocateLeadOnPath` is `LocateOnPath` plus the lead rounding a fillet arc of the path, which `LocateOnPath` never locates; `FollowingPhase` uses it for the give-way tail judgement.
 - `LeadTailPastMerge` says whether the lead's tail, half its length behind its centre, has passed the merge node.
 
 ### FOLLOWG: driving the follow route
@@ -390,7 +391,7 @@ The class summary (`GroundNavigator.cs:39`) calls this "Design B closed-form pla
   For a wide sweeping fillet the apex is far tighter than the endpoint-connecting radius, so reinterpreting it as a single circle undershoots the corner's exit node (the OAK 28R→G corner: a 72 ft circle for endpoints 153 ft apart finished 56 ft short; a systemic scan found ~30–40 % of all OAK/SFO/FLL fillet traversals would undershoot >5 ft).
 
   Playing the real Bézier ends *exactly* on the to-node (its `P3`), so the next segment starts on-centerline instead of tripping the re-acquire speed gate into a crawl. The traversal-orientation (forward vs reversed) is baked into the stored curve at build time. Guarded by `GroundArcBezierPlaybackGuardTests` (every arc on OAK/SFO/FLL ends within 2 ft of its node).
-- **`PathPrimitiveSlowTurn`** — geometrically identical to an arc circle, but the radius is the adaptive corner radius (the comfortable main-gear radius for a free-space aim, down to the tight-turn floor) and the speed cap is `SlowTurnSpeedKts` (≈ 3 kt), or `TurnAboutSpeedKts` for the arcs of a turn about on a taxiway ([below](#entry-alignment-threshold)). Used for entry-alignment tight turns and tight programmatic pivots. Kept as a true-circle primitive — it is synthesised programmatically, not derived from a painted `GroundArc`.
+- **`PathPrimitiveSlowTurn`** — geometrically identical to an arc circle, but the radius is the adaptive corner radius (the comfortable main-gear radius for a free-space aim, down to the tight-turn floor) and the arc is entered no faster than `CategoryPerformance.ArcSpeedForRadiusKts` for its radius (the lower of the yaw-rate limit `ω·r` and the lateral-acceleration limit `√(0.13 g·r)`, with no `SlowTurnSpeedKts` floor), or flown at `TurnAboutSpeedKts` for the arcs of a turn about on a taxiway ([below](#entry-alignment-threshold)). Used for entry-alignment tight turns and tight programmatic pivots. Kept as a true-circle primitive — it is synthesised programmatically, not derived from a painted `GroundArc`.
 
 **Invariant I2 (the reason arcs are closed-form):** during an arc primitive, *both* position and heading are pure functions of a single scalar — the aircraft's compass bearing from the arc centre (for Bézier: curve parameter `_bezierT`; for slow-turn: bearing `_arcBearingFromCenterDeg`). They advance together each tick and therefore **cannot drift apart**.
 
@@ -440,7 +441,7 @@ A **pre-turn blend** blends the steer bearing toward the next segment's departur
 
 ### Entry-alignment threshold
 
-When a new segment begins with the aircraft heading far off the segment's first tangent, `GroundNavigator.SetupSegment` builds a `PathPrimitiveSlowTurn` from the aircraft's current pose to the segment's start direction, stashes the real primitive in `_pendingSegmentPrimitive`, and plays the alignment arc first. The aircraft rolls forward at `SlowTurnSpeedKts` while rotating through real arc geometry — no in-place pivot, no heading snap.
+When a new segment begins with the aircraft heading far off the segment's first tangent, `GroundNavigator.SetupSegment` builds a `PathPrimitiveSlowTurn` from the aircraft's current pose to the segment's start direction, stashes the real primitive in `_pendingSegmentPrimitive`, and plays the alignment arc first. The aircraft rolls forward at the arc's `ArcSpeedForRadiusKts` while rotating through real arc geometry — no in-place pivot, no heading snap.
 
 A turn about on a taxiway rolls slower, at its own pivot speed (below).
 
@@ -494,7 +495,7 @@ That radius is R = max(MGW/2, 0.466 × wheelbase) from the type's FAA record (a 
 
 A taildragger's turn is drawn centred on R = MGW/2 like any other, a known simplification: its fit assumes the pilot first moves the pivot wheel (rₜ − MGW)/2 off the centreline so the tail swing (rₜ = √(wheelbase² + (MGW/2)²), about 17 ft for a PA18) uses the full width, so in the centred drawing the unmodelled tail would cross the taxiway edge by rₜ − half-width.
 
-For a type that fits, that is well below the 3 kt `SlowTurnSpeedKts`, on purpose: at 3 kt the tight radius would need more yaw than the gear gives. A type that does not fit turns about only on a scripted clearance whose route ahead resolved nothing, on its own larger radius.
+For a type that fits, that is well below the 3 kt `SlowTurnSpeedKts` floor that `TurnRateLimitedSpeedKts` keeps, on purpose: at 3 kt the tight radius would need more yaw than the gear gives. A type that does not fit turns about only on a scripted clearance whose route ahead resolved nothing, on its own larger radius.
 
 **A rolling aircraft brakes to its pivot speed first.** When the aircraft rolls faster than its pivot speed plus `TurnSpeedOvershootKts` (0.2 kt), `PlanRollingTurnAbout` puts a brake leg ahead of the jog: the heading held straight along the occupied edge while it brakes to the pivot speed. It brakes at `CategoryPerformance.TaxiDecelRate` (2 kt/s piston and helicopter, 5 kt/s jet and turboprop), or at the firm `ExpediteExitDecelRate` (4.5 kt/s piston) when the taxi rate leaves no room to turn about before the node ahead. A jet never brakes at the firm rate for a routine turn about: `RollingTurnAboutBrakeRates` gives it the taxi rate alone.
 
@@ -660,12 +661,12 @@ Its callers are `TaxiingPhase.AimAtPaintedBar` (at segment set-up, on a target c
 
 ### Speed: corner-speed limits and backward-propagated braking
 
-The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`GroundNavigator.cs:988`) runs at every `SetupSegment`:
+The navigator never overspeeds into a future turn. `BuildSpeedConstraints` runs at every `SetupSegment`:
 
 1. Sets `_currentNodeRequiredSpeed` from `CornerSpeed(category, SingleCornerTurnAngle(...), legIn, legOut)` (0 for stops — uncleared hold-shorts and the last segment).
 2. Unless the target node's own hold-short bar is uncleared (the walk is skipped and logs `target node {Node} is a stop; no constraint past it is planned`), forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: one per sample of each future arc's **local cornering-speed profile**, one per future node's corner speed, and 0 at the first uncleared hold-short's **painted stop** (then stops).
 
-   The arc profile is `GroundArc.SpeedProfile(category)`: 17 evenly spaced parameter samples, each `SafeSpeedForRadiusKts` at the local radius of curvature — a lateral-acceleration cap `v = √(a_lat·r)`, `a_lat ≈ 0.13 g`, additionally capped by `CornerSpeedForAngle` and the yaw-rate coupling `ω·r`, floored at `SlowTurnSpeedKts`. `MaxSafeSpeedKts` is the same formula at the tightest point.
+   The arc profile is `GroundArc.SpeedProfile(category)`: evenly spaced parameter samples plus one at the curve's tightest point, each `SafeSpeedForRadiusKts` at the local radius of curvature — a lateral-acceleration cap `v = √(a_lat·r)`, `a_lat ≈ 0.13 g`, additionally capped by `CornerSpeedForAngle` and the yaw-rate coupling `ω·r`, floored at `SlowTurnSpeedKts`; the speed an arc is entered at is `ArcSpeedForRadiusKts`, unfloored. `MaxSafeSpeedKts` is the same formula at the tightest point.
 
    Sampling the profile rather than pinning the arc's tightest speed at its entry matters for the distorted cubics the fillet generator emits at asymmetric junctions. A long gentle sweep with one tight stretch (SFO junction J133's B bend: 107 ft, 56°, 22 ft minimum radius) is braked for only where it is tight instead of being crawled at 3 kt end to end.
 
@@ -678,7 +679,9 @@ The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`Gro
    The hold is taken within 3 ft of the stop at ≤ 3 kt by setting the speed to 0, never moving the aircraft, so at rest the nose is at or behind the bar; another aircraft already holding at that bar makes this one wait where it stops. After release, a taxiway bar's phase drives the remaining segments to the junction, while a runway bar at the route's end finishes the route at the stop and line-up plans from there.
 3. Backward-propagates a kinematic decel curve (`v = sqrt(v_next² + 2·a·d)`) between adjacent constraints and into the current node's required speed — skipped when `SlowdownDecelRateKts` is set (below).
 
-`ComputeTargetSpeed` (`GroundNavigator.cs:956`) per-tick takes the min of: the brake curve from the current node's required speed, every future constraint (skipping a bar's stop once that bar is cleared; the route-end stop is never skipped), and a quadratic heading-error scaling (`speedFraction`, full speed at 0° error down to 3 % at ≥ 90°). A safety backstop in `TickStraight` caps target speed so the aircraft can't cover more than 80 % of remaining distance in one tick (overshoot prevention).
+**Arc entry speed.** A ground arc (a slow-turn corner, a stand roll-in, an offset-line node turn, a free-space or ramp reversal's rounding) is entered no faster than `CategoryPerformance.ArcSpeedForRadiusKts` for its radius. The straight before it brakes to aim that corner speed at the arc's tangent point (`StraightArrival.TangentNm`, `BrakingDistances`), not the node, looking one tick ahead so the aircraft is not already past the braking point. After a turn about that leaves the aircraft off the centreline, the offset-line straight aims at its arrival threshold. A reversal keeps the corner speed at its node: a taxiway reversal is a turn about at its pivot speed, a ramp, apron or stand reversal is rounded. A jet's 25 ft corner arc therefore runs at about 3.1 kt.
+
+`ComputeTargetSpeed` per-tick takes the min of: the brake curve from the current node's required speed, every future constraint (skipping a bar's stop once that bar is cleared; the route-end stop is never skipped), and a quadratic heading-error scaling (`speedFraction`, full speed at 0° error down to 3 % at ≥ 90°). A safety backstop in `TickStraight` caps target speed so the aircraft can't cover more than 80 % of remaining distance in one tick (overshoot prevention).
 
 **Two braking rates: slowdowns and stops.** `DecelRateKts` (null = `TaxiDecelRate`) is the rate for the whole route. `SlowdownDecelRateKts`, when set, applies only to the in-route slowdowns — corner and arc speeds, and the arc cap — while every stop (the route end, and each bar not yet cleared) stays on its own braking curve at `DecelRateKts`'s rate.
 
@@ -845,7 +848,7 @@ A `GroundArc` stores its Bézier with `Nodes[0]` = P0 and `Nodes[1]` = P3, with 
 
 ### Chord-chain speed limiting via turn-rate feasibility
 
-`SingleCornerTurnAngle` (`GroundNavigator.cs:1190`) reads a single corner's bearing change and prices it through `CornerSpeed` (`GroundNavigator.cs:1165`), which takes the lower of the angle comfort cap (`CategoryPerformance.CornerSpeedForAngle`) and a turn-rate-feasibility cap `v ≤ ω·½L/θ` (where `L` is the shorter adjacent leg, `ω` is the ground turn rate, and `θ` is the turn angle in radians).
+`SingleCornerTurnAngle` reads a single corner's bearing change and prices it through `CornerSpeed`, which takes the lower of the angle comfort cap (`CategoryPerformance.CornerSpeedForAngle`) and a turn-rate-feasibility cap `v ≤ ω·½L/θ` (where `L` is the shorter adjacent leg, `ω` is the ground turn rate, and `θ` is the turn angle in radians).
 
 On a chord chain the short legs drive that cap down even though each per-bend angle is gentle; because `L ≈ R·θ`, the cap reduces to `v = ω·r` — independent of how finely the curve is chorded — so it converges on the curve's true geometric speed.
 
@@ -861,7 +864,7 @@ This is a lane change across parallel taxiways via a short cross taxiway — the
 
 While on such a run, `ComputeTargetSpeed` caps the target to `_connectorFlowSpeedKts` so the aircraft flows through at a steady low speed instead of accelerating on the connector straight (the braking curve alone permits ~20 kt) and braking back down for the second turn. A real crew flies a short connector as one continuous low-speed maneuver, not settle-wings-level-and-accelerate (AC 120-74B; aviation-reviewed).
 
-The cap is **self-limiting** and only bites on genuinely sharp corners: `_connectorFlowSpeedKts` = the higher of the two bracketing corners' comfortable speeds, where a sharp (`> EntryAlignmentThresholdDeg`) bracketing corner — rounded by a main-gear-turn-radius slow-turn — contributes `TurnRateLimitedSpeedKts(cat, MainGearTurnRadiusFt(cat, aircraftType))` (~5 kt for a jet, lower for a long-wheelbase type) and a gentle (30–45°) one contributes the higher `CornerSpeedForAngle`.
+The cap is **self-limiting** and only bites on genuinely sharp corners: `_connectorFlowSpeedKts` = the higher of the two bracketing corners' comfortable speeds, where a sharp (`> EntryAlignmentThresholdDeg`) bracketing corner — rounded by a main-gear-turn-radius slow-turn — contributes `TurnRateLimitedSpeedKts(cat, MainGearTurnRadiusFt(cat, aircraftType))` (a few knots for a jet, lower for a long-wheelbase type) and a gentle (30–45°) one contributes the higher `CornerSpeedForAngle`.
 
 So a gentle bracketing turn yields a high (no-op) cap and the length window alone never slows a run; only sharp ~90° lane-change corners pull the speed down.
 

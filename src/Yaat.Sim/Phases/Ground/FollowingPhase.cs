@@ -2697,7 +2697,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     /// <summary>Whether the lead's tail is past the start of <paramref name="leadPath"/>; false when the lead is not on it.</summary>
     private static bool LeadTailPastMerge(AirportGroundLayout layout, IReadOnlyList<DirectionalEdge> leadPath, AircraftState lead) =>
-        (FollowRoutePlanner.LocateOnPath(layout, leadPath, lead) is { } at) && FollowRoutePlanner.LeadTailPastMerge(leadPath, at, lead.AircraftType);
+        (FollowRoutePlanner.LocateLeadOnPath(layout, leadPath, lead) is { } at)
+        && FollowRoutePlanner.LeadTailPastMerge(leadPath, at, lead.AircraftType);
 
     /// <summary>
     /// Installs <paramref name="route"/> as the follow route, its lead's path starting at segment <paramref name="mergeIndex"/>,

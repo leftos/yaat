@@ -450,6 +450,40 @@ public static class FollowRoutePlanner
     }
 
     /// <summary>
+    /// Where <paramref name="lead"/> stands on <paramref name="path"/>. Differs from <see cref="LocateOnPath"/> only for a lead
+    /// rounding a fillet arc of the path, which <see cref="LocateOnPath"/> never locates: the lead is then on the first path
+    /// element running between the same nodes as the edge it taxis on (<see cref="LocateLead"/>), its distance along it the
+    /// great-circle distance from that element's start node to the lead, at most the element's length.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="path">The path to locate the lead on.</param>
+    /// <param name="lead">The lead.</param>
+    /// <returns>The lead's position on the path; null when it is on no element of it.</returns>
+    public static PathPosition? LocateLeadOnPath(AirportGroundLayout layout, IReadOnlyList<DirectionalEdge> path, AircraftState lead)
+    {
+        if (LocateOnPath(layout, path, lead) is { } onStraight)
+        {
+            return onStraight;
+        }
+
+        if (LocateLead(layout, lead) is not { } located)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < path.Count; i++)
+        {
+            if ((path[i].FromNodeId == located.Current.FromNodeId) && (path[i].ToNodeId == located.Current.ToNodeId))
+            {
+                double fromStartFt = GeoMath.DistanceNm(path[i].FromNode.Position, lead.Position) * GeoMath.FeetPerNm;
+                return new PathPosition(i, Math.Min(fromStartFt, path[i].DistanceNm * GeoMath.FeetPerNm));
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// How far along <paramref name="path"/> from its start <paramref name="at"/> lies, feet: the edges before its edge by
     /// their lengths, then its way along that edge.
     /// </summary>

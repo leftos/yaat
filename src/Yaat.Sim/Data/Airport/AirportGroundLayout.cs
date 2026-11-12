@@ -496,19 +496,12 @@ public sealed class GroundArc : IGroundEdge
         return Math.Clamp(alongFt, 0.0, chordFt);
     }
 
-    /// <summary>Lateral acceleration ceiling for taxi turns (m/s²) ≈ 0.13 g — a tire-scrub / passenger-comfort
-    /// limit, matching the ~0.12–0.13 g implied by ICAO Annex 14's rapid-exit taxiway radius/speed pairs
-    /// (and FAA AC 150/5300-13B).</summary>
-    private const double TaxiLateralAccelMps2 = 0.13 * 9.80665;
-    private const double MetersPerFoot = 0.3048;
-    private const double KnotsToMetersPerSecond = 0.514444;
-
     /// <summary>
     /// Maximum safe taxi speed (kts) along this arc, the min of three curvature limits, floored at
     /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> so a degenerate-radius arc never commands a stop:
     /// <list type="bullet">
     /// <item>a lateral-acceleration limit — the speed at which centripetal acceleration v²/r reaches
-    /// <see cref="TaxiLateralAccelMps2"/> (degrades as √r: ~4.7 kt @15 ft, ~7.6 kt @40 ft, ~9.1 kt @56 ft);</item>
+    /// <see cref="CategoryPerformance.TaxiLateralAccelMps2"/> (degrades as √r: ~4.7 kt @15 ft, ~7.6 kt @40 ft, ~9.1 kt @56 ft);</item>
     /// <item>the angle-based <see cref="CategoryPerformance.CornerSpeedForAngle"/> ceiling;</item>
     /// <item>a yaw-rate limit <c>v = ω·r</c> at the gear-limited <see cref="CategoryPerformance.GroundTurnRate"/>
     /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>) — without it a tight fillet whose lateral-accel
@@ -528,8 +521,8 @@ public sealed class GroundArc : IGroundEdge
     /// </summary>
     public double SafeSpeedForRadiusKts(AircraftCategory category, double radiusFt)
     {
-        double radiusM = radiusFt * MetersPerFoot;
-        double lateralAccelKts = Math.Sqrt(TaxiLateralAccelMps2 * radiusM) / KnotsToMetersPerSecond;
+        double radiusM = radiusFt * CategoryPerformance.MetersPerFoot;
+        double lateralAccelKts = Math.Sqrt(CategoryPerformance.TaxiLateralAccelMps2 * radiusM) / CategoryPerformance.KnotsToMetersPerSecond;
         double cornerCeilingKts = CategoryPerformance.CornerSpeedForAngle(category, TurnAngleDeg);
         double yawRateKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, radiusFt);
         double curvatureCapKts = Math.Min(Math.Min(lateralAccelKts, cornerCeilingKts), yawRateKts);
@@ -540,6 +533,12 @@ public sealed class GroundArc : IGroundEdge
     public readonly record struct SpeedSample(double LengthFt, double SpeedKts);
 
     private const int SpeedProfileSamples = 16;
+
+    /// <summary>Scan resolution for the curve's tightest point: a finer scan than the stored <see cref="MinRadiusOfCurvatureFt"/> one.</summary>
+    private const int TightestPointScanSamples = 64;
+
+    /// <summary>A tightest point this close in t to an evenly spaced sample is that sample: no second one is inserted.</summary>
+    private const double TightestSampleDedupeT = 1e-3;
     private readonly Dictionary<AircraftCategory, SpeedSample[]> _speedProfiles = [];
 
     /// <summary>
@@ -549,9 +548,11 @@ public sealed class GroundArc : IGroundEdge
     /// at asymmetric junctions — is slow only where it is tight; <see cref="MaxSafeSpeedKts"/>, the tightest
     /// point alone, would hold the whole length at walking pace (SFO junction J133's B bend: 107 ft and 56°
     /// with a 22 ft minimum radius, 21 s at 3 kt). Samples are evenly spaced in the curve parameter, not in
-    /// arc length, so a curvature minimum falling between two samples is not seen; the whole-arc cap is the
-    /// conservative bound the profile is always at or above. Cached per category; the geometry is fixed once
-    /// the layout is built.
+    /// arc length, plus one more at the curve's true tightest point (<see cref="CubicBezier.MinRadiusOfCurvature"/>)
+    /// when that falls between two of them, so the profile's slowest sample is the curve's real minimum and a reader
+    /// taking the lower of two neighbouring samples is never faster than the curve allows between them. Ordered by
+    /// arc length, first sample at <c>Nodes[0]</c> and last at <c>Nodes[^1]</c>. Cached per category; the geometry is
+    /// fixed once the layout is built.
     /// </summary>
     public IReadOnlyList<SpeedSample> SpeedProfile(AircraftCategory category)
     {
@@ -571,12 +572,13 @@ public sealed class GroundArc : IGroundEdge
     {
         CubicBezier curve = ToBezier();
         double refLat = Nodes[0].Position.Lat;
-        var samples = new SpeedSample[SpeedProfileSamples + 1];
+        List<double> parameters = SpeedProfileParameters(curve, refLat);
+        var samples = new SpeedSample[parameters.Count];
         double lengthFt = 0.0;
         (double Lat, double Lon) previous = curve.Evaluate(0.0);
-        for (int i = 0; i <= SpeedProfileSamples; i++)
+        for (int i = 0; i < parameters.Count; i++)
         {
-            double t = (double)i / SpeedProfileSamples;
+            double t = parameters[i];
             if (i > 0)
             {
                 (double Lat, double Lon) point = curve.Evaluate(t);
@@ -588,6 +590,29 @@ public sealed class GroundArc : IGroundEdge
         }
 
         return samples;
+    }
+
+    /// <summary>
+    /// The curve parameters <see cref="SpeedProfile"/> samples, ascending: the evenly spaced ones, plus the true
+    /// tightest point unless it lies within <see cref="TightestSampleDedupeT"/> of one of them (the ends included).
+    /// </summary>
+    private static List<double> SpeedProfileParameters(CubicBezier curve, double refLat)
+    {
+        var parameters = new List<double>(SpeedProfileSamples + 2);
+        for (int i = 0; i <= SpeedProfileSamples; i++)
+        {
+            parameters.Add((double)i / SpeedProfileSamples);
+        }
+
+        (double tightestT, _) = curve.MinRadiusOfCurvature(refLat, TightestPointScanSamples);
+        double nearestUniformT = Math.Round(tightestT * SpeedProfileSamples) / SpeedProfileSamples;
+        if (Math.Abs(tightestT - nearestUniformT) > TightestSampleDedupeT)
+        {
+            parameters.Add(tightestT);
+            parameters.Sort();
+        }
+
+        return parameters;
     }
 
     /// <summary>

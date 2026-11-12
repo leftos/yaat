@@ -34,6 +34,16 @@ public class TaxiwayTurnAboutJunctionTests(ITestOutputHelper output)
     private static readonly string[] Airports = ["OAK", "SFO"];
 
     /// <summary>
+    /// The speed of the corner rounding a reversal at a junction is played at: the piston's arc speed at its tight-turn floor
+    /// radius (ω·r on 8 ft, ~1.65 kt). It is unfloored, so it reads below the 3 kt creep, but still well above the turn
+    /// about's pivot speed on the C172's tighter turn-about radius (~0.87 kt), which is what tells the two branches apart.
+    /// </summary>
+    private static readonly double CornerRoundingSpeedKts = CategoryPerformance.ArcSpeedForRadiusKts(
+        AircraftCategory.Piston,
+        CategoryPerformance.TightTurnFloorRadiusFt(AircraftCategory.Piston)
+    );
+
+    /// <summary>
     /// A C172 arriving at a real junction where two straight movement-area taxiway edges meet at a reversal of 135° or more,
     /// set up on the outgoing edge with its heading still along the incoming one: the entry turn is played at the corner
     /// speed, not the turn about's pivot speed.
@@ -95,9 +105,9 @@ public class TaxiwayTurnAboutJunctionTests(ITestOutputHelper output)
         output.WriteLine($"entry turn target speed {ctx.Targets.TargetSpeed:F2} kt");
 
         Assert.True(
-            ctx.Targets.TargetSpeed >= CategoryPerformance.SlowTurnSpeedKts,
+            ctx.Targets.TargetSpeed >= CornerRoundingSpeedKts - 0.01,
             $"the reversal at junction {junction.Id} was played at {ctx.Targets.TargetSpeed:F2} kt, below the "
-                + $"{CategoryPerformance.SlowTurnSpeedKts:F0} kt corner rounding: it took the turn about meant for an aircraft inside the edge"
+                + $"{CornerRoundingSpeedKts:F2} kt corner rounding: it took the turn about meant for an aircraft inside the edge"
         );
     }
 
@@ -172,9 +182,9 @@ public class TaxiwayTurnAboutJunctionTests(ITestOutputHelper output)
         );
 
         Assert.True(
-            ctx.Targets.TargetSpeed >= CategoryPerformance.SlowTurnSpeedKts,
+            ctx.Targets.TargetSpeed >= CornerRoundingSpeedKts - 0.01,
             $"the reversal {TangentPointBackFt:F0} ft short of junction {junction.Id} was played at {ctx.Targets.TargetSpeed:F2} kt, below the "
-                + $"{CategoryPerformance.SlowTurnSpeedKts:F0} kt corner rounding: it took the turn about meant for an aircraft with room to pivot"
+                + $"{CornerRoundingSpeedKts:F2} kt corner rounding: it took the turn about meant for an aircraft with room to pivot"
         );
     }
 

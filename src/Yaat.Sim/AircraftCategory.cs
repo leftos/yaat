@@ -1119,6 +1119,32 @@ public static class CategoryPerformance
         return omegaRadPerSec * radiusFt * 3600.0 / GeoMath.FeetPerNm;
     }
 
+    /// <summary>Lateral acceleration ceiling for taxi turns (m/s²) ≈ 0.13 g — a tire-scrub / passenger-comfort
+    /// limit, matching the ~0.12–0.13 g implied by ICAO Annex 14's rapid-exit taxiway radius/speed pairs
+    /// (and FAA AC 150/5300-13B).</summary>
+    public const double TaxiLateralAccelMps2 = 0.13 * 9.80665;
+
+    /// <summary>Metres in one foot.</summary>
+    internal const double MetersPerFoot = 0.3048;
+
+    /// <summary>Metres per second in one knot.</summary>
+    internal const double KnotsToMetersPerSecond = 0.514444;
+
+    /// <summary>
+    /// Speed (knots) at which a ground arc of <paramref name="radiusFt"/> is entered and flown: the lower of the yaw-rate
+    /// limit <c>v = ω·r</c> at the gear-limited <see cref="GroundTurnRate"/> and the lateral-acceleration limit
+    /// <c>v = √(a·r)</c> at <see cref="TaxiLateralAccelMps2"/>. Unlike <see cref="TurnRateLimitedSpeedKts"/> it has no
+    /// <see cref="SlowTurnSpeedKts"/> floor: below the radius where 3 kt exceeds the yaw ceiling the creep could not stay
+    /// on the arc, so a tight arc runs down toward the turn-about pivot speed (<see cref="TurnAboutSpeedKts"/>), never a
+    /// stop — the value is above zero for any radius above zero.
+    /// </summary>
+    public static double ArcSpeedForRadiusKts(AircraftCategory cat, double radiusFt)
+    {
+        double yawRateKts = TurnAboutSpeedKts(cat, radiusFt);
+        double lateralAccelKts = Math.Sqrt(TaxiLateralAccelMps2 * radiusFt * MetersPerFoot) / KnotsToMetersPerSecond;
+        return Math.Min(yawRateKts, lateralAccelKts);
+    }
+
     /// <summary>Target speed (kts) when executing a taxiway turn of 90° or more.</summary>
     public static double TaxiCornerSpeed(AircraftCategory cat)
     {

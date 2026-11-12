@@ -391,6 +391,19 @@ public sealed class AircraftPerformanceTests
         Assert.Equal(CategoryPerformance.SlowTurnSpeedKts, v, 3);
     }
 
+    [Fact]
+    public void ArcSpeedForRadius_IsTheLowerOfYawAndLateralLimits_WithNoFloor()
+    {
+        // Jet 12 deg/s * 25 ft -> 3.10 kt (yaw binds, above the creep); 17.75 ft -> 2.20 kt (below the 3 kt creep, which
+        // would yaw past the ceiling); piston 20 deg/s * 8 ft -> 1.65 kt; jet 200 ft -> sqrt(0.13 g * r) = 17.14 kt
+        // (lateral acceleration binds before omega*r's 24.8 kt).
+        Assert.Equal(3.10, CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Jet, 25.0), 0.02);
+        Assert.Equal(2.20, CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Jet, 17.75), 0.02);
+        Assert.Equal(1.65, CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Piston, 8.0), 0.02);
+        Assert.Equal(17.14, CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Jet, 200.0), 0.02);
+        Assert.True(CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Jet, 17.75) < CategoryPerformance.SlowTurnSpeedKts);
+    }
+
     // -------------------------------------------------------------------------
     // Wind approach additive (Vapp = Vref + half headwind + full gust increment, cap 20)
     // -------------------------------------------------------------------------

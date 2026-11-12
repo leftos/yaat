@@ -158,6 +158,55 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     }
 
     /// <summary>
+    /// The curve parameter and radius (ft) of the curve's tightest point: a coarse scan at <paramref name="samples"/> evenly
+    /// spaced parameters finds the tightest sample, then a golden-section search refines the minimum to 1e-4 in t inside the
+    /// interval between that sample's neighbours — so a minimum falling between two scan points is still found.
+    /// </summary>
+    public (double T, double RadiusFt) MinRadiusOfCurvature(double refLat, int samples)
+    {
+        int best = 0;
+        double bestRadius = double.MaxValue;
+        for (int i = 0; i <= samples; i++)
+        {
+            double r = RadiusOfCurvatureFt((double)i / samples, refLat);
+            if (r < bestRadius)
+            {
+                bestRadius = r;
+                best = i;
+            }
+        }
+
+        double lo = (double)Math.Max(0, best - 1) / samples;
+        double hi = (double)Math.Min(samples, best + 1) / samples;
+        double invPhi = (Math.Sqrt(5.0) - 1.0) / 2.0;
+        double a = hi - (invPhi * (hi - lo));
+        double b = lo + (invPhi * (hi - lo));
+        double ra = RadiusOfCurvatureFt(a, refLat);
+        double rb = RadiusOfCurvatureFt(b, refLat);
+        while (hi - lo > 1e-4)
+        {
+            if (ra < rb)
+            {
+                hi = b;
+                (b, rb) = (a, ra);
+                a = hi - (invPhi * (hi - lo));
+                ra = RadiusOfCurvatureFt(a, refLat);
+            }
+            else
+            {
+                lo = a;
+                (a, ra) = (b, rb);
+                b = lo + (invPhi * (hi - lo));
+                rb = RadiusOfCurvatureFt(b, refLat);
+            }
+        }
+
+        double t = (lo + hi) / 2.0;
+        double refined = RadiusOfCurvatureFt(t, refLat);
+        return refined < bestRadius ? (t, refined) : ((double)best / samples, bestRadius);
+    }
+
+    /// <summary>
     /// Arc length via polyline approximation (sum of great-circle segment distances).
     /// </summary>
     public double ArcLengthNm(int segments)

@@ -81,6 +81,50 @@ public class GroundArcSpeedProfileTests
         );
     }
 
+    /// <summary>
+    /// A cubic whose single tight bend sits between two of the profile's uniform-t samples: the profile must still carry
+    /// the cornering speed of the curve's true tightest point, not only the slower-looking of its neighbours.
+    /// </summary>
+    [Fact]
+    public void ProfileSeesACurvatureMinimumBetweenUniformSamples()
+    {
+        // Overlapping control arms (the first runs past where the second starts) fold the curve into one bend just past
+        // its middle, near t = 0.53 with a ~46 ft radius: wide enough that the yaw limit, not the creep floor, sets its speed.
+        var p0 = new LatLon(37.700, -122.200);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), 160.0 / GeoMath.FeetPerNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(80.0), 180.0 / GeoMath.FeetPerNm);
+        var p3 = new LatLon(p3Lat, p3Lon);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(250.0), 90.0 / GeoMath.FeetPerNm);
+        var curve = new CubicBezier(p0.Lat, p0.Lon, p1Lat, p1Lon, p2Lat, p2Lon, p3.Lat, p3.Lon);
+        var arc = new GroundArc
+        {
+            Nodes = [Node(1, p0), Node(2, p3)],
+            TaxiwayNames = ["B"],
+            DistanceNm = curve.ArcLengthNm(64),
+            P1Lat = p1Lat,
+            P1Lon = p1Lon,
+            P2Lat = p2Lat,
+            P2Lon = p2Lon,
+            MinRadiusOfCurvatureFt = curve.MinRadiusOfCurvatureFt(p0.Lat, 64),
+            TurnAngleDeg = 20.0,
+        };
+
+        (double minT, double trueMinRadiusFt) = curve.MinRadiusOfCurvature(p0.Lat, 64);
+        double nearestUniformT = Math.Round(minT * 16.0) / 16.0;
+        Assert.True(
+            Math.Abs(minT - nearestUniformT) > 0.01,
+            $"the curvature minimum at t = {minT:F4} should fall between the uniform samples, not within 0.01 of t = {nearestUniformT:F4}"
+        );
+
+        IReadOnlyList<GroundArc.SpeedSample> profile = arc.SpeedProfile(AircraftCategory.Jet);
+        double trueMinKts = arc.SafeSpeedForRadiusKts(AircraftCategory.Jet, trueMinRadiusFt);
+        Assert.True(
+            profile.Min(s => s.SpeedKts) <= trueMinKts + 0.1,
+            $"the profile's slowest sample {profile.Min(s => s.SpeedKts):F2} kt misses the {trueMinKts:F2} kt cornering speed of the "
+                + $"{trueMinRadiusFt:F1} ft bend at t = {minT:F4}"
+        );
+    }
+
     [Fact]
     public void UniformArc_ProfileMatchesTheWholeArcCap()
     {

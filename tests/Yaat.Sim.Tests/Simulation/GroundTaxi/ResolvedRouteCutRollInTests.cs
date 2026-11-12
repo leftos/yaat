@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -120,6 +121,92 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
         Assert.True(
             linedUpFt / rollInFt >= MinLinedUpShare,
             $"the roll-in was within {ParkedHeadingToleranceDeg:F1}° for only {linedUpFt:F1} of its {rollInFt:F1} ft"
+        );
+    }
+
+    /// <summary>
+    /// The roll-in arc is entered no faster than the turn-rate-limited speed for the radius it is fitted to from the
+    /// aircraft's pose where the straight ends (<see cref="GroundNavigator.RollInFitRadiusFt"/>), and flown within the
+    /// category's ground turn rate: the straight brakes for the corner's adaptive radius
+    /// (<see cref="GroundNavigator.AdaptiveCornerRadiusFt"/>) and the arc is fitted at entry, clamped to that radius.
+    /// </summary>
+    [Fact]
+    public void E75lRollIn_EntersTheFittedArcAtItsTurnRate()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "SKW3398", "E75L", "D3");
+        CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXIAUTO @D1");
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        int rollInIndex = route.Segments.Count - 1;
+        TaxiRouteSegment rollIn = route.Segments[rollInIndex];
+        TaxiRouteSegment intoRollIn = route.Segments[rollInIndex - 1];
+        var line = new GroundNavigator.RollInLine(rollIn.Edge.FromNode.Position, rollIn.Edge.DepartureBearing);
+        double adaptiveFt = GroundNavigator.AdaptiveCornerRadiusFt(
+            AircraftCategory.Jet,
+            "E75L",
+            GeoMath.AbsBearingDifference(intoRollIn.Edge.DepartureBearing, rollIn.Edge.DepartureBearing),
+            intoRollIn.Edge.DistanceNm * GeoMath.FeetPerNm,
+            rollIn.Edge.DistanceNm * GeoMath.FeetPerNm
+        );
+        (double FloorFt, double PlannedFt) bounds = (
+            FloorFt: CategoryPerformance.TightTurnFloorRadiusFt(AircraftCategory.Jet),
+            PlannedFt: adaptiveFt
+        );
+
+        LatLon lastStraightPos = aircraft.Position;
+        double lastStraightHdg = aircraft.TrueHeading.Degrees;
+        double prevHdg = aircraft.TrueHeading.Degrees;
+        double? fittedFt = null;
+        double entryKts = double.NaN;
+        double maxYawDegPerSec = 0.0;
+        SubTickDriver.TickSubTicksUntil(
+            ground.Engine,
+            "SKW3398",
+            ac => ac.Phases?.CurrentPhase is AtParkingPhase,
+            400,
+            ac =>
+            {
+                bool onRollInArc = (route.CurrentSegmentIndex == rollInIndex) && (ac.Ground.LastNavDiag is { OnArc: true });
+                if (onRollInArc)
+                {
+                    if (fittedFt is null)
+                    {
+                        double deflectionDeg = GeoMath.AbsBearingDifference(lastStraightHdg, line.BearingDeg);
+                        double? fit = GroundNavigator.RollInFitRadiusFt(lastStraightPos, lastStraightHdg, line, deflectionDeg, bounds);
+                        Assert.NotNull(fit);
+                        fittedFt = fit;
+                        entryKts = ac.GroundSpeed;
+                    }
+
+                    double yaw = Math.Abs(GeoMath.SignedBearingDifference(prevHdg, ac.TrueHeading.Degrees)) * SimulationEngine.PhysicsSubTickRate;
+                    maxYawDegPerSec = Math.Max(maxYawDegPerSec, yaw);
+                }
+                else if (ac.Ground.LastNavDiag is not { OnArc: true })
+                {
+                    lastStraightPos = ac.Position;
+                    lastStraightHdg = ac.TrueHeading.Degrees;
+                }
+
+                prevHdg = ac.TrueHeading.Degrees;
+            }
+        );
+
+        Assert.NotNull(fittedFt);
+        double arcKts = CategoryPerformance.ArcSpeedForRadiusKts(AircraftCategory.Jet, fittedFt.Value);
+        double ceilingDegPerSec = CategoryPerformance.GroundTurnRate(AircraftCategory.Jet);
+        output.WriteLine(
+            $"roll-in: fitted r={fittedFt.Value:F2} ft (adaptive r={adaptiveFt:F2} ft, arc speed {arcKts:F2} kt), entry {entryKts:F2} kt, max yaw {maxYawDegPerSec:F1}°/s "
+                + $"(ceiling {ceilingDegPerSec:F1}°/s)"
+        );
+        Assert.True(entryKts <= arcKts + 0.5, $"entered the {fittedFt.Value:F2} ft roll-in arc at {entryKts:F2} kt, above its {arcKts:F2} kt");
+        Assert.True(
+            maxYawDegPerSec <= ceilingDegPerSec + 1.0,
+            $"the roll-in arc yawed at {maxYawDegPerSec:F1}°/s, above the {ceilingDegPerSec:F1}°/s ground turn rate"
         );
     }
 

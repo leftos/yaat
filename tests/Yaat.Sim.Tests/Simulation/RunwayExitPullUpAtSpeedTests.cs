@@ -495,29 +495,38 @@ public sealed class RunwayExitPullUpAtSpeedTests(ITestOutputHelper output)
 
     /// <summary>
     /// A type too long for the room between SFO 19L's exit G bar and 19R's bar (d ≤ 0) plans no hand-off at speed: it stops at the
-    /// exit as before and pulls up from rest, with no speed cap.
+    /// exit as before and pulls up from rest, with no speed cap. The phase after the exit is read at sub-tick resolution, since the
+    /// taxi that follows the stop can last a single sub-tick before the next phase takes over.
     /// </summary>
     [Fact]
     public void PullUp_NoRoomToPullUpAtSpeed_StopsFirst()
     {
         Staged staged = StageLanding(new LandingSpec("SFO", "19L", "19R", "EXIT G", "B753", AutoPullUp: true));
-        AircraftState aircraft = Aircraft(staged);
         bool sawExit = false;
-        for (int t = 1; (t <= MaxSeconds) && !(sawExit && (aircraft.Phases?.CurrentPhase is not RunwayExitPhase)); t++)
-        {
-            if (aircraft.Phases?.CurrentPhase is RunwayExitPhase exit)
+        Phase? afterExit = null;
+        SubTickDriver.TickSubTicksUntil(
+            staged.Engine,
+            staged.Callsign,
+            _ => afterExit is not null,
+            MaxSeconds,
+            ac =>
             {
-                sawExit |= exit.TurnStarted;
-                Assert.False(exit.StopsTailInsideRunwayLine, "the B753's exit stop leaves its tail inside 19L's line");
-                Assert.Null(exit.PlannedHandOffKts(aircraft));
+                if (ac.Phases?.CurrentPhase is RunwayExitPhase exit)
+                {
+                    sawExit |= exit.TurnStarted;
+                    Assert.False(exit.StopsTailInsideRunwayLine, "the B753's exit stop leaves its tail inside 19L's line");
+                    Assert.Null(exit.PlannedHandOffKts(ac));
+                }
+                else if (sawExit)
+                {
+                    afterExit ??= ac.Phases?.CurrentPhase;
+                }
             }
-
-            staged.Engine.TickOneSecond();
-        }
+        );
 
         Assert.True(sawExit, "the B753 never turned off onto G");
-        output.WriteLine($"after the exit: {aircraft.Phases?.CurrentPhase?.Name} at {aircraft.GroundSpeed:F1} kt");
-        TaxiingPhase taxi = Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
+        output.WriteLine($"after the exit: {afterExit?.Name}");
+        TaxiingPhase taxi = Assert.IsType<TaxiingPhase>(afterExit);
         Assert.Null(taxi.PullUpCapKts);
     }
 

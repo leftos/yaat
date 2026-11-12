@@ -585,6 +585,65 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A follower told to follow a lead that is rounding a fillet arc far ahead of it joins the lead's path on the lead's own
+    /// trail, behind the lead: the lead's tail is long past that merge, so the follower does not give way there, and in
+    /// particular is not stopped where it stands on the lead's track.
+    /// </summary>
+    [Fact]
+    public void Following_JoinsTheTrailOfALeadRoundingAFillet_DoesNotGiveWay()
+    {
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[2], chain[1]), "TAXI B W 30");
+        TaxiRoute leadRoute = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
+        int arcIndex = leadRoute.Segments.FindIndex(s => s.Edge.Edge is GroundArc);
+        Assert.True(arcIndex > 10, $"TAXI B W 30 has no fillet arc after a long B stretch: {leadRoute.ToSummary()}");
+        for (int second = 1; (second <= 400) && (leadRoute.CurrentSegmentIndex < arcIndex); second++)
+        {
+            setup.Engine.TickOneSecond();
+        }
+
+        // A few seconds into the arc, its centre well past the arc's start.
+        for (int second = 0; second < 3; second++)
+        {
+            setup.Engine.TickOneSecond();
+        }
+
+        Assert.Equal(arcIndex, leadRoute.CurrentSegmentIndex);
+        DirectionalEdge join = leadRoute.Segments[arcIndex - 8].Edge;
+        Assert.IsType<GroundEdge>(join.Edge);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            FollowCornerGeometry.Between(join.FromNode.Position, join.ToNode.Position, 0.5),
+            FollowCornerGeometry.Facing(join.FromNode, join.ToNode)
+        );
+        follower.Ground.Layout = setup.Layout;
+        setup.Engine.World.AddAircraft(follower);
+        CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
+        Assert.True(result.Success, result.Message);
+        setup.Engine.TickOneSecond();
+
+        Assert.Equal(arcIndex, leadRoute.CurrentSegmentIndex);
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        output.WriteLine(
+            $"lead on {leadRoute.CurrentSegment?.FromNodeId}->{leadRoute.CurrentSegment?.ToNodeId}; "
+                + $"follower on {join.FromNode.Id}->{join.ToNode.Id}: "
+                + $"{follow.FollowRoute?.ToSummary()}, merge #{MergeNodeOf(follow)}, giving way {follow.IsGivingWay}"
+        );
+        Assert.False(
+            follow.IsGivingWay,
+            $"the follower gives way at node {MergeNodeOf(follow)} on the trail of a lead rounding the fillet "
+                + $"{leadRoute.CurrentSegment?.FromNodeId}->{leadRoute.CurrentSegment?.ToNodeId} far ahead of it"
+        );
+    }
+
+    /// <summary>
     /// A follower keeps its speed across a follow route's end while the next plan joins the lead's path: it never loses
     /// more than a sub-tick of taxi braking in the second the route is replaced.
     /// </summary>

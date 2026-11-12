@@ -163,6 +163,112 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
         Assert.True(seconds < 0.75 * crawlSeconds, $"traversal {seconds:F1} s should be well under the flat-cap crawl {crawlSeconds:F1} s");
     }
 
+    /// <summary>A straight from <paramref name="from"/> to <paramref name="to"/>, linked into both nodes, as a route segment.</summary>
+    private static TaxiRouteSegment StraightSegment(GroundNode from, GroundNode to)
+    {
+        var edge = new GroundEdge
+        {
+            Nodes = [from, to],
+            TaxiwayName = "B",
+            DistanceNm = GeoMath.DistanceNm(from.Position, to.Position),
+        };
+        from.Edges.Add(edge);
+        to.Edges.Add(edge);
+        return new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = edge,
+                FromNode = from,
+                ToNode = to,
+            },
+            TaxiwayName = "B",
+        };
+    }
+
+    /// <summary>
+    /// The distorted fillet flown backwards, tight end first, after a long straight that brings the aircraft up to taxi
+    /// speed: the aircraft must be down to the fillet's own cornering speed at its first node, not still carrying the
+    /// straight's speed onto the tight bend.
+    /// </summary>
+    [Fact]
+    public void StraightIntoATightFillet_EntersNoFasterThanTheProfilesFirstSample()
+    {
+        TestVnasData.EnsureInitialized();
+        (GroundArc arc, GroundNode tightEnd, GroundNode gentleEnd) = ReversedDistortedArc();
+        var arcSegment = new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = arc,
+                FromNode = tightEnd,
+                ToNode = gentleEnd,
+            },
+            TaxiwayName = "B",
+        };
+        double entryBearing = arcSegment.Edge.DepartureBearing;
+        (double startLat, double startLon) = GeoMath.ProjectPoint(
+            tightEnd.Position,
+            new TrueHeading(entryBearing + 180.0),
+            1500.0 / GeoMath.FeetPerNm
+        );
+        GroundNode start = Node(4, new LatLon(startLat, startLon));
+        (double exitLat, double exitLon) = GeoMath.ProjectPoint(
+            gentleEnd.Position,
+            new TrueHeading(arcSegment.Edge.ArrivalBearing),
+            200.0 / GeoMath.FeetPerNm
+        );
+        GroundNode exit = Node(5, new LatLon(exitLat, exitLon));
+        var route = new TaxiRoute
+        {
+            Segments = [StraightSegment(start, tightEnd), arcSegment, StraightSegment(gentleEnd, exit)],
+            HoldShortPoints = [],
+        };
+        (AircraftState aircraft, PhaseContext ctx) = MakeFixture(start.Position, entryBearing, speedKts: 10.0);
+        var nav = new GroundNavigator { MaxSpeedKts = 30.0 };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        // Oriented from the tight end: the stored profile runs from Nodes[0], the gentle end, so its last sample is the entry.
+        double entrySampleKts = arc.SpeedProfile(AircraftCategory.Jet)[^1].SpeedKts;
+        double peakStraightKts = 0.0;
+        double? entryGsKts = null;
+        for (int tick = 0; (tick < 4000) && (entryGsKts is null); tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
+            NavigatorResult result = nav.Tick(ctx, last, _ => true);
+            if ((route.CurrentSegmentIndex == 1) && (aircraft.Ground.LastNavDiag is { OnArc: true }))
+            {
+                entryGsKts = aircraft.GroundSpeed;
+            }
+            else if (route.CurrentSegmentIndex == 0)
+            {
+                peakStraightKts = Math.Max(peakStraightKts, aircraft.GroundSpeed);
+            }
+
+            if ((result == NavigatorResult.ArrivedAtNode) && !last)
+            {
+                route.CurrentSegmentIndex++;
+                nav.SetupSegment(route, ctx, _ => true);
+            }
+        }
+
+        output.WriteLine($"straight peak {peakStraightKts:F1} kt, first arc tick {entryGsKts:F2} kt, profile entry sample {entrySampleKts:F2} kt");
+        Assert.True(entryGsKts is not null, "the aircraft never reported a tick on the fillet arc");
+        Assert.True(peakStraightKts > entrySampleKts + 5.0, $"the straight never got up to taxi speed (peak {peakStraightKts:F1} kt)");
+        Assert.True(
+            entryGsKts <= entrySampleKts + 0.5,
+            $"entered the tight end of the fillet at {entryGsKts:F2} kt, above its {entrySampleKts:F2} kt first profile sample"
+        );
+    }
+
+    /// <summary>The distorted arc, returned with its tight end (<c>Nodes[^1]</c>) first.</summary>
+    private static (GroundArc Arc, GroundNode TightEnd, GroundNode GentleEnd) ReversedDistortedArc()
+    {
+        (GroundArc arc, GroundNode from, GroundNode to) = DistortedArc();
+        return (arc, to, from);
+    }
+
     /// <summary>The profile test's arc → straight exit route, set up on a fresh navigator.</summary>
     private static (GroundNavigator Nav, AircraftState Aircraft, PhaseContext Ctx) ArcRoute()
     {

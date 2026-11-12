@@ -299,6 +299,55 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The past-spot line-up's approach to its turn about beyond 7A is braked no lower than the speed the turn about is flown at:
+    /// a reversal is flown as a turn about at the pivot speed on its own fitted radius, never rounded as a slow-turn corner at the
+    /// tight-turn floor radius, so nothing on the way into it is slower than that pivot speed.
+    /// </summary>
+    [Fact]
+    public void TaxiT7aToSpot7A_FromPastTheSpotOnTheRamp_IsNotBrakedBelowThePivotSpeedBeforeTheTurnAbout()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        SfoGround ground = built.Value;
+        GroundNode spot7A = ground.Layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO layout has no spot named '7A'");
+        double exitDeg = GeoMath.BearingTo(spot7A.Position, LaneJunctionWithA(ground.Layout, "T7A").Position);
+        double intoRampDeg = (exitDeg + 180.0) % 360.0;
+        AircraftState aircraft = SpawnOffGraph(ground, "SKW5590", "CRJ7", Skw5590Pose, new HoldingAfterPushbackPhase());
+        Assert.True(ground.Engine.SendCommand("SKW5590", "TAXI T7A $7A").Success);
+
+        var trace = new List<(LatLon Position, double HeadingDeg, double SpeedKts)> { (aircraft.Position, aircraft.TrueHeading.Degrees, 0.0) };
+        int stopped = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (aircraft.GroundSpeed < AtRestKts) && (aircraft.Phases?.CurrentPhase is HoldingInPositionPhase),
+            300,
+            _ => trace.Add((aircraft.Position, aircraft.TrueHeading.Degrees, aircraft.GroundSpeed))
+        );
+        Assert.True(stopped > 0, "SKW5590 never came to rest at spot 7A");
+
+        int intoRamp = trace.FindIndex(t =>
+            (AlongLaneFt(t.Position, spot7A, exitDeg) < 0.0)
+            && (GeoMath.AbsBearingDifference(t.HeadingDeg, intoRampDeg) <= TurnAboutStartDeg)
+            && (SfoGroundHarness.DistanceToTaxiwayFt(ground.Layout, "T7A", t.Position) <= OnLaneFt)
+        );
+        Assert.True(intoRamp >= 0, "the aircraft never taxied into the ramp along the lane past the spot");
+        int start = trace.FindIndex(intoRamp, t => GeoMath.AbsBearingDifference(t.HeadingDeg, intoRampDeg) > TurnAboutStartDeg);
+        Assert.True(start > intoRamp, "the aircraft never turned about past the spot");
+
+        AircraftCategory category = AircraftCategorization.Categorize("CRJ7");
+        double pivotKts = CategoryPerformance.TurnAboutSpeedKts(
+            category,
+            TurnAboutFit.EvaluateAt("CRJ7", category, ground.Layout, trace[start].Position, null).RadiusFt
+        );
+        double slowestKts = trace.Skip(intoRamp).Take(start - intoRamp + 1).Min(t => t.SpeedKts);
+        output.WriteLine($"slowest {slowestKts:F2} kt between t={intoRamp}s and the turn about at t={start}s; pivot {pivotKts:F2} kt");
+        Assert.True(slowestKts >= pivotKts - TurnSpeedOvershootKts, $"braked to {slowestKts:F2} kt before a turn about flown at {pivotKts:F2} kt");
+    }
+
+    /// <summary>
     /// A snapshot taken while SKW5590 pulls up T7A onto spot 7A restores the line-up's slow pull: the restored route
     /// still marks where the pull starts, and the aircraft finishes the straight no faster than the pull speed.
     /// </summary>

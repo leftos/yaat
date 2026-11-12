@@ -232,6 +232,57 @@ public class GroundNavigatorThresholdTests
         Assert.Equal(expectedRadiusFt / GeoMath.FeetPerNm, threshold, precision: 9);
     }
 
+    [Fact]
+    public void RoundedCornerTangent_IsTheRadiusTimesTheHalfAngleTangent()
+    {
+        // r·tan(δ/2): a 25 ft radius round a 90° corner starts 25 ft short of the node; a straight-on node has no tangent.
+        Assert.Equal(25.0 / GeoMath.FeetPerNm, GroundNavigator.RoundedCornerTangentNm(25.0, 90.0), precision: 9);
+        Assert.Equal(0.0, GroundNavigator.RoundedCornerTangentNm(25.0, 0.0), precision: 12);
+    }
+
+    // A roll-in line running north from a point; the aircraft heads east 100 ft up the line, off it to the west.
+    private static readonly LatLon RollInFrom = new(37.6, -122.38);
+    private static readonly GroundNavigator.RollInLine NorthLine = new(RollInFrom, 0.0);
+    private static readonly (double FloorFt, double PlannedFt) JetBounds = (15.0, 25.0);
+
+    private static LatLon WestOfTheLine(double offFt)
+    {
+        LatLon up = GeoMath.ProjectPoint(RollInFrom, new TrueHeading(0.0), 100.0 / GeoMath.FeetPerNm);
+        return GeoMath.ProjectPoint(up, new TrueHeading(270.0), offFt / GeoMath.FeetPerNm);
+    }
+
+    [Fact]
+    public void RollInFit_ClosingWithRoomToSpare_IsThePlannedRadius()
+    {
+        // 40 ft off, crossing square: T' = 40 ft, r = 40 / tan 45° = 40 ft, clamped to the planned 25 ft.
+        double? radiusFt = GroundNavigator.RollInFitRadiusFt(WestOfTheLine(40.0), 90.0, NorthLine, 90.0, JetBounds);
+        Assert.NotNull(radiusFt);
+        Assert.Equal(25.0, radiusFt.Value, precision: 6);
+    }
+
+    [Fact]
+    public void RollInFit_ClosingTight_IsTheFittedRadius()
+    {
+        // 20 ft off, crossing square: T' = 20 / sin 90° = 20 ft, r = 20 / tan 45° = 20 ft, inside [15, 25].
+        double? radiusFt = GroundNavigator.RollInFitRadiusFt(WestOfTheLine(20.0), 90.0, NorthLine, 90.0, JetBounds);
+        Assert.NotNull(radiusFt);
+        Assert.InRange(radiusFt.Value, 19.9, 20.1); // the spherical cross-track of the projected point, not the flat 20 ft
+    }
+
+    [Fact]
+    public void RollInFit_NotClosing_IsNull() =>
+        // Heading west, away from the line it is west of.
+        Assert.Null(GroundNavigator.RollInFitRadiusFt(WestOfTheLine(20.0), 270.0, NorthLine, 90.0, JetBounds));
+
+    [Fact]
+    public void OffsetLineArrival_AimsTheCornerSpeedAtTheThreshold()
+    {
+        // 90° corner, 25 ft radius, 10 ft offset: T = 25·tan 45° − 10·cot 90° = 25 ft, and the node turn begins there.
+        (double thresholdNm, double tangentNm) = GroundNavigator.OffsetLineArrival(90.0, 0.1, 25.0, 10.0);
+        Assert.Equal(25.0 / GeoMath.FeetPerNm, thresholdNm, precision: 9);
+        Assert.Equal(thresholdNm, tangentNm, precision: 12);
+    }
+
     private static double WheelbaseFt(string type) =>
         FaaAircraftDatabase.Get(type)?.WheelbaseFt ?? throw new InvalidOperationException($"the FAA database has no {type} wheelbase");
 }
