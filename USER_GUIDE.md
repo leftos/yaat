@@ -1666,7 +1666,7 @@ While connected, **Tools → Open TDLS in Browser** opens that page in your defa
 
 #### Issuing a PDC
 
-Click a callsign in the DCL list to open the flight-plan editor at the bottom of the view. Pick a SID and transition from the dropdowns — the FE-configured defaults (Expect, Initial Alt, Dep Freq, Climbout, Contact Info, Local Info, etc.) auto-populate the empty fields.
+Click a callsign in the DCL list to open the flight-plan editor at the bottom of the view. While the editor, or a sent PDC's review, is open, clicking another row does nothing, as in vTDLS: press **Cancel** (F10) or **Send** first. Pick a SID and transition from the dropdowns — the FE-configured defaults (Expect, Initial Alt, Dep Freq, Climbout, Contact Info, Local Info, etc.) auto-populate the empty fields.
 
 A `$FREQ` in a configured Contact Info or Local Info value, or in a transition's default, is filled with the student position's primary frequency (a value of `CTC $FREQ FOR PUSH` reads `CTC 121.100 FOR PUSH`); it stays as written when the room has no student position or the position has no frequency.
 

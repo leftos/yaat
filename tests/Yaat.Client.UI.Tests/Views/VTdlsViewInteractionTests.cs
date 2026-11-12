@@ -944,11 +944,11 @@ public class VTdlsViewInteractionTests
     // ── Selection: one row per list ──
 
     /// <summary>
-    /// The two lists must not share one two-way SelectedItem binding: when they did, the PDC list, pushed a pending
-    /// item it does not hold, wrote null back over the click and the editor never opened.
+    /// While the read-only review of a sent PDC is open, a click on a pending row is ignored so a stray click cannot
+    /// throw the review away. Cancel (F10) frees the selection, and the next click opens the pending editor.
     /// </summary>
     [AvaloniaFact]
-    public void ClickingAPendingItemAfterReviewingASentPdc_OpensItsEditor()
+    public void ClickingAPendingItemWhileReviewingASentPdc_IsIgnoredUntilCancel()
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithMandatoryDepFreq());
@@ -971,23 +971,30 @@ public class VTdlsViewInteractionTests
         // Review the sent PDC: the read-only editor opens on it.
         ClickRow(view, "PdcListBox", "AAL9");
         Assert.Equal("AAL9", vm.Editor?.Callsign);
+        TdlsItemViewModel sent = vm.PdcItems.Single();
+        TdlsFlightPlanEditorViewModel review = vm.Editor!;
 
-        // Then open the pending one, as a controller moving on to the next clearance would.
+        // A click on the pending row is ignored while the review is open.
+        ClickRow(view, "DclListBox", "UAL1742");
+        Assert.Same(sent, vm.SelectedItem);
+        Assert.Same(review, vm.Editor);
+        Assert.Null(vm.SelectedPendingItem);
+
+        PressCancel(view);
+
+        // Cancel let go of the selection, so the same click now opens the pending item's editor.
         ClickRow(view, "DclListBox", "UAL1742");
         Assert.Same(vm.DclItems.Single(), vm.SelectedItem);
         Assert.Equal("UAL1742", vm.Editor?.Callsign);
-
-        // And a second click on the same row leaves it open.
-        ClickRow(view, "DclListBox", "UAL1742");
-        Assert.Equal("UAL1742", vm.Editor?.Callsign);
+        Assert.False(vm.Editor!.IsReadOnly);
     }
 
     /// <summary>
-    /// The reverse direction: a pending clearance is open for composing and the controller clicks a sent PDC to review
-    /// it. The same binding fight ate that click too, leaving the pending editor open and the PDC's review shut.
+    /// The reverse direction: a pending clearance is open for composing and a click on a sent PDC row is ignored, so
+    /// the composed clearance is not thrown away. Cancel (F10) frees the selection and the next click opens the review.
     /// </summary>
     [AvaloniaFact]
-    public void ClickingASentPdcAfterOpeningAPendingItem_OpensItsReview()
+    public void ClickingASentPdcWhileAPendingItemIsOpen_IsIgnoredUntilCancel()
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithMandatoryDepFreq());
@@ -1010,11 +1017,160 @@ public class VTdlsViewInteractionTests
 
         ClickRow(view, "DclListBox", "UAL1742");
         Assert.Equal("UAL1742", vm.Editor?.Callsign);
+        TdlsItemViewModel pending = vm.DclItems.Single();
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
+
+        ClickRow(view, "PdcListBox", "AAL9");
+        Assert.Same(pending, vm.SelectedItem);
+        Assert.Same(editor, vm.Editor);
+        Assert.Null(vm.SelectedSentItem);
+
+        PressCancel(view);
 
         ClickRow(view, "PdcListBox", "AAL9");
         Assert.Same(vm.PdcItems.Single(), vm.SelectedItem);
         Assert.Equal("AAL9", vm.Editor?.Callsign);
         Assert.True(vm.Editor!.IsReadOnly);
+    }
+
+    // ── Row picks are ignored while an editor is open ──
+
+    /// <summary>A pick on another pending row is a no-op while the editable editor is open.</summary>
+    [AvaloniaFact]
+    public void RowClick_WhileDclEditorOpen_IsIgnored()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+
+        TdlsItemViewModel a = vm.DclItems.Single(i => i.AircraftId == "UAL111");
+        TdlsItemViewModel b = vm.DclItems.Single(i => i.AircraftId == "AAL222");
+        vm.SelectedItem = a;
+        Dispatcher.UIThread.RunJobs();
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
+        Assert.NotNull(editor);
+
+        vm.SelectedPendingItem = b;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(a, vm.SelectedItem);
+        Assert.Same(editor, vm.Editor);
+        Assert.Same(a, vm.SelectedPendingItem);
+    }
+
+    /// <summary>A pick in the sent list is a no-op while the pending item's editor is open.</summary>
+    [AvaloniaFact]
+    public void SentRowClick_WhileDclEditorOpen_IsIgnored()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        var issued = new ClearanceDto("10 MIN AFT DP", "RNLDI4", "OTTTO", null, null, null, null, null, "125.050");
+        transport.PushState(
+            new TdlsStateDto(
+                [
+                    Item("id1", "UAL111", facilityId: "IAD"),
+                    Item("id2", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent) with
+                    {
+                        SentPayload = issued,
+                    },
+                ],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+
+        TdlsItemViewModel a = vm.DclItems.Single();
+        vm.SelectedItem = a;
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(vm.Editor);
+
+        vm.SelectedSentItem = vm.PdcItems.Single();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(a, vm.SelectedItem);
+        Assert.Same(a, vm.SelectedPendingItem);
+        Assert.Null(vm.SelectedSentItem);
+    }
+
+    /// <summary>A pick on a pending row is a no-op while the sent PDC's read-only review is open.</summary>
+    [AvaloniaFact]
+    public void PendingRowClick_WhileSentReviewOpen_IsIgnored()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        var issued = new ClearanceDto("10 MIN AFT DP", "RNLDI4", "OTTTO", null, null, null, null, null, "125.050");
+        transport.PushState(
+            new TdlsStateDto(
+                [
+                    Item("id1", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent) with
+                    {
+                        SentPayload = issued,
+                    },
+                    Item("id2", "UAL111", facilityId: "IAD"),
+                ],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+
+        TdlsItemViewModel s = vm.PdcItems.Single();
+        vm.SelectedItem = s;
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.Editor!.IsReadOnly);
+
+        vm.SelectedPendingItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(s, vm.SelectedItem);
+        Assert.Null(vm.SelectedPendingItem);
+    }
+
+    /// <summary>Clearing a list's own selection is ignored too while the editor is open, so its row stays highlighted.</summary>
+    [AvaloniaFact]
+    public void ListDeselect_WhileEditorOpen_KeepsTheSelection()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+
+        TdlsItemViewModel a = vm.DclItems.Single();
+        vm.SelectedItem = a;
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(vm.Editor);
+
+        vm.SelectedPendingItem = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(a, vm.SelectedItem);
+        Assert.Same(a, vm.SelectedPendingItem);
+    }
+
+    /// <summary>With no editor open, a row pick selects and opens the clicked row again.</summary>
+    [AvaloniaFact]
+    public void RowClick_AfterCancel_OpensTheNewRow()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+
+        vm.SelectedItem = vm.DclItems.Single(i => i.AircraftId == "UAL111");
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(vm.Editor);
+
+        // What Cancel (F10) does: clear the selection, which closes the editor.
+        vm.SelectedItem = null;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(vm.Editor);
+
+        TdlsItemViewModel b = vm.DclItems.Single(i => i.AircraftId == "AAL222");
+        vm.SelectedPendingItem = b;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(b, vm.SelectedItem);
+        Assert.Equal("AAL222", vm.Editor?.Callsign);
     }
 
     /// <summary>
@@ -1504,6 +1660,13 @@ public class VTdlsViewInteractionTests
         window.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
         return view;
+    }
+
+    /// <summary>Presses Cancel's key (F10) on the view, the way a controller does.</summary>
+    private static void PressCancel(VTdlsView view)
+    {
+        view.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F10 });
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>Clicks a list row with the pointer, the way a controller does, so the ListBox's own selection and its binding run.</summary>

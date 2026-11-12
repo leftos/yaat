@@ -362,15 +362,29 @@ public partial class VTdlsViewModel : ObservableObject
     partial void OnSelectedSentItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue) => OnListSelectionChanged(oldValue, newValue);
 
     /// <summary>
-    /// A list reports a pick or a deselection of its own row. A non-null pick becomes the one selection; a null write
-    /// only clears it when it lets go of the item that list was holding, since the other list dropping a selection it
-    /// never held must not clear it. The mirror's own writes are ignored.
+    /// A list reports a pick or a deselection of its own row. While an editor is open (editable, or the read-only review
+    /// of a sent PDC) every pick that would change the selection is ignored, so a click on another row cannot throw the
+    /// open clearance away; Cancel (F10) or Send frees it. A null write only clears the selection when it lets go of the
+    /// item that list was holding, since the other list dropping a selection it never held must not clear it. The
+    /// mirror's own writes are ignored.
     /// </summary>
     private void OnListSelectionChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
     {
         if (_syncingSelection)
         {
             return;
+        }
+        if (Editor is not null)
+        {
+            bool changesSelection = (newValue is not null) ? !ReferenceEquals(newValue, SelectedItem) : ReferenceEquals(oldValue, SelectedItem);
+            if (changesSelection)
+            {
+                _log.LogDebug("Row {AircraftId} ignored: the editor for {OpenAircraftId} is open", newValue?.AircraftId, SelectedItem?.AircraftId);
+
+                // Posted: the ListBox is still inside its own selection change and would overwrite a synchronous write.
+                Dispatcher.UIThread.Post(() => MirrorListSelections(SelectedItem));
+                return;
+            }
         }
         if (newValue is not null)
         {

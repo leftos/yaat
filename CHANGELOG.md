@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- In vTDLS, clicking another row while a clearance or PDC review is open does nothing, as in vTDLS, so the open clearance is kept until Cancel or Send.
 - Pasting a copied Favorites button onto a blank slot fills that slot, and pasting onto a button replaces it, keeping the grid's layout.
 - A climb via whose SID publishes no top, such as SFO TRUKN2, now climbs to FL190 instead of levelling at an "at or above" altitude.
 - Taxiing aircraft slow to a tight turn's own speed before they enter it, so stand roll-ins and turns off an offset line no longer swing in too fast.
