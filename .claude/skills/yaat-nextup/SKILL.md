@@ -64,6 +64,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
   Each at-risk test gets one ruling: *update the expectation, because the change explains it* (and say what explains it), *keep it green unedited* (a constraint on the change), or *stop and report*. A test outside the list that goes red still stops the run. Without the list, the implementer stops `blocked` at the full-suite step and the round trip costs 60–100 of its calls.
 
   Worked example (YAAT-552, the FOLLOWG arc gated on the follower's turn radius): "At-risk: `CutCorner_TrailLoopingBackToTheCorner_KeepsTheLoop`, keep green unedited (the arc swap must keep a looping trail's loop); the two KOAK corner-352 jet tests, keep green unedited (arc r 50.2 ft passes a jet's 25 ft gate); every test through `FollowRoundTheC_J_Corner`, keep green by passing \"C172\" for both types; any other `*Follow*` test that turns red, stop and report."
+- A before/after comparison against the base (a `git worktree add --detach <base>` checkout beside the item's tree) runs gated and routed on both sides, never with `--local`: the gate snapshots and routes a base checkout like any tree, and the logs (`--log`) and TRX files (`--report-xunit-trx`, default location) come back for comparison here.
 - Parent-side gate: `git -C <wt> status --short` in both halves of the pair, and the same in both main checkouts: yaat's is `$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)` also from a worktree, and yaat-server's is its sibling.
 
 ## Traps
