@@ -245,15 +245,6 @@ public class FavoritesPanelInteractionTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    /// <summary>The favorite the set holds right after <paramref name="anchorId"/>.</summary>
-    private static FavoriteCommand After(MainViewModel vm, string setId, string anchorId)
-    {
-        List<string> ids = vm.FavoriteStore.GetSet(setId)!.FavoriteIds;
-        int anchor = ids.IndexOf(anchorId);
-        Assert.InRange(anchor, 0, ids.Count - 2);
-        return vm.FavoriteStore.GetFavorite(ids[anchor + 1])!;
-    }
-
     private static void DeleteAll(MainViewModel vm, IEnumerable<string> favoriteIds)
     {
         foreach (string id in favoriteIds)
@@ -263,7 +254,7 @@ public class FavoritesPanelInteractionTests
     }
 
     [AvaloniaFact]
-    public void EditFlyout_CopyThenPasteOnAnotherButton_InsertsIndependentCopyAfterIt()
+    public void EditFlyout_CopyThenPasteOnAnotherButton_ReplacesIt()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         string globalId = vm.FavoriteStore.GlobalSet.Id;
@@ -283,8 +274,28 @@ public class FavoritesPanelInteractionTests
                 ButtonHeight = 40,
             }
         );
-        FavoriteCommand globalTarget = AddTo(vm, globalId, new FavoriteCommand { Label = "FPI-GlobalTarget", CommandText = "FH 090" });
-        FavoriteCommand otherTarget = AddTo(vm, other.Id, new FavoriteCommand { Label = "FPI-OtherTarget", CommandText = "FH 180" });
+        FavoriteCommand globalTarget = AddTo(
+            vm,
+            globalId,
+            new FavoriteCommand
+            {
+                Label = "FPI-GlobalTarget",
+                CommandText = "FH 090",
+                ButtonHeight = 56,
+            }
+        );
+        FavoriteCommand otherTarget = AddTo(
+            vm,
+            other.Id,
+            new FavoriteCommand
+            {
+                Label = "FPI-OtherTarget",
+                CommandText = "FH 180",
+                ButtonHeight = 30,
+            }
+        );
+        List<string> globalBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
+        List<string> otherBefore = [.. vm.FavoriteStore.GetSet(other.Id)!.FavoriteIds];
         (Window window, FavoritesBarView view) = ShowPalette(vm);
         try
         {
@@ -303,8 +314,15 @@ public class FavoritesPanelInteractionTests
             OpenEditFlyout(window, view, otherTarget.Id, other.Id);
             ClickEditFlyoutButton(view, "Paste");
 
-            FavoriteCommand inGlobal = After(vm, globalId, globalTarget.Id);
-            FavoriteCommand inOther = After(vm, other.Id, otherTarget.Id);
+            List<string> globalAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            List<string> otherAfter = vm.FavoriteStore.GetSet(other.Id)!.FavoriteIds;
+            Assert.Equal(globalBefore.Count, globalAfter.Count);
+            Assert.Equal(otherBefore.Count, otherAfter.Count);
+            Assert.DoesNotContain(globalTarget.Id, globalAfter);
+            Assert.DoesNotContain(otherTarget.Id, otherAfter);
+
+            FavoriteCommand inGlobal = vm.FavoriteStore.GetFavorite(globalAfter[globalBefore.IndexOf(globalTarget.Id)])!;
+            FavoriteCommand inOther = vm.FavoriteStore.GetFavorite(otherAfter[otherBefore.IndexOf(otherTarget.Id)])!;
             foreach (FavoriteCommand copy in new[] { inGlobal, inOther })
             {
                 Assert.NotEqual(source.Id, copy.Id);
@@ -315,12 +333,19 @@ public class FavoritesPanelInteractionTests
                 Assert.Equal(source.GroundCommandText, copy.GroundCommandText);
                 Assert.Equal(source.BackgroundColor, copy.BackgroundColor);
                 Assert.Equal(source.TextColor, copy.TextColor);
-                Assert.Equal(source.ButtonHeight, copy.ButtonHeight);
                 Assert.Equal([copy.Id == inGlobal.Id ? globalId : other.Id], vm.GetFavoriteMembership(copy.Id));
             }
 
+            Assert.Equal(globalTarget.ButtonHeight, inGlobal.ButtonHeight);
+            Assert.Equal(otherTarget.ButtonHeight, inOther.ButtonHeight);
             Assert.NotEqual(inGlobal.Id, inOther.Id);
             Assert.Equal([globalId], vm.GetFavoriteMembership(source.Id));
+
+            // The replaced buttons leave their set but stay in the store, the way removing one from its set does.
+            Assert.NotNull(vm.FavoriteStore.GetFavorite(globalTarget.Id));
+            Assert.NotNull(vm.FavoriteStore.GetFavorite(otherTarget.Id));
+            Assert.Empty(vm.GetFavoriteMembership(globalTarget.Id));
+            Assert.Empty(vm.GetFavoriteMembership(otherTarget.Id));
         }
         finally
         {
@@ -338,7 +363,16 @@ public class FavoritesPanelInteractionTests
         var vm = new MainViewModel(new FakeFilePickerService());
         string globalId = vm.FavoriteStore.GlobalSet.Id;
         HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
-        FavoriteCommand source = AddTo(vm, globalId, new FavoriteCommand { Label = "FPI-AirSource", CommandText = "FH 270" });
+        FavoriteCommand source = AddTo(
+            vm,
+            globalId,
+            new FavoriteCommand
+            {
+                Label = "FPI-AirSource",
+                CommandText = "FH 270",
+                ButtonHeight = 40,
+            }
+        );
         FavoriteCommand ground = AddTo(
             vm,
             globalId,
@@ -347,6 +381,7 @@ public class FavoritesPanelInteractionTests
                 Label = "FPI-GroundTarget",
                 CommandText = "TAXI B",
                 Category = FavoriteCommandCategory.Ground,
+                ButtonHeight = 56,
             }
         );
         FavoriteCommand all = AddTo(
@@ -357,6 +392,7 @@ public class FavoritesPanelInteractionTests
                 Label = "FPI-AllTarget",
                 CommandText = "SQALL",
                 Category = FavoriteCommandCategory.All,
+                ButtonHeight = 30,
             }
         );
         (Window window, FavoritesBarView view) = ShowPalette(vm);
@@ -369,22 +405,38 @@ public class FavoritesPanelInteractionTests
             tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(t => (t.Header as string) == "Ground");
             Dispatcher.UIThread.RunJobs();
 
+            List<string> groundTabBefore =
+            [
+                .. view.GetVisualDescendants().OfType<Button>().Select(b => b.Tag).OfType<FavoriteDisplayEntry>().Select(e => e.Favorite.Id),
+            ];
+            int groundSlot = groundTabBefore.IndexOf(ground.Id);
+            Assert.InRange(groundSlot, 0, groundTabBefore.Count - 1);
+            List<string> idsBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
+
             OpenEditFlyout(window, view, ground.Id, globalId);
             ClickEditFlyoutButton(view, "Paste");
-            FavoriteCommand onGround = After(vm, globalId, ground.Id);
+            List<string> idsAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            FavoriteCommand onGround = vm.FavoriteStore.GetFavorite(idsAfter[idsBefore.IndexOf(ground.Id)])!;
             Assert.Equal("FPI-AirSource", onGround.Label);
             Assert.Equal(FavoriteCommandCategory.Ground, onGround.Category);
+            Assert.Equal(ground.ButtonHeight, onGround.ButtonHeight);
+            Assert.DoesNotContain(ground.Id, idsAfter);
             window.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
             List<string> groundTab =
             [
                 .. view.GetVisualDescendants().OfType<Button>().Select(b => b.Tag).OfType<FavoriteDisplayEntry>().Select(e => e.Favorite.Id),
             ];
-            Assert.Equal(groundTab.IndexOf(ground.Id) + 1, groundTab.IndexOf(onGround.Id));
+            Assert.Equal(groundSlot, groundTab.IndexOf(onGround.Id));
 
+            List<string> allIdsBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
             OpenEditFlyout(window, view, all.Id, globalId);
             ClickEditFlyoutButton(view, "Paste");
-            Assert.Equal(FavoriteCommandCategory.Air, After(vm, globalId, all.Id).Category);
+            List<string> allIdsAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            FavoriteCommand onAll = vm.FavoriteStore.GetFavorite(allIdsAfter[allIdsBefore.IndexOf(all.Id)])!;
+            Assert.Equal(FavoriteCommandCategory.Air, onAll.Category);
+            Assert.Equal(all.ButtonHeight, onAll.ButtonHeight);
+            Assert.DoesNotContain(all.Id, allIdsAfter);
         }
         finally
         {
@@ -432,6 +484,7 @@ public class FavoritesPanelInteractionTests
         HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
         FavoriteCommand spacer = AddTo(vm, globalId, new FavoriteCommand { IsSpacer = true, ButtonHeight = 48 });
         FavoriteCommand target = AddTo(vm, globalId, new FavoriteCommand { Label = "FPI-SpacerTarget", CommandText = "FH 045" });
+        List<string> beforeIds = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
         (Window window, FavoritesBarView view) = ShowPalette(vm);
         try
         {
@@ -440,11 +493,219 @@ public class FavoritesPanelInteractionTests
             OpenEditFlyout(window, view, target.Id, globalId);
             ClickEditFlyoutButton(view, "Paste");
 
-            FavoriteCommand pasted = After(vm, globalId, target.Id);
+            List<string> afterIds = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            Assert.Equal(beforeIds.Count, afterIds.Count);
+            Assert.DoesNotContain(target.Id, afterIds);
+            FavoriteCommand pasted = vm.FavoriteStore.GetFavorite(afterIds[beforeIds.IndexOf(target.Id)])!;
             Assert.NotEqual(spacer.Id, pasted.Id);
             Assert.True(pasted.IsSpacer);
             Assert.Equal("", pasted.Label);
-            Assert.Equal(48, pasted.ButtonHeight);
+            Assert.Equal(target.ButtonHeight, pasted.ButtonHeight);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+            DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_PasteOnABlank_FillsTheBlankInThisSetOnly()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        string globalId = vm.FavoriteStore.GlobalSet.Id;
+        FavoriteSet other = vm.FavoriteStore.CreateNamedSet("FPI-BlankFill")!;
+        vm.SetFavoriteSetLoaded(other.Id, true);
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteCommand source = AddTo(
+            vm,
+            globalId,
+            new FavoriteCommand
+            {
+                Label = "FPI-FillSource",
+                CommandText = "FH 270",
+                ButtonHeight = 40,
+            }
+        );
+        var blank = new FavoriteCommand
+        {
+            IsSpacer = true,
+            Category = FavoriteCommandCategory.Ground,
+            ButtonHeight = 48,
+        };
+        vm.AddFavorite(blank, [globalId, other.Id]);
+        Dispatcher.UIThread.RunJobs();
+        List<string> globalBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
+        List<string> otherBefore = [.. vm.FavoriteStore.GetSet(other.Id)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, globalId);
+            ClickEditFlyoutButton(view, "Copy");
+
+            TabControl tabs = view.GetVisualDescendants().OfType<TabControl>().Single();
+            tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(t => (t.Header as string) == "Ground");
+            Dispatcher.UIThread.RunJobs();
+
+            OpenEditFlyout(window, view, blank.Id, globalId);
+            ClickEditFlyoutButton(view, "Paste");
+
+            List<string> globalAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            List<string> otherAfter = vm.FavoriteStore.GetSet(other.Id)!.FavoriteIds;
+            Assert.Equal(globalBefore.Count, globalAfter.Count);
+            Assert.Equal(otherBefore.Count, otherAfter.Count);
+            Assert.DoesNotContain(blank.Id, globalAfter);
+
+            FavoriteCommand filled = vm.FavoriteStore.GetFavorite(globalAfter[globalBefore.IndexOf(blank.Id)])!;
+            Assert.NotEqual(blank.Id, filled.Id);
+            Assert.False(filled.IsSpacer);
+            Assert.Equal("FPI-FillSource", filled.Label);
+            Assert.Equal(source.CommandText, filled.CommandText);
+            Assert.Equal(FavoriteCommandCategory.Ground, filled.Category);
+            Assert.Equal(48, filled.ButtonHeight);
+            Assert.Equal([globalId], vm.GetFavoriteMembership(filled.Id));
+
+            Assert.Equal(otherBefore.IndexOf(blank.Id), otherAfter.IndexOf(blank.Id));
+            Assert.True(vm.FavoriteStore.GetFavorite(blank.Id)!.IsSpacer);
+            Assert.Equal([other.Id], vm.GetFavoriteMembership(blank.Id));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+            DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+            vm.Preferences.RemoveFavoriteSet(other.Id);
+            vm.FavoriteStore.DeleteSet(other.Id);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_PasteOnABlank_DeletesTheBlankNoOtherSetHolds()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        string globalId = vm.FavoriteStore.GlobalSet.Id;
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteCommand source = AddTo(
+            vm,
+            globalId,
+            new FavoriteCommand
+            {
+                Label = "FPI-LoneFill",
+                CommandText = "FH 270",
+                ButtonHeight = 40,
+            }
+        );
+        var blank = new FavoriteCommand
+        {
+            IsSpacer = true,
+            Category = FavoriteCommandCategory.Ground,
+            ButtonHeight = 48,
+        };
+        vm.AddFavorite(blank, [globalId]);
+        Dispatcher.UIThread.RunJobs();
+        List<string> idsBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, globalId);
+            ClickEditFlyoutButton(view, "Copy");
+
+            TabControl tabs = view.GetVisualDescendants().OfType<TabControl>().Single();
+            tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(t => (t.Header as string) == "Ground");
+            Dispatcher.UIThread.RunJobs();
+
+            OpenEditFlyout(window, view, blank.Id, globalId);
+            ClickEditFlyoutButton(view, "Paste");
+
+            List<string> idsAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            Assert.Equal(idsBefore.Count, idsAfter.Count);
+            FavoriteCommand filled = vm.FavoriteStore.GetFavorite(idsAfter[idsBefore.IndexOf(blank.Id)])!;
+            Assert.False(filled.IsSpacer);
+            Assert.Equal("FPI-LoneFill", filled.Label);
+            Assert.Equal(FavoriteCommandCategory.Ground, filled.Category);
+            Assert.Equal(48, filled.ButtonHeight);
+            Assert.Null(vm.FavoriteStore.GetFavorite(blank.Id));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+            DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_PasteOnAFilledButton_KeepsTheReplacedButtonInTheStore()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        string globalId = vm.FavoriteStore.GlobalSet.Id;
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteCommand source = AddTo(vm, globalId, new FavoriteCommand { Label = "FPI-KeepSource", CommandText = "FH 270" });
+        FavoriteCommand target = AddTo(vm, globalId, new FavoriteCommand { Label = "FPI-KeepTarget", CommandText = "FH 090" });
+        List<string> idsBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, globalId);
+            ClickEditFlyoutButton(view, "Copy");
+            OpenEditFlyout(window, view, target.Id, globalId);
+            ClickEditFlyoutButton(view, "Paste");
+
+            List<string> idsAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            Assert.Equal(idsBefore.Count, idsAfter.Count);
+            Assert.DoesNotContain(target.Id, idsAfter);
+            Assert.Equal("FPI-KeepSource", vm.FavoriteStore.GetFavorite(idsAfter[idsBefore.IndexOf(target.Id)])!.Label);
+
+            Assert.NotNull(vm.FavoriteStore.GetFavorite(target.Id));
+            Assert.Empty(vm.GetFavoriteMembership(target.Id));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+            DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_PasteOnAnAllBlank_KeepsTheAllTab()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        string globalId = vm.FavoriteStore.GlobalSet.Id;
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteCommand source = AddTo(
+            vm,
+            globalId,
+            new FavoriteCommand
+            {
+                Label = "FPI-AirFill",
+                CommandText = "FH 270",
+                ButtonHeight = 40,
+            }
+        );
+        var blank = new FavoriteCommand
+        {
+            IsSpacer = true,
+            Category = FavoriteCommandCategory.All,
+            ButtonHeight = 48,
+        };
+        vm.AddFavorite(blank, [globalId]);
+        Dispatcher.UIThread.RunJobs();
+        List<string> idsBefore = [.. vm.FavoriteStore.GetSet(globalId)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, globalId);
+            ClickEditFlyoutButton(view, "Copy");
+            OpenEditFlyout(window, view, blank.Id, globalId);
+            ClickEditFlyoutButton(view, "Paste");
+
+            List<string> idsAfter = vm.FavoriteStore.GetSet(globalId)!.FavoriteIds;
+            FavoriteCommand filled = vm.FavoriteStore.GetFavorite(idsAfter[idsBefore.IndexOf(blank.Id)])!;
+            Assert.False(filled.IsSpacer);
+            Assert.Equal(FavoriteCommandCategory.All, filled.Category);
+            Assert.Equal(48, filled.ButtonHeight);
         }
         finally
         {

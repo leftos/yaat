@@ -373,29 +373,56 @@ public partial class MainViewModel
     [ObservableProperty]
     private FavoriteCommand? _copiedFavorite;
 
-    /// <summary>Holds a snapshot of <paramref name="favorite"/> for <see cref="PasteFavoriteAfter"/>.</summary>
+    /// <summary>Holds a snapshot of <paramref name="favorite"/> for <see cref="PasteFavoriteOnto"/>.</summary>
     public void CopyFavorite(FavoriteCommand favorite) => CopiedFavorite = favorite.Clone();
 
     /// <summary>
-    /// Inserts an independent copy of the copied button (a new id, a spacer staying a spacer) right after
-    /// <paramref name="anchor"/> in the anchor's set. The copy takes the anchor's tab (category) so it shows right after
-    /// it, except after an All button, where it keeps its own; every other field is the copied button's. No-op while
-    /// nothing is copied.
+    /// Replaces <paramref name="anchor"/> at its position in its own set with an independent copy of the copied button
+    /// (a new id, a spacer staying a spacer). The copy takes the anchor's tab (category) and height so the slot keeps
+    /// its place in the grid, except onto an All button, where it keeps its own tab; every other field is the copied
+    /// button's. Only this set changes: a blank the anchor shares with other sets stays blank there. The replaced button
+    /// stays in the store, listed under "Not in any set" when no set holds it any more, so it can be got back; a replaced
+    /// blank that no other set holds is deleted. No-op while nothing is copied, and when the anchor's set or slot is gone.
     /// </summary>
-    public void PasteFavoriteAfter(FavoriteDisplayEntry anchor)
+    public void PasteFavoriteOnto(FavoriteDisplayEntry anchor)
     {
         if (CopiedFavorite?.Clone() is not { } copy)
         {
             return;
         }
 
+        FavoriteSet? set = _favoriteStore.GetSet(anchor.SetId);
+        if (set is null)
+        {
+            _log.LogWarning("PasteFavoriteOnto: unknown set {SetId}", anchor.SetId);
+            return;
+        }
+
+        var ids = set.FavoriteIds.ToList();
+        int anchorIndex = ids.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
+        if (anchorIndex < 0)
+        {
+            _log.LogWarning("PasteFavoriteOnto: anchor {FavoriteId} is not in set {SetId}", anchor.Favorite.Id, set.Id);
+            return;
+        }
+
         copy.Id = _favoriteStore.NewFavoriteId();
-        if (anchor.Favorite.Category != FavoriteCommandCategory.All)
+        if ((anchor.Favorite.IsSpacer) || (anchor.Favorite.Category != FavoriteCommandCategory.All))
         {
             copy.Category = anchor.Favorite.Category;
         }
+        copy.ButtonHeight = anchor.Favorite.ButtonHeight;
 
-        InsertFavoriteNear(anchor, copy, offset: 1);
+        ids[anchorIndex] = copy.Id;
+
+        _favoriteStore.SaveFavorite(copy);
+        _favoriteStore.ReplaceSetFavorites(set.Id, ids);
+        if (anchor.Favorite.IsSpacer && (_favoriteStore.GetMembershipSetIds(anchor.Favorite.Id).Count == 0))
+        {
+            _favoriteStore.DeleteFavorite(anchor.Favorite.Id);
+        }
+
+        RefreshDisplayFavorites();
     }
 
     public void MoveFavoriteBefore(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor) => MoveFavoriteNear(moving, anchor, offset: 0);

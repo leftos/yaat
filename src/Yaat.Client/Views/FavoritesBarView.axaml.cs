@@ -1419,17 +1419,17 @@ public partial class FavoritesBarView : UserControl
     }
 
     /// <summary>
-    /// Adds the Copy / Paste row above an Edit flyout's Delete / Save row. Copy holds this button for Paste; Paste puts an
-    /// independent copy of the held button right after this one, in this button's set, and is disabled while nothing is
-    /// held. Both close the flyout.
+    /// Adds the Copy / Paste row above an Edit flyout's Delete / Save row. Copy holds this button for Paste; Paste
+    /// replaces this button with an independent copy of the held button, in this button's set, and is disabled while
+    /// nothing is held. Both close the flyout.
     /// </summary>
     private static void AddCopyPasteRow(StackPanel footer, MainViewModel vm, FavoriteDisplayEntry entry, Flyout flyout)
     {
         Button copyBtn = CreateSmallActionButton("Copy");
         Button pasteBtn = CreateSmallActionButton("Paste");
         pasteBtn.IsEnabled = vm.CopiedFavorite is not null;
-        ToolTip.SetTip(copyBtn, "Copy this button, to paste a copy of it after another");
-        ToolTip.SetTip(pasteBtn, "Paste a copy of the copied button after this one");
+        ToolTip.SetTip(copyBtn, "Copy this button, to paste it over another button or blank");
+        ToolTip.SetTip(pasteBtn, "Replace this button with a copy of the copied button");
         copyBtn.Click += (_, _) =>
         {
             vm.CopyFavorite(entry.Favorite);
@@ -1437,7 +1437,7 @@ public partial class FavoritesBarView : UserControl
         };
         pasteBtn.Click += (_, _) =>
         {
-            vm.PasteFavoriteAfter(entry);
+            vm.PasteFavoriteOnto(entry);
             flyout.Hide();
         };
 
