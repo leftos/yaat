@@ -145,21 +145,27 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
         // FOLLOWG released the hold: the follow is not left immobile, which froze it at 0 kt forever.
         Assert.False(kpo.Ground.IsImmobile, "FOLLOWG did not clear Ground.Hold");
 
-        // The leader is parked at its stand, so there is no taxi path to join yet: the follower holds in position in its
-        // follow, with no follow route, waiting for the leader to taxi (it never steers across the ramp at the parked leader).
-        LatLon startPos = kpo.Position;
+        // The leader is parked at its stand, so there is no taxi path to join yet: the follower brakes to rest from its taxi
+        // speed and holds there in its follow, with no follow route, waiting for the leader to taxi (it never steers across the
+        // ramp at the parked leader). The roll is measured from rest, so the taxi speed it entered at does not set the bound.
+        double previousGs = kpo.GroundSpeed;
+        LatLon? restPos = null;
         for (int i = 0; i < 60; i++)
         {
             engine.TickOneSecond();
+            kpo = engine.FindAircraft("KPO83");
+            Assert.NotNull(kpo);
+            Assert.True(kpo.GroundSpeed <= previousGs, $"KPO83 sped up from {previousGs:F1} to {kpo.GroundSpeed:F1} kt at {i + 1} s");
+            previousGs = kpo.GroundSpeed;
+            restPos ??= kpo.GroundSpeed == 0.0 ? kpo.Position : null;
         }
 
-        kpo = engine.FindAircraft("KPO83");
-        Assert.NotNull(kpo);
+        Assert.NotNull(restPos);
         AircraftState? fth = engine.FindAircraft("FTH399");
         Assert.NotNull(fth);
-        double movedFt = GeoMath.DistanceNm(startPos, kpo.Position) * GeoMath.FeetPerNm;
+        double movedFromRestFt = GeoMath.DistanceNm(restPos.Value, kpo.Position) * GeoMath.FeetPerNm;
         output.WriteLine(
-            $"KPO83 phase={kpo.Phases?.CurrentPhase?.Name} moved-0-60s={movedFt:F1}ft gs={kpo.GroundSpeed:F1} "
+            $"KPO83 phase={kpo.Phases?.CurrentPhase?.Name} moved-since-rest={movedFromRestFt:F1}ft gs={kpo.GroundSpeed:F1} "
                 + $"FTH399 phase={fth.Phases?.CurrentPhase?.Name}"
         );
 
@@ -168,7 +174,10 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
         Assert.Null(follow.FollowRoute);
         Assert.False(kpo.Ground.IsImmobile, "the follow is held by a ground hold, not waiting for its leader");
         Assert.Equal(0.0, kpo.GroundSpeed, 0.01);
-        Assert.True(movedFt < 50.0, $"KPO83 rolled {movedFt:F1} ft toward a parked leader it has no taxi path to join");
+        Assert.True(
+            movedFromRestFt < 1.0,
+            $"KPO83 rolled {movedFromRestFt:F1} ft after stopping, toward a parked leader it has no taxi path to join"
+        );
     }
 
     [Fact]
