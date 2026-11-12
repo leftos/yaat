@@ -440,8 +440,9 @@ public static class SnapshotSchemaMigrator
         //   added, marking the direct to that destination; written only when true. No data transformation: an older snapshot
         //   reads false.
 
-        // V53 (no bump): NavigationTargetDto.ArrivalTrueCourse, HoldingPatternPhaseDto.IsClearanceLimitHold and
-        //   ClearanceLimitReported added, optional; an older snapshot reads null/false. PilotPendingRequestKind.FurtherClearance
+        // V53 (no bump): NavigationTargetDto.ArrivalTrueCourse, HoldingPatternPhaseDto.IsClearanceLimitHold,
+        //   IsMissedApproachHold and ClearanceLimitReported added, optional; an older snapshot reads null/false.
+        //   PilotPendingRequestKind.FurtherClearance
         //   appended last. AircraftProcedureDto.SentPdcAltitudeKind and SentPdcAltitudeFt added, optional and written only
         //   when set; an older snapshot reads None/null, the facility default.
         if (snapshot.SchemaVersion < 53)

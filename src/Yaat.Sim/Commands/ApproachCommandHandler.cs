@@ -2120,6 +2120,7 @@ public static class ApproachCommandHandler
                     IsMinuteBased = hold.IsMinuteBased,
                     Direction = hold.Direction,
                     MaxCircuits = null,
+                    IsMissedApproachHold = true,
                 }
             );
         }

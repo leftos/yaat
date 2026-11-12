@@ -6513,7 +6513,8 @@ public static class CommandDispatcher
 
     /// <summary>
     /// True when <paramref name="current"/> flies the follower's own missed approach: a go-around that does not re-enter the
-    /// pattern, or the published missed approach after it (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
+    /// pattern, or the published missed approach after it — its fixes or the hold they end in
+    /// (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
     /// </summary>
     private static bool IsOnOwnMissedApproach(Phase? current) =>
         (current is GoAroundPhase { ReenterPattern: false }) || AirborneFollowHelper.IsOnMissedApproach(current);
@@ -6574,15 +6575,26 @@ public static class CommandDispatcher
     /// <summary>
     /// The refusal for a lead that is going around, checked beside the departing-lead refusal: from a follower on an instrument
     /// approach before final (<see cref="IsOnInstrumentApproach"/>), any go-around, re-entering the pattern or not, or the
-    /// published missed approach (<see cref="AirborneFollowHelper.IsGoingAround"/>), a repeat FOLLOW of that lead included; from
-    /// a follower on a pattern leg or a climb that counts as the upwind (<see cref="IsSequencedLeg"/>), or on its own missed
-    /// approach (<see cref="IsOnOwnMissedApproach"/>), a lead leaving the sequence (<see cref="IsLeavingSequence"/>), since a
-    /// re-entering go-around keeps the upwind's place in it (AIM §4-4-14.a.2 NOTE, §5-5-12.a.1). Null otherwise.
+    /// published missed approach's fixes (<see cref="AirborneFollowHelper.IsGoingAround"/>), a repeat FOLLOW of that lead
+    /// included; from a follower on a pattern leg or a climb that counts as the upwind (<see cref="IsSequencedLeg"/>), or on
+    /// its own missed approach (<see cref="IsOnOwnMissedApproach"/>), a lead leaving the sequence
+    /// (<see cref="IsLeavingSequence"/>), since a re-entering go-around keeps the upwind's place in it (AIM §4-4-14.a.2 NOTE,
+    /// §5-5-12.a.1). Null otherwise.
     /// </summary>
     private static CommandResult? LeadGoingAroundRefusal(AircraftState aircraft, Phase? current, AircraftState? lead, string target) =>
         ((lead is not null) && IsLeadGoingAroundFor(aircraft, current, lead))
-            ? new CommandResult(false, $"Unable, {target} is going around, request vectors")
+            ? new CommandResult(false, OutOfSequenceLeadRefusalText(lead, target))
             : null;
+
+    /// <summary>
+    /// The refusal text for a lead out of the landing sequence (<see cref="LeadGoingAroundRefusal"/>): a lead that has reached
+    /// its published missed-approach hold has flown the missed approach and is holding, not going around
+    /// (<see cref="HoldingPatternPhase.IsMissedApproachHold"/>); a go-around or the missed-approach fixes name the go-around.
+    /// </summary>
+    private static string OutOfSequenceLeadRefusalText(AircraftState lead, string target) =>
+        lead.Phases?.CurrentPhase is HoldingPatternPhase { IsMissedApproachHold: true }
+            ? $"Unable, {target} is holding, request vectors"
+            : $"Unable, {target} is going around, request vectors";
 
     /// <summary>
     /// True when <paramref name="lead"/> counts as going around for a follower flying <paramref name="current"/>
@@ -6600,7 +6612,8 @@ public static class CommandDispatcher
 
     /// <summary>
     /// True when <paramref name="lead"/> is leaving the landing sequence: a go-around that does not re-enter the pattern, or the
-    /// published missed approach (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
+    /// published missed approach — its fixes or the hold they end in (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
+    /// The refusal names a lead in that hold as holding (<see cref="OutOfSequenceLeadRefusalText"/>).
     /// </summary>
     private static bool IsLeavingSequence(AircraftState lead) => IsOnOwnMissedApproach(lead.Phases?.CurrentPhase);
 

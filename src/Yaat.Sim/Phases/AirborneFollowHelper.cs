@@ -318,16 +318,21 @@ public static class AirborneFollowHelper
     private static bool IsApproachCourseReversal(Phase? phase) => phase is ProcedureTurnPhase or HoldingPatternPhase { IsHoldInLieu: true };
 
     /// <summary>
-    /// True when <paramref name="phase"/> flies the published missed approach (<see cref="ApproachNavigationPhase.IsMissedApproach"/>).
+    /// True when <paramref name="phase"/> flies the published missed approach and not the approach: its navigation fixes
+    /// (<see cref="ApproachNavigationPhase.IsMissedApproach"/>) or the hold those fixes end in
+    /// (<see cref="HoldingPatternPhase.IsMissedApproachHold"/>).
     /// </summary>
-    internal static bool IsOnMissedApproach(Phase? phase) => phase is ApproachNavigationPhase { IsMissedApproach: true };
+    internal static bool IsOnMissedApproach(Phase? phase) =>
+        phase is ApproachNavigationPhase { IsMissedApproach: true } or HoldingPatternPhase { IsMissedApproachHold: true };
 
     /// <summary>
     /// True when <paramref name="aircraft"/> is going around: in <see cref="GoAroundPhase"/>, re-entering the pattern or not, or
-    /// flying the published missed approach after it (<see cref="IsOnMissedApproach"/>).
+    /// flying the published missed approach after it (an <see cref="ApproachNavigationPhase"/> with
+    /// <see cref="ApproachNavigationPhase.IsMissedApproach"/> set). The missed-approach hold is deliberately not a go-around:
+    /// an aircraft that has reached it has flown the missed approach.
     /// </summary>
     internal static bool IsGoingAround(AircraftState aircraft) =>
-        (aircraft.Phases?.CurrentPhase is GoAroundPhase) || IsOnMissedApproach(aircraft.Phases?.CurrentPhase);
+        (aircraft.Phases?.CurrentPhase is GoAroundPhase) || (aircraft.Phases?.CurrentPhase is ApproachNavigationPhase { IsMissedApproach: true });
 
     /// <summary>
     /// Clear the follow target on a follower without holding its pattern leg — for cases where

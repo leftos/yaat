@@ -47,6 +47,12 @@ public sealed class HoldingPatternPhase : Phase
     public bool IsHoldInLieu { get; init; }
 
     /// <summary>
+    /// True when this hold is the published missed-approach hold an approach clearance builds after its missed-approach
+    /// fixes (<see cref="ApproachCommandHandler.BuildMissedApproachPhases"/>): part of the missed approach, not the approach.
+    /// </summary>
+    public bool IsMissedApproachHold { get; init; }
+
+    /// <summary>
     /// True when the pilot entered this hold on its own over its cleared destination, having reached it on the
     /// clearance-limit direct with no clearance beyond it (<see cref="NavigationTarget.IsClearanceLimitDirect"/>).
     /// </summary>
@@ -444,6 +450,7 @@ public sealed class HoldingPatternPhase : Phase
             Entry = Entry is { } e ? (int)e : null,
             MaxCircuits = MaxCircuits,
             IsHoldInLieu = IsHoldInLieu,
+            IsMissedApproachHold = IsMissedApproachHold,
             IsClearanceLimitHold = IsClearanceLimitHold,
             ClearanceLimitReported = ClearanceLimitReported,
             State = (int)_state,
@@ -468,6 +475,7 @@ public sealed class HoldingPatternPhase : Phase
             Entry = dto.Entry is { } entry ? (HoldingEntry)entry : null,
             MaxCircuits = dto.MaxCircuits,
             IsHoldInLieu = dto.IsHoldInLieu,
+            IsMissedApproachHold = dto.IsMissedApproachHold,
             IsClearanceLimitHold = dto.IsClearanceLimitHold,
             ClearanceLimitReported = dto.ClearanceLimitReported,
             Status = (PhaseStatus)dto.Status,

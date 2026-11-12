@@ -27,6 +27,8 @@
 - In vTDLS, clicking another row while a clearance or PDC review is open does nothing, as in vTDLS, so the open clearance is kept until Cancel or Send.
 - FOLLOW accepts a straight-in entrant ahead of a follower on base or final, and refuses an entrant a downwind follower has already passed.
 - A FOLLOW that moves a pattern follower to another runway now warns the RPO that its landing clearance is cancelled.
+- An IFR aircraft in its published missed-approach hold now refuses FOLLOW as on the missed approach, instead of leaving the hold.
+- A command that cancels a missed approach now warns "missed approach cancelled", and FOLLOW behind a lead in that hold says it "is holding".
 - A FOLLOW refused because the lead is on the ground says "has landed" when the lead is still in its landing roll or exit.
 - Pasting a copied Favorites button onto a blank slot fills that slot, and pasting onto a button replaces it, keeping the grid's layout.
 - vStrips leaves the equipment suffix empty for a scenario flight plan filed without one, as vNAS does, instead of showing /A.

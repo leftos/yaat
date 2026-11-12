@@ -10,9 +10,9 @@ namespace Yaat.Sim.Phases;
 /// cleared by a dispatcher-side phase reset. Used by the phase-cancellation
 /// warning surfaced through <c>AircraftState.PendingWarnings</c>.
 ///
-/// Recognises pattern chains (returns <c>"pattern to RWY 28R"</c>) and the
-/// approach families (returns <c>"approach to RWY 28R"</c>); falls back to the
-/// active phase's <see cref="Phase.Name"/> for everything else.
+/// Recognises pattern chains (returns <c>"pattern to RWY 28R"</c>), the
+/// approach families (returns <c>"approach to RWY 28R"</c>) and the published missed approach, its fixes or its hold
+/// (returns <c>"missed approach"</c>); falls back to the active phase's <see cref="Phase.Name"/> for everything else.
 /// </summary>
 public static class PhaseClearSummary
 {
@@ -67,6 +67,13 @@ public static class PhaseClearSummary
         {
             string? runwayId = phases.AssignedRunway?.Designator;
             return runwayId is not null ? $"pattern to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "pattern";
+        }
+
+        // The published missed approach is not the approach (7110.65 §4-8-9.a; AIM 5-4-21.h): its fixes and its hold read as
+        // the missed approach, whatever runway the approach was cleared to.
+        if (AirborneFollowHelper.IsOnMissedApproach(current))
+        {
+            return "missed approach";
         }
 
         if (current is FinalApproachPhase or InterceptCoursePhase or ApproachNavigationPhase or ProcedureTurnPhase or HoldingPatternPhase)

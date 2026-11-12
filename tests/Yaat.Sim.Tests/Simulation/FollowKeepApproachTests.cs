@@ -149,10 +149,36 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
     private static AircraftState AddClearedForApproach<T>(SimulationEngine engine, string callsign, ApproachSetup setup)
         where T : Phase
     {
-        (double Lat, double Lon) fix =
-            NavigationDatabase.Instance.GetFixPosition(setup.DctFix) ?? throw new InvalidOperationException($"{setup.DctFix} missing");
         AircraftState ac = MakeVfr(callsign, setup.Position, setup.Heading, setup.Altitude, setup.Airport);
         ac.IndicatedAirspeed = 110;
+        ClearForApproach(ac, setup);
+        engine.World.AddAircraft(ac);
+
+        PhaseList phases = ac.Phases!;
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
+        if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
+        {
+            phases.Start(ctx);
+        }
+
+        while ((phases.CurrentPhase is not null) && (phases.CurrentPhase is not T))
+        {
+            phases.AdvanceToNext(ctx);
+        }
+
+        Assert.IsType<T>(phases.CurrentPhase);
+        Assert.NotNull(phases.AssignedRunway);
+        return ac;
+    }
+
+    /// <summary>
+    /// Clears <paramref name="ac"/> for <paramref name="setup"/>'s approach the real CAPP way, building the clearance and its
+    /// phase list in place.
+    /// </summary>
+    private static void ClearForApproach(AircraftState ac, ApproachSetup setup)
+    {
+        (double Lat, double Lon) fix =
+            NavigationDatabase.Instance.GetFixPosition(setup.DctFix) ?? throw new InvalidOperationException($"{setup.DctFix} missing");
         ac.Declination = setup.Declination;
         ac.Procedure = new AircraftProcedure { DestinationRunway = null };
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = setup.DctFix, Position = new LatLon(fix.Lat, fix.Lon) });
@@ -171,23 +197,6 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         );
         CommandResult capp = ApproachCommandHandler.TryClearedApproach(cmd, ac);
         Assert.True(capp.Success, capp.Message);
-        engine.World.AddAircraft(ac);
-
-        PhaseList phases = ac.Phases!;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
-        if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
-        {
-            phases.Start(ctx);
-        }
-
-        while ((phases.CurrentPhase is not null) && (phases.CurrentPhase is not T))
-        {
-            phases.AdvanceToNext(ctx);
-        }
-
-        Assert.IsType<T>(phases.CurrentPhase);
-        Assert.NotNull(phases.AssignedRunway);
-        return ac;
     }
 
     /// <summary>Where and how an aircraft built by <see cref="AddClearedForApproach{T}"/> is cleared.</summary>
@@ -787,6 +796,62 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         Assert.Contains(RadarSeparationRequired, follower.PendingWarnings);
     }
 
+    /// <summary>
+    /// A follower keeping its approach behind a lead that moves onto its published missed approach: the next tick ends the
+    /// follow while the approach continues (7110.65 §4-8-9.a; AIM 5-4-21.h).
+    /// </summary>
+    [Fact]
+    public void KeptApproachFollow_EndsWhenLeadStartsItsMissedApproach()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClearedForApproach<ProcedureTurnPhase>(engine, Follower, KccrS19RFromSouth);
+        FileFlightRules(follower, "IFR");
+        ClearToLandWithTrafficInSight(follower);
+        AircraftState lead = AddFinalLead(engine, follower.Phases!.AssignedRunway!, 1.5);
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+        Assert.True(result.Success, result.Message);
+        Phase? turn = follower.Phases.CurrentPhase;
+        follower.PendingWarnings.Clear();
+
+        ClearForApproach(lead, KccrS19RFromSouth);
+        InstallMissedApproach(lead);
+
+        TickSeconds(engine, 1);
+
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Same(turn, follower.Phases?.CurrentPhase);
+        Assert.Contains(LeadWentAround, follower.PendingWarnings);
+    }
+
+    /// <summary>
+    /// A lead that has reached its published missed-approach hold is not going around: a follower keeping its approach behind
+    /// it keeps the follow, and a repeat FOLLOW from the approach does not name a go-around.
+    /// </summary>
+    [Fact]
+    public void ApproachFollower_LeadInMissedApproachHold_IsNotGoingAround()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClearedForApproach<ProcedureTurnPhase>(engine, Follower, KccrS19RFromSouth);
+        FileFlightRules(follower, "IFR");
+        ClearToLandWithTrafficInSight(follower);
+        AircraftState lead = AddFinalLead(engine, follower.Phases!.AssignedRunway!, 1.5);
+        CommandResult follow = Send(engine, $"FOLLOW {Leader}");
+        Assert.True(follow.Success, follow.Message);
+        follower.PendingWarnings.Clear();
+
+        ClearForApproach(lead, KccrS19RFromSouth);
+        InstallMissedApproach(lead);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty);
+        lead.Phases!.AdvanceToNext(ctx);
+        Assert.IsType<HoldingPatternPhase>(lead.Phases.CurrentPhase);
+
+        TickSeconds(engine, 1);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+
+        CommandResult repeat = Send(engine, $"FOLLOW {Leader}");
+        Assert.DoesNotContain("is going around", repeat.Message, StringComparison.Ordinal);
+    }
+
     // ─── Missed approach ───
 
     /// <summary>
@@ -796,6 +861,16 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
     private static AircraftState AddOnMissedApproach(SimulationEngine engine, string callsign)
     {
         AircraftState ac = AddClearedForApproach<ProcedureTurnPhase>(engine, callsign, KccrS19RFromSouth);
+        InstallMissedApproach(ac);
+        return ac;
+    }
+
+    /// <summary>
+    /// Turns <paramref name="ac"/>'s phase list into its own clearance's published missed approach
+    /// (<see cref="ApproachCommandHandler.BuildMissedApproachPhases"/>), climbing out 0.5 nm past the threshold.
+    /// </summary>
+    private static void InstallMissedApproach(AircraftState ac)
+    {
         PhaseList cleared = ac.Phases!;
         RunwayInfo rwy = cleared.AssignedRunway!;
         List<Phase> missed = ApproachCommandHandler.BuildMissedApproachPhases(ac);
@@ -812,7 +887,6 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         ac.Altitude = 800;
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.IsType<ApproachNavigationPhase>(ac.Phases.CurrentPhase);
-        return ac;
     }
 
     [Fact]
@@ -857,10 +931,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         Assert.Null(follower.Phases.LandingClearance);
         Assert.Null(follower.Phases.ClearedRunwayId);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
-        Assert.Contains(
-            follower.PendingWarnings,
-            w => w.StartsWith($"{Follower} ", StringComparison.Ordinal) && w.EndsWith(" cancelled by FOLLOW", StringComparison.Ordinal)
-        );
+        Assert.Contains($"{Follower} missed approach cancelled by FOLLOW", follower.PendingWarnings);
     }
 
     [Fact]
@@ -880,6 +951,32 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         Assert.Null(follower.Approach.FollowingCallsign);
     }
 
+    /// <summary>
+    /// An IFR follower whose published missed approach has reached its hold is still on the missed approach (7110.65
+    /// §4-8-9.a; AIM 5-4-21.h): FOLLOW is refused by vectors, and the hold it flies is left as it was.
+    /// </summary>
+    [Fact]
+    public void IfrFollower_InPublishedMissedApproachHold_IsRefusedOnTheMissedApproach()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddOnMissedApproach(engine, Follower);
+        FileFlightRules(follower, "IFR");
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty);
+        follower.Phases!.AdvanceToNext(ctx);
+        HoldingPatternPhase hold = Assert.IsType<HoldingPatternPhase>(follower.Phases.CurrentPhase);
+        follower.Approach.HasReportedTrafficInSight = true;
+        AddFinalLead(engine, follower.Phases.AssignedRunway!, 2.0);
+        KeptState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal("Unable, on the missed approach, request vectors", result.Message);
+        Assert.Equal(before, Capture(follower));
+        Assert.Same(hold, follower.Phases.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
     /// <summary>A lead flying its missed approach stands for no leg in the landing sequence, so it is never ahead of a follower.</summary>
     [Fact]
     public void LeadOnMissedApproach_HasNoSequenceLeg()
@@ -890,6 +987,19 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
 
         Assert.Null(AirborneFollowHelper.PatternLegIndex(lead));
         Assert.False(AirborneFollowHelper.IsOnApproachBeforeFinal(lead.Phases!.CurrentPhase));
+    }
+
+    /// <summary>A lead in its published missed-approach hold stands for no leg in the landing sequence either.</summary>
+    [Fact]
+    public void LeadInMissedApproachHold_HasNoSequenceLeg()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState lead = AddOnMissedApproach(engine, Leader);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty);
+        lead.Phases!.AdvanceToNext(ctx);
+        Assert.IsType<HoldingPatternPhase>(lead.Phases.CurrentPhase);
+
+        Assert.Null(AirborneFollowHelper.PatternLegIndex(lead));
     }
 
     // ─── VFR re-sequence to another runway ───

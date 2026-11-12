@@ -256,6 +256,29 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         return lead;
     }
 
+    /// <summary>A same-runway lead that has reached its published missed-approach hold, off the runway end.</summary>
+    private static AircraftState AddMissedApproachHoldLead(SimulationEngine engine)
+    {
+        RunwayInfo rwy = Oak("28R");
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, -2.0, 0), rwy.TrueHeading, 2000);
+        lead.Phases = new PhaseList { AssignedRunway = rwy };
+        lead.Phases.Add(
+            new HoldingPatternPhase
+            {
+                FixName = "OAK",
+                FixLat = rwy.ThresholdLatitude,
+                FixLon = rwy.ThresholdLongitude,
+                InboundCourse = (int)rwy.TrueHeading.Degrees,
+                LegLength = 1.0,
+                IsMinuteBased = true,
+                Direction = TurnDirection.Right,
+                IsMissedApproachHold = true,
+            }
+        );
+        engine.World.AddAircraft(lead);
+        return lead;
+    }
+
     private static void AssertRetargetedInPlace(AircraftState follower, FollowerState before, CommandResult result)
     {
         Assert.True(result.Success, result.Message);
@@ -489,6 +512,23 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
         AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} is going around, request vectors");
+    }
+
+    /// <summary>
+    /// A same-runway lead that has reached its published missed-approach hold has left the landing sequence but is holding,
+    /// not going around: the refusal says so.
+    /// </summary>
+    [Fact]
+    public void PatternFollower_LeadInMissedApproachHold_RefusedAsHolding()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        AddMissedApproachHoldLead(engine);
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} is holding, request vectors");
     }
 
     /// <summary>On a shared downwind, a lead 1 nm farther from its base-turn point than the follower is behind it.</summary>

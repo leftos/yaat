@@ -2126,6 +2126,11 @@ public sealed class HoldingPatternPhaseDto : PhaseDto
     /// before the field deserialize cleanly.</summary>
     public bool IsHoldInLieu { get; init; }
 
+    /// <summary>The hold is the published missed-approach hold its approach's missed-approach fixes end in. Optional
+    /// (defaults false) and written only when true, so recordings made before the field deserialize cleanly.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsMissedApproachHold { get; init; }
+
     /// <summary>The pilot entered the hold over its cleared destination at the clearance limit. Optional (defaults false)
     /// and written only when true, so recordings made before the field deserialize cleanly.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

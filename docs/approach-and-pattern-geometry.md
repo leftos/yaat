@@ -1124,9 +1124,9 @@ A same-runway lead that passes the refusals, or a runwayless lead inside the con
 
 A procedure-turn or hold-in-lieu follower is measured by the straight line to its reversal fix plus the approach path from there (`FollowerRemainingPathNm`); a lead on one has no sequence leg.
 
-The published missed approach is not the approach: an `ApproachNavigationPhase` with `IsMissedApproach` has no sequence leg, an IFR follower on its own missed refuses "Unable, on the missed approach, request vectors" and a VFR one is re-sequenced with no landing clearance (§4-8-11.e, §4-8-9).
+The published missed approach is not the approach: an `ApproachNavigationPhase` with `IsMissedApproach`, or the `HoldingPatternPhase` with `IsMissedApproachHold` its fixes end in (`AirborneFollowHelper.IsOnMissedApproach`), has no sequence leg, an IFR follower on its own missed, hold included, refuses "Unable, on the missed approach, request vectors" and a VFR one is re-sequenced with no landing clearance (§4-8-11.e, §4-8-9).
 
-A lead going around or on its missed is refused from an approach ("Unable, {T} is going around, request vectors"), and if it goes around during a kept-approach follow the follow ends, the approach continues and the RPO sees "{cs} follow of {T} ended — {T} went around".
+A lead going around or on its missed is refused from an approach ("Unable, {T} is going around, request vectors"; a lead already in the missed-approach hold is named "Unable, {T} is holding, request vectors" and is not a go-around for `AirborneFollowHelper.IsGoingAround`), and if it goes around during a kept-approach follow the follow ends, the approach continues and the RPO sees "{cs} follow of {T} ended — {T} went around".
 
 An IFR follower (`AirborneFollowHelper.IsIfrFollower`: a flight plan and not VFR) that loses sight of its lead outside a visual approach also gives the RPO "{cs} visual separation terminated — radar separation required". A repeat FOLLOW of the same lead is acknowledged unchanged while that lead still lands the follower's runway or has none.
 

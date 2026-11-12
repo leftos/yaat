@@ -1,5 +1,7 @@
 using Xunit;
+using Yaat.Sim;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
@@ -41,6 +43,33 @@ public class PhaseClearSummaryTests
         string? summary = PhaseClearSummary.Build(phases);
 
         Assert.Equal("pattern to RWY 30", summary);
+    }
+
+    /// <summary>The published missed approach is not the approach (7110.65 §4-8-9.a; AIM 5-4-21.h): its fixes read as "missed approach".</summary>
+    [Fact]
+    public void MissedApproach_IsNamedMissedApproach()
+    {
+        PhaseList navigation = InstrumentFinal();
+        navigation.Add(new ApproachNavigationPhase { Fixes = [], IsMissedApproach = true });
+
+        Assert.Equal("missed approach", PhaseClearSummary.Build(navigation));
+
+        PhaseList hold = InstrumentFinal();
+        hold.Add(
+            new HoldingPatternPhase
+            {
+                FixName = "REJOY",
+                FixLat = 38.1,
+                FixLon = -122.1,
+                InboundCourse = 224,
+                LegLength = 1.0,
+                IsMinuteBased = true,
+                Direction = TurnDirection.Right,
+                IsMissedApproachHold = true,
+            }
+        );
+
+        Assert.Equal("missed approach", PhaseClearSummary.Build(hold));
     }
 
     [Fact]
