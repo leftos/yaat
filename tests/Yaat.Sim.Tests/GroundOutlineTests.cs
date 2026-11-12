@@ -13,7 +13,7 @@ public class GroundOutlineTests
 {
     private const double Tolerance = 1e-6;
 
-    private static readonly GroundOutlineSize Square = new(100.0, 100.0, 0.0);
+    private static readonly GroundOutlineSize Square = new(100.0, 100.0, 0.0, AirplaneDesignGroup.III);
 
     public GroundOutlineTests()
     {

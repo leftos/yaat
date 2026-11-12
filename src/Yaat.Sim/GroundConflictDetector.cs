@@ -2557,10 +2557,11 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// Where a tug move fouls a parked or held neighbour: its <see cref="GroundOutline"/>, swept along the rest of its
-    /// move (<see cref="PushbackPhase.RemainingPath"/>), may not come within <see cref="GroundOutlineSweep.WingtipBufferFt"/> of the
-    /// neighbour's — or, for a neighbour the move already started closer to than that, as the aircraft on the next stand
-    /// usually is, no closer than it was when the move began (or than the row the tow began in lets the wings pass,
-    /// <see cref="AircraftGroundOps.TowRowAnchor"/>), less <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>. Null when the
+    /// move (<see cref="PushbackPhase.RemainingPath"/>), may not come within the pair's buffer
+    /// (<see cref="GroundOutlineSweep.PairWingtipBufferFt"/>) of the neighbour's — or, for a neighbour the move already
+    /// started closer to than that, as the aircraft on the next stand usually is, no closer than it was when the move began
+    /// (or than the row the tow began in lets the wings pass, <see cref="AircraftGroundOps.TowRowAnchor"/>) — less
+    /// <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>. Null when the
     /// whole move clears; otherwise how far along the remaining path the first fouled sample sits, which is what
     /// <see cref="ComputeClosingLimit"/> stops the move by.
     ///

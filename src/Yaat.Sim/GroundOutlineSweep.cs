@@ -114,14 +114,31 @@ internal static class GroundOutlineSweep
 {
     /// <summary>
     /// Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans
-    /// (<see cref="GroundConflictDetector.RequiredLateralClearanceFt"/>). A detector-frame figure [J], deliberately below
-    /// AC 150/5300-13B's taxilane wingtip clearance: the design value buys centreline-tracking error the sim does not have,
-    /// and importing it would ask 160.9 ft of SFO's 160 ft A/B spacing and hold every parallel-lane pass. That AC is not in
-    /// the repo's references, so its figure is not quoted here. 7110.65 has no taxiway-separation paragraph; its §3-1-1
-    /// NOTE, AIM 4-3-18.b and AIM 2-3-4.b.1 ("being centered on the taxiway centerline does not guarantee wingtip
-    /// clearance") put wingtip avoidance on the pilot. [J] marks a judgement call.
+    /// (<see cref="GroundConflictDetector.RequiredLateralClearanceFt"/>): a detector-frame figure [J], the same for every
+    /// pair whatever its design group. It is also the outline floor's buffer when either aircraft is ADG III-VI
+    /// (<see cref="PairWingtipBufferFt"/>): AC 150/5300-13B Table 5-1's recommended minimum parking position clearance
+    /// for ADG III to VI. 7110.65 has no taxiway-separation paragraph; its §3-1-1 NOTE, AIM 4-3-18.b and AIM 2-3-4.b.1
+    /// ("being centered on the taxiway centerline does not guarantee wingtip clearance") put wingtip avoidance on the
+    /// pilot. [J] marks a judgement call.
     /// </summary>
     public const double WingtipBufferFt = 25.0;
+
+    /// <summary>
+    /// The outline floor's buffer when both aircraft are ADG I or II: AC 150/5300-13B Table 5-1's 10 ft recommended
+    /// minimum parking position clearance for ADG I and II.
+    /// </summary>
+    public const double SmallPairWingtipBufferFt = 10.0;
+
+    /// <summary>
+    /// The buffer the outline floor (<see cref="FloorFt"/>) of a pair is built on, feet: <see cref="SmallPairWingtipBufferFt"/>
+    /// when both aircraft are ADG I or II, else <see cref="WingtipBufferFt"/> — AC 150/5300-13B Table 5-1 read by the pair's
+    /// more demanding group.
+    /// </summary>
+    /// <param name="a">One aircraft's design group.</param>
+    /// <param name="b">The other aircraft's design group.</param>
+    /// <returns>The buffer, feet.</returns>
+    internal static double PairWingtipBufferFt(AirplaneDesignGroup a, AirplaneDesignGroup b) =>
+        ((a <= AirplaneDesignGroup.II) && (b <= AirplaneDesignGroup.II)) ? SmallPairWingtipBufferFt : WingtipBufferFt;
 
     /// <summary>
     /// Slack under the "no closer than the move started" floor of <see cref="GroundConflictDetector.TugMoveFoulsParkedAt"/>,
@@ -154,12 +171,12 @@ internal static class GroundOutlineSweep
     public const double RowSlideStepFt = 1.0;
 
     /// <summary>
-    /// The clearance a sweep may not fall through, feet: <see cref="WingtipBufferFt"/>, or — for a neighbour the move
-    /// already starts closer to than that, as the aircraft on the next stand usually is, or one in the mover's own row
-    /// that its wingtips pass closer than that — the least of where it started and the row clearance, less
-    /// <see cref="OutlineClearanceSlackFt"/>. Never below that slack, so contact is never passable. In full,
-    /// <c>max(0.5, min(25, start, row) − 0.5)</c>, for every tug move, turning ones included: a swing closer than the row
-    /// lets the wings pass still falls through it.
+    /// The clearance a sweep may not fall through, feet: the pair's buffer (<see cref="PairWingtipBufferFt"/>), or — for
+    /// a neighbour the move already starts closer to than that, as the aircraft on the next stand usually is, or one in
+    /// the mover's own row that its wingtips pass closer than that — the least of where it started and the row clearance,
+    /// less <see cref="OutlineClearanceSlackFt"/>. Never below that slack, so contact is never passable. In full,
+    /// <c>max(0.5, min(buffer, start, row) − 0.5)</c>, for every tug move, turning ones included: a swing closer than the
+    /// row lets the wings pass still falls through it.
     ///
     /// <para>The row anchor (<see cref="RowClearanceFt"/>) is the least clearance the mover's outline, at the pose the
     /// tow started from (<see cref="TugRowAnchor"/>), keeps from the neighbour as it slides along its own nose axis in the
@@ -172,20 +189,21 @@ internal static class GroundOutlineSweep
     /// <see cref="RowAnchorMinFt"/> [J]; otherwise the floor is anchored to the start alone. A neighbour on the push line
     /// overlaps the slide and keeps that floor. [J] marks a judgement call.</para>
     ///
-    /// <para>The floor this works out to — 24.5 ft for the pair of E75Ls on adjacent SFO gates, off
-    /// <see cref="WingtipBufferFt"/>'s 25 ft — is a judgement call below AC 150/5300-13B's taxilane wingtip clearance: the
-    /// planner therefore refuses swings that standard would permit, and that is deliberate, because a tow past a parked
-    /// aircraft is walked, not flown down a design taxilane, and AC 00-65A §11.9 puts the swing in the wing walkers'
-    /// judgement before the move rather than on a design clearance. That AC is not in the repo's references, so no figure
-    /// from it is quoted here.</para>
+    /// <para>The floor this works out to is 24.5 ft for an ADG III-VI pair (the E75Ls on adjacent SFO gates), off
+    /// <see cref="WingtipBufferFt"/>'s 25 ft, and 9.5 ft for an ADG I/II pair, off <see cref="SmallPairWingtipBufferFt"/>'s
+    /// 10 ft: AC 150/5300-13B Table 5-1's parking position clearance. Table 5-1 is the AC's recommended minimum for an
+    /// aircraft entering or exiting a parking position (§5.6.2.2); holding the whole tug move to it, turning tows
+    /// included, is the owner's ruling, not the AC's. A tow past a parked aircraft is walked, and AC 00-65A §11.9 puts the
+    /// swing in the wing walkers' judgement before the move; that AC is not in the repo's references.</para>
     /// </summary>
     /// <param name="anchorClearanceFt">
     /// The clearance the floor is anchored to, feet: the clearance at the move's start, or the row clearance when the row
     /// anchor counts and is the smaller.
     /// </param>
+    /// <param name="bufferFt">The pair's buffer (<see cref="PairWingtipBufferFt"/>), feet.</param>
     /// <returns>The floor, feet.</returns>
-    internal static double FloorFt(double anchorClearanceFt) =>
-        Math.Max(OutlineClearanceSlackFt, Math.Min(WingtipBufferFt, anchorClearanceFt) - OutlineClearanceSlackFt);
+    internal static double FloorFt(double anchorClearanceFt, double bufferFt) =>
+        Math.Max(OutlineClearanceSlackFt, Math.Min(bufferFt, anchorClearanceFt) - OutlineClearanceSlackFt);
 
     /// <summary>
     /// <see cref="FloorFt"/> anchored to the clearance where the move started and to the row clearance when it counts:
@@ -193,9 +211,10 @@ internal static class GroundOutlineSweep
     /// </summary>
     /// <param name="startClearanceFt">The clearance where the move started, feet.</param>
     /// <param name="rowClearanceFt">The row clearance (<see cref="RowClearanceFt"/>), feet, or null when it does not count.</param>
+    /// <param name="bufferFt">The pair's buffer (<see cref="PairWingtipBufferFt"/>), feet.</param>
     /// <returns>The floor, feet.</returns>
-    internal static double AnchoredFloorFt(double startClearanceFt, double? rowClearanceFt) =>
-        FloorFt(Math.Min(startClearanceFt, rowClearanceFt ?? double.MaxValue));
+    internal static double AnchoredFloorFt(double startClearanceFt, double? rowClearanceFt, double bufferFt) =>
+        FloorFt(Math.Min(startClearanceFt, rowClearanceFt ?? double.MaxValue), bufferFt);
 
     /// <summary>
     /// Sweeps <paramref name="path"/> against one neighbour. The floor is anchored to <paramref name="startPose"/> —
@@ -230,7 +249,7 @@ internal static class GroundOutlineSweep
         OutlinePoint obstacleCentre = frame.ToLocal(obstaclePosition);
         var obstacleOutline = GroundOutline.At(obstacleCentre, obstacleNoseTrueDeg, obstacleSize);
         double startFt = ClearanceAt(startPose, frame, moverSize, obstacleOutline);
-        double floorFt = AnchoredFloorFt(startFt, rowClearanceFt);
+        double floorFt = AnchoredFloorFt(startFt, rowClearanceFt, PairWingtipBufferFt(moverSize.DesignGroup, obstacleSize.DesignGroup));
         double reachFt = moverSize.ReachFt + obstacleSize.ReachFt;
         double closestFt = double.MaxValue;
         for (int i = 0; i < path.Count; i++)
@@ -276,7 +295,8 @@ internal static class GroundOutlineSweep
         var neighbourSize = GroundOutlineSize.Of(neighbour, towedNoseFirst: false);
         var neighbourOutline = GroundOutline.At(frame.ToLocal(neighbourPose.Position), neighbourPose.NoseTrueDeg, neighbourSize);
         double startFt = ClearanceAt(rowAnchor.TowStartPose, frame, moverSize, neighbourOutline);
-        return AnchoredFloorFt(startFt, RowClearanceFt(rowAnchor, mover, neighbourPose, neighbour));
+        double bufferFt = PairWingtipBufferFt(moverSize.DesignGroup, neighbourSize.DesignGroup);
+        return AnchoredFloorFt(startFt, RowClearanceFt(rowAnchor, mover, neighbourPose, neighbour), bufferFt);
     }
 
     /// <summary>

@@ -99,7 +99,11 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
             Assert.True(result.Success, $"PUSH $5A off D2 with SKW3398 at D1 was refused: {result.Message}");
 
             int reversals = subject.Phases!.Phases.OfType<PushbackPhase>().Count(p => p.Move.DwellBefore);
-            double floorFt = GroundOutlineSweep.FloorFt(startClearanceFt);
+            double bufferFt = GroundOutlineSweep.PairWingtipBufferFt(
+                AirplaneDesignGroups.GroupForType(subject.AircraftType),
+                AirplaneDesignGroups.GroupForType(neighbour.AircraftType)
+            );
+            double floorFt = GroundOutlineSweep.FloorFt(startClearanceFt, bufferFt);
             Assert.True(layout.TryGetSpotOutboundHeading(spot5A, out double facingDeg), "spot 5A has no nose-out heading");
             double laneTurnDeg = new TrueHeading(subject.TrueHeading.Degrees).SignedAngleTo(new TrueHeading(facingDeg));
             FlownRun flown = RunAndAssert(engine, spot5A, neighbour, outlineLines);

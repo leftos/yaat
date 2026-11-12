@@ -1511,7 +1511,7 @@ public class TugMovePlannerTests
 
         Assert.Empty(plan.Warnings.OfType<TugPassesNeighbourWarning>());
         double closestFt = ClosestSweptClearanceFt(plan.Moves, request, neighbour);
-        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
+        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour), PairBufferFt(request, neighbour));
         double laneTurnDeg = new TrueHeading(request.Start.NoseTrueDeg).SignedAngleTo(new TrueHeading(plan.End.NoseTrueDeg));
         var swing = TugNoseSwing.From(request.Start.NoseTrueDeg, plan.Moves.SelectMany(m => m.Samples).Select(s => s.NoseTrueDeg));
         int reversals = plan.Moves.Count(m => m.Move.DwellBefore);
@@ -1567,7 +1567,7 @@ public class TugMovePlannerTests
         LatLon stop = TugMovePlanner.SpotStopGeometry(spot, facingDeg, AircraftFootprint.FromType(FiveAlleyRegional)).Stop;
         double LaneSideFt(LatLon point) => GeoMath.SignedCrossTrackDistanceNm(point, stop, new TrueHeading(facingDeg)) * GeoMath.FeetPerNm;
         double laneTurnDeg = new TrueHeading(request.Start.NoseTrueDeg).SignedAngleTo(new TrueHeading(facingDeg));
-        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
+        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour), PairBufferFt(request, neighbour));
 
         List<TugCandidate> kept = new TugPlanBuilder(layout, WithMovementArea(layout, request)).AcceptableMultiPointPaths();
 
@@ -1781,7 +1781,7 @@ public class TugMovePlannerTests
 
         TugPlan plan = PlanOrFail(layout, request);
 
-        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
+        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour), PairBufferFt(request, neighbour));
         TugPassesNeighbourWarning warning = Assert.Single(plan.Warnings.OfType<TugPassesNeighbourWarning>());
         _output.WriteLine($"the planned push passes {warning.ClosestFt:F1} ft from {neighbour.Describe()}, floor {floorFt:F1} ft");
         Assert.True(warning.ClosestFt > 0.0, $"test setup: the warning is an overlap ({warning.ClosestFt:F1} ft), not a pass");
@@ -1918,6 +1918,13 @@ public class TugMovePlannerTests
     /// <summary>The clearance the plan's start pose has from the neighbour, feet — the pose its first move's floor is anchored to.</summary>
     private static double StartClearanceFt(TugRequest request, TugParkedNeighbour neighbour) =>
         OutlineClearanceFt(request.Start, request.Footprint.TypeCode, neighbour);
+
+    /// <summary>The outline floor's buffer for the mover and the neighbour, feet, built as the planner builds it.</summary>
+    private static double PairBufferFt(TugRequest request, TugParkedNeighbour neighbour) =>
+        GroundOutlineSweep.PairWingtipBufferFt(
+            AirplaneDesignGroups.GroupForType(request.Footprint.TypeCode),
+            AirplaneDesignGroups.GroupForType(neighbour.Footprint.TypeCode)
+        );
 
     /// <summary>One pose's outline clearance from the neighbour, feet.</summary>
     private static double OutlineClearanceFt(PushbackPose pose, string aircraftType, TugParkedNeighbour neighbour)

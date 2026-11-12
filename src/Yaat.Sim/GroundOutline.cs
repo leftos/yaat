@@ -46,18 +46,31 @@ internal readonly record struct GroundOutlineFrame
 
 /// <summary>
 /// The size of an aircraft's outline, feet: fuselage length, wingspan, and how far a tug and towbar reach ahead of the
-/// nose (zero unless the aircraft is being pulled).
+/// nose (zero unless the aircraft is being pulled); with the aircraft's design group, which picks the pair's outline floor.
 /// </summary>
-internal readonly record struct GroundOutlineSize(double LengthFt, double WingspanFt, double NoseLeadFt)
+/// <param name="LengthFt">Fuselage length, feet.</param>
+/// <param name="WingspanFt">Wingspan, feet.</param>
+/// <param name="NoseLeadFt">How far the tug and towbar reach ahead of the nose, feet; zero unless the aircraft is being pulled.</param>
+/// <param name="DesignGroup">
+/// The aircraft's design group (AC 150/5300-13B Table 1-2), which picks the pair's outline floor
+/// (<see cref="GroundOutlineSweep.PairWingtipBufferFt"/>).
+/// </param>
+internal readonly record struct GroundOutlineSize(double LengthFt, double WingspanFt, double NoseLeadFt, AirplaneDesignGroup DesignGroup)
 {
     /// <summary>
-    /// The outline size of an aircraft with <paramref name="footprint"/>'s length and wingspan.
+    /// The outline size of an aircraft with <paramref name="footprint"/>'s length and wingspan, and its type's design
+    /// group (<see cref="AirplaneDesignGroups.GroupForType"/>).
     /// </summary>
     /// <param name="footprint">The aircraft's dimensions.</param>
     /// <param name="towedNoseFirst">The aircraft is on a pull, so the tug and towbar lead its nose.</param>
     /// <returns>The outline size.</returns>
     public static GroundOutlineSize Of(AircraftFootprint footprint, bool towedNoseFirst) =>
-        new(footprint.LengthFt, footprint.WingspanFt, towedNoseFirst ? GroundOutline.TugLeadFt : 0.0);
+        new(
+            footprint.LengthFt,
+            footprint.WingspanFt,
+            towedNoseFirst ? GroundOutline.TugLeadFt : 0.0,
+            AirplaneDesignGroups.GroupForType(footprint.TypeCode)
+        );
 
     /// <summary>
     /// The farthest any part of the outline lies from the reference point, feet: the nose (with the tug), a wingtip, or a

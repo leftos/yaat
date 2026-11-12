@@ -147,7 +147,7 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
 
 It is built by `TugParkedNeighbours.Build` over `NeighbourCandidate`s — the server maps its `AircraftState`s, the client's preview its `AircraftModel`s, both through `GroundConflictDetector.IsParkedOrHeld`'s plain-input overload; `TugParkedNeighbours.RangeFt` = 400 ft is a search radius covering the 2,000 ft goal reach's neighbouring stands, not an aviation figure.
 
-`TugPlanBuilder.Judge` (`NeighbourRefusal`) sweeps it against each candidate: every move from its own start pose together with the moves flown through before the first reversal, the same run the detector brakes for, with the same floor (`GroundOutlineSweep.FloorFt`: `max(0.5, min(WingtipBufferFt, clearance at start) − 0.5)`).
+`TugPlanBuilder.Judge` (`NeighbourRefusal`) sweeps it against each candidate: every move from its own start pose together with the moves flown through before the first reversal, the same run the detector brakes for, with the same floor (`GroundOutlineSweep.FloorFt`: `max(0.5, min(buffer, clearance at start) − 0.5)`, the buffer by the pair's design groups, see "Parked neighbours").
 
 A fouling candidate takes `TugPathRefusal(ParkedNeighbour, "Unable, the move to spot 5A would swing into SKW3398 at D1")`, ordered after `MovementArea`; `Choose` picks the best clearing candidate, and with none the refusal is what the RPO sees. Only faced goals (`TugGoalShape.Faced`: spot, stand, node-with-facing, `PUSHM` chains of them) are swept — they are the ones with a choice of template.
 
@@ -458,15 +458,15 @@ The stand-vs-surface rule is [phases.md](../phases.md)'s: only a stand parks. `H
 
 A tug-moved aircraft (push or pull) against a **parked or held** neighbour is judged by sweeping its `GroundOutline` — a cross of the fuselage segment (extended 30 ft ahead of the nose tip for the tug on a pull, which overstates a towbar rig by ~15 ft since the 30–40 ft figure is measured from the nose gear; conservative), the wing at the reference point and a tailplane 40 % of the span wide at the tail — along `RemainingPath` against the neighbour's outline.
 
-The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738, a judgement call below AC 150/5300-13B Table 5-1's parking-position wingtip clearance (5.6.2.2: 10 ft for ADG I-II, 25 ft for ADG III-VI; the AC is extracted under `.claude/reference/faa/ac-150-5300-13b/`):
+The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738. The outline floor's buffer is AC 150/5300-13B Table 5-1's recommended minimum parking position clearance (§5.6.2.2, the AC extracted under `.claude/reference/faa/ac-150-5300-13b/`), read by the pair's more demanding design group: `GroundOutlineSweep.SmallPairWingtipBufferFt` = 10 ft when both aircraft are ADG I or II, else `WingtipBufferFt` = 25 ft (`PairWingtipBufferFt`; `GroundOutlineSize` carries each aircraft's group). Table 5-1 is the AC's figure for entering or exiting a parking position; holding the whole tug move to it, turning tows included, is the owner's ruling, not the AC's:
 
-- **Floor.** The clearance may never drop below `min(WingtipBufferFt = 25 ft, clearance at the move's start, row clearance) − 0.5 ft`, and never below the 0.5 ft slack. The **row clearance** (`GroundOutlineSweep.RowClearanceFt`, #475a) is the least clearance as the mover's outline at the pose the tow started from (`TugRowAnchor.TowStartPose`) slides along its own nose axis in the first move's direction (aft for a push, forward for a pull) past the neighbour: the row's own wingtip gap.
+- **Floor.** The clearance may never drop below `min(buffer, clearance at the move's start, row clearance) − 0.5 ft`, and never below the 0.5 ft slack: 9.5 ft for an ADG I/II pair, 24.5 ft when either aircraft is ADG III-VI. The **row clearance** (`GroundOutlineSweep.RowClearanceFt`, #475a) is the least clearance as the mover's outline at the pose the tow started from (`TugRowAnchor.TowStartPose`) slides along its own nose axis in the first move's direction (aft for a push, forward for a pull) past the neighbour: the row's own wingtip gap.
 
   It counts only for a neighbour whose nose is within 10° of the mover's, same direction (`RowAnchorNoseToleranceDeg` [J]), when it is at least `RowAnchorMinFt` = 10 ft [J]; a neighbour on the push line overlaps the slide and keeps the start floor.
 
   The anchor is set when the tug move is installed, carried through continuations and facing amendments, cleared when the tow ends, snapshotted (`AircraftGroundOpsDto.TowRowAnchor`), and a new `PUSH`/`PUSHM` starts a fresh one from the current pose. Without it a push off OAK gate 27 was held forever beside a B738 on staggered gate 29 (row gap 16.5 ft, start floor 24.5 ft).
 
-  Off OAK 26 a B738 pushed straight back passes a B738 on staggered 27 at a 6.5 ft row gap, under `RowAnchorMinFt`, so the floor stays at 24.5 ft and `PUSH TE` / `PUSH TC` are held about 25.8 ft from the neighbour. The push menu fades both as blocked by it, and their "push anyway" chip sends `PUSHF`, the RPO's override. No FAA document on disk sets a ramp-tow wingtip minimum (7110.65 §3-7-2 NOTE 2, AIM 2-3-4.b.1), so 10 ft and 25 ft are both judgement calls.
+  Off OAK 26 a B738 pushed straight back passes a B738 on staggered 27 at a 6.5 ft row gap, under `RowAnchorMinFt`, so the floor stays at 24.5 ft and `PUSH TE` / `PUSH TC` are held about 25.8 ft from the neighbour. The push menu fades both as blocked by it, and their "push anyway" chip sends `PUSHF`, the RPO's override. 7110.65 §3-7-2 NOTE 2 and AIM 2-3-4.b.1 set no ramp-tow wingtip minimum; the floor's 10 ft and 25 ft are Table 5-1's. The 25 ft of the detector's passing-abeam readers (`RequiredLateralClearanceFt`, the nose and tail clearance) stays a judgement call.
 
   Real OAK 26/27 spacing for two B738s is unverified: 123.9 ft centre to centre is less than span plus Annex 14's stand clearance, so the vNAS stand points may be the oddity (`PushTargetLiveCheckHoldTests.Oak_Gate26_PushTe_B738OnGate27_HeldAsTheLiveCheckSays` and its `PushTc` twin pin the hold).
 
@@ -538,7 +538,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 
 A brief touching one of these names the open issue and says which side of the change it assumes. The open issues are node goals judged by overshoot (YAAT-37), under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41).
 
-They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the outline wingtip floor's basis, AC 150/5300-13B Table 5-1 (YAAT-179).
+They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); and the clear-plan swing guard (YAAT-176).
 
 ## Designing a push shape
 
