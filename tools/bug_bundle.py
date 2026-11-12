@@ -16,6 +16,7 @@ Subcommands:
                   --srt SubRip captions (--hold, --offset) for a replay video.
     history   Per-callsign chronological events: commands + phase / route / target / approach changes.
     phases    Per-callsign phase-transition timeline (subset of history).
+    phase-state  Per-callsign current-phase DTO over time: its type and fields, one block per change.
     commands  Actions filtered to one recipient callsign.
     scenario  Decompress scenario.json.br.
     weather   Print weather.json (if present).
@@ -1594,6 +1595,101 @@ def cmd_phases(args: argparse.Namespace) -> int:
     return 0
 
 
+def _current_phase(ac: dict[str, Any]) -> tuple[int, dict[str, Any]] | None:
+    """The current index and the phase DTO at it, or None when the phase list is empty or the index is out of range."""
+    phases = ac.get("Phases") or {}
+    plist = phases.get("Phases") or []
+    idx = phases.get("CurrentIndex")
+    if not plist or not isinstance(idx, int) or idx < 0 or idx >= len(plist):
+        return None
+    return idx, plist[idx]
+
+
+def _phase_state_identity(index: int, phase: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """What makes a block new: the phase's index and its fields, ElapsedSeconds aside (it advances every tick)."""
+    return index, {key: value for key, value in phase.items() if key != "ElapsedSeconds"}
+
+
+def _phase_state_value(value: Any) -> str:
+    """A field value as text: a string verbatim, anything else as compact JSON (null, true, 37.7, {...})."""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, separators=(",", ":"))
+
+
+def _phase_state_lines(
+    t: float,
+    snap: int,
+    phase_type: str | None,
+    state: dict[str, Any] | None,
+) -> list[str]:
+    header = f"t={t:>5} [snap={snap:>3}]"
+    if phase_type is None:
+        return [f"{header} (no current phase)"]
+    fields = sorted((state or {}).items())
+    return [f"{header} {phase_type}", *(f"  {key}={_phase_state_value(value)}" for key, value in fields)]
+
+
+def _collect_phase_states(
+    reader: BundleReader,
+    callsign_upper: str,
+    start: float | None,
+    end: float | None,
+) -> tuple[bool, list[tuple[float, int, str | None, dict[str, Any] | None]]]:
+    """The distinct current-phase states in range, and whether the callsign appeared at all.
+
+    A snapshot repeating the previous current phase's index and fields (ElapsedSeconds aside) adds
+    nothing; a run of snapshots with no current phase adds one `(no current phase)` entry.
+    """
+    blocks: list[tuple[float, int, str | None, dict[str, Any] | None]] = []
+    seen_callsign = False
+    last_identity: tuple[int, dict[str, Any]] | None = None
+    in_no_phase_run = False
+    for snap_idx, t, ac in _iter_aircraft_states(reader, callsign_upper, start, end):
+        if ac is None:
+            continue
+        seen_callsign = True
+        current = _current_phase(ac)
+        if current is None:
+            if not in_no_phase_run:
+                blocks.append((t, snap_idx, None, None))
+                in_no_phase_run = True
+                last_identity = None
+            continue
+        in_no_phase_run = False
+        index, phase = current
+        identity = _phase_state_identity(index, phase)
+        if identity != last_identity:
+            state = {key: value for key, value in phase.items() if key != "$type"}
+            blocks.append((t, snap_idx, phase.get("$type") or "?", state))
+            last_identity = identity
+    return seen_callsign, blocks
+
+
+def cmd_phase_state(args: argparse.Namespace) -> int:
+    cs_upper = args.callsign.upper()
+    with BundleReader(args.bundle) as reader:
+        seen_callsign, blocks = _collect_phase_states(reader, cs_upper, args.start, args.end)
+        if not seen_callsign:
+            available = _enumerate_callsigns(reader)
+            print(
+                f"error: callsign '{args.callsign}' not in any snapshot.\n       available: {', '.join(available) if available else '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if args.json:
+            payload = [
+                {"t": t, "snap": snap, "callsign": args.callsign, "phase": phase_type, "state": state} for (t, snap, phase_type, state) in blocks
+            ]
+            write_output(json.dumps(payload, indent=2), args.out)
+            return 0
+
+        lines = [line for block in blocks for line in _phase_state_lines(*block)]
+        write_output("\n".join(lines), args.out)
+    return 0
+
+
 def cmd_commands(args: argparse.Namespace) -> int:
     cs_upper = args.callsign.upper()
     with BundleReader(args.bundle) as reader:
@@ -2318,6 +2414,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_ph.add_argument("--end", type=float, default=None, help="only include events at t <= END")
     p_ph.add_argument("--json", action="store_true", help="structured JSON output")
     p_ph.set_defaults(func=cmd_phases)
+
+    p_pst = sub.add_parser("phase-state", help="per-callsign current-phase DTO: type + fields, one block per change")
+    _add_bundle_arg(p_pst)
+    _add_out_arg(p_pst)
+    p_pst.add_argument("--callsign", type=str, required=True, help="aircraft callsign (case-insensitive)")
+    p_pst.add_argument("--start", type=float, default=None, help="only include snapshots at t >= START")
+    p_pst.add_argument("--end", type=float, default=None, help="only include snapshots at t <= END")
+    p_pst.add_argument("--json", action="store_true", help="structured JSON output")
+    p_pst.set_defaults(func=cmd_phase_state)
 
     p_cmds = sub.add_parser("commands", help="actions filtered to one recipient callsign")
     _add_bundle_arg(p_cmds)

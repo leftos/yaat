@@ -176,6 +176,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `history` | Per-callsign chronological events: commands + phase / route / target / approach / track / runway changes (`--callsign X`, `--start/--end`, `--include-global`, `--json`) |
 | `live-status` | Live-traffic feed health over the session (`LiveTrafficStatus` actions: wall clock, connected, message age, in-scope count) and the real-world UTC window to slice the SWIM raw log by (`--callsign X` narrows it to that shadow's observations and names the feed facility; `--pad` minutes, `--all`, `--start/--end`). Prints the `swim-slice.ps1` line to run (yaat `docs/live-traffic.md`, *Reproducing a report*) |
 | `phases` | Per-callsign phase-transition timeline only (`--callsign X`, `--start/--end`, `--json`) |
+| `phase-state` | The current phase's full snapshot DTO each time it changes (`--callsign X`, `--start/--end`, `--json`): one block per change, de-duplicated on the phase index and its fields except `ElapsedSeconds` (still printed); phases whose fields move every tick, such as Taxiing's navigator, print every snapshot |
 | `commands` | Actions filtered to one recipient callsign (`--callsign X`, `--start/--end`, `--json`) |
 | `scenario` | Pretty-print `scenario.json.br`. Optional `--aircraft CS [CS ...]` filter and `--show {full,presets,spawns,summary}` (default `full`). |
 | `weather` | Print `weather.json` if present |

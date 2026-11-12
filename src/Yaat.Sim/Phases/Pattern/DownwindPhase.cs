@@ -232,6 +232,49 @@ public sealed class DownwindPhase : Phase
             return false;
         }
 
+        ApplyLateralSteering(ctx);
+
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
+
+        // Crossover exit: hand off at midfield, before any descent or base-turn logic. The aircraft
+        // is leaving this downwind for the parallel runway's, so it holds pattern altitude and never
+        // starts the past-abeam descent toward a base turn it will not fly.
+        if (ExitAtMidfield && (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm))
+        {
+            Log.LogDebug("[Downwind] {Callsign}: midfield reached, exiting downwind for the crossover", ctx.Aircraft.Callsign);
+            return true;
+        }
+
+        ReportMidfieldIfDue(ctx, aircraftAlongTrack);
+        BroadcastMidfieldOnce(ctx, aircraftAlongTrack);
+
+        // The descent itself starts below, once the hold decision for this tick is known.
+        bool reachedAbeamThisTick = HandleAbeam(ctx, aircraftAlongTrack);
+        AdjustSpeedForFollow(ctx);
+        TrackControllerAltitude(ctx);
+
+        if (HoldDownwind(ctx, aircraftAlongTrack))
+        {
+            return false;
+        }
+
+        bool baseTriggerReached = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+        UpdatePastAbeamDescent(ctx, aircraftAlongTrack, reachedAbeamThisTick, baseTriggerReached);
+
+        if (baseTriggerReached)
+        {
+            Log.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+        }
+
+        return baseTriggerReached;
+    }
+
+    /// <summary>
+    /// Steers the leg laterally: the OFL/OFR dogleg and parallel hold, else the re-intercept of the computed
+    /// downwind line after a wrong-side / cross-runway join.
+    /// </summary>
+    private void ApplyLateralSteering(PhaseContext ctx)
+    {
         // OFL/OFR lateral dogleg + parallel hold. Reference point must be ON the
         // downwind track (not the runway centerline) — abeam-the-threshold is the
         // canonical on-track waypoint. Runs every tick while active so the heading
@@ -246,151 +289,190 @@ public sealed class DownwindPhase : Phase
                 LateralOffset
             );
         }
-        else if ((RejoinTrack || (Waypoints?.CompressedTurnRateDegPerSec is not null)) && (Waypoints is not null))
+        else if ((RejoinTrack || (Waypoints?.CompressedTurnRateDegPerSec is not null)) && (Waypoints is { } waypoints))
         {
-            // Re-intercept the computed downwind line (through the abeam point, on the downwind heading)
-            // when the aircraft is off it — turn toward the line with a bounded intercept angle,
-            // decreasing to zero as it re-establishes. See DownwindTrackToleranceNm above.
-            double xtk = GeoMath.SignedCrossTrackDistanceNm(
-                ctx.Aircraft.Position,
-                new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
-                _downwindHeading
-            );
-            if (Math.Abs(xtk) > DownwindTrackToleranceNm)
-            {
-                double intercept = Math.Min(MaxDownwindInterceptDeg, Math.Abs(xtk) * DownwindInterceptGainDegPerNm);
-                double corrected = _downwindHeading.Degrees + (xtk > 0 ? -intercept : intercept);
-                ctx.Targets.TargetTrueHeading = new TrueHeading(corrected);
-            }
-            else
-            {
-                ctx.Targets.TargetTrueHeading = _downwindHeading;
-            }
+            RejoinDownwindTrack(ctx, waypoints);
         }
+    }
 
-        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
-
-        // Crossover exit: hand off at midfield, before any descent or base-turn logic. The aircraft
-        // is leaving this downwind for the parallel runway's, so it holds pattern altitude and never
-        // starts the past-abeam descent toward a base turn it will not fly.
-        if (ExitAtMidfield && (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm))
+    /// <summary>
+    /// Re-intercept the computed downwind line (through the abeam point, on the downwind heading) when the aircraft
+    /// is off it — turn toward the line with a bounded intercept angle, decreasing to zero as it re-establishes.
+    /// See <see cref="DownwindTrackToleranceNm"/>.
+    /// </summary>
+    private void RejoinDownwindTrack(PhaseContext ctx, PatternWaypoints waypoints)
+    {
+        double xtk = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Position,
+            new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon),
+            _downwindHeading
+        );
+        if (Math.Abs(xtk) > DownwindTrackToleranceNm)
         {
-            Log.LogDebug("[Downwind] {Callsign}: midfield reached, exiting downwind for the crossover", ctx.Aircraft.Callsign);
-            return true;
+            double intercept = Math.Min(MaxDownwindInterceptDeg, Math.Abs(xtk) * DownwindInterceptGainDegPerNm);
+            double corrected = _downwindHeading.Degrees + (xtk > 0 ? -intercept : intercept);
+            ctx.Targets.TargetTrueHeading = new TrueHeading(corrected);
         }
+        else
+        {
+            ctx.Targets.TargetTrueHeading = _downwindHeading;
+        }
+    }
 
-        // The controller-armed midfield report fires whatever the landing clearance, and replaces this leg's reminder.
+    /// <summary>The controller-armed midfield report fires whatever the landing clearance, and replaces this leg's reminder.</summary>
+    private void ReportMidfieldIfDue(PhaseContext ctx, double aircraftAlongTrack)
+    {
         if ((Waypoints is { } waypoints) && IsMidfieldReportDue(ctx, aircraftAlongTrack))
         {
             ReportMidfield(ctx, waypoints.Direction, aircraftAlongTrack);
         }
+    }
 
-        // Midfield downwind broadcast: remind controller if no landing clearance.
-        // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
-        // RPO mode keeps the controller-facing warning (PendingWarnings).
-        // An extended downwind (EXT) is itself a controller sequencing instruction —
-        // the aircraft is being actively managed, so the "uncleared" nag is suppressed.
-        // The armed report, voiced on this lap (here or on the leg this one re-creates), stands for the reminder.
-        if (!_midfieldBroadcastIssued && !MidfieldReportIssued && !ctx.AutoClearedToLand)
+    /// <summary>
+    /// Midfield downwind broadcast: remind controller if no landing clearance.
+    /// Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
+    /// RPO mode keeps the controller-facing warning (PendingWarnings).
+    /// An extended downwind (EXT) is itself a controller sequencing instruction —
+    /// the aircraft is being actively managed, so the "uncleared" nag is suppressed.
+    /// The armed report, voiced on this lap (here or on the leg this one re-creates), stands for the reminder.
+    /// </summary>
+    private void BroadcastMidfieldOnce(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        if (_midfieldBroadcastIssued || MidfieldReportIssued || ctx.AutoClearedToLand)
         {
-            if (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm)
-            {
-                _midfieldBroadcastIssued = true;
-                if (!HasLandingClearance(ctx) && !IsExtended)
-                {
-                    string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
-                    if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)
-                    {
-                        PilotResponder.QueueSoloPilotTransmission(
-                            ctx.Aircraft,
-                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
-                            PilotTransmissionKind.Proactive,
-                            initialContact: false
-                        );
-                    }
-                    else
-                    {
-                        PilotResponder.RouteRpoTransmission(
-                            ctx.Aircraft,
-                            ctx.SoloTrainingMode,
-                            ctx.RpoShowPilotSpeech,
-                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
-                            $"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}"
-                        );
-                    }
-                }
-            }
+            return;
         }
 
-        // Abeam the approach end: pattern altitude is held to here (AC 90-66B §11.5), so the test has
-        // no along-track slop. The descent itself starts below, once the hold decision for this tick is known.
-        bool reachedAbeamThisTick = false;
-        if (!_pastAbeam && (Waypoints is not null) && (aircraftAlongTrack >= _abeamAlongTrack))
+        if (!(aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm))
         {
-            _pastAbeam = true;
-            reachedAbeamThisTick = true;
-            Log.LogDebug("[Downwind] {Callsign}: abeam threshold", ctx.Aircraft.Callsign);
-
-            // Begin decelerating toward base speed, unless the controller assigned a speed
-            // (7110.65 §5-7-4).
-            if (!ctx.Targets.HasExplicitSpeedCommand)
-            {
-                ctx.Targets.TargetSpeed = PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category);
-            }
+            return;
         }
 
-        // Follow speed adjustment: modulate speed based on distance to leader.
-        // Feed the phase baseline (not the previous tick's adjusted target) into the
-        // helper — otherwise the +MaxSpeedAdjustKts clamp compounds each tick and
-        // lets IAS escape the stabilized-approach gate downstream. Gate on the follow
-        // target, NOT on TargetSpeed: physics snaps TargetSpeed to null once the leg
-        // speed is reached, so gating on it silently stops spacing for a settled follower.
-        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
+        _midfieldBroadcastIssued = true;
+        if (HasLandingClearance(ctx) || IsExtended)
         {
-            double baseline = _pastAbeam
-                ? PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category)
-                : PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
-            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
-            if (adjusted is not null)
-            {
-                // Spacing only ever SLOWS the follower below the leg baseline; a too-far
-                // lead is handled laterally (extend/hold base turn), not by accelerating.
-                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, baseline);
-            }
+            return;
         }
 
-        TrackControllerAltitude(ctx);
+        VoiceMidfieldReminder(ctx);
+    }
 
-        // An extended downwind (EXT; 7110.65 §3-8-1 "EXTEND DOWNWIND", with "tower will call your base" in the
-        // examples at §3-9-4 and §3-10-5) waits for the TB command. Otherwise hold the base turn if
-        // following traffic and either (a) too close to a same-leg leader [proximity], (b) a pattern-flow-ahead leader is still forward of
-        // the 3-9 line — never bypassed, a base turn now would cut in front of it (14 CFR
-        // §91.113(g)) — or (c) turning base now would put the follower over the threshold
-        // before the leader is clear of the runway / too tightly behind it on final
-        // [sequencing, judged by projected ETAs]. A deliberate short approach waives (c)
-        // only: the controller has taken the spacing, not the prohibition on cutting in.
-        //
-        // A follower does NOT turn base on its own to escape the hold: it keeps flying
-        // the downwind until it is genuinely sequenced behind (the hold clears) or the
-        // controller issues a turn. Past MaxFollowExtensionNm it advises once ("extending
-        // downwind … unable to turn") so the controller can re-sequence, then keeps going.
-        bool followHold = !IsExtended && IsFollowHoldInForce(ctx);
-        if (IsExtended || followHold)
+    /// <summary>Voices the midfield reminder the way this leg is being flown: solo-training pilot speech, else the RPO warning.</summary>
+    private void VoiceMidfieldReminder(PhaseContext ctx)
+    {
+        string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
+        if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)
         {
-            if (followHold)
-            {
-                AdviseFollowExtensionOnce(ctx, aircraftAlongTrack);
-            }
+            PilotResponder.QueueSoloPilotTransmission(
+                ctx.Aircraft,
+                PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
+                PilotTransmissionKind.Proactive,
+                initialContact: false
+            );
+            return;
+        }
 
-            HoldLevelPastAbeam(ctx);
+        PilotResponder.RouteRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
+            $"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}"
+        );
+    }
+
+    /// <summary>
+    /// Abeam the approach end: pattern altitude is held to here (AC 90-66B §11.5), so the test has no along-track
+    /// slop. Returns true on the tick the threshold is first reached.
+    /// </summary>
+    private bool HandleAbeam(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        if (_pastAbeam || (Waypoints is not { } waypoints) || !(aircraftAlongTrack >= _abeamAlongTrack))
+        {
             return false;
         }
 
-        // Start the descent at abeam, or on the release of a hold that kept the aircraft level past abeam; re-plan
-        // its rate every other unheld tick. A release at or past the base trigger leaves the descent to BasePhase,
-        // which plans it from there, and a controller altitude issued during the leg is never descended away from.
-        bool baseTriggerReached = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+        _pastAbeam = true;
+        Log.LogDebug("[Downwind] {Callsign}: abeam threshold", ctx.Aircraft.Callsign);
+
+        // Begin decelerating toward base speed, unless the controller assigned a speed
+        // (7110.65 §5-7-4).
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = PatternCompression.BaseSpeed(waypoints, ctx.AircraftType, ctx.Category);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Follow speed adjustment: modulate speed based on distance to leader.
+    /// Feed the phase baseline (not the previous tick's adjusted target) into the
+    /// helper — otherwise the +MaxSpeedAdjustKts clamp compounds each tick and
+    /// lets IAS escape the stabilized-approach gate downstream. Gate on the follow
+    /// target, NOT on TargetSpeed: physics snaps TargetSpeed to null once the leg
+    /// speed is reached, so gating on it silently stops spacing for a settled follower.
+    /// </summary>
+    private void AdjustSpeedForFollow(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Approach.FollowingCallsign is null)
+        {
+            return;
+        }
+
+        double baseline = _pastAbeam
+            ? PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category)
+            : PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
+        double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+        if (adjusted is not null)
+        {
+            // Spacing only ever SLOWS the follower below the leg baseline; a too-far
+            // lead is handled laterally (extend/hold base turn), not by accelerating.
+            ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, baseline);
+        }
+    }
+
+    /// <summary>
+    /// An extended downwind (EXT; 7110.65 §3-8-1 "EXTEND DOWNWIND", with "tower will call your base" in the
+    /// examples at §3-9-4 and §3-10-5) waits for the TB command. Otherwise hold the base turn if
+    /// following traffic and either (a) too close to a same-leg leader [proximity], (b) a pattern-flow-ahead leader is still forward of
+    /// the 3-9 line — never bypassed, a base turn now would cut in front of it (14 CFR
+    /// §91.113(g)) — or (c) turning base now would put the follower over the threshold
+    /// before the leader is clear of the runway / too tightly behind it on final
+    /// [sequencing, judged by projected ETAs]. A deliberate short approach waives (c)
+    /// only: the controller has taken the spacing, not the prohibition on cutting in.
+    ///
+    /// A follower does NOT turn base on its own to escape the hold: it keeps flying
+    /// the downwind until it is genuinely sequenced behind (the hold clears) or the
+    /// controller issues a turn. Past MaxFollowExtensionNm it advises once ("extending
+    /// downwind … unable to turn") so the controller can re-sequence, then keeps going.
+    /// Returns true when the leg is held this tick.
+    /// </summary>
+    private bool HoldDownwind(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        bool followHold = !IsExtended && IsFollowHoldInForce(ctx);
+        if (!IsExtended && !followHold)
+        {
+            return false;
+        }
+
+        if (followHold)
+        {
+            AdviseFollowExtensionOnce(ctx, aircraftAlongTrack);
+        }
+
+        HoldLevelPastAbeam(ctx);
+        return true;
+    }
+
+    /// <summary>
+    /// Start the descent at abeam, or on the release of a hold that kept the aircraft level past abeam; re-plan
+    /// its rate every other unheld tick. A release at or past the base trigger leaves the descent to BasePhase,
+    /// which plans it from there, and a controller altitude issued during the leg is never descended away from.
+    /// </summary>
+    private void UpdatePastAbeamDescent(PhaseContext ctx, double aircraftAlongTrack, bool reachedAbeamThisTick, bool baseTriggerReached)
+    {
         if (_pastAbeam && (reachedAbeamThisTick || (_holdLevelFt is not null)))
         {
             _holdLevelFt = null;
@@ -404,13 +486,6 @@ public sealed class DownwindPhase : Phase
         {
             ReplanLineDescent(ctx, aircraftAlongTrack);
         }
-
-        if (baseTriggerReached)
-        {
-            Log.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
-        }
-
-        return baseTriggerReached;
     }
 
     /// <summary>
