@@ -2013,6 +2013,79 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
+    /// A CRJ7 pushed off F5 onto spot 7A with a CRJ7 parked on E1, an ADG II pair whose candidates all keep more than the
+    /// small-pair buffer from it: the clearance band counts each candidate's room capped at the pair's buffer
+    /// (<see cref="GroundOutlineSweep.SmallPairWingtipBufferFt"/>, 10 ft), not the 25 ft one, so they all tie at 10 ft.
+    /// </summary>
+    [Fact]
+    public void AdgTwoPair_RoomCappedAtTheSmallPairBuffer()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        List<TugBandRoom> rooms = BandRooms(layout, "CRJ7", "CRJ7");
+
+        Assert.True(DesignGroup("CRJ7") <= AirplaneDesignGroup.II, $"CRJ7 is ADG {DesignGroup("CRJ7")}");
+        Assert.All(rooms, r => Assert.True(r.RoomFt <= GroundOutlineSweep.SmallPairWingtipBufferFt, $"{r.Candidate.Template}: {r.RoomFt:F1} ft"));
+        Assert.Contains(rooms, r => r.RoomFt == GroundOutlineSweep.SmallPairWingtipBufferFt);
+    }
+
+    /// <summary>
+    /// The same push with a B738 parked on E1 instead, a mixed pair (ADG II and III): the room stays capped at the 25 ft
+    /// buffer, and every candidate keeps more than that, so they all tie at it.
+    /// </summary>
+    [Fact]
+    public void MixedPair_RoomCappedAtTheWingtipBuffer()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        List<TugBandRoom> rooms = BandRooms(layout, "CRJ7", Narrowbody);
+
+        Assert.True(DesignGroup(Narrowbody) > AirplaneDesignGroup.II, $"{Narrowbody} is ADG {DesignGroup(Narrowbody)}");
+        Assert.All(rooms, r => Assert.Equal(GroundOutlineSweep.WingtipBufferFt, r.RoomFt));
+    }
+
+    /// <summary>
+    /// Plans <paramref name="moverType"/> off F5 onto spot 7A with <paramref name="parkedType"/> parked on E1 and returns
+    /// every room the clearance band ranked; the design groups of the pair are logged.
+    /// </summary>
+    private List<TugBandRoom> BandRooms(AirportGroundLayout layout, string moverType, string parkedType)
+    {
+        GroundNode e1 = Parking(layout, "E1");
+        var parked = new TugParkedNeighbour
+        {
+            Callsign = "PARKED1",
+            Position = e1.Position,
+            TrueHeadingDeg = e1.TrueHeading!.Value.Degrees,
+            Footprint = AircraftFootprint.FromType(parkedType),
+            StandName = "E1",
+        };
+        AirplaneDesignGroup moverGroup = DesignGroup(moverType);
+        _output.WriteLine($"{moverType} (ADG {moverGroup}) off F5 with {parkedType} (ADG {DesignGroup(parkedType)}) on E1");
+        Assert.True(moverGroup <= AirplaneDesignGroup.II, $"{moverType} is ADG {moverGroup}");
+        TugRequest request = StandStart(Parking(layout, "F5"), moverType, TugGoal.Spot(Spot(layout, "7A"))) with { ParkedNeighbours = [parked] };
+        var builder = new TugPlanBuilder(layout, WithMovementArea(layout, request));
+
+        Assert.True(builder.TryPlan(out string refusal), $"the push was refused: {refusal}");
+        List<TugBandRoom> rooms = [.. builder.BandChoices.SelectMany(c => c.RankedAmong)];
+        foreach (TugBandRoom room in rooms)
+        {
+            _output.WriteLine($"{room.Candidate.Template}: room {room.RoomFt:F1} ft");
+        }
+
+        Assert.NotEmpty(rooms);
+        return rooms;
+    }
+
+    private static AirplaneDesignGroup DesignGroup(string aircraftType) =>
+        GroundOutlineSize.Of(AircraftFootprint.FromType(aircraftType), towedNoseFirst: false).DesignGroup;
+
+    /// <summary>
     /// A <c>PUSHM</c> whose arrival is refused outright — spot 1 lies past the sanity guard from D5 — with a hint pending
     /// that every candidate would pass (the end of the stand push-off) is refused as the arrival stands: the refusal names
     /// spot 1 and no pass-through tow is tried.

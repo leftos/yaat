@@ -14,6 +14,7 @@
 
 - Pushback and tug planning keep taxiway clearances from AC 150/5300-13B, so an SFO alley push now stays 126.5 ft from taxiway A.
 - A push or tow of a small aircraft past a small parked neighbour (both ADG I or II) now keeps 10 ft wingtip clearance, not 25 ft.
+- A tow to a `#node` is refused when it would leave the aircraft past a taxiway at that node, except the taxiway it starts on.
 - A taxiway drawn under two names, such as FLL A and A1, now holds short at the same bar on both, so neither reaches the runway around it.
 - Wide-bodies such as the A380, 777 and 747 now turn on the ground on a radius set by their wheelbase, so they round taxi corners wider and slower.
 - Every vTDLS dropdown can be cleared back to `- - - -`, and Climb via and Maintain clear each other both ways, as in vTDLS.

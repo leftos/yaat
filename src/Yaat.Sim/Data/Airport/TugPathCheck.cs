@@ -9,7 +9,10 @@ internal enum TugPathSeverity
     Runway,
     HoldingPosition,
 
-    /// <summary>A push onto a taxiway reaches too far past its centreline; only a taxiway goal is judged by it.</summary>
+    /// <summary>
+    /// A move reaches too far past the centreline of a taxiway it is judged against: a taxiway goal's own, or a movement-area
+    /// taxiway at a node goal's node.
+    /// </summary>
     TaxiwayOvershoot,
 
     /// <summary>A move to any other goal crosses movement-area pavement it was not sent to.</summary>
@@ -23,12 +26,30 @@ internal enum TugPathSeverity
 /// <param name="Taxiway">The taxiway a taxiway-overshoot or movement-area refusal names; null for every other rule.</param>
 internal readonly record struct TugPathRefusal(TugPathSeverity Severity, string Message, string? Taxiway);
 
+/// <summary>How the flown-path check judges a goal's taxiways.</summary>
+/// <param name="ExemptNames">Pavement the movement-area rule lets the fuselage cross.</param>
+/// <param name="OvershootTaxiways">
+/// The taxiways the move must not reach too far past (<see cref="TugPathCheck.MaxTaxiwayOvershootFt"/>).
+/// </param>
+/// <param name="CrossingRule">The movement-area rule runs: for every goal but a push onto a taxiway.</param>
+/// <param name="NodeGoal">
+/// The goal is a node goal: the taxiways the move starts on are left out of <paramref name="OvershootTaxiways"/> and exempt
+/// from the movement-area rule by name.
+/// </param>
+internal readonly record struct TugTaxiwayJudging(
+    IReadOnlySet<string> ExemptNames,
+    IReadOnlySet<string> OvershootTaxiways,
+    bool CrossingRule,
+    bool NodeGoal
+);
+
 /// <summary>
 /// Checks a candidate's flown path, sample by sample, against the layout: the footprint (fuselage length ×
 /// wingspan about the reference point, oriented by the nose) must stay more than a runway's half-width from its
 /// centreline and must not cross an edge touching a runway holding position. A push onto a taxiway must then not take
 /// the aircraft's centre (the reference point) more than <see cref="MaxTaxiwayOvershootFt"/> past that taxiway's
-/// centreline, on the side away from where the tow started. Any other move's fuselage centreline must not cross
+/// centreline, on the side away from where the tow started, and nor may a move to a node past any movement-area taxiway
+/// at the node but the one it starts on. Any other move's fuselage centreline, and a node goal's, must not cross
 /// movement-area pavement the goal does not name, except the pavement the goal's own first sample already lies across,
 /// for the unbroken run of samples still across it, and the pavement its last sample lies across, over the unbroken
 /// run back to it — leaving pavement and reaching it. That pavement is the edges the fuselage lies across plus their
@@ -154,12 +175,12 @@ public sealed class TugPathCheck
     public static double MaxTaxiwayOvershootFt(AircraftFootprint footprint) => footprint.WingspanFt / 2.0;
 
     /// <summary>
-    /// The first rule the path breaks — runway, then holding position, then, for a push onto <paramref name="goalTaxiway"/>,
-    /// the overshoot past it, else the movement area — or null when clear.
+    /// The first rule the path breaks — runway, then holding position, then the overshoot past each of the goal's judged
+    /// taxiways (<see cref="TugTaxiwayJudging.OvershootTaxiways"/>, in name order, the start taxiway left out for a node
+    /// goal), then, unless the goal is a push onto a taxiway, the movement area — or null when clear.
     /// </summary>
     /// <param name="traces">The candidate's moves, flown.</param>
-    /// <param name="exemptNames">Pavement the movement-area rule lets the fuselage cross.</param>
-    /// <param name="goalTaxiway">The taxiway a push onto a taxiway is sent onto; null for every other goal.</param>
+    /// <param name="judging">How the goal's taxiways are judged.</param>
     /// <param name="naming">
     /// How a refusal names the move (<c>Subject</c>), and the marked point the move ends on (<c>MarkedPoint</c>, <c>the
     /// marked point</c>) or null for every other goal. A marked point has no pavement of its own to arrive on: its end
@@ -172,13 +193,12 @@ public sealed class TugPathCheck
     /// <returns>The refusal, or null.</returns>
     internal TugPathRefusal? Check(
         IReadOnlyList<TugMoveTrace> traces,
-        IReadOnlySet<string> exemptNames,
-        string? goalTaxiway,
+        TugTaxiwayJudging judging,
         (string Subject, string? MarkedPoint) naming,
         bool forced
     )
     {
-        (string subject, string? markedPoint) = naming;
+        string subject = naming.Subject;
         List<LocalPose> poses = Poses(traces);
         if (poses.Count == 0)
         {
@@ -193,29 +213,23 @@ public sealed class TugPathCheck
             return runwayOrHold;
         }
 
-        return runwayOrHold
-            ?? (
-                goalTaxiway is { } taxiway
-                    ? TaxiwayOvershootRefusal(poses, box, exemptNames, taxiway, subject)
-                    : MovementAreaCrossings(poses, box, exemptNames, (subject, markedPoint), all: null)
-            );
+        return runwayOrHold ?? TaxiwayRules(poses, box, judging, naming, all: null);
     }
 
     /// <summary>
-    /// Every taxiway rule a forced tow skips that the path breaks, one per taxiway, in the order met: for a push onto
-    /// <paramref name="goalTaxiway"/>, the overshoot past it; for every other goal, each movement-area taxiway the fuselage
-    /// crosses (the rule <see cref="Check"/> refuses a plain tow for at its first crossing). The runway and holding-position
-    /// rules are not judged: a forced tow keeps them. Empty when the path breaks none.
+    /// Every taxiway rule a forced tow skips that the path breaks, one per taxiway: the overshoot past each of the goal's
+    /// judged taxiways, as for <see cref="Check"/>, then, unless the goal is a push onto a taxiway, each movement-area
+    /// taxiway the fuselage crosses in the order met (the rule <see cref="Check"/> refuses a plain tow for at its first
+    /// crossing). The runway and holding-position rules are not judged: a forced tow keeps them. Empty when the path breaks
+    /// none.
     /// </summary>
     /// <param name="traces">The candidate's moves, flown.</param>
-    /// <param name="exemptNames">Pavement the movement-area rule lets the fuselage cross.</param>
-    /// <param name="goalTaxiway">The taxiway a push onto a taxiway is sent onto; null for every other goal.</param>
+    /// <param name="judging">How the goal's taxiways are judged.</param>
     /// <param name="naming">How the move and its marked point are named, as for <see cref="Check"/>.</param>
     /// <returns>The rules broken, each naming its taxiway.</returns>
     internal List<TugPathRefusal> SkippedTaxiwayHits(
         IReadOnlyList<TugMoveTrace> traces,
-        IReadOnlySet<string> exemptNames,
-        string? goalTaxiway,
+        TugTaxiwayJudging judging,
         (string Subject, string? MarkedPoint) naming
     )
     {
@@ -226,14 +240,73 @@ public sealed class TugPathCheck
         }
 
         Box box = FootprintBox(poses);
-        if (goalTaxiway is not { } taxiway)
+        var hits = new List<TugPathRefusal>();
+        TaxiwayRules(poses, box, judging, naming, hits);
+        return hits;
+    }
+
+    /// <summary>
+    /// The taxiway rules, after the runway and holding-position ones: the overshoot past each of the goal's judged taxiways
+    /// in name order, then, unless the goal is a push onto a taxiway, the movement area. For a node goal the taxiways the
+    /// move starts on (<see cref="StartTaxiways"/>), found once, are left out of the overshoot and exempt from the movement
+    /// area by name. Collected, a taxiway already reported as overshot gets no movement-area hit as well. A push onto a
+    /// taxiway logs the other taxiways it sweeps.
+    /// </summary>
+    /// <returns>The first rule broken, or null when there is none or <paramref name="all"/> collects them.</returns>
+    private TugPathRefusal? TaxiwayRules(
+        List<LocalPose> poses,
+        Box box,
+        TugTaxiwayJudging judging,
+        (string Subject, string? MarkedPoint) naming,
+        List<TugPathRefusal>? all
+    )
+    {
+        if (!judging.CrossingRule)
         {
-            var hits = new List<TugPathRefusal>();
-            MovementAreaCrossings(poses, box, exemptNames, naming, hits);
-            return hits;
+            LogOtherTaxiwaysSwept(poses, box, judging.ExemptNames, naming.Subject);
         }
 
-        return TaxiwayOvershootRefusal(poses, box, exemptNames, taxiway, naming.Subject) is { } overshoot ? [overshoot] : [];
+        HashSet<string> start = judging.NodeGoal ? StartTaxiways(poses[0], box) : [];
+        var overshot = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string taxiway in judging.OvershootTaxiways.Where(t => !start.Contains(t)).Order(StringComparer.Ordinal).ToList())
+        {
+            if (TaxiwayOvershootRefusal(poses, taxiway, naming.Subject) is not { } overshoot)
+            {
+                continue;
+            }
+
+            overshot.Add(taxiway);
+            if (StopsAt(overshoot, all))
+            {
+                return overshoot;
+            }
+        }
+
+        if (!judging.CrossingRule)
+        {
+            return null;
+        }
+
+        var exempt = new HashSet<string>(judging.ExemptNames, StringComparer.OrdinalIgnoreCase);
+        exempt.UnionWith(start);
+        TugPathRefusal? crossing = MovementAreaCrossings(poses, box, exempt, naming, all);
+        all?.RemoveAll(h => (h.Severity == TugPathSeverity.MovementArea) && (h.Taxiway is { } name) && overshot.Contains(name));
+        return crossing;
+    }
+
+    /// <summary>
+    /// The movement-area taxiways the aircraft starts on: those its own fuselage lies across at <paramref name="start"/>, the
+    /// tug's lead left out, and those with an edge within <see cref="TugPlanBuilder.OnTaxiwayCorridorFt"/> of its reference
+    /// point — an aircraft lined up on a taxiway a few feet off its centreline lies along it without crossing any edge.
+    /// </summary>
+    private HashSet<string> StartTaxiways(LocalPose start, Box box)
+    {
+        List<MovementEdge> edges = MovementEdgesIn(box, NoExemptNames);
+        var names = new HashSet<string>(CrossedAt(start with { Pulled = false }, edges).Select(e => edges[e].Name), StringComparer.OrdinalIgnoreCase);
+        names.UnionWith(
+            edges.Where(e => PointToSegmentFt(start.Position, e.Segment.A, e.Segment.B) <= TugPlanBuilder.OnTaxiwayCorridorFt).Select(e => e.Name)
+        );
+        return names;
     }
 
     /// <summary>Every flown sample in the local frame, move by move, into the instance's working list.</summary>
@@ -929,7 +1002,7 @@ public sealed class TugPathCheck
     }
 
     /// <summary>
-    /// A push onto <paramref name="taxiway"/> whose centre — the reference point, the fuselage midpoint, at any sample
+    /// A move judged against <paramref name="taxiway"/> whose centre — the reference point, the fuselage midpoint, at any sample
     /// including the end pose — reaches more than <see cref="MaxTaxiwayOvershootFt"/> past the taxiway's centreline on the
     /// side away from where the tow started, as a refusal naming the farthest reach. The centre, not the nose or tail: a
     /// straight push back across a taxiway ends with the centre on it and the tail half a fuselage past it by design.
@@ -938,9 +1011,8 @@ public sealed class TugPathCheck
     /// and never gets farther past it than it started is measured against the line of the edge nearest each point
     /// instead (<see cref="PastCentrelineLineFt"/>). A tow starting on the centreline counts either side.
     /// </summary>
-    private TugPathRefusal? TaxiwayOvershootRefusal(List<LocalPose> poses, Box box, IReadOnlySet<string> exemptNames, string taxiway, string subject)
+    private TugPathRefusal? TaxiwayOvershootRefusal(List<LocalPose> poses, string taxiway, string subject)
     {
-        LogOtherTaxiwaysSwept(poses, box, exemptNames, subject);
         List<EdgeSegment> centreline = CentrelineOf(taxiway);
         if (centreline.Count == 0)
         {

@@ -94,7 +94,7 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
 
      It is also dropped when a move exceeds its budget; the last move ends more than 2° off the facing or 3 ft off the line; a move onto a stop point runs more than 3 ft past it (a push onto a staging point, 100 ft); for a lane goal, the final pull onto the lane swings the nose more than 5° past the lane heading before turning back (`MaxPullPastLineDeg`, the S-bend on the pull); or it fails the flown-path check.
    - A candidate dropped only because its final line pull overshot the stop by at most `(1 + 1.15) × R` (2.15 routine radii: a 90° turn-in plus the roll-out, the most one line capture can need) is retried once with a straight of the kind before the reversal, 1.5 × overshoot + 10 ft, inserted before the reversal.
-   - Among the survivors: fewest reversals; then, for a plain tow with parked neighbours, every candidate whose least clearance to them, capped at `WingtipBufferFt` (25 ft), is within `TugPlanBuilder.ClearanceTieBandFt` = 5 ft [J] of the roomiest counts as tied (room beyond the buffer is surplus, so candidates that all keep it tie).
+   - Among the survivors: fewest reversals; then, for a plain tow with parked neighbours, every candidate whose room is within `TugPlanBuilder.ClearanceTieBandFt` = 5 ft [J] of the roomiest counts as tied. The room is the least, over the neighbours, of the candidate's clearance to each one capped at that pair's wingtip buffer (`GroundOutlineSweep.PairWingtipBufferFt`: 10 ft when both aircraft are ADG I or II, else 25 ft; `TugNeighbourClearance.RoomFt`). Room beyond the pair's buffer is surplus, so candidates that all keep it tie. The stand push-off's length still adds the flat 25 ft `WingtipBufferFt`.
 
      Clearance never buys an extra reversal or move above the floor — a crew will not add a push-pull for wingtip margin at a stand built for a straight push — and this tie also applies in the plain-tow fallback pools.
 
@@ -224,8 +224,11 @@ Every candidate's samples are checked, about every 5 ft, in a flat frame about t
   Refusal: `Unable, the move to taxiway Y would take the aircraft 76 ft past taxiway Y` (SFO C8 `PUSH Y FACE S`, B739). Sweeping over other movement-area taxiways on the way is **not** refused for these goals. A push onto a taxiway cannot be expected to stay clear of the connectors that meet it: at SFO D7, A and F1 meet at right angles.
 
   Which other taxiways the sweep touched is logged at debug only. The straight-back push across a taxiway, which ends with its centre on the centreline and its tail across, measures 0. Accepted under this rule: SFO D7/F3/D10 `PUSH A F1` and B12 `PUSH B`.
-- **Movement area** (every other goal: `$spot`, `@gate`, `#node`, bare `PUSH`, `PUSH FACE`). The fuselage segment (nose to tail) crosses movement-area pavement, as classified by `MovementAreaClassification` (see [pathfinder.md](pathfinder.md), ramp-lane cut), except:
-  - pavement the goal names (a `TaxiwayLine`/`StraightBackTo` taxiway; a node goal's edge names);
+- **Node goal overshoot** (`#node` goals only, bare or faced: `TugGoalKind.Node`; a bare spot, stand or marked point is not a node goal and keeps its node's edge names exempt from the movement-area rule, none for a marked point). The same overshoot measure, run for every movement-area taxiway at the node (`ResolvedTugGoal.OvershootTaxiways`: the movement-area names of the node's edges under the request's `MovementAreaClassification`; apron lanes and ramp edges are not measured) except the taxiway the move starts on. A node at a junction is checked against each of its taxiways: the move must stay within the allowance of every one, and the first overshot in name order is refused, `Unable, the move to node N would take the aircraft X ft past taxiway T`.
+
+  The taxiway the move starts on is every movement-area taxiway the first sample's fuselage lies across (`TugPathCheck.StartTaxiways`, without the tug's lead), and every one with an edge within `TugPlanBuilder.OnTaxiwayCorridorFt` (25 ft) of the start's reference point, so an aircraft lined up along a taxiway a few feet off its centreline starts on it. It is also exempt by name from the movement-area rule below. A forced tow's notes name a taxiway once: one overshot is not also noted as entered. Unlike a taxiway goal, a node goal is judged by the movement-area rule as well, after the overshoot. A node goal ends with its centre on the node, so it is refused for an overshoot only when its path swings past a taxiway at the node and comes back. `TugNodeGoalOvershootTests` pins the rule, with check-level traces for a single taxiway and a junction.
+- **Movement area** (every goal but a push onto a taxiway: `$spot`, `@gate`, `#node`, bare `PUSH`, `PUSH FACE`). The fuselage segment (nose to tail) crosses movement-area pavement, as classified by `MovementAreaClassification` (see [pathfinder.md](pathfinder.md), ramp-lane cut), except:
+  - pavement the goal names (a `TaxiwayLine`/`StraightBackTo` taxiway, which only keeps it out of the swept-pavement log); a node goal's own taxiways are not exempt by name, only the taxiway its move starts on;
   - the **taxiway behind the stand**: for a plan that starts on a stand, the first movement-area edge within `StandBehindExemptionFt` (300 ft) straight behind it is exempt for the whole plan — the push clearance covers pushing onto it and pulling back off it (SFO's Y, 186 ft behind the B gates);
   - **leaving and arriving**, per goal: the edges the fuselage lies across at the goal's start pose, extended through shared nodes along the same movement-area name for at most one fuselage length of chain, stay exempt for the unbroken run of samples from the start over which the fuselage still crosses one of them; symmetrically for the edges crossed at the goal's end pose, back from the end.
 
@@ -496,12 +499,6 @@ The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance
 
 This replaces the half-wingspan lateral test for these pairs, which compared the room along a straight line against two half-spans and so held a straight push whose neighbour sat beside the tail (issue #222 at OAK gates 25/26) while being blind to a turn that swings the tail into a neighbour further along. Movers, shadows and the give-way-to-pushback arbitration are unchanged — see [conflict-and-visual-detection.md](../conflict-and-visual-detection.md).
 
-## Decided rules the code does not follow yet
-
-Each rule below is settled; the open Linear issue named in it builds it, and a change to the planner or detector honours it.
-
-- **Node goals judged by overshoot.** `TugGoalResolver.ResolveNodeGoal`'s node-with-facing branch is judged by the taxiway overshoot like a taxiway goal, and drops its exemption of `NodeEdgeNames(node)` by name across the search box.
-
 ## Writing a push brief
 
 A brief for pushback or tug-move work cites the rules above by section and quotes a probe for every gate, spot or route it names; it never states a push's outcome from reasoning alone. Most dispatches that came back underspecified or blocked did so on a premise the planner's rules falsify.
@@ -542,7 +539,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 
 **Rules under revision.**
 
-A brief touching one of these names the open issue and says which side of the change it assumes. The open issues are node goals judged by overshoot (YAAT-37), under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41).
+A brief touching one of these names the open issue and says which side of the change it assumes. The open issue is the Across/Alongside split at 45° (YAAT-41).
 
 They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); and the clear-plan swing guard (YAAT-176).
 

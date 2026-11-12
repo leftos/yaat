@@ -340,8 +340,8 @@ public sealed record TugForcedIgnoresParked : TugForcedOverride;
 /// <summary>A candidate a plain tow ranked by the clearance band, with the room the band compared it by.</summary>
 /// <param name="Candidate">The candidate.</param>
 /// <param name="RoomFt">
-/// The closest its outline comes to any parked neighbour's over its whole path, capped at
-/// <see cref="GroundOutlineSweep.WingtipBufferFt"/>, feet.
+/// The closest its outline comes to each parked neighbour's over its whole path, capped at that pair's wingtip buffer
+/// (<see cref="GroundOutlineSweep.PairWingtipBufferFt"/>), the least over the neighbours, feet (<see cref="TugNeighbourClearance.RoomFt"/>).
 /// </param>
 internal readonly record struct TugBandRoom(TugCandidate Candidate, double RoomFt);
 
@@ -360,6 +360,13 @@ internal sealed record TugBandChoice(TugBandRoom Kept, IReadOnlyList<TugBandRoom
 /// </param>
 internal readonly record struct TugNeighbourClearance(bool KeepsFloor, double ClosestFt)
 {
+    /// <summary>
+    /// The room the clearance band compares a plain tow's candidate by, feet: for each parked neighbour the closest the
+    /// candidate's outline comes to it, capped at the pair's wingtip buffer (<see cref="GroundOutlineSweep.PairWingtipBufferFt"/>),
+    /// and the least of those; <see cref="GroundOutlineSweep.WingtipBufferFt"/> when there is no neighbour.
+    /// </summary>
+    internal double RoomFt { get; init; }
+
     /// <summary>
     /// How much more room a forced candidate that breaks the floor must keep to the neighbours than another to rank
     /// ahead of it, feet; judgement call: within it, the usual keys decide.
@@ -731,22 +738,46 @@ public sealed record ResolvedTugGoal
     public bool PassThrough { get; init; }
 
     /// <summary>
-    /// Taxiway names the movement-area check lets the fuselage cross. A taxiway goal is judged by its overshoot instead
-    /// (<see cref="OvershootTaxiway"/>); its names only keep the goal's own taxiway out of the swept-pavement debug log.
+    /// Taxiway names the movement-area check lets the fuselage cross: the taxiway behind the stand a plan starts on. A
+    /// taxiway goal is judged by its overshoot instead (<see cref="OvershootTaxiways"/>); its own taxiway here only keeps
+    /// it out of the swept-pavement debug log. A node goal's own taxiways are not exempt by name: they are judged by
+    /// their overshoot beside the movement-area check.
     /// </summary>
     public required IReadOnlySet<string> ExemptNames { get; init; }
 
     /// <summary>
-    /// The taxiway a taxiway-line or straight-back goal is pushed onto, which the flown-path check judges the push by
-    /// (<see cref="TugPathCheck.MaxTaxiwayOvershootFt"/>) in place of the movement-area rule; null for every other goal.
+    /// Taxiway names the alley-clearance keep lets the outline reach into the object-free area of: those in
+    /// <see cref="ExemptNames"/> and, for a node goal, the names of every edge at its node.
     /// </summary>
-    public string? OvershootTaxiway => Shape is TugGoalShape.TaxiwayLine or TugGoalShape.StraightBack ? Goal.TaxiwayName : null;
+    public required IReadOnlySet<string> KeepNames { get; init; }
+
+    /// <summary>
+    /// The taxiways the flown-path check judges the move's overshoot past (<see cref="TugPathCheck.MaxTaxiwayOvershootFt"/>):
+    /// for a taxiway-line or straight-back goal the taxiway it is pushed onto, judged in place of the movement-area check;
+    /// for a node goal every movement-area taxiway at its node, judged beside it, where the check leaves out the taxiway
+    /// the move starts on; empty for every other goal.
+    /// </summary>
+    public required IReadOnlySet<string> OvershootTaxiways { get; init; }
+
+    /// <summary>
+    /// How the flown-path check judges the goal's taxiways: the overshoot past each of <see cref="OvershootTaxiways"/>,
+    /// and the movement-area check for every goal but a taxiway-line or straight-back one. A <c>#node</c> goal, bare or
+    /// faced, leaves the taxiways it starts on out of the overshoot and exempts them from the movement-area check.
+    /// </summary>
+    internal TugTaxiwayJudging Judging =>
+        new(
+            ExemptNames,
+            OvershootTaxiways,
+            CrossingRule: Shape is not (TugGoalShape.TaxiwayLine or TugGoalShape.StraightBack),
+            NodeGoal: Goal.Kind == TugGoalKind.Node
+        );
 }
 
 /// <summary>Turns a request's goal into a <see cref="ResolvedTugGoal"/>.</summary>
 public static class TugGoalResolver
 {
-    private static readonly IReadOnlySet<string> NoNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    /// <summary>No taxiway names.</summary>
+    internal static readonly IReadOnlySet<string> NoNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Resolves the request's goal at <paramref name="index"/>: its shape, facing, stop point and exemptions.</summary>
     /// <param name="layout">The airport's ground layout, or null when it has none.</param>
@@ -761,7 +792,7 @@ public static class TugGoalResolver
         ResolvedTugGoal basis = Basis(goal, isHint: !isLast);
         return goal.Kind switch
         {
-            TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node or TugGoalKind.FreePose => ResolveNodeGoal(request.Footprint, basis, facing),
+            TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node or TugGoalKind.FreePose => ResolveNodeGoal(layout, request, basis, facing),
             TugGoalKind.TaxiwayLine or TugGoalKind.StraightBackTo => ResolveTaxiwayGoal(basis, facing),
             TugGoalKind.Facing => basis with { Shape = TugGoalShape.Facing, FacingTrueDeg = facing!.Value },
             TugGoalKind.Clear => basis,
@@ -797,41 +828,82 @@ public static class TugGoalResolver
             Subject = unplaced ? goal.Label : $"the move to {goal.Label}",
             IsHint = isHint,
             ExemptNames = NoNames,
+            KeepNames = NoNames,
+            OvershootTaxiways = NoNames,
         };
     }
 
     /// <summary>
     /// A spot, stand or node goal. With no facing it is reached like a bare node; a faced spot stops a half-fuselage
-    /// behind its mark with a staging point behind that; a faced stand or node stops on the node.
+    /// behind its mark with a staging point behind that; a faced stand or node stops on the node. Only a <c>#node</c> goal,
+    /// bare or faced, is judged as a node goal (<see cref="AsNodeGoal"/>); a bare spot, stand or marked point has the names
+    /// of its node's edges exempt from the movement-area check instead (none for a marked point, whose node has no edges).
     /// </summary>
-    private static ResolvedTugGoal ResolveNodeGoal(AircraftFootprint footprint, ResolvedTugGoal basis, double? facing)
+    private static ResolvedTugGoal ResolveNodeGoal(AirportGroundLayout? layout, TugRequest request, ResolvedTugGoal basis, double? facing)
     {
         GroundNode node = basis.Goal.Node!;
         if (facing is not { } facingDeg)
         {
-            return ToNode(basis, node);
+            ResolvedTugGoal toNode = basis with { Shape = TugGoalShape.ToNode, Stop = node.Position };
+            IReadOnlySet<string> edgeNames = NodeEdgeNames(node);
+            return basis.Goal.Kind == TugGoalKind.Node
+                ? AsNodeGoal(layout, request, toNode)
+                : toNode with
+                {
+                    ExemptNames = edgeNames,
+                    KeepNames = edgeNames,
+                };
         }
 
         ResolvedTugGoal faced = basis with { Shape = TugGoalShape.Faced, FacingTrueDeg = facingDeg, Stop = node.Position };
         switch (basis.Goal.Kind)
         {
             case TugGoalKind.Spot:
-                (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, facingDeg, footprint);
+                (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, facingDeg, request.Footprint);
                 return faced with { Stop = stop, Staging = staging };
             case TugGoalKind.Node:
-                return faced with { ExemptNames = NodeEdgeNames(node) };
+                return AsNodeGoal(layout, request, faced);
             default:
                 return faced;
         }
     }
 
     /// <summary>
-    /// A taxiway-line or straight-back goal: the line runs through the exit node, and the taxiway is exempt.
+    /// A node goal: the names of every edge at its node stay in the alley-clearance keep, and the movement-area taxiways
+    /// at its node, classified by the request's movement area, are judged by their overshoot.
+    /// </summary>
+    private static ResolvedTugGoal AsNodeGoal(AirportGroundLayout? layout, TugRequest request, ResolvedTugGoal goal)
+    {
+        GroundNode node = goal.Goal.Node!;
+        return goal with { KeepNames = NodeEdgeNames(node), OvershootTaxiways = MovementAreaNamesAt(layout, request.MovementArea, node) };
+    }
+
+    private static IReadOnlySet<string> MovementAreaNamesAt(AirportGroundLayout? layout, MovementAreaClassification? movementArea, GroundNode node)
+    {
+        if ((layout is null) || (movementArea is null))
+        {
+            return NoNames;
+        }
+
+        var pavement = new PavementClassifier(layout, movementArea);
+        return new HashSet<string>(node.Edges.Select(pavement.MovementAreaName).OfType<string>(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A taxiway-line or straight-back goal: the line runs through the exit node, and the taxiway is judged by its
+    /// overshoot in place of the movement-area check.
     /// </summary>
     private static ResolvedTugGoal ResolveTaxiwayGoal(ResolvedTugGoal basis, double? facing)
     {
         TugGoal goal = basis.Goal;
-        ResolvedTugGoal onTaxiway = basis with { Stop = goal.Node!.Position, ExemptNames = Names(goal.TaxiwayName!) };
+        IReadOnlySet<string> taxiway = Names(goal.TaxiwayName!);
+        ResolvedTugGoal onTaxiway = basis with
+        {
+            Stop = goal.Node!.Position,
+            ExemptNames = taxiway,
+            KeepNames = taxiway,
+            OvershootTaxiways = taxiway,
+        };
         return goal.Kind == TugGoalKind.TaxiwayLine
             ? onTaxiway with
             {
@@ -843,14 +915,6 @@ public static class TugGoalResolver
                 Shape = TugGoalShape.StraightBack,
             };
     }
-
-    private static ResolvedTugGoal ToNode(ResolvedTugGoal basis, GroundNode node) =>
-        basis with
-        {
-            Shape = TugGoalShape.ToNode,
-            Stop = node.Position,
-            ExemptNames = NodeEdgeNames(node),
-        };
 
     private static IReadOnlySet<string> NodeEdgeNames(GroundNode node) =>
         new HashSet<string>(node.Edges.SelectMany(RampLaneReposition.EdgeNames), StringComparer.OrdinalIgnoreCase);
@@ -1644,7 +1708,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private bool TryArrive(int arrival, bool offStand, out string refusal)
     {
-        ResolvedTugGoal goal = WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, arrival));
+        ResolvedTugGoal goal = ResolvedGoal(arrival);
         LatLon from = (_pendingHints.Count > 0) ? _pendingHints[^1].Stop : _end.Position;
         if (IsRefusedOutright(goal, from, out refusal))
         {
@@ -1766,9 +1830,7 @@ internal sealed class TugPlanBuilder
         }
 
         string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.Name : null;
-        foreach (
-            TugPathRefusal hit in _pathCheck.SkippedTaxiwayHits(kept.Traces, goal.ExemptNames, goal.OvershootTaxiway, (goal.Subject, markedPoint))
-        )
+        foreach (TugPathRefusal hit in _pathCheck.SkippedTaxiwayHits(kept.Traces, goal.Judging, (goal.Subject, markedPoint)))
         {
             TugForcedOverride? forced = hit switch
             {
@@ -1972,11 +2034,13 @@ internal sealed class TugPlanBuilder
     /// <summary>
     /// A plain tow's choice among <paramref name="candidates"/> when it has parked neighbours: the fewest reversals first;
     /// then, among the candidates with that many, only those whose room — the least clearance to any parked neighbour
-    /// (<see cref="NeighbourClearance"/>), capped at <see cref="GroundOutlineSweep.WingtipBufferFt"/> — is within
-    /// <see cref="ClearanceTieBandFt"/> of the roomiest count as tied; then <paramref name="isBetter"/> among them — the
-    /// usual keys (<see cref="IsBetter"/>) for the ranking's own choice, and staying out of the empty stands before them
-    /// for a keep pool's (<see cref="IsBetterClear"/>). Room above the floor never buys a reversal: a candidate with more
-    /// reversals never ranks ahead, however much room it keeps. Nor does room beyond the wingtip buffer buy anything:
+    /// (<see cref="NeighbourClearance"/>), each neighbour's capped at that pair's wingtip buffer
+    /// (<see cref="GroundOutlineSweep.PairWingtipBufferFt"/>: 10 ft for an ADG I/II pair, else 25 ft;
+    /// <see cref="TugNeighbourClearance.RoomFt"/>) — is within <see cref="ClearanceTieBandFt"/> of the roomiest count as
+    /// tied; then <paramref name="isBetter"/> among them — the usual keys (<see cref="IsBetter"/>) for the ranking's own
+    /// choice, and staying out of the empty stands before them for a keep pool's (<see cref="IsBetterClear"/>). Room above
+    /// the floor never buys a reversal: a candidate with more reversals never ranks ahead, however much room it keeps. Nor
+    /// does room beyond the pair's wingtip buffer buy anything:
     /// candidates that all keep the full buffer tie, and the usual keys decide. The choice goes on
     /// <see cref="BandChoices"/>. Null when there are no candidates.
     /// </summary>
@@ -1990,9 +2054,7 @@ internal sealed class TugPlanBuilder
         int fewestReversals = candidates.Min(c => c.Reversals);
         List<TugBandRoom> fewest =
         [
-            .. candidates
-                .Where(c => c.Reversals == fewestReversals)
-                .Select(c => new TugBandRoom(c, Math.Min(NeighbourClearance(c).ClosestFt, GroundOutlineSweep.WingtipBufferFt))),
+            .. candidates.Where(c => c.Reversals == fewestReversals).Select(c => new TugBandRoom(c, NeighbourClearance(c).RoomFt)),
         ];
         double mostRoomFt = fewest.Max(r => r.RoomFt);
         TugBandRoom? best = null;
@@ -2012,7 +2074,7 @@ internal sealed class TugPlanBuilder
 
     /// <summary>
     /// Whether a candidate keeps every parked neighbour at the sweep floor, and the closest its outline comes to any of
-    /// them over its whole path, feet (<see cref="NeighbourPass"/>); measured once.
+    /// them over its whole path, feet, and its room capped per pair (<see cref="NeighbourPass"/>); measured once.
     /// </summary>
     private TugNeighbourClearance NeighbourClearance(TugCandidate candidate)
     {
@@ -2020,7 +2082,10 @@ internal sealed class TugPlanBuilder
         {
             List<TugNeighbourClearance> passes = [.. _request.ParkedNeighbours.Select(n => NeighbourPass(candidate.Traces, n))];
             double closestFt = passes.Count == 0 ? double.MaxValue : passes.Min(p => p.ClosestFt);
-            clearance = new TugNeighbourClearance(passes.All(p => p.KeepsFloor), closestFt);
+            clearance = new TugNeighbourClearance(passes.All(p => p.KeepsFloor), closestFt)
+            {
+                RoomFt = passes.Count == 0 ? GroundOutlineSweep.WingtipBufferFt : passes.Min(p => p.RoomFt),
+            };
             _neighbourClearanceByCandidate[candidate] = clearance;
             Log.LogDebug(
                 "Tug candidate {Template}: {Keeps} the neighbour floor, closest {ClosestFt:F1} ft",
@@ -2036,14 +2101,22 @@ internal sealed class TugPlanBuilder
     /// <summary>
     /// How a candidate passes one parked neighbour: whether every run of it keeps the sweep floor a plain tow is held to
     /// (<see cref="TugNeighbourSweep.FirstFoulAlongFt"/>), and the closest its outline comes to the neighbour's over its
-    /// whole path, feet (<see cref="TugNeighbourSweep.ClosestFt"/>).
+    /// whole path, feet (<see cref="TugNeighbourSweep.ClosestFt"/>), which capped at the pair's wingtip buffer
+    /// (<see cref="GroundOutlineSweep.PairWingtipBufferFt"/>, the towed aircraft's design group and the neighbour's) is its
+    /// room.
     /// </summary>
-    private TugNeighbourClearance NeighbourPass(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour) =>
-        new(
+    private TugNeighbourClearance NeighbourPass(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour)
+    {
+        double closestFt = TugNeighbourSweep.ClosestFt(traces, neighbour, _request.Start.Position, _request.Footprint);
+        double bufferFt = GroundOutlineSweep.PairWingtipBufferFt(DesignGroupOf(_request.Footprint), DesignGroupOf(neighbour.Footprint));
+        bool keepsFloor =
             TugNeighbourSweep.FirstFoulAlongFt(traces, neighbour, _request.Start.Position, _request.Footprint, RowClearanceFt(traces, neighbour))
-                is null,
-            TugNeighbourSweep.ClosestFt(traces, neighbour, _request.Start.Position, _request.Footprint)
-        );
+            is null;
+        return new TugNeighbourClearance(keepsFloor, closestFt) { RoomFt = Math.Min(closestFt, bufferFt) };
+    }
+
+    private static AirplaneDesignGroup DesignGroupOf(AircraftFootprint footprint) =>
+        GroundOutlineSize.Of(footprint, towedNoseFirst: false).DesignGroup;
 
     /// <summary>
     /// The row anchor a candidate's moves are judged against (<see cref="GroundOutlineSweep.FloorFt"/>): the request's
@@ -2287,7 +2360,7 @@ internal sealed class TugPlanBuilder
     private void PrepareKeep(ResolvedTugGoal goal, bool offStand)
     {
         _clearance ??= new TugTaxiwayClearance(_layout!, _movementArea, _request.Footprint);
-        _excludedTaxiways = new HashSet<string>(goal.ExemptNames, StringComparer.OrdinalIgnoreCase);
+        _excludedTaxiways = new HashSet<string>(goal.KeepNames, StringComparer.OrdinalIgnoreCase);
         _excludedTaxiways.UnionWith(_clearance.TaxiwaysFouledAt(_end));
         _emptyStands ??= new TugEmptyStands(_layout!, _request);
         var stands = new HashSet<string>(_emptyStands.EnteredAt(_end, _lastKind ?? PushbackLegKind.Push), StringComparer.OrdinalIgnoreCase);
@@ -2814,10 +2887,18 @@ internal sealed class TugPlanBuilder
             return goal;
         }
 
-        var names = new HashSet<string>(goal.ExemptNames, StringComparer.OrdinalIgnoreCase);
-        names.UnionWith(_standBehindNames);
-        return goal with { ExemptNames = names };
+        var exempt = new HashSet<string>(goal.ExemptNames, StringComparer.OrdinalIgnoreCase);
+        exempt.UnionWith(_standBehindNames);
+        var keep = new HashSet<string>(goal.KeepNames, StringComparer.OrdinalIgnoreCase);
+        keep.UnionWith(_standBehindNames);
+        return goal with { ExemptNames = exempt, KeepNames = keep };
     }
+
+    /// <summary>
+    /// The request's goal at <paramref name="index"/> as this plan judges it: resolved (<see cref="TugGoalResolver.Resolve"/>),
+    /// with the taxiway behind the stand the plan starts on exempt (<see cref="WithStandBehindExempt"/>).
+    /// </summary>
+    internal ResolvedTugGoal ResolvedGoal(int index) => WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, index));
 
     /// <summary>
     /// A goal refused before any candidate is built: further than <see cref="TugMovePlanner.MaxGoalDistanceFt"/> from
@@ -3247,7 +3328,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     internal List<TugCandidate> AcceptableMultiPointPaths()
     {
-        ResolvedTugGoal goal = WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, 0));
+        ResolvedTugGoal goal = ResolvedGoal(0);
         bool offStand = _request.StartsAtStand;
         if (!IsLaneGoal(goal, offStand))
         {
@@ -3775,6 +3856,7 @@ internal sealed class TugPlanBuilder
             FacingTrueDeg = junction.NoseTrueDeg,
             Stop = junction.Node.Position,
             Staging = null,
+            OvershootTaxiways = TugGoalResolver.NoNames,
         };
         TugChoiceTally tally = Choose(faced, FacedCandidates(faced, standPushOff), offStand: true);
         PrepareKeep(faced, offStand: true);
@@ -4466,7 +4548,7 @@ internal sealed class TugPlanBuilder
 
         string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.Name : null;
         TugPathRefusal? path =
-            _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.OvershootTaxiway, (goal.Subject, markedPoint), _request.Forced)
+            _pathCheck?.Check(candidate.Traces, goal.Judging, (goal.Subject, markedPoint), _request.Forced)
             ?? (_request.Forced ? null : NeighbourRefusal(goal, candidate));
         return new TugVerdict(shapeReason, path, finalPullOvershootFt, null);
     }

@@ -285,7 +285,8 @@ public class TugPathCheckClampedOvershootTests
             EndLineTravelErrorDeg = null,
             EndOvershootFt = null,
         };
-        TugPathRefusal? refusal = check.Check([trace], new HashSet<string>(), taxiway, ($"the move to taxiway {taxiway}", null), forced: false);
+        var judging = new TugTaxiwayJudging(new HashSet<string>(), new HashSet<string>([taxiway]), CrossingRule: false, NodeGoal: false);
+        TugPathRefusal? refusal = check.Check([trace], judging, ($"the move to taxiway {taxiway}", null), forced: false);
         _output.WriteLine(refusal is { } r ? $"refused: {r.Message}" : "accepted");
         if (refusedFt is not { } expectedFt)
         {
