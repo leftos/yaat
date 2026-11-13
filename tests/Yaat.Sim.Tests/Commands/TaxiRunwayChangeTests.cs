@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -281,5 +282,490 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Procedure.DepartureRunway);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
+    }
+
+    // A re-TAXI installs a fresh phase list, so it drops every clearance stored on the old one, for the same runway as for a
+    // different one. It keeps dropping them, and the response names each one it dropped (docs/phases.md, "A re-TAXI drops stored
+    // clearances and says so"). A runway change already warns that the takeoff clearance is void, so that one is not named again.
+
+    private const string DroppedNote = "(dropped:";
+
+    private static CommandResult Dispatch(string command, AircraftState ac, AirportGroundLayout layout) =>
+        CommandDispatcher.Dispatch(CommandParser.Parse(command).Value!, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
+
+    /// <summary>Taxis the departure to <paramref name="runway"/> and stores <paramref name="clearance"/> (CTO or LUAW) during the taxi.</summary>
+    private void StoreDepartureClearance(AircraftState ac, AirportGroundLayout layout, string runway, string clearance)
+    {
+        AssignDepartureRunway(ac, runway);
+        Assert.True(TaxiTo(ac, layout, runway).Success);
+        CommandResult stored = Dispatch(clearance, ac, layout);
+        output.WriteLine($"{clearance}: success={stored.Success} message=\"{stored.Message}\"");
+        Assert.True(stored.Success, stored.Message);
+        Assert.NotNull(ac.Phases!.DepartureClearance);
+    }
+
+    /// <summary>Gives the aircraft the landing clearance for <paramref name="runway"/> a landing leaves on the phase list.</summary>
+    private static void StoreLandingClearance(AircraftState ac, string runway)
+    {
+        ac.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        ac.Phases.ClearedRunwayId = runway;
+    }
+
+    [Fact]
+    public void ReTaxiToTheSameRunway_AfterAStoredCto_NamesTheDroppedTakeoffClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R)", result.Message);
+        Assert.Null(ac.Phases!.DepartureClearance);
+    }
+
+    [Fact]
+    public void ReTaxiToTheSameRunway_AfterAStoredLuaw_NamesTheDroppedLineUpAndWaitClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "LUAW");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: line up and wait clearance for 28R)", result.Message);
+    }
+
+    /// <summary>The runway-change warning already says the takeoff clearance is void, so the response does not name it again.</summary>
+    [Fact]
+    public void ReTaxiToAnotherRunway_AfterAStoredCto_LeavesItToTheVoidWarning()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28L", "CTO");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+        Assert.Contains(TakeoffClearanceWarning("28R", "28L"), ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void Taxi_WithAStoredLandingClearance_NamesTheDroppedLandingClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreLandingClearance(ac, "28R");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: landing clearance for 28R)", result.Message);
+        Assert.Null(ac.Phases!.LandingClearance);
+    }
+
+    [Fact]
+    public void ReTaxi_WithATakeoffAndALandingClearanceStored_NamesBothInOneNote()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+        StoreLandingClearance(ac, "28R");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R; landing clearance for 28R)", result.Message);
+    }
+
+    /// <summary>An RTAXI reaching the same runway entry puts the stored takeoff clearance back, so nothing is dropped.</summary>
+    [Fact]
+    public void ReRouteTaxiToTheSameEntry_KeepsTheStoredCto_AndNamesNothing()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+
+        CommandResult result = Dispatch("RTAXI D C B", ac, layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+        Assert.Equal(ClearanceType.ClearedForTakeoff, ac.Phases!.DepartureClearance?.Type);
+    }
+
+    /// <summary>An RTAXI keeps or voids a stored takeoff clearance itself, but a landing clearance it drops is named.</summary>
+    [Fact]
+    public void ReRouteTaxi_WithALandingClearanceStored_NamesOnlyTheLandingClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+        StoreLandingClearance(ac, "28R");
+
+        CommandResult result = Dispatch("RTAXI D C B", ac, layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: landing clearance for 28R)", result.Message);
+        Assert.DoesNotContain("takeoff clearance", result.Message);
+    }
+
+    /// <summary>
+    /// The taxi a takeoff clearance at a taxiway hold short issues itself (DepartureClearanceHandler) is not a re-TAXI: it names
+    /// nothing, whatever the aircraft held before.
+    /// </summary>
+    [Fact]
+    public void ImplicitTaxiOfATakeoffClearance_NamesNothing()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+        StoreLandingClearance(ac, "28R");
+        var implicitTaxi = new GroundCommandHandler.TaxiDispatch(
+            AutoCrossRunwayMode.Off,
+            ActiveRunways.Empty,
+            IsScenarioScripted: false,
+            ResultReachesController: true,
+            ListAircraft: null,
+            GroundCommandHandler.DepartureRunwayClearance.Takeoff
+        );
+
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            ac,
+            new TaxiCommand(["D", "C", "B"], [], Expedite: false, DestinationRunway: "28R"),
+            layout,
+            implicitTaxi
+        );
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+    }
+
+    /// <summary>A TAXI to the stand the aircraft already stands on parks it there, and names what it dropped all the same.</summary>
+    [Fact]
+    public void TaxiToTheStandItStandsOn_AfterAStoredCto_NamesTheDroppedTakeoffClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], Expedite: false, DestinationParking: "NEW7"), layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.StartsWith("Taxi via @NEW7", result.Message);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R)", result.Message);
+    }
+
+    [Fact]
+    public void AirTaxi_WithAStoredLandingClearance_NamesTheDroppedLandingClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode heliPad = layout.FindSpotByName("HELI") ?? throw new InvalidOperationException("KOAK has no HELI spot");
+        var heli = new AircraftState
+        {
+            Callsign = "TEST2",
+            AircraftType = "EC35",
+            Position = heliPad.Position,
+            TrueHeading = new TrueHeading(90),
+            Altitude = 8,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+        };
+        heli.Ground.Layout = layout;
+        heli.Phases = new PhaseList();
+        StoreLandingClearance(heli, "28R");
+
+        CommandResult result = GroundCommandHandler.TryAirTaxi(heli, "28R", layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: landing clearance for 28R)", result.Message);
+    }
+
+    /// <summary>
+    /// An arrival that landed, exited and holds after the exit still carries the landing clearance it landed on; the landing consumed
+    /// it, so the taxi-in names nothing.
+    /// </summary>
+    [Fact]
+    public void TaxiAfterLandingAndExiting_NamesNothing()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingAfterExitPhase());
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, layout));
+        StoreLandingClearance(ac, "28R");
+        Assert.IsType<HoldingAfterExitPhase>(ac.Phases.CurrentPhase);
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+    }
+
+    /// <summary>
+    /// With a departure clearance read, the runway-change warning says that clearance no longer applies and never names the takeoff
+    /// clearance, so the response names it.
+    /// </summary>
+    [Fact]
+    public void ReTaxiToAnotherRunway_AfterADepartureClearanceAndAStoredCto_NamesTheTakeoffClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+        // With no ARTCC config the bare CTO leaves no initial altitude; the departure clearance is read here.
+        BriefDepartureRunway(ac, "28R");
+        Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
+
+        CommandResult result = TaxiTo(ac, layout, "28L");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R)", result.Message);
+        Assert.Contains(DepartureClearanceWarning("28L", "28R"), ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void TaxiAutoToTheSameRunway_AfterAStoredCto_NamesTheDroppedTakeoffClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        StoreDepartureClearance(ac, layout, "28R", "CTO");
+
+        CommandResult result = Dispatch("TAXIAUTO 28R", ac, layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R)", result.Message);
+    }
+
+    /// <summary>An EC35 standing on KOAK's HELI spot with nothing installed.</summary>
+    private static AircraftState MakeOakHelicopter(AirportGroundLayout layout)
+    {
+        GroundNode heliPad = layout.FindSpotByName("HELI") ?? throw new InvalidOperationException("KOAK has no HELI spot");
+        var heli = new AircraftState
+        {
+            Callsign = "TEST2",
+            AircraftType = "EC35",
+            Position = heliPad.Position,
+            TrueHeading = new TrueHeading(90),
+            Altitude = 8,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+        };
+        heli.Ground.Layout = layout;
+        heli.Phases = new PhaseList();
+        return heli;
+    }
+
+    /// <summary>Gives the helicopter <paramref name="runway"/> and a takeoff clearance stored for it.</summary>
+    private static void StoreHelicopterTakeoffClearance(AircraftState heli, string runway)
+    {
+        AssignDepartureRunway(heli, runway);
+        heli.Phases!.DepartureClearance = new DepartureClearanceInfo { Type = ClearanceType.ClearedForTakeoff, Departure = new DefaultDeparture() };
+    }
+
+    [Fact]
+    public void AirTaxiToTheSameRunway_WithAStoredCto_NamesTheDroppedTakeoffClearance()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState heli = MakeOakHelicopter(layout);
+        StoreHelicopterTakeoffClearance(heli, "28R");
+
+        CommandResult result = GroundCommandHandler.TryAirTaxi(heli, "28R", layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R)", result.Message);
+    }
+
+    /// <summary>With no departure clearance read, the runway-change warning already says the takeoff clearance is void.</summary>
+    [Fact]
+    public void AirTaxiToAnotherRunway_WithAStoredCto_LeavesItToTheVoidWarning()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState heli = MakeOakHelicopter(layout);
+        StoreHelicopterTakeoffClearance(heli, "28L");
+
+        CommandResult result = GroundCommandHandler.TryAirTaxi(heli, "28R", layout);
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+        Assert.Contains(TakeoffClearanceWarning("28R", "28L"), heli.PendingWarnings);
+    }
+
+    /// <summary>Installs <paramref name="phases"/> on the aircraft and runs it to the last one, as the sim would have.</summary>
+    private static void RunPhasesToTheLast(AircraftState ac, AirportGroundLayout layout, params Phase[] phases)
+    {
+        ac.Phases = new PhaseList();
+        foreach (Phase phase in phases)
+        {
+            ac.Phases.Add(phase);
+        }
+
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, layout);
+        ac.Phases.Start(ctx);
+        for (int i = 1; i < phases.Length; i++)
+        {
+            ac.Phases.AdvanceToNext(ctx);
+        }
+
+        Assert.Same(phases[^1], ac.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// An arrival that landed, exited and pulled up to hold short of the parallel (RunwayExitPhase.TryStartParallelCrossing appends that
+    /// to the landing's own phase list) still carries the landing clearance it landed on; the taxi-in names nothing.
+    /// </summary>
+    [Fact]
+    public void TaxiFromTheParallelHoldAfterLanding_NamesNothing()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        GroundNode parallelBar = layout.GetRunwayHoldShortNodes("28L")[0];
+        var holdShortOfParallel = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = parallelBar.Id,
+                Reason = HoldShortReason.RunwayCrossing,
+                TargetName = "28L",
+                Latitude = parallelBar.Position.Lat,
+                Longitude = parallelBar.Position.Lon,
+            },
+            HoldShortArrival.HeldShort
+        );
+        RunPhasesToTheLast(ac, layout, new LandingPhase(), holdShortOfParallel);
+        StoreLandingClearance(ac, "28R");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+    }
+
+    /// <summary>An arrival still exiting the runway it landed on, on a phase list of its own, names nothing either.</summary>
+    [Fact]
+    public void TaxiWhileExitingTheRunway_NamesNothing()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        RunPhasesToTheLast(ac, layout, new RunwayExitPhase());
+        StoreLandingClearance(ac, "28R");
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
+    }
+
+    /// <summary>A TAXI on the landing rollout is the exit from the landing, which consumes its landing clearance: nothing is dropped.</summary>
+    [Fact]
+    public void TaxiOnTheLandingRollout_NamesNothing()
+    {
+        const string arrival = "ARR1";
+        if (ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", arrival, 1.0) is not { } spawned)
+        {
+            return;
+        }
+
+        int touchdown = SfoGroundHarness.TickUntil(
+            spawned.Engine,
+            () => spawned.Aircraft.IsOnGround && (spawned.Aircraft.Phases?.CurrentPhase is LandingPhase),
+            300,
+            null
+        );
+        Assert.True(touchdown > 0, $"never touched down: {spawned.Aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.NotNull(spawned.Aircraft.Phases!.LandingClearance);
+
+        CommandResult result = spawned.Engine.SendCommand(arrival, "TAXIAUTO 30");
+
+        output.WriteLine(result.Message ?? "");
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(DroppedNote, result.Message);
     }
 }

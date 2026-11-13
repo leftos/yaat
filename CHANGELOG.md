@@ -28,6 +28,7 @@
 - A running FOLLOW ends with an RPO note when its lead is moved to another runway, unless the follower has no runway of its own.
 - On an approach, a slower aircraft keeps its own speed at a published maximum fix speed instead of speeding up to it.
 - A following aircraft on an approach no longer speeds up toward a published fix speed, so it keeps its spacing behind the lead.
+- A new `TAXI`, `TAXIAUTO`, `RTAXI`, `ATXI` or `CROSS` names any stored takeoff, line-up or landing clearance it drops: "(dropped: takeoff clearance for 28R)".
 - A tug now slows before each turn of a tow, so it no longer surges to 6-12 kt entering a tight turn; tows take up to 3 s longer.
 - Facility engineers, training administrators and air traffic managers at your home facility can now run sessions, as mentors and instructors can.
 - `TAXI` and `RTAXI` autocomplete offers `RWY`, `@` and `$` right after the command, so the no-route `TAXI RWY 28R` form is suggested.

@@ -127,6 +127,27 @@ public class OakCrossFromTaxiwayHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Held short of J on D with 28R assigned and a takeoff clearance for 28R stored on its phase list: <c>CROSS 28R</c> on J installs
+    /// a fresh taxi on along J, which does not carry the stored clearance, and the response says so. The taxi ends at the J hold, so
+    /// a CTO sent on the way would be the CTO at a taxiway hold short; the stored clearance is set on the phase list instead.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_WithAStoredCtoFor28R_Cross28R_DropsIt_AndNamesIt()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J", "TAXI D C HS J RWY 28R");
+        AircraftState held = engine.FindAircraft(Callsign)!;
+        held.Phases!.DepartureClearance = new DepartureClearanceInfo { Type = ClearanceType.ClearedForTakeoff, Departure = new DefaultDeparture() };
+        Assert.Equal("28R", held.Phases?.AssignedRunway?.Designator);
+
+        CommandResult cross = engine.SendCommand(Callsign, "CROSS 28R");
+        output.WriteLine($"[CROSS 28R] success={cross.Success} message={cross.Message}");
+        Assert.True(cross.Success, $"CROSS 28R held short of J refused: {cross.Message}");
+
+        Assert.Null(engine.FindAircraft(Callsign)!.Phases?.DepartureClearance);
+        Assert.EndsWith(" (dropped: takeoff clearance for 28R)", cross.Message);
+    }
+
+    /// <summary>
     /// Sends <c>CROSS 28R</c> to N45912 held short of J and asserts it applied as a taxi on along J with the crossing of 28R cleared.
     /// </summary>
     private AircraftState Cross28RFromTheJHold(SimulationEngine engine)
@@ -279,6 +300,7 @@ public class OakCrossFromTaxiwayHoldShortTests(ITestOutputHelper output)
         engine.Replay(recording, JustBeforeTaxi);
         CommandResult taxi = engine.SendCommand(Callsign, clearance);
         Assert.True(taxi.Success, $"{clearance} refused: {taxi.Message}");
+
         TickUntil(engine, a => IsHoldingShortOf(a, taxiway), TaxiToHoldLimitSeconds, $"holding short of {taxiway}");
         Assert.True(engine.SendCommand(ExitingTrafficOnE, "DEL").Success);
         return engine;
