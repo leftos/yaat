@@ -3540,7 +3540,8 @@ public static partial class PilotResponder
         )
         {
             RpoTerminal =
-                $"{aircraft.Callsign} {aircraft.AircraftType}: pattern runway {pattern} crosses runway {crossed}, tightest flyable {crossing.TightestFlyableNm:F1} NM",
+                $"{aircraft.Callsign} {aircraft.AircraftType}: pattern runway {pattern} crosses runway {crossed}, "
+                + $"tightest flyable {crossing.TightestFlyableNm:F1} NM",
         };
     }
 

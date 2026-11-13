@@ -45,6 +45,12 @@ public sealed class TeardropReentryPhase : Phase
     /// <summary>Name of the re-entry's last navigation target, the downwind abeam point where the downwind is joined.</summary>
     internal const string AbeamTargetName = "TDROP-ABM";
 
+    /// <summary>Name of the re-entry's outbound anchor navigation target, the fix the teardrop turns out to.</summary>
+    internal const string TeardropOutboundTargetName = "TDROP-OUT";
+
+    /// <summary>Name of the re-entry's 45° lead-in navigation target.</summary>
+    internal const string TeardropLeadInTargetName = "TDROP-LI";
+
     /// <summary>
     /// The re-entry's outbound anchor (TDROP-OUT) and 45° lead-in (TDROP-LI) on <paramref name="waypoints"/> for a
     /// <paramref name="category"/> aircraft. The route's third fix is the downwind abeam point itself.
@@ -126,7 +132,7 @@ public sealed class TeardropReentryPhase : Phase
             new NavigationTarget
             {
                 Position = new LatLon(_outboundLat, _outboundLon),
-                Name = "TDROP-OUT",
+                Name = TeardropOutboundTargetName,
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, anchorAlt)
                 {
                     Source = CifpAltitudeRestrictionSource.System,
@@ -137,7 +143,7 @@ public sealed class TeardropReentryPhase : Phase
             new NavigationTarget
             {
                 Position = new LatLon(_leadInLat, _leadInLon),
-                Name = "TDROP-LI",
+                Name = TeardropLeadInTargetName,
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, leadInAlt)
                 {
                     Source = CifpAltitudeRestrictionSource.System,

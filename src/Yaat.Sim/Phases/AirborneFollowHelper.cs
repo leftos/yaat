@@ -490,7 +490,10 @@ public static class AirborneFollowHelper
         }
     }
 
-    /// <summary>Leg index of a pattern entry (<see cref="PatternEntryPhase"/>, a midfield crossing, a teardrop) in <see cref="PatternLegIndex"/>.</summary>
+    /// <summary>
+    /// Leg index of a pattern entry (<see cref="PatternEntryPhase"/>, a midfield crossing, a teardrop) in
+    /// <see cref="PatternLegIndex"/>.
+    /// </summary>
     internal const int EntryLegIndex = 0;
 
     /// <summary>Leg index of the upwind in <see cref="PatternLegIndex"/>.</summary>
@@ -910,16 +913,11 @@ public static class AirborneFollowHelper
     /// </summary>
     private static double ApproachPathNm(LatLon position, IReadOnlyList<ApproachFix> fixes, int fromIndex, RunwayInfo runway)
     {
-        double pathNm = 0.0;
-        LatLon from = position;
-        for (int i = fromIndex; i < fixes.Count; i++)
-        {
-            var fix = new LatLon(fixes[i].Latitude, fixes[i].Longitude);
-            pathNm += GeoMath.DistanceNm(from, fix);
-            from = fix;
-        }
-
-        return pathNm + GeoMath.DistanceNm(from, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        IEnumerable<LatLon> path = fixes
+            .Skip(fromIndex)
+            .Select(fix => new LatLon(fix.Latitude, fix.Longitude))
+            .Append(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        return PolylineNm(position, path);
     }
 
     /// <summary>
@@ -1050,9 +1048,9 @@ public static class AirborneFollowHelper
         // progression, so it stays ahead in the landing sequence despite sharing the
         // follower's leg index. Without this a same-leg follower turns base at its fixed point
         // and rolls out ahead of the aircraft it was told to follow (AIM 4-3-5 broken
-        // sequence), and the minimum-speed cancel drops the follow as the pair closes. "Holding out" is any deferral (see IsLeadHoldingSharedLeg) — a controller
-        // EXT, the lead's own follow-hold behind other traffic, or a proximity hold — not just
-        // the IsExtended flag, which is cleared the moment the lead is itself told to follow.
+        // sequence), and the minimum-speed cancel drops the follow as the pair closes. "Holding out" is any deferral
+        // (see IsLeadHoldingSharedLeg) — a controller EXT, the lead's own follow-hold behind other traffic, or a proximity
+        // hold — not just the IsExtended flag, which is cleared the moment the lead is itself told to follow.
         // Generic same-leg cases are intentionally NOT flow-ahead: when both aircraft are on
         // parallel tracks heading the same way and the lead is not holding out, the follower has
         // no lateral option: a follower too close at minimum speed is cancelled.
@@ -1134,7 +1132,9 @@ public static class AirborneFollowHelper
     /// because the lead landed, the follower goes back to <paramref name="ceilingKts"/> (null when the phase's spacing is not
     /// active), unless it is inside the stabilization window or spacing is not allowed (<see cref="MaySpaceBeforeFinal"/>).
     /// </summary>
-    /// <returns>True if the follow was cancelled this tick: the caller skips the rest of its tick, as with <see cref="CheckLeadLifecycle"/>.</returns>
+    /// <returns>
+    /// True if the follow was cancelled this tick: the caller skips the rest of its tick, as with <see cref="CheckLeadLifecycle"/>.
+    /// </returns>
     internal static bool CheckLeadLifecycleRestoringSpacing(PhaseContext ctx, double? ceilingKts, double distanceToThresholdNm)
     {
         bool leadLanded = IsFollowedLeadOnGround(ctx);
@@ -2114,7 +2114,8 @@ public static class AirborneFollowHelper
         }
 
         Log.LogDebug(
-            "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), Vref {Vref:F0}kt vs lead IAS {LeadIas:F0}kt; breaking off + going around",
+            "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), "
+                + "Vref {Vref:F0}kt vs lead IAS {LeadIas:F0}kt; breaking off + going around",
             ctx.Aircraft.Callsign,
             targetCallsign,
             gap,

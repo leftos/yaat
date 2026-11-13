@@ -80,6 +80,9 @@ public sealed class PatternEntryPhase : Phase
     /// <summary>Name of the lead-in's navigation target; it stays in the route until the lead-in is passed.</summary>
     internal const string LeadInTargetName = "PTN-LEADIN";
 
+    /// <summary>Name of the entry point's navigation target, the fix the entry is made to.</summary>
+    internal const string PatternEntryTargetName = "PTN-ENTRY";
+
     private bool _hasAnnouncedInitialCall;
 
     public override string Name => "Pattern Entry";
@@ -100,7 +103,7 @@ public sealed class PatternEntryPhase : Phase
             new NavigationTarget
             {
                 Position = new LatLon(EntryLat, EntryLon),
-                Name = "PTN-ENTRY",
+                Name = PatternEntryTargetName,
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)PatternAltitude)
                 {
                     Source = CifpAltitudeRestrictionSource.System,
