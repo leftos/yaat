@@ -7,6 +7,12 @@ public class CommandSchemeCompletenessTests
 {
     private static readonly CanonicalCommandType[] AllCommandTypes = Enum.GetValues<CanonicalCommandType>();
 
+    /// <summary>
+    /// Alias pairs the scheme and registry uniqueness checks accept as shared. Empty today: no default alias
+    /// maps to two commands.
+    /// </summary>
+    private static readonly HashSet<(CanonicalCommandType, CanonicalCommandType)> KnownSharedAliases = [];
+
     [Fact]
     public void Registry_CoversAllCommandTypes()
     {
@@ -70,13 +76,6 @@ public class CommandSchemeCompletenessTests
     [Fact]
     public void DefaultSchemeAliases_AreUniqueAcrossCommands_ExceptKnownShared()
     {
-        // Unified scheme intentionally shares:
-        // H for FlyHeading/FlyPresentHeading
-        var knownShared = new HashSet<(CanonicalCommandType, CanonicalCommandType)>
-        {
-            (CanonicalCommandType.FlyHeading, CanonicalCommandType.FlyPresentHeading),
-        };
-
         var scheme = CommandScheme.Default();
         var aliasToTypes = new Dictionary<string, List<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
 
@@ -94,35 +93,73 @@ public class CommandSchemeCompletenessTests
             }
         }
 
-        var conflicts = new List<string>();
-        foreach ((string? alias, List<CanonicalCommandType>? types) in aliasToTypes)
+        List<string> conflicts =
+        [
+            .. aliasToTypes
+                .Where(kvp => !AllPairsKnownShared(kvp.Value, KnownSharedAliases))
+                .Select(kvp => $"'{kvp.Key}' used by: {string.Join(", ", kvp.Value)}"),
+        ];
+
+        Assert.True(conflicts.Count == 0, $"Default scheme has unexpected aliases shared across commands:\n{string.Join("\n", conflicts)}");
+    }
+
+    [Fact]
+    public void RegistryDefaultAliases_AreUniqueAcrossCommands_ExceptKnownShared()
+    {
+        // CommandRegistry.BuildAliasToCanonicType uses TryAdd, so a duplicate alias silently resolves to the
+        // first command registered; this catches that collision before it shadows a command. Each definition's
+        // enum name is checked too, so the name CommandRegistry.RenderSignature falls back to stays
+        // unambiguous: it is not a parser alias. The allowlist is KnownSharedAliases, shared with the scheme
+        // check above.
+        var aliasToTypes = new Dictionary<string, HashSet<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
+        foreach (CommandDefinition def in CommandRegistry.All.Values)
         {
-            if (types.Count <= 1)
+            foreach (string alias in def.DefaultAliases.Append(def.Type.ToString()))
             {
-                continue;
-            }
-
-            // Check if all pairs in this group are known-shared
-            bool allKnown = true;
-            for (int i = 0; i < types.Count && allKnown; i++)
-            {
-                for (int j = i + 1; j < types.Count && allKnown; j++)
+                if (!aliasToTypes.TryGetValue(alias, out HashSet<CanonicalCommandType>? types))
                 {
-                    (CanonicalCommandType, CanonicalCommandType) pair = (types[i], types[j]);
-                    (CanonicalCommandType, CanonicalCommandType) pairRev = (types[j], types[i]);
-                    if (!knownShared.Contains(pair) && !knownShared.Contains(pairRev))
-                    {
-                        allKnown = false;
-                    }
+                    types = [];
+                    aliasToTypes[alias] = types;
                 }
-            }
 
-            if (!allKnown)
+                types.Add(def.Type);
+            }
+        }
+
+        var conflicts = new List<string>();
+        foreach ((string alias, HashSet<CanonicalCommandType> types) in aliasToTypes)
+        {
+            if (!AllPairsKnownShared(types, KnownSharedAliases))
             {
                 conflicts.Add($"'{alias}' used by: {string.Join(", ", types)}");
             }
         }
 
-        Assert.True(conflicts.Count == 0, $"Default scheme has unexpected aliases shared across commands:\n{string.Join("\n", conflicts)}");
+        Assert.True(conflicts.Count == 0, $"Registry has unexpected aliases shared across commands:\n{string.Join("\n", conflicts)}");
+    }
+
+    private static bool AllPairsKnownShared(
+        IReadOnlyCollection<CanonicalCommandType> types,
+        HashSet<(CanonicalCommandType, CanonicalCommandType)> knownShared
+    )
+    {
+        if (types.Count <= 1)
+        {
+            return true;
+        }
+
+        CanonicalCommandType[] ordered = [.. types];
+        for (int i = 0; i < ordered.Length; i++)
+        {
+            for (int j = i + 1; j < ordered.Length; j++)
+            {
+                if (!knownShared.Contains((ordered[i], ordered[j])) && !knownShared.Contains((ordered[j], ordered[i])))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

@@ -304,13 +304,16 @@ public class ArgumentSuggesterTaxiwayTests
     }
 
     [Fact]
-    public void Taxi_FirstSlot_OffersNoModifierKeywords()
+    public void Taxi_FirstSlot_OffersOnlyStandaloneModifierKeywords()
     {
-        // TAXI's first slot is the route's, by design: the keywords would crowd out the taxiway list
-        // exactly where the instructor is picking the first taxiway. RWY, @ and $ typed there still parse.
+        // TAXI's first slot is the route's, with the modifiers that are a complete form on their own beside it:
+        // RWY 28R is the no-route taxi, and @/$ name the destination. HS, CROSS, NODEL and EXP need a route first.
         ObservableCollection<SuggestionItem> suggestions = Suggest("TAXI ", ["A", "B"], spotNames: [], standNames: [], maxSuggestions: 20);
         Assert.Contains(suggestions, s => (s.Text == "A") && (s.Description == "Taxiway"));
-        Assert.DoesNotContain(suggestions, s => (s.Text == "RWY") || (s.Text == "HS") || (s.Text == "CROSS") || (s.Text == "NODEL"));
+        Assert.Contains(suggestions, s => s.Text == "RWY");
+        Assert.Contains(suggestions, s => s.Text == "@");
+        Assert.Contains(suggestions, s => s.Text == "$");
+        Assert.DoesNotContain(suggestions, s => (s.Text == "HS") || (s.Text == "CROSS") || (s.Text == "NODEL") || (s.Text == "EXP"));
     }
 
     [Fact]

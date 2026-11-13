@@ -73,4 +73,11 @@ public record CompoundModifier(string Keyword, string? ArgHint, bool Repeatable)
     /// past the first slot.
     /// </summary>
     public bool LeadingTokenOnly { get; init; }
+
+    /// <summary>
+    /// True when this modifier is a complete form on its own at the command's first argument slot — TAXI's
+    /// <c>RWY 28R</c> is the canonical no-route taxi, so autocomplete offers the keyword before any route
+    /// token is typed. A command with no modifier flagged here keeps its first slot for its parameters alone.
+    /// </summary>
+    public bool StandsAlone { get; init; }
 }

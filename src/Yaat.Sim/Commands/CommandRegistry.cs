@@ -849,12 +849,21 @@ public static class CommandRegistry
                 ["TAXI"],
                 [O(null, [Rep("route", "taxiway names")], "Taxi via route")],
                 [
-                    Mod("RWY", "runway", false),
+                    Mod("RWY", "runway", false) with
+                    {
+                        StandsAlone = true,
+                    },
                     Mod("HS", "taxiway/runway/$spot", true),
                     Mod("CROSS", "runway", true),
                     Mod("NODEL", null, false),
-                    Mod("@", "parking", false),
-                    Mod("$", "spot", false),
+                    Mod("@", "parking", false) with
+                    {
+                        StandsAlone = true,
+                    },
+                    Mod("$", "spot", false) with
+                    {
+                        StandsAlone = true,
+                    },
                     Mod("EXP", null, false),
                 ]
             ),
@@ -867,12 +876,21 @@ public static class CommandRegistry
                 ["RTAXI"],
                 [O(null, [Rep("route", "taxiway names")], "Re-route taxi via route, keeping the taxi destination")],
                 [
-                    Mod("RWY", "runway", false),
+                    Mod("RWY", "runway", false) with
+                    {
+                        StandsAlone = true,
+                    },
                     Mod("HS", "taxiway/runway/$spot", true),
                     Mod("CROSS", "runway", true),
                     Mod("NODEL", null, false),
-                    Mod("@", "parking", false),
-                    Mod("$", "spot", false),
+                    Mod("@", "parking", false) with
+                    {
+                        StandsAlone = true,
+                    },
+                    Mod("$", "spot", false) with
+                    {
+                        StandsAlone = true,
+                    },
                     Mod("EXP", null, false),
                 ]
             ),

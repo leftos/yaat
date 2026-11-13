@@ -2712,7 +2712,7 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **Runway designators** — for ELD, ERD, EF, CROSS, CLAND, LAHSO, CVA
   - **Fix names** — for DCT, DCTF, HFIX, CFIX, DEPART, AT conditions
   - **Parking spots** — for the ADD command's `@` position, offering the primary airport's parking/helipad/spot names
-  - **Taxi destinations** — typing `@` in a `TAXI` or `PUSH` clearance offers the loaded airport's parking and helipad stands (`@B27`); typing `$` offers its taxi spots (`$S7`)
+  - **Taxi destinations** — typing `@` in a `TAXI` or `PUSH` clearance offers the loaded airport's parking and helipad stands (`@B27`); typing `$` offers its taxi spots (`$S7`). Right after `TAXI ` or `RTAXI ` the popup lists the taxiway names and then the forms that need no route, `RWY`, `@` and `$`; `HS`, `CROSS`, `NODEL` and `EXP` appear once you have typed a route token
   - **FRD preview** — typing a fix/radial/distance after ADD's `@` (e.g. a pasted Copy FRD string) shows a live breakdown — anchor fix, radial, distance — flags an unknown fix or out-of-range radial, and reminds you of the required altitude
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints
 

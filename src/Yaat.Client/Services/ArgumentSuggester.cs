@@ -233,12 +233,17 @@ internal static class ArgumentSuggester
         // Suggest compound modifiers as soon as they can mean something. A parameterless overload is a
         // complete command on its own, so a command that has one (CROSS, CTO, CLAND, EL/ER) offers its
         // modifiers from the first slot; where every overload takes arguments, each must have got them
-        // first. A trailing repeatable parameter is optional-to-repeat, so it does not block a modifier —
-        // CROSS 28R can offer both another runway and the HS modifier.
+        // first. A modifier flagged StandsAlone is a complete form at that first slot by itself (TAXI RWY
+        // 28R, the no-route taxi), so it is offered there without one. A trailing repeatable parameter is
+        // optional-to-repeat, so it does not block a modifier — CROSS 28R can offer both another runway
+        // and the HS modifier.
         CompoundModifier[] offerableModifiers = OfferableModifiers(def, paramIndex);
+        bool standaloneSlot = (paramIndex == 0) && offerableModifiers.Any(m => m.StandsAlone);
         bool hasModifiers =
             (offerableModifiers.Length > 0)
-            && (def.Overloads.Any(o => o.Parameters.Length == 0) || def.Overloads.All(o => paramIndex >= RequiredBeforeModifiers(o)));
+            && (
+                standaloneSlot || def.Overloads.Any(o => o.Parameters.Length == 0) || def.Overloads.All(o => paramIndex >= RequiredBeforeModifiers(o))
+            );
 
         if (
             !hasLiterals
@@ -266,9 +271,12 @@ internal static class ArgumentSuggester
             AddRunwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
         }
 
+        // A standalone modifier is offered after the layout names in the same dropdown, so at the first slot
+        // the taxiways leave room for it: a ten-row list filled by taxiways would hide TAXI RWY 28R entirely.
+        int firstSlotNameCap = standaloneSlot ? Math.Max(0, maxSuggestions - offerableModifiers.Count(m => m.StandsAlone)) : maxSuggestions;
         if (hasTaxiway)
         {
-            AddLayoutNameSuggestions(slot, names.Taxiways, TaxiwayFlavor, suggestions, maxSuggestions);
+            AddLayoutNameSuggestions(slot, names.Taxiways, TaxiwayFlavor, suggestions, firstSlotNameCap);
         }
 
         if (hasSpot)
@@ -327,8 +335,9 @@ internal static class ArgumentSuggester
     /// <summary>
     /// The parameter index at which an overload lets a compound modifier be offered, consulted only for a
     /// command whose every overload takes arguments. The first slot there belongs to the parameter: for
-    /// <c>TAXI</c> it is where the instructor picks the first taxiway, and a list of keywords would crowd
-    /// the taxiway names out of a ten-row dropdown. The keywords are offered from the next slot on, and a
+    /// <c>TAXI</c> it is where the instructor picks the first taxiway. A modifier flagged
+    /// <see cref="CompoundModifier.StandsAlone"/> is offered at that first slot anyway, with its dropdown
+    /// room reserved from the taxiway list; every other keyword is offered from the next slot on, and a
     /// keyword typed into the first slot still parses (<c>TAXI RWY 28R</c> is the no-route form). So an
     /// overload with parameters requires one of them, a trailing-repeatable-only overload one repeat, and
     /// a parameterless overload none.
@@ -425,7 +434,10 @@ internal static class ArgumentSuggester
     /// <summary>
     /// The compound modifiers whose keyword may be offered at the caret's parameter position. A modifier the
     /// parser only reads off the leading token (<c>PUSH</c>'s and <c>TAXIAUTO</c>'s <c>@</c>/<c>$</c>) drops
-    /// out past the first argument, where the same token means something else or nothing at all.
+    /// out past the first argument, where the same token means something else or nothing at all. At the first
+    /// argument a command that has a modifier flagged <see cref="CompoundModifier.StandsAlone"/> and no
+    /// parameterless overload offers only those: <c>TAXI RWY 28R</c> is a complete command with no route, and
+    /// the rest need a route first.
     /// </summary>
     private static CompoundModifier[] OfferableModifiers(CommandDefinition def, int paramIndex)
     {
@@ -434,7 +446,14 @@ internal static class ArgumentSuggester
             return [];
         }
 
-        return paramIndex == 0 ? modifiers : [.. modifiers.Where(m => !m.LeadingTokenOnly)];
+        if (paramIndex == 0)
+        {
+            CompoundModifier[] standalone = [.. modifiers.Where(m => m.StandsAlone)];
+            bool hasParameterlessOverload = def.Overloads.Any(o => o.Parameters.Length == 0);
+            return (standalone.Length > 0) && !hasParameterlessOverload ? standalone : modifiers;
+        }
+
+        return [.. modifiers.Where(m => !m.LeadingTokenOnly)];
     }
 
     private static void AddCompoundModifierSuggestions(
