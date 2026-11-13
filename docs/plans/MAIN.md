@@ -932,7 +932,6 @@
 - [ ] YAAT-2200 Join a long final and break off outward on a FOLLOW return outside the forward window · release vNext+1
 - [ ] YAAT-2214 Count the climb past the runway end in a crossing FOLLOW entrant's remaining path
 - [ ] YAAT-2216 A pursuer sequenced behind a landed lead from a spacing excursion goes around for alignment
-- [ ] YAAT-2217 Decide whether a low CM/DM on the upwind needs a crosswind-turn floor
 
 ## Navigation data and route geometry
 
