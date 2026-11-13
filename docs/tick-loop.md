@@ -206,7 +206,7 @@ ASDE-X / SAID membership is the exception: the Sim step `TickSurfaceMembership` 
 
 ## Recording capture
 
-Recording is **event-driven, not snapshot-per-tick**. `RecordingManager.Record(action)` appends `RecordedAction` entries (commands, setting changes, spawns) at their `ElapsedSeconds`. Snapshots (`StateSnapshotDto`) are captured on demand — for rewind checkpoints and periodic insurance against drift — not every second. See [snapshots-and-replay.md](snapshots-and-replay.md).
+Recording is **event-driven, not snapshot-per-tick**. `RecordingManager.Record(action)` appends `RecordedAction` entries (commands, setting changes, spawns) at their `ElapsedSeconds`. Snapshots (`StateSnapshotDto`) are not captured every second: `RoomEngine.AdvanceLiveSecond` keeps a compressed live checkpoint every 60 s for rewind and seek to start from, and an export regenerates a recording's snapshots. See [snapshots-and-replay.md](snapshots-and-replay.md).
 
 ## The tick oracle — what guards the two paths against each other
 

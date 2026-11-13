@@ -250,7 +250,7 @@ Some state is intentionally runtime-only:
 
   Nor is CRC attendance: the live room derives it from `PositionRegistry` and records it (`RecordedAttendanceChange`), the engine's `Attendance` is snapshot-covered, and every other run kind reads the recorded set.
 
-  A fresh engine starts with empty bays, so a restart starts from the scenario's own strips and a rewind holds the target second's. Because **a live room never carries snapshots** (`LoadedSnapshots` / `SnapshotProvider` are set only when a recording archive is imported), every live-session rewind is a from-scratch reconstruction from t=0 that rebuilds only what the action log and the host's tick bodies reach.
+  A fresh engine starts with empty bays, so a restart starts from the scenario's own strips and a rewind holds the target second's. Because **a live room carries no recording snapshots** (`LoadedSnapshots` / `SnapshotProvider` are set only when a recording archive is imported), a live-session rewind restores one of the room's own live checkpoints (see Live checkpoints below) or, before the first, reconstructs from t=0; either way it rebuilds only what the action log and the host's tick bodies reach.
 
   Recorded strip requests print under their baked id, and auto-printed strips are re-derived by the tick — with the same PDT/ETA text, because strip and TDLS times read `SimScenarioState.SimTimeUtc`, never the wall clock.
 
@@ -449,7 +449,13 @@ The entry is not tracked in the manifest, so it is absent in older recordings �
 
 A derived record is appended only when its write applied (`ActionRouter.IssueDerived`), so a refusal on replay — the aircraft is gone, an ERAM guard answers differently — is by construction a fidelity break and logs a `replay-fidelity` warning like a command whose verdict changed.
 
-**Snapshot cadence**: snapshots are written on demand by the recording manager (rewind checkpoints, periodic captures). Live replay does not need a snapshot per tick — it ticks forward from the most recent prior snapshot, applying actions at their `ElapsedSeconds`.
+**Snapshot cadence**: a recording's snapshots are written by the export (regenerated through a throwaway engine, never taken from the room). Replay does not need a snapshot per tick — it ticks forward from the most recent prior snapshot, applying actions at their `ElapsedSeconds`.
+
+**Live checkpoints**: a live room keeps its own compressed checkpoints in `SimScenarioState.LiveCheckpoints`, apart from `LoadedSnapshots`. A `LiveCheckpoint` (`Simulation/Snapshots/LiveCheckpoint.cs`) is `ElapsedSeconds`, `ActionIndex` and `BrotliJson`, a `StateSnapshotDto` serialized with `RecordingJsonOptions.Default` and Brotli-compressed; only the one a rewind chooses is decompressed (`ToTimedSnapshot`).
+
+- **Capture**: `RoomEngine.AdvanceLiveSecond` captures at the top of the second, before it runs, on every 60th second, in live and tape playback alike, so every action stamped with that second is already in the checkpoint. A room carrying a recording's own snapshots, a live-traffic session and a reconstruction never capture; a soak run does. A failed capture logs a warning and is skipped.
+- **Lifetime**: a rewind carries the list to its reloaded scenario; a restart, a recording load and an unload start empty. `RecordingManager.TakeControl` drops every checkpoint at or after the cut, and the next live second re-captures it. An export or bug bundle never carries them: its snapshots are regenerated.
+- **Use**: `RecordingManager.FindNearestSnapshot` returns the later of the recording snapshot and the checkpoint at or before the target, a recording snapshot winning a tie. The rewind's starting state (`RewindStart`, chosen by `RewindStart.Choose`) is the latest of that and, in playback with the target ahead of the current second and not in a live-traffic session, the current state: a forward seek keeps the engine, world and position selections and re-ticks only the gap. A rewind past the first minute re-ticks under a minute. Hybrid replay (`RewindFromSnapshotAsync`) and the throwaway export engines never read checkpoints.
 
 ## Replay — `Simulation/Replay/`
 

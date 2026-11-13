@@ -11,6 +11,7 @@
 ### Changed
 
 - At an airport with no ground map, `ADD` allows only a runway spawn ready for departure; a parking or spot spawn is refused.
+- Timeline jumps in a long session are much faster: a rewind or seek re-runs at most a minute, and skipping ahead in playback continues from where you are.
 - A tow cleared mid-move by `TAXI`, `PUSHM` or another clearance now brakes to rest over about 5 s, still shown as Pushback, instead of stopping dead.
 - Closed traffic or a follow from one runway to a widely spaced parallel now flies upwind and crosswind past both runway ends instead of crossing midfield.
 - A departure flies the altitude in the PDC sent to it from vTDLS, climb via or maintain, instead of the facility default; a voice altitude still overrides it.

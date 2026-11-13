@@ -52,6 +52,9 @@ the resulting state, rather than relying on anyone having classified the steps c
 A value the simulation consumes but does not derive, captured so a replay reproduces it rather than
 recomputing it. Attendance is the first of these.
 
+**Live checkpoint**:
+A compressed snapshot a live room keeps every 60 sim-seconds, so a rewind or seek re-runs at most a minute instead of the whole session; kept for the session, never exported.
+
 **Attendance**:
 Which controller positions are currently being worked. Live, it derives from connections; everywhere
 else it is a recorded input.

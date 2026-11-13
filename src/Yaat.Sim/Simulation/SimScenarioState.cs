@@ -423,6 +423,13 @@ public sealed class SimScenarioState
     // State snapshots loaded from a v2 recording (null for live sessions and v1 recordings)
     public List<TimedSnapshot>? LoadedSnapshots { get; set; }
 
+    /// <summary>
+    /// The room's own compressed checkpoints of this run, ascending by second, that a rewind or seek may start from. Kept
+    /// apart from <see cref="LoadedSnapshots"/> (a recording's own snapshots); never exported. A new scenario starts with
+    /// none, so a restart, load or unload drops them; a rewind carries them to its reloaded scenario.
+    /// </summary>
+    public List<LiveCheckpoint> LiveCheckpoints { get; set; } = [];
+
     // On-demand snapshot provider backed by a v3 RecordingArchive (null for v1/v2 or live sessions).
     // When set, LoadedSnapshots is null — snapshots are loaded one at a time via this provider.
     public Func<int, TimedSnapshot>? SnapshotProvider { get; set; }
