@@ -54,8 +54,11 @@ public class LiveTrafficAssumeTests
                 }
         );
 
-    private static DispatchContext Ctx(AircraftState ac) =>
-        TestDispatch.Context(new Random(1), findAircraft: cs => cs == Callsign ? ac : null, listAircraft: () => [ac]);
+    private static DispatchContext Ctx(AircraftState ac) => Ctx(ac, null);
+
+    /// <summary>The same context carrying a ground layout, for the seeds that read <c>ctx.GroundLayout</c>.</summary>
+    private static DispatchContext Ctx(AircraftState ac, AirportGroundLayout? layout) =>
+        TestDispatch.Context(new Random(1), groundLayout: layout, findAircraft: cs => cs == Callsign ? ac : null, listAircraft: () => [ac]);
 
     private static CommandResult Assume(AircraftState ac) => CommandDispatcher.Dispatch(new AssumeCommand(), ac, Ctx(ac));
 
@@ -305,6 +308,34 @@ public class LiveTrafficAssumeTests
         CommandResult assumed = Assume(ac);
         Assert.True(assumed.Success, assumed.Message);
         Assert.NotNull(ac.Phases?.ActiveApproach);
+    }
+
+    /// <summary>
+    /// The undo token captures the field the seed writes, so a rollback hands back the shadow exactly: its field is the
+    /// empty one it had. No production path rolls back a ground assume — the auto-assume gate refuses a surface shadow
+    /// (<c>CommandDispatcher.TryAssumeShadow</c>) — so the contract is pinned here at the public API.
+    /// </summary>
+    [Fact]
+    public void Rollback_AfterAGroundAssume_RestoresTheField()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+        GroundNode? parking = layout.FindParkingByName("F8");
+        Assert.NotNull(parking);
+        AircraftState ac = Shadow(Sample(0, parking.Position, 13, 0, 0, 0, LiveTrafficSource.Asdex));
+        string fieldBefore = ac.AirportId;
+        Assert.Equal("", fieldBefore);
+
+        CommandResult assumed = LiveTrafficAssumer.Assume(ac, Ctx(ac, layout), out AssumeUndo? undo);
+
+        Assert.True(assumed.Success, assumed.Message);
+        Assert.True(NavigationDatabase.AirportIdsMatch(ac.AirportId, "KSFO"), $"field '{ac.AirportId}'");
+        Assert.NotNull(undo);
+
+        LiveTrafficAssumer.Rollback(ac, undo.Value);
+
+        Assert.True(ac.IsShadow);
+        Assert.Equal(fieldBefore, ac.AirportId);
     }
 
     /// <summary>The other side of the rollback branch: a command the seeded state accepts keeps the aircraft.</summary>
@@ -777,6 +808,32 @@ public class LiveTrafficAssumeTests
         Assert.Null(ac.Phases);
         Assert.Equal(12, ac.Targets.TargetSpeed);
         Assert.False(ac.IsShadow);
+    }
+
+    /// <summary>
+    /// A shadow on the ground is on the airport its wheels are on: the seed takes the field from the layout it seeds
+    /// from, so <c>SimulationEngine.FieldAirport</c> resolves it instead of falling back to the filed
+    /// departure/destination pick.
+    /// </summary>
+    [Fact]
+    public void Assume_OnTheGround_TakesTheAirportItIsOnAsItsField()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+        GroundNode? parking = layout.FindParkingByName("F8");
+        Assert.NotNull(parking);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KSFO",
+            Destination = "KSMF",
+        };
+        AircraftState ac = Shadow(Sample(0, parking.Position, 13, 0, 0, 0, LiveTrafficSource.Asdex), plan);
+
+        CommandResult result = CommandDispatcher.Dispatch(new AssumeCommand(), ac, Ctx(ac, layout));
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(NavigationDatabase.AirportIdsMatch(ac.AirportId, "KSFO"), $"field '{ac.AirportId}'");
     }
 
     [Fact]

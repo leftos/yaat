@@ -34,6 +34,9 @@ public readonly record struct AssumeUndo
 
     public required PhaseList? Phases { get; init; }
 
+    /// <summary>The aircraft's field before the seed; a shadow carries none.</summary>
+    public required string AirportId { get; init; }
+
     public required ControlTargetsDto Targets { get; init; }
 
     public required AircraftProcedureDto Procedure { get; init; }
@@ -138,7 +141,8 @@ public static class LiveTrafficAssumer
         if (aircraft.Phases is not null)
         {
             throw new InvalidOperationException(
-                $"{aircraft.Callsign} is a live-traffic shadow with a phase list; the assume undo captures Phases by reference and a shadow must have none"
+                $"{aircraft.Callsign} is a live-traffic shadow with a phase list; "
+                    + "the assume undo captures Phases by reference and a shadow must have none"
             );
         }
 
@@ -146,6 +150,7 @@ public static class LiveTrafficAssumer
         {
             LiveTraffic = lt,
             Phases = aircraft.Phases,
+            AirportId = aircraft.AirportId,
             Targets = aircraft.Targets.ToSnapshot(),
             Procedure = aircraft.Procedure.ToSnapshot(),
             Approach = aircraft.Approach.ToSnapshot(),
@@ -184,8 +189,8 @@ public static class LiveTrafficAssumer
 
     /// <summary>
     /// Hands an assumed aircraft back to the feed in place: it is a shadow again, driven by the same satellite object,
-    /// with the seeded phases, targets, procedure, approach state, observations and queued pilot transmissions put
-    /// back and the seed's warnings dropped. The queue and the deferred dispatches are not restored because
+    /// with the field it had, the seeded phases, targets, procedure, approach state, observations and queued pilot
+    /// transmissions put back and the seed's warnings dropped. The queue and the deferred dispatches are not restored because
     /// <see cref="Assume"/> cleared nothing — a shadow refuses every command, so both are empty when it is taken.
     /// <para>
     /// Only what <see cref="Assume"/> seeds is restored. A <c>;</c>-sequenced compound whose earlier block succeeded
@@ -200,6 +205,7 @@ public static class LiveTrafficAssumer
         aircraft.AssumedFromLiveTraffic = false;
         aircraft.LiveTraffic = undo.LiveTraffic;
         aircraft.Phases = undo.Phases;
+        aircraft.AirportId = undo.AirportId;
         ControlTargets.RestoreFrom(undo.Targets, aircraft.Targets);
         aircraft.Procedure = AircraftProcedure.FromSnapshot(undo.Procedure);
         aircraft.Approach = AircraftApproachState.FromSnapshot(undo.Approach);
@@ -321,6 +327,8 @@ public static class LiveTrafficAssumer
         {
             ac.Ground.Layout = layout;
             ac.Ground.LayoutAirportId = layout.AirportId;
+            // On the surface the wheels' airport is the field; without it FieldAirport falls back to the filed pick.
+            ac.AirportId = layout.AirportId;
         }
 
         if (runway is not null && kind == RunwayUseKind.Departing)
