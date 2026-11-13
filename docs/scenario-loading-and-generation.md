@@ -820,7 +820,7 @@ reverted to `false` (issue #313).
 The four queues are part of the scenario snapshot so a rewind checkpoint can restore mid-load-out state.
 `SimScenarioState.ToSnapshot()` (`SimScenarioState.cs:120`) serializes:
 
-- `DelayedQueue` → `DelayedSpawnDto` with the `LoadedAircraft` JSON-serialized whole (and `SpawnAtSeconds`).
+- `DelayedQueue` → `DelayedSpawnDto` with the queued aircraft as a full `AircraftSnapshotDto` (phases included, restored through `AircraftState.FromSnapshot`) plus `SpawnDelaySeconds` and the deferral, preset-command and auto-track metadata (schema 54; an older snapshot holds the `LoadedAircraft` JSON instead, without phases).
 - `TriggerQueue`, `PresetQueue` → command + fire-time DTOs.
 - `Generators` → `GeneratorStateDto` with the config JSON-serialized plus the runtime cursor (`NextSpawnSeconds` — the time-first
   cadence cursor — and `WasActive`, the previous tick's `GeneratorActivation.IsActive` result, kept only so an off→on edge can pull

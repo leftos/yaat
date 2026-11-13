@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Coast;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -303,9 +304,35 @@ public sealed class AtcPositionDto
     public TcpDto? Tcp { get; init; }
 }
 
+/// <summary>
+/// One queued spawn. From schema 54 the aircraft is an <see cref="AircraftSnapshotDto"/> (phases included) beside the loader's
+/// metadata; an older snapshot carries only <see cref="AircraftJson"/>, the raw <c>LoadedAircraft</c> JSON, whose phases
+/// were never written.
+/// </summary>
 public sealed class DelayedSpawnDto
 {
-    public required string AircraftJson { get; init; }
+    /// <summary>The raw <c>LoadedAircraft</c> JSON a pre-54 snapshot carries; null from 54 on.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AircraftJson { get; init; }
+
+    /// <summary>The queued aircraft, captured and restored the way a live aircraft is; null in a pre-54 snapshot.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AircraftSnapshotDto? Aircraft { get; init; }
+
+    public int SpawnDelaySeconds { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DeferralReason { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<PresetCommand>? PresetCommands { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutoTrackConditions? AutoTrackConditions { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? AutoTrackMessages { get; init; }
+
     public required int SpawnAtSeconds { get; init; }
 
     // Optional — defaults false so older snapshots deserialize with the spawn un-held.

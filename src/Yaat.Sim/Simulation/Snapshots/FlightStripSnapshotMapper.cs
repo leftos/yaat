@@ -5,6 +5,8 @@ namespace Yaat.Sim.Simulation.Snapshots;
 /// <summary>
 /// <see cref="FlightStripState"/> ⇄ <see cref="FlightStripSnapshotDto"/>. Restore replaces, never merges: the
 /// snapshot is the whole strip state at its second, so anything the target engine held is cleared first.
+/// Capture writes the items and the bays ordered by id: a concurrent dictionary's enumeration order follows its insertion
+/// history, which a restore cannot rebuild, so only an ordinal order makes a capture of the restored state equal the first.
 /// </summary>
 public static class FlightStripSnapshotMapper
 {
@@ -13,7 +15,8 @@ public static class FlightStripSnapshotMapper
         lock (strips.Gate)
         {
             var items = strips
-                .Items.Values.Select(i => new StripItemSnapshotDto
+                .Items.Values.OrderBy(i => i.Id, StringComparer.Ordinal)
+                .Select(i => new StripItemSnapshotDto
                 {
                     Id = i.Id,
                     AircraftId = i.AircraftId,
@@ -29,7 +32,7 @@ public static class FlightStripSnapshotMapper
                 .ToList();
 
             var bayRacks = new List<StripBayRackSnapshotDto>();
-            foreach ((string? bayId, Dictionary<string, List<string>[]>? racks) in strips.Bays)
+            foreach ((string? bayId, Dictionary<string, List<string>[]>? racks) in strips.Bays.OrderBy(b => b.Key, StringComparer.Ordinal))
             {
                 foreach ((string? rackKey, List<string>[]? columns) in racks)
                 {

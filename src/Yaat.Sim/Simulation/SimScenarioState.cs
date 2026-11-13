@@ -712,7 +712,13 @@ public sealed class SimScenarioState
                     [
                         .. DelayedQueue.Select(d => new DelayedSpawnDto
                         {
-                            AircraftJson = JsonSerializer.Serialize(d.Aircraft),
+                            Aircraft = d.Aircraft.State.ToSnapshot(),
+                            SpawnDelaySeconds = d.Aircraft.SpawnDelaySeconds,
+                            DeferralReason = d.Aircraft.DeferralReason,
+                            // Aliased, not copied: nothing writes a PresetCommand or AutoTrackConditions after load.
+                            PresetCommands = d.Aircraft.PresetCommands.Count > 0 ? [.. d.Aircraft.PresetCommands] : null,
+                            AutoTrackConditions = d.Aircraft.AutoTrackConditions,
+                            AutoTrackMessages = d.Aircraft.AutoTrackMessages.Count > 0 ? [.. d.Aircraft.AutoTrackMessages] : null,
                             SpawnAtSeconds = d.SpawnAtSeconds,
                             HeldForRelease = d.HeldForRelease,
                         }),

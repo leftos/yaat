@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 53;
+    public const int CurrentSchemaVersion = 54;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -452,6 +452,14 @@ public static class SnapshotSchemaMigrator
                 ac.ClearedDestination ??= (ac.FlightPlan is { HasFlightPlan: true } plan) ? plan.Destination : "";
             }
         }
+
+        // V53→V54: each DelayedSpawnDto carries its aircraft as an AircraftSnapshotDto (Aircraft, phases included) beside the
+        //   loader's metadata (SpawnDelaySeconds, DeferralReason, PresetCommands, AutoTrackConditions, AutoTrackMessages),
+        //   restored through AircraftState.FromSnapshot, and AircraftJson is written no more. No data transformation: an older
+        //   snapshot's AircraftJson still loads as it did, its queued spawns without the phases it never wrote (nothing in its
+        //   data rebuilds them). Strip items, bays, vTDLS items, active ops configs, dumped and expired keys and scheduled
+        //   wilcos are also captured ordered by key, so a capture of a restored state equals the capture it came from; an
+        //   older snapshot restores in whatever order it holds.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

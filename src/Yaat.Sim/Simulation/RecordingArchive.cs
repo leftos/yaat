@@ -765,9 +765,11 @@ public sealed class RecordingArchive : IDisposable
             return;
         }
 
-        foreach (DelayedSpawnDto delayed in queue)
+        // Only a pre-54 entry carries AircraftJson; a schema-54 entry carries an AircraftSnapshotDto and is skipped. The engine's
+        // restore binds every queued aircraft's layout, whichever form it arrives in.
+        foreach (DelayedSpawnDto delayed in queue.Where(static d => d.AircraftJson is not null))
         {
-            LoadedAircraft? aircraft = JsonSerializer.Deserialize<LoadedAircraft>(delayed.AircraftJson, RecordingJsonOptions.Default);
+            LoadedAircraft? aircraft = JsonSerializer.Deserialize<LoadedAircraft>(delayed.AircraftJson!, RecordingJsonOptions.Default);
             if (aircraft?.State.Ground.LayoutAirportId is { } airportId && layouts.TryGetValue(airportId, out AirportGroundLayout? layout))
             {
                 aircraft.State.Ground.Layout = layout;

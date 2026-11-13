@@ -214,17 +214,10 @@ public sealed partial class SimulationEngine
             {
                 foreach (DelayedSpawnDto d in scenarioDto.DelayedQueue)
                 {
-                    LoadedAircraft aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
-                    // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
-                    if (aircraft.State.Ground.LayoutAirportId is { } layoutAirportId)
-                    {
-                        aircraft.State.Ground.Layout = _groundData.GetLayout(layoutAirportId);
-                    }
-
                     Scenario.DelayedQueue.Add(
                         new DelayedSpawn
                         {
-                            Aircraft = aircraft,
+                            Aircraft = RestoreDelayedAircraft(d),
                             SpawnAtSeconds = d.SpawnAtSeconds,
                             HeldForRelease = d.HeldForRelease,
                         }
@@ -479,6 +472,41 @@ public sealed partial class SimulationEngine
         {
             _replay.ReseekAfterRestore((int)Scenario.ElapsedSeconds);
         }
+    }
+
+    /// <summary>
+    /// A queued spawn's aircraft as captured. From schema 54 it comes back through <see cref="AircraftState.FromSnapshot"/>
+    /// with its phases, bound to the layout it carried (none when it carried none); an older snapshot's raw
+    /// <c>LoadedAircraft</c> JSON loads as it always did, without the phases it never wrote.
+    /// </summary>
+    private LoadedAircraft RestoreDelayedAircraft(DelayedSpawnDto d)
+    {
+        if (d.Aircraft is not { } dto)
+        {
+            LoadedAircraft legacy = JsonSerializer.Deserialize<LoadedAircraft>(
+                d.AircraftJson ?? throw new InvalidDataException($"Delayed spawn at {d.SpawnAtSeconds}s carries neither Aircraft nor AircraftJson")
+            )!;
+            // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
+            if (legacy.State.Ground.LayoutAirportId is { } legacyAirportId)
+            {
+                legacy.State.Ground.Layout = _groundData.GetLayout(legacyAirportId);
+            }
+
+            return legacy;
+        }
+
+        AirportGroundLayout? layout = dto.Ground.LayoutAirportId is { } layoutAirportId ? ResolveAirportLayout(layoutAirportId) : null;
+        var aircraft = new LoadedAircraft
+        {
+            State = AircraftState.FromSnapshot(dto, layout),
+            SpawnDelaySeconds = d.SpawnDelaySeconds,
+            DeferralReason = d.DeferralReason,
+            // Aliased, not copied: nothing writes a PresetCommand or AutoTrackConditions after load.
+            PresetCommands = [.. d.PresetCommands ?? []],
+            AutoTrackConditions = d.AutoTrackConditions,
+        };
+        aircraft.AutoTrackMessages.AddRange(d.AutoTrackMessages ?? []);
+        return aircraft;
     }
 
     /// <summary>The latched <c>CASUP</c> suppressions ordered by id, so two passes capture the same bytes; null when none.</summary>

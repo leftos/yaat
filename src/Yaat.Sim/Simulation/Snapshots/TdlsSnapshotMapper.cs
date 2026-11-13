@@ -5,7 +5,11 @@ namespace Yaat.Sim.Simulation.Snapshots;
 /// <summary>
 /// <see cref="TdlsState"/> ⇄ <see cref="TdlsSnapshotDto"/>. Restore replaces the session state and leaves
 /// <see cref="TdlsState.Configs"/> alone — the scenario load that runs before a restore has just re-derived the
-/// facility configuration from the ARTCC, and the snapshot never carried it.
+/// facility configuration from the ARTCC, and the snapshot never carried it. Capture writes every collection ordered by
+/// key, all ordinal: the items and the scheduled wilcos by item id, the active ops configs by facility, the dumped and the
+/// expired keys by facility then call sign. A dictionary's or a set's enumeration order follows its insertion and removal
+/// history (the expiry sweep adds in the items' enumeration order; a removed wilco's slot goes to the next one scheduled),
+/// which a restore cannot rebuild, so only an ordinal order makes a capture of the restored state equal the first.
 /// </summary>
 public static class TdlsSnapshotMapper
 {
@@ -14,7 +18,8 @@ public static class TdlsSnapshotMapper
         lock (tdls.Gate)
         {
             var items = tdls
-                .Items.Values.Select(i => new TdlsItemSnapshotDto
+                .Items.Values.OrderBy(i => i.Id, StringComparer.Ordinal)
+                .Select(i => new TdlsItemSnapshotDto
                 {
                     Id = i.Id,
                     AircraftId = i.AircraftId,
@@ -30,15 +35,19 @@ public static class TdlsSnapshotMapper
                 })
                 .ToList();
 
-            var dumped = tdls.Dumped.Select(k => new TdlsDumpedSnapshotDto { FacilityId = k.FacilityId, Callsign = k.Callsign }).ToList();
+            List<TdlsDumpedSnapshotDto> dumped = OrderedKeys(tdls.Dumped);
 
-            var expired = tdls.Expired.Select(k => new TdlsDumpedSnapshotDto { FacilityId = k.FacilityId, Callsign = k.Callsign }).ToList();
+            List<TdlsDumpedSnapshotDto> expired = OrderedKeys(tdls.Expired);
 
             var activeOpConfigs = tdls
-                .ActiveOpConfigIds.Select(kv => new TdlsActiveOpConfigSnapshotDto { FacilityId = kv.Key, OpConfigId = kv.Value })
+                .ActiveOpConfigIds.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                .Select(kv => new TdlsActiveOpConfigSnapshotDto { FacilityId = kv.Key, OpConfigId = kv.Value })
                 .ToList();
 
-            var scheduledWilco = tdls.ScheduledWilcoAt.Select(kv => new TdlsScheduledWilcoDto { ItemId = kv.Key, DueUtc = kv.Value }).ToList();
+            var scheduledWilco = tdls
+                .ScheduledWilcoAt.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                .Select(kv => new TdlsScheduledWilcoDto { ItemId = kv.Key, DueUtc = kv.Value })
+                .ToList();
 
             return new TdlsSnapshotDto
             {
@@ -104,4 +113,12 @@ public static class TdlsSnapshotMapper
             tdls.NextItemId = dto.NextItemId;
         }
     }
+
+    /// <summary>A dump or expiry set ordered by facility, then call sign, both ordinal.</summary>
+    private static List<TdlsDumpedSnapshotDto> OrderedKeys(HashSet<DumpedKey> keys) =>
+        [
+            .. keys.OrderBy(k => k.FacilityId, StringComparer.Ordinal)
+                .ThenBy(k => k.Callsign, StringComparer.Ordinal)
+                .Select(k => new TdlsDumpedSnapshotDto { FacilityId = k.FacilityId, Callsign = k.Callsign }),
+        ];
 }
