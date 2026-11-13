@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runways-only Ground View</title>
+<style>
+  @font-face { font-family: "JetBrains Mono"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); }
+  :root {
+    --page-bg: #111114;
+    --page-fg: #E6E6E6;
+    --page-subtle: #B0B0B0;
+    --lane-border: #333;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 40px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  header { max-width: 1880px; margin: 0 auto 20px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { margin: 4px 0; color: var(--page-subtle); max-width: 1100px; }
+  header code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: #D0D0D0; }
+  .lanes {
+    max-width: 1880px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
+    gap: 20px;
+  }
+  .lane { border: 1px solid var(--lane-border); border-radius: 6px; padding: 12px; background: #18181C; min-width: 0; }
+  .lane h2 { font-size: 16px; margin: 0 0 4px; }
+  .lane p { margin: 0 0 10px; color: var(--page-subtle); font-size: 13px; min-height: 38px; }
+  /* The Ground View tab: toolbar docked above the canvas, as GroundView.axaml lays it out. */
+  .ground { background: #000; }
+  .toolbar { background: #1A1A1A; display: flex; justify-content: flex-end; gap: 2px; padding: 4px 6px; overflow: hidden; }
+  .toolbar .b {
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: #999;
+    background: rgba(255,255,255,0.133); border: 1px solid #444; border-radius: 2px; padding: 2px 6px; white-space: nowrap;
+  }
+  .toolbar .b.active { background: rgba(255,255,255,0.267); color: #DDD; border-color: #888; }
+  .toolbar .sep { width: 1px; background: #555; margin: 2px 4px; }
+  canvas { display: block; width: 100%; height: 440px; background: #0E0E1A; }
+  footer { max-width: 1880px; margin: 18px auto 0; color: var(--page-subtle); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>YAAT-2212: how should the Ground View draw an airport it has no ground map for?</h1>
+  <p>An airport first named mid-session has no ground layout, so the Ground View draws only its runways from navdata (both thresholds and the width), for display only: no taxiways, no ground interaction. It is there so a user can watch an aircraft land on or depart from that runway.</p>
+  <p>Each lane shows SFO (28L/10R, 28R/10L, 1L/19R, 1R/19L) drawn that way. <b>UAL1532</b> is rolling out on 28R after landing and <b>ASA331</b> is on its take-off roll on 1R. Aircraft silhouettes, datablocks, colours and the weather line are the Ground View's defaults (<code>GroundColorScheme</code>, <code>GroundRenderer</code>).</p>
+</header>
+
+<section class="lanes">
+  <article class="lane">
+    <h2>A. The normal runway drawing, nothing else</h2>
+    <p>The runways as the Ground View draws them today (<code>DrawRunways</code>): fill, outline, centreline and a midpoint label on a dark box. At this zoom the renderer drops the 1L/19R label because it would overlap another one, as it does today. The view gives no sign that the ground map is missing.</p>
+    <div class="ground">
+      <div class="toolbar" aria-hidden="true"></div>
+      <canvas data-lane="A" aria-label="Lane A: SFO runways, normal drawing"></canvas>
+    </div>
+  </article>
+  <article class="lane">
+    <h2>B. Option A plus a small corner note</h2>
+    <p>The same drawing, with a quiet note in the bottom-right corner (“No ground map — runways only”) so nobody looks for missing taxiways.</p>
+    <div class="ground">
+      <div class="toolbar" aria-hidden="true"></div>
+      <canvas data-lane="B" aria-label="Lane B: SFO runways with corner note"></canvas>
+    </div>
+  </article>
+  <article class="lane">
+    <h2>C. Lighter outlines with end labels, plus the note</h2>
+    <p>Each runway as an unfilled outline with a label at each end (28R, 10L, …) instead of one in the middle, and the same corner note. It looks like a sketch, not a full ground map.</p>
+    <div class="ground">
+      <div class="toolbar" aria-hidden="true"></div>
+      <canvas data-lane="C" aria-label="Lane C: SFO runway outlines with end labels and note"></canvas>
+    </div>
+  </article>
+</section>
+
+<footer>
+  The toolbar row is the Ground View’s own filter bar, unchanged in every lane. SFO threshold positions are close approximations, not the navdata values, and are drawn north-up at the zoom the view uses when it fits the airport.
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const FEET_PER_DEG_LAT = 364567.2;
+  const COLORS = {
+    background: "#0E0E1A",
+    runwayFill: "#3C3C3C",
+    runwayOutline: "#646464",
+    runwayLabel: "rgb(180,180,180)",
+    labelBg: "rgba(0,0,0,0.863)",
+    aircraft: "#FFFFFF",
+    datablock: "#00E600",
+    datablockBg: "rgba(0,0,0,0.627)",
+    weather: "#CCCCCC",
+  };
+  const MONO = "Consolas, 'DejaVu Sans Mono', monospace";
+
+  // SFO runways: [end1 lat, lon], [end2 lat, lon], width ft. Name as the layout carries it.
+  const RUNWAYS = [
+    { name: "28R/10L", ends: ["28R", "10L"], a: [37.613534, -122.357141], b: [37.628738, -122.393392], widthFt: 200 },
+    { name: "28L/10R", ends: ["28L", "10R"], a: [37.611714, -122.358228], b: [37.626325, -122.393089], widthFt: 200 },
+    { name: "1R/19L", ends: ["1R", "19L"], a: [37.606329, -122.381040], b: [37.627291, -122.367259], widthFt: 200 },
+    { name: "1L/19R", ends: ["1L", "19R"], a: [37.607897, -122.382837], b: [37.626481, -122.370608], widthFt: 200 },
+  ];
+
+  const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  const rwy = (name) => RUNWAYS.find((r) => r.name === name);
+
+  // Arrival rolling out on 28R (landed from the east), departure rolling on 1R (from the south threshold).
+  const AIRCRAFT = [
+    { callsign: "UAL1532", line2: "F/B738 SFO", pos: lerp(rwy("28R/10L").a, rwy("28R/10L").b, 0.3),
+      from: rwy("28R/10L").a, to: rwy("28R/10L").b, lengthFt: 129.5, spanFt: 117.4 },
+    { callsign: "ASA331", line2: "F/B739 SEA", pos: lerp(rwy("1R/19L").a, rwy("1R/19L").b, 0.18),
+      from: rwy("1R/19L").a, to: rwy("1R/19L").b, lengthFt: 138.2, spanFt: 117.4 },
+  ];
+
+  const TOOLBAR = [
+    ["SAT"], ["MAP"], ["GND", true], null, ["RBL"], null,
+    ["RWY", true], ["TWY", true], ["HS", true], ["PARK", true], ["SPOT", true], ["ADW", true], null,
+    ["DCNF"], null, ["RESET"], ["UNLK"],
+  ];
+
+  function buildToolbar(el) {
+    for (const item of TOOLBAR) {
+      const node = document.createElement("span");
+      if (item === null) {
+        node.className = "sep";
+      } else {
+        node.className = item[1] ? "b active" : "b";
+        node.textContent = item[0];
+      }
+      el.appendChild(node);
+    }
+  }
+
+  function bearingDeg(p, q) {
+    const lat1 = p[0] * Math.PI / 180, lat2 = q[0] * Math.PI / 180;
+    const dLon = (q[1] - p[1]) * Math.PI / 180;
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  function makeViewport(width, height) {
+    const lats = RUNWAYS.flatMap((r) => [r.a[0], r.b[0]]);
+    const lons = RUNWAYS.flatMap((r) => [r.a[1], r.b[1]]);
+    const lat0 = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const lon0 = (Math.min(...lons) + Math.max(...lons)) / 2;
+    const cosLat = Math.cos(lat0 * Math.PI / 180);
+    const extentX = (Math.max(...lons) - Math.min(...lons)) * cosLat * FEET_PER_DEG_LAT;
+    const extentY = (Math.max(...lats) - Math.min(...lats)) * FEET_PER_DEG_LAT;
+    const pxPerFt = Math.min((width - 90) / extentX, (height - 90) / extentY);
+    return {
+      pxPerFt,
+      toScreen(lat, lon) {
+        return [
+          width / 2 + (lon - lon0) * cosLat * FEET_PER_DEG_LAT * pxPerFt,
+          height / 2 + 10 - (lat - lat0) * FEET_PER_DEG_LAT * pxPerFt,
+        ];
+      },
+    };
+  }
+
+  // RunwayRectangle.ScreenCorners: half the width either side of the centreline, in drawing order.
+  function runwayCorners(r, vp) {
+    const heading = bearingDeg(r.a, r.b);
+    const halfWidthNm = (r.widthFt / 2) / 6076.12;
+    const perp = (heading + 90) * Math.PI / 180;
+    const dLat = halfWidthNm / 60 * Math.cos(perp);
+    const dLon = halfWidthNm / 60 * Math.sin(perp) / Math.cos(r.a[0] * Math.PI / 180);
+    return [
+      vp.toScreen(r.a[0] + dLat, r.a[1] + dLon),
+      vp.toScreen(r.a[0] - dLat, r.a[1] - dLon),
+      vp.toScreen(r.b[0] - dLat, r.b[1] - dLon),
+      vp.toScreen(r.b[0] + dLat, r.b[1] + dLon),
+    ];
+  }
+
+  function tracePath(ctx, pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+
+  function drawBoxedLabel(ctx, text, x, y, font, color) {
+    ctx.font = font;
+    const w = ctx.measureText(text).width;
+    const size = parseFloat(font.match(/(\d+(?:\.\d+)?)px/)[1]);
+    ctx.fillStyle = COLORS.labelBg;
+    ctx.fillRect(x - w / 2 - 2, y - size - 1, w + 4, size + 2);
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.fillText(text, x, y);
+    ctx.textAlign = "left";
+  }
+
+  // Option A and B: GroundRenderer.DrawRunways as it is today.
+  function drawRunwaysNormal(ctx, vp) {
+    for (const r of RUNWAYS) {
+      tracePath(ctx, runwayCorners(r, vp));
+      ctx.fillStyle = COLORS.runwayFill;
+      ctx.fill();
+      ctx.strokeStyle = COLORS.runwayOutline;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    for (const r of RUNWAYS) {
+      const p1 = vp.toScreen(r.a[0], r.a[1]);
+      const p2 = vp.toScreen(r.b[0], r.b[1]);
+      ctx.strokeStyle = COLORS.runwayOutline;
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(p1[0], p1[1]);
+      ctx.lineTo(p2[0], p2[1]);
+      ctx.stroke();
+    }
+  }
+
+  function drawRunwayMidLabels(ctx, vp) {
+    // At the runway's midpoint, 4 px down; a label that would overlap one already placed is skipped, as the renderer does.
+    const font = `15px ${MONO}`;
+    ctx.font = font;
+    const placed = [];
+    for (const r of RUNWAYS) {
+      const m = vp.toScreen((r.a[0] + r.b[0]) / 2, (r.a[1] + r.b[1]) / 2);
+      const w = ctx.measureText(r.name).width;
+      const box = { l: m[0] - w / 2 - 2, t: m[1] + 4 - 16, r: m[0] + w / 2 + 2, b: m[1] + 5 };
+      if (placed.some((p) => box.l < p.r && box.r > p.l && box.t < p.b && box.b > p.t)) continue;
+      placed.push(box);
+      drawBoxedLabel(ctx, r.name, m[0], m[1] + 4, font, COLORS.runwayLabel);
+    }
+  }
+
+  // Option C: outline only, no fill or centreline, a label beyond each threshold.
+  function drawRunwaysOutline(ctx, vp) {
+    for (const r of RUNWAYS) {
+      tracePath(ctx, runwayCorners(r, vp));
+      ctx.strokeStyle = "rgba(170,170,170,0.85)";
+      ctx.lineWidth = 1.25;
+      ctx.stroke();
+    }
+    ctx.font = `13px ${MONO}`;
+    ctx.fillStyle = "rgba(170,170,170,0.9)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const r of RUNWAYS) {
+      const p1 = vp.toScreen(r.a[0], r.a[1]);
+      const p2 = vp.toScreen(r.b[0], r.b[1]);
+      const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+      const ux = (p2[0] - p1[0]) / len, uy = (p2[1] - p1[1]) / len;
+      const gap = 16;
+      ctx.fillText(r.ends[0], p1[0] - ux * gap, p1[1] - uy * gap);
+      ctx.fillText(r.ends[1], p2[0] + ux * gap, p2[1] + uy * gap);
+    }
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  // DrawFixedWingSilhouette's outline, in nose(+x)/right-wing(+y) units.
+  const FW = 0.08;
+  const SILHOUETTE = [
+    [1, 0], [0.7, FW], [0.25, FW], [0.05, 1], [-0.15, 0.85], [-0.15, FW], [-0.6, FW], [-0.7, 0.4], [-0.9, 0.35],
+    [-0.95, FW], [-1, 0], [-0.95, -FW], [-0.9, -0.35], [-0.7, -0.4], [-0.6, -FW], [-0.15, -FW], [-0.15, -0.85],
+    [0.05, -1], [0.25, -FW], [0.7, -FW],
+  ];
+
+  function drawAircraft(ctx, vp, ac) {
+    const [sx, sy] = vp.toScreen(ac.pos[0], ac.pos[1]);
+    const h = bearingDeg(ac.from, ac.to) * Math.PI / 180;
+    const minHalf = 8;
+    const halfLen = Math.max(ac.lengthFt * 0.5 * vp.pxPerFt, minHalf);
+    const halfSpan = Math.max(ac.spanFt * 0.5 * vp.pxPerFt, minHalf * (ac.spanFt / ac.lengthFt));
+    const nose = [Math.sin(h), -Math.cos(h)];
+    const right = [Math.cos(h), Math.sin(h)];
+    const pts = SILHOUETTE.map(([x, y]) => [
+      sx + nose[0] * x * halfLen + right[0] * y * halfSpan,
+      sy + nose[1] * x * halfLen + right[1] * y * halfSpan,
+    ]);
+    tracePath(ctx, pts);
+    ctx.fillStyle = COLORS.aircraft;
+    ctx.fill();
+    return [sx, sy];
+  }
+
+  function drawDatablock(ctx, ac, sx, sy) {
+    const pad = 3, size = 12, lineH = 14;
+    const bx = sx + 30, by = sy - 25;
+    ctx.font = `bold ${size}px ${MONO}`;
+    const w = Math.max(ctx.measureText(ac.callsign).width, ctx.measureText(ac.line2).width);
+    const rect = { l: bx - pad, t: by - size - pad, r: bx + w + pad, b: by + lineH + pad };
+    ctx.fillStyle = COLORS.datablockBg;
+    ctx.fillRect(rect.l, rect.t, rect.r - rect.l, rect.b - rect.t);
+    const ex = Math.min(Math.max(sx, rect.l), rect.r);
+    const ey = Math.min(Math.max(sy, rect.t), rect.b);
+    ctx.strokeStyle = COLORS.datablock;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.datablock;
+    ctx.fillText(ac.callsign, bx, by);
+    ctx.fillText(ac.line2, bx, by + lineH);
+  }
+
+  function drawWeather(ctx) {
+    ctx.font = `14px ${MONO}`;
+    ctx.fillStyle = COLORS.weather;
+    ctx.fillText("KSFO 30.01 29014KT", 10, 20);
+  }
+
+  function drawNote(ctx, width, height) {
+    const text = "No ground map — runways only";
+    ctx.font = `12px ${MONO}`;
+    const w = ctx.measureText(text).width;
+    const x = width - w - 14, y = height - 12;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(x - 5, y - 13, w + 10, 18);
+    ctx.fillStyle = "rgba(176,176,184,0.85)";
+    ctx.fillText(text, x, y);
+  }
+
+  function render(canvas) {
+    const lane = canvas.dataset.lane;
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = COLORS.background;
+    ctx.fillRect(0, 0, width, height);
+
+    const vp = makeViewport(width, height);
+    if (lane === "C") {
+      drawRunwaysOutline(ctx, vp);
+    } else {
+      drawRunwaysNormal(ctx, vp);
+    }
+    const placed = AIRCRAFT.map((ac) => [ac, drawAircraft(ctx, vp, ac)]);
+    for (const [ac, [sx, sy]] of placed) drawDatablock(ctx, ac, sx, sy);
+    if (lane !== "C") drawRunwayMidLabels(ctx, vp);
+    drawWeather(ctx);
+    if (lane !== "A") drawNote(ctx, width, height);
+  }
+
+  function renderAll() {
+    document.querySelectorAll(".toolbar").forEach((el) => { if (!el.childElementCount) buildToolbar(el); });
+    document.querySelectorAll("canvas[data-lane]").forEach(render);
+  }
+
+  document.fonts.ready.then(renderAll);
+  window.addEventListener("resize", renderAll);
+})();
+</script>
+</body>
+</html>

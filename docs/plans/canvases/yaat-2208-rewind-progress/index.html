@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rewind progress</title>
+<style>
+  @font-face { font-family: "JetBrains Mono"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+  @font-face { font-family: "JetBrains Mono"; src: url("JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+  :root {
+    --page-bg: #111114;
+    --page-fg: #E6E6E6;
+    --page-subtle: #B0B0B0;
+    --accent: #0078D7;
+    --win-bg: #000000;
+    --border: #3F3F46;
+    --btn-bg: #333333;
+    --mono: "JetBrains Mono", Consolas, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 40px;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  header, .lanes, footer { max-width: 1240px; margin-left: auto; margin-right: auto; }
+  header { margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { margin: 4px 0; color: var(--page-subtle); }
+  code { font-family: var(--mono); font-size: 12px; color: #D0D0D0; }
+  .lanes { display: flex; flex-direction: column; gap: 26px; }
+  .lane { border: 1px solid #333; border-radius: 6px; padding: 12px; background: #18181C; }
+  .lane h2 { font-size: 16px; margin: 0 0 4px; }
+  .lane > p { margin: 0 0 10px; color: var(--page-subtle); font-size: 13px; }
+  .scroll { overflow-x: auto; }
+
+  /* ---- The YAAT main window, at the size it opens ---- */
+  .win { position: relative; width: 1200px; background: var(--win-bg); color: #FFF; font-size: 12px; border: 1px solid #2A2A2A; }
+  .menu { display: flex; gap: 14px; padding: 4px 6px; font-size: 14px; }
+  .timeline { border-bottom: 1px solid var(--border); padding: 3px 8px; display: flex; align-items: center; gap: 2px; height: 46px; }
+  .tbtn {
+    background: var(--btn-bg); border-radius: 4px; padding: 2px 4px; font-size: 11px; color: #FFF;
+    font-family: "Segoe UI", "Segoe UI Emoji", system-ui, sans-serif; white-space: nowrap; line-height: 18px;
+  }
+  .tbtn.wide { padding: 2px 6px; }
+  .time { font-family: var(--mono); font-size: 12px; margin: 0 4px; }
+  .track-wrap { flex: 1; margin: 0 8px; position: relative; height: 34px; }
+  .markers { position: absolute; left: 0; right: 0; top: 2px; height: 14px; }
+  .markers i { position: absolute; width: 3px; height: 7px; background: #FFC828; top: 0; }
+  .markers i.ev { background: #4ECDC4; height: 5px; top: 9px; width: 2px; }
+  .slider { position: absolute; left: 0; right: 0; top: 23px; height: 2px; background: #666; }
+  .slider .val { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+  .slider .thumb { position: absolute; top: -9px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); margin-left: -10px; }
+  .right { display: flex; align-items: center; gap: 2px; }
+  .badge { border-radius: 3px; padding: 1px 6px; font-size: 11px; }
+
+  /* Timeline disabled while a jump runs */
+  .timeline.disabled .tbtn { opacity: 0.38; }
+  .timeline.disabled .time { color: #8A8A8A; }
+  .timeline.disabled .markers { opacity: 0.35; }
+  .timeline.disabled .slider { background: #3A3A3A; }
+  .timeline.disabled .slider .val { background: #5A5A5A; }
+  .timeline.disabled .slider .thumb { background: #5A5A5A; }
+
+  .tabs { display: flex; gap: 13px; padding: 10px 14px 0; font-size: 13px; color: #C8C8C8; }
+  .tabs span { padding-bottom: 4px; }
+  .tabs .sel { color: #FFF; border-bottom: 2px solid var(--accent); }
+  .content { position: relative; margin: 4px 8px 0; }
+  .content img { display: block; width: 100%; }
+  .terminal-head { margin: 0 8px; background: #000; border-top: 6px solid var(--border); padding: 4px 4px; display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; }
+  .terminal-head .filter { width: 140px; height: 18px; border: 1px solid #666; border-radius: 3px; font-weight: 400; color: #777; font-size: 12px; padding: 0 4px; line-height: 16px; }
+  .terminal { margin: 0 8px; background: #1A1A1E; font-family: var(--mono); font-size: 12px; color: #9A9A9A; padding: 4px 4px 6px; line-height: 16.5px; white-space: pre; }
+  .terminal b { color: #FFF; font-weight: 400; }
+  .status { border-top: 1px solid var(--border); padding: 2px 8px; display: flex; justify-content: space-between; font-size: 11px; color: #B0B0B0; margin-top: 6px; }
+
+  /* ---- Option A: the export overlay's look, centred over the window ---- */
+  .overlay-a {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.8); border-radius: 8px; padding: 24px; min-width: 280px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .overlay-a .title { font-size: 16px; font-weight: 700; color: #FFF; }
+  .progress { width: 200px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); position: relative; overflow: hidden; }
+  .progress .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 40%; background: var(--accent); border-radius: 2px; }
+
+  /* ---- Option B: a non-modal banner across the top of the radar, under the DCB ---- */
+  .banner-b {
+    position: absolute; left: 0; right: 0; top: 61px;
+    background: rgba(18, 32, 52, 0.92); border-bottom: 1px solid #2D5B86;
+    padding: 5px 12px 8px; display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
+  .banner-b .icon { color: #8FC1FF; font-size: 13px; }
+  .banner-b .txt { font-weight: 600; color: #F0F4FA; }
+  .banner-b .pct { margin-left: auto; font-family: var(--mono); font-size: 12px; color: #B8C8DA; }
+  .banner-b .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,0.08); }
+  .banner-b .bar .fill { width: 40%; height: 100%; background: var(--accent); }
+
+  /* ---- Option C: progress inside the timeline bar ---- */
+  .slider .jump { position: absolute; top: -3px; height: 8px; left: 0; border-radius: 2px;
+    background: repeating-linear-gradient(-45deg, #0078D7 0 6px, #2B90E5 6px 12px); }
+  .slider .target { position: absolute; top: -8px; width: 2px; height: 18px; background: #FFFFFF; margin-left: -1px; }
+  .slider .target::after { content: ""; position: absolute; left: -4px; top: -5px; border: 5px solid transparent; border-top-color: #FFF; }
+  .caption-c { position: absolute; top: -1px; font-size: 11px; color: #E6EEF8; white-space: nowrap; transform: translateX(-100%); padding-right: 12px; }
+  .caption-c .pct { font-family: var(--mono); color: #8FC1FF; }
+
+  footer { margin-top: 18px; color: var(--page-subtle); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>YAAT-2208: how should a rewind or seek show its progress?</h1>
+  <p>When someone in the room rewinds or seeks, the server re-runs the session up to the target, and everyone in the room sees how far it has got (owner ruling). The progress appears after about 300 ms; until the jump lands the radar stays frozen on its last frame and the timeline controls are disabled, so nobody starts a second jump.</p>
+  <p>Each lane shows a room member’s window 40% of the way through <b>Jane Doe</b>’s rewind from 58:40 to <b>42:10</b>. The timeline buttons, time and slider are greyed out in every lane. The radar is a real Radar View frame. The window chrome copies <code>MainWindow.axaml</code> (timeline bar, tabs, terminal, status bar).</p>
+</header>
+
+<section class="lanes">
+
+  <article class="lane">
+    <h2>A. Centred modal overlay, in the export overlay’s style</h2>
+    <p>The same box as “Exporting recording…”: a dark rounded panel in the middle of the window with a bold line and a 200 px progress bar. It covers the centre of the radar until the jump lands.</p>
+    <div class="scroll"><div class="win" data-lane="A">
+      <div class="menu"><span>File</span><span>Room</span><span>View</span><span>Scenario</span><span>Tools</span><span>Help</span></div>
+      <div class="timeline disabled" data-timeline></div>
+      <div class="tabs"><span>Aircraft List</span><span>Ground View</span><span class="sel">Radar View</span><span>Controllers</span><span>METAR</span></div>
+      <div class="content"><img src="radar-frozen.png" alt="Frozen Radar View frame" data-no-lightbox></div>
+      <div data-terminal></div>
+      <div class="status"><span>Rewinding to 42:10...</span><span>mic: off</span></div>
+      <div class="overlay-a" role="status">
+        <div class="title">Rewinding to 42:10 — by Jane Doe</div>
+        <div class="progress"><div class="fill"></div></div>
+      </div>
+    </div></div>
+  </article>
+
+  <article class="lane">
+    <h2>B. Non-modal banner across the top of the radar</h2>
+    <p>A slim strip under the radar’s button bar, with a thin progress bar along its bottom edge and the percentage at the right. The scope stays visible below it (still frozen).</p>
+    <div class="scroll"><div class="win" data-lane="B">
+      <div class="menu"><span>File</span><span>Room</span><span>View</span><span>Scenario</span><span>Tools</span><span>Help</span></div>
+      <div class="timeline disabled" data-timeline></div>
+      <div class="tabs"><span>Aircraft List</span><span>Ground View</span><span class="sel">Radar View</span><span>Controllers</span><span>METAR</span></div>
+      <div class="content">
+        <img src="radar-frozen.png" alt="Frozen Radar View frame" data-no-lightbox>
+        <div class="banner-b" role="status">
+          <span class="icon">⟲</span>
+          <span class="txt">Rewinding to 42:10 — by Jane Doe</span>
+          <span class="pct">40%</span>
+          <div class="bar"><div class="fill"></div></div>
+        </div>
+      </div>
+      <div data-terminal></div>
+      <div class="status"><span>Rewinding to 42:10...</span><span>mic: off</span></div>
+    </div></div>
+  </article>
+
+  <article class="lane">
+    <h2>C. Progress inside the timeline bar</h2>
+    <p>The slider itself shows the jump: a white mark at the target (42:10) and a striped fill that grows from the start toward it, with a small caption beside it. Nothing covers the radar. The thumb and buttons are greyed out until the jump lands.</p>
+    <div class="scroll"><div class="win" data-lane="C">
+      <div class="menu"><span>File</span><span>Room</span><span>View</span><span>Scenario</span><span>Tools</span><span>Help</span></div>
+      <div class="timeline disabled" data-timeline data-progress-in-bar></div>
+      <div class="tabs"><span>Aircraft List</span><span>Ground View</span><span class="sel">Radar View</span><span>Controllers</span><span>METAR</span></div>
+      <div class="content"><img src="radar-frozen.png" alt="Frozen Radar View frame" data-no-lightbox></div>
+      <div data-terminal></div>
+      <div class="status"><span>Rewinding to 42:10...</span><span>mic: off</span></div>
+    </div></div>
+  </article>
+</section>
+
+<footer>
+  All three keep the status-bar line the client shows today (“Rewinding to 42:10...”). Percent is re-run seconds over the seconds to re-run, from the server’s throttled <code>RewindProgress</code>.
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const ELAPSED = 58 * 60 + 40;   // the session's current time: the slider's maximum in a live session
+  const TARGET = 42 * 60 + 10;    // where Jane Doe is rewinding to
+  const PROGRESS = 0.4;
+  const BOOKMARKS = [9 * 60 + 5, 31 * 60 + 40];
+  const EVENTS = [3 * 60, 12 * 60 + 30, 20 * 60, 27 * 60 + 15, 38 * 60, 44 * 60 + 50, 51 * 60 + 20];
+
+  const pct = (s) => `${(100 * s / ELAPSED).toFixed(3)}%`;
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function buildTimeline(bar) {
+    // MainWindow.axaml timeline bar, left to right.
+    for (const [label, wide] of [["⏮"], ["⏪30"], ["⏪15"], ["⏸", true], ["15⏩"], ["30⏩"], ["⏭"]]) {
+      bar.appendChild(el("span", wide ? "tbtn wide" : "tbtn", label));
+    }
+    bar.appendChild(el("span", "time", "58:40"));
+
+    const wrap = el("div", "track-wrap");
+    const markers = el("div", "markers");
+    for (const t of BOOKMARKS) { const m = el("i"); m.style.left = pct(t); markers.appendChild(m); }
+    for (const t of EVENTS) { const m = el("i", "ev"); m.style.left = pct(t); markers.appendChild(m); }
+    wrap.appendChild(markers);
+
+    const slider = el("div", "slider");
+    const val = el("div", "val"); val.style.width = "100%";
+    slider.appendChild(val);
+
+    if (bar.hasAttribute("data-progress-in-bar")) {
+      const jump = el("div", "jump"); jump.style.width = pct(TARGET * PROGRESS);
+      slider.appendChild(jump);
+      const target = el("div", "target"); target.style.left = pct(TARGET);
+      slider.appendChild(target);
+      const caption = el("div", "caption-c");
+      caption.style.left = pct(TARGET);
+      caption.append("Rewinding to 42:10 — by Jane Doe  ");
+      caption.appendChild(el("span", "pct", "40%"));
+      wrap.appendChild(caption);
+      markers.style.display = "none";
+    }
+
+    const thumb = el("div", "thumb"); thumb.style.left = "100%";
+    slider.appendChild(thumb);
+    wrap.appendChild(slider);
+    bar.appendChild(wrap);
+
+    const right = el("div", "right");
+    right.appendChild(el("span", "tbtn wide", "◀🔖"));
+    right.appendChild(el("span", "tbtn wide", "🔖"));
+    right.appendChild(el("span", "tbtn wide", "🔖▶"));
+    right.appendChild(el("span", "tbtn wide", "Bookmarks ▾"));
+    bar.appendChild(right);
+  }
+
+  const TERMINAL = [
+    ["10:58:31", "SYS", "SWA1553  [AutoTrack] Delayed handoff initiated to OAK_APP (3Y)"],
+    ["10:58:33", "CMD", "JD  N98VD  DM 050", true],
+    ["10:58:33", "RSP", "N98VD  descend and maintain 5,000", true],
+    ["10:58:40", "SYS", "Jane Doe is rewinding to 42:10"],
+  ];
+
+  function buildTerminal(slot) {
+    const head = el("div", "terminal-head");
+    head.append("Terminal");
+    head.appendChild(el("span", "filter", "Filter..."));
+    slot.appendChild(head);
+    const body = el("div", "terminal");
+    for (const [time, kind, text, bright] of TERMINAL) {
+      const line = el("div");
+      const content = `${time}  ${kind}  ${text}`;
+      if (bright) { line.appendChild(el("b", "", content)); } else { line.textContent = content; }
+      body.appendChild(line);
+    }
+    slot.appendChild(body);
+  }
+
+  document.querySelectorAll("[data-timeline]").forEach(buildTimeline);
+  document.querySelectorAll("[data-terminal]").forEach(buildTerminal);
+})();
+</script>
+</body>
+</html>
