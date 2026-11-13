@@ -16,8 +16,8 @@
 
 ## Controller-AI coaching
 
-- [ ] YAAT-1246 Explore codifying coaching session 1's ground lessons into GroundBrain decisions
-- [ ] YAAT-1536 AI Ground: a pushing tow stopped for a parked aircraft that is itself held on standby waits forever
+- [ ] YAAT-1246 Explore codifying coaching session 1's ground lessons into GroundBrain decisions · release vNext+1
+- [ ] YAAT-1536 AI Ground: a pushing tow stopped for a parked aircraft that is itself held on standby waits forever · release vNext+1
 
 ## Bug reports and feature requests
 
@@ -675,8 +675,8 @@
 ### 1 Defects (3/20 done)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
-- [ ] YAAT-86 Align client/server parsing of bare AT, AT argument checks, trailing comma
-- [ ] YAAT-87 Fix parser gaps from scenario validation: CM after DCT, ER HS, CFIX waypoint
+- [ ] YAAT-86 Align client/server parsing of bare AT, AT argument checks, trailing comma · release vNext
+- [ ] YAAT-87 Fix parser gaps from scenario validation: CM after DCT, ER HS, CFIX waypoint · release vNext
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
 - [ ] YAAT-93 Refuse a block's later command the new phase rejects; drop the rest
 - [ ] YAAT-94 Make IdlePhaseAcceptsBlock follow the dispatcher's phase gate
@@ -693,7 +693,7 @@
 
 ### 2 Refinements and rulings (0/5 done)
 - [ ] YAAT-88 Give the command queue a per-dispatch frontier for independent chains
-- [ ] YAAT-347 VFR FH with a cardinal direction: FH E / SE / W … = "proceed eastbound" → FH 090 / 135 / 270
+- [ ] YAAT-347 VFR FH with a cardinal direction: FH E / SE / W … = "proceed eastbound" → FH 090 / 135 / 270 · release vNext
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-1098 Fail a REPORT cancel with unrecognised tokens instead of cancelling every report
@@ -987,7 +987,7 @@
 - [ ] YAAT-1891 Read back 'line up and wait runway {rwy} at {taxiway}' at a runway-crossing hold
 
 ### 2 Refinements and rulings (0/15 done)
-- [ ] YAAT-185 Group gate numbers in PhraseologyVerbalizer.SpellDestinationName
+- [ ] YAAT-185 Group gate numbers in PhraseologyVerbalizer.SpellDestinationName · release vNext
 - [ ] YAAT-192 Audit pilot readbacks against the RSP text and make them agree
 - [ ] YAAT-330 Pilot readback for REL: released for departure
 - [ ] YAAT-201 Work the phraseology coverage backlog
@@ -1014,44 +1014,44 @@
 ## Solo training: simulated controllers and call-ups
 
 ### 1 Defects (3/17 done)
-- [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command
-- [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
-- [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
-- [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request
-- [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance (GND+DEL case done)
-- [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio
-- [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
-- [ ] YAAT-1096 Voice typed SAY answers in solo mode
-- [ ] YAAT-1225 Solo: CT 3O and bare CT do not reach the simulated tower
-- [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals
-- [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken)
-- [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers
-- [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C
-- [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick
+- [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext+1
+- [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext+1
+- [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext+1
+- [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request · release vNext+1
+- [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance (GND+DEL case done) · release vNext+1
+- [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio · release vNext+1
+- [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport · release vNext+1
+- [ ] YAAT-1096 Voice typed SAY answers in solo mode · release vNext+1
+- [ ] YAAT-1225 Solo: CT 3O and bare CT do not reach the simulated tower · release vNext+1
+- [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals · release vNext+1
+- [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken) · release vNext+1
+- [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers · release vNext+1
+- [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext+1
+- [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext+1
 
 ### 2 Refinements and rulings (8/17 done)
-- [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
-- [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
-- [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for
-- [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere
-- [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference
-- [ ] YAAT-971 Grade the field advisory's clock and miles in RFIS
-- [ ] YAAT-1223 Stagger solo parking call-ups: slower base interval with a seeded random spread
-- [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
-- [ ] YAAT-2095 Have solo AI controllers handle an aircraft holding at its clearance limit on their frequency
+- [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext+1
+- [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range · release vNext+1
+- [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for · release vNext+1
+- [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere · release vNext+1
+- [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference · release vNext+1
+- [ ] YAAT-971 Grade the field advisory's clock and miles in RFIS · release vNext+1
+- [ ] YAAT-1223 Stagger solo parking call-ups: slower base interval with a seeded random spread · release vNext+1
+- [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi · release vNext+1
+- [ ] YAAT-2095 Have solo AI controllers handle an aircraft holding at its clearance limit on their frequency · release vNext+1
 
 ### 3 Hygiene and tests (0/1 done)
-- [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range
+- [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext+1
 
 ### No milestone
-- [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight'
-- [ ] YAAT-1512 Tell the sim when the student holds push-to-talk so no pilot keys over them
-- [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear')
-- [ ] YAAT-1958 Apply auto-track (and the tuned-position stamp) on the Sim-side replay load
-- [ ] YAAT-1959 Tune the pilot to an ERAM student who converts a pointout into ownership
-- [ ] YAAT-1992 Score only the student's own commands in solo evaluation, by the recorded issuer flag
-- [ ] YAAT-1998 Read a CRC session's secondary positions from PositionRegistry in StudentIssuer
-- [ ] YAAT-2009 Route a solo VFR pattern aircraft's short-final reminder by its tuned position
+- [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight' · release vNext+1
+- [ ] YAAT-1512 Tell the sim when the student holds push-to-talk so no pilot keys over them · release vNext+1
+- [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear') · release vNext+1
+- [ ] YAAT-1958 Apply auto-track (and the tuned-position stamp) on the Sim-side replay load · release vNext+1
+- [ ] YAAT-1959 Tune the pilot to an ERAM student who converts a pointout into ownership · release vNext+1
+- [ ] YAAT-1992 Score only the student's own commands in solo evaluation, by the recorded issuer flag · release vNext+1
+- [ ] YAAT-1998 Read a CRC session's secondary positions from PositionRegistry in StudentIssuer · release vNext+1
+- [ ] YAAT-2009 Route a solo VFR pattern aircraft's short-final reminder by its tuned position · release vNext+1
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1080,7 +1080,7 @@
 - [ ] YAAT-1502 Rebuild ASDE-X hold bars when a pushed runway footprint changes, not only on a layout or id change
 
 ### 2 Refinements and rulings (0/7 done)
-- [ ] YAAT-92 Skip the vTDLS re-broadcast when no field the TDLS item shows changed
+- [ ] YAAT-92 Skip the vTDLS re-broadcast when no field the TDLS item shows changed · release vNext
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
 - [ ] YAAT-647 Count the ERAM coverage coast's 24 s from the anchor sweep, as the disconnect coast does
@@ -1135,10 +1135,10 @@
 ## Scenarios, spawning and fleets
 
 ### 1 Defects (2/7 done)
-- [ ] YAAT-109 Fix scenario-export gaps: intersection line-up, CM modifiers, shadow on runway
+- [ ] YAAT-109 Fix scenario-export gaps: intersection line-up, CM modifiers, shadow on runway · release vNext
 - [ ] YAAT-1591 Check the generator's fallback callsigns against the callsigns in use
-- [ ] YAAT-182 Add a per-airport non-gate denylist for arrival parking picks
-- [ ] YAAT-183 Keep layout placeholder names out of arrival parking pools
+- [ ] YAAT-182 Add a per-airport non-gate denylist for arrival parking picks · release vNext
+- [ ] YAAT-183 Keep layout placeholder names out of arrival parking pools · release vNext
 - [ ] YAAT-184 Pick an operating airline for a typed ADD from airline-fleets data
 
 ### 2 Refinements and rulings (0/3 done)
@@ -1154,8 +1154,8 @@
 
 ### 1 Defects (0/28 done)
 - [ ] YAAT-100 Fix scenario-activation leftovers: Save-As JSON paths, dead assignment
-- [ ] YAAT-103 Validate the radar Squawk input as four octal digits
-- [ ] YAAT-150 Investigate the lobby ARTCC box ignoring preferences.json after relaunch
+- [ ] YAAT-103 Validate the radar Squawk input as four octal digits · release vNext
+- [ ] YAAT-150 Investigate the lobby ARTCC box ignoring preferences.json after relaunch · release vNext
 - [ ] YAAT-159 Keep the last flight-rules situation as the classifier hysteresis input
 - [ ] YAAT-165 Async load client leftovers: early Unload refusal, stale LoadId
 - [ ] YAAT-344 Bundle import: reject a favorite set with no name instead of throwing in the planner
@@ -1311,12 +1311,12 @@
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
 ### 3 Hygiene and tests (4/64 done)
-- [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
-- [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
-- [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
-- [ ] YAAT-166 Add a MainViewModel test seam that skips the nav-data download
-- [ ] YAAT-167 Extract shared Follow test helpers in Yaat.Sim.Tests
-- [ ] YAAT-186 Add tick-performance regression tests (allocations, nightly p95 CPU)
+- [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server) · release vNext
+- [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat · release vNext
+- [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak) · release vNext
+- [ ] YAAT-166 Add a MainViewModel test seam that skips the nav-data download · release vNext
+- [ ] YAAT-167 Extract shared Follow test helpers in Yaat.Sim.Tests · release vNext
+- [ ] YAAT-186 Add tick-performance regression tests (allocations, nightly p95 CPU) · release vNext
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
@@ -1389,7 +1389,7 @@
 - [ ] YAAT-1207 Keep a resolved Discord thread name within 100 characters when the emoji is added
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
-- [ ] YAAT-2094 Run the bash prek hooks under Git Bash, not WSL; then drop the --local and pre-run prek habit
+- [ ] YAAT-2094 Run the bash prek hooks under Git Bash, not WSL; then drop the --local and pre-run prek habit · release vNext
 
 ### 2 Refinements and rulings (0/3 done)
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
@@ -1397,33 +1397,33 @@
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
 ### 3 Hygiene and tests (3/69 done)
-- [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
+- [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line · release vNext
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
-- [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC
-- [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
-- [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
-- [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params
-- [ ] YAAT-112 Move developer docs from the repo root into docs/
-- [ ] YAAT-113 Make claude-guard-bash.sh check the gate/timeout wrappers per segment
-- [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits
-- [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI
-- [ ] YAAT-118 Fail the build on unused usings (IDE0005) in both repos and CI
-- [ ] YAAT-119 Move GuideCapture's in-process server host into a yaat-server tool
-- [ ] YAAT-120 Name Git's bash explicitly in prek.toml hooks (WSL bash escapes the gate)
-- [ ] YAAT-121 Add the agent-mail-guard hook to prek.toml
-- [ ] YAAT-122 Wrap tools/test-all.ps1's builds and test runs in the gate
-- [ ] YAAT-123 Document how STT-on UI tests avoid the network prewarm
-- [ ] YAAT-125 Add Task Index rows and a brief rule naming yaat-server's owning docs
-- [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports
-- [ ] YAAT-127 Fix three stale doc facts (hub method count, PopulateRoom, ServerConnection)
-- [ ] YAAT-129 Correct docs/tick-loop.md broadcast cadence (once per wall second)
-- [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template
-- [ ] YAAT-131 Fix dead doc paths rigcheck found
-- [ ] YAAT-204 Rework the triage-open-issues skill for the Linear plan
-- [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules
-- [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
-- [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state)
-- [ ] YAAT-155 Fix the FOLLOW docs leftovers in approach-and-pattern-geometry.md
+- [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC · release vNext
+- [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule · release vNext
+- [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md · release vNext
+- [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params · release vNext
+- [ ] YAAT-112 Move developer docs from the repo root into docs/ · release vNext
+- [ ] YAAT-113 Make claude-guard-bash.sh check the gate/timeout wrappers per segment · release vNext
+- [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits · release vNext
+- [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
+- [ ] YAAT-118 Fail the build on unused usings (IDE0005) in both repos and CI · release vNext
+- [ ] YAAT-119 Move GuideCapture's in-process server host into a yaat-server tool · release vNext
+- [ ] YAAT-120 Name Git's bash explicitly in prek.toml hooks (WSL bash escapes the gate) · release vNext
+- [ ] YAAT-121 Add the agent-mail-guard hook to prek.toml · release vNext
+- [ ] YAAT-122 Wrap tools/test-all.ps1's builds and test runs in the gate · release vNext
+- [ ] YAAT-123 Document how STT-on UI tests avoid the network prewarm · release vNext
+- [ ] YAAT-125 Add Task Index rows and a brief rule naming yaat-server's owning docs · release vNext
+- [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
+- [ ] YAAT-127 Fix three stale doc facts (hub method count, PopulateRoom, ServerConnection) · release vNext
+- [ ] YAAT-129 Correct docs/tick-loop.md broadcast cadence (once per wall second) · release vNext
+- [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template · release vNext
+- [ ] YAAT-131 Fix dead doc paths rigcheck found · release vNext
+- [ ] YAAT-204 Rework the triage-open-issues skill for the Linear plan · release vNext
+- [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules · release vNext
+- [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine · release vNext
+- [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state) · release vNext
+- [ ] YAAT-155 Fix the FOLLOW docs leftovers in approach-and-pattern-geometry.md · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
