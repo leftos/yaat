@@ -125,11 +125,12 @@ public sealed record DispatchContext
     public required TrackOwner? StudentPosition { get; init; }
 
     /// <summary>
-    /// The engine's ground layout for an airport id, which a destination change (<c>APT</c>) on an airborne aircraft not
-    /// low over its current field switches it to; null where no engine supplies one (a test harness), and the layout then
-    /// stays as it is.
+    /// The engine's gated read of an airport's ground layout with its loading state, which a destination change
+    /// (<c>APT</c>) on an airborne aircraft not low over its current field picks its layout through: a loaded layout is
+    /// attached, a loading one waited on (<see cref="AircraftGroundOps.PendingLayoutAirportIds"/>); null where no engine
+    /// supplies one (a test harness), and the layout then stays as it is with no wait.
     /// </summary>
-    public required Func<string, AirportGroundLayout?>? LayoutForAirport { get; init; }
+    public required Func<string, GroundDataRead>? LayoutReadForAirport { get; init; }
 
     /// <summary>
     /// The spoken-wording context a handler-built pilot transmission (the CT and FCA readbacks) uses for an aircraft:

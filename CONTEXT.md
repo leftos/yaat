@@ -85,7 +85,7 @@ The format an archive's bundled layouts were written in (`LayoutFormatVersion`, 
 An airport whose ground layout was still loading when the engine first read it at runtime. Every read of it answers loading until its layout admission, whatever the source holds meanwhile; the deferral is a recorded action, so a replay defers it at the same second.
 
 **Layout admission** (also *admitted layout*):
-The second a live run lets a deferred airport's landed ground layout answer reads, checked at the opening of each second and recorded. A replay admits only on that record, never from the source.
+The second a live run lets a deferred airport's landed ground layout answer reads, checked at the opening of each second and recorded. A replay admits only on that record, never from the source. An aircraft waiting on the airport (a flight-plan amend or destination change that met it still loading) keeps its layout until the admission second, where its layout pick re-runs.
 
 **Resource manifest**:
 What a scenario JSON will make the server fetch — its ARTCC, the roster's neighbouring ARTCCs and every airport it names — read without loading anything (`ScenarioResourceManifest`).

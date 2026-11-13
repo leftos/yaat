@@ -73,7 +73,7 @@ internal static class TestDispatch
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = null,
             StudentPosition = studentPosition,
-            LayoutForAirport = null,
+            LayoutReadForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
 }

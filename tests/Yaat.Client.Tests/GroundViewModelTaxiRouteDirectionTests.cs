@@ -92,7 +92,7 @@ public class GroundViewModelTaxiRouteDirectionTests
             IsScenarioScripted = false,
             FacilityHint = null,
             StudentPosition = null,
-            LayoutForAirport = null,
+            LayoutReadForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI S HS B");

@@ -112,6 +112,7 @@ public sealed partial class SimulationEngine
         if (Scenario is not null)
         {
             Scenario.DeferredLayoutAirports.Clear();
+            _layoutAdmittedThisSecond = false;
             foreach (string airportId in scenarioDto.DeferredLayoutAirportIds ?? [])
             {
                 Scenario.AddDeferredLayoutAirport(NavigationDatabase.NormalizeAirport(airportId));
@@ -126,10 +127,7 @@ public sealed partial class SimulationEngine
             // a rewind measuring its final against the primary's runways. That flips on-final and distance-to-threshold
             // verdicts across a rewind, which replay determinism does not allow. The primary stays the fallback for a
             // snapshot that carries no id, or one naming a field this engine's ground data has no map for.
-            AirportGroundLayout? aircraftLayout = acDto.Ground.LayoutAirportId is { } layoutAirportId
-                ? ReadRestoredLayout(layoutAirportId) ?? groundLayout
-                : groundLayout;
-            var ac = AircraftState.FromSnapshot(acDto, aircraftLayout);
+            var ac = AircraftState.FromSnapshot(acDto, RestoredAircraftLayout(acDto.Ground, groundLayout));
             World.AddAircraft(ac);
         }
 

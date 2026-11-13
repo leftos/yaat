@@ -190,7 +190,7 @@ public class AiAnsweredCallupE2ETests
             IsScenarioScripted = true,
             FacilityHint = null,
             StudentPosition = engine.Scenario.StudentPosition,
-            LayoutForAirport = null,
+            LayoutReadForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
         var capture = PreDispatchCapture.BeforeDispatch(ac);

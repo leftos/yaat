@@ -35,6 +35,22 @@ public sealed class TaxiTrailEdgeDto
 public sealed class AircraftGroundOpsDto
 {
     public string? LayoutAirportId { get; init; }
+
+    /// <summary>
+    /// The airports the aircraft's last layout pick waits on to load (<see cref="AircraftGroundOps.PendingLayoutAirportIds"/>);
+    /// optional — earlier snapshots restore none. Written only when the aircraft waits, so a snapshot with no wait is
+    /// byte-identical to one taken before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? PendingLayoutAirportIds { get; init; }
+
+    /// <summary>
+    /// The waiting pick is a destination change's (<see cref="AircraftGroundOps.PendingLayoutForDestination"/>); optional —
+    /// earlier snapshots restore false. Written only when set.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PendingLayoutForDestination { get; init; }
+
     public TaxiRouteDto? AssignedTaxiRoute { get; init; }
     public string? ParkingSpot { get; init; }
     public string? CurrentTaxiway { get; init; }

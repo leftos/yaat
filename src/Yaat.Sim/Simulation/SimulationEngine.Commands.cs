@@ -122,7 +122,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = facilityHint ?? Scenario?.StudentPosition?.FacilityId,
             StudentPosition = Scenario?.StudentPosition,
-            LayoutForAirport = ResolveAirportLayout,
+            LayoutReadForAirport = ReadAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
     }
@@ -505,10 +505,10 @@ public sealed partial class SimulationEngine
         ApplyClearanceFields(ac, amendment);
         ApplyStarsAndBeaconFields(ac, amendment);
 
-        // Resolve ground layout if departure/destination changed
+        // Resolve ground layout if departure/destination changed; an airport still loading is waited on, not taken for no map.
         if (amendment.Departure is not null || amendment.Destination is not null)
         {
-            ac.Ground.Layout = ResolveGroundLayout(ac);
+            PickAmendedLayout(ac);
         }
 
         // Editing a flight plan via the Flight Plan Editor on a radar-only (no-plan) target

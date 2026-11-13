@@ -8,6 +8,7 @@
 
 ### Changed
 
+- Amending a flight plan or destination to an airport whose ground map is still loading works at once, and the map attaches once loaded.
 - A departure flies the altitude in the PDC sent to it from vTDLS, climb via or maintain, instead of the facility default; a voice altitude still overrides it.
 - vTDLS climb via defaults written "EXCPT MTN", "EXP MTN" or "EXPT MAINTAIN", common at ZLA facilities, now level the departure at that altitude.
 

@@ -40,6 +40,20 @@ public class AircraftGroundOps
 
     private string? _layoutAirportId;
 
+    /// <summary>
+    /// The airports, as ordinal-sorted normalized codes, whose loading held up this aircraft's last layout pick (a flight-plan
+    /// amend or a destination change); null when it waits on none. At the admission that leaves none of them deferred the
+    /// engine re-runs the pick and attaches its result. Set by the engine; a snapshot restores it as data only.
+    /// </summary>
+    public IReadOnlyList<string>? PendingLayoutAirportIds { get; set; }
+
+    /// <summary>
+    /// The waiting pick (<see cref="PendingLayoutAirportIds"/>) is a destination change's: at the admission it attaches the
+    /// destination's own layout, airborne and not low over its field, rather than the amend's nearer of departure and
+    /// destination.
+    /// </summary>
+    public bool PendingLayoutForDestination { get; set; }
+
     public TaxiRoute? AssignedTaxiRoute { get; set; }
 
     /// <summary>
@@ -432,6 +446,8 @@ public class AircraftGroundOps
         new()
         {
             LayoutAirportId = LayoutAirportId,
+            PendingLayoutAirportIds = PendingLayoutAirportIds is { Count: > 0 } pending ? [.. pending] : null,
+            PendingLayoutForDestination = PendingLayoutForDestination,
             AssignedTaxiRoute = AssignedTaxiRoute?.ToSnapshot(),
             ParkingSpot = ParkingSpot,
             CurrentTaxiway = CurrentTaxiway,
@@ -487,6 +503,8 @@ public class AircraftGroundOps
         {
             Layout = layout,
             LayoutAirportId = dto.LayoutAirportId,
+            PendingLayoutAirportIds = dto.PendingLayoutAirportIds is { Count: > 0 } pending ? [.. pending] : null,
+            PendingLayoutForDestination = dto.PendingLayoutForDestination,
             AssignedTaxiRoute = dto.AssignedTaxiRoute is not null ? TaxiRoute.FromSnapshot(dto.AssignedTaxiRoute, layout) : null,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,

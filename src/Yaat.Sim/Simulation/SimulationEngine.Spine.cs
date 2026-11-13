@@ -58,6 +58,10 @@ public sealed partial class SimulationEngine
         long start = TimingStart();
         host.ApplyPreTickRecordedActions(second);
         TimingStop(StepNames[(int)StepId.PreTickRecordedActions], start);
+
+        // After every pre-tick record of the second, live and replay alike: a deferral the attach pass's own reads record
+        // live at this second is already in force on a replay when its pass reads.
+        AttachWaitingAircraftAfterAdmission();
     }
 
     public void RunPrePhysics(ISimulationHost host) => RunSegment(SpineOrder.PrePhysics, host, "PrePhysics");

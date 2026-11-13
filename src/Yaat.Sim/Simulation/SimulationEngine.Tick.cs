@@ -179,7 +179,7 @@ public sealed partial class SimulationEngine
                     IsScenarioScripted = block.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
                     StudentPosition = Scenario?.StudentPosition,
-                    LayoutForAirport = ResolveAirportLayout,
+                    LayoutReadForAirport = ReadAirportLayout,
                     SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
                 };
 

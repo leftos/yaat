@@ -186,21 +186,98 @@ public sealed partial class SimulationEngine
     /// end while the aircraft beside it measures against the real landing threshold — hundreds of feet apart on a
     /// displaced runway, and enough to put one of them inside the §5-7-1.b.4 window and the other outside it.</para>
     /// </summary>
-    internal AirportGroundLayout? ResolveAirportLayout(string airportId)
+    internal AirportGroundLayout? ResolveAirportLayout(string airportId) => ReadAirportLayout(airportId).Layout;
+
+    /// <summary>
+    /// <see cref="ResolveAirportLayout"/> with its loading state: the primary airport's layout, loaded, else the gate's
+    /// answer (<see cref="ReadLayoutGate"/>). The read a destination change picks its layout through
+    /// (<see cref="DispatchContext.LayoutReadForAirport"/>), so a loading destination is waited on, not taken for no map.
+    /// </summary>
+    internal GroundDataRead ReadAirportLayout(string airportId)
     {
         if ((World.GroundLayout is { } primary) && NavigationDatabase.AirportIdsMatch(airportId, primary.AirportId))
         {
-            return primary;
+            return new GroundDataRead(true, primary, null);
         }
 
-        return ReadLayoutGate(airportId).Layout;
+        return ReadLayoutGate(airportId);
+    }
+
+    /// <summary>
+    /// A flight-plan amend's layout pick (<see cref="ResolveGroundLayout"/>): attached, or, while an airport the pick reads
+    /// is deferred, the layout is left as it is and the aircraft waits on those airports to re-run the pick at their
+    /// admission (<see cref="AttachWaitingAircraft"/>). Either way it replaces any earlier wait.
+    /// </summary>
+    private void PickAmendedLayout(AircraftState aircraft)
+    {
+        List<string> waits = [];
+        AirportGroundLayout? layout = ResolveGroundLayout(aircraft, waits);
+        bool waiting = (layout is null) && (waits.Count > 0);
+        aircraft.Ground.PendingLayoutAirportIds = waiting ? waits : null;
+        aircraft.Ground.PendingLayoutForDestination = false;
+        if (!waiting)
+        {
+            aircraft.Ground.Layout = layout;
+        }
+    }
+
+    /// <summary>
+    /// At an admission: every aircraft that waits on airports none of which is still deferred re-runs the pick that waited,
+    /// in ordinal callsign order, so all of them attach the one admitted instance in this second.
+    /// </summary>
+    private void AttachWaitingAircraft()
+    {
+        List<AircraftState>? ready = null;
+        foreach (AircraftState aircraft in World.GetSnapshot())
+        {
+            if ((aircraft.Ground.PendingLayoutAirportIds is { } waits) && !AnyDeferred(waits))
+            {
+                (ready ??= []).Add(aircraft);
+            }
+        }
+
+        if (ready is null)
+        {
+            return;
+        }
+
+        ready.Sort(static (a, b) => string.CompareOrdinal(a.Callsign, b.Callsign));
+        foreach (AircraftState aircraft in ready)
+        {
+            if (aircraft.Ground.PendingLayoutForDestination)
+            {
+                aircraft.Ground.PendingLayoutAirportIds = null;
+                aircraft.Ground.PendingLayoutForDestination = false;
+                CommandDispatcher.PickDestinationLayout(aircraft, ReadAirportLayout);
+            }
+            else
+            {
+                PickAmendedLayout(aircraft);
+            }
+        }
+    }
+
+    private bool AnyDeferred(IReadOnlyList<string> airportIds)
+    {
+        foreach (string airportId in airportIds)
+        {
+            if (IsLayoutDeferred(airportId))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
     /// The ground layout <paramref name="aircraft"/> taxis on, or null when there is none or when any airport the choice
     /// reads is still loading: a pick that skips a loading airport for another one is never made.
     /// </summary>
-    public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)
+    public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft) => ResolveGroundLayout(aircraft, null);
+
+    // ResolveGroundLayout, adding each deferred airport the pick read to waits (ordinal, once) when it is given.
+    private AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft, List<string>? waits)
     {
         // An aircraft physically on the ground taxis on the airport its wheels are on —
         // never on a filed destination. A departure that files a destination but no
@@ -208,15 +285,15 @@ public sealed partial class SimulationEngine
         // otherwise load the destination's layout and reject every taxiway/parking lookup.
         if (aircraft.IsOnGround)
         {
-            GroundDataRead physical = ReadOptionalLayout(RunwayOrContextAirport(aircraft));
+            GroundDataRead physical = ReadOptionalLayout(RunwayOrContextAirport(aircraft), waits);
             if ((physical.Layout is not null) || !physical.IsLoaded)
             {
                 return physical.Layout;
             }
         }
 
-        GroundDataRead dep = ReadOptionalLayout(aircraft.FlightPlan.Departure);
-        GroundDataRead dest = ReadOptionalLayout(aircraft.FlightPlan.Destination);
+        GroundDataRead dep = ReadOptionalLayout(aircraft.FlightPlan.Departure, waits);
+        GroundDataRead dest = ReadOptionalLayout(aircraft.FlightPlan.Destination, waits);
         if (!dep.IsLoaded || !dest.IsLoaded)
         {
             return null;
@@ -229,7 +306,7 @@ public sealed partial class SimulationEngine
         // after landing, without writing into the flight plan.
         if ((dep.Layout is null) && (dest.Layout is null))
         {
-            return ReadOptionalLayout(RunwayOrContextAirport(aircraft)).Layout;
+            return ReadOptionalLayout(RunwayOrContextAirport(aircraft), waits).Layout;
         }
 
         return NearerLayout(aircraft, dep.Layout, dest.Layout);
@@ -243,8 +320,31 @@ public sealed partial class SimulationEngine
     }
 
     // An airport the aircraft does not name reads as loaded with no layout.
-    private GroundDataRead ReadOptionalLayout(string? airportId) =>
-        string.IsNullOrEmpty(airportId) ? new GroundDataRead(true, null, null) : ReadLayoutGate(airportId);
+    // A deferred airport read is added to waits when given.
+    private GroundDataRead ReadOptionalLayout(string? airportId, List<string>? waits)
+    {
+        if (string.IsNullOrEmpty(airportId))
+        {
+            return new GroundDataRead(true, null, null);
+        }
+
+        GroundDataRead read = ReadLayoutGate(airportId);
+        if ((waits is not null) && !read.IsLoaded && IsLayoutDeferred(airportId))
+        {
+            AddOrdinal(waits, NavigationDatabase.NormalizeAirport(airportId));
+        }
+
+        return read;
+    }
+
+    private static void AddOrdinal(List<string> codes, string code)
+    {
+        int index = codes.BinarySearch(code, StringComparer.Ordinal);
+        if (index < 0)
+        {
+            codes.Insert(~index, code);
+        }
+    }
 
     private static readonly GroundDataRead LoadingRead = new(false, null, null);
 
@@ -297,6 +397,25 @@ public sealed partial class SimulationEngine
         }
 
         return IsLayoutDeferred(airportId) ? null : _groundData.Read(airportId).Layout;
+    }
+
+    /// <summary>
+    /// The layout a restored aircraft goes back to: its own airport's; none for a deferred airport, or for an aircraft
+    /// with no airport that waits on a pick (it was detached live, and attaches at the admission); else the primary's.
+    /// </summary>
+    private AirportGroundLayout? RestoredAircraftLayout(AircraftGroundOpsDto ground, AirportGroundLayout? primary)
+    {
+        if (ground.LayoutAirportId is not { } layoutAirportId)
+        {
+            return ground.PendingLayoutAirportIds is { Count: > 0 } ? null : primary;
+        }
+
+        if (ReadRestoredLayout(layoutAirportId) is { } layout)
+        {
+            return layout;
+        }
+
+        return IsLayoutDeferred(layoutAirportId) ? null : primary;
     }
 
     /// <summary>Whether <paramref name="airportId"/>, in either form of its code, is in the room's deferred set. Allocates nothing.</summary>
@@ -380,16 +499,44 @@ public sealed partial class SimulationEngine
 
             deferred.RemoveAt(i);
             RecordAction(new RecordedLayoutAdmitted(second, faa));
+            _layoutAdmittedThisSecond = true;
         }
+    }
+
+    // An airport left the deferred set at this second's opening; the attach pass runs once OpenSecond has applied the
+    // second's pre-tick records.
+    private bool _layoutAdmittedThisSecond;
+
+    /// <summary>
+    /// The attach pass (<see cref="AttachWaitingAircraft"/>) for a second in which an airport was admitted, live from the
+    /// source or on a replay from the record, run once at the end of <see cref="OpenSecond"/>.
+    /// </summary>
+    private void AttachWaitingAircraftAfterAdmission()
+    {
+        if (!_layoutAdmittedThisSecond)
+        {
+            return;
+        }
+
+        _layoutAdmittedThisSecond = false;
+        AttachWaitingAircraft();
     }
 
     /// <summary>A recorded deferral: the airport joins the deferred set. The pre-tick half of the router's <c>ApplyRecorded</c>.</summary>
     internal void ApplyRecordedLayoutDeferred(RecordedLayoutDeferred deferred) =>
         Scenario?.AddDeferredLayoutAirport(NavigationDatabase.NormalizeAirport(deferred.AirportId));
 
-    /// <summary>A recorded admission: the airport leaves the deferred set, so its reads answer the source's layout.</summary>
-    internal void ApplyRecordedLayoutAdmitted(RecordedLayoutAdmitted admitted) =>
-        Scenario?.DeferredLayoutAirports.Remove(NavigationDatabase.NormalizeAirport(admitted.AirportId));
+    /// <summary>
+    /// A recorded admission: the airport leaves the deferred set, so its reads answer the source's layout, and the aircraft
+    /// that waited on it attach as they did live, in the attach pass at the end of the second's opening.
+    /// </summary>
+    internal void ApplyRecordedLayoutAdmitted(RecordedLayoutAdmitted admitted)
+    {
+        if (Scenario?.DeferredLayoutAirports.Remove(NavigationDatabase.NormalizeAirport(admitted.AirportId)) == true)
+        {
+            _layoutAdmittedThisSecond = true;
+        }
+    }
 
     /// <summary>
     /// The layout of an airport that must already be loaded at <paramref name="site"/> (a scenario load after its

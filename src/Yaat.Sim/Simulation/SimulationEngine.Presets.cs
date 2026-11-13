@@ -415,7 +415,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             StudentPosition = Scenario?.StudentPosition,
-            LayoutForAirport = ResolveAirportLayout,
+            LayoutReadForAirport = ReadAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
@@ -548,7 +548,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = scenario.StudentPosition?.FacilityId,
             StudentPosition = scenario.StudentPosition,
-            LayoutForAirport = ResolveAirportLayout,
+            LayoutReadForAirport = ReadAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
     }
@@ -668,7 +668,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             StudentPosition = Scenario?.StudentPosition,
-            LayoutForAirport = ResolveAirportLayout,
+            LayoutReadForAirport = ReadAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
         CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);

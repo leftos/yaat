@@ -1089,7 +1089,7 @@ public static class CommandDispatcher
 
     /// <summary>
     /// <c>APT</c>: the destination change, and for an airborne aircraft the new destination's own ground layout
-    /// (<see cref="DispatchContext.LayoutForAirport"/>, by airport, never the nearer of departure and destination), so a
+    /// (<see cref="DispatchContext.LayoutReadForAirport"/>, by airport, never the nearer of departure and destination), so a
     /// name a following <c>LAND @HELI1</c> resolves is looked up at the airport the aircraft is now bound for. An aircraft
     /// on the ground, or airborne low over the field its layout covers (<see cref="GroundCommandHandler.IsOnFieldForAirTaxi"/>),
     /// keeps that layout: its ground phases run on the field under it.
@@ -1097,17 +1097,38 @@ public static class CommandDispatcher
     private static CommandResult ChangeDestination(AircraftState aircraft, ChangeDestinationCommand dest, DispatchContext ctx)
     {
         CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, dest.Airport);
-        if (
-            result.Success
-            && !aircraft.IsOnGround
-            && !IsLowOverItsField(aircraft)
-            && (ctx.LayoutForAirport?.Invoke(aircraft.FlightPlan.Destination) is { } layout)
-        )
+        if (result.Success)
         {
-            aircraft.Ground.Layout = layout;
+            PickDestinationLayout(aircraft, ctx.LayoutReadForAirport);
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// A destination change's layout pick, for an airborne aircraft not low over its field: the destination's own layout,
+    /// attached; while the destination is loading, the layout is left as it is and the aircraft waits on it
+    /// (<see cref="AircraftGroundOps.PendingLayoutForDestination"/>), the pick re-run at its admission. A pick replaces any
+    /// earlier wait; an aircraft the guard keeps on its field keeps both its layout and its wait.
+    /// </summary>
+    internal static void PickDestinationLayout(AircraftState aircraft, Func<string, GroundDataRead>? readLayout)
+    {
+        if (aircraft.IsOnGround || IsLowOverItsField(aircraft) || (readLayout?.Invoke(aircraft.FlightPlan.Destination) is not { } read))
+        {
+            return;
+        }
+
+        aircraft.Ground.PendingLayoutAirportIds = null;
+        aircraft.Ground.PendingLayoutForDestination = false;
+        if (read.Layout is { } layout)
+        {
+            aircraft.Ground.Layout = layout;
+        }
+        else if (!read.IsLoaded)
+        {
+            aircraft.Ground.PendingLayoutAirportIds = [NavigationDatabase.NormalizeAirport(aircraft.FlightPlan.Destination)];
+            aircraft.Ground.PendingLayoutForDestination = true;
+        }
     }
 
     // Only the field elevation is read; the room's active runways are not used.

@@ -186,14 +186,14 @@ public class LayoutAdmissionTests
         Assert.Empty(restored.Scenario.DeferredLayoutAirports);
         Assert.NotNull(restored.ResolveAirportLayout("SMF"));
 
-        // An aircraft the snapshot binds to the deferred SMF comes back without the SMF layout the source now holds: the
-        // deferred set is restored before any aircraft re-attaches.
+        // An aircraft the snapshot binds to the deferred SMF comes back detached, without the SMF layout the source now holds
+        // and without the primary's: the deferred set is restored before any aircraft re-attaches.
         JsonNode node = JsonSerializer.SerializeToNode(atFour)!;
         node["Aircraft"]![0]!["Ground"]!["LayoutAirportId"] = "SMF";
         StateSnapshotDto boundToSmf = node.Deserialize<StateSnapshotDto>()!;
         SimulationEngine reattached = Load(new PartlyLoadingGroundData());
         reattached.RestoreFromSnapshot(boundToSmf);
-        Assert.NotEqual("SMF", NavigationDatabase.NormalizeAirport(reattached.World.FindAircraft(Callsign)!.Ground.Layout!.AirportId));
+        Assert.Null(reattached.World.FindAircraft(Callsign)!.Ground.Layout);
     }
 
     [Fact]
