@@ -80,7 +80,7 @@ fallback — may block on the network. The layout path is built around that cons
 
   This is the rule `ArtccConfigService` follows for a held config; a `NoMap` (vNAS answered 404, nothing on disk) still replaces it.
 
-  A refetch whose GeoJSON is ordinal-equal to the cached copy keeps the already-parsed layout instance (rooms pin it; nothing mutates a layout) and is answered before the parse gate, renewing only the fetch time. A `GetLayout` miss still fetches blocking and logs a warning naming the airport and the thread ("was not prefetched" or "is still being prefetched").
+  A refetch whose GeoJSON is ordinal-equal to the cached copy keeps the already-parsed layout instance (rooms pin it; nothing mutates a layout) and is answered before the parse gate, renewing only the fetch time. A `GetLayout` miss on the service itself still fetches blocking and logs a warning naming the airport and the thread ("was not prefetched" or "is still being prefetched"), but no room reaches it after its load: the room's pin answers for the sim (see [The resource pin](#the-resource-pin)).
 - `ArtccConfigService.EnsureLoadedAsync` shares one in-flight load per ARTCC (a second caller for a cold ARTCC waits for the config instead of returning before it exists) over a `ConcurrentDictionary`, and returns an `ArtccFetchOutcome` (`Loaded`, `LoadedFromStaleCopy` with `CachedCopyUtc` and a `StaleReason` — `Unreachable` or `RemovedFromVnas` for an HTTP 404 — `NotFound`, `Unreachable`, `Unparseable`, plus the neighbour centres left with no ERAM letter).
 
   ARTCC ids are case-insensitive: the id is upper-cased once on entry (URL, cache file `artcc-ZOA.json`, outcome), and the scenario loader upper-cases a scenario's `artccId`.
@@ -92,14 +92,14 @@ fallback — may block on the network. The layout path is built around that cons
   A refresh that throws keeps the held config and lets the next call retry, one that ends `Unreachable` keeps the held config and is reused for `UnreachableRetryBackoff` (2 min, from the load's start) before the next call refreshes again (a cold ARTCC still retries at once), any other outcome is kept for `ConfigTtl`, and the held config is replaced only by a successful load.
 - Prepare fetches every airport the scenario JSON names (`ScenarioResourceManifest.AirportIds`: presets and VFR generator targets included) into the shared cache before the loader runs, so the loader's `GetLayout` calls are dictionary hits. A recording or checkpoint load skips each airport its archive settles (a bundled layout or a missing-map airport), which it pins from the archive instead.
 
-  `ScenarioLifecycleService.WarmAircraftGroundLayouts` then resolves, inside the commit and through the room's pin, every airport a loaded aircraft references (departure, destination, spawn — delayed aircraft included), so no tick pays a first read of them.
+  The manifest also names the runway airports of the scenario's arrival and overflight generators, so every airport the load itself reads is prefetched and pinned; the commit does no per-aircraft layout warm-up.
 - `NavigationDatabase.GetSid/GetStar/GetApproach` do not walk the supplementary prior-cycle CIFP chain for an airport whose
   current cycle lists no procedures of that kind (that chain models version drift; a procedure-less field would otherwise pay
   a burst of full file scans per probed route token). The chain still walks when no current cycle is loaded.
 
 The ground-data service caches null entries on purpose: the per-sub-tick `aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft)` fallback then costs a dictionary hit, and it is also the self-heal path once a background fetch lands.
 
-Accepted residual risk: a first-ever fetch on the tick thread for an airport the scenario JSON never names (a typed `ADD` or `DEST`, a CRC-filed `DA`/`VP`, an approach clearance to a field no flight plan names) — one-time, bounded, logged with the airport's name, and fast on the negative cache. The layout it finds joins the room's resource pin, so a rewind reads the same one.
+The sim never fetches a layout mid-session. An airport the scenario JSON never names (a typed `ADD` or `DEST`, a CRC-filed `DA`/`VP`, an approach clearance to a field no flight plan names) has no layout: the room's pin answers "no layout" at once, so the field has runways only, and a rewind reads the same answer.
 
 ## Scenario load: prepare, commit and the load flag
 
@@ -154,7 +154,9 @@ Seeding logs at Information, once per airport: a scenario airport the archive do
 
 The comparison reads only an entry the live cache already holds and never fetches one. A load from no archive logs none of these.
 
-An airport first named after the load falls through to the live service once and joins the pin; a config miss does not. A vNAS refresh swaps the live cache's entry for a new object and the pin keeps the old one, so a vNAS correction reaches the room at its next scenario load.
+The pin is sealed once seeded, at scenario load (`PinnedAirportGroundData.Capture`) or from an archive (`FromBundle`, which seeds its bundled layouts first). A read of an airport it does not hold answers "no layout" at once, logs once per airport, and never joins the pin, so the pinned set (and what a checkpoint, export or recording bundles) is the load's alone.
+
+  A room with no pin answers no layout to the hub's Ground View read and to the scenario export; neither falls back to the live ground-data service, and `TrainingHub` takes no `IAirportGroundData`. A config miss never joins the pin either. A vNAS refresh swaps the live cache's entry for a new object and the pin keeps the old one, so a vNAS correction reaches the room at its next scenario load.
 
 Readers of the pin:
 

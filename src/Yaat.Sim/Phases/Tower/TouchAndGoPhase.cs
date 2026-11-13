@@ -101,6 +101,7 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
 
         // Start decelerating on the runway (air → ground frame flip: the field becomes wheel speed)
         GroundFrame.EnterGround(ctx.Aircraft, ctx.Aircraft.IndicatedAirspeed);
+        LandingPhase.SetTouchdownField(ctx.Aircraft, ctx.Runway);
 
         // Touchdown ends the arrival's ATC speed assignment (§5-7-1.b.4; AIM 4-4-12.g): the climb-out is a departure
         // from the touchdown on and flies the type's own pattern speeds (§5-7-3.d).

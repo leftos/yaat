@@ -942,9 +942,29 @@ public sealed class LandingPhase : Phase
         }
     }
 
+    /// <summary>
+    /// At touchdown, the aircraft's <see cref="AircraftState.AirportId"/> becomes the field of the runway it touched down on,
+    /// so ground logic, the ground layout and despawn read the field it is on. Unchanged when it already names that field
+    /// (in either the ICAO or the FAA form), and when there is no runway.
+    /// </summary>
+    internal static void SetTouchdownField(AircraftState aircraft, RunwayInfo? runway) => SetTouchdownField(aircraft, runway?.AirportId);
+
+    /// <summary>
+    /// At touchdown, the aircraft's <see cref="AircraftState.AirportId"/> becomes <paramref name="airportId"/>, the field it
+    /// touched down on. Unchanged when it already names that field (in either form), and when the field is unknown.
+    /// </summary>
+    internal static void SetTouchdownField(AircraftState aircraft, string? airportId)
+    {
+        if (!string.IsNullOrEmpty(airportId) && !NavigationDatabase.AirportIdsMatch(aircraft.AirportId, airportId))
+        {
+            aircraft.AirportId = airportId;
+        }
+    }
+
     private bool TickTouchdown(PhaseContext ctx, LandingPlan plan)
     {
         ctx.Aircraft.IsOnGround = true;
+        SetTouchdownField(ctx.Aircraft, ctx.Runway);
         ctx.Aircraft.Altitude = plan.FieldElevation;
         ctx.Aircraft.VerticalSpeed = 0;
         ctx.Targets.TargetAltitude = null;

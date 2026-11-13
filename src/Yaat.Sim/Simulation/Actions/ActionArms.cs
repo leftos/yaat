@@ -86,6 +86,7 @@ internal static class ActionArms
             // gets a layout.
             if ((aircraft.Phases?.LandingClearance is not null) || (aircraft.Pattern.PendingLandingClearance is not null))
             {
+                engine.DropLayoutOfAnotherField(aircraft);
                 aircraft.Ground.Layout ??= engine.ResolveGroundLayout(aircraft);
             }
 

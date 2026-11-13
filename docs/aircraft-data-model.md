@@ -29,7 +29,7 @@ These live directly on the record, not in a satellite:
 | `AircraftType` | `string` (required) | **Physical** type — drives physics, performance, Tower Cab datablock. Fixed at spawn. |
 | `IsShadow` | `bool` (computed) | `LiveTraffic != null`: a real aircraft mirrored from a feed. Bypasses phases/physics/pilot AI, rejects commands. See live-traffic.md. |
 | `BaseAircraftType` | `string` (computed) | `AircraftType` with the `H/`, `J/`, `S/` wake prefix stripped (`StripTypePrefix`). |
-| `ScenarioId`, `Cid`, `AirportId` | `string?` / `string` | Scenario linkage; controller-tag CID; operational airport context for airport-relative commands. |
+| `ScenarioId`, `Cid`, `AirportId` | `string?` / `string` | Scenario linkage; controller-tag CID; operational airport context for airport-relative commands; becomes the landing runway's airport at touchdown when that is a different field. |
 | `Position` | `LatLon` | Geographic position, degrees. |
 | `TrueHeading`, `TrueTrack` | `TrueHeading` | Nose direction vs ground-track direction (equal in calm wind). |
 | `Declination`, `DeclinationCachePosition` | `double` / `LatLon?` | Cached magnetic declination + the position it was computed at. `MagneticHeading`/`MagneticTrack` derive from these. |

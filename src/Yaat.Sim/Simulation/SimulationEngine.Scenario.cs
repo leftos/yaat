@@ -198,20 +198,12 @@ public sealed partial class SimulationEngine
         // An aircraft physically on the ground taxis on the airport its wheels are on —
         // never on a filed destination. A departure that files a destination but no
         // departure (e.g. a VFR plan created via CRC to KSMF while parked at OAK) would
-        // otherwise load the destination's layout and reject every taxiway/parking lookup.
-        if (aircraft.IsOnGround)
+        // otherwise load the destination's layout and reject every taxiway/parking lookup. An aircraft on the ground at, or
+        // landing at, a field runs on that field's layout alone, and on none at a field with no layout: never another
+        // airport's (an airport first named mid-session has no layout, so it runs as at an airport with no vNAS map).
+        if (FieldAirport(aircraft) is { Length: > 0 } fieldAirport)
         {
-            string? physicalAirport = aircraft.Phases?.AssignedRunway?.AirportId;
-            if (string.IsNullOrEmpty(physicalAirport))
-            {
-                physicalAirport = aircraft.AirportId;
-            }
-
-            AirportGroundLayout? physicalLayout = string.IsNullOrEmpty(physicalAirport) ? null : _groundData.GetLayout(physicalAirport);
-            if (physicalLayout is not null)
-            {
-                return physicalLayout;
-            }
+            return _groundData.GetLayout(fieldAirport);
         }
 
         AirportGroundLayout? depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure)
@@ -255,6 +247,89 @@ public sealed partial class SimulationEngine
 
         return destDist < depDist ? destLayout : depLayout;
     }
+
+    /// <summary>
+    /// Drops the layout <paramref name="aircraft"/> carries when it is on the ground at, or landing at, a field (see
+    /// <see cref="FieldAirport(AircraftState)"/>) the layout is not of: an airborne aircraft amended to another airport
+    /// keeps the layout it was given, which its landing there must not take onto that airport's runway.
+    /// <see cref="ResolveGroundLayout"/> then supplies the field's own layout, or none.
+    /// </summary>
+    internal void DropLayoutOfAnotherField(AircraftState aircraft)
+    {
+        if ((aircraft.Ground.Layout is { } carried) && !IsLayoutOfField(carried, FieldAirport(aircraft)))
+        {
+            aircraft.Ground.Layout = null;
+        }
+    }
+
+    /// <summary>
+    /// The layout of the airport <paramref name="aircraft"/>, holding after its runway exit, landed at: the one it carries
+    /// when that is its field's (<see cref="FieldAirport(AircraftState)"/>), else its field's. With no field known, the one
+    /// it carries, else its destination's.
+    /// </summary>
+    private AirportGroundLayout? LayoutWhereLanded(AircraftState aircraft)
+    {
+        AirportGroundLayout? carried = aircraft.Ground.Layout;
+        string? field = FieldAirport(aircraft);
+        if (!string.IsNullOrEmpty(field))
+        {
+            return ((carried is not null) && IsLayoutOfField(carried, field)) ? carried : ResolveAirportLayout(field);
+        }
+
+        string? destination = aircraft.FlightPlan.Destination;
+        return carried ?? (string.IsNullOrEmpty(destination) ? null : ResolveAirportLayout(destination));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="layout"/> may be carried by an aircraft whose field is <paramref name="field"/>: it is that
+    /// field's, or the aircraft has no field (an airborne aircraft not landing keeps what it carries).
+    /// </summary>
+    private static bool IsLayoutOfField(AirportGroundLayout layout, string? field) =>
+        string.IsNullOrEmpty(field) || NavigationDatabase.AirportIdsMatch(layout.AirportId, field);
+
+    /// <summary>
+    /// The airport whose layout alone <paramref name="aircraft"/> may run on (see
+    /// <see cref="FieldAirport(bool, bool, string?, string?, string?)"/>).
+    /// </summary>
+    private static string? FieldAirport(AircraftState aircraft) =>
+        FieldAirport(
+            aircraft.IsOnGround,
+            IsLanding(
+                aircraft.Phases?.CurrentPhase is LandingPhase,
+                aircraft.Phases?.LandingClearance is not null,
+                aircraft.Pattern.PendingLandingClearance is not null
+            ),
+            aircraft.Phases?.AssignedRunway?.AirportId,
+            aircraft.AirportId,
+            aircraft.FlightPlan.Destination
+        );
+
+    /// <summary>
+    /// The field airport of an aircraft: on the ground, the assigned runway's airport, else its own (the field it spawned
+    /// at or last touched down on); landing, the assigned runway's airport, else its filed destination. Null for any other
+    /// airborne aircraft, and when none of those is known. Live and restored aircraft read it alike.
+    /// </summary>
+    internal static string? FieldAirport(bool isOnGround, bool isLanding, string? runwayAirportId, string? airportId, string? destination)
+    {
+        if ((isOnGround || isLanding) && !string.IsNullOrEmpty(runwayAirportId))
+        {
+            return runwayAirportId;
+        }
+
+        if (isOnGround)
+        {
+            return string.IsNullOrEmpty(airportId) ? null : airportId;
+        }
+
+        return (isLanding && !string.IsNullOrEmpty(destination)) ? destination : null;
+    }
+
+    /// <summary>
+    /// Landing: in its landing phase, or holding a landing clearance (a pattern's pending one included). The one predicate
+    /// live and restored aircraft are read by.
+    /// </summary>
+    internal static bool IsLanding(bool inLandingPhase, bool holdsLandingClearance, bool holdsPendingLandingClearance) =>
+        inLandingPhase || holdsLandingClearance || holdsPendingLandingClearance;
 
     // --- Private tick methods ---
 }

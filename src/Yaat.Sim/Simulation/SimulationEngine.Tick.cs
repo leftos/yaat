@@ -1120,11 +1120,12 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            // Delete aircraft holding after exit at airports with no taxi graph — they can't taxi.
-            // Check the world-level layout (does it have a taxi graph?) not the per-aircraft cache (may be null).
+            // Delete aircraft holding after exit at airports with no taxi graph — they can't taxi. The airport is the
+            // one the aircraft landed at, not the primary: an airport first named mid-session has no layout while the
+            // primary has one.
             // Respect "Never" mode — if the user explicitly disabled auto-delete, don't force it.
             bool stuckAfterLanding =
-                (ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (World.GroundLayout is not { HasTaxiGraph: true }) && !modeDisabled;
+                !modeDisabled && (ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (LayoutWhereLanded(ac) is not { HasTaxiGraph: true });
 
             // Only auto-delete arrivals: aircraft whose destination matches this airport. Departures
             // repositioning between parking spots should never be auto-deleted.
@@ -1790,6 +1791,7 @@ public sealed partial class SimulationEngine
     {
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
+        DropLayoutOfAnotherField(aircraft);
         AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         HashSet<int>? occupiedNodes = _occupiedHoldShortNodes;
 

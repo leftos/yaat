@@ -4238,7 +4238,7 @@ public static class CommandDispatcher
     /// helicopter air-taxi / relocation with no runway. Resolves the operating airport's elevation
     /// rather than defaulting to 0 MSL, so a heli air-taxiing to a helipad descends to field level
     /// (at a non-sea-level airport, nowhere near 0). Prefers <see cref="AircraftState.AirportId"/>
-    /// (the stable scenario-set operational airport), then the ground-layout airport, then the
+    /// (the aircraft's field: its spawn airport, then the field it last touched down on), then the ground-layout airport, then the
     /// flight-plan departure/destination.
     /// </summary>
     internal static double ResolveFieldElevation(AircraftState aircraft, AirportGroundLayout? groundLayout)

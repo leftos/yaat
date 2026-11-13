@@ -429,6 +429,10 @@ sat in `RunwayExitPhase` for the rest of the session — never deleted under *On
 "clear of runway … at …" transmission on this path (no exit taxiway, no taxi graph): the aircraft is stopped *on* the runway, and under mode
 `Never` it stays there awaiting an instruction rather than claiming to be clear.
 
+The no-taxi-graph test for that despawn reads the layout of the field the aircraft landed at (`SimulationEngine.LayoutWhereLanded`), not the primary airport's: an airport first named mid-session has runways only (the room's layout pin holds no layout for it), so an aircraft landing there rolls out, stops on the runway and despawns there while the primary has a full taxi graph. Mode `Never` still suppresses it.
+
+**The landing field.** At touchdown the aircraft's `AircraftState.AirportId` becomes the airport of the runway it touched down on, when that is a different field (`LandingPhase.SetTouchdownField`; the touch-and-go, stop-and-go and helicopter-on-a-runway phases do the same). Ground-layout resolution, field elevation, runway-command lookups, the SAID config choice, exports and the Ground View's airport fallback then read the landed field. An aircraft on the ground or landing at a known field runs on that field's layout or on none, never another airport's, live and on restore.
+
 ### Stopping on the remaining runway
 
 A landing on a taxi-graph layout that is not forced, with no available exit (no landing candidate, no instructed exit still ahead, and the runway exit's own search, `RunwayExitPhase.FindExitAhead`, finds nothing), does not hand off at coast. `LandingPhase.TickNoExitStop` and, once the runway exit has started, `RunwayExitPhase.ApplyNoExitStop` run one law, `NoExitStopPlan.Compute`, a pure function of speed, position and the runway's geometry recomputed every tick. A LAHSO landing's own stop at the point replaces it in `LandingPhase`; `RunwayExitPhase` runs it with the LAHSO point as a further datum:

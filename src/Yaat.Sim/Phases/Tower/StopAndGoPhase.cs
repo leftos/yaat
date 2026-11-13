@@ -105,6 +105,7 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
 
         // Air → ground frame flip: the field becomes wheel speed.
         GroundFrame.EnterGround(ctx.Aircraft, ctx.Aircraft.IndicatedAirspeed);
+        LandingPhase.SetTouchdownField(ctx.Aircraft, ctx.Runway);
 
         // Touchdown ends the arrival's ATC speed assignment (§5-7-1.b.4; AIM 4-4-12.g); the second takeoff flies the
         // type's own speeds from a stop (§5-7-3.d).

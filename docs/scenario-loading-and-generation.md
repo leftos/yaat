@@ -190,7 +190,7 @@ A rewind, recording load or checkpoint restore does not re-seed it; the tape's r
 
 `ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will ask `IAirportGroundData.GetLayout` for, primary airport first.
 
-It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), and a VFR arrival generator's `directTo` when it is an airport.
+It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), a VFR arrival generator's `directTo` when it is an airport, and the runway airports of the arrival and overflight generators.
 
 It also names the airport a preset command carries once parsed with `CommandParser.ParseCompound` (`DEST`/`APT`, the approach clearances, join, straight-in, expect and visual approach, a military-route exit to an airport, read from the destination of `ClearedOutOfMilitaryRoute` in `ScenarioResourceManifest.CommandAirport`). A preset that fails to parse names nothing, so free text such as `SAY REQUEST VFR ON TOP` is never an airport.
 
@@ -731,7 +731,7 @@ Weather is not exported.
 
 There are two server entry points that build a scenario, and they share one load core: the private `LoadSeeded` and `PopulateRoom`. `LoadSeeded` creates the engine over the pinned layouts and the room's `PushPlanStore`, seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`, then plans the scenario's push-back stands the store lacks (`PlanPushBackStands`; no RNG draw).
 
-`PopulateRoom` builds `SimScenarioState`, applies the room's session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track positions / coordination channels / strip bays / TDLS configs against the pinned ARTCC configs, spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps deferred aircraft, queues triggers, initializes generators.
+`PopulateRoom` builds `SimScenarioState`, applies the room's session settings then the live load's pacing overrides, sets the ground layout, resolves track positions / coordination channels / strip bays / TDLS configs against the pinned ARTCC configs, spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps deferred aircraft, queues triggers, initializes generators.
 
 `PopulateRoom` returns what the room could not set up (an ATC or student position that did not resolve, a skipped arrival generator); the live load reports those, a reload drops them.
 
@@ -765,7 +765,7 @@ A missing resource does not stop a scenario load: the prefetch records an outcom
   A missing map (`NoMap`, or `Unreachable` with nothing cached) is a warning only at an airport in `ScenarioResourceManifest.MapRequiredAirportIds` — the primary airport and each `Parking` or ground-spawn airport; an `OnRunway` or `OnFinal` start takes its runway from navdata, and TRACON and Center scenarios commonly name fields vNAS has no map for, so such an airport stays green and is listed in the step's detail (`no map: SQL, HAF`).
 
   The aircraft that needed a missing layout are deferred by the loader as always (`Parking (…)` deferral reasons), and those reasons appear as `aircraft` warnings.
-- An airport first named at runtime (a typed `ADD` or `DEST`, a CRC-filed flight plan, an approach to a field no flight plan names) is not in the manifest: its first read still fetches blocking, with a warning naming the airport, and the layout joins the room's pin.
+- An airport first named at runtime (a typed `ADD` or `DEST`, a CRC-filed flight plan, an approach to a field no flight plan names) is not in the manifest: the room's pin is sealed, so it has no layout (runways only, logged once for the airport) and the sim never fetches one. A `Parking` aircraft the loader finds at an airport with no map gets the same warning as a missing map, and ADD there allows only a runway spawn (see [USER_GUIDE.md](../USER_GUIDE.md)).
 
 The shared seed and model date are what make rewind deterministic: re-running `ScenarioLoader.Load` with the same seed
 reconstructs the exact immediate-aircraft set, beacon codes, and generated-type choices, and the same magnetic-model day

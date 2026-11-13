@@ -10,6 +10,7 @@
 
 ### Changed
 
+- At an airport with no ground map, `ADD` allows only a runway spawn ready for departure; a parking or spot spawn is refused.
 - A tow cleared mid-move by `TAXI`, `PUSHM` or another clearance now brakes to rest over about 5 s, still shown as Pushback, instead of stopping dead.
 - Closed traffic or a follow from one runway to a widely spaced parallel now flies upwind and crosswind past both runway ends instead of crossing midfield.
 - A departure flies the altitude in the PDC sent to it from vTDLS, climb via or maintain, instead of the facility default; a voice altitude still overrides it.
@@ -43,6 +44,8 @@
 
 - An aircraft on the upwind given `CM` or `DM` below pattern altitude now turns crosswind past the runway end at that altitude instead of flying on.
 - `FOLLOW` given on the upwind keeps an `OFL`/`OFR` offset until the crosswind turn instead of swinging back to the centerline.
+- A command naming an airport the scenario did not load no longer stalls every room; that airport has its runways but no ground map.
+- An aircraft that lands at a field other than the one it started at now taxis, shows and despawns as at the field it is on.
 - Rewinding a loaded recording or replaying a bug bundle from mid-session keeps aircraft waiting to spawn on course, with strips and vTDLS items in their order.
 - A `TAXI` re-issued to a moving aircraft whose taxiway hold short it can no longer stop for now brakes firmly and reports holding position past it.
 - vTDLS keys work as in vTDLS: arrows move a highlight, Enter opens it, Tab cycles lists and fields, Esc opens the Facility Menu, Ctrl+Alt+arrows change facility.

@@ -58,6 +58,48 @@ public class ScenarioResourceManifestTests
         );
     }
 
+    /// <summary>
+    /// Every aircraft the load builds, delayed spawns included, has its airport, departure and destination in the manifest,
+    /// and so does the primary airport, whose runways the arrival generators spawn to and around which the overflight
+    /// generators' corridors are built, so the load's prefetch holds each before the first tick. The sim never
+    /// fetches a layout mid-session, so an airport the manifest left out would have none for the whole session.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CorpusScenarios))]
+    public void Corpus_EveryLoadedAircraftsAndGeneratorsAirports_AreInTheManifest(string scenarioPath)
+    {
+        string json = File.ReadAllText(scenarioPath);
+        var manifest = ScenarioResourceManifest.FromJson(json);
+        Assert.Null(manifest.ReadError);
+
+        ScenarioLoadResult result = ScenarioLoader.Load(json, new LayoutRequestSpy(), new Random(0), MagneticDeclination.EvaluationDateUtc);
+        IEnumerable<string?> aircraftAirports = result.AllAircraftStates.SelectMany(state =>
+            new[] { state.AirportId, state.FlightPlan.Departure, state.FlightPlan.Destination }
+        );
+
+        string[] missing =
+        [
+            .. aircraftAirports
+                .OfType<string>()
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(AirportLayoutDownloader.ToFaaCode)
+                .Where(id => !manifest.AirportIds.Contains(id))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal),
+        ];
+        Assert.True(
+            missing.Length == 0,
+            $"{Path.GetFileName(scenarioPath)}: the load names {string.Join(", ", missing)}, which the manifest does not name"
+        );
+
+        if ((result.Generators.Count == 0) && (result.OverflightGenerators.Count == 0))
+        {
+            return;
+        }
+
+        Assert.Contains(AirportLayoutDownloader.ToFaaCode(result.PrimaryAirportId ?? ""), manifest.AirportIds);
+    }
+
     [Fact]
     public void PrimaryAirport_IsNamed()
     {

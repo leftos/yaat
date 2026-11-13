@@ -531,6 +531,12 @@ public static class ScenarioLoader
             // Resolve the ground layout from the same airport used for field elevation (airportId,
             // then departure/destination), mirror the Parking path: exempt from Parked auto-delete.
             // The initial call-up plan waits for the snap below, which says whether it sits on a taxiway.
+            // The aircraft's field is that airport too, so the layout it carries is its field's.
+            if (!string.IsNullOrEmpty(groundAirportId))
+            {
+                state.AirportId = groundAirportId;
+            }
+
             state.Ground.Layout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
             state.Ground.AutoDeleteExempt = true;
         }
@@ -740,7 +746,7 @@ public static class ScenarioLoader
         AirportGroundLayout? layout = groundData.GetLayout(airportId);
         if (layout is null)
         {
-            warnings.Add($"{ac.AircraftId}: No ground layout for {airportId}");
+            warnings.Add($"{ac.AircraftId}: {AircraftGenerator.NoGroundMapRefusal(airportId)}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"Parking ({airportId} has no ground data)");
         }
 

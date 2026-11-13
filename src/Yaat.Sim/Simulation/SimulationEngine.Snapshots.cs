@@ -113,10 +113,9 @@ public sealed partial class SimulationEngine
             // second field — an arrival to a satellite, a departure that taxied there — would otherwise come back from
             // a rewind measuring its final against the primary's runways. That flips on-final and distance-to-threshold
             // verdicts across a rewind, which replay determinism does not allow. The primary stays the fallback for a
-            // snapshot that carries no id, or one naming a field this engine's ground data has no map for.
-            AirportGroundLayout? aircraftLayout = acDto.Ground.LayoutAirportId is { } layoutAirportId
-                ? ResolveAirportLayout(layoutAirportId) ?? groundLayout
-                : groundLayout;
+            // snapshot that carries no id, or one naming a field this engine's ground data has no map for, unless the
+            // aircraft is on the ground at, or landing at, an airport with no layout: it comes back with none, as it ran.
+            AirportGroundLayout? aircraftLayout = RestoredLayout(acDto, groundLayout);
             var ac = AircraftState.FromSnapshot(acDto, aircraftLayout);
             World.AddAircraft(ac);
         }
@@ -473,6 +472,42 @@ public sealed partial class SimulationEngine
             _replay.ReseekAfterRestore((int)Scenario.ElapsedSeconds);
         }
     }
+
+    /// <summary>
+    /// The layout a restored aircraft comes back with, read as a live one is (<see cref="DropLayoutOfAnotherField"/>). On
+    /// the ground at, or landing at, a known field: the one it was carrying when that is the field's, else none, and
+    /// <see cref="ResolveGroundLayout"/> supplies the field's own (or none) from the next tick. Any other aircraft: the one
+    /// it was carrying, else <paramref name="primary"/>'s.
+    /// </summary>
+    private AirportGroundLayout? RestoredLayout(AircraftSnapshotDto acDto, AirportGroundLayout? primary)
+    {
+        AirportGroundLayout? carried = acDto.Ground.LayoutAirportId is { } layoutAirportId ? ResolveAirportLayout(layoutAirportId) : null;
+        bool isLanding = IsLanding(
+            IsInLandingPhase(acDto.Phases),
+            acDto.Phases?.LandingClearance is not null,
+            acDto.Pattern.PendingLandingClearanceType is not null
+        );
+        string? field = FieldAirport(
+            acDto.IsOnGround,
+            isLanding,
+            acDto.Phases?.AssignedRunway?.AirportId,
+            acDto.AirportId,
+            acDto.FlightPlan.Destination
+        );
+        if (string.IsNullOrEmpty(field))
+        {
+            return carried ?? primary;
+        }
+
+        return ((carried is not null) && IsLayoutOfField(carried, field)) ? carried : null;
+    }
+
+    /// <summary>Whether a snapshot's current phase is a <see cref="LandingPhaseDto"/>; a legacy snapshot may carry no phase list.</summary>
+    private static bool IsInLandingPhase(PhaseListDto? phases) =>
+        (phases?.Phases is { } list)
+        && (phases.CurrentIndex >= 0)
+        && (phases.CurrentIndex < list.Count)
+        && (list[phases.CurrentIndex] is LandingPhaseDto);
 
     /// <summary>
     /// A queued spawn's aircraft as captured. From schema 54 it comes back through <see cref="AircraftState.FromSnapshot"/>

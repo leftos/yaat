@@ -797,6 +797,13 @@ public static class AircraftGenerator
         return (state, null);
     }
 
+    /// <summary>
+    /// Why a ground spawn other than one on the runway is refused at <paramref name="airportId"/>, which has no ground map
+    /// (no vNAS layout, or first named mid-session).
+    /// </summary>
+    internal static string NoGroundMapRefusal(string? airportId) =>
+        $"{airportId} has no ground map: only a runway spawn ready for departure is allowed";
+
     private static (AircraftState? State, string? Error) GenerateAtParking(
         SpawnRequest request,
         string? primaryAirportId,
@@ -811,7 +818,7 @@ public static class AircraftGenerator
     {
         if (groundLayout is null)
         {
-            return (null, "Parking position requires airport ground data");
+            return (null, NoGroundMapRefusal(primaryAirportId));
         }
 
         // Search parking first, then helipads/spots
