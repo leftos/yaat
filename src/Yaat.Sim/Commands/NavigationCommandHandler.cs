@@ -2666,7 +2666,7 @@ internal static class NavigationCommandHandler
     /// The speeds the approach just cleared publishes, by fix name: the pending clearance's, else the active one's, read
     /// from the transition it cleared (<see cref="ApproachClearance.TransitionName"/>) and then its common legs, the first
     /// leg to give a fix a speed winning; a clearance with no transition, or one its procedure does not name, reads the
-    /// common legs only. Each is "at or below", as the approach's fixes enter the route
+    /// common legs only. Each keeps its CIFP type, as the approach's fixes enter the route
     /// (<c>ApproachCommandHandler.AppendApproachFixesToNavRoute</c>). Empty for a clearance with no procedure.
     /// </summary>
     internal static Dictionary<string, CifpSpeedRestriction> ClearedApproachSpeeds(AircraftState aircraft)
@@ -2682,7 +2682,7 @@ internal static class NavigationCommandHandler
         {
             if ((leg.Speed is { } speed) && !string.IsNullOrEmpty(leg.FixIdentifier))
             {
-                byName.TryAdd(leg.FixIdentifier, new CifpSpeedRestriction(speed.SpeedKts, CifpSpeedRestrictionType.AtOrBelow));
+                byName.TryAdd(leg.FixIdentifier, speed);
             }
         }
 

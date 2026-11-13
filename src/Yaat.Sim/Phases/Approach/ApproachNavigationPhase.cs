@@ -22,8 +22,10 @@ public sealed class ApproachNavigationPhase : Phase
 
     /// <summary>
     /// The most a follower's pre-final spacing lets it fly: latched as the target (or, with none, the airspeed) the first
-    /// time spacing runs, replaced by each fix speed the phase applies, and dropped under an explicit ATC speed so the first
-    /// spacing tick after it re-latches. Null when not latched. Never the previous tick's spacing output.
+    /// time spacing runs, replaced by each capped fix speed the phase applies (<see cref="FixSpeedFlown"/>), and dropped under
+    /// an explicit ATC speed so the first spacing tick after it re-latches. For every aircraft, following or not, it is read
+    /// as the aircraft's own segment speed when the next fix speed is capped. Null when not latched. Never the previous
+    /// tick's spacing output.
     /// </summary>
     private double? _spacingCeilingKts;
 
@@ -215,7 +217,7 @@ public sealed class ApproachNavigationPhase : Phase
                 {
                     Name = future.Name,
                     Position = new LatLon(future.Latitude, future.Longitude),
-                    SpeedRestriction = future.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, CifpSpeedRestrictionType.AtOrBelow) : null,
+                    SpeedRestriction = future.SpeedRestriction,
                     IsFlyOver = future.IsFlyOver,
                 }
             );
@@ -223,11 +225,38 @@ public sealed class ApproachNavigationPhase : Phase
 
         // Speed restriction is applied per fix; altitude is owned by the per-tick
         // continuous-descent path (ApplyContinuousDescentTarget).
-        if (fix.SpeedKts is { } speed)
+        // The capped speed is also the spacing ceiling, so the lead-landed restore returns to it, never to the raw fix speed.
+        if (fix.SpeedRestriction is { } restriction)
         {
+            double speed = FixSpeedFlown(ctx, restriction);
             ctx.Targets.TargetSpeed = speed;
             _spacingCeilingKts = speed;
         }
+    }
+
+    /// <summary>
+    /// The speed the aircraft flies toward a fix publishing <paramref name="restriction"/> (YAAT-146): the lower of its own
+    /// speed and an "at or below" maximum, its own speed but not below an "at or above" minimum, an "at" speed itself (for a
+    /// follower, or a type unable to fly it, the lower of its own speed and the "at" speed), each no faster than the type may
+    /// fly here (7110.65 5-7-1.d NOTE, AIM 4-4-12.g: pilots fly their own speeds within the published
+    /// ones). Its own speed is what it flies on the segment without the fix's: the unspaced ceiling in force, else its
+    /// target speed, else its airspeed.
+    /// </summary>
+    private double FixSpeedFlown(PhaseContext ctx, CifpSpeedRestriction restriction)
+    {
+        double own = _spacingCeilingKts ?? ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed;
+        double envelope = AircraftPerformance.MaxOperatingIasKts(ctx.AircraftType, ctx.Aircraft.Altitude) ?? double.MaxValue;
+        bool following = ctx.Aircraft.Approach.FollowingCallsign is not null;
+        double flown = restriction.Type switch
+        {
+            CifpSpeedRestrictionType.AtOrAbove => Math.Max(own, restriction.SpeedKts),
+            // A follower's in-trail spacing outranks an "at" speed (AIM 4-4-14.b); a type unable to fly it keeps its own
+            // speed rather than its redline (7110.65 5-7-1: a speed "contrary to the aircraft's operating specifications").
+            CifpSpeedRestrictionType.Mandatory when following || (restriction.SpeedKts > envelope) => Math.Min(own, restriction.SpeedKts),
+            CifpSpeedRestrictionType.Mandatory => restriction.SpeedKts,
+            _ => Math.Min(own, restriction.SpeedKts),
+        };
+        return Math.Min(flown, envelope);
     }
 
     /// <summary>
@@ -388,6 +417,15 @@ public sealed record ApproachFix(
     bool IsFlyOver = false
 )
 {
+    /// <summary>
+    /// The CIFP type of <see cref="SpeedKts"/>. "At or below" when the source carries none: US approach speeds are in practice
+    /// maximums (YAAT-146).
+    /// </summary>
+    public CifpSpeedRestrictionType SpeedType { get; init; } = CifpSpeedRestrictionType.AtOrBelow;
+
+    /// <summary>The fix's speed restriction with its type, or null when it publishes no speed.</summary>
+    public CifpSpeedRestriction? SpeedRestriction => SpeedKts is { } kts ? new CifpSpeedRestriction(kts, SpeedType) : null;
+
     public ApproachFixDto ToSnapshot() =>
         new()
         {
@@ -403,7 +441,7 @@ public sealed record ApproachFix(
                     Source = (int)Altitude.Source,
                 }
                 : null,
-            SpeedRestriction = SpeedKts is { } kts ? new SpeedRestrictionDto { Type = 1, Speed = kts } : null,
+            SpeedRestriction = SpeedKts is { } kts ? new SpeedRestrictionDto { Type = SpeedRestrictionDto.ToTypeCode(SpeedType), Speed = kts } : null,
             IsFlyOver = IsFlyOver,
             IsFaf = Role == CifpFixRole.FAF,
             LegType = 0,
@@ -428,5 +466,9 @@ public sealed record ApproachFix(
             dto.SpeedRestriction?.Speed,
             dto.IsFaf ? CifpFixRole.FAF : CifpFixRole.None,
             dto.IsFlyOver
-        );
+        )
+        {
+            // A snapshot from before the type was kept wrote code 1 on every fix, which reads back "at or below".
+            SpeedType = dto.SpeedRestriction is { } speed ? SpeedRestrictionDto.FromTypeCode(speed.Type) : CifpSpeedRestrictionType.AtOrBelow,
+        };
 }

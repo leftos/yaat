@@ -683,6 +683,7 @@ gate (see scoring below). VFR, visual (`VIS…`), and pattern traffic skip the �
 - Remaining fixes are appended to `NavigationRoute` with their speed restrictions so
   `FlightPhysics.UpdateSpeedPlanning` can look ahead; altitude is owned by the continuous-descent path, not the
   route.
+- **Fix speeds keep their CIFP type** (`ApproachFix.SpeedType`, "at or below" when the source carries none). The speed flown toward a fix is `FixSpeedFlown`: the lower of the aircraft's own speed and an "at or below" maximum (a C172 on KOAK I28R flies about 110 kt at GROVE, not 200; a faster aircraft slows at its usual point), its own speed but not below an "at or above" minimum, an "at" speed itself, or for a follower or a type that cannot fly it the lower of its own speed and the "at" speed, each capped at the type's maximum operating speed. It is also the follower's spacing ceiling. The look-ahead half is in [flight-physics.md](flight-physics.md) (speed planning).
 
 ### A controller's altitude held until established — `ApproachAltitudeHold`
 

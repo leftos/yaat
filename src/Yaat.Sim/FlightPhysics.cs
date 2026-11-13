@@ -1325,8 +1325,19 @@ public static class FlightPhysics
             return;
         }
 
+        PlanRouteSpeeds(aircraft, cat, route);
+    }
+
+    /// <summary>
+    /// Plans the first speed-constrained fix on <paramref name="route"/> the planner does not skip. A ceiling-only speed the
+    /// aircraft already flies under is skipped (<see cref="SkipsAsCeiling"/>), and every speed planned past it is capped at
+    /// the lowest skipped ceiling, so a higher speed beyond never takes the aircraft over a maximum before it.
+    /// </summary>
+    private static void PlanRouteSpeeds(AircraftState aircraft, AircraftCategory cat, List<NavigationTarget> route)
+    {
         bool speedLimitWaived = IsSpeedLimitWaived(aircraft);
         double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
+        int skippedCeilingKts = int.MaxValue;
 
         for (int i = 0; i < route.Count; i++)
         {
@@ -1340,9 +1351,16 @@ public static class FlightPhysics
                 continue;
             }
 
+            if (SkipsAsCeiling(aircraft, route[i], restriction, speedLimitWaived))
+            {
+                skippedCeilingKts = Math.Min(skippedCeilingKts, restriction.SpeedKts);
+                continue;
+            }
+
             // The constraint holds where the fix sequences, its sequencing threshold before the fix itself.
             double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
-            if (PlanConstraintSpeed(aircraft, cat, restriction, sequencingDistNm, speedLimitWaived))
+            CifpSpeedRestriction planned = CappedAtSkippedCeiling(restriction, skippedCeilingKts);
+            if (PlanConstraintSpeed(aircraft, cat, planned, sequencingDistNm, speedLimitWaived))
             {
                 break; // Step planning: only target the first speed-constrained fix
             }
@@ -1433,13 +1451,68 @@ public static class FlightPhysics
             return false;
         }
 
-        // A maximum ("at or below") restriction caps a following aircraft's speed; it is never a cue to accelerate,
-        // which would close on the lead the follower is spacing behind. Skip it, as a minimum is skipped above.
-        return !(
-            (restriction.Type == CifpSpeedRestrictionType.AtOrBelow)
-            && (aircraft.Approach.FollowingCallsign is not null)
-            && (aircraft.IndicatedAirspeed < constraintSpeed)
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the planner skips <paramref name="fix"/>'s ceiling-only speed (<see cref="IsCeilingOnly"/>): the aircraft flies
+    /// the lower of its own speed and the ceiling, so one neither flying nor targeting more than it is never accelerated toward
+    /// it, and one faster plans it, slowing at its slowdown point to cross at or below it (7110.65 5-7-1.g NOTE 3).
+    /// </summary>
+    private static bool SkipsAsCeiling(AircraftState aircraft, NavigationTarget fix, CifpSpeedRestriction restriction, bool speedLimitWaived) =>
+        IsCeilingOnly(aircraft, fix)
+        && (
+            Math.Max(aircraft.IndicatedAirspeed, aircraft.Targets.TargetSpeed ?? 0)
+            <= PlannedConstraintSpeed(aircraft, restriction, speedLimitWaived).Speed
         );
+
+    /// <summary><paramref name="restriction"/> with its speed no higher than <paramref name="ceilingKts"/>, a ceiling skipped before it.</summary>
+    private static CifpSpeedRestriction CappedAtSkippedCeiling(CifpSpeedRestriction restriction, int ceilingKts) =>
+        restriction.SpeedKts > ceilingKts ? restriction with { SpeedKts = ceilingKts } : restriction;
+
+    /// <summary>
+    /// Whether <paramref name="fix"/>'s speed is a published one the aircraft treats as a ceiling only, never as a speed to fly
+    /// toward (YAAT-146): an "at or below" maximum on an approach fix, where the aircraft flies its own speed under it
+    /// (7110.65 5-7-1.d NOTE), or ahead of a follower, whose speed-up would close on the lead it spaces behind; and an "at"
+    /// approach speed ahead of a follower, whose in-trail spacing outranks it (AIM 4-4-14.b). A controller's crossing speed is
+    /// an assignment and never ceiling-only.
+    /// </summary>
+    private static bool IsCeilingOnly(AircraftState aircraft, NavigationTarget fix)
+    {
+        if ((fix.SpeedRestriction is not { } restriction) || IsControllerSetSpeed(fix))
+        {
+            return false;
+        }
+
+        bool following = aircraft.Approach.FollowingCallsign is not null;
+        return restriction.Type switch
+        {
+            CifpSpeedRestrictionType.AtOrBelow => following || IsApproachRouteFix(aircraft, fix),
+            CifpSpeedRestrictionType.Mandatory => following && IsApproachRouteFix(aircraft, fix),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="fix"/> is an approach fix: any route fix under an active approach clearance, and under a deferred
+    /// one (<see cref="AircraftApproachState.PendingClearance"/>) a fix after the connecting fix, where the approach's fixes
+    /// are appended to the route.
+    /// </summary>
+    private static bool IsApproachRouteFix(AircraftState aircraft, NavigationTarget fix)
+    {
+        if (aircraft.Phases?.ActiveApproach is not null)
+        {
+            return true;
+        }
+
+        if (aircraft.Approach.PendingClearance is not { ConnectingFix: { } connecting })
+        {
+            return false;
+        }
+
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int index = route.IndexOf(fix);
+        return (index >= 0) && (index > route.FindIndex(f => f.Name.Equals(connecting, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -1788,7 +1861,7 @@ public static class FlightPhysics
     {
         if (
             (aircraft.Targets.NavigationRoute.Find(f => f.SpeedRestriction is not null) is { SpeedRestriction: { } spd } next)
-            && ((spd.Type == CifpSpeedRestrictionType.AtOrAbove) || (spd.SpeedKts > aircraft.IndicatedAirspeed))
+            && ((spd.Type == CifpSpeedRestrictionType.AtOrAbove) || ((spd.SpeedKts > aircraft.IndicatedAirspeed) && !IsCeilingOnly(aircraft, next)))
         )
         {
             ApplyFixSpeedConstraint(aircraft, next, slowdownLeftToPlanner: false);
@@ -1866,9 +1939,9 @@ public static class FlightPhysics
                     targetSpeed = Math.Min(targetSpeed, ceiling);
                 }
 
-                if ((!slowdownLeftToPlanner) || (targetSpeed > aircraft.IndicatedAirspeed))
+                if (FixSpeedTargetNow(aircraft, target, targetSpeed, slowdownLeftToPlanner) is { } now)
                 {
-                    aircraft.Targets.TargetSpeed = targetSpeed;
+                    aircraft.Targets.TargetSpeed = now;
                 }
 
                 // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
@@ -1881,6 +1954,22 @@ public static class FlightPhysics
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// The target <see cref="ApplyFixSpeedConstraint"/> sets at once for <paramref name="fix"/>'s speed
+    /// <paramref name="fixSpeed"/>, or null to set none: a slowdown unless it is left to the planner; above the airspeed, the
+    /// fix speed, or for a ceiling only (<see cref="IsCeilingOnly"/>) the lower of the present target and the ceiling, which
+    /// pulls a higher target down at once and never pulls the aircraft up to it.
+    /// </summary>
+    private static double? FixSpeedTargetNow(AircraftState aircraft, NavigationTarget fix, double fixSpeed, bool slowdownLeftToPlanner)
+    {
+        if (fixSpeed <= aircraft.IndicatedAirspeed)
+        {
+            return slowdownLeftToPlanner ? null : fixSpeed;
+        }
+
+        return IsCeilingOnly(aircraft, fix) ? Math.Min(aircraft.Targets.TargetSpeed ?? aircraft.IndicatedAirspeed, fixSpeed) : fixSpeed;
     }
 
     /// <summary>

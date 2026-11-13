@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -52,6 +53,44 @@ public class ApproachPhaseFlagSnapshotTests
         var restored = ApproachNavigationPhase.FromSnapshot(dto);
 
         Assert.True(restored.IsMissedApproach);
+    }
+
+    /// <summary>An approach fix's CIFP speed type survives a snapshot, rather than coming back "at or below" (YAAT-146).</summary>
+    [Theory]
+    [InlineData(CifpSpeedRestrictionType.AtOrBelow)]
+    [InlineData(CifpSpeedRestrictionType.AtOrAbove)]
+    [InlineData(CifpSpeedRestrictionType.Mandatory)]
+    public void ApproachNavigationPhase_FixSpeedTypeSurvivesSnapshotRoundTrip(CifpSpeedRestrictionType type)
+    {
+        ApproachFix fix = new("REJOY", 38.1, -122.1, SpeedKts: 210) { SpeedType = type };
+        var phase = new ApproachNavigationPhase { Fixes = [fix] };
+        string json = JsonSerializer.Serialize<PhaseDto>(phase.ToSnapshot(), RecordingJsonOptions.Default);
+        ApproachNavigationPhaseDto dto = Assert.IsType<ApproachNavigationPhaseDto>(
+            JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default)
+        );
+
+        var restored = ApproachNavigationPhase.FromSnapshot(dto);
+
+        Assert.Equal(new CifpSpeedRestriction(210, type), Assert.Single(restored.Fixes).SpeedRestriction);
+    }
+
+    /// <summary>A snapshot written before the type was kept (code 1 on every fix speed) restores "at or below", the default.</summary>
+    [Fact]
+    public void ApproachFixDto_LegacySpeedTypeCode_RestoresAtOrBelow()
+    {
+        var dto = new ApproachFixDto
+        {
+            Name = "REJOY",
+            Lat = 38.1,
+            Lon = -122.1,
+            SpeedRestriction = new SpeedRestrictionDto { Type = 1, Speed = 200 },
+            IsFlyOver = false,
+            IsFaf = false,
+            LegType = 0,
+            IsArc = false,
+        };
+
+        Assert.Equal(CifpSpeedRestrictionType.AtOrBelow, ApproachFix.FromSnapshot(dto).SpeedType);
     }
 
     [Fact]

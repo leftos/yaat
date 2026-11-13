@@ -24,6 +24,8 @@
 - A climb via from the vTDLS default works its top out again when the departure runway changes before takeoff; a controller's `CVIA` keeps its top.
 - A push route drawn to one point on an aircraft already under tow now re-plans the tow there (`PUSHM` to that point) instead of being refused.
 - A running FOLLOW ends with an RPO note when its lead is moved to another runway, unless the follower has no runway of its own.
+- On an approach, a slower aircraft keeps its own speed at a published maximum fix speed instead of speeding up to it.
+- A following aircraft on an approach no longer speeds up toward a published fix speed, so it keeps its spacing behind the lead.
 - A tug now slows before each turn of a tow, so it no longer surges to 6-12 kt entering a tight turn; tows take up to 3 s longer.
 - Facility engineers, training administrators and air traffic managers at your home facility can now run sessions, as mentors and instructors can.
 - `TAXI` and `RTAXI` autocomplete offers `RWY`, `@` and `$` right after the command, so the no-route `TAXI RWY 28R` form is suggested.

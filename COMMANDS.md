@@ -1943,6 +1943,8 @@ This applies only on final — departures, go-arounds, and missed approaches cli
 
 **DSR interaction** — `DSR` suppresses SID/STAR via-mode speed constraints at waypoints. The aircraft still follows altitude restrictions but ignores published speed restrictions. A new `SPD` command, `CVIA`, `DVIA`, or `RPS` clears the DSR flag (`RNS` leaves it in place).
 
+**Approach fix speeds** — an approach fix keeps its published speed type. An "at or below" speed on an approach is a ceiling only: a slower aircraft keeps its own speed (a C172 on the KOAK I28R flies about 110 kt at GROVE, not 200) and a faster one slows at its usual point. An "at" speed is flown where the type can, else at the type's own speed; "at or above" is a floor. A follower never speeds up toward an "at" approach speed and keeps its spacing ceiling. A higher speed published beyond a maximum never takes the aircraft over that maximum first. A crossing speed you give (`CFIX`, a direct with speed, `DVIA SPD`) is still flown on an approach. SID and STAR speeds are unchanged.
+
 ### Holding Patterns
 
 | Command | Effect |

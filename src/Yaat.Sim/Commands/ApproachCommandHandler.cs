@@ -2077,6 +2077,9 @@ public static class ApproachCommandHandler
 
             result.Add(
                 new ApproachFix(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, leg.Altitude, leg.Speed?.SpeedKts, leg.FixRole, leg.IsFlyOver)
+                {
+                    SpeedType = leg.Speed?.Type ?? CifpSpeedRestrictionType.AtOrBelow,
+                }
             );
             previousFixPos = (pos.Value.Lat, pos.Value.Lon);
         }
@@ -2598,7 +2601,7 @@ public static class ApproachCommandHandler
 
     private static int RoundToWholeDegree(TrueHeading heading) => (int)Math.Round(heading.Degrees) % 360;
 
-    private static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)
+    internal static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)
     {
         List<ApproachFix> transitionFixes = BuildFixesFromLegs(transition.Legs, stopAtMahp: false);
         List<ApproachFix> commonFixes = BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
@@ -2711,6 +2714,9 @@ public static class ApproachCommandHandler
                     leg.FixRole,
                     leg.IsFlyOver || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAP
                 )
+                {
+                    SpeedType = leg.Speed?.Type ?? CifpSpeedRestrictionType.AtOrBelow,
+                }
             );
             previousFixPos = (pos.Value.Lat, pos.Value.Lon);
         }
@@ -2851,7 +2857,7 @@ public static class ApproachCommandHandler
                     Name = fix.Name,
                     Position = new LatLon(fix.Latitude, fix.Longitude),
                     AltitudeRestriction = fix.Altitude is { } altitude ? altitude with { Source = CifpAltitudeRestrictionSource.Approach } : null,
-                    SpeedRestriction = fix.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, CifpSpeedRestrictionType.AtOrBelow) : null,
+                    SpeedRestriction = fix.SpeedRestriction,
                     IsFlyOver = fix.IsFlyOver,
                 }
             );

@@ -192,7 +192,8 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
 
     /// <summary>
     /// <see cref="ClearedI28R"/> added to <paramref name="engine"/>, flying the approach's fixes and following <see cref="Leader"/>.
-    /// The first fix carries a 200 kt limit, which latches the spacing ceiling at 200 kt.
+    /// Its first speed fix, GROVE, carries a 200 kt limit, which latches the spacing ceiling at the lower of the type's own
+    /// speed and 200 kt.
     /// </summary>
     private static AircraftState AddClearedI28RFollower(SimulationEngine engine, string type, double ias)
     {
@@ -492,7 +493,8 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
         AddLeadAhead(engine, follower, 0.6, "C172", 90);
         TickSeconds(engine, follower, 0.25);
         Phase? nav = follower.Phases!.CurrentPhase;
-        Assert.Equal(200, SpacingCeiling(nav));
+        // The 200 kt fix limit is capped at the C172's own 110 kt (YAAT-146).
+        Assert.Equal(110, SpacingCeiling(nav));
 
         follower.Targets.HasExplicitSpeedCommand = true;
         follower.Targets.TargetSpeed = 100;
@@ -503,7 +505,7 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
         double relatchKts = follower.Targets.TargetSpeed ?? follower.IndicatedAirspeed;
         TickSeconds(engine, follower, 0.25);
         Assert.Equal(relatchKts, SpacingCeiling(nav));
-        Assert.True(relatchKts < 200.0);
+        Assert.True(relatchKts <= 110.0);
     }
 
     // ─── Final before the FAS bleed ───
