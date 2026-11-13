@@ -6063,8 +6063,15 @@ public static class CommandDispatcher
         // free-flight leads — a lead established toward a runway re-sequences via the
         // pattern install above. A pursuit whose circuit compares leads (one that left its
         // circuit from base, or one turning out) has been answered earlier by PursuitNewLeadRoute.
+        // A pursuit with a circuit cannot follow a lead landing another runway, exactly as
+        // PursuitNewLeadRoute refuses one: the per-tick check would end it on the next tick.
         if (current is VfrFollowPhase vfp)
         {
+            if (PursuitCrossRunwayRetargetRefusal(aircraft, leadAircraft, target) is { } refused)
+            {
+                return refused;
+            }
+
             vfp.UpdateTarget(target);
             aircraft.Approach.FollowingCallsign = target;
             return Ok($"Follow {target}");
@@ -6073,6 +6080,30 @@ public static class CommandDispatcher
         InstallVfrFollowPhase(aircraft, target, patternReturn: null, climbOutGate);
         return Ok($"Follow {target}");
     }
+
+    /// <summary>
+    /// The refusal for retargeting a running pursuit that keeps a circuit onto a lead landing another runway
+    /// (<see cref="AirborneFollowHelper.FollowerOwnRunway"/> against the lead's assigned runway): the per-tick check would end
+    /// the follow on its next tick. Null when the pursuit has no runway of its own or the lead lands the same one, where the
+    /// retarget stands.
+    /// </summary>
+    private static CommandResult? PursuitCrossRunwayRetargetRefusal(AircraftState aircraft, AircraftState? lead, string target)
+    {
+        if (
+            (AirborneFollowHelper.FollowerOwnRunway(aircraft) is not { } ownRunway)
+            || (lead?.Phases?.AssignedRunway is not { } leadRunway)
+            || AirborneFollowHelper.IsSameRunway(ownRunway, leadRunway)
+        )
+        {
+            return null;
+        }
+
+        return new CommandResult(false, LandingOtherRunwayRefusal(target, leadRunway));
+    }
+
+    /// <summary>The pilot's refusal to follow a lead landing another runway (<see cref="PursuitNewLeadRoute"/>).</summary>
+    private static string LandingOtherRunwayRefusal(string target, RunwayInfo leadRunway) =>
+        $"Unable, {target} is landing runway {leadRunway.Designator}, request vectors";
 
     /// <summary>
     /// Tear down the chain of a follower whose phase FOLLOW does not keep, before the install builds a new one; true when it
@@ -6468,7 +6499,7 @@ public static class CommandDispatcher
 
         if (!AirborneFollowHelper.IsSameRunway(leadRunway, circuit.Runway))
         {
-            return new CommandResult(false, $"Unable, {target} is landing runway {leadRunway.Designator}, request vectors");
+            return new CommandResult(false, LandingOtherRunwayRefusal(target, leadRunway));
         }
 
         if (!IsNewLeadAheadOfPursuit(aircraft, lead, circuit))
@@ -6860,8 +6891,9 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// True when both the follower and the lead have a known assigned runway and those
-    /// runways differ. FOLLOW is an in-trail sequencing instruction, and in-trail only has
+    /// True when both the follower and the lead have a known runway — the follower's own
+    /// (<see cref="AirborneFollowHelper.FollowerOwnRunway"/>: its pursuit's circuit, else its assigned runway) and the lead's
+    /// assigned runway — and those runways differ. FOLLOW is an in-trail sequencing instruction, and in-trail only has
     /// meaning on a shared runway — a follower told to follow traffic landing the parallel
     /// must be re-sequenced onto that runway (the controller's intent) rather than left on
     /// its own pattern, where none of the spacing or leg-hold logic engages (all of it is
@@ -6870,7 +6902,7 @@ public static class CommandDispatcher
     /// </summary>
     private static bool IsLeadOnDifferentRunway(AircraftState follower, AircraftState? lead)
     {
-        RunwayInfo? followerRunway = follower.Phases?.AssignedRunway;
+        RunwayInfo? followerRunway = AirborneFollowHelper.FollowerOwnRunway(follower);
         RunwayInfo? leadRunway = lead?.Phases?.AssignedRunway;
         if ((followerRunway is null) || (leadRunway is null))
         {

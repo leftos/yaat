@@ -176,6 +176,12 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <summary>A base break-off asked this pursuit to start with a turn-out (<see cref="RequestTurnOut"/>).</summary>
     private bool _turnOutRequested;
 
+    /// <summary>
+    /// The follow ended because the lead is now landing another runway
+    /// (<see cref="AirborneFollowHelper.TryEndFollowLeadChangedRunway"/>), whose instructor line explains the end.
+    /// </summary>
+    private bool _followEndedByLeadRunwayChange;
+
     /// <summary>The open parallel-hold stall window (<see cref="ParallelHoldStalled"/>), or null.</summary>
     private ParallelHoldWindow? _parallelHold;
 
@@ -323,6 +329,13 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// (<see cref="BaseFollowSpacing"/>) is level with or ahead of the lead by the break-off's own projection.
     /// </summary>
     internal void RequestTurnOut() => _turnOutRequested = true;
+
+    /// <summary>
+    /// Note that the follow ended because the lead is now landing another runway
+    /// (<see cref="AirborneFollowHelper.TryEndFollowLeadChangedRunway"/>): the instructor line that ended it already explains
+    /// the return, so <see cref="ReturnToPattern"/> adds none of its own for that cause.
+    /// </summary>
+    internal void MarkFollowEndedByLeadRunwayChange() => _followEndedByLeadRunwayChange = true;
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -1013,6 +1026,8 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// </summary>
     private void ReturnToPattern(PhaseContext ctx, FollowPatternReturn? patternReturn)
     {
+        bool leadChangedRunway = _followEndedByLeadRunwayChange;
+        _followEndedByLeadRunwayChange = false;
         if (patternReturn is null)
         {
             return;
@@ -1065,7 +1080,11 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             side,
             runwayDisplay
         );
-        aircraft.PendingWarnings.Add($"{aircraft.Callsign} follow ended, re-entering {side} traffic runway {runwayDisplay}");
+        if (!leadChangedRunway)
+        {
+            aircraft.PendingWarnings.Add($"{aircraft.Callsign} follow ended, re-entering {side} traffic runway {runwayDisplay}");
+        }
+
         KeepArmedPatternRunway(aircraft, armedBefore, patternReturn);
     }
 
@@ -2112,12 +2131,19 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     }
 
     /// <summary>
-    /// One tick of the turn-out. A lead that lands, goes around or leaves the final ends the follow: the follower is already on a
-    /// pattern-side downwind, so it re-enters the circuit as a downwind with its clearance, and says nothing. A lead lost from
-    /// sight ends it the same way, with the loss handled as any follow's.
+    /// One tick of the turn-out. A lead now landing another runway ends the follow with the instructor told
+    /// (<see cref="AirborneFollowHelper.TryEndFollowLeadChangedRunway"/>). A lead that otherwise lands, goes around or leaves the
+    /// final ends it too: the follower is already on a pattern-side downwind, so it re-enters the circuit as a downwind with its
+    /// clearance, and says nothing. A lead lost from sight ends it the same way, with the loss handled as any follow's.
     /// </summary>
     private bool TickTurnOut(PhaseContext ctx, AircraftState? lead, FollowTurnOut turnOut)
     {
+        if (AirborneFollowHelper.TryEndFollowLeadChangedRunway(ctx.Aircraft, lead))
+        {
+            ReturnToPattern(ctx, turnOut.Circuit);
+            return true;
+        }
+
         if ((lead is not null) && !IsOnBaseOrFinalTo(lead, turnOut.Circuit.Runway))
         {
             Log.LogDebug(

@@ -203,11 +203,14 @@ public static class AirborneFollowHelper
     /// case) and returns true when one of the conditions below holds. Of those, the lead-missing and lost-visual branches
     /// hand off to <see cref="Tower.VisualApproachHelper.HandleTrafficContactLost"/> — the pilot reports losing sight and
     /// an IFR follower's visual separation is warned as terminated — the lead-went-around branch warns the instructor
-    /// only (the pilot still has the lead in sight), and a lead that lands ends the follow silently, being the normal end
-    /// of a follow. The conditions are:
+    /// only (the pilot still has the lead in sight), a lead that lands ends the follow silently, being the normal end
+    /// of a follow, and a lead now landing another runway ends it with the instructor told. The conditions are:
     /// <list type="bullet">
     /// <item><description>The lead is no longer in the world (lookup returns null).</description></item>
     /// <item><description>The lead has transitioned to <see cref="AircraftState.IsOnGround"/>.</description></item>
+    /// <item><description>The lead is landing a runway other than the follower's own known runway
+    /// (<see cref="LeadRunwayEndingFollow"/>): the follower keeps its runway, approach or circuit and its landing
+    /// clearance (7110.65 §3-10-5.c).</description></item>
     /// <item><description>The follower loses visual contact with the lead — a BKN/OVC deck slides
     /// between them, or flight visibility collapses below the gap (AIM §5-5-12.a.2 / §4-4-14
     /// NOTE). A lead that merely pulls ahead or slips behind is still followed; a growing gap
@@ -247,10 +250,8 @@ public static class AirborneFollowHelper
             return true;
         }
 
-        if (IsOnApproachBeforeFinal(follower.Phases?.CurrentPhase) && IsGoingAround(lead))
+        if (TryEndFollowOnLeadChange(follower, lead, targetCallsign))
         {
-            Log.LogDebug("[Follow] {Callsign}: target {Target} went around, ending follow on the approach", follower.Callsign, targetCallsign);
-            EndFollowLeadWentAround(follower, targetCallsign);
             return true;
         }
 
@@ -288,6 +289,100 @@ public static class AirborneFollowHelper
         {
             follower.PendingWarnings.Add(Tower.VisualApproachHelper.VisualSeparationTerminatedWarning(follower.Callsign));
         }
+    }
+
+    /// <summary>
+    /// End the follow when the lead is now landing a runway other than the follower's own (<see cref="LeadRunwayEndingFollow"/>);
+    /// true when it did. The turn-out ticks run it before their own lead-on-base-or-final test, which would otherwise end the
+    /// follow silently.
+    /// </summary>
+    internal static bool TryEndFollowLeadChangedRunway(AircraftState follower, AircraftState? lead)
+    {
+        if ((lead is null) || (LeadRunwayEndingFollow(follower, lead) is not { } changedRunway))
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: target {Target} now landing runway {Runway}, ending follow",
+            follower.Callsign,
+            lead.Callsign,
+            changedRunway.Designator
+        );
+        EndFollowLeadChangedRunway(follower, lead.Callsign, changedRunway);
+        return true;
+    }
+
+    /// <summary>
+    /// The lead-state changes that end a follow with the instructor told: the lead now landing another runway, and — for a
+    /// follower on an approach before final — the lead going around.
+    /// </summary>
+    private static bool TryEndFollowOnLeadChange(AircraftState follower, AircraftState lead, string targetCallsign)
+    {
+        if (TryEndFollowLeadChangedRunway(follower, lead))
+        {
+            return true;
+        }
+
+        if (IsOnApproachBeforeFinal(follower.Phases?.CurrentPhase) && IsGoingAround(lead))
+        {
+            Log.LogDebug("[Follow] {Callsign}: target {Target} went around, ending follow on the approach", follower.Callsign, targetCallsign);
+            EndFollowLeadWentAround(follower, targetCallsign);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// End the follow of a follower with a runway of its own whose lead is now landing another runway: the follower keeps its
+    /// runway, approach or circuit and its landing clearance, and the pilot, who still has the lead in sight, says nothing. The
+    /// instructor is told the follow ended and the lead's new runway, and for an IFR follower (<see cref="IsIfrFollower"/>) that
+    /// its visual separation ended with it (AIM §5-5-12.a.1; 7110.65 §7-4-3.c.2). A pursuit's re-entry into its circuit then
+    /// names no second line: the instructor's line above is the one that explains it.
+    /// </summary>
+    private static void EndFollowLeadChangedRunway(AircraftState follower, string leadCallsign, RunwayInfo leadRunway)
+    {
+        if (follower.Phases?.CurrentPhase is VfrFollowPhase pursuit)
+        {
+            pursuit.MarkFollowEndedByLeadRunwayChange();
+        }
+
+        ClearFollowState(follower);
+        follower.PendingWarnings.Add(
+            $"{follower.Callsign} follow of {leadCallsign} ended — {leadCallsign} now landing runway {leadRunway.Designator}"
+        );
+        if (IsIfrFollower(follower))
+        {
+            follower.PendingWarnings.Add(Tower.VisualApproachHelper.VisualSeparationTerminatedWarning(follower.Callsign));
+        }
+    }
+
+    /// <summary>
+    /// The runway <paramref name="aircraft"/> has of its own for a follow, or null when it has none: a pursuit's circuit — the
+    /// turn-out's while one runs (<see cref="VfrFollowPhase.NewLeadCircuit"/>, which also answers a pursuit that left its base),
+    /// else <see cref="VfrFollowPhase.PatternReturn"/> — and the assigned runway on every other phase. The one home of the
+    /// answer, read by the dispatcher's command-time cross-runway check and by the per-tick <see cref="LeadRunwayEndingFollow"/>.
+    /// </summary>
+    internal static RunwayInfo? FollowerOwnRunway(AircraftState aircraft) =>
+        (aircraft.Phases?.CurrentPhase is VfrFollowPhase pursuit)
+            ? (pursuit.NewLeadCircuit ?? pursuit.PatternReturn)?.Runway
+            : aircraft.Phases?.AssignedRunway;
+
+    /// <summary>
+    /// The runway <paramref name="lead"/> is now landing that ends its follow by <paramref name="follower"/>, or null when the
+    /// follow survives: the follower's own runway (<see cref="FollowerOwnRunway"/>) differs from the lead's assigned runway
+    /// under the dispatcher's command-time predicate (<see cref="IsSameRunway"/>), so a follow accepted across runways is never
+    /// ended here; unknown on either side ends nothing.
+    /// </summary>
+    private static RunwayInfo? LeadRunwayEndingFollow(AircraftState follower, AircraftState lead)
+    {
+        if ((FollowerOwnRunway(follower) is not { } ownRunway) || (lead.Phases?.AssignedRunway is not { } leadRunway))
+        {
+            return null;
+        }
+
+        return IsSameRunway(ownRunway, leadRunway) ? null : leadRunway;
     }
 
     /// <summary>
