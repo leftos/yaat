@@ -6,10 +6,8 @@
 
 - [ ] YAAT-187 Make a runtime airport layout miss non-blocking on the tick thread · release vNext
   - [ ] YAAT-2152 Refuse, skip, hold or proceed at every engine layout read while the layout loads · release vNext
-  - [ ] YAAT-2153 Await a runtime layout off the tick for the hub layout read and scenario export · release vNext
   - [ ] YAAT-2154 Prove a deferred layout replays exactly through rewind, export and archive load · release vNext
   - [ ] YAAT-2161 Merge feat/layout-miss-nonblocking to main (#1375)
-  - [ ] YAAT-2166 Attach a deferred airport's layout to waiting aircraft at its admission · release vNext
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -436,8 +434,7 @@
 - [ ] YAAT-2065 Read back the turn-about note when a post-push taxi reverses after a short first leg
 - [ ] YAAT-2110 Measure a C208 taxi-out from OAK PCM1 past an occupied PCM2's tail
 
-### 2 Refinements and rulings (4/19 done)
-- [ ] YAAT-38 Tug-move follow-ups: span-scaled tug clearance, tow speed, steering limit · release vNext
+### 2 Refinements and rulings (5/20 done)
 - [ ] YAAT-691 Hold an AI push for traffic taxiing into the same alley
 - [ ] YAAT-692 Crew on a push-back stand answers a TAXI with 'unable, need a push first'
 - [ ] YAAT-693 Short pushback re-ask and a reasoned STAND BY from AI Ground
@@ -452,6 +449,7 @@
 - [ ] YAAT-2114 Decide whether the push check's early wingtip refusal at a taxiway stub stays
 - [ ] YAAT-2115 Rule on refusing a push across another movement-area taxiway's centreline
 - [ ] YAAT-2165 Make a ViaLine tug move's end pose independent of the tow's speed
+- [ ] YAAT-2181 Rule whether a tow cleared on a turn keeps turning while it brakes to rest
 
 ### 3 Hygiene and tests (2/8 done)
 - [ ] YAAT-39 Push-rethink leftovers: wingtip allowance comments, turning-tow yield test, perf · release vNext
@@ -566,8 +564,7 @@
 - [ ] YAAT-2058 Read back the remark's stand, not the GATE alias, for TAXIAUTO @GATE
 - [ ] YAAT-2067 Read GIVEWAY conditions around RTAXI and TTP as they are read around TAXI
 
-### 2 Refinements and rulings (11/25 done)
-- [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions · release vNext
+### 2 Refinements and rulings (12/25 done)
 - [ ] YAAT-869 Read back a bare CROSS EXP with "without delay"
 - [ ] YAAT-1222 Solo refuses TAXIAUTO: the student issues the taxi route
 - [ ] YAAT-1408 Read back 'holding short of X' when a bare TAXI holds the aircraft where it stands
@@ -637,7 +634,7 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (1/26 done)
+### 1 Defects (1/27 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -663,6 +660,7 @@
 - [ ] YAAT-1404 Fill ApproachClearance.TransitionName when loading a pre-37 snapshot mid-approach
 - [ ] YAAT-1499 Stop an export's replay engine from silently dropping a starting weather that fails to load
 - [ ] YAAT-1583 Rehydrate a split block that keeps a non-tail command after a snapshot restore
+- [ ] YAAT-2182 Make IssueDerived apply or refuse a RecordedAmendFlightPlan instead of recording it unapplied
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -700,10 +698,11 @@
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-1098 Fail a REPORT cancel with unrecognised tokens instead of cancelling every report
 
-### 3 Hygiene and tests (0/3 done)
+### 3 Hygiene and tests (0/4 done)
 - [ ] YAAT-89 Declare each verb's fired dimension on CommandDefinition (FiredDimension)
 - [ ] YAAT-90 Trim applied ground blocks; cover EL/ER/ET in the dry-run ground guard
 - [ ] YAAT-966 Harden the transmission id wind-back and test its snapshot fields
+- [ ] YAAT-2176 Split ArgumentSuggester.AddRegistrySuggestions under the 100-line limit
 
 ### No milestone
 - [ ] YAAT-1945 Judge a queued tower block's non-tower siblings at the phase gate, as a live block does
@@ -746,7 +745,7 @@
 - [ ] YAAT-1917 Correct the C680 performance profile and source per-type Mmo for business jets on the BZJT class figure
 - [ ] YAAT-1918 Apply a speed revert that holds only RevertAssignedSpeed when its fix is sequenced
 
-### 2 Refinements and rulings (6/23 done)
+### 2 Refinements and rulings (6/24 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Give the A388 a real performance profile so the speed picker offers its cruise Mach
 - [ ] YAAT-1584 Correct rotation speeds that stay on raw profile data when the approach speed comes from the ACD (PC12 Vr 110)
@@ -764,6 +763,7 @@
 - [ ] YAAT-1936 Decide whether a speed is refused against the lowest Vmo between the present and cleared altitude
 - [ ] YAAT-1938 Slow ahead of a falling Vmo band under any assigned speed, not only SMAX
 - [ ] YAAT-1939 Fly GLEX Mmo by altitude above 35,000 ft (Mach bands)
+- [ ] YAAT-2179 Rule whether a slow type flies min(own schedule, limit) at a SID or STAR at-or-below speed
 
 ### 3 Hygiene and tests (0/7 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
@@ -840,7 +840,7 @@
 
 ## Approaches and holds
 
-### 1 Defects (2/16 done)
+### 1 Defects (2/17 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
@@ -855,6 +855,7 @@
 - [ ] YAAT-1403 Keep approach transition and last STAR speed true after a later DCT or approach clearance (YAAT-1356 review)
 - [ ] YAAT-1886 Report the commanded descent rate on a pre-FAF continuous descent (ApproachNavigationPhase snaps VerticalSpeed to 0)
 - [ ] YAAT-1909 Fly a queued hold's standard leg at the altitude its block assigns, as the overlay draws it
+- [ ] YAAT-2178 Keep an ATC-assigned speed over a published approach fix speed in NavigateToCurrentFix
 
 ### 2 Refinements and rulings (0/10 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
@@ -902,9 +903,7 @@
 - [ ] YAAT-1844 Take the pattern fixes off the route when a CM or DM ends pattern entry
 - [ ] YAAT-2148 Space a downwind follower behind a straight-in entrant still on its entry
 
-### 2 Refinements and rulings (3/16 done)
-- [ ] YAAT-146 Rule FOLLOW B5b-5 leftovers: FAS ceiling, at-or-below fix speeds · release vNext
-- [ ] YAAT-157 Rule parallel-vs-crossing runway classification; normalise airport ids · release vNext
+### 2 Refinements and rulings (5/16 done)
 - [ ] YAAT-170 Prove or add the occupied-runway go-around for pursuit followers · release vNext
 - [ ] YAAT-171 Rule an extension or widened downwind instead of cancelling a close follow · release vNext
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
@@ -917,10 +916,9 @@
 - [ ] YAAT-2144 Hold a downwind follower back so a 45-degree entrant it follows joins ahead
 - [ ] YAAT-2163 Restore the follow spacing ceiling when a follow ends on an approach for any reason
 
-### 3 Hygiene and tests (3/11 done)
+### 3 Hygiene and tests (4/11 done)
 - [ ] YAAT-156 FOLLOW B6b-1 brief 2 leftovers: TakeoffPhase comment, crossing-climb reuse · release vNext
 - [ ] YAAT-158 FOLLOW B6b-2 leftovers: VfrFollowPhase.OnTick, upwind below-TPA turn · release vNext
-- [ ] YAAT-160 Share AirborneFollowHelper's path loop; name the pattern route constants · release vNext
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
 - [ ] YAAT-1639 Move pattern tests off TestRunwayFactory onto real navdata runways
 - [ ] YAAT-1646 Add the whats-new-pattern-compression GuideCapture scene for the release showcase
@@ -931,6 +929,8 @@
 - [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
 - [ ] YAAT-1948 Move the remaining PatternBuilder and pattern chain builders to request records (positional parameters over 5)
 - [ ] YAAT-2054 Clear a queued next-circuit pattern modifier when the aircraft leaves the pattern
+- [ ] YAAT-2173 Hint the RPO to re-issue a landing clearance kept across a same-runway follow break-off
+- [ ] YAAT-2174 Trace why a FOLLOW pursuit follower's TargetSpeed reads null on some ticks
 
 ## Navigation data and route geometry
 
@@ -1097,6 +1097,7 @@
 ### No milestone
 - [ ] YAAT-2048 Apply the STARS consolidation rulings: HD ILL POS with no attended owner, scenario positions attended, force handoff redirects
 - [ ] YAAT-2102 Resolve a nameless sent PDC's SID across every ops config
+- [ ] YAAT-2172 Raise ClientVersions:Minimum to the client release that reads isTrainingStaff · release vNext
 
 ## Live traffic
 
@@ -1292,7 +1293,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (20/27 done)
+### 1 Defects (20/29 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
@@ -1300,6 +1301,8 @@
 - [ ] YAAT-1880 Move the test pin to AIRAC 2612 and fix what it breaks
 - [ ] YAAT-1914 Refresh the committed IAH test layout to today's vNAS map and fix what it breaks
 - [ ] YAAT-2039 Turn on server GC for the Sim test suite (property is misspelled)
+- [ ] YAAT-2177 Fix the dotnet format style findings in untouched test files (IDE0008, IDE0044, IDE0060)
+- [ ] YAAT-2180 Stop HeldLayoutFetch.Dispose masking a test failure with Directory not empty
 
 ### 2 Refinements and rulings (3/7 done)
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
@@ -1307,7 +1310,7 @@
 - [ ] YAAT-1967 Keep LM-Kit from raising the client and its UI test host to High priority
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
-### 3 Hygiene and tests (4/62 done)
+### 3 Hygiene and tests (4/63 done)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
@@ -1366,6 +1369,7 @@
 - [ ] YAAT-1969 Let the test-all watchdog's held-thread count throw on anything but an ended process
 - [ ] YAAT-1981 Commit the same-runway occupancy census as a re-runnable Nightly measurement
 - [ ] YAAT-2040 Trim the two small sweep costs (T2 path-only GeoJSON check, T3 manifest read)
+- [ ] YAAT-2175 Stop ArgumentSuggesterTaxiwayTests installing a synthetic NavigationDatabase
 
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
@@ -1497,7 +1501,7 @@
 - [controller-ai/coaching/sessions/001-2026-10-25-s1-oak-2-3-4.md](controller-ai/coaching/sessions/001-2026-10-25-s1-oak-2-3-4.md) — YAAT-1240, YAAT-1242, YAAT-1243, YAAT-1245, YAAT-1246
 - [first-use-tutorial.md](first-use-tutorial.md) — YAAT-1253
 - [ground-expedite.md](ground-expedite.md) — YAAT-660, YAAT-859, YAAT-866, YAAT-869
-- [layout-miss-nonblocking.md](layout-miss-nonblocking.md) — YAAT-2152, YAAT-2153, YAAT-2154, Non-blocking layout miss (feat/layout-miss-nonblocking)
+- [layout-miss-nonblocking.md](layout-miss-nonblocking.md) — YAAT-2152, YAAT-2154, Non-blocking layout miss (feat/layout-miss-nonblocking)
 - [phraseology-implementation.md](phraseology-implementation.md) — YAAT-1759
 - [pilot-phraseology-variants/pilot-calls.md](pilot-phraseology-variants/pilot-calls.md) — YAAT-1094
 - [pilot-phraseology-variants/readbacks.md](pilot-phraseology-variants/readbacks.md) — YAAT-1091, YAAT-1092, YAAT-1093, YAAT-1149
