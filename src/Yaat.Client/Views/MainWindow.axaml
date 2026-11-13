@@ -244,6 +244,15 @@
 
       <!-- Timeline bar -->
       <Border DockPanel.Dock="Top" BorderBrush="#3F3F46" BorderThickness="0,0,0,1" Padding="8,3" IsVisible="{Binding IsTimelineAvailable}">
+        <!-- While a jump runs in the room the time, markers and slider are disabled and dimmed; the buttons follow their commands. -->
+        <Border.Styles>
+          <Style Selector="TextBlock.timeline-time:disabled">
+            <Setter Property="Foreground" Value="#8A8A8A" />
+          </Style>
+          <Style Selector="Grid.timeline-track:disabled ItemsControl">
+            <Setter Property="Opacity" Value="0.35" />
+          </Style>
+        </Border.Styles>
         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,8,*,8,Auto,Auto,Auto,Auto,Auto">
           <Button
             Grid.Column="0"
@@ -310,13 +319,22 @@
           />
           <TextBlock
             Grid.Column="7"
+            Classes="timeline-time"
+            IsEnabled="{Binding CanScrubTimeline}"
             Text="{Binding ElapsedTimeDisplay}"
             VerticalAlignment="Center"
             FontSize="12"
             FontFamily="{StaticResource MonoFont}"
             Margin="4,0"
           />
-          <Grid Grid.Column="9" RowDefinitions="8,6,*" VerticalAlignment="Center">
+          <Grid
+            Grid.Column="9"
+            x:Name="TimelineTrack"
+            Classes="timeline-track"
+            RowDefinitions="8,6,*"
+            VerticalAlignment="Center"
+            IsEnabled="{Binding CanScrubTimeline}"
+          >
             <ItemsControl Grid.Row="0" x:Name="BookmarkMarkerOverlay" ItemsSource="{Binding Bookmarks}" Height="8">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -1311,6 +1329,38 @@
       <StackPanel Spacing="12" HorizontalAlignment="Center">
         <TextBlock Text="{Binding ExportingStatusText}" FontSize="16" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" />
         <ProgressBar IsIndeterminate="{Binding IsExportIndeterminate}" Value="{Binding ExportProgress}" Maximum="1" Width="200" />
+      </StackPanel>
+    </Border>
+
+    <!-- Rewind overlay: a jump running in the room, shown once it has run ~300 ms -->
+    <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="RewindOverlay"
+      AutomationProperties.Name="{Binding RewindOverlay.Title}"
+      IsVisible="{Binding RewindOverlay.IsOpen}"
+      Background="#CC000000"
+      HorizontalAlignment="Center"
+      VerticalAlignment="Center"
+      CornerRadius="8"
+      Padding="24"
+      MinWidth="280"
+    >
+      <StackPanel Spacing="12" HorizontalAlignment="Center">
+        <TextBlock
+          x:Name="RewindOverlayTitle"
+          Text="{Binding RewindOverlay.Title}"
+          FontSize="16"
+          FontWeight="Bold"
+          Foreground="White"
+          HorizontalAlignment="Center"
+        />
+        <ProgressBar
+          x:Name="RewindOverlayProgress"
+          IsIndeterminate="{Binding RewindOverlay.IsIndeterminate}"
+          Value="{Binding RewindOverlay.Progress}"
+          Maximum="1"
+          Width="200"
+        />
       </StackPanel>
     </Border>
 

@@ -269,6 +269,8 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `KickedFromRoom` | `string` | `KickedFromRoom` |
 | `RoomRetired` | `string` reason | `RoomRetired` |
 | `ExportRecordingProgress` | `(int, int)` | `ExportRecordingProgress` |
+| `RewindStarted` | `(long jumpId, double targetSeconds, string byName, bool isOwn)` — `jumpId` is the room's rising id for this jump, shared by its start and progress; `byName` is the caller's room initials ("Unknown" for a connection outside the room's member list); `isOwn` is true to the caller and false to the rest of the room | `RewindStarted` — sent by `RewindTo` / `RewindFromSnapshot` once the rewind has taken its jump id under the tick gate: `isOwn: true` to the caller, `isOwn: false` to the rest of the room group. Both sends are fire-and-forget, so a start can arrive after its own final `RewindProgress`. `RewindFromSnapshot` reports its replay-to second as the target |
+| `RewindProgress` | `(long jumpId, int doneSeconds, int totalSeconds)` | `RewindProgress` — sent to the **room group** by `RewindProgressNotifier` every 30 re-ticked seconds, then once more with `doneSeconds == totalSeconds` when the rewind ends, **always, even when it fails or is refused**: clients take the final one as the jump's end. Fire-and-forget like `ExportRecordingProgress`. The client shows both as a centred overlay and disables the timeline while a jump is in flight |
 | `FlightStripsStateChanged` | `FlightStripsStateDto` | `FlightStripsStateChanged` |
 | `StripItemsChanged` | `List<StripItemDto>` | `StripItemsChanged` |
 | `TdlsItemChanged` / `TdlsItemRemoved` / `TdlsStateChanged` | `TdlsItemDto` / `TdlsItemRemovedDto` / `TdlsStateDto` | matching events |

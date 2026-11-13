@@ -2428,6 +2428,8 @@ When a scenario is loaded and **View > Bars > Timeline bar** is checked (it is o
 - **⏭** — jump to the end of the recorded tape
 - **Elapsed time** — displayed in mm:ss format; in playback the tape's end time shows to the right of the slider
 
+A jump re-runs the scenario up to the target, which can take a while on a long session. Once a jump has run about a third of a second, every member of the room sees a centred **Rewinding to mm:ss — by AB** overlay with a progress bar, AB being the initials of whoever asked. While a jump runs anywhere in the room, the jump buttons, the elapsed time, the bookmark markers and the slider are disabled, so nobody queues a second re-run behind it. Jumps your own client asks for during one become a single follow-up jump to the latest target.
+
 ![The timeline bar after a rewind to 1:00 of a 2:00 tape, with the PLAYBACK badge, the Take Control button and two gold bookmark ticks on the rail](docs/user-guide/img/timeline-playback.png)
 
 After rewinding, the simulation enters **Playback Mode**. The timeline bar shows "PLAYBACK" and a "Take Control" button. In playback mode:

@@ -31,11 +31,34 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task JumpToEnd() => await RewindToSeconds(PlaybackTapeEnd);
 
-    /// <summary>Every timeline jump is a server <c>RewindTo</c>, which the server refuses while a scenario loads.</summary>
-    private bool CanRewind() => !IsRoomLoading;
+    /// <summary>
+    /// Every timeline jump is a server <c>RewindTo</c>, which the server refuses while a scenario loads; while a jump runs in
+    /// the room (this client's or another member's) the timeline waits for it instead of queueing another full re-run.
+    /// </summary>
+    private bool CanRewind() => !IsRoomLoading && !RewindOverlay.IsJumpInFlight;
+
+    /// <summary>Whether the timeline's time, markers and slider take input: <see cref="CanRewind"/>.</summary>
+    public bool CanScrubTimeline => CanRewind();
+
+    /// <summary>Hooks the room's rewind notices to <see cref="RewindOverlay"/>, and its in-flight state to the timeline.</summary>
+    private void WireRewindOverlay()
+    {
+        _connection.RewindStarted += (jumpId, target, byName, isOwn) =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => RewindOverlay.BeginJump(jumpId, target, byName, isOwn));
+        _connection.RewindProgress += (jumpId, done, total) =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => RewindOverlay.ApplyProgress(jumpId, done, total));
+        RewindOverlay.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RewindOverlayViewModel.IsJumpInFlight))
+            {
+                NotifyRewindCommandsCanExecuteChanged();
+            }
+        };
+    }
 
     private void NotifyRewindCommandsCanExecuteChanged()
     {
+        OnPropertyChanged(nameof(CanScrubTimeline));
         RewindToStartCommand.NotifyCanExecuteChanged();
         RewindBack30Command.NotifyCanExecuteChanged();
         RewindBack15Command.NotifyCanExecuteChanged();
@@ -112,6 +135,21 @@ public partial class MainViewModel
             return new RewindOutcome(false, StatusText);
         }
 
+        // One call in flight: a jump asked for while this client's own runs is held, the latest target winning; one asked for
+        // while another member's runs is refused, as the server would only queue a second full re-run behind it.
+        RewindOutcome outcome = await RewindOverlay.RequestAsync(targetSeconds, _preferences.UserInitials, SendRewindAsync);
+        if (!outcome.Rewound && (RewindOverlay.RemoteJumpBy is { } who) && (outcome.Status == RewindOverlayViewModel.RefusalFor(who)))
+        {
+            _log.LogInformation("Rewind to {Seconds}s not sent: {Who}'s jump is running in the room", targetSeconds, who);
+            StatusText = outcome.Status;
+        }
+
+        return outcome;
+    }
+
+    /// <summary>The one <c>RewindTo</c> call of a jump, its result applied on the UI thread.</summary>
+    private async Task<RewindOutcome> SendRewindAsync(double targetSeconds)
+    {
         try
         {
             StatusText = $"Rewinding to {FormatTime(targetSeconds)}...";

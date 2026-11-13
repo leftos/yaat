@@ -979,6 +979,9 @@ public partial class MainViewModel
         // A member's load may be running: the server refuses load, unload, restart and rewind until it finishes.
         SetRoomLoadingBy(state.LoadingBy);
 
+        // Another member's rewind whose final notice was lost (a reconnect mid-jump) no longer keeps the timeline disabled.
+        RewindOverlay.ApplyRoomState();
+
         _ = RefreshCrcLobbyAsync();
         _ = RefreshRpoLobbyAsync();
         _ = FetchAssignmentsAsync();

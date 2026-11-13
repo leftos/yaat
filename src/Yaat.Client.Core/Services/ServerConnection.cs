@@ -105,6 +105,15 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<string>? KickedFromRoom;
     public event Action<string>? RoomRetired;
     public event Action<int, int>? ExportRecordingProgress;
+
+    /// <summary>
+    /// A room member started a rewind: the room's id for the jump, its target (sim seconds), the member's initials as the
+    /// room shows them, and whether the jump is this client's own.
+    /// </summary>
+    public event Action<long, double, string, bool>? RewindStarted;
+
+    /// <summary>A rewind's re-run in the room: its jump id, the re-ticked seconds done and the total; done equal to total ends it.</summary>
+    public event Action<long, int, int>? RewindProgress;
     public event Action<ScenarioLoadProgressDto>? ScenarioLoadProgress;
     public event Action<string?>? RoomLoadingChanged;
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
@@ -265,6 +274,11 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
         _connection.On<string>("RoomRetired", msg => RoomRetired?.Invoke(msg));
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
+        _connection.On<long, double, string, bool>(
+            "RewindStarted",
+            (jumpId, target, byName, isOwn) => RewindStarted?.Invoke(jumpId, target, byName, isOwn)
+        );
+        _connection.On<long, int, int>("RewindProgress", (jumpId, done, total) => RewindProgress?.Invoke(jumpId, done, total));
         _connection.On<ScenarioLoadProgressDto>("ScenarioLoadProgress", dto => ScenarioLoadProgress?.Invoke(dto));
         _connection.On<string?>("RoomLoadingChanged", loadingBy => RoomLoadingChanged?.Invoke(loadingBy));
         _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));

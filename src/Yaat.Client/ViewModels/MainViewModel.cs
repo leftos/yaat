@@ -524,6 +524,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>The scenario-load overlay: the step table of the load this client started.</summary>
     public LoadOverlayViewModel LoadOverlay { get; } = new();
 
+    /// <summary>The rewind overlay: a jump running in the room, this client's or another member's, and its progress.</summary>
+    public RewindOverlayViewModel RewindOverlay { get; } = new();
+
     /// <summary>
     /// The initials of the member whose scenario load is running in the room, from the joined room's state; null when
     /// none is. Cleared by the room's next <c>ScenarioLoaded</c> or room state.
@@ -2074,6 +2077,7 @@ public partial class MainViewModel : ObservableObject
         _connection.RoomRetired += OnRoomRetired;
         _connection.ScenarioLoadProgress += OnScenarioLoadProgress;
         _connection.RoomLoadingChanged += OnRoomLoadingChanged;
+        WireRewindOverlay();
         LoadOverlay.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(LoadOverlayViewModel.IsLoadInFlight))
