@@ -151,9 +151,12 @@ public class PushTowSpeedTests(PushTowSpeedTests.Fixture fixture, ITestOutputHel
         }
     }
 
-    /// <summary>E1 <c>PUSH $7</c> flies in 115 s with the main gear slowed through the turns (109 s at a constant gear speed).</summary>
+    /// <summary>
+    /// E1 <c>PUSH $7</c> flies in 116 s with the main gear slowed through the turns and braked ahead of each one (109 s
+    /// at a constant gear speed).
+    /// </summary>
     [Fact]
-    public void E1To7_CompletesWithin115s()
+    public void E1To7_CompletesWithin116s()
     {
         if (fixture.Get(output) is not { } run)
         {
@@ -162,7 +165,7 @@ public class PushTowSpeedTests(PushTowSpeedTests.Fixture fixture, ITestOutputHel
 
         output.WriteLine($"E1 $7 done at t={run.DoneSecond}s");
         Assert.True(run.DoneSecond > 0, $"E1 $7 never completed in {BudgetSeconds}s: {Trace(run)}");
-        Assert.True(run.DoneSecond <= 115, $"E1 $7 took {run.DoneSecond}s: {Trace(run)}");
+        Assert.True(run.DoneSecond <= 116, $"E1 $7 took {run.DoneSecond}s: {Trace(run)}");
     }
 
     /// <summary>How long the review cases' tows take end to end, reported; each must complete inside the budget.</summary>

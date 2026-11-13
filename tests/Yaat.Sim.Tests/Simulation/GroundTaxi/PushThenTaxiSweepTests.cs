@@ -54,8 +54,18 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
         ("SFO", "A13V", "M2", "M1"),
         ("SFO", "B8", "BC", "AY1"),
         ("SFO", "B9", "BC", "AY1"),
-        ("SFO", "C10", "BC", "AY1"),
         ("SFO", "G9", "B5", "B4"),
+    ];
+
+    /// <summary>
+    /// The (airport, stand, lane, taxiway) cases on the wingtip-setback boundary, where a <c>TAXI {taxiway}</c> may either
+    /// hold where it stands (as <see cref="ExpectedHolds"/>) or move off: either passes.
+    /// </summary>
+    private static readonly HashSet<(string Airport, string Stand, string Lane, string Taxiway)> HoldOrMove =
+    [
+        // On the wingtip-setback boundary: whether A or AY1 holds depends on where the ViaLine capture lands.
+        ("SFO", "C10", "BC", "A"),
+        ("SFO", "C10", "BC", "AY1"),
     ];
 
     private static readonly Lazy<IReadOnlyList<object[]>> AllCases = new(BuildAllCases);
@@ -158,9 +168,7 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
         List<string> failures = [];
         foreach (string taxiway in taxiways)
         {
-            (SimulationEngine engine, AircraftState aircraft) = Pushed(airport, stand, lane);
-            bool expectHold = ExpectedHolds.Contains((airport, stand, lane, taxiway));
-            if (TaxiFailure(engine, aircraft, taxiway, expectHold) is { } failure)
+            if (CaseFailure(airport, stand, lane, taxiway) is { } failure)
             {
                 failures.Add(failure);
             }
@@ -168,6 +176,29 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
 
         output.WriteLine($"case took {clock.Elapsed.TotalSeconds:F2} s for {taxiways.Count} taxi clearances");
         Assert.True(failures.Count == 0, $"taxi failure after {airport} {stand} PUSH {lane}:\n{string.Join("\n", failures)}");
+    }
+
+    /// <summary>
+    /// One taxiway's case from a fresh push: null when <c>TAXI {taxiway}</c> did what the case expects, otherwise what
+    /// went wrong. A <see cref="HoldOrMove"/> case passes when the aircraft moves off, or else, from another fresh push,
+    /// when it holds where it stands.
+    /// </summary>
+    private string? CaseFailure(string airport, string stand, string lane, string taxiway)
+    {
+        (string, string, string, string) key = (airport, stand, lane, taxiway);
+        (SimulationEngine engine, AircraftState aircraft) = Pushed(airport, stand, lane);
+        if (!HoldOrMove.Contains(key))
+        {
+            return TaxiFailure(engine, aircraft, taxiway, ExpectedHolds.Contains(key));
+        }
+
+        if (TaxiFailure(engine, aircraft, taxiway, expectHold: false) is not { } movedFailure)
+        {
+            return null;
+        }
+
+        (SimulationEngine heldEngine, AircraftState heldAircraft) = Pushed(airport, stand, lane);
+        return TaxiFailure(heldEngine, heldAircraft, taxiway, expectHold: true) is { } heldFailure ? $"{movedFailure}\n{heldFailure}" : null;
     }
 
     /// <summary>

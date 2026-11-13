@@ -2315,21 +2315,13 @@ public static class GroundConflictDetector
         aircraft.Phases?.CurrentPhase is AtParkingPhase or HoldingAfterPushbackPhase;
 
     /// <summary>
-    /// The rest of the run the tug goes straight on into after the move it is flying: the moves of the
-    /// <see cref="PushbackPhase"/>s queued behind the current one, up to but not including the first that dwells.
-    ///
-    /// <para>A dwell is a full stop — the plan reverses there (AC 00-65A §11.17) — so nothing past it needs braking for
-    /// yet, and every move of the run up to it is the kind the current one is, which is what lets the sweep judge them
-    /// all on the one <see cref="GroundOutlineSize"/>. The run also ends at the terminus phase, which is not a tug
-    /// move.</para>
+    /// The rest of the run the tug goes straight on into after the move it is flying
+    /// (<see cref="PushbackPhase.RunContinuation"/>). Every move of the run is the kind the current one is, which is
+    /// what lets the sweep judge them all on the one <see cref="GroundOutlineSize"/>.
     ///
     /// <para>Sweeping the run rather than the move is what gives the tug room to brake: a neighbour the next move walks
     /// into is invisible while <see cref="PushbackPhase.RemainingPath"/> covers this move alone, and by the time that
     /// move starts the tow is already carrying its commanded speed into it.</para>
-    ///
-    /// <para>Nothing queued behind the current phase is ever complete — <c>PhaseList</c> marks a phase Completed as it
-    /// leaves it and only then advances, so everything past <c>CurrentIndex</c> is still pending — and skipping such an
-    /// entry would step the walk over the dwell that ends the run rather than stopping at it.</para>
     ///
     /// <para>Built once per mover per <see cref="ApplySpeedLimits"/> pass (<see cref="_tugRunContinuations"/>): the run
     /// is a property of the mover alone and cannot change inside a pass, and the outline sweep asks for it on every
@@ -2339,43 +2331,16 @@ public static class GroundConflictDetector
     {
         if (_tugRunContinuations is not { } cache)
         {
-            return BuildTugRunContinuation(mover);
+            return PushbackPhase.RunContinuation(mover);
         }
 
         if (!cache.TryGetValue(mover, out IReadOnlyList<TugMove>? cached))
         {
-            cached = BuildTugRunContinuation(mover);
+            cached = PushbackPhase.RunContinuation(mover);
             cache[mover] = cached;
         }
 
         return cached;
-    }
-
-    /// <summary>Walks the phases queued behind the mover's current one, as <see cref="TugRunContinuation"/> describes.</summary>
-    private static IReadOnlyList<TugMove> BuildTugRunContinuation(AircraftState mover)
-    {
-        if (mover.Phases is not { } phases)
-        {
-            return [];
-        }
-
-        var moves = new List<TugMove>();
-        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
-        {
-            if (phases.Phases[i] is not PushbackPhase queued)
-            {
-                break;
-            }
-
-            if (queued.Move.DwellBefore)
-            {
-                break;
-            }
-
-            moves.Add(queued.Move);
-        }
-
-        return moves;
     }
 
     /// <summary>

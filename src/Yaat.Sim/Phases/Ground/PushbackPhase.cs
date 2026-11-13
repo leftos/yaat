@@ -78,6 +78,9 @@ public sealed class PushbackPhase : Phase
     /// <summary>How far the aircraft moves before <see cref="RemainingPath"/> simulates the move again, feet.</summary>
     private const double RemainingPathRebuildFt = 2.0;
 
+    /// <summary>The steer angle from which a planned step counts as turning, degrees (<see cref="TurnEntryLimitKts(PhaseContext)"/>).</summary>
+    private const double TurnEntrySteerDeg = 1.0;
+
     private TugMove _move = null!;
     private LatLon _plannedEnd;
     private TugMoveProgress _progress;
@@ -269,12 +272,13 @@ public sealed class PushbackPhase : Phase
     /// <para><see cref="GroundConflictDetector"/> sweeps the aircraft's outline along this path to decide whether a
     /// parked or held neighbour is in the way, and the along-path distance at which it first fouls one is how far the
     /// mover has left before it has to be stopped. It passes the rest of the tug's run, so a neighbour the next move
-    /// walks into is found while there is still room to brake for it rather than at the boundary, at speed. A caller
-    /// that only cares about this move — the ease-off look-ahead — passes an empty continuation.</para>
+    /// walks into is found while there is still room to brake for it rather than at the boundary, at speed. This phase's
+    /// turn-entry brake (<see cref="TurnEntryLimitKts(PhaseContext)"/>) reads the same path every sub-tick it drives:
+    /// the run when the tug goes on into another move, this move alone (an empty continuation) when it does not.</para>
     ///
-    /// <para>Each of the two callers keeps its own cache — the look-ahead asks for this move alone every sub-tick while
-    /// the detector asks for the continuing run, and one shared cache would rebuild both chains on every call. Within a
-    /// cache the simulation is kept and redone only once the aircraft has moved more than
+    /// <para>There are two caches, one for this move alone and one for the continuing run, so a call for one shape never
+    /// invalidates the other's chain; the brake and the detector, asking for the same shape with the same moves, share
+    /// one and do not rebuild each other's simulation. Within a cache the simulation is kept and redone only once the aircraft has moved more than
     /// <see cref="RemainingPathRebuildFt"/> from where it ran, or the continuation changed; in between, the samples
     /// already passed are dropped and the rest are charged the distance already covered. None of it is in the snapshot:
     /// a restored phase simulates on first use.</para>
@@ -596,7 +600,7 @@ public sealed class PushbackPhase : Phase
             return;
         }
 
-        ctx.Targets.TargetSpeed = MoveSpeedKts(ctx, pose, steerDeg: 0.0);
+        ctx.Targets.TargetSpeed = MoveSpeedKts(ctx, pose, steerDeg: 0.0, TurnEntryLimitKts(ctx));
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -662,9 +666,10 @@ public sealed class PushbackPhase : Phase
         PublishTugRates(ctx);
         var footprint = AircraftFootprint.FromType(aircraft.AircraftType);
         double radiusFt = TugKinematics.TurnRadiusFt(footprint, Move.Tight);
-        double probeStepFt = StepFt(ctx, MoveSpeedKts(ctx, pose, steerDeg: 0.0));
+        double turnLimitKts = TurnEntryLimitKts(ctx);
+        double probeStepFt = StepFt(ctx, MoveSpeedKts(ctx, pose, steerDeg: 0.0, turnLimitKts));
         double probeTurnDeg = TravelTurnDeg(pose, TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, probeStepFt));
-        double speedKts = MoveSpeedKts(ctx, pose, SteerDeg(footprint, probeTurnDeg, probeStepFt));
+        double speedKts = MoveSpeedKts(ctx, pose, SteerDeg(footprint, probeTurnDeg, probeStepFt), turnLimitKts);
         double stepFt = StepFt(ctx, speedKts);
         double travelDeg = TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, stepFt);
         ctx.Targets.TargetSpeed = speedKts;
@@ -795,14 +800,20 @@ public sealed class PushbackPhase : Phase
     /// Both approaches are <see cref="BrakeCurveKts"/>, so the tug arrives at the speed it needs instead of dropping
     /// onto it at the boundary. A move that continues into the next one takes no end-of-move curve: it is not stopping
     /// there, and the crawl would restart the whole tow from walking pace at every boundary.
+    ///
+    /// <para>The gear is also braked ahead of the next turn onto that turn's own gear speed
+    /// (<paramref name="turnLimitKts"/>, <see cref="TurnEntryLimitKts(PhaseContext)"/>), since a turn takes its full
+    /// steer angle on its first step while the towbar sheds speed only at
+    /// <see cref="CategoryPerformance.TugDecelRate"/>.</para>
     /// </summary>
     /// <param name="ctx">The phase context.</param>
     /// <param name="pose">The live pose.</param>
     /// <param name="steerDeg">The nose-gear steer angle this tick's step implies, degrees; zero straight ahead.</param>
-    private double MoveSpeedKts(PhaseContext ctx, PushbackPose pose, double steerDeg)
+    /// <param name="turnLimitKts">This step's turn-entry braking limit on the main gear, knots, computed once per step.</param>
+    private double MoveSpeedKts(PhaseContext ctx, PushbackPose pose, double steerDeg, double turnLimitKts)
     {
         double remainingFt = FeetBetween(pose.Position, PlannedEnd);
-        double speedKts = GearSpeedKts(BaseSpeedKts(ctx.Category, remainingFt), steerDeg);
+        double speedKts = Math.Min(GearSpeedKts(BaseSpeedKts(ctx.Category, remainingFt), steerDeg), turnLimitKts);
         double decelKtPerSec = CategoryPerformance.TugDecelRate(ctx.Category);
         if (Move.Creep)
         {
@@ -813,6 +824,96 @@ public sealed class PushbackPhase : Phase
         }
 
         return ContinuesIntoNextMove ? speedKts : Math.Min(speedKts, BrakeCurveKts(remainingFt - FinalApproachFt, FinalApproachKts, decelKtPerSec));
+    }
+
+    /// <summary>
+    /// The highest main-gear speed from which the tug still brakes, at <see cref="CategoryPerformance.TugDecelRate"/>,
+    /// onto the gear speed of every planned turning step ahead (<c>PushbackSpeed · cos δ</c>, <c>δ</c> that step's
+    /// steer angle, at least <see cref="TurnEntrySteerDeg"/>) by the time it reaches it: the lowest
+    /// <see cref="BrakeCurveKts"/> to each such step less one sub-tick of travel at the present speed, since the speed
+    /// commanded now holds for the whole sub-tick. Taking every turning step, not only the first, also brakes for a
+    /// steer angle that rises inside a turn. The path is the rest of this move and, when the tug runs on, the moves it
+    /// runs on into (the same span the conflict detector sweeps), so a turn just past the boundary is braked for in
+    /// time. Unbounded when no turn lies ahead.
+    ///
+    /// <para>The deceleration is never raised to meet a turn found late: the tug enters it a little fast instead.</para>
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <returns>The turn-entry braking limit on the main gear, knots.</returns>
+    private double TurnEntryLimitKts(PhaseContext ctx)
+    {
+        AircraftState aircraft = ctx.Aircraft;
+        IReadOnlyList<TugMove> continuation = ContinuesIntoNextMove ? RunContinuation(aircraft) : [];
+        return TurnEntryLimitKts(ctx, RemainingPath(aircraft, continuation), AircraftFootprint.FromType(aircraft.AircraftType));
+    }
+
+    /// <summary>
+    /// <see cref="TurnEntryLimitKts(PhaseContext)"/> over <paramref name="path"/>. The step from the live pose onto the
+    /// first simulated sample is skipped: that sample can lie a fraction of a foot ahead with a nose off by the flown
+    /// path's own deviation, which reads as a steep steer angle that is not on the plan.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="path">A <see cref="RemainingPath"/>, the live pose first.</param>
+    /// <param name="footprint">The towed aircraft's dimensions, for its wheelbase.</param>
+    /// <returns>The turn-entry braking limit on the main gear, knots.</returns>
+    private static double TurnEntryLimitKts(PhaseContext ctx, IReadOnlyList<(PushbackPose Pose, double AlongFt)> path, AircraftFootprint footprint)
+    {
+        double speedKts = ctx.Aircraft.IndicatedAirspeed;
+        double decelKtPerSec = CategoryPerformance.TugDecelRate(ctx.Category);
+        double paceKts = CategoryPerformance.PushbackSpeed(ctx.Category);
+        double leadFt = speedKts * FtPerSecPerKt * ctx.DeltaSeconds;
+
+        // Past the distance the tug needs to brake from its present speed to rest, no turning step can bind this sub-tick.
+        double scanFt = (speedKts * speedKts * FtPerSecPerKt / (2.0 * decelKtPerSec)) + leadFt;
+        double limitKts = double.PositiveInfinity;
+        for (int i = 2; (i < path.Count) && (path[i - 1].AlongFt <= scanFt); i++)
+        {
+            (PushbackPose fromPose, double fromFt) = path[i - 1];
+            double turnDeg = new TrueHeading(fromPose.NoseTrueDeg).SignedAngleTo(new TrueHeading(path[i].Pose.NoseTrueDeg));
+            double steerDeg = Math.Abs(SteerDeg(footprint, turnDeg, path[i].AlongFt - fromFt));
+            if (steerDeg >= TurnEntrySteerDeg)
+            {
+                limitKts = Math.Min(limitKts, BrakeCurveKts(fromFt - leadFt, GearSpeedKts(paceKts, steerDeg), decelKtPerSec));
+            }
+        }
+
+        return limitKts;
+    }
+
+    /// <summary>
+    /// The rest of the run the tug goes straight on into after the move it is flying: the moves of the
+    /// <see cref="PushbackPhase"/>s queued behind the current one, up to but not including the first that dwells. Both
+    /// this phase's turn-entry brake (<see cref="TurnEntryLimitKts(PhaseContext)"/>) and
+    /// <see cref="GroundConflictDetector"/>'s outline sweep read the run from here.
+    ///
+    /// <para>A dwell is a full stop — the plan reverses there (AC 00-65A §11.17) — so nothing past it needs braking for
+    /// yet. The run also ends at the terminus phase, which is not a tug move.</para>
+    ///
+    /// <para>Nothing queued behind the current phase is ever complete — <c>PhaseList</c> marks a phase Completed as it
+    /// leaves it and only then advances, so everything past <c>CurrentIndex</c> is still pending — and skipping such an
+    /// entry would step the walk over the dwell that ends the run rather than stopping at it.</para>
+    /// </summary>
+    /// <param name="aircraft">The aircraft whose current phase is a tug move.</param>
+    /// <returns>The continuing moves, in order; empty when the run ends with the current move.</returns>
+    internal static IReadOnlyList<TugMove> RunContinuation(AircraftState aircraft)
+    {
+        if (aircraft.Phases is not { } phases)
+        {
+            return [];
+        }
+
+        var moves = new List<TugMove>();
+        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+        {
+            if ((phases.Phases[i] is not PushbackPhase queued) || queued.Move.DwellBefore)
+            {
+                break;
+            }
+
+            moves.Add(queued.Move);
+        }
+
+        return moves;
     }
 
     /// <summary>

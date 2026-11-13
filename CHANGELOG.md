@@ -24,6 +24,7 @@
 - A climb via from the vTDLS default works its top out again when the departure runway changes before takeoff; a controller's `CVIA` keeps its top.
 - A push route drawn to one point on an aircraft already under tow now re-plans the tow there (`PUSHM` to that point) instead of being refused.
 - A running FOLLOW ends with an RPO note when its lead is moved to another runway, unless the follower has no runway of its own.
+- A tug now slows before each turn of a tow, so it no longer surges to 6-12 kt entering a tight turn; tows take up to 3 s longer.
 
 ### Fixed
 

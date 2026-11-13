@@ -75,12 +75,18 @@ public class PushbackMoveBoundaryTests
     /// <summary>How far a second's speed change may overshoot the towbar rate it is integrated at, knots.</summary>
     private const double RateToleranceKts = 0.05;
 
-    /// <summary>A second in which the nose turned by more than this is a turning second.</summary>
+    /// <summary>A planned step whose nose-gear steer angle reaches this is a turning step, degrees.</summary>
     private const double TurnNoticedDeg = 1.0;
 
-    /// <summary>How far under push speed a second may be and still count as holding it, knots.</summary>
-    /// <summary>How far the tug's speed — the gear's over <c>cos δ</c> — may sit from the push speed mid-turn, knots.</summary>
-    private const double TugPaceToleranceKts = 0.2;
+    /// <summary>
+    /// How near the planned turn entry the steering tow must be for its steer to be that turn's, feet: a few sub-tick
+    /// steps, so a small steer the move takes earlier on its run in (a pull settling onto its line) is not the entry; a
+    /// judgement figure.
+    /// </summary>
+    private const double EntryReachedFt = 10.0;
+
+    /// <summary>How far under the push speed or the turn brake's curve a sub-tick's tug speed may read, knots; float noise.</summary>
+    private const double BrakeFloorToleranceKts = 0.01;
 
     /// <summary>
     /// The fastest the tug may still be going the second before it comes to a stand, knots: the last stretch is
@@ -297,68 +303,138 @@ public class PushbackMoveBoundaryTests
     }
 
     /// <summary>
-    /// The tug does not ease off for a turn, with no wingtip-pace slowdown: the second before the nose starts to come
-    /// round the tug — the main gear's speed over the cosine of the nose-gear steer angle — is at push speed, and the
-    /// second it starts to it is at least that. Not exactly that: the steer angle is set the moment the turn begins while
-    /// the gear brakes onto its slower turning pace at the tug's rate, so the entry second can read the tug a little
-    /// over push speed. The settled seconds of a turn are held to push speed by
+    /// The tug does not ease off for a turn earlier than its brake needs, with no wingtip-pace slowdown. The turn judged
+    /// is the first the tug meets inside a move: the first planned step whose nose-gear steer angle reaches
+    /// <see cref="TurnNoticedDeg"/> after a straight step of the same move, at <c>δ_entry</c>. On that move's straight
+    /// run into it the tug — the main gear's speed over the cosine of the steer angle —
+    /// first reaches push speed while the brake does not yet bind, and from then on to the entry, sampled every physics
+    /// sub-tick, it is never under the lower of push speed and the braking curve onto <c>5·cos δ_entry</c> at the towbar
+    /// brake rate from where it stands (one sub-tick of travel taken off the distance as lead), less
+    /// <see cref="BrakeFloorToleranceKts"/>. The settled seconds of a turn are held to push speed by
     /// <c>PushTowSpeedTests.TurningTow_TugHoldsPushbackSpeed</c>.
     ///
-    /// <para>The turn judged is the first one the tug meets <em>inside</em> a move: the same phase instance as
-    /// the second before, which was itself still running straight. A second in the middle of a turn already under
-    /// way is not the entry to one.</para>
+    /// <para>The distance to the entry is the straight-line distance from the aircraft to the planned entry point: the
+    /// run into it is straight, and a distance summed along the flown path would carry the flown path's own drift.</para>
     /// </summary>
     [Fact]
-    public void HoldsPushSpeedThroughTheTurn()
+    public void HoldsPushSpeedUntilTheTurnBrake()
     {
-        PushRun? run = RunPush();
-        if (run is null)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
 
-        List<SpeedSample> samples = run.Value.Samples;
-        int turning = -1;
-        for (int i = 2; i < samples.Count; i++)
-        {
-            if (!ReferenceEquals(samples[i].Phase, samples[i - 1].Phase) || !TurnedInSecond(samples, i) || TurnedInSecond(samples, i - 1))
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, PusherGate);
+        var start = new PushbackPose(aircraft.Position, aircraft.TrueHeading.Degrees);
+        string command = $"PUSH ${AlleySpot}";
+        CommandResult issued = ground.Engine.SendCommand(Pusher, command);
+        Assert.True(issued.Success, $"'{command}' from {PusherGate} failed: {issued.Message}");
+
+        List<PushbackPhase> phases = [.. aircraft.Phases!.Phases.OfType<PushbackPhase>()];
+        (int move, LatLon entryPoint, double entrySteerDeg) = PlannedTurnEntry(
+            start,
+            [.. phases.Select(p => p.Move)],
+            AircraftFootprint.FromType(PusherType)
+        );
+        PushbackPhase turningPhase = phases[move];
+        bool turned = false;
+        List<SubTickSample> run = [];
+        SubTickDriver.TickSubTicksUntil(
+            ground.Engine,
+            Pusher,
+            _ => turned,
+            BudgetSeconds,
+            a =>
             {
-                continue;
+                if (!ReferenceEquals(a.Phases?.CurrentPhase, turningPhase))
+                {
+                    return;
+                }
+
+                double steerDeg = a.Ground.TowbarTrueHeading is { } towbar ? towbar.AbsAngleTo(a.TrueHeading) : 0.0;
+                double distanceFt = GeoMath.DistanceNm(a.Position, entryPoint) * GeoMath.FeetPerNm;
+                turned = (steerDeg >= TurnNoticedDeg) && (distanceFt <= EntryReachedFt);
+                if (!turned)
+                {
+                    run.Add(new SubTickSample(a.IndicatedAirspeed / Math.Cos(steerDeg * Math.PI / 180.0), distanceFt));
+                }
             }
-
-            turning = i;
-            break;
-        }
-
-        Assert.True(turning > 0, $"the tug never entered a turn inside a move: {Trace(samples)}");
+        );
 
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
-        SpeedSample entry = samples[turning];
-        SpeedSample before = samples[turning - 1];
+        double decelKtPerSec = CategoryPerformance.TugDecelRate(AircraftCategory.Jet);
+        double turnKts = pushKts * Math.Cos(entrySteerDeg * Math.PI / 180.0);
+        Assert.True(turned, $"the tug never entered the planned turn in move {move + 1} ({entrySteerDeg:F1}° of steer)");
+        double FloorKts(SubTickSample s) => Math.Min(pushKts, BrakeFloorKts(s, turnKts, decelKtPerSec));
+        int atPace = run.FindIndex(s => (Math.Abs(s.TugKts - pushKts) <= BrakeFloorToleranceKts) && (FloorKts(s) >= pushKts));
         _output.WriteLine(
-            $"first in-move turn over the second to t={entry.Second}s: tug {TugKts(before):F2} kt → {TugKts(entry):F2} kt "
-                + $"(gear {before.GroundSpeedKts:F2} → {entry.GroundSpeedKts:F2} kt, steer {before.SteerDeg:F1}° → {entry.SteerDeg:F1}°; "
-                + $"push speed {pushKts:F1} kt)"
+            $"turn entry at {entrySteerDeg:F1}° (turn pace {turnKts:F2} kt); last of the run in, tug/floor@ft: "
+                + string.Join(" ", run.TakeLast(40).Select(s => $"{s.TugKts:F2}/{FloorKts(s):F2}@{s.DistanceFt:F0}"))
         );
 
-        Assert.True(
-            Math.Abs(TugKts(before) - pushKts) <= TugPaceToleranceKts,
-            $"the tug was doing {TugKts(before):F2} kt at t={before.Second}s, the second before the nose came round, not the "
-                + $"{pushKts:F1} kt push speed — it eased off for the turn: {Trace(samples)}"
-        );
-        Assert.True(
-            TugKts(entry) >= pushKts - TugPaceToleranceKts,
-            $"the nose came round over the second to t={entry.Second}s with the tug doing {TugKts(entry):F2} kt (gear "
-                + $"{entry.GroundSpeedKts:F2} kt, steer {entry.SteerDeg:F1}°), under the {pushKts:F1} kt push speed: {Trace(samples)}"
-        );
+        Assert.True(atPace >= 0, $"the tug never reached the {pushKts:F1} kt push speed before the turn brake bound it");
+        foreach (SubTickSample s in run.Skip(atPace))
+        {
+            Assert.True(
+                s.TugKts >= FloorKts(s) - BrakeFloorToleranceKts,
+                $"the tug was doing {s.TugKts:F3} kt {s.DistanceFt:F1} ft before the turn, under the {FloorKts(s):F3} kt its brake needs"
+            );
+        }
     }
 
-    /// <summary>The tug's speed in a sample: the main gear's over the cosine of the nose-gear steer angle.</summary>
-    private static double TugKts(SpeedSample sample) => sample.GroundSpeedKts / Math.Cos(sample.SteerDeg * Math.PI / 180.0);
+    /// <summary>
+    /// The braking curve onto <paramref name="turnKts"/> at the turn entry, from <paramref name="sample"/>'s distance
+    /// less one sub-tick of travel at its speed: <c>sqrt(v_turn² + 2·a·d)</c>, the distance in knot-seconds.
+    /// </summary>
+    private static double BrakeFloorKts(SubTickSample sample, double turnKts, double decelKtPerSec)
+    {
+        const double ftPerSecPerKt = GeoMath.FeetPerNm / 3600.0;
+        double leadFt = sample.TugKts * ftPerSecPerKt / SimulationEngine.PhysicsSubTickRate;
+        double distanceFt = Math.Max(0.0, sample.DistanceFt - leadFt);
+        return Math.Sqrt((turnKts * turnKts) + (2.0 * decelKtPerSec * distanceFt / ftPerSecPerKt));
+    }
 
-    /// <summary>Whether the nose turned by more than <see cref="TurnNoticedDeg"/> over the second ending at <paramref name="index"/>.</summary>
-    private static bool TurnedInSecond(List<SpeedSample> samples, int index) =>
-        new TrueHeading(samples[index - 1].NoseTrueDeg).AbsAngleTo(new TrueHeading(samples[index].NoseTrueDeg)) > TurnNoticedDeg;
+    /// <summary>
+    /// Where the plan first turns inside a move: the start of the first planned step whose nose-gear steer angle,
+    /// <c>atan(L·κ)</c> on the type's wheelbase, reaches <see cref="TurnNoticedDeg"/> after a straight step of the
+    /// same move, with that move's index and that angle. A move that turns from its first step is not entered from a
+    /// straight run inside it.
+    /// </summary>
+    private static (int Move, LatLon Point, double SteerDeg) PlannedTurnEntry(PushbackPose start, List<TugMove> moves, AircraftFootprint footprint)
+    {
+        double wheelbaseFt =
+            ((footprint.WheelbaseFt is { } recorded) && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(footprint, tight: false);
+        IReadOnlyList<TugMoveTrace> traces = TugKinematics.Simulate(start, moves, footprint, TugMovePlanner.StepFt).Moves;
+        for (int m = 0; m < traces.Count; m++)
+        {
+            IReadOnlyList<PushbackPose> trace = traces[m].Samples;
+            for (int i = 2; i < trace.Count; i++)
+            {
+                double steerDeg = PlannedSteerDeg(trace[i - 1], trace[i], wheelbaseFt);
+                if ((steerDeg >= TurnNoticedDeg) && (PlannedSteerDeg(trace[i - 2], trace[i - 1], wheelbaseFt) < TurnNoticedDeg))
+                {
+                    return (m, trace[i - 1].Position, steerDeg);
+                }
+            }
+        }
+
+        Assert.Fail("the plan never turns inside a move");
+        return default;
+    }
+
+    /// <summary>The nose-gear steer angle a planned step implies, degrees: <c>atan(L·κ)</c>, <c>κ</c> the step's turn per foot.</summary>
+    private static double PlannedSteerDeg(PushbackPose from, PushbackPose to, double wheelbaseFt)
+    {
+        double stepFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
+        double turnRad = new TrueHeading(from.NoseTrueDeg).AbsAngleTo(new TrueHeading(to.NoseTrueDeg)) * Math.PI / 180.0;
+        return stepFt > 0.0 ? Math.Atan(wheelbaseFt * turnRad / stepFt) * 180.0 / Math.PI : 0.0;
+    }
+
+    /// <summary>
+    /// One physics sub-tick of the tow's run in to the turn: the tug's speed (the gear's over the cosine of the towbar
+    /// steer) and the distance to the planned turn entry.
+    /// </summary>
+    private readonly record struct SubTickSample(double TugKts, double DistanceFt);
 
     /// <summary>
     /// Every stand the tug comes to is reached at the crawl, not dropped onto from walking pace: the last rolling
