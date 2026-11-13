@@ -62,16 +62,16 @@
 
 - [ ] YAAT-3 Scroll back through captured SWIM live traffic (DVR-style replay)
 - [ ] YAAT-23 Track the local user's accepted commands per scenario and airport
-- [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM)
-- [ ] YAAT-25 Controller AI v1 (radio model first)
-  - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences
-  - [ ] YAAT-804 AI departure controller vectors or releases radar-vectors SID departures when no human works departure
-- [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests
+- [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
+- [ ] YAAT-25 Controller AI v1 (radio model first) · release vNext+1
+  - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences · release vNext+1
+  - [ ] YAAT-804 AI departure controller vectors or releases radar-vectors SID departures when no human works departure · release vNext+1
+- [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests · release vNext+1
 - [ ] YAAT-27 Typed command arguments: audit the remaining argument slots (step 2)
-- [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop
+- [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop · release vNext+1
 - [ ] YAAT-996 Extract the client driver into a shared Avalonia driver repo (yamv adopts it)
-- [ ] YAAT-1182 Simulate ground and local control below a solo radar student
-- [ ] YAAT-1241 Solo: some pilots push off a non-movement ramp on their own and call for taxi
+- [ ] YAAT-1182 Simulate ground and local control below a solo radar student · release vNext+1
+- [ ] YAAT-1241 Solo: some pilots push off a non-movement ramp on their own and call for taxi · release vNext+1
 - [ ] YAAT-1539 Give AI controllers their own TTS voice, and make AI coordination (crossing requests, approvals) audible and visible
 
 ## STT tuning
