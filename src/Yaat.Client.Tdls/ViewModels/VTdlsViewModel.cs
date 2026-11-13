@@ -107,6 +107,153 @@ public partial class VTdlsViewModel : ObservableObject
     [ObservableProperty]
     private TdlsFlightPlanEditorViewModel? _editor;
 
+    // ── Keyboard model: upstream's highlight and active list ──
+    // The highlight is where Up/Down point and what Enter opens; it is not the selection. Only Enter, a row click and a
+    // send move the selection, so arrowing through a list never opens an editor.
+
+    /// <summary>The row the keyboard points at in <see cref="ActiveList"/>; null when nothing is highlighted.</summary>
+    [ObservableProperty]
+    private TdlsItemViewModel? _highlightedItem;
+
+    /// <summary>The list Up, Down and Enter act on; Tab and backtick cycle it DCL, CPDLC, PDC as upstream does.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDclListActive), nameof(IsCpdlcListActive), nameof(IsPdcListActive))]
+    private TdlsAircraftList _activeList = TdlsAircraftList.Dcl;
+
+    public bool IsDclListActive => ActiveList == TdlsAircraftList.Dcl;
+
+    public bool IsCpdlcListActive => ActiveList == TdlsAircraftList.Cpdlc;
+
+    public bool IsPdcListActive => ActiveList == TdlsAircraftList.Pdc;
+
+    /// <summary>Upstream's list order for Tab.</summary>
+    private static readonly TdlsAircraftList[] ListCycle = [TdlsAircraftList.Dcl, TdlsAircraftList.Cpdlc, TdlsAircraftList.Pdc];
+
+    private ObservableCollection<TdlsItemViewModel> ActiveItems =>
+        ActiveList switch
+        {
+            TdlsAircraftList.Dcl => DclItems,
+            TdlsAircraftList.Pdc => PdcItems,
+            _ => CpdlcItems,
+        };
+
+    /// <summary>
+    /// Moves the highlight <paramref name="step"/> rows through the active list, wrapping at either end. The highlight is
+    /// kept on a row of a non-empty list (<see cref="RepairHighlight"/>), so a list without one starts at its first row.
+    /// An empty list keeps its (empty) highlight.
+    /// </summary>
+    public void MoveHighlight(int step)
+    {
+        ObservableCollection<TdlsItemViewModel> items = ActiveItems;
+        if (items.Count == 0)
+        {
+            return;
+        }
+        int index = (HighlightedItem is { } current) ? items.IndexOf(current) : -1;
+        HighlightedItem = items[(index >= 0) ? Wrap(index + step, items.Count) : 0];
+    }
+
+    /// <summary>Where the highlight sat in <see cref="ActiveItems"/> when last seen there; -1 for nowhere.</summary>
+    private int _highlightIndex = -1;
+
+    partial void OnHighlightedItemChanged(TdlsItemViewModel? value) => _highlightIndex = (value is null) ? -1 : ActiveItems.IndexOf(value);
+
+    /// <summary>
+    /// Keeps the highlight on a row of the active list, as upstream does whenever the list changes: a highlight that is
+    /// still listed stays on its row; one whose row left (sent, dumped, removed) moves to the row now at its place, or the
+    /// last one; a list that had none gets its first row. The empty CPDLC list keeps none.
+    /// </summary>
+    private void RepairHighlight()
+    {
+        ObservableCollection<TdlsItemViewModel> items = ActiveItems;
+        if ((HighlightedItem is { } current) && items.Contains(current))
+        {
+            _highlightIndex = items.IndexOf(current);
+            return;
+        }
+        HighlightedItem = (items.Count == 0) ? null : items[Math.Clamp(_highlightIndex, 0, items.Count - 1)];
+    }
+
+    /// <summary>
+    /// Makes the next list (<paramref name="step"/> = 1) or the previous one the active list and highlights its first row,
+    /// as upstream does; the always-empty CPDLC list is a stop with nothing highlighted.
+    /// </summary>
+    public void CycleActiveList(int step)
+    {
+        ActiveList = ListCycle[Wrap(Array.IndexOf(ListCycle, ActiveList) + step, ListCycle.Length)];
+        HighlightedItem = ActiveItems.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Opens the highlighted row the way a click does, by selecting it. False when no editor can open: one is open
+    /// already, or nothing listed is highlighted.
+    /// </summary>
+    public bool OpenHighlighted()
+    {
+        if ((Editor is not null) || (HighlightedItem is not { } item) || !(DclItems.Contains(item) || PdcItems.Contains(item)))
+        {
+            return false;
+        }
+        SelectedItem = item;
+        return true;
+    }
+
+    /// <summary><paramref name="index"/> wrapped into 0..<paramref name="count"/>-1, either way round.</summary>
+    internal static int Wrap(int index, int count) => ((index % count) + count) % count;
+
+    /// <summary>A selected row is also the highlighted one, in its own list, as a click on it makes it upstream.</summary>
+    private void HighlightSelected(TdlsItemViewModel item)
+    {
+        ActiveList = (item.Status == TdlsStatus.Pending) ? TdlsAircraftList.Dcl : TdlsAircraftList.Pdc;
+        HighlightedItem = item;
+    }
+
+    /// <summary>
+    /// The DCL row the highlight moves to once <paramref name="sent"/> is sent: the row after it, wrapping to the first,
+    /// or none when it is the only one left. Taken at send time, since the item leaves the list on the broadcast.
+    /// </summary>
+    private TdlsItemViewModel? DclRowAfter(TdlsItemViewModel sent)
+    {
+        int index = DclItems.IndexOf(sent);
+        if (index < 0)
+        {
+            return DclItems.FirstOrDefault();
+        }
+        return (DclItems.Count > 1) ? DclItems[(index + 1) % DclItems.Count] : null;
+    }
+
+    private void ResetHighlight()
+    {
+        ActiveList = TdlsAircraftList.Dcl;
+        HighlightedItem = null;
+        _highlightIndex = -1;
+    }
+
+    /// <summary>
+    /// Moves to the next accessible facility (<paramref name="step"/> = 1) or the previous one, wrapping — Ctrl+Alt+Right
+    /// and Ctrl+Alt+Left, as vStrips cycles them. Fetches the facility list first when it was never fetched; does nothing
+    /// while disconnected.
+    /// </summary>
+    public async Task CycleFacilityAsync(int step)
+    {
+        if (!IsConnected)
+        {
+            return;
+        }
+        if (AccessibleFacilities.Count == 0)
+        {
+            await RefreshAccessibleFacilitiesAsync();
+        }
+        int count = AccessibleFacilities.Count;
+        if (count == 0)
+        {
+            return;
+        }
+        int current = AccessibleFacilities.ToList().FindIndex(f => string.Equals(f.FacilityId, FacilityId, StringComparison.Ordinal));
+        int next = (current >= 0) ? Wrap(current + step, count) : ((step > 0) ? 0 : count - 1);
+        await SwitchFacilityAsync(AccessibleFacilities[next].FacilityId);
+    }
+
     /// <summary>
     /// Active operational configuration for the facility in force (<see cref="Config"/>).
     /// Server-owned: the footer menu asks the server to change it and this only updates when
@@ -335,6 +482,7 @@ public partial class VTdlsViewModel : ObservableObject
 
         CommandError = null;
         newValue.IsSelected = true;
+        HighlightSelected(newValue);
         TdlsConfigDto? config = Config;
         if (config is null)
         {
@@ -540,6 +688,7 @@ public partial class VTdlsViewModel : ObservableObject
         SelectedItem = null;
         Editor = null;
         CommandError = null;
+        ResetHighlight();
     }
 
     public void SetConnected(bool connected)
@@ -697,6 +846,7 @@ public partial class VTdlsViewModel : ObservableObject
         SelectedItem = null;
         Editor = null;
         CommandError = null;
+        ResetHighlight();
         RaiseConfigDerivedChanged();
     }
 
@@ -726,6 +876,7 @@ public partial class VTdlsViewModel : ObservableObject
                     SelectedItem = null;
                 }
             }
+            RepairHighlight();
         });
 
     private void OnTdlsStateChanged(TdlsStateDto state) =>
@@ -755,6 +906,7 @@ public partial class VTdlsViewModel : ObservableObject
             }
 
             ApplyActiveOpConfig(state);
+            RepairHighlight();
         });
 
     /// <summary>
@@ -803,6 +955,7 @@ public partial class VTdlsViewModel : ObservableObject
             vm = new TdlsItemViewModel(dto);
             _itemsById[dto.Id] = vm;
             InsertIntoBucket(vm);
+            RepairHighlight();
             return;
         }
 
@@ -835,6 +988,7 @@ public partial class VTdlsViewModel : ObservableObject
         {
             editor.ApplyAmendedFlightPlan(vm.FlightPlan);
         }
+        RepairHighlight();
     }
 
     private void InsertIntoBucket(TdlsItemViewModel vm) => InsertSortedBySequence(vm.Status == TdlsStatus.Pending ? DclItems : PdcItems, vm);
@@ -872,16 +1026,27 @@ public partial class VTdlsViewModel : ObservableObject
 
     private async Task OnEditorSendRequested(ClearanceDto clearance)
     {
-        if ((!IsConnected) || (SelectedItem is null))
+        if ((!IsConnected) || (SelectedItem is not { } sent))
         {
             return;
         }
-        CommandResultDto? result = await _sendCommand(
-            SelectedItem.AircraftId,
-            VTdlsCanonicalBuilder.BuildSend(clearance),
-            _getUserInitials?.Invoke() ?? ""
-        );
+        TdlsItemViewModel? nextRow = DclRowAfter(sent);
+        CommandResultDto? result = await _sendCommand(sent.AircraftId, VTdlsCanonicalBuilder.BuildSend(clearance), _getUserInitials?.Invoke() ?? "");
         ReportCommandResult(result, "Error sending PDC");
+        if (result?.Success == true)
+        {
+            // Upstream moves the highlight on to the next DCL aircraft, so Enter, F12, Enter works down the list. A broadcast
+            // during the send may have taken that row away; the highlight then lands on a row that is still listed.
+            ActiveList = TdlsAircraftList.Dcl;
+            if ((nextRow is not null) && DclItems.Contains(nextRow))
+            {
+                HighlightedItem = nextRow;
+            }
+            else
+            {
+                RepairHighlight();
+            }
+        }
     }
 
     /// <summary>
@@ -890,4 +1055,12 @@ public partial class VTdlsViewModel : ObservableObject
     /// </summary>
     private void ReportCommandResult(CommandResultDto? result, string failure) =>
         CommandError = (result?.Success == true) ? null : $"{failure}: {result?.Message ?? "no response from server"}";
+}
+
+/// <summary>The vTDLS page's three aircraft lists, in upstream's Tab order.</summary>
+public enum TdlsAircraftList
+{
+    Dcl,
+    Cpdlc,
+    Pdc,
 }

@@ -47,7 +47,7 @@ public class VTdlsTempDepFreqsTests
     /// <summary>A view-model on OAK's page with one pending item, ready to be selected.</summary>
     private static VTdlsViewModel PageWithOneItem()
     {
-        var transport = new FakeTransport();
+        var transport = new FakeTdlsTransport();
         var vm = new VTdlsViewModel(
             transport,
             (_, _, _) => Task.FromResult<CommandResultDto?>(new CommandResultDto(true, null)),
@@ -159,28 +159,5 @@ public class VTdlsTempDepFreqsTests
 
         Assert.Empty(vm.TempDepFreqs);
         Assert.True(vm.IsTempDepFreqsInvalid);
-    }
-
-    private sealed class FakeTransport : ITdlsTransport
-    {
-        public bool IsConnected => true;
-
-#pragma warning disable CS0067 // required by the interface but never raised by this fake
-        public event Action? Connected;
-        public event Action<Exception?>? Closed;
-        public event Action<Exception?>? Reconnecting;
-        public event Action<string?>? Reconnected;
-        public event Action<TdlsItemDto>? TdlsItemChanged;
-        public event Action<TdlsItemRemovedDto>? TdlsItemRemoved;
-#pragma warning restore CS0067
-        public event Action<TdlsStateDto>? TdlsStateChanged;
-
-        public void Push(TdlsStateDto state) => TdlsStateChanged?.Invoke(state);
-
-        public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() => Task.FromResult(new List<AccessibleFacilityDto>());
-
-        public Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId) => Task.FromResult<TdlsFacilityViewDto?>(null);
-
-        public Task RequestFullTdlsStateAsync() => Task.CompletedTask;
     }
 }

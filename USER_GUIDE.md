@@ -275,9 +275,16 @@ Route drawing and heading mode start from the aircraft right-click menu.
 | F4 | Dump the selected item |
 | F10 | Close the flight-plan editor |
 | F12 | Send the clearance |
+| Up / Down | Move the highlight within the active list, wrapping (no editor open) |
+| Enter | Open the highlighted row (no editor open) |
+| Tab | Next list: DCL, CPDLC, PDC (no editor open); next field with an editor open |
+| Shift+Tab / backtick | Previous list, or previous field with an editor open |
+| Ctrl+Alt+Right / Ctrl+Alt+Left | Next / previous TDLS facility, wrapping |
 | Ctrl+F | Open the find bar |
 | F3 / Shift+F3 | Next / previous match (also Enter / Shift+Enter in the find box) |
-| Esc | Close the find bar |
+| Esc | Close the find bar; with it closed, open the Facility Menu, or close it when open |
+
+The list keys apply once the vTDLS view has focus: click it or Tab into it, as the view does not take focus when it opens. See [vTDLS ▸ Keyboard](#keyboard).
 
 **Flight Strips** have an extensive set of bay/strip keyboard shortcuts — see [Flight Strips ▸ Keyboard shortcuts](#keyboard-shortcuts-1).
 
@@ -1671,6 +1678,19 @@ While connected, **Tools → Open TDLS in Browser** opens that page in your defa
 - **CPDLC** (bottom-right) — Permanently empty. VATSIM does not simulate CPDLC; the panel is rendered for visual parity with upstream.
 
 **Find (Ctrl+F).** Press **Ctrl+F** to search the DCL and PDC lists; matching entries are outlined in cyan and scrolled into view. **F3** / **Shift+F3** cycle through matches and **Esc** closes the bar. The search matches the callsign plus the filed flight-plan and clearance text (route, departure/destination, beacon code, SID…), not just the callsign.
+
+#### Keyboard
+
+The view is driven from the keyboard as in vTDLS. The keys need the vTDLS view focused first: click it or Tab into it, because the view does not take focus when it opens.
+
+One list is the **active list**, and its header is bright green and bold (the others are light green, normal weight). In it, one row is the **highlight**, drawn inverted (white on black in the light theme, black on white in the dark theme); the highlight is separate from the selection, and the open row keeps the selection colours. When the page opens or items arrive, the active list's first row is highlighted.
+
+- With no editor open, **Up** / **Down** move the highlight within the active list and wrap, and **Enter** opens the highlighted row. **Tab**, or **Shift+Tab** / backtick backwards, cycles the active list DCL, CPDLC, PDC; CPDLC is an empty stop, and entering a list highlights its first row.
+- Clicking a row still opens it, and moves the highlight and the active list there.
+- When an editable editor opens, the **SID** box has focus. **Tab** steps through Sid, Transition, Climb out, Climb via, Maintain, Dep Freq, Expect, Contact info and Local info; **Shift+Tab** and backtick go backwards. Left and Right do nothing.
+- After a successful **Send**, the highlight moves to the next DCL aircraft.
+- **Esc** opens the Facility Menu and closes it when open; with Find open, Esc closes Find only.
+- **Ctrl+Alt+Right** / **Ctrl+Alt+Left** switch to the next / previous accessible TDLS facility, wrapping; they do nothing while disconnected.
 
 #### Issuing a PDC
 

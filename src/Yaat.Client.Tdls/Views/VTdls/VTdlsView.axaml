@@ -13,7 +13,12 @@
              white list backgrounds, dark-on-light footer. See docs/vtdls/img/
              tdls.png + tdls-empty.png + flight-plan.png. -->
     <SolidColorBrush x:Key="VTdlsChromeBg" Color="#000000" />
-    <SolidColorBrush x:Key="VTdlsListHeaderBg" Color="#1ec51e" />
+    <!-- List headers: upstream draws the active list's header darker and bold. -->
+    <SolidColorBrush x:Key="VTdlsListHeaderBg" Color="#80ee80" />
+    <SolidColorBrush x:Key="VTdlsListHeaderActiveBg" Color="#11be11" />
+    <!-- Keyboard highlight: upstream inverts the row (its text colour behind its background colour). -->
+    <SolidColorBrush x:Key="VTdlsHighlightBg" Color="#000000" />
+    <SolidColorBrush x:Key="VTdlsHighlightFg" Color="#ffffff" />
     <SolidColorBrush x:Key="VTdlsListBg" Color="#ffffff" />
     <SolidColorBrush x:Key="VTdlsListFg" Color="#0000bb" />
     <SolidColorBrush x:Key="VTdlsFooterBg" Color="#f0f0f0" />
@@ -47,6 +52,13 @@
       <Setter Property="Background" Value="{DynamicResource VTdlsHoverBg}" />
       <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsHoverFg}" />
     </Style>
+    <!-- The keyboard highlight (Up/Down), set from the view-model's HighlightedItem by the code-behind. After the
+             pointerover style so hovering a highlighted row keeps it inverted, before the selected ones so the
+             open row keeps the selection colours. -->
+    <Style Selector="ListBox.tdls > ListBoxItem.highlighted /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsHighlightBg}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsHighlightFg}" />
+    </Style>
     <Style Selector="ListBox.tdls > ListBoxItem:selected /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}" />
       <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}" />
@@ -61,10 +73,20 @@
     <Style Selector="TextBlock.tdls-list-header">
       <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
       <Setter Property="FontSize" Value="13" />
-      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontWeight" Value="Normal" />
       <Setter Property="Foreground" Value="#000000" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- The active list (Tab / backtick) gets upstream's darker, bold header. -->
+    <Style Selector="Border.tdls-list-header-bar">
+      <Setter Property="Background" Value="{DynamicResource VTdlsListHeaderBg}" />
+    </Style>
+    <Style Selector="Border.tdls-list-header-bar.active">
+      <Setter Property="Background" Value="{DynamicResource VTdlsListHeaderActiveBg}" />
+    </Style>
+    <Style Selector="Border.tdls-list-header-bar.active > TextBlock.tdls-list-header">
+      <Setter Property="FontWeight" Value="Bold" />
     </Style>
     <!-- Footer status colour lives in styles rather than as a local Foreground:
              a local value outranks a style setter in Avalonia, so a .warning class
@@ -242,7 +264,7 @@
         MinHeight="180"
       >
         <Grid RowDefinitions="22,*">
-          <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
+          <Border Grid.Row="0" x:Name="DclHeader" Classes="tdls-list-header-bar" Classes.active="{Binding IsDclListActive}">
             <TextBlock Text="DCL" Classes="tdls-list-header" />
           </Border>
           <!-- ItemsRepeater inside a ScrollViewer with a horizontal-wrap
@@ -305,7 +327,7 @@
         <!-- PDC -->
         <Border Grid.Column="0" Background="{DynamicResource VTdlsListBg}" BorderBrush="{DynamicResource VTdlsListBorder}" BorderThickness="1">
           <Grid RowDefinitions="22,*">
-            <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
+            <Border Grid.Row="0" x:Name="PdcHeader" Classes="tdls-list-header-bar" Classes.active="{Binding IsPdcListActive}">
               <TextBlock Text="PDC" Classes="tdls-list-header" />
             </Border>
             <ListBox
@@ -354,7 +376,7 @@
         <!-- CPDLC — decorative parity; never populates (VATSIM doesn't simulate CPDLC) -->
         <Border Grid.Column="1" Background="{DynamicResource VTdlsListBg}" BorderBrush="{DynamicResource VTdlsListBorder}" BorderThickness="1">
           <Grid RowDefinitions="22,*">
-            <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
+            <Border Grid.Row="0" x:Name="CpdlcHeader" Classes="tdls-list-header-bar" Classes.active="{Binding IsCpdlcListActive}">
               <TextBlock Text="CPDLC" Classes="tdls-list-header" />
             </Border>
             <!-- Intentionally empty body — upstream renders the list as
@@ -480,6 +502,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Expect"
+              x:Name="ExpectCombo"
             />
           </Grid>
 
@@ -517,6 +540,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="SID"
+              x:Name="SidCombo"
             />
             <ComboBox
               PlaceholderText="- - - -"
@@ -530,6 +554,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Transition"
+              x:Name="TransitionCombo"
             />
             <ComboBox
               PlaceholderText="- - - -"
@@ -543,6 +568,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Climb out"
+              x:Name="ClimboutCombo"
             />
             <ComboBox
               PlaceholderText="- - - -"
@@ -556,6 +582,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Climb via"
+              x:Name="ClimbviaCombo"
             />
             <ComboBox
               PlaceholderText="- - - -"
@@ -568,6 +595,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Maintain"
+              x:Name="InitialAltCombo"
             />
           </Grid>
 
@@ -586,6 +614,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Contact info"
+              x:Name="ContactInfoCombo"
             />
             <TextBlock
               Grid.Column="2"
@@ -607,6 +636,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Departure frequency"
+              x:Name="DepFreqCombo"
             />
           </Grid>
 
@@ -623,6 +653,7 @@
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
               ToolTip.Tip="Local info"
+              x:Name="LocalInfoCombo"
             />
           </Grid>
 

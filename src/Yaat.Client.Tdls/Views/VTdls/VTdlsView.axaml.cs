@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -8,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Find;
 using Yaat.Client.Services;
@@ -19,7 +21,9 @@ namespace Yaat.Client.Tdls.Views.VTdls;
 
 /// <summary>
 /// Code-behind for the vTDLS view. Handles user input the XAML can't express
-/// cleanly: keyboard shortcuts (F4 Dump, F10 close-editor, F12 Send), facility
+/// cleanly: keyboard shortcuts (F4 Dump, F10 close-editor, F12 Send, and upstream's
+/// keyboard model: Up/Down highlight, Enter open, Tab/backtick lists and fields, Esc
+/// Facility Menu, Ctrl+Alt+Left/Right facility), facility
 /// switcher MenuFlyout, and the Zulu-clock tick. The view never mutates state
 /// directly — every action funnels through <see cref="VTdlsViewModel"/> which
 /// emits canonical commands.
@@ -61,7 +65,181 @@ public partial class VTdlsView : UserControl
         AttachedToVisualTree += OnAttached;
         DetachedFromVisualTree += OnDetached;
         KeyDown += OnKeyDown;
+        // Tunnelled, so the list and navigation keys reach the view before a focused ListBox selects a row with them
+        // (which would open its editor) or the window moves focus with Tab.
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        DclListBox.ContainerPrepared += OnRowContainerPrepared;
+        PdcListBox.ContainerPrepared += OnRowContainerPrepared;
         DataContextChanged += OnDataContextChanged;
+    }
+
+    // ── Keyboard model (upstream vTDLS): highlight, Enter to open, Tab between lists ──
+
+    private const string HighlightedClass = "highlighted";
+
+    private async void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!IsViewKey(e, out VTdlsViewModel? vm))
+        {
+            return;
+        }
+        if (IsFacilityCycleKey(e))
+        {
+            e.Handled = true;
+            await vm.CycleFacilityAsync((e.Key == Key.Right) ? 1 : -1);
+            return;
+        }
+        if (vm.Editor is { } editor)
+        {
+            HandleEditorKeys(e, editor);
+        }
+        else
+        {
+            HandleListKeys(e, vm);
+        }
+    }
+
+    /// <summary>
+    /// True when the key belongs to this view's keyboard model, giving the view model that drives it: it came from
+    /// inside this view, a view model is present, and the list-editing find bar does not hold focus.
+    /// </summary>
+    private bool IsViewKey(KeyEventArgs e, [NotNullWhen(true)] out VTdlsViewModel? vm)
+    {
+        vm = null;
+        // A popup passes its events to the window it belongs to, so keys typed in the Facility Menu route through the
+        // Facility button and this view; the menu's contents are a separate visual tree, and their keys are the menu's.
+        if ((e.Source is not Visual source) || ((source != this) && !this.IsVisualAncestorOf(source)))
+        {
+            return false;
+        }
+        if ((DataContext is not VTdlsViewModel viewModel) || (_findController.IsVisible && FindBar.IsKeyboardFocusWithin))
+        {
+            return false;
+        }
+        vm = viewModel;
+        return true;
+    }
+
+    private static bool IsFacilityCycleKey(KeyEventArgs e) =>
+        (e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Alt)) && (e.Key is Key.Left or Key.Right);
+
+    /// <summary>Tab steps forward, Shift+Tab back; backtick, upstream's other cycling key, steps back.</summary>
+    private static int CycleStep(KeyEventArgs e) => ((e.Key == Key.Tab) && (e.KeyModifiers != KeyModifiers.Shift)) ? 1 : -1;
+
+    private static bool HasNoOrShiftModifier(KeyEventArgs e) => e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift;
+
+    /// <summary>
+    /// With no editor open: Up/Down move the highlight, Enter opens it, Tab and backtick cycle the active list. The
+    /// list's other navigation keys are swallowed: a focused ListBox would select a row with them, which opens its editor.
+    /// </summary>
+    private static void HandleListKeys(KeyEventArgs e, VTdlsViewModel vm)
+    {
+        if (!HasNoOrShiftModifier(e))
+        {
+            return;
+        }
+        switch (e.Key)
+        {
+            case Key.Down:
+                vm.MoveHighlight(1);
+                break;
+            case Key.Up:
+                vm.MoveHighlight(-1);
+                break;
+            case Key.Enter:
+                e.Handled = vm.OpenHighlighted();
+                return;
+            case Key.Tab or Key.OemTilde:
+                vm.CycleActiveList(CycleStep(e));
+                break;
+            case Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown:
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// With an editor open: Tab and backtick move focus through its fields in upstream's order (Shift+Tab and backtick
+    /// backwards), and Left/Right are swallowed, as upstream's are, so they never change a dropdown.
+    /// </summary>
+    private void HandleEditorKeys(KeyEventArgs e, TdlsFlightPlanEditorViewModel editor)
+    {
+        if (!HasNoOrShiftModifier(e))
+        {
+            return;
+        }
+        switch (e.Key)
+        {
+            case Key.Tab or Key.OemTilde:
+                e.Handled = true;
+                FocusNextEditorField(editor, CycleStep(e));
+                break;
+            case Key.Left or Key.Right:
+                e.Handled = true;
+                break;
+            default:
+                break;
+        }
+    }
+
+    /// <summary>The editor's fields in upstream's Tab order, which is not their layout order (Expect sits above SID).</summary>
+    private ComboBox[] EditorFields =>
+        [SidCombo, TransitionCombo, ClimboutCombo, ClimbviaCombo, InitialAltCombo, DepFreqCombo, ExpectCombo, ContactInfoCombo, LocalInfoCombo];
+
+    /// <summary>
+    /// Moves focus <paramref name="step"/> fields on from the focused one, wrapping; from outside the fields, forward
+    /// starts at SID and backward at Local info. A read-only review has no field to focus.
+    /// </summary>
+    private void FocusNextEditorField(TdlsFlightPlanEditorViewModel editor, int step)
+    {
+        if (editor.IsReadOnly)
+        {
+            return;
+        }
+        ComboBox[] fields = EditorFields;
+        int index = Array.IndexOf(fields, TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement());
+        int next = (index >= 0) ? VTdlsViewModel.Wrap(index + step, fields.Length) : ((step > 0) ? 0 : fields.Length - 1);
+        fields[next].Focus(NavigationMethod.Tab);
+    }
+
+    /// <summary>
+    /// An editable editor opens with SID focused, as upstream's does. A closed one hands focus back to the view when it
+    /// held it, so the list keys keep working (Enter, F12, Enter...) without a click.
+    /// </summary>
+    private void OnEditorShown(TdlsFlightPlanEditorViewModel? editor)
+    {
+        if (editor is { IsEditable: true })
+        {
+            SidCombo.Focus(NavigationMethod.Tab);
+            return;
+        }
+        IInputElement? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        bool focusInView = (focused is null) || ((focused is Visual visual) && this.IsVisualAncestorOf(visual));
+        if ((editor is null) && focusInView && !FindBar.IsKeyboardFocusWithin)
+        {
+            Focus();
+        }
+    }
+
+    private void OnRowContainerPrepared(object? sender, ContainerPreparedEventArgs e)
+    {
+        object? item = (sender as ItemsControl)?.ItemFromContainer(e.Container);
+        e.Container.Classes.Set(HighlightedClass, (item is not null) && ReferenceEquals(item, (DataContext as VTdlsViewModel)?.HighlightedItem));
+    }
+
+    /// <summary>Marks the highlighted row, and only it, in both lists; the list styles draw the mark.</summary>
+    private void RefreshRowHighlights()
+    {
+        TdlsItemViewModel? highlighted = (DataContext as VTdlsViewModel)?.HighlightedItem;
+        foreach (ListBox list in (ListBox[])[DclListBox, PdcListBox])
+        {
+            foreach (Control row in list.GetRealizedContainers())
+            {
+                row.Classes.Set(HighlightedClass, (highlighted is not null) && ReferenceEquals(list.ItemFromContainer(row), highlighted));
+            }
+        }
     }
 
     private VTdlsViewModel? _trackedVm;
@@ -166,9 +344,24 @@ public partial class VTdlsView : UserControl
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(VTdlsViewModel.IsDarkMode) && sender is VTdlsViewModel vm)
+        if (sender is not VTdlsViewModel vm)
         {
-            Dispatcher.UIThread.Post(() => ApplyTheme(vm.IsDarkMode));
+            return;
+        }
+        switch (e.PropertyName)
+        {
+            case nameof(VTdlsViewModel.IsDarkMode):
+                Dispatcher.UIThread.Post(() => ApplyTheme(vm.IsDarkMode));
+                break;
+            case nameof(VTdlsViewModel.HighlightedItem):
+                RefreshRowHighlights();
+                break;
+            case nameof(VTdlsViewModel.Editor):
+                // Loaded: after the editor's visibility binding and layout have run, so its fields can take focus.
+                Dispatcher.UIThread.Post(() => OnEditorShown(vm.Editor), DispatcherPriority.Loaded);
+                break;
+            default:
+                break;
         }
     }
 
@@ -191,7 +384,11 @@ public partial class VTdlsView : UserControl
         if (dark)
         {
             Resources["VTdlsChromeBg"] = new SolidColorBrush(Color.Parse("#0a0a0a"));
-            Resources["VTdlsListHeaderBg"] = new SolidColorBrush(Color.Parse("#1c8a1c"));
+            Resources["VTdlsListHeaderBg"] = new SolidColorBrush(Color.Parse("#5fa05f"));
+            Resources["VTdlsListHeaderActiveBg"] = new SolidColorBrush(Color.Parse("#1c8a1c"));
+            // Keyboard highlight: upstream's dark theme inverts a row to black text on white.
+            Resources["VTdlsHighlightBg"] = new SolidColorBrush(Color.Parse("#ffffff"));
+            Resources["VTdlsHighlightFg"] = new SolidColorBrush(Color.Parse("#000000"));
             Resources["VTdlsListBg"] = new SolidColorBrush(Color.Parse("#181818"));
             Resources["VTdlsListFg"] = new SolidColorBrush(Color.Parse("#5aa9ff"));
             Resources["VTdlsFooterBg"] = new SolidColorBrush(Color.Parse("#181818"));
@@ -218,7 +415,12 @@ public partial class VTdlsView : UserControl
         else
         {
             Resources["VTdlsChromeBg"] = new SolidColorBrush(Color.Parse("#000000"));
-            Resources["VTdlsListHeaderBg"] = new SolidColorBrush(Color.Parse("#1ec51e"));
+            // Upstream's header greens: the inactive lists' pale one, the active list's darker one.
+            Resources["VTdlsListHeaderBg"] = new SolidColorBrush(Color.Parse("#80ee80"));
+            Resources["VTdlsListHeaderActiveBg"] = new SolidColorBrush(Color.Parse("#11be11"));
+            // Keyboard highlight: upstream's light theme inverts a row to white text on black.
+            Resources["VTdlsHighlightBg"] = new SolidColorBrush(Color.Parse("#000000"));
+            Resources["VTdlsHighlightFg"] = new SolidColorBrush(Color.Parse("#ffffff"));
             Resources["VTdlsListBg"] = new SolidColorBrush(Color.Parse("#ffffff"));
             Resources["VTdlsListFg"] = new SolidColorBrush(Color.Parse("#0000bb"));
             Resources["VTdlsFooterBg"] = new SolidColorBrush(Color.Parse("#f0f0f0"));
@@ -269,15 +471,61 @@ public partial class VTdlsView : UserControl
 
     private async void OnFacilityButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not VTdlsViewModel vm)
+        if (DataContext is VTdlsViewModel vm)
+        {
+            await ShowFacilityMenuAsync(vm);
+        }
+    }
+
+    /// <summary>The Facility Menu while it is (or was last) shown; Esc closes it through this.</summary>
+    private MenuFlyout? _facilityFlyout;
+
+    /// <summary>Esc: opens the Facility Menu, as upstream's Esc does, or closes it when it is open.</summary>
+    private async Task ToggleFacilityMenuAsync(KeyEventArgs e, VTdlsViewModel vm)
+    {
+        if (e.KeyModifiers != KeyModifiers.None)
         {
             return;
         }
+        e.Handled = true;
+        if (_facilityFlyout is { IsOpen: true } open)
+        {
+            open.Hide();
+            return;
+        }
+        await ShowFacilityMenuAsync(vm);
+    }
 
-        // Refresh the accessible-facility list on click so a long-running window
-        // picks up new TDLS facilities that came online mid-session.
-        await vm.RefreshAccessibleFacilitiesAsync();
+    /// <summary>True while a Facility Menu is being opened, so a second Esc or click in that time opens no second menu.</summary>
+    private bool _facilityMenuOpening;
 
+    private async Task ShowFacilityMenuAsync(VTdlsViewModel vm)
+    {
+        if (_facilityMenuOpening)
+        {
+            return;
+        }
+        _facilityMenuOpening = true;
+        try
+        {
+            // Refresh the accessible-facility list on each opening so a long-running window
+            // picks up new TDLS facilities that came online mid-session.
+            await vm.RefreshAccessibleFacilitiesAsync();
+        }
+        finally
+        {
+            _facilityMenuOpening = false;
+        }
+
+        MenuFlyout flyout = BuildFacilityFlyout(vm);
+        _facilityFlyout = flyout;
+        // Attached as well as shown, so the menu that is open can be found from its button.
+        FlyoutBase.SetAttachedFlyout(FacilityButton, flyout);
+        flyout.ShowAt(FacilityButton);
+    }
+
+    private static MenuFlyout BuildFacilityFlyout(VTdlsViewModel vm)
+    {
         var flyout = new MenuFlyout();
         foreach (AccessibleFacilityDto facility in vm.AccessibleFacilities)
         {
@@ -310,10 +558,7 @@ public partial class VTdlsView : UserControl
 
         flyout.Items.Add(new Separator());
         AddDepFreqItems(flyout, vm);
-
-        // Attached as well as shown, so the menu that is open can be found from its button.
-        FlyoutBase.SetAttachedFlyout(FacilityButton, flyout);
-        flyout.ShowAt(FacilityButton);
+        return flyout;
     }
 
     /// <summary>Upstream's "None" entry of the Override Dep Freq select.</summary>
@@ -568,50 +813,58 @@ public partial class VTdlsView : UserControl
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (DataContext is not VTdlsViewModel vm)
-        {
-            return;
-        }
-
-        // In-view Find (Ctrl+F / F3 / Shift+F3 / Esc) takes priority over TDLS shortcuts.
-        if (HandleFindKeys(e))
-        {
-            return;
-        }
-
-        // While the find box owns keyboard focus, its editing keys must not trigger TDLS actions.
-        if (_findController.IsVisible && FindBar.IsKeyboardFocusWithin)
+        // In-view Find (Ctrl+F / F3 / Shift+F3 / Esc) takes priority over TDLS shortcuts, and while the find box owns
+        // keyboard focus its editing keys must not trigger TDLS actions.
+        if ((DataContext is not VTdlsViewModel vm) || HandleFindKeys(e) || (_findController.IsVisible && FindBar.IsKeyboardFocusWithin))
         {
             return;
         }
 
         switch (e.Key)
         {
-            // Dump and Send go nowhere while disconnected, so their keys do nothing then, like their disabled buttons.
             case Key.F4:
-                if (!vm.IsConnected)
-                {
-                    break;
-                }
-                e.Handled = true;
-                await vm.DumpSelectedCommand.ExecuteAsync(null);
+                await DumpByKeyAsync(e, vm);
                 break;
             case Key.F12:
-                if ((vm.IsConnected) && (vm.Editor is { IsSendEnabled: true } editor))
-                {
-                    e.Handled = true;
-                    await editor.SendCommand.ExecuteAsync(null);
-                }
+                await SendByKeyAsync(e, vm);
                 break;
             case Key.F10:
-                if (vm.Editor is not null)
-                {
-                    e.Handled = true;
-                    vm.SelectedItem = null;
-                }
+                CancelByKey(e, vm);
+                break;
+            case Key.Escape:
+                await ToggleFacilityMenuAsync(e, vm);
                 break;
             default:
                 break;
+        }
+    }
+
+    // Dump and Send go nowhere while disconnected, so their keys do nothing then, like their disabled buttons.
+    private static async Task DumpByKeyAsync(KeyEventArgs e, VTdlsViewModel vm)
+    {
+        if (!vm.IsConnected)
+        {
+            return;
+        }
+        e.Handled = true;
+        await vm.DumpSelectedCommand.ExecuteAsync(null);
+    }
+
+    private static async Task SendByKeyAsync(KeyEventArgs e, VTdlsViewModel vm)
+    {
+        if ((vm.IsConnected) && (vm.Editor is { IsSendEnabled: true } editor))
+        {
+            e.Handled = true;
+            await editor.SendCommand.ExecuteAsync(null);
+        }
+    }
+
+    private static void CancelByKey(KeyEventArgs e, VTdlsViewModel vm)
+    {
+        if (vm.Editor is not null)
+        {
+            e.Handled = true;
+            vm.SelectedItem = null;
         }
     }
 }

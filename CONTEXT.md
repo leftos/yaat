@@ -1221,6 +1221,12 @@ One named strip area of a facility (Ground 1, Local) holding a fixed number of r
 **Rack**:
 One column of strips in a bay, numbered from 1 in commands and from 0 in the engine; index 0 is its visual bottom and the newest strip stacks on top.
 
+## vTDLS
+
+**Highlight** (vTDLS):
+The row the vTDLS keyboard points at in the active list: Up/Down move it, Enter opens it, drawn inverted. Not the selection, which is the open row; tests and older docs that say "highlight" for a clicked row mean the selection.
+_Avoid_: selection (the open row is a different thing)
+
 ## Releases
 
 **Feature showcase**:

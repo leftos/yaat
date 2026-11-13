@@ -356,6 +356,21 @@ The mode is chosen per host. The desktop tab seeds it from `UserPreferences.IsVT
 
 The editor's dropdowns and its Dump / Edit / Cancel / Send buttons are styled by the view from the `VTdlsControl*` brushes, set for both modes in `ApplyTheme`: grey with a mid-grey border and black text in light mode, a step lighter than the panel with pale text in dark mode, a paler fill and dimmer text when disabled, darker on hover and press. The `- - - -` placeholder is drawn at full strength. `VTdlsViewInteractionTests` (`Theme_*`) checks the pinned variant and the control contrast in both modes.
 
+## Key commands
+
+The keyboard model follows upstream's vTDLS. Two pieces of `VTdlsViewModel` state drive it: `ActiveList` (`TdlsAircraftList`: Dcl, Cpdlc, Pdc) and `HighlightedItem`, the row Up/Down point at and Enter opens. The highlight is not the selection (`SelectedItem`): only Enter, a row click and a send move one to the other. Existing tests that say "highlight" mean the selection; here the word means this pointer (see the glossary).
+
+`VTdlsView` routes the keys and the view model holds the logic (`MoveHighlight`, `CycleActiveList`, `OpenHighlighted`), pinned by `VTdlsKeyboardModelTests` and `VTdlsViewInteractionTests`:
+
+- **No editor open.** Up/Down move the highlight within the active list and wrap, opening nothing; Enter opens the highlighted row as a click does. Tab, or backtick / Shift+Tab backwards, cycles the active list DCL, CPDLC, PDC; CPDLC is an empty stop and entering a list highlights its first row. The active list's first row is also highlighted when the page opens and when items arrive.
+- **Editor open.** The SID box takes focus when an editable editor opens. Tab steps Sid, Transition, Climb out, Climb via, Maintain, Dep Freq, Expect, Contact info, Local info; Shift+Tab and backtick go backwards; Left/Right do nothing.
+- **After a Send** the highlight moves to the next DCL row.
+- **Esc** toggles the Facility Menu; with Find open it closes Find only. **Ctrl+Alt+Right / Left** switch to the next / previous accessible facility, wrapping, and do nothing while disconnected.
+- A click on a row still opens it and moves the highlight and the active list there (`HighlightSelected`).
+- The keys reach the view only while it has keyboard focus, and it does not take focus when it opens: a click or Tab into it comes first.
+
+The active list's header is bright green and bold, the others light green and normal weight. The highlighted row is drawn inverted by a `highlighted` class on the row container (`VTdlsHighlightBg` / `VTdlsHighlightFg`, set per mode in `ApplyTheme`: white on black in light mode, black on white in dark); the open row keeps the selection colours.
+
 ## Temporary and override departure frequencies
 
 The Facility Menu holds three view-local settings under a separator after Dark Mode: **Temp. Dep Freqs** (a text box), **Override Dep Freq** (a drop-down of "None" plus the temp frequencies) and **Add current frequency to Temp. Dep Freqs** (a checkable item). They live on `VTdlsViewModel` (`TempDepFreqs`, `OverrideDepFreq`, `AddCurrentFrequencyToTempDepFreqs`), are not saved, are lost when the view closes and survive a facility switch.
@@ -387,7 +402,7 @@ Every read-only value in the flight-plan header block and the footer status is a
 
 The DCL/PDC **list rows stay `TextBlock`**: `SelectableTextBlock` marks `PointerPressed` handled, so the press never reaches the `ListBox` and clicking a row would stop selecting it — the same trap applies to any `SelectableTextBlock` inside a `ListBoxItem` anywhere in the app.
 
-The two lists must not share one two-way `SelectedItem` binding: a selection pushed into a list that does not hold the item makes that list clear its selection and write null back over the click, which stuck the view after reviewing a sent PDC. `DclListBox` binds `SelectedPendingItem` and `PdcListBox` binds `SelectedSentItem`, both mirrored from `VTdlsViewModel.SelectedItem` (the one selection every action reads), and a send clears `SelectedItem` explicitly. `VTdlsViewInteractionTests` clicks through the `ListBox` rows to pin it.
+The two lists must not share one two-way `SelectedItem` binding: a selection pushed into a list that does not hold the item makes that list clear its selection and write null back over the click, which stuck the view after reviewing a sent PDC. `DclListBox` binds `SelectedPendingItem` and `PdcListBox` binds `SelectedSentItem`, both mirrored from `VTdlsViewModel.SelectedItem` (the one selection every action reads), and a send clears `SelectedItem` explicitly. `VTdlsViewInteractionTests` clicks through the `ListBox` rows to pin it. The keyboard highlight (`VTdlsViewModel.HighlightedItem`, see "Key commands") is a third, separate pointer: it is not bound to either `ListBox` selection and selecting never reads it, so moving it with the arrow keys opens nothing.
 
 The footer's style selectors are `:is(TextBlock).footer-status` because an Avalonia type selector matches the exact type. `VTdlsViewInteractionTests` pins the control type and the selection API; the headless drawing backend cannot hit-test text, so drag-selection itself needs an eyeball in the running client.
 

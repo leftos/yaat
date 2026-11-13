@@ -1616,6 +1616,485 @@ public class VTdlsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    // ── Keyboard model (upstream vTDLS) ──────────────────────────
+
+    [AvaloniaFact]
+    public void PageOpensOnTheFirstDclRow_AndDownTwiceThenEnterOpensTheThird()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(
+            new TdlsStateDto(
+                [Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD"), Item("id3", "DAL333", facilityId: "IAD")],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+        Assert.Equal(["UAL111"], HighlightedRows(view, "DclListBox"));
+
+        PressKey(view, Key.Down);
+        PressKey(view, Key.Down);
+        Assert.Null(vm.Editor);
+        Assert.Equal(["DAL333"], HighlightedRows(view, "DclListBox"));
+
+        PressKey(view, Key.Enter);
+
+        Assert.Equal("DAL333", vm.Editor?.Callsign);
+        Assert.Equal("DAL333", vm.SelectedItem?.AircraftId);
+    }
+
+    /// <summary>Down on a focused list moves the highlight; the ListBox no longer selects the row, which would open its editor.</summary>
+    [AvaloniaFact]
+    public void DownOnTheFocusedList_HighlightsWithoutOpeningAnEditor()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        VTdlsView view = BootViewWithFocusedDclRow(vm, transport);
+
+        UiWindow(view).KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);
+        Assert.Null(vm.SelectedItem);
+        Assert.Equal("AAL222", vm.HighlightedItem?.AircraftId);
+        Assert.Equal(["AAL222"], HighlightedRows(view, "DclListBox"));
+    }
+
+    /// <summary>The list's other navigation keys would select a row of a focused ListBox too, and with it open an editor.</summary>
+    [AvaloniaTheory]
+    [InlineData(PhysicalKey.ArrowRight)]
+    [InlineData(PhysicalKey.ArrowLeft)]
+    [InlineData(PhysicalKey.Home)]
+    [InlineData(PhysicalKey.End)]
+    [InlineData(PhysicalKey.PageDown)]
+    [InlineData(PhysicalKey.PageUp)]
+    public void OtherNavigationKeysOnTheFocusedList_OpenNoEditor(PhysicalKey key)
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        VTdlsView view = BootViewWithFocusedDclRow(vm, transport);
+
+        UiWindow(view).KeyPressQwerty(key, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);
+        Assert.Null(vm.SelectedItem);
+        Assert.Equal("UAL111", vm.HighlightedItem?.AircraftId);
+    }
+
+    /// <summary>Two DCL rows on the page, keyboard focus on the first, where a click leaves it; the ListBox itself does not take focus.</summary>
+    private static VTdlsView BootViewWithFocusedDclRow(VTdlsViewModel vm, FakeTdlsTransport transport)
+    {
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+        ListBox list = view.FindControl<ListBox>("DclListBox")!;
+        list.GetVisualDescendants().OfType<ListBoxItem>().First().Focus();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(list.IsKeyboardFocusWithin);
+        return view;
+    }
+
+    [AvaloniaFact]
+    public void RowClick_MovesTheHighlightAndTheActiveList()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(
+            new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD"), Item("id2", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent)], [])
+        );
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+        Assert.Equal("DclHeader", ActiveHeader(view));
+
+        ClickRow(view, "PdcListBox", "AAL9");
+
+        Assert.Equal(TdlsAircraftList.Pdc, vm.ActiveList);
+        Assert.Equal("PdcHeader", ActiveHeader(view));
+        Assert.Equal("AAL9", vm.HighlightedItem?.AircraftId);
+        Assert.Equal(["AAL9"], HighlightedRows(view, "PdcListBox"));
+        Assert.Empty(HighlightedRows(view, "DclListBox"));
+    }
+
+    [AvaloniaFact]
+    public void ShiftTabAndBacktick_CycleTheListsBackwards()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+
+        PressKey(view, Key.Tab, KeyModifiers.Shift);
+        Assert.Equal("PdcHeader", ActiveHeader(view));
+        PressKey(view, Key.OemTilde);
+        Assert.Equal("CpdlcHeader", ActiveHeader(view));
+        PressKey(view, Key.OemTilde);
+        Assert.Equal("DclHeader", ActiveHeader(view));
+    }
+
+    [AvaloniaFact]
+    public void Backtick_InTheEditor_StepsTheFieldsBackwards()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("SidCombo", FocusedName(view));
+
+        PressKeyOnFocused(view, Key.OemTilde);
+        Assert.Equal("LocalInfoCombo", FocusedName(view));
+        PressKeyOnFocused(view, Key.OemTilde);
+        Assert.Equal("ContactInfoCombo", FocusedName(view));
+    }
+
+    [AvaloniaFact]
+    public void ClosingTheEditor_ReturnsFocusToTheView()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("SidCombo", FocusedName(view));
+
+        PressCancel(view);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);
+        Assert.Same(view, TopLevel.GetTopLevel(view)!.FocusManager!.GetFocusedElement());
+    }
+
+    [AvaloniaFact]
+    public void ClosingTheEditor_LeavesFocusOnAControlOutsideTheView()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        var view = new VTdlsView { DataContext = vm, Height = 800 };
+        var outside = new TextBox { Name = "Outside" };
+        var window = new Window
+        {
+            Width = 900,
+            Height = 900,
+            Content = new StackPanel { Children = { outside, view } },
+        };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        outside.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.SelectedItem = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);
+        Assert.Same(outside, window.FocusManager!.GetFocusedElement());
+    }
+
+    [AvaloniaFact]
+    public void CtrlAltRight_WhileDisconnected_DoesNothing()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        transport.AccessibleFacilities = [new AccessibleFacilityDto("IAD", "Dulles", true), new AccessibleFacilityDto("DCA", "National", false)];
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+        vm.SetConnected(false);
+        Dispatcher.UIThread.RunJobs();
+
+        PressKey(view, Key.Right, KeyModifiers.Control | KeyModifiers.Alt);
+
+        Assert.Equal("IAD", vm.FacilityId);
+        Assert.Equal(0, transport.FacilityViewRequests);
+    }
+
+    /// <summary>
+    /// Upstream's list headers in each theme: the active list's darker and bold, the others pale and regular, black text
+    /// reading on all of them; and the highlighted row inverted, while a row both highlighted and open keeps the
+    /// selection colours.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Theme_ListHeadersAndTheHighlightedRow(bool dark)
+    {
+        string activeHeader = dark ? "#1c8a1c" : "#11be11";
+        string inactiveHeader = dark ? "#5fa05f" : "#80ee80";
+        string highlightBg = dark ? "#ffffff" : "#000000";
+        string highlightFg = dark ? "#000000" : "#ffffff";
+        string selectedBg = dark ? "#5aa9ff" : "#000000";
+        string selectedFg = dark ? "#000000" : "#ffffff";
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        vm.IsDarkMode = dark;
+        VTdlsView view = BootView(vm);
+
+        Color black = Colors.Black;
+        foreach (
+            (string name, string expected, FontWeight weight) in (List<(string, string, FontWeight)>)
+                [
+                    ("DclHeader", activeHeader, FontWeight.Bold),
+                    ("PdcHeader", inactiveHeader, FontWeight.Normal),
+                    ("CpdlcHeader", inactiveHeader, FontWeight.Normal),
+                ]
+        )
+        {
+            Border header = view.FindControl<Border>(name)!;
+            Color background = SolidColour(header.Background, name);
+            Assert.Equal(Color.Parse(expected), background);
+            Assert.Equal(weight, ((TextBlock)header.Child!).FontWeight);
+            Assert.True(ContrastRatio(black, background) >= 4.5, $"{name} text reads at {ContrastRatio(black, background):F2}:1");
+        }
+
+        (Color bg, Color fg) = RowColours(view, "UAL111");
+        Assert.Equal(Color.Parse(highlightBg), bg);
+        Assert.Equal(Color.Parse(highlightFg), fg);
+
+        ClickRow(view, "DclListBox", "UAL111");
+        Assert.Same(vm.HighlightedItem, vm.SelectedItem);
+        (bg, fg) = RowColours(view, "UAL111");
+        Assert.Equal(Color.Parse(selectedBg), bg);
+        Assert.Equal(Color.Parse(selectedFg), fg);
+    }
+
+    /// <summary>The background and text colour a DCL row's template draws it in.</summary>
+    private static (Color Background, Color Foreground) RowColours(VTdlsView view, string callsign)
+    {
+        ListBoxItem row = view.FindControl<ListBox>("DclListBox")!
+            .GetVisualDescendants()
+            .OfType<ListBoxItem>()
+            .Single(c => (c.DataContext as TdlsItemViewModel)?.AircraftId == callsign);
+        row.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        ContentPresenter presenter = row.GetVisualDescendants().OfType<ContentPresenter>().First();
+        return (SolidColour(presenter.Background, $"{callsign} row"), SolidColour(presenter.Foreground, $"{callsign} row text"));
+    }
+
+    /// <summary>Raises a key on the focused control, so it tunnels through the view to it.</summary>
+    private static void PressKeyOnFocused(VTdlsView view, Key key)
+    {
+        var focused = (Interactive)TopLevel.GetTopLevel(view)!.FocusManager!.GetFocusedElement()!;
+        focused.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public void Tab_MovesTheActiveHeader_DclCpdlcPdc()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+        Assert.Equal("DclHeader", ActiveHeader(view));
+
+        PressKey(view, Key.Tab);
+        Assert.Equal("CpdlcHeader", ActiveHeader(view));
+        PressKey(view, Key.Tab);
+        Assert.Equal("PdcHeader", ActiveHeader(view));
+        PressKey(view, Key.Tab);
+        Assert.Equal("DclHeader", ActiveHeader(view));
+    }
+
+    [AvaloniaFact]
+    public void EditorOpen_FocusesSid_AndTabStepsTheFieldsInUpstreamOrder()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("SidCombo", FocusedName(view));
+
+        string[] order =
+        [
+            "TransitionCombo",
+            "ClimboutCombo",
+            "ClimbviaCombo",
+            "InitialAltCombo",
+            "DepFreqCombo",
+            "ExpectCombo",
+            "ContactInfoCombo",
+            "LocalInfoCombo",
+            "SidCombo",
+        ];
+        foreach (string expected in order)
+        {
+            UiWindow(view).KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(expected, FocusedName(view));
+        }
+
+        UiWindow(view).KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.Shift);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("LocalInfoCombo", FocusedName(view));
+        UiWindow(view).KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.Shift);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("ContactInfoCombo", FocusedName(view));
+    }
+
+    [AvaloniaFact]
+    public void RightAndLeft_OnAFocusedField_LeaveItsSelectionAlone()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithTwoSids());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        ComboBox sid = view.FindControl<ComboBox>("SidCombo")!;
+        Assert.Equal("SidCombo", FocusedName(view));
+        object? before = sid.SelectedItem;
+
+        UiWindow(view).KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        UiWindow(view).KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(before, sid.SelectedItem);
+        Assert.Equal("SidCombo", FocusedName(view));
+    }
+
+    [AvaloniaFact]
+    public void Esc_OpensTheFacilityMenu_AndEscAgainClosesIt()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+        Button button = view.FindControl<Button>("FacilityButton")!;
+
+        PressKey(view, Key.Escape);
+        MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+        Assert.True(flyout.IsOpen);
+
+        PressKey(view, Key.Escape);
+        Assert.False(flyout.IsOpen);
+    }
+
+    /// <summary>
+    /// Keys typed in the Facility Menu belong to the menu: its popup routes them up through the view's button, but the
+    /// list keys must not act on them. Enter commits the frequencies rather than opening the highlighted row, and the
+    /// arrows leave the list highlight where it was.
+    /// </summary>
+    [AvaloniaFact]
+    public void KeysTypedInTheFacilityMenu_DoNotDriveTheLists()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+        PressKey(view, Key.Down);
+        TdlsItemViewModel? highlighted = vm.HighlightedItem;
+        Assert.NotNull(highlighted);
+
+        MenuFlyout flyout = OpenFacilityMenu(view);
+        TextBox box = TypeTempDepFreqs(flyout, "125.35");
+        TopLevel menuTop = TopLevel.GetTopLevel(box)!;
+        menuTop.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        menuTop.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+        menuTop.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        flyout.Hide();
+        Dispatcher.UIThread.RunJobs();
+
+        // On the desktop the menu's popup passes its events to the window it belongs to, through the Facility button
+        // and so through the view. The headless menu does not route that way, so a popup the view hosts stands in: its
+        // contents are a separate visual tree whose key events route through the view, which the probe confirms.
+        var popupBox = new TextBox();
+        var popup = new Popup { Child = popupBox, PlacementTarget = view.FindControl<Button>("FacilityButton") };
+        view.GetVisualDescendants().OfType<Grid>().First().Children.Add(popup);
+        popup.IsOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        popupBox.Focus();
+        Dispatcher.UIThread.RunJobs();
+        int throughView = 0;
+        view.AddHandler(InputElement.KeyDownEvent, (_, _) => throughView++, RoutingStrategies.Tunnel, handledEventsToo: true);
+        foreach (PhysicalKey key in (PhysicalKey[])[PhysicalKey.ArrowDown, PhysicalKey.ArrowUp, PhysicalKey.Tab, PhysicalKey.Enter])
+        {
+            TopLevel.GetTopLevel(popupBox)!.KeyPressQwerty(key, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.Equal(4, throughView);
+        Assert.Null(vm.Editor);
+        Assert.Equal(TdlsAircraftList.Dcl, vm.ActiveList);
+        Assert.Equal(["125.35"], vm.TempDepFreqs);
+        Assert.Same(highlighted, vm.HighlightedItem);
+    }
+
+    [AvaloniaFact]
+    public void Esc_WithFindOpen_ClosesFindOnly()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+        PressKey(view, Key.F, KeyModifiers.Control);
+        Assert.True(view.FindController.IsVisible);
+
+        PressKey(view, Key.Escape);
+
+        Assert.False(view.FindController.IsVisible);
+        Assert.Null(FlyoutBase.GetAttachedFlyout(view.FindControl<Button>("FacilityButton")!));
+    }
+
+    [AvaloniaFact]
+    public void CtrlAltRight_SwitchesToTheNextAccessibleFacility_AndWraps()
+    {
+        (VTdlsViewModel vm, FakeTdlsTransport transport) = MakeVm();
+        transport.AccessibleFacilities = [new AccessibleFacilityDto("IAD", "Dulles", true), new AccessibleFacilityDto("DCA", "National", false)];
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+
+        PressKey(view, Key.Right, KeyModifiers.Control | KeyModifiers.Alt);
+        Assert.Equal("DCA", vm.FacilityId);
+
+        PressKey(view, Key.Right, KeyModifiers.Control | KeyModifiers.Alt);
+        Assert.Equal("IAD", vm.FacilityId);
+
+        PressKey(view, Key.Left, KeyModifiers.Control | KeyModifiers.Alt);
+        Assert.Equal("DCA", vm.FacilityId);
+    }
+
+    /// <summary>Raises a key on the view, as the Find test does: tunnelling and bubbling through the view's own handlers.</summary>
+    private static void PressKey(VTdlsView view, Key key, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        view.RaiseEvent(
+            new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent,
+                Key = key,
+                KeyModifiers = modifiers,
+            }
+        );
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static string? FocusedName(VTdlsView view) => (TopLevel.GetTopLevel(view)!.FocusManager!.GetFocusedElement() as Control)?.Name;
+
+    /// <summary>The single list header drawn active.</summary>
+    private static string ActiveHeader(VTdlsView view) =>
+        Assert.Single((string[])["DclHeader", "CpdlcHeader", "PdcHeader"], n => view.FindControl<Border>(n)!.Classes.Contains("active"));
+
+    /// <summary>The callsigns of the rows a list draws highlighted.</summary>
+    private static string[] HighlightedRows(VTdlsView view, string listName) =>
+        [
+            .. view.FindControl<ListBox>(listName)!
+                .GetVisualDescendants()
+                .OfType<ListBoxItem>()
+                .Where(row => row.Classes.Contains("highlighted"))
+                .Select(row => ((TdlsItemViewModel)row.DataContext!).AircraftId),
+        ];
+
     // ── Helpers ──────────────────────────────────────────────────
 
     /// <summary>
@@ -1871,7 +2350,11 @@ public class VTdlsViewInteractionTests
         /// <summary>One item changed — the incremental broadcast a flight-plan amendment produces.</summary>
         public void PushItem(TdlsItemDto item) => TdlsItemChanged?.Invoke(item);
 
-        public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() => Task.FromResult(new List<AccessibleFacilityDto>());
+        /// <summary>The facilities <see cref="GetAccessibleTdlsFacilitiesAsync"/> answers with; none by default.</summary>
+        public List<AccessibleFacilityDto> AccessibleFacilities { get; set; } = [];
+
+        public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() =>
+            Task.FromResult(new List<AccessibleFacilityDto>(AccessibleFacilities));
 
         /// <summary>The page <see cref="GetTdlsFacilityViewAsync"/> answers with; null by default.</summary>
         public TdlsFacilityViewDto? FacilityView { get; set; }
