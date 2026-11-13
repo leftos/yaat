@@ -87,6 +87,9 @@ An airport whose ground layout was still loading when the engine first read it a
 **Layout admission** (also *admitted layout*):
 The second a live run lets a deferred airport's landed ground layout answer reads, checked at the opening of each second and recorded. A replay admits only on that record, never from the source. An aircraft waiting on the airport (a flight-plan amend or destination change that met it still loading) keeps its layout until the admission second, where its layout pick re-runs.
 
+**Layout loading** (the refusal state):
+An airport's layout fetch has not landed, or is retrying after an unreachable fetch. A ground command to an aircraft there is refused "Layout loading, try again" (`DispatchContext.GroundLayoutLoading`), as is `ASSUME` of a shadow on the ground there; the refusal ends at the airport's layout admission.
+
 **Resource manifest**:
 What a scenario JSON will make the server fetch — its ARTCC, the roster's neighbouring ARTCCs and every airport it names — read without loading anything (`ScenarioResourceManifest`).
 

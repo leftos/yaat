@@ -131,6 +131,12 @@ public static class LiveTrafficAssumer
             return new CommandResult(false, $"{aircraft.Callsign} is not live traffic");
         }
 
+        // A shadow on the ground is seeded onto its airport's layout; while that layout loads it stays a shadow.
+        if (ctx.GroundLayoutLoading && aircraft.IsOnGround)
+        {
+            return new CommandResult(false, CommandDispatcher.LayoutLoadingMessage);
+        }
+
         // The token captures the phase list by reference, and the seed's approach install clears whatever list is
         // there in place (ApproachCommandHandler.ClearExistingPhases) — which would empty the captured one too. A
         // shadow has no phases (LiveTrafficKinematics.CreateShadow, and the tick loop never gives it any), so this

@@ -133,6 +133,13 @@ public sealed record DispatchContext
     public required Func<string, GroundDataRead>? LayoutReadForAirport { get; init; }
 
     /// <summary>
+    /// True when <see cref="GroundLayout"/> is null because the aircraft's airport is still loading
+    /// (<see cref="Simulation.SimulationEngine.PickGroundLayout"/>); a command that needs the layout is then refused
+    /// "Layout loading, try again" rather than "No ground layout available". False where no engine supplies one.
+    /// </summary>
+    public bool GroundLayoutLoading { get; init; }
+
+    /// <summary>
     /// The spoken-wording context a handler-built pilot transmission (the CT and FCA readbacks) uses for an aircraft:
     /// the engine's live band, seed, second and abbreviation draws when a pilot is answering, else
     /// <see cref="PilotSpeechContext.Canonical"/>. Read before the controller's transmission is counted on the frequency.

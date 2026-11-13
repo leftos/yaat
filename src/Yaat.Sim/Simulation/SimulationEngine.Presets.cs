@@ -388,10 +388,11 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        (AirportGroundLayout? groundLayout, bool layoutLoading) = DispatchGroundLayout(aircraft);
         var ctx = new DispatchContext
         {
             GroundLayout = groundLayout,
+            GroundLayoutLoading = layoutLoading,
             Rng = World.Rng,
             Weather = World.Weather,
             FindAircraft = FindAircraft,
@@ -525,9 +526,11 @@ public sealed partial class SimulationEngine
     private DispatchContext BuildTimedPresetContext(AircraftState aircraft)
     {
         SimScenarioState scenario = Scenario!;
+        (AirportGroundLayout? groundLayout, bool layoutLoading) = DispatchGroundLayout(aircraft);
         return new DispatchContext
         {
-            GroundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft),
+            GroundLayout = groundLayout,
+            GroundLayoutLoading = layoutLoading,
             Rng = World.Rng,
             Weather = World.Weather,
             FindAircraft = FindAircraft,
@@ -644,10 +647,11 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        (AirportGroundLayout? groundLayout, bool layoutLoading) = DispatchGroundLayout(aircraft);
         var singlePresetCtx = new DispatchContext
         {
             GroundLayout = groundLayout,
+            GroundLayoutLoading = layoutLoading,
             Rng = World.Rng,
             Weather = World.Weather,
             FindAircraft = FindAircraft,

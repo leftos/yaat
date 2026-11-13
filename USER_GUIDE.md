@@ -2111,6 +2111,8 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `STBY` | Acknowledge pilot contact without issuing a maneuver |
 | `ATXI @H1` | Helicopter air-taxi to helipad H1 |
 
+While an aircraft's airport ground layout is still loading (an airport the room reads after it has started, such as a live-traffic airport or a destination you just changed), ground commands to it (`PUSH`, `TAXI`, `CROSS`, `HS`, `CTO`, `LUAW`, `LAND` and the rest of the taxi and runway set) are refused `Layout loading, try again`; send them again a moment later. `ASSUME` of a live-traffic aircraft on the ground there is refused the same way.
+
 Commands support chaining (`;` sequential, `,` parallel), conditional triggers (`LV` at altitude, `AT` at fix), and aliases from both ATCTrainer and VICE.
 
 When a command references a fix that has a friendly name in the ARTCC data — a visual reporting point or named landmark such as `VPCBT` ("Lake Chabot") — the command response and the pilot's readback show that name next to the identifier, e.g. *Cross LAKE CHABOT (VPCBT) at 3,000*. Plain fixes keep their identifier.

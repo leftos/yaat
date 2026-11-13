@@ -1692,6 +1692,30 @@ public static class CommandDescriber
                 or ClearRunwayCommand;
     }
 
+    private static readonly HashSet<Type> GroundLayoutCommandTypes =
+    [
+        typeof(PushbackCommand),
+        typeof(PushbackMultiCommand),
+        typeof(TaxiCommand),
+        typeof(TaxiAutoCommand),
+        typeof(ReRouteTaxiCommand),
+        typeof(CrossRunwayCommand),
+        typeof(HoldShortCommand),
+        typeof(ResumeCommand),
+        typeof(AirTaxiCommand),
+        typeof(LandCommand),
+        typeof(LandAndHoldShortCommand),
+        typeof(ClearedForTakeoffCommand),
+        typeof(LineUpAndWaitCommand),
+        typeof(WarpGroundCommand),
+    ];
+
+    /// <summary>
+    /// Whether <paramref name="command"/>'s handler refuses it with no ground layout ("No (airport) ground layout
+    /// available"), so the dispatcher refuses it "Layout loading, try again" while the aircraft's airport is loading.
+    /// </summary>
+    internal static bool NeedsGroundLayout(ParsedCommand command) => GroundLayoutCommandTypes.Contains(command.GetType());
+
     internal static bool IsPhaseTransparent(CanonicalCommandType type)
     {
         return type

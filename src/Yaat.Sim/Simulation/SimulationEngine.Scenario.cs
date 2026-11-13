@@ -276,6 +276,21 @@ public sealed partial class SimulationEngine
     /// </summary>
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft) => ResolveGroundLayout(aircraft, null);
 
+    /// <summary>
+    /// <see cref="ResolveGroundLayout(AircraftState)"/> with whether its null is a loading airport's: <c>Loading</c> is true
+    /// when the pick read an airport whose layout is deferred, false for a layout and for an airport admitted with no map.
+    /// </summary>
+    internal (AirportGroundLayout? Layout, bool Loading) PickGroundLayout(AircraftState aircraft)
+    {
+        List<string> waits = [];
+        AirportGroundLayout? layout = ResolveGroundLayout(aircraft, waits);
+        return (layout, waits.Count > 0);
+    }
+
+    // The layout a dispatch context carries: the aircraft's attached one, which is never loading, else the engine's pick.
+    private (AirportGroundLayout? Layout, bool Loading) DispatchGroundLayout(AircraftState aircraft) =>
+        aircraft.Ground.Layout is { } attached ? (attached, false) : PickGroundLayout(aircraft);
+
     // ResolveGroundLayout, adding each deferred airport the pick read to waits (ordinal, once) when it is given.
     private AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft, List<string>? waits)
     {

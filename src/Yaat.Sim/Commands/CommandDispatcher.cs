@@ -244,6 +244,9 @@ public static class CommandDispatcher
 
     private static readonly ILogger Log = SimLog.CreateLogger("CommandDispatcher");
 
+    /// <summary>The refusal of a command that needs a ground layout while the aircraft's airport is still loading.</summary>
+    internal const string LayoutLoadingMessage = "Layout loading, try again";
+
     public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         if (compound.Blocks is [{ Condition: null, Commands: [AssumeCommand] }])
@@ -424,6 +427,27 @@ public static class CommandDispatcher
     private static CommandResult RejectFlightPlanCommand(ParsedCommand cmd) =>
         new(false, $"Flight-plan edits ({cmd.GetType().Name}) are applied by the server, not dispatched to the aircraft");
 
+    /// <summary>
+    /// Refuses a compound that holds a command needing the ground layout (<see cref="CommandDescriber.NeedsGroundLayout"/>)
+    /// while the aircraft's airport is still loading (<see cref="DispatchContext.GroundLayoutLoading"/>); null otherwise.
+    /// </summary>
+    private static CommandResult? RefuseWhileLayoutLoading(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (!ctx.GroundLayoutLoading)
+        {
+            return null;
+        }
+
+        ParsedCommand? needy = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CommandDescriber.NeedsGroundLayout);
+        if (needy is null)
+        {
+            return null;
+        }
+
+        Log.LogDebug("{Callsign}: {Command} refused — the ground layout is still loading", aircraft.Callsign, needy.GetType().Name);
+        return new CommandResult(false, LayoutLoadingMessage);
+    }
+
     private static CommandResult DispatchCompoundCore(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
@@ -441,6 +465,11 @@ public static class CommandDispatcher
         if (gwResult is not null)
         {
             return gwResult;
+        }
+
+        if (RefuseWhileLayoutLoading(compound, aircraft, ctx) is { } loading)
+        {
+            return loading;
         }
 
         // Phase-transparent commands (squawk, ident, say, RFIS/RTIS, etc.) — apply

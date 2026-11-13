@@ -98,10 +98,11 @@ public sealed partial class SimulationEngine
     /// <summary>The dispatch context for a controller-issued command against <paramref name="aircraft"/> on this engine.</summary>
     internal DispatchContext BuildDispatchContext(AircraftState aircraft, bool isScenarioScripted, string? facilityHint)
     {
-        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        (AirportGroundLayout? groundLayout, bool layoutLoading) = DispatchGroundLayout(aircraft);
         return new DispatchContext
         {
             GroundLayout = groundLayout,
+            GroundLayoutLoading = layoutLoading,
             Rng = World.Rng,
             Weather = World.Weather,
             FindAircraft = FindAircraft,

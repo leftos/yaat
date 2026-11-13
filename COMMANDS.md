@@ -741,6 +741,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 
 ### Ground Commands
 
+While an aircraft's airport layout is still loading (a runtime airport, such as a live-traffic or amended-destination airport, whose map has not arrived), `PUSH`, `TAXI`, `TAXIAUTO`, `RTAXI`, `CROSS`, `HS`, `RES`, `ATXI`, `LAND`, `LAHSO`, `CTO`, `LUAW` and `WARPG` are refused `Layout loading, try again`, whole, wherever they sit in a chain. Send them again once the layout has landed. A leading `WAIT` or a `GIVEWAY` condition is still accepted; the command is sent when the timer or condition fires.
+
 | Command | Effect |
 |---------|--------|
 | `PUSH` | Push **straight back** from parking (a tug at 5 kt) — the nose keeps the stand heading. For a push that ends aligned for the taxi out, use one of the facing forms below (`PUSH Y A1`, `PUSH Y FACE S`, `PUSH $spot`). |
@@ -2458,7 +2460,7 @@ off and on — `UNASSUME` suppresses nothing. It refuses on an aircraft that is 
 (`<callsign> is live traffic already`) or that never came from the feed (`<callsign> was not assumed from live traffic`).
 Anything the simulation did to the aircraft while you had it — phases, clearances, the queue — is discarded with it.
 
-The hand-off is never refused, typed or automatic. It converts the aircraft in place (same callsign, squawk, strips and track
+The hand-off is refused only for a shadow on the ground at an airport whose layout is still loading (`Layout loading, try again`): the shadow stays a shadow, and `ASSUME` again once the layout has landed. Airborne shadows are assumed as before. Otherwise it is never refused, typed or automatic. It converts the aircraft in place (same callsign, squawk, strips and track
 ownership) and seeds a controllable state for whatever it is doing, in this order:
 
 - **Clearances from the feed win**: an interim or assigned altitude, cleared heading, or cleared speed carried by the feed

@@ -155,10 +155,11 @@ public sealed partial class SimulationEngine
                     continue;
                 }
 
-                AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+                (AirportGroundLayout? groundLayout, bool layoutLoading) = DispatchGroundLayout(aircraft);
                 var ctx = new DispatchContext
                 {
                     GroundLayout = groundLayout,
+                    GroundLayoutLoading = layoutLoading,
                     Rng = World.Rng,
                     Weather = World.Weather,
                     FindAircraft = FindAircraft,
