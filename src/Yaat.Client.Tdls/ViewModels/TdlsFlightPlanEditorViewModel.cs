@@ -77,6 +77,21 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     private readonly string? _opConfigId;
     private readonly bool _suppressDefaults;
 
+    /// <summary>The view's Override Dep Freq; null when none is chosen or the editor is read-only.</summary>
+    private string? _overrideDepFreq;
+
+    /// <summary>
+    /// The Override Dep Freq this editor applies on open and after every SID or transition pick; null when none was
+    /// chosen, the editor is read-only, or the view dropped it through <see cref="DropOverrideDepFreq"/>.
+    /// </summary>
+    public string? OverrideDepFreq => _overrideDepFreq;
+
+    /// <summary>
+    /// Stops applying the override: the view's Temp. Dep Freqs no longer holds it, so a later SID or transition pick
+    /// takes the transition's default departure frequency again. The current Dep Freq is left as it is.
+    /// </summary>
+    public void DropOverrideDepFreq() => _overrideDepFreq = null;
+
     /// <summary>False until the constructor has copied the seed and back-filled the defaults; the field exclusions
     /// that answer a controller's pick stay off until then.</summary>
     private readonly bool _constructed;
@@ -227,12 +242,15 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         ClearanceDto? seed,
         TdlsFlightPlanInfoDto? flightPlan,
         bool isReadOnly,
-        string? opConfigId
+        string? opConfigId,
+        TdlsDepFreqChoices? depFreqChoices
     )
     {
         Callsign = callsign;
         _config = config;
         _opConfigId = opConfigId;
+        // A sent PDC under review shows what was issued: the view's temporary frequencies and override stay out of it.
+        _overrideDepFreq = isReadOnly ? null : depFreqChoices?.OverrideDepFreq;
         FlightPlan = flightPlan;
         IsReadOnly = isReadOnly;
 
@@ -247,7 +265,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         CopyInto(Climbouts, OfferClearEntry(ClearValue, config.Climbouts));
         CopyInto(Climbvias, OfferClearEntry(ClearValue, config.Climbvias));
         CopyInto(InitialAlts, OfferClearEntry(ClearValue, config.InitialAlts));
-        CopyInto(DepFreqs, OfferClearEntry(ClearValue, config.DepFreqs));
+        CopyInto(DepFreqs, OfferClearEntry(ClearValue, OfferedDepFreqs(config, isReadOnly ? null : depFreqChoices)));
         CopyInto(Expects, OfferClearEntry(ClearValue, config.Expects));
         CopyInto(ContactInfos, OfferClearEntry(ClearValue, config.ContactInfos));
         CopyInto(LocalInfos, OfferClearEntry(ClearValue, config.LocalInfos));
@@ -275,6 +293,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         if (!isReadOnly)
         {
             BackFillTransitionDefaults(_selectedTransition);
+            ApplyOverrideDepFreq();
         }
 
         _constructed = true;
@@ -758,6 +777,41 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
                 field.Assign(field.Default);
             }
         }
+        ApplyOverrideDepFreq();
+    }
+
+    /// <summary>
+    /// The Facility Menu's Override Dep Freq replaces the transition's default departure frequency, on open and after
+    /// every SID or transition pick, as upstream's <c>populateFromSid</c> ends with <c>n&amp;&amp;(this.depFreq=n)</c>.
+    /// </summary>
+    private void ApplyOverrideDepFreq()
+    {
+        if (_overrideDepFreq is not null)
+        {
+            DepFreq = _overrideDepFreq;
+        }
+    }
+
+    /// <summary>
+    /// The departure frequencies the dropdown offers: the facility's, then the view's temporary ones and its override
+    /// where the facility does not list that value already (ordinal), so the override always has an entry to select.
+    /// </summary>
+    private static IEnumerable<TdlsClearanceValueDto> OfferedDepFreqs(TdlsConfigDto config, TdlsDepFreqChoices? choices)
+    {
+        if (choices is null)
+        {
+            return config.DepFreqs;
+        }
+        List<TdlsClearanceValueDto> offered = [.. config.DepFreqs];
+        IEnumerable<string> extra = choices.OverrideDepFreq is { } chosen ? choices.TempDepFreqs.Append(chosen) : choices.TempDepFreqs;
+        foreach (string value in extra)
+        {
+            if (!offered.Exists(entry => string.Equals(entry.Value, value, StringComparison.Ordinal)))
+            {
+                offered.Add(new TdlsClearanceValueDto(value, value));
+            }
+        }
+        return offered;
     }
 
     /// <summary>
@@ -872,3 +926,11 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// <summary>True when a dropdown carries no value: nothing selected, or the FE's "no value" placeholder entry.</summary>
     private static bool IsUnset(TdlsClearanceValueDto? selection) => (selection is null) || TdlsPlaceholder.IsPlaceholder(selection.Value);
 }
+
+/// <summary>
+/// The vTDLS view's own departure-frequency choices from the Facility Menu, handed to each editor it opens: the
+/// temporary frequencies the Dep Freq dropdown offers after the facility's, and the override that replaces the
+/// transition's default departure frequency. Both belong to the view and are never saved, as upstream keeps them in
+/// sessionStorage.
+/// </summary>
+public sealed record TdlsDepFreqChoices(IReadOnlyList<string> TempDepFreqs, string? OverrideDepFreq);

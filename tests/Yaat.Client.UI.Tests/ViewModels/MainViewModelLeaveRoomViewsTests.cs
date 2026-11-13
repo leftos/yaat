@@ -212,7 +212,7 @@ public class MainViewModelLeaveRoomViewsTests
             (_, _, _) => Task.FromResult<CommandResultDto?>(new CommandResultDto(true, null)),
             getUserInitials: null
         );
-        tdls.ApplyFacilityView("OAK", new TdlsFacilityViewDto("OAK", "Oakland Intl ATCT", [OakTdlsConfig]));
+        tdls.ApplyFacilityView("OAK", new TdlsFacilityViewDto("OAK", "Oakland Intl ATCT", [OakTdlsConfig], StudentFrequencyMhz: null));
 
         transport.PushState(new TdlsStateDto([TdlsItem("T1", "UAL100"), TdlsItem("T2", "SWA200")], []));
         Dispatcher.UIThread.RunJobs();

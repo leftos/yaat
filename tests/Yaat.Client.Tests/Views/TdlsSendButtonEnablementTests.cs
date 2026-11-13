@@ -76,7 +76,8 @@ public class TdlsSendButtonEnablementTests
             seed: null,
             flightPlan: null,
             isReadOnly: false,
-            opConfigId: null
+            opConfigId: null,
+            depFreqChoices: null
         );
         Assert.False(editor.IsSendEnabled);
 

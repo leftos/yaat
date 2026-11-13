@@ -1670,6 +1670,14 @@ While connected, **Tools → Open TDLS in Browser** opens that page in your defa
 
 Click a callsign in the DCL list to open the flight-plan editor at the bottom of the view. While the editor, or a sent PDC's review, is open, clicking another row does nothing, as in vTDLS: press **Cancel** (F10) or **Send** first. Pick a SID and transition from the dropdowns — the FE-configured defaults (Expect, Initial Alt, Dep Freq, Climbout, Contact Info, Local Info, etc.) auto-populate the empty fields.
 
+**Departure frequencies.** The Facility Menu (click the facility ID) has, below Dark Mode, three items for non-standard departure frequencies:
+
+- **Temp. Dep Freqs** — type frequencies such as `134.7, 123.75` and press Enter, click away or close the menu. One invalid entry empties the list and shows a red **Invalid Frequency** line.
+- **Override Dep Freq** — pick **None** or one of the temp frequencies; the editor then opens with that Dep Freq selected, and reselects it after each SID or transition change. Dropping the chosen frequency from the list clears the override.
+- **Add current frequency to Temp. Dep Freqs** — a checkable item that adds your position's primary frequency to the list.
+
+The Dep Freq dropdown lists the facility's frequencies, then the temp ones. A change reaches editors opened afterwards, not the open one, and a sent PDC's review is unchanged. These settings are not saved: they last until the vTDLS view closes and carry across facility switches.
+
 A `$FREQ` in a configured Contact Info or Local Info value, or in a transition's default, is filled with the student position's primary frequency (a value of `CTC $FREQ FOR PUSH` reads `CTC 121.100 FOR PUSH`); it stays as written when the room has no student position or the position has no frequency.
 
 A dropdown reading **- - - -** means nothing is selected, or the facility offers no values for that field. Every editable dropdown lists **- - - -** first, and picking it empties that field; the Transition list offers it only when the SID has no transitions. A sent PDC opened for review lists none. Picking **- - - -** on the SID empties the SID and Transition and leaves the other fields as they are; picking it on the Transition empties the Transition only. Edit any field as needed.

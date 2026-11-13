@@ -660,7 +660,7 @@ public class VTdlsViewInteractionTests
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         TdlsConfigDto config = ConfigWithMandatoryDepFreq();
-        transport.FacilityView = new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config]);
+        transport.FacilityView = new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config], StudentFrequencyMhz: null);
 
         await vm.SwitchFacilityAsync("IAD");
         Dispatcher.UIThread.RunJobs();
@@ -696,12 +696,12 @@ public class VTdlsViewInteractionTests
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         TdlsConfigDto before = ConfigWithMandatoryDepFreq();
-        transport.FacilityView = new TdlsFacilityViewDto(before.FacilityId, before.FacilityName, [before]);
+        transport.FacilityView = new TdlsFacilityViewDto(before.FacilityId, before.FacilityName, [before], StudentFrequencyMhz: null);
         await vm.SwitchFacilityAsync("IAD");
         Dispatcher.UIThread.RunJobs();
 
         TdlsConfigDto after = ConfigWithTwoSids();
-        transport.FacilityView = new TdlsFacilityViewDto(after.FacilityId, after.FacilityName, [after]);
+        transport.FacilityView = new TdlsFacilityViewDto(after.FacilityId, after.FacilityName, [after], StudentFrequencyMhz: null);
         await vm.ReloadFacilityAsync();
         Dispatcher.UIThread.RunJobs();
 
@@ -722,7 +722,7 @@ public class VTdlsViewInteractionTests
 
         Task switching = vm.SwitchFacilityAsync("IAD");
         vm.Clear();
-        held.SetResult(new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config]));
+        held.SetResult(new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config], StudentFrequencyMhz: null));
         await switching;
         Dispatcher.UIThread.RunJobs();
 
@@ -1453,6 +1453,169 @@ public class VTdlsViewInteractionTests
         return (0.2126 * Channel(c.R)) + (0.7152 * Channel(c.G)) + (0.0722 * Channel(c.B));
     }
 
+    // ── Facility Menu: Temp. Dep Freqs, Override Dep Freq ────────
+
+    [AvaloniaFact]
+    public void FacilityMenu_ShowsTheDepartureFrequencyItems_BelowDarkMode()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+
+        MenuFlyout flyout = OpenFacilityMenu(view);
+
+        var items = flyout.Items.Cast<object>().ToList();
+        int darkMode = items.FindIndex(i => (i as MenuItem)?.Header as string == "Dark Mode");
+        Assert.True(darkMode >= 0, "the Facility Menu has no Dark Mode item");
+        Assert.IsType<Separator>(items[darkMode + 1]);
+        string[] labels = [.. items.Skip(darkMode + 2).OfType<MenuItem>().Select(MenuLabel)];
+        Assert.Equal(["Temp. Dep Freqs:", "Override Dep Freq:", "Add current frequency to Temp. Dep Freqs"], labels);
+        MenuItem addCurrent = Assert.IsType<MenuItem>(items[darkMode + 4]);
+        Assert.Equal(MenuItemToggleType.CheckBox, addCurrent.ToggleType);
+    }
+
+    [AvaloniaFact]
+    public void FacilityMenu_TypingAValidFrequency_AddsItToTheTempList()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+
+        TextBox box = TypeTempDepFreqs(OpenFacilityMenu(view), "125.35");
+
+        Assert.Equal(["125.35"], vm.TempDepFreqs);
+        Assert.False(vm.IsTempDepFreqsInvalid);
+        Assert.Equal("125.35", box.Text);
+    }
+
+    [AvaloniaFact]
+    public void FacilityMenu_TypingAnInvalidFrequency_LeavesItOutOfTheTempList()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+
+        MenuFlyout flyout = OpenFacilityMenu(view);
+        TypeTempDepFreqs(flyout, "TOOLONGXX");
+
+        Assert.Empty(vm.TempDepFreqs);
+        Assert.True(vm.IsTempDepFreqsInvalid);
+        TextBlock message = HostRowControls(flyout, "Temp. Dep Freqs:").OfType<TextBlock>().Single(t => t.Text == "Invalid Frequency");
+        Assert.True(message.IsVisible);
+    }
+
+    /// <summary>
+    /// The checkbox's frequency survives the menu closing: the box still shows the list it was opened on, and closing
+    /// commits only what the controller typed, never that untouched text over the list the checkbox changed.
+    /// </summary>
+    [AvaloniaFact]
+    public void FacilityMenu_AddCurrentFrequency_ThenClosing_KeepsTheStudentFrequency()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        TdlsConfigDto config = ConfigWithMandatoryDepFreq();
+        vm.ApplyFacilityView(config.FacilityId, new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config], "121.100"));
+        vm.CommitTempDepFreqs("125.35");
+        VTdlsView view = BootView(vm);
+
+        MenuFlyout flyout = OpenFacilityMenu(view);
+        Dispatcher.UIThread.RunJobs();
+        ClickMenuItem(flyout, "Add current frequency to Temp. Dep Freqs");
+        flyout.Hide();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["121.100", "125.35"], vm.TempDepFreqs);
+    }
+
+    [AvaloniaFact]
+    public void FacilityMenu_PickingAnOverride_SetsItAndKeepsItSelected()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        vm.CommitTempDepFreqs("125.35, 119.1");
+        VTdlsView view = BootView(vm);
+
+        ComboBox picker = HostRowControls(OpenFacilityMenu(view), "Override Dep Freq:").OfType<ComboBox>().Single();
+        picker.SelectedItem = "119.1";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("119.1", vm.OverrideDepFreq);
+        Assert.Equal("119.1", picker.SelectedItem);
+    }
+
+    [AvaloniaFact]
+    public void FacilityMenu_AddCurrentFrequency_AddsTheStudentFrequency()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        TdlsConfigDto config = ConfigWithMandatoryDepFreq();
+        vm.ApplyFacilityView(config.FacilityId, new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config], "121.100"));
+        VTdlsView view = BootView(vm);
+
+        ClickMenuItem(OpenFacilityMenu(view), "Add current frequency to Temp. Dep Freqs");
+
+        Assert.True(vm.AddCurrentFrequencyToTempDepFreqs);
+        Assert.Equal(["121.100"], vm.TempDepFreqs);
+    }
+
+    [AvaloniaFact]
+    public void FacilityMenu_AddCurrentFrequency_WithNoStudentFrequency_AddsNothing()
+    {
+        (VTdlsViewModel vm, _) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        VTdlsView view = BootView(vm);
+
+        ClickMenuItem(OpenFacilityMenu(view), "Add current frequency to Temp. Dep Freqs");
+
+        Assert.True(vm.AddCurrentFrequencyToTempDepFreqs);
+        Assert.Empty(vm.TempDepFreqs);
+    }
+
+    /// <summary>Clicks the Facility button and returns the menu it opened.</summary>
+    private static MenuFlyout OpenFacilityMenu(VTdlsView view)
+    {
+        Button button = view.FindControl<Button>("FacilityButton")!;
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+        Assert.True(flyout.IsOpen);
+        (flyout.Popup.Child as Control)?.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        return flyout;
+    }
+
+    /// <summary>A menu item's label: its header text, or the label in front of the control it hosts.</summary>
+    private static string MenuLabel(MenuItem item) =>
+        item.Header as string ?? Assert.IsAssignableFrom<Panel>(item.Header).Children.OfType<TextBlock>().First().Text ?? "";
+
+    /// <summary>Types into the Temp. Dep Freqs box with the keyboard and commits it with Enter, as a controller does.</summary>
+    private static TextBox TypeTempDepFreqs(MenuFlyout flyout, string text)
+    {
+        MenuItem row = flyout.Items.OfType<MenuItem>().Single(i => (i.Header is Panel) && (MenuLabel(i) == "Temp. Dep Freqs:"));
+        TextBox box = Assert.Single(((Panel)row.Header!).GetVisualDescendants().OfType<TextBox>());
+        box.Focus();
+        Dispatcher.UIThread.RunJobs();
+        TopLevel topLevel = TopLevel.GetTopLevel(box)!;
+        topLevel.KeyTextInput(text);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(text, box.Text);
+        topLevel.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        return box;
+    }
+
+    /// <summary>The controls a hosted menu row shows behind its label.</summary>
+    private static IEnumerable<Visual> HostRowControls(MenuFlyout flyout, string label)
+    {
+        MenuItem row = flyout.Items.OfType<MenuItem>().Single(i => (i.Header is Panel) && (MenuLabel(i) == label));
+        return ((Panel)row.Header!).GetVisualDescendants();
+    }
+
+    private static void ClickMenuItem(MenuFlyout flyout, string label)
+    {
+        MenuItem item = flyout.Items.OfType<MenuItem>().Single(i => MenuLabel(i) == label);
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     /// <summary>
@@ -1465,13 +1628,14 @@ public class VTdlsViewInteractionTests
             new TdlsFacilityViewDto(
                 "NCT",
                 "Northern California TRACON",
-                [OpsConfigFacility(), ConfigWithMandatoryDepFreq() with { FacilityId = "SFO", FacilityName = "San Francisco Intl ATCT" }]
+                [OpsConfigFacility(), ConfigWithMandatoryDepFreq() with { FacilityId = "SFO", FacilityName = "San Francisco Intl ATCT" }],
+                StudentFrequencyMhz: null
             )
         );
 
     /// <summary>Puts the VM on a single-facility page backed by <paramref name="config"/>.</summary>
     private static void SeedFacility(VTdlsViewModel vm, TdlsConfigDto config) =>
-        vm.ApplyFacilityView(config.FacilityId, new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config]));
+        vm.ApplyFacilityView(config.FacilityId, new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config], StudentFrequencyMhz: null));
 
     /// <summary>Facility shaped like OAK: ops configs on, facility-level SID list empty, a distinct SID id per config.</summary>
     private static TdlsConfigDto OpsConfigFacility()

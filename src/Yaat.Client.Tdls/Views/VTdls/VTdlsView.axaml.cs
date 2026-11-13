@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -307,7 +308,160 @@ public partial class VTdlsView : UserControl
         darkModeItem.Click += (_, _) => vm.IsDarkMode = !vm.IsDarkMode;
         flyout.Items.Add(darkModeItem);
 
+        flyout.Items.Add(new Separator());
+        AddDepFreqItems(flyout, vm);
+
+        // Attached as well as shown, so the menu that is open can be found from its button.
+        FlyoutBase.SetAttachedFlyout(FacilityButton, flyout);
         flyout.ShowAt(FacilityButton);
+    }
+
+    /// <summary>Upstream's "None" entry of the Override Dep Freq select.</summary>
+    private const string NoOverrideDepFreq = "None";
+
+    /// <summary>
+    /// Upstream's three departure-frequency items of the Facility Menu, in its order and with its labels: the Temp. Dep
+    /// Freqs text box, the Override Dep Freq select, and the "Add current frequency to Temp. Dep Freqs" checkbox. The two
+    /// controls sit in rows that stay open on click, as the traffic flyouts host their search box.
+    /// </summary>
+    private static void AddDepFreqItems(MenuFlyout flyout, VTdlsViewModel vm)
+    {
+        flyout.Items.Add(HostRow("Temp. Dep Freqs:", TempDepFreqsEditor(flyout, vm)));
+        flyout.Items.Add(HostRow("Override Dep Freq:", OverrideDepFreqPicker(flyout, vm)));
+
+        var addCurrent = new MenuItem
+        {
+            Header = "Add current frequency to Temp. Dep Freqs",
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = vm.AddCurrentFrequencyToTempDepFreqs,
+        };
+        addCurrent.Click += (_, _) => vm.AddCurrentFrequencyToTempDepFreqs = !vm.AddCurrentFrequencyToTempDepFreqs;
+        flyout.Items.Add(addCurrent);
+    }
+
+    /// <summary>A menu row hosting a control behind its label; clicking it neither closes the menu nor takes focus from the control.</summary>
+    private static MenuItem HostRow(string label, Control control)
+    {
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        header.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        header.Children.Add(control);
+        var row = new MenuItem
+        {
+            Header = header,
+            StaysOpenOnClick = true,
+            Focusable = false,
+        };
+        row.Click += (_, e) => e.Handled = true;
+        return row;
+    }
+
+    /// <summary>
+    /// The Temp. Dep Freqs box. As upstream's input does on blur, an edit is committed when the box loses focus — and on
+    /// Enter, or when the menu closes — then shown back as the accepted list, with "Invalid Frequency" under a rejected
+    /// one. Only a typed edit is committed, so a list the checkbox changed is never overwritten by stale text.
+    /// </summary>
+    private static Control TempDepFreqsEditor(MenuFlyout flyout, VTdlsViewModel vm)
+    {
+        var box = new TextBox { PlaceholderText = "134.7, 123.75", MinWidth = 140 };
+        var invalid = new TextBlock { Text = "Invalid Frequency", Foreground = Brushes.Red };
+        // The text Show() last wrote. The box counts as edited only while its text differs from it: TextChanged fires
+        // asynchronously in Avalonia 12, so a flag set from it cannot tell Show()'s own write from typing.
+        string shown = "";
+
+        bool Edited() => !string.Equals(box.Text ?? "", shown, StringComparison.Ordinal);
+
+        void Show()
+        {
+            shown = string.Join(", ", vm.TempDepFreqs);
+            box.Text = shown;
+            invalid.IsVisible = vm.IsTempDepFreqsInvalid;
+        }
+
+        void Commit()
+        {
+            if (Edited())
+            {
+                vm.CommitTempDepFreqs(box.Text);
+                Show();
+            }
+        }
+
+        Show();
+        box.LostFocus += (_, _) => Commit();
+        box.AddHandler(InputElement.KeyDownEvent, (_, e) => CommitOnEnter(e, Commit), RoutingStrategies.Tunnel);
+        flyout.Closed += (_, _) => Commit();
+        RefreshWhileOpen(
+            flyout,
+            vm,
+            () =>
+            {
+                if (!Edited())
+                {
+                    Show();
+                }
+            }
+        );
+
+        var editor = new StackPanel { Spacing = 2 };
+        editor.Children.Add(box);
+        editor.Children.Add(invalid);
+        return editor;
+    }
+
+    private static void CommitOnEnter(KeyEventArgs e, Action commit)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            commit();
+        }
+    }
+
+    /// <summary>The Override Dep Freq select: upstream's "None", then the temporary frequencies.</summary>
+    private static ComboBox OverrideDepFreqPicker(MenuFlyout flyout, VTdlsViewModel vm)
+    {
+        var picker = new ComboBox { MinWidth = 100 };
+        bool filling = false;
+
+        void Fill()
+        {
+            filling = true;
+            picker.ItemsSource = (string[])[NoOverrideDepFreq, .. vm.TempDepFreqs];
+            picker.SelectedIndex = vm.OverrideDepFreq is { } chosen ? vm.TempDepFreqs.IndexOf(chosen) + 1 : 0;
+            filling = false;
+        }
+
+        Fill();
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (!filling)
+            {
+                vm.OverrideDepFreq = picker.SelectedIndex > 0 ? picker.SelectedItem as string : null;
+            }
+        };
+        RefreshWhileOpen(flyout, vm, Fill);
+        return picker;
+    }
+
+    /// <summary>Runs <paramref name="refresh"/> whenever the temp list or the override changes, until the menu closes.</summary>
+    private static void RefreshWhileOpen(MenuFlyout flyout, VTdlsViewModel vm, Action refresh)
+    {
+        void OnListChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => refresh();
+        void OnVmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(VTdlsViewModel.OverrideDepFreq) or nameof(VTdlsViewModel.IsTempDepFreqsInvalid))
+            {
+                refresh();
+            }
+        }
+
+        vm.TempDepFreqs.CollectionChanged += OnListChanged;
+        vm.PropertyChanged += OnVmChanged;
+        flyout.Closed += (_, _) =>
+        {
+            vm.TempDepFreqs.CollectionChanged -= OnListChanged;
+            vm.PropertyChanged -= OnVmChanged;
+        };
     }
 
     /// <summary>

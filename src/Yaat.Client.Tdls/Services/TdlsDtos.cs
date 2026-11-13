@@ -193,9 +193,11 @@ public record TdlsOpConfigDto(string Id, string Name, TdlsSidDto[] Sids, string?
 // What one vTDLS page shows. A leaf facility carries a single member config
 // (itself); a consolidated parent carries one per child TDLS facility, because
 // each item on that page is edited and sent against its own facility's SIDs,
-// mandatory fields and ops config.
+// mandatory fields and ops config. StudentFrequencyMhz is the student position's
+// primary frequency ("121.100") for the Facility Menu's "Add current frequency to
+// Temp. Dep Freqs"; null when the position has none on file.
 
-public record TdlsFacilityViewDto(string FacilityId, string FacilityName, IReadOnlyList<TdlsConfigDto> MemberConfigs);
+public record TdlsFacilityViewDto(string FacilityId, string FacilityName, IReadOnlyList<TdlsConfigDto> MemberConfigs, string? StudentFrequencyMhz);
 
 public record TdlsSidDto(string Id, string Name, TdlsSidTransitionDto[] Transitions);
 

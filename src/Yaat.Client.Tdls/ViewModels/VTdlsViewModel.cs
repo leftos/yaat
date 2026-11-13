@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -230,6 +231,88 @@ public partial class VTdlsViewModel : ObservableObject
     [ObservableProperty]
     private double _zoomScale = 1.0;
 
+    // ── Facility Menu: Temp. Dep Freqs, Override Dep Freq, Add current frequency ──
+    // All three belong to this view and are lost with it, as upstream keeps them in sessionStorage; nothing here is
+    // saved to preferences, and switching facility keeps them.
+
+    /// <summary>The view's temporary departure frequencies, offered by every editor it opens after the facility's own.</summary>
+    public ObservableCollection<string> TempDepFreqs { get; } = [];
+
+    /// <summary>True when the last Temp. Dep Freqs entry held a token upstream's pattern rejects; the menu shows "Invalid Frequency".</summary>
+    [ObservableProperty]
+    private bool _isTempDepFreqsInvalid;
+
+    /// <summary>The temporary frequency that replaces the transition's default departure frequency; null for upstream's "None".</summary>
+    [ObservableProperty]
+    private string? _overrideDepFreq;
+
+    /// <summary>When on, the student position's frequency (<see cref="StudentFrequencyMhz"/>) is put in front of the temp list.</summary>
+    [ObservableProperty]
+    private bool _addCurrentFrequencyToTempDepFreqs;
+
+    /// <summary>The student position's primary frequency from the facility page ("121.100"); null when it has none on file.</summary>
+    [ObservableProperty]
+    private string? _studentFrequencyMhz;
+
+    /// <summary>Upstream's per-frequency pattern for Temp. Dep Freqs.</summary>
+    [GeneratedRegex("^[A-Z0-9., ]{1,7}$")]
+    private static partial Regex TempDepFreqPattern();
+
+    /// <summary>Upstream splits the Temp. Dep Freqs text on runs of whitespace and commas.</summary>
+    [GeneratedRegex(@"[\s,]+")]
+    private static partial Regex TempDepFreqSeparator();
+
+    /// <summary>
+    /// Commits the Temp. Dep Freqs text as upstream's blur handler does: upper-cased, split on whitespace and commas, and
+    /// accepted only when every frequency matches the pattern — one bad frequency empties the list and flags the box
+    /// invalid. Duplicates collapse to the first. An override no longer in the list is dropped, and taken off the open
+    /// editor's departure frequency where it had set it.
+    /// </summary>
+    public void CommitTempDepFreqs(string? text)
+    {
+        string[] tokens = [.. TempDepFreqSeparator().Split((text ?? "").ToUpperInvariant()).Where(t => t.Length > 0)];
+        bool invalid = tokens.Any(t => !TempDepFreqPattern().IsMatch(t));
+        IsTempDepFreqsInvalid = invalid;
+        IEnumerable<string> accepted = invalid ? [] : tokens.Distinct(StringComparer.Ordinal);
+        TempDepFreqs.Clear();
+        foreach (string frequency in accepted)
+        {
+            TempDepFreqs.Add(frequency);
+        }
+
+        if ((OverrideDepFreq is not { } chosen) || TempDepFreqs.Contains(chosen))
+        {
+            return;
+        }
+        if ((Editor is { IsEditable: true } editor) && string.Equals(editor.OverrideDepFreq, chosen, StringComparison.Ordinal))
+        {
+            // Only the departure frequency the override itself set: an editor opened with it and still showing it.
+            if (string.Equals(editor.DepFreq, chosen, StringComparison.Ordinal))
+            {
+                editor.DepFreq = null;
+            }
+            editor.DropOverrideDepFreq();
+        }
+        OverrideDepFreq = null;
+    }
+
+    partial void OnAddCurrentFrequencyToTempDepFreqsChanged(bool value) => AddStudentFrequencyIfAsked();
+
+    partial void OnStudentFrequencyMhzChanged(string? value) => AddStudentFrequencyIfAsked();
+
+    /// <summary>
+    /// Puts the student position's frequency in front of the temp list when the checkbox asks for it, as upstream does on
+    /// checking it and on opening the page. Unchecking leaves the list alone, as upstream's does; a position with no
+    /// frequency on file adds nothing.
+    /// </summary>
+    private void AddStudentFrequencyIfAsked()
+    {
+        if (AddCurrentFrequencyToTempDepFreqs && (StudentFrequencyMhz is { } frequency) && !TempDepFreqs.Contains(frequency))
+        {
+            TempDepFreqs.Insert(0, frequency);
+        }
+    }
+
     partial void OnSelectedItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
     {
         LogSelectionChange(oldValue, newValue);
@@ -293,7 +376,8 @@ public partial class VTdlsViewModel : ObservableObject
                 seed: null,
                 flightPlan: item.FlightPlan,
                 isReadOnly: false,
-                opConfigId: ActiveOpConfigId
+                opConfigId: ActiveOpConfigId,
+                depFreqChoices: new TdlsDepFreqChoices([.. TempDepFreqs], OverrideDepFreq)
             )
             {
                 OnSendRequested = OnEditorSendRequested,
@@ -307,7 +391,8 @@ public partial class VTdlsViewModel : ObservableObject
                 seed: item.SentPayload,
                 flightPlan: item.FlightPlan,
                 isReadOnly: true,
-                opConfigId: ActiveOpConfigId
+                opConfigId: ActiveOpConfigId,
+                depFreqChoices: null
             );
         }
         return null;
@@ -597,6 +682,7 @@ public partial class VTdlsViewModel : ObservableObject
     {
         FacilityId = facilityId;
         FacilityName = view?.FacilityName ?? facilityId;
+        StudentFrequencyMhz = view?.StudentFrequencyMhz;
 
         _memberConfigs.Clear();
         foreach (TdlsConfigDto config in view?.MemberConfigs ?? [])

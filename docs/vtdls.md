@@ -356,6 +356,14 @@ The mode is chosen per host. The desktop tab seeds it from `UserPreferences.IsVT
 
 The editor's dropdowns and its Dump / Edit / Cancel / Send buttons are styled by the view from the `VTdlsControl*` brushes, set for both modes in `ApplyTheme`: grey with a mid-grey border and black text in light mode, a step lighter than the panel with pale text in dark mode, a paler fill and dimmer text when disabled, darker on hover and press. The `- - - -` placeholder is drawn at full strength. `VTdlsViewInteractionTests` (`Theme_*`) checks the pinned variant and the control contrast in both modes.
 
+## Temporary and override departure frequencies
+
+The Facility Menu holds three view-local settings under a separator after Dark Mode: **Temp. Dep Freqs** (a text box), **Override Dep Freq** (a drop-down of "None" plus the temp frequencies) and **Add current frequency to Temp. Dep Freqs** (a checkable item). They live on `VTdlsViewModel` (`TempDepFreqs`, `OverrideDepFreq`, `AddCurrentFrequencyToTempDepFreqs`), are not saved, are lost when the view closes and survive a facility switch.
+
+`VTdlsView` commits the typed text through `CommitTempDepFreqs` on Enter, on losing focus and when the menu closes. One entry that fails `TempDepFreqPattern` rejects the whole line: the list empties and `IsTempDepFreqsInvalid` shows the red "Invalid Frequency" line. A commit that drops the current override clears it. The check box adds the student position's primary frequency, which arrives as `TdlsFacilityViewDto.StudentFrequencyMhz` from `GetTdlsFacilityView` (null when the position has none).
+
+The editor takes the settings as `TdlsDepFreqChoices` when it opens: `OfferedDepFreqs` lists the facility's frequencies, then the temp ones, and `ApplyOverrideDepFreq` selects the override when the editor opens and after every SID or transition change. A change reaches only editors opened afterwards, and the Sent and Wilco review editors are unchanged. `VTdlsViewInteractionTests` and `TdlsFlightPlanEditorViewModelTests` cover it.
+
 ## Phraseology compliance notes
 
 PDC content phraseology follows AIM 5-2-2 (Pre-Departure Clearance
