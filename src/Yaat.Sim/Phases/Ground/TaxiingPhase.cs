@@ -773,11 +773,24 @@ public sealed class TaxiingPhase : Phase
         AircraftState aircraft,
         HoldShortPoint holdShort,
         double subTickSeconds
-    )
-    {
-        return MeasureReach(layout, route, aircraft, holdShort, subTickSeconds) is { } reach
-            && (Math.Max(reach.ToStopFt, reach.ToEnvelopeFt ?? reach.ToStopFt) < reach.FlownStopFt);
-    }
+    ) => UnmakeableByFt(layout, route, aircraft, holdShort, subTickSeconds) is > 0.0;
+
+    /// <summary>
+    /// How far (ft) the stop flown at the firm rate lies past the farther of <paramref name="holdShort"/>'s placed stop and the
+    /// crossed taxiway's wingtip envelope entry (<see cref="HoldShortReach"/>): positive when the bar is unmakeable
+    /// (<see cref="IsHoldShortUnmakeable"/>), zero or negative when the firm rate makes it. Null when the aircraft is stopped
+    /// (<see cref="StoppedGroundSpeedKts"/>). The judge of a bar armed by a TAXI asks for more than <see cref="SetBackStopTakeFt"/>.
+    /// </summary>
+    internal static double? UnmakeableByFt(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        AircraftState aircraft,
+        HoldShortPoint holdShort,
+        double subTickSeconds
+    ) =>
+        MeasureReach(layout, route, aircraft, holdShort, subTickSeconds) is { } reach
+            ? reach.FlownStopFt - Math.Max(reach.ToStopFt, reach.ToEnvelopeFt ?? reach.ToStopFt)
+            : null;
 
     /// <summary>
     /// What <see cref="IsHoldShortUnmakeable"/> and the envelope window (<see cref="MoveWindowBarToBrakingDistance"/>) judge a bar

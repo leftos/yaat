@@ -38,6 +38,7 @@
 
 ### Fixed
 
+- A `TAXI` re-issued to a moving aircraft whose taxiway hold short it can no longer stop for now brakes firmly and reports holding position past it.
 - vTDLS's Facility Menu has Temp. Dep Freqs, Override Dep Freq and "Add current frequency to Temp. Dep Freqs", as in vTDLS, feeding the Dep Freq list.
 - In vTDLS, clicking another row while a clearance or PDC review is open does nothing, as in vTDLS, so the open clearance is kept until Cancel or Send.
 - FOLLOW accepts a straight-in entrant ahead of a follower on base or final, and refuses an entrant a downwind follower has already passed.

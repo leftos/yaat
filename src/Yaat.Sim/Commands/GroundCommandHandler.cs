@@ -679,6 +679,7 @@ public static partial class GroundCommandHandler
         // Set up the taxi route and phase
         aircraft.Ground.AssignedTaxiRoute = route;
         HoldShortTarget? unableEndHold = UnableNoDestinationEndHold(aircraft, groundLayout, route);
+        JudgeFirstTaxiwayBarAtArming(aircraft, groundLayout, route);
         aircraft.Ground.AwaitingTaxiInCall = false;
         aircraft.Ground.Hold = null;
         // A fresh taxi clearance resets the commanded taxi speed to the category default, and restates the expedite: a TAXI
@@ -1314,9 +1315,42 @@ public static partial class GroundCommandHandler
     /// stops the aircraft. Null when the route has no such hold or the aircraft can make it.
     /// </summary>
     private static HoldShortTarget? UnableNoDestinationEndHold(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route) =>
-        (NoDestinationEndHold(route) is { TargetName: { } taxiway } endHold) && MarkUnmakeable(aircraft, layout, route, endHold)
+        (NoDestinationEndHold(route) is { TargetName: { } taxiway } endHold) && MarkUnmakeable(aircraft, layout, route, endHold, 0.0)
             ? new HoldShortTarget(taxiway, null, false)
             : null;
+
+    /// <summary>
+    /// Judges the first uncleared bar ahead on the route a TAXI just assigned, once, as an <c>HS</c> is judged at dispatch
+    /// (<see cref="MarkUnmakeable"/>): a hold short the clearance carries to a rolling aircraft that can no longer brake for it is
+    /// flagged unable, so the taxi phase moves the stop to where the firm rate stops the aircraft and the report at rest is
+    /// "holding position on C". Flagged silently: the answer and the readback stay the TAXI's (YAAT-1672 owns any announcement).
+    /// Flagged only when the firm-rate stop lies more than <see cref="TaxiingPhase.SetBackStopTakeFt"/> past the farther of the
+    /// placed stop and the wingtip envelope entry, so a stop the aircraft makes is never flagged. A bar guarding a runway is never
+    /// judged here: it keeps the last-resort dead stop at the marking (hold-short-placement.md, "Inside the stopping distance
+    /// without HS"). Nor is a bar whose stop is placed where the aircraft stands (within <see cref="StopAheadToleranceFt"/> of its
+    /// position): one already passed is reported beyond it with no unable call (<see cref="HoldShortArrival.BeyondWithoutUnableCall"/>).
+    /// A stopped aircraft is never unable.
+    /// </summary>
+    private static void JudgeFirstTaxiwayBarAtArming(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route)
+    {
+        if (
+            (TaxiingPhase.FirstUnclearedBarAhead(route) is not { Bar: { Unable: false, StopMoved: false } bar })
+            || HoldingShortPhase.ProtectsRunway(bar)
+            || GuardsARunway(layout, route, bar)
+            || StopIsWhereTheAircraftStands(aircraft, bar)
+            || !MarkUnmakeable(aircraft, layout, route, bar, TaxiingPhase.SetBackStopTakeFt)
+        )
+        {
+            return;
+        }
+
+        Log.LogInformation(
+            "[Taxi] {Callsign}: hold short of {Target} armed by TAXI inside the firm stopping distance at {Gs:F1} kt — flagged unable",
+            aircraft.Callsign,
+            bar.TargetName,
+            aircraft.GroundSpeed
+        );
+    }
 
     /// <summary>The answer to a hold short the aircraft can no longer brake for: <c>Unable to hold short of T — stopping</c>.</summary>
     private static string UnableToHoldShortMessage(HoldShortTarget target) => $"Unable to hold short of {target.ToNatural()} — stopping";
@@ -1395,7 +1429,22 @@ public static partial class GroundCommandHandler
         (stopAheadFt > StopAheadToleranceFt)
         && (GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, stop)) < 90.0);
 
-    /// <summary>How far ahead of the aircraft (ft) a placed stop must lie before an aircraft inside the setback is held where it stands.</summary>
+    /// <summary>
+    /// Whether <paramref name="bar"/>'s stop is placed where the aircraft stands: within <see cref="StopAheadToleranceFt"/> of its
+    /// position, where the annotator places a stop the nose has already passed. A bar with no computed position is not placed where
+    /// the aircraft stands. Measured point to point, not along the route: a stop on a later segment's fillet arc lies a chord's
+    /// distance from the route distance to it.
+    /// </summary>
+    private static bool StopIsWhereTheAircraftStands(AircraftState aircraft, HoldShortPoint bar) =>
+        (bar.Latitude is { } lat)
+        && (bar.Longitude is { } lon)
+        && (GeoMath.DistanceNm(aircraft.Position, new LatLon(lat, lon)) * GeoMath.FeetPerNm <= StopAheadToleranceFt);
+
+    /// <summary>
+    /// How far (ft) from the aircraft a placed stop may lie and still count as where it stands: the arming judge skips a bar whose
+    /// stop is this close (<see cref="StopIsWhereTheAircraftStands"/>), and an aircraft inside a taxiway's setback is held where it
+    /// stands for a stop farther ahead than this (<see cref="IsAhead"/>).
+    /// </summary>
     private const double StopAheadToleranceFt = 1.0;
 
     /// <summary>
@@ -7973,18 +8022,19 @@ public static partial class GroundCommandHandler
     /// (<see cref="PhaseList.TaxiRoute"/>) is never judged: the aircraft is not on it yet.
     /// </summary>
     private static bool MarkUnmakeableHoldShort(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, ExplicitHoldShortPlan plan) =>
-        (ArmedBar(route, plan) is { } bar) && MarkUnmakeable(aircraft, layout, route, bar);
+        (ArmedBar(route, plan) is { } bar) && MarkUnmakeable(aircraft, layout, route, bar, 0.0);
 
     /// <summary>
     /// Flags <paramref name="bar"/> as one the aircraft cannot make — closer than the distance it needs to brake to a stop
-    /// (<see cref="TaxiingPhase.IsHoldShortUnmakeable"/>) — and answers whether it did. Only a bar on the aircraft's assigned
-    /// route is judged.
+    /// (<see cref="TaxiingPhase.IsHoldShortUnmakeable"/>) by more than <paramref name="marginFt"/> — and answers whether it did.
+    /// Only a bar on the aircraft's assigned route is judged.
     /// </summary>
-    private static bool MarkUnmakeable(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, HoldShortPoint bar)
+    private static bool MarkUnmakeable(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, HoldShortPoint bar, double marginFt)
     {
         if (
             !ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute)
-            || !TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate)
+            || (TaxiingPhase.UnmakeableByFt(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate) is not { } byFt)
+            || (byFt <= marginFt)
         )
         {
             return false;
