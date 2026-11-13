@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
@@ -26,6 +27,9 @@ public sealed class PhaseContext
     /// (<see cref="RunwayCrossingEnd.Spoken"/>); <see cref="ActiveRunways.Empty"/> when the room names none.
     /// </summary>
     public required ActiveRunways ActiveRunways { get; init; }
+
+    /// <summary>The room's towered airports (<c>SimScenarioState.ToweredAirports</c>); empty reads every airport as untowered.</summary>
+    public ToweredAirports ToweredAirports { get; init; } = ToweredAirports.Empty;
 
     /// <summary>
     /// Lookup function to find other aircraft by callsign.

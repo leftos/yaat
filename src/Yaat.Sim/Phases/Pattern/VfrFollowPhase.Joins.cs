@@ -13,7 +13,7 @@ public sealed partial class VfrFollowPhase
     /// know its runway, follow it onto that runway's final to await a landing
     /// clearance — rather than cancelling the follow and free-flying level over the
     /// field. Runs before CheckLeadLifecycle, which would otherwise cancel here.
-    /// The final join's geometry gates apply (<see cref="CanSequenceOntoLandedFinal"/>), all but the in-trail gate (the lead
+    /// The final join's geometry gates apply (<see cref="CanSequenceOntoFinal"/>), all but the in-trail gate (the lead
     /// is down, so spacing is moot): never from beyond the threshold, never at a steep or wide intercept, never across a
     /// parallel's final (AIM §4-3-3 FIG 4-3-3 note 7). When a gate refuses, fall through to CheckLeadLifecycle, which ends
     /// the follow (lead on the ground); the follower then re-enters the pattern for the landed runway
@@ -26,7 +26,7 @@ public sealed partial class VfrFollowPhase
             return false;
         }
 
-        if (!CanSequenceOntoLandedFinal(ctx.Aircraft, landedRunway))
+        if (!CanSequenceOntoFinal(ctx.Aircraft, landedRunway))
         {
             Log.LogDebug(
                 "[VfrFollow] {Callsign}: {Lead} landed, but no sane join of the {Rwy} final from here; re-entering the pattern",
@@ -46,8 +46,9 @@ public sealed partial class VfrFollowPhase
     /// <paramref name="runway"/>'s threshold at least <see cref="MinFinalJoinDistNm"/> out, within
     /// <see cref="MaxFinalJoinCrossTrackNm"/> of the extended centerline, tracking within
     /// <see cref="MaxFinalJoinInterceptDeg"/> of the final course, and its capture path crosses no parallel runway's final.
+    /// The landed-lead sequence applies them alone; <see cref="TryJoinLeadFinal"/> applies them after its in-trail gate.
     /// </summary>
-    internal static bool CanSequenceOntoLandedFinal(AircraftState follower, RunwayInfo runway)
+    internal static bool CanSequenceOntoFinal(AircraftState follower, RunwayInfo runway)
     {
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         double alongNm = AirborneFollowHelper.AlongFinalNm(follower.Position, runway);
@@ -400,40 +401,24 @@ public sealed partial class VfrFollowPhase
             return false;
         }
 
-        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        double followerDistNm = GeoMath.DistanceNm(ctx.Aircraft.Position, threshold);
-        double leadDistNm = GeoMath.DistanceNm(lead.Position, threshold);
-        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading));
-        double interceptDeg = ctx.Aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading);
+        // Distances are measured along the final, as the final's geometry gates do (CanSequenceOntoFinal): a follower past
+        // the threshold, upwind or abeam it, is never out on the final however far it is from the threshold in a straight line.
+        double followerAlongNm = AirborneFollowHelper.AlongFinalNm(ctx.Aircraft.Position, runway);
+        double leadAlongNm = AirborneFollowHelper.AlongFinalNm(lead.Position, runway);
 
         // In-trail floor: stay behind the traffic (a pilot "should not take advantage of another aircraft, which is on final approach to land,
         // by cutting in front of, or overtaking that aircraft", AIM 4-3-4.d) and no closer than the same-runway floor, or the wake floor
         // behind a lead that carries a wake minimum for this follower. Until that spacing exists, keep pursuing rather than rolling onto final
         // too close.
-        if (followerDistNm - leadDistNm < RequiredFinalInTrailNm(ctx, lead))
+        if (followerAlongNm - leadAlongNm < RequiredFinalInTrailNm(ctx, lead))
         {
             return false;
         }
-        // Don't newly turn onto final unreasonably close to the threshold.
-        if (followerDistNm < MinFinalJoinDistNm)
-        {
-            return false;
-        }
-        // Sane visual intercept: near the extended centerline at a shallow angle.
-        if (crossTrackNm > MaxFinalJoinCrossTrackNm)
-        {
-            return false;
-        }
-        if (interceptDeg > MaxFinalJoinInterceptDeg)
-        {
-            return false;
-        }
-        // Never capture through a parallel runway's final: the cross-track allowance
-        // (1.0 nm) dwarfs closely-spaced parallel separation (OAK 28L/28R ≈ 0.165 nm), so
-        // a follower on the far side of the parallel would descend across its final
-        // approach course to reach the lead's centerline (AIM §4-3-3 FIG 4-3-3 note 7).
-        // Keep pursuing instead; the gate re-evaluates every tick as geometry improves.
-        if (JoinCapturePathCrossesParallelFinal(ctx.Aircraft.Position, runway))
+        // The final's geometry gates: on the approach side at least MinFinalJoinDistNm out, a sane visual intercept (near the
+        // extended centerline at a shallow angle), and never capturing through a parallel runway's final, whose 1.0 nm
+        // cross-track allowance dwarfs closely-spaced parallel separation (AIM §4-3-3 FIG 4-3-3 note 7). Keep pursuing
+        // otherwise; the gate re-evaluates every tick as geometry improves.
+        if (!CanSequenceOntoFinal(ctx.Aircraft, runway))
         {
             return false;
         }
@@ -562,7 +547,7 @@ public sealed partial class VfrFollowPhase
     /// runway-dependent <see cref="FinalApproachPhase"/> to a later tick — its OnStart
     /// needs <c>ctx.Runway</c>, which is only populated from the new AssignedRunway on
     /// the tick after the swap. (Starting FinalApproachPhase directly here would run its
-    /// OnStart with the stale follow-phase context whose Runway is null.)
+    /// OnStart with the stale follow-phase context, whose Runway is the pursuit's own runway, not necessarily this one.)
     /// </summary>
     private void SequenceOntoFinal(PhaseContext ctx, RunwayInfo runway)
     {

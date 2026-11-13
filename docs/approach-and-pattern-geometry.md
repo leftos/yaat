@@ -238,7 +238,7 @@ armed runway is not a parallel, since that transition joins through a `MidfieldC
 handlers share one carrier for the modifier (`OptionPatternModifier`: direction, runway, altitude) and one body
 (`TrySetupOptionClearance`); the parser's `PatternModifierArgs` is a separate, parse-only result type. A pre-issued
 modifier naming a runway that is not a parallel warns "… will cross midfield" when the entry builds its circuit.
-A `FOLLOW` rebuilds the phase list but carries an armed `PatternRunway` across (`VfrFollowPhase`, same airport only) and
+A `FOLLOW` rebuilds the phase list but carries the armed state across: the pursuit's new list keeps `AssignedRunway`, `PatternRunway` and `TransitionPatternAltitude` (`CommandDispatcher.InstallVfrFollowPhase`), and the join keeps an armed `PatternRunway` (`VfrFollowPhase`, same airport only) and
 warns that the follower will leave the sequence after its next terminator; when the follow's runway is the armed one
 the arming is satisfied and the join flies the armed deferred altitude. The modifier's runway/altitude tokens resolve through
 `Commands/Arguments/` (`RunwayArgument`, `AltitudeArgument`, `CommandArgumentResolver` walking the overload shapes
@@ -1213,7 +1213,13 @@ The S-turn's "no 360, no 90° turn-out" binds only the unannounced S-turn, not t
 
   The excursion has stalled when it is at the offset cap, more than `StallShortfallNm = 0.1` short of the gap, and the gap grew by less than `StallMinGrowthNm = 0.05` over `StallWindowSeconds = 20` (`ParallelHoldStalled`).
 
-  A requested turn-out skips the 5 nm range (the range still gates the per-tick trigger) and is consumed before the base, pattern and final joins, so a break-off never flips straight into a join. The circuit it rejoins is the pursuit's own pattern return when that names the lead's runway, else the lead's runway in the lead's traffic direction (the runway default without one).
+  A requested turn-out skips the 5 nm range (the range still gates the per-tick trigger) and is consumed before the base, pattern and final joins, so a break-off never flips straight into a join. The circuit it rejoins is the pursuit's own pattern return when that names the lead's runway, else the lead's runway in the lead's traffic direction (`TurnOutDirection`).
+
+  A lead with no traffic direction (an IFR-style straight-in) leaves the side to the field. At an airport with a tower (`PhaseContext.ToweredAirports`, the room's towered set; a configured tower counts as operating), the follower turns out on its own side of the extended centerline, away from the final, so the turn-out never crosses the lead's final.
+
+  Two cases keep the runway's default instead of the follower's own side: a follower on the side that faces the runway's L/R parallel (its own turn-out would cross the parallel's final, AIM §4-3-3 FIG 4-3-3 key 7), and a follower within one turn radius of the centerline (`BasePhase.TurnRadiusNm` at its true airspeed), whose turn would carry it across the final. Treating every configured tower as open is a simplification: at a part-time tower after hours the published side would apply.
+
+  At an airport without one it takes the runway's default (`PatternGeometry.InferDefaultPatternDirection`, else left). A follower on the other side of that default gets no turn-out and keeps the S-turn, extension and "unable to follow" fallbacks.
 - **One call** on the tick it starts: "turning downwind for spacing behind the traffic, request base turn." (`PilotResponder.BuildTurningDownwindForSpacing`, see [`pilot-phraseology.md`](pilot-phraseology.md)). It says "behind the traffic", not "the traffic is behind us", because the lead may still be behind or level when the follower turns.
 - **The turn**: to the runway's reciprocal (the downwind heading), the way that first moves the follower away from the final centerline (`ReversalTurn`): from base, 90° against the pattern direction; from a heading parallel to the final, 180° turning outward, at the category's pattern bank. It levels at the circuit's pattern altitude, climbing back from a base descent if need be (an assigned altitude stands), at approach speed. The S-turn excursion and the stall window are dropped.
 - **Offset band**: from a floor at the excursion's offset cap (`ExcursionLimitsFor`: max(1.0 nm, 3 turn radii), 1.5 nm for turboprops and jets) to a ceiling `TurnOutBandWidthNm = 1.0` beyond it. Below the floor it flies `TurnOutCorrectionDeg = 30°` outward of the downwind heading, above the ceiling 30° inward (`TurnOutOffsetCorrection`), unless the correction would carry it toward a parallel runway's final (`CorrectionMeetsParallelFinal`).
@@ -1248,10 +1254,10 @@ Joining the lead's own base at its start point puts the follower on the same run
 **Straight-in lead — `TryJoinLeadFinal`.** When the lead is on a straight-in final/landing to a known runway but
 has *no* pattern-leg waypoints to copy (e.g. an IFR aircraft that spawned directly onto `FinalApproachPhase`),
 `TryJoinLeadPattern` returns null and `TryJoinLeadFinal` takes over. It sequences the follower onto that runway's
-final once the in-trail spacing (`followerDist − leadDist`) is at least `RequiredFinalInTrailNm`: `SameRunwayInTrailFloorNm
+final once the in-trail spacing, measured along the final (`AlongFinalNm(follower) − AlongFinalNm(lead)`, as the landed-lead gate measures), is at least `RequiredFinalInTrailNm`: `SameRunwayInTrailFloorNm
 = 1.5` when the pair has no on-approach wake minimum, `WakeLeadInTrailFloorNm = 2.5` when it has one; and the follower is aligned for a sane
 intercept (`|cross-track| ≤ MaxFinalJoinCrossTrackNm = 1.0`, `intercept ≤ MaxFinalJoinInterceptDeg = 30°`, not inside
-`MinFinalJoinDistNm = 0.5`). The join is also refused when a
+`MinFinalJoinDistNm = 0.5` out along the final, which keeps the follower on the approach side: a follower past the threshold, upwind of it or abeam it, never joins the final). The join is also refused when a
 near-parallel runway's extended centerline lies laterally **between** the follower and the target centerline
 (`JoinCapturePathCrossesParallelFinal`, heading delta ≤ 10° against **either stored end** — navdata stores each
 physical runway oriented to an arbitrary end, e.g. KOAK stores 10L/10R, so a stored-orientation-only test silently
@@ -1277,7 +1283,7 @@ defers `FinalApproachPhase` to a valid-runway tick — the same reason the patte
 
 **Lead landed — `TrySequenceBehindLandedLead`.** The lead's runway is captured each tick into `_leadLandingRunway` (serialized in `VfrFollowPhaseDto`) while the lead is airborne on final/landing, so a lead that touches down before the follower has rolled onto final still names the runway to sequence onto, instead of the follow ending with the follower levelling off over the field.
 
-The follower joins that final (`SequenceOntoFinal`) only through `TryJoinLeadFinal`'s geometry gates without its in-trail gate, since the lead is down and spacing is moot (`CanSequenceOntoLandedFinal`): on the approach side of the threshold at least `MinFinalJoinDistNm = 0.5` out, cross-track ≤ `MaxFinalJoinCrossTrackNm = 1.0`, intercept ≤ `MaxFinalJoinInterceptDeg = 30°`, and no parallel runway's final crossed (AIM §4-3-3 FIG 4-3-3 note 7).
+The follower joins that final (`SequenceOntoFinal`) only through `TryJoinLeadFinal`'s geometry gates without its in-trail gate, since the lead is down and spacing is moot (`CanSequenceOntoFinal`): on the approach side of the threshold at least `MinFinalJoinDistNm = 0.5` out, cross-track ≤ `MaxFinalJoinCrossTrackNm = 1.0`, intercept ≤ `MaxFinalJoinInterceptDeg = 30°`, and no parallel runway's final crossed (AIM §4-3-3 FIG 4-3-3 note 7).
 
 Joining a final from beyond the threshold is never acceptable: without these gates measured runs reversed over the runway and reached final 0.05 and 0.21 nm out.
 

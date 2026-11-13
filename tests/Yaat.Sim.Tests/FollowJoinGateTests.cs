@@ -168,6 +168,111 @@ public class FollowJoinGateTests
         Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
     }
 
+    // ─── Distances measured along the final ───
+
+    private static RunwayInfo? RealOak28R() => TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
+
+    /// <summary>
+    /// A follower 2.5 nm past the threshold on the upwind side, flying runway heading, behind a lead 1 nm out on final: its
+    /// straight-line distance from the threshold looks like a trailing follower, but along the final it is past the
+    /// threshold, and a follower past the threshold never joins the final.
+    /// </summary>
+    [Fact]
+    public void JoinLeadFinal_FollowerUpwindPastTheThreshold_DoesNotJoin()
+    {
+        RunwayInfo rwy = Assert.IsType<RunwayInfo>(RealOak28R());
+
+        (AircraftState follower, VfrFollowPhase phase, PhaseContext ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.0,
+            followerAlongNm: -2.5,
+            followerCrossNm: 0.0,
+            followerTrackDeg: rwy.TrueHeading.Degrees
+        );
+
+        phase.OnTick(ctx);
+
+        Assert.DoesNotContain(follower.Phases!.Phases, p => p is PatternEntryPhase { Kind: PatternEntryKind.Final });
+        Assert.IsType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// Regression guard: a follower 3 nm out on the extended centerline behind a lead 1 nm out is 2 nm in trail along the
+    /// final, so it joins.
+    /// </summary>
+    [Fact]
+    public void JoinLeadFinal_FollowerThreeOutOnTheCenterline_Joins()
+    {
+        RunwayInfo rwy = Assert.IsType<RunwayInfo>(RealOak28R());
+
+        (AircraftState follower, VfrFollowPhase phase, PhaseContext ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.0,
+            followerAlongNm: 3.0,
+            followerCrossNm: 0.0,
+            followerTrackDeg: rwy.TrueHeading.Degrees
+        );
+
+        phase.OnTick(ctx);
+
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(PatternEntryKind.Final, entry.Kind);
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// Regression guard: a follower abeam the threshold 0.8 nm to the side, flying runway heading, is not out on the final,
+    /// so no join; the in-trail gate (behind a lead 1 nm out) refuses it as well, before and after the along-final change.
+    /// </summary>
+    [Fact]
+    public void JoinLeadFinal_FollowerAbeamTheThreshold_DoesNotJoin()
+    {
+        RunwayInfo rwy = Assert.IsType<RunwayInfo>(RealOak28R());
+
+        (AircraftState follower, VfrFollowPhase phase, PhaseContext ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.0,
+            followerAlongNm: 0.0,
+            followerCrossNm: 0.8,
+            followerTrackDeg: rwy.TrueHeading.Degrees
+        );
+
+        phase.OnTick(ctx);
+
+        Assert.DoesNotContain(follower.Phases!.Phases, p => p is PatternEntryPhase { Kind: PatternEntryKind.Final });
+        Assert.IsType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// The minimum join distance along the final, with the in-trail floor met (the lead 1.2 nm past the threshold, still
+    /// airborne): 0.4 nm out on the centerline is inside <see cref="VfrFollowPhase.MinFinalJoinDistNm"/>, so no join; 0.6 nm
+    /// out joins.
+    /// </summary>
+    [Theory]
+    [InlineData(0.4, false)]
+    [InlineData(0.6, true)]
+    public void JoinLeadFinal_MinimumJoinDistanceAlongTheFinal(double followerAlongNm, bool joins)
+    {
+        RunwayInfo rwy = Assert.IsType<RunwayInfo>(RealOak28R());
+
+        (AircraftState follower, VfrFollowPhase phase, PhaseContext ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: -1.2,
+            followerAlongNm: followerAlongNm,
+            followerCrossNm: 0.0,
+            followerTrackDeg: rwy.TrueHeading.Degrees
+        );
+        ctx.AircraftLookup!(Leader)!.Altitude = rwy.ElevationFt + 20.0;
+
+        phase.OnTick(ctx);
+
+        Assert.Equal(joins, follower.Phases!.CurrentPhase is PatternEntryPhase { Kind: PatternEntryKind.Final });
+        if (!joins)
+        {
+            Assert.IsType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+        }
+    }
+
     // ─── Visual follow: the final-join in-trail floor ───
 
     /// <summary>

@@ -511,8 +511,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   Regression coverage: `SequentialTransparentCompoundTests`, `AptCancelsPatternAtOtherAirportTests`,
   `PhaseTransparentCommandTests.ParallelBlock_LeadingTurnRate_SurvivesPhaseClear`.
 - **Installing a phase has a lifecycle.** Build a fresh `PhaseList`, `Clear()` the old one with a `PhaseContext`, `Add` phases, then `Start()` with
-  another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:3797`, whose install sequence is `InstallVfrFollowPhase`, `:5134`–`:5140`; `DispatchHoldingPattern`). Use
-  `BuildMinimalContext` (`:2717`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.
+  another `PhaseContext` (see `DispatchJfac`, `CommandDispatcher.TryAirborneFollow`, whose install sequence is `InstallVfrFollowPhase`; `DispatchHoldingPattern`). Use
+  `BuildMinimalContext` to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.
 - **A go-around leaves nothing for `ReplaceApproachEnding` to swap.** `GoAroundHelper.InstallGoAroundPhases` → `PhaseList.ReplaceUpcoming`
   deletes every pending landing phase, so while `GoAroundPhase` is current `ReplaceApproachEnding` (which only replaces a *pending*
   `Landing`/`HelicopterLanding`/`TouchAndGo`/`StopAndGo`/`LowApproach`) finds nothing, and `GoAroundPhase` is not in `TryForceLanding`'s

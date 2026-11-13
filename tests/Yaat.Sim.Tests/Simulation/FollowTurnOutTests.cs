@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
@@ -423,6 +424,271 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         Assert.Null(follower.Phases.TransitionPatternAltitude);
     }
 
+    // ─── Direction behind a straight-in lead with no traffic direction ───
+
+    /// <summary>
+    /// Towered OAK, an IFR-style straight-in lead on the runway 30 final with no traffic direction, and the follower level
+    /// with it on the right: the turn-out goes out to the right downwind heading, away from the final on the follower's own
+    /// side, never across the final to the runway's default left pattern.
+    /// </summary>
+    [Fact]
+    public void StraightInLeadWithNoDirection_Towered_TurnsOutOnTheFollowersOwnSide()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        Assert.Null(PatternGeometry.InferDefaultPatternDirection(rwy));
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, 1.2, patternReturn: null);
+
+        TickSeconds(engine, 1);
+
+        Assert.Equal(1, TurnOutCalls(follower));
+        Assert.Equal(PatternDirection.Right, TurnOutDirection(follower));
+    }
+
+    /// <summary>
+    /// Regression guard: the same pair at a field with no tower: the runway's default (left, runway 30 has no parallel) puts the circuit on the
+    /// far side of the final, so there is no turn-out; the follower keeps pursuing.
+    /// </summary>
+    [Fact]
+    public void StraightInLeadWithNoDirection_NotTowered_NoTurnOutFromTheOtherSide()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.Empty);
+        AddStraightInLead(engine, rwy, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, 1.2, patternReturn: null);
+
+        TickSeconds(engine, 5);
+
+        Assert.Equal(0, TurnOutCalls(follower));
+        VfrFollowPhase phase = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.False(phase.TurningOut);
+    }
+
+    /// <summary>
+    /// Regression guard: towered OAK, a follower whose own pattern return names left traffic for runway 30, on the left of
+    /// the final: its own circuit's direction wins, a left turn-out.
+    /// </summary>
+    [Fact]
+    public void StraightInLeadWithNoDirection_OwnLeftReturnOnTheLeft_TurnsOutLeft()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 3.0);
+        var ownReturn = new FollowPatternReturn(rwy, PatternDirection.Left, PatternAltitudeFt(rwy), false);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, -1.2, ownReturn);
+
+        TickSeconds(engine, 1);
+
+        Assert.Equal(1, TurnOutCalls(follower));
+        Assert.Equal(PatternDirection.Left, TurnOutDirection(follower));
+    }
+
+    /// <summary>Towered OAK, the follower 1.2 nm left of the runway 30 final with no return of its own: a left turn-out.</summary>
+    [Fact]
+    public void StraightInLeadWithNoDirection_Towered_LeftSide_TurnsOutLeft()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, -1.2, patternReturn: null);
+
+        TickSeconds(engine, 1);
+
+        Assert.Equal(1, TurnOutCalls(follower));
+        Assert.Equal(PatternDirection.Left, TurnOutDirection(follower));
+    }
+
+    /// <summary>
+    /// Towered OAK, the follower on the right of the runway 30 final with its own left-traffic return: its own circuit comes
+    /// before its side, and that circuit is on the far side of the final, so there is no turn-out.
+    /// </summary>
+    [Fact]
+    public void StraightInLeadWithNoDirection_Towered_OwnLeftReturnOnTheRight_NoTurnOut()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 3.0);
+        var ownReturn = new FollowPatternReturn(rwy, PatternDirection.Left, PatternAltitudeFt(rwy), false);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, 1.2, ownReturn);
+
+        TickSeconds(engine, 5);
+
+        Assert.Equal(0, TurnOutCalls(follower));
+    }
+
+    /// <summary>
+    /// Towered OAK, a lead flying left traffic to runway 30 and the follower on the right with no return of its own: the
+    /// lead's direction comes before the follower's side, so there is no turn-out.
+    /// </summary>
+    [Fact]
+    public void LeadWithLeftTraffic_Towered_FollowerOnTheRight_NoTurnOut()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddFinalLeadTo(engine, rwy, PatternDirection.Left, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, 1.2, patternReturn: null);
+
+        TickSeconds(engine, 5);
+
+        Assert.Equal(0, TurnOutCalls(follower));
+    }
+
+    /// <summary>
+    /// No tower, a straight-in lead to 28R (28L its parallel, so the default is right traffic) and the follower on the right,
+    /// the outboard side: a right turn-out.
+    /// </summary>
+    [Fact]
+    public void StraightInLeadWithNoDirection_NotTowered_OutboardOfAParallel_TurnsOutRight()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        Assert.Equal(PatternDirection.Right, PatternGeometry.InferDefaultPatternDirection(rwy));
+        AttachScenario(engine, ToweredAirports.Empty);
+        AddStraightInLead(engine, rwy, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, 1.2, patternReturn: null);
+
+        TickSeconds(engine, 1);
+
+        Assert.Equal(1, TurnOutCalls(follower));
+        Assert.Equal(PatternDirection.Right, TurnOutDirection(follower));
+    }
+
+    /// <summary>
+    /// Towered OAK, a straight-in lead to 28L and the follower on its right, the side facing the parallel 28R (between the two
+    /// finals, or beyond 28R): the follower's own side is not taken there (AIM 4-3-3 FIG 4-3-3 key 7), the outboard default
+    /// (left) is on the far side, so there is no turn-out.
+    /// </summary>
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(1.2)]
+    public void StraightInLeadWithNoDirection_Towered_InboardOfAParallel_NoTurnOut(double crossNm)
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28L");
+        Assert.Equal(PatternDirection.Left, PatternGeometry.InferDefaultPatternDirection(rwy));
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, crossNm, patternReturn: null);
+
+        TickSeconds(engine, 5);
+
+        Assert.Equal(0, TurnOutCalls(follower));
+    }
+
+    /// <summary>
+    /// Towered OAK, the follower 0.15 nm right of the runway 30 final, inside one turn radius of it, converging at 30° or
+    /// diverging at 30°: its side is not taken that close to the centerline, the runway's default (left) is on the far side,
+    /// and within 90 s no turn-out starts, so nothing carries it across the final.
+    /// </summary>
+    [Theory]
+    [InlineData(-30.0)]
+    [InlineData(30.0)]
+    public void StraightInLeadWithNoDirection_Towered_InsideOneTurnRadius_NeverCrossesTheFinalInTheTurnOut(double headingOffsetDeg)
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 3.0);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, 0.15, patternReturn: null);
+        follower.TrueHeading = rwy.TrueHeading + headingOffsetDeg;
+        follower.TrueTrack = follower.TrueHeading;
+
+        int startSide = 0;
+        bool flipped = false;
+        for (int i = 0; i < 90 * 4; i++)
+        {
+            engine.TickPhysics(0.25);
+            int side = Math.Sign(GeoMath.SignedCrossTrackDistanceNm(follower.Position, Threshold(rwy), rwy.TrueHeading));
+            bool turningOut = follower.Phases?.CurrentPhase is VfrFollowPhase { TurningOut: true };
+            startSide = (turningOut && (startSide == 0)) ? side : startSide;
+            flipped |= turningOut && (startSide != 0) && (side != 0) && (side != startSide);
+        }
+
+        output.WriteLine($"heading offset {headingOffsetDeg}: turn-out calls {TurnOutCalls(follower)}, started on side {startSide}");
+        Assert.False(flipped, "the turn-out carried the follower across the final");
+        Assert.Equal(0, TurnOutCalls(follower));
+    }
+
+    /// <summary>
+    /// Towered OAK, the follower on the runway 30 extended centerline (0.01 nm either side of it), 2 nm ahead of the
+    /// straight-in lead: no side of its own there, so the runway's default (left) decides. Just left of the centerline it
+    /// turns out left; just right of it the left circuit is across the final, so there is no turn-out.
+    /// </summary>
+    [Theory]
+    [InlineData(-0.01, 1)]
+    [InlineData(0.01, 0)]
+    public void StraightInLeadWithNoDirection_Towered_OnTheCenterline_TakesTheRunwayDefault(double crossNm, int expectedCalls)
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("30");
+        AttachScenario(engine, ToweredAirports.FromIds(["OAK"]));
+        AddStraightInLead(engine, rwy, 4.5);
+        AircraftState follower = AddPursuerOn(engine, rwy, 2.5, crossNm, patternReturn: null);
+
+        TickSeconds(engine, 1);
+
+        Assert.Equal(expectedCalls, TurnOutCalls(follower));
+        if (expectedCalls > 0)
+        {
+            Assert.Equal(PatternDirection.Left, TurnOutDirection(follower));
+        }
+    }
+
+    /// <summary>A room scenario with <paramref name="towered"/> as its towered airports.</summary>
+    private static void AttachScenario(SimulationEngine engine, ToweredAirports towered) =>
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "follow-turnout",
+            ScenarioName = "follow-turnout",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "OAK",
+            ToweredAirports = towered,
+        };
+
+    /// <summary>An IFR-style straight-in lead on <paramref name="rwy"/>'s final <paramref name="alongNm"/> out: no traffic direction.</summary>
+    private static void AddStraightInLead(SimulationEngine engine, RunwayInfo rwy, double alongNm)
+    {
+        AircraftState lead = AddFinalLeadTo(engine, rwy, PatternDirection.Left, alongNm);
+        lead.Phases!.TrafficDirection = null;
+    }
+
+    /// <summary>
+    /// A follower pursuing the lead at <paramref name="alongNm"/> out and <paramref name="crossNm"/> right of
+    /// <paramref name="rwy"/>'s centerline on its final heading at 1,000 ft, cleared to land, with
+    /// <paramref name="patternReturn"/>.
+    /// </summary>
+    private static AircraftState AddPursuerOn(
+        SimulationEngine engine,
+        RunwayInfo rwy,
+        double alongNm,
+        double crossNm,
+        FollowPatternReturn? patternReturn
+    )
+    {
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, alongNm, crossNm), rwy.TrueHeading, 1000);
+        engine.World.AddAircraft(follower);
+        follower.Phases = new PhaseList { LandingClearance = ClearanceType.ClearedToLand, ClearedRunwayId = rwy.Designator };
+        follower.Approach.HasReportedTrafficInSight = true;
+        CommandDispatcher.InstallVfrFollowPhase(follower, Leader, patternReturn, climbOutGate: null);
+        return follower;
+    }
+
+    /// <summary>The traffic direction of the turn-out under way.</summary>
+    private static PatternDirection TurnOutDirection(AircraftState follower)
+    {
+        VfrFollowPhase phase = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        FollowTurnOutDto turnOut = Assert.IsType<FollowTurnOutDto>(((VfrFollowPhaseDto)phase.ToSnapshot()).TurnOut);
+        return (PatternDirection)turnOut.Direction;
+    }
+
     // ─── Lead leaves the final ───
 
     /// <summary>The lead goes around mid turn-out: the follow ends into a downwind entry for 28R, still cleared to land, with no call.</summary>
@@ -497,9 +763,9 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         AircraftState aligned = MakeVfr(Follower, OffFinal(rwy, 1.5, 0.2), rwy.TrueHeading, 800);
         AircraftState tooClose = MakeVfr(Follower, OffFinal(rwy, 0.3, 0.0), rwy.TrueHeading, 300);
 
-        Assert.False(VfrFollowPhase.CanSequenceOntoLandedFinal(beyond, rwy));
-        Assert.True(VfrFollowPhase.CanSequenceOntoLandedFinal(aligned, rwy));
-        Assert.False(VfrFollowPhase.CanSequenceOntoLandedFinal(tooClose, rwy));
+        Assert.False(VfrFollowPhase.CanSequenceOntoFinal(beyond, rwy));
+        Assert.True(VfrFollowPhase.CanSequenceOntoFinal(aligned, rwy));
+        Assert.False(VfrFollowPhase.CanSequenceOntoFinal(tooClose, rwy));
     }
 
     // ─── Snapshot ───

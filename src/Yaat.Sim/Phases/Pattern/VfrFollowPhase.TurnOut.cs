@@ -73,7 +73,7 @@ public sealed partial class VfrFollowPhase
     /// at the follower's pattern altitude for it (<see cref="ResolvePatternAltitudeFt"/>).
     /// </summary>
     private static FollowPatternReturn NewTurnOutCircuit(PhaseContext ctx, RunwayInfo runway, PhaseList leadPhases) =>
-        new(runway, TurnOutDirection(runway, leadPhases), ResolvePatternAltitudeFt(ctx.Aircraft, runway, ctx.GroundLayout), FromBase: false);
+        new(runway, TurnOutDirection(ctx, runway, leadPhases), ResolvePatternAltitudeFt(ctx.Aircraft, runway, ctx.GroundLayout), FromBase: false);
 
     /// <summary>
     /// True when <paramref name="lead"/> flies its base, or its final (in <see cref="FinalApproachPhase"/> or by geometry), to
@@ -82,9 +82,48 @@ public sealed partial class VfrFollowPhase
     private static bool IsOnBaseOrFinalLeg(AircraftState lead, RunwayInfo runway) =>
         (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase) || AirborneFollowHelper.IsOnFinalByGeometry(lead, runway);
 
-    /// <summary>The traffic direction of a turn-out circuit this pursuit did not come from: the lead's, else the runway's default.</summary>
-    private static PatternDirection TurnOutDirection(RunwayInfo runway, PhaseList leadPhases) =>
-        leadPhases.TrafficDirection ?? PatternGeometry.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
+    /// <summary>
+    /// The traffic direction of a turn-out circuit this pursuit did not come from: the lead's; else, at an airport with a tower
+    /// (<see cref="PhaseContext.ToweredAirports"/>), the side of the extended centerline the follower is on
+    /// (<see cref="SideOfCenterline"/>), so it turns out away from the final on its own side and never across it, unless that
+    /// side faces the runway's parallel (the side <see cref="PatternGeometry.InferDefaultPatternDirection"/> does not pick:
+    /// AIM 4-3-3 FIG 4-3-3 key 7, never penetrate the parallel's final); else the runway's default, else left. A follower on
+    /// the other side of that default gets no turn-out (<see cref="TurnOutCircuitFor"/> checks the pattern side).
+    /// </summary>
+    private static PatternDirection TurnOutDirection(PhaseContext ctx, RunwayInfo runway, PhaseList leadPhases)
+    {
+        if (leadPhases.TrafficDirection is { } leadDirection)
+        {
+            return leadDirection;
+        }
+
+        PatternDirection? runwayDefault = PatternGeometry.InferDefaultPatternDirection(runway);
+        bool towered = ctx.ToweredAirports.IsTowered(runway.AirportId);
+        if (towered && (SideOfCenterline(ctx.Aircraft, runway, ctx.Category) is { } ownSide) && ((runwayDefault ?? ownSide) == ownSide))
+        {
+            return ownSide;
+        }
+
+        return runwayDefault ?? PatternDirection.Left;
+    }
+
+    /// <summary>
+    /// The side of <paramref name="runway"/>'s extended centerline <paramref name="aircraft"/> is on, as the traffic direction
+    /// whose downwind lies there (right of the landing direction: right traffic), by <see cref="SignedCrossTrackNm"/>; null
+    /// within one turn radius of the centerline (<see cref="BasePhase.TurnRadiusNm(double, AircraftCategory)"/> at its true
+    /// airspeed), where a reversal toward its own side could carry it across the final.
+    /// </summary>
+    private static PatternDirection? SideOfCenterline(AircraftState aircraft, RunwayInfo runway, AircraftCategory category)
+    {
+        double crossTrackNm = SignedCrossTrackNm(aircraft.Position, runway);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude), category);
+        if (Math.Abs(crossTrackNm) < turnRadiusNm)
+        {
+            return null;
+        }
+
+        return crossTrackNm > 0.0 ? PatternDirection.Right : PatternDirection.Left;
+    }
 
     /// <summary>
     /// True when the follower's shortest path to <paramref name="circuit"/>'s threshold is no longer than the lead's remaining

@@ -298,6 +298,46 @@ public class FollowArmedPatternRunwayTests
         Assert.Contains(follower.PendingWarnings, w => w.Contains("28L stays armed", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// <c>COPT MRT 28L 20</c> on the 28R circuit (28L armed in right traffic, 2,000 ft deferred to it), then <c>FOLLOW</c>:
+    /// the pursuit's new list carries the flown runway, the armed runway and the deferral, so when the follow ends the
+    /// return to the 28R right-traffic circuit still leaves 28L armed at 2,000.
+    /// </summary>
+    [Fact]
+    public void InstallFollow_ArmedPatternRunway_CarriesTheArmingIntoThePursuit()
+    {
+        NavigationDatabase navDb = Assert.IsType<NavigationDatabase>(TestVnasData.NavigationDb);
+        RunwayInfo flown = Assert.IsType<RunwayInfo>(navDb.GetRunway("KOAK", "28R"));
+        RunwayInfo armed = Assert.IsType<RunwayInfo>(navDb.GetRunway("KOAK", "28L"));
+
+        AircraftState follower = MakeVfr(Follower, OffFinal(flown, 3.5, 1.0), flown.TrueHeading, altitude: 1200);
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = flown,
+            PatternRunway = armed,
+            TransitionPatternAltitude = new DeferredPatternAltitude(2000),
+            TrafficDirection = PatternDirection.Right,
+        };
+        var patternReturn = new FollowPatternReturn(flown, PatternDirection.Right, flown.AirportElevationFt + 1000, FromBase: false);
+
+        VfrFollowPhase pursuit = CommandDispatcher.InstallVfrFollowPhase(follower, Lead, patternReturn, climbOutGate: null);
+
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+        Assert.Equal("28L", follower.Phases.PatternRunway?.Designator);
+        Assert.Equal(new DeferredPatternAltitude(2000), follower.Phases.TransitionPatternAltitude);
+
+        // The lead is lost: the follow ends and re-enters the 28R right-traffic circuit with the arming intact.
+        Assert.True(pursuit.OnTick(Ctx(follower, flown, _ => null)));
+
+        Assert.Contains(
+            follower.PendingWarnings,
+            w => w.Contains("follow ended, re-entering right traffic runway 28R", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+        Assert.Equal("28L", follower.Phases.PatternRunway?.Designator);
+        Assert.Equal(new DeferredPatternAltitude(2000), follower.Phases.TransitionPatternAltitude);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // The altitude an option modifier deferred to the armed runway travels with the arming
     // ---------------------------------------------------------------------------------------------

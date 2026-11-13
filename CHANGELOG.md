@@ -31,6 +31,7 @@
 - A tug now slows before each turn of a tow, so it no longer surges to 6-12 kt entering a tight turn; tows take up to 3 s longer.
 - Facility engineers, training administrators and air traffic managers at your home facility can now run sessions, as mentors and instructors can.
 - `TAXI` and `RTAXI` autocomplete offers `RWY`, `@` and `$` right after the command, so the no-route `TAXI RWY 28R` form is suggested.
+- A FOLLOW behind a straight-in lead turns out on its own side at a towered field, never toward a parallel runway or across the final.
 
 ### Fixed
 
@@ -41,6 +42,8 @@
 - An IFR aircraft in its published missed-approach hold now refuses FOLLOW as on the missed approach, instead of leaving the hold.
 - A command that cancels a missed approach now warns "missed approach cancelled", and FOLLOW behind a lead in that hold says it "is holding".
 - A FOLLOW refused because the lead is on the ground says "has landed" when the lead is still in its landing roll or exit.
+- A runway armed by `COPT MLT`/`MRT` survives a FOLLOW, so the follower still returns to that circuit at its deferred altitude.
+- A FOLLOW past, upwind of or abeam the threshold no longer joins the lead's final; spacing on final is measured along it.
 - Pasting a copied Favorites button onto a blank slot fills that slot, and pasting onto a button replaces it, keeping the grid's layout.
 - vStrips leaves the equipment suffix empty for a scenario flight plan filed without one, as vNAS does, instead of showing /A.
 - A climb via whose SID publishes no top, such as SFO TRUKN2, now climbs to FL190 instead of levelling at an "at or above" altitude.

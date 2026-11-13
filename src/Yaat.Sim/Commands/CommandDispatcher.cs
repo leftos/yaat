@@ -6859,7 +6859,10 @@ public static class CommandDispatcher
     /// Replace the follower's phases with a fresh <see cref="VfrFollowPhase"/> pursuing <paramref name="target"/>.
     /// A new PhaseList (mirrors ApproachCommandHandler.TryClearedVisualApproach) so no stale phase index is
     /// inherited; the standing landing-family clearance and its runway are carried onto it, so a follower
-    /// cleared before FOLLOW keeps its clearance through the pursuit. Returns the installed phase.
+    /// cleared before FOLLOW keeps its clearance through the pursuit, and the armed pattern state
+    /// (<see cref="PhaseList.AssignedRunway"/>, <see cref="PhaseList.PatternRunway"/>,
+    /// <see cref="PhaseList.TransitionPatternAltitude"/>) rides on too, so an option modifier's armed runway survives the
+    /// install. Returns the installed phase.
     /// <paramref name="climbOutGate"/> is the departure leg the pursuit holds first when it starts on the upwind
     /// (<see cref="VfrFollowPhase.ClimbOutGateFor"/>), null for a pursuit that may steer at its lead at once.
     /// </summary>
@@ -6870,27 +6873,34 @@ public static class CommandDispatcher
         FollowClimbOutGate? climbOutGate
     )
     {
-        ClearanceType? standingClearance = aircraft.Phases?.LandingClearance;
-        string? standingClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
+        // The standing clearance rides on, and so does the armed pattern state, read before the old list is cleared: the runway
+        // being flown, a pattern runway an option modifier armed ahead of it (COPT MRT 28L on the 28R circuit) and the
+        // altitude it deferred to that runway.
+        PhaseList? previous = aircraft.Phases;
+        var carried = new PhaseList
+        {
+            LandingClearance = previous?.LandingClearance,
+            ClearedRunwayId = previous?.ClearedRunwayId,
+            AssignedRunway = previous?.AssignedRunway,
+            PatternRunway = previous?.PatternRunway,
+            TransitionPatternAltitude = previous?.TransitionPatternAltitude,
+        };
 
         // A restricted low approach (LA 600) keeps its altitude through the pursuit: the join rebuilds the terminal from the
         // clearance type alone, so the restriction rides on the pursuit phase.
-        int? standingLowApproachAtOrAboveFt = aircraft
-            .Phases?.Phases.OfType<LowApproachPhase>()
+        int? standingLowApproachAtOrAboveFt = previous
+            ?.Phases.OfType<LowApproachPhase>()
             .FirstOrDefault(p => p.Status is PhaseStatus.Pending or PhaseStatus.Active)
             ?.AtOrAboveFt;
-        if (aircraft.Phases is { } existing)
-        {
-            // No route to the room's active runways: this handler is not given the dispatch context.
-            existing.Clear(BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
-        }
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        previous?.Clear(BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         var pursuit = new VfrFollowPhase(target, patternReturn)
         {
             ClimbOutGate = climbOutGate,
             LowApproachAtOrAboveFt = standingLowApproachAtOrAboveFt,
         };
-        aircraft.Phases = new PhaseList { LandingClearance = standingClearance, ClearedRunwayId = standingClearedRunwayId };
+        aircraft.Phases = carried;
         aircraft.Phases.Phases.Add(pursuit);
         // No route to the room's active runways: this handler is not given the dispatch context.
         aircraft.Phases.Start(BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));

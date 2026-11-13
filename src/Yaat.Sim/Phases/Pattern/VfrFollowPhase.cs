@@ -732,15 +732,17 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// </summary>
     private static bool IsOnPatternSide(AircraftState follower, RunwayInfo runway, PatternDirection direction)
     {
-        // Signed cross-track distance from the runway centerline: positive = right
-        // of runway heading, negative = left.
-        double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
-            follower.Position,
-            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
-            runway.TrueHeading
-        );
+        double crossTrack = SignedCrossTrackNm(follower.Position, runway);
         return direction == PatternDirection.Left ? crossTrack <= 0 : crossTrack >= 0;
     }
+
+    /// <summary>
+    /// <paramref name="position"/>'s signed distance (nm) from <paramref name="runway"/>'s extended centerline: positive right
+    /// of the landing direction (the right-traffic side), negative left. The one side convention <see cref="IsOnPatternSide"/>
+    /// and <see cref="SideOfCenterline"/> share.
+    /// </summary>
+    private static double SignedCrossTrackNm(LatLon position, RunwayInfo runway) =>
+        GeoMath.SignedCrossTrackDistanceNm(position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading);
 
     /// <summary>A turn-out under way: the circuit it rejoins (runway, direction, and the altitude it levels at) and where it began.</summary>
     private sealed record FollowTurnOut(FollowPatternReturn Circuit, LatLon StartPoint);

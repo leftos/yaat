@@ -1805,6 +1805,7 @@ public sealed partial class SimulationEngine
             GroundLayout = groundLayout,
             // No scenario loaded: the room has named no active runways.
             ActiveRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty,
+            ToweredAirports = Scenario?.ToweredAirports ?? ToweredAirports.Empty,
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.IsAutoClearedToLandFor(aircraft) ?? false,
