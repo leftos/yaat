@@ -11,7 +11,7 @@ All Commands
     Taxi to runway alias:TAXI
       Finding runway entries…
     Preset taxi route alias:TAXI
-      TERMINAL to 30 · via T U W · ~22,400 ft — TAXI T U W RWY 30
+      TERMINAL to 30 · via T U W · ~22,350 ft — TAXI T U W RWY 30
     Follow… · no other aircraft on the ground [disabled]
     Draw taxi route…
   Pilot reports

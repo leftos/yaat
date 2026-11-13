@@ -307,6 +307,14 @@ public static class RouteCostFunction
     }
 
     /// <summary>
+    /// The turn-budget price of the head turn from <paramref name="arrivalBearing"/> onto
+    /// <paramref name="departureBearing"/>: what <see cref="IncrementalCost"/> charges for that turn at the base turn weight
+    /// (null or Fastest preference); bridge ranking applies it under every preference.
+    /// </summary>
+    public static double JoinTurnCostNm(double arrivalBearing, double departureBearing) =>
+        HeadingDelta(arrivalBearing, departureBearing) * TurnBudgetWeightNmPerDeg;
+
+    /// <summary>
     /// Resolve the taxiway name that applies when traversing <paramref name="edge"/>
     /// departing from <paramref name="fromNodeId"/>. For junction arcs the arriving side's
     /// taxiway is returned.

@@ -5,7 +5,7 @@ At parking · 25 [disabled]
 Taxi [disabled]
 Push back alias:PUSH
 Preset taxi route alias:TAXI
-  TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
+  TERMINAL to 30 · via T U W · ~4,650 ft — TAXI T U W RWY 30
 Draw taxi route…
 Push back to… alias:PUSH
   Computing targets… [disabled]
@@ -21,7 +21,7 @@ All Commands
     Taxi to runway alias:TAXI
       Finding runway entries…
     Preset taxi route alias:TAXI
-      TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
+      TERMINAL to 30 · via T U W · ~4,650 ft — TAXI T U W RWY 30
     Follow… · no other aircraft on the ground [disabled]
     Draw taxi route…
   Pilot reports

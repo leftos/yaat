@@ -143,6 +143,10 @@ For a gate TAXI, always run the parking-node form with `--pf-dest-rwy` + `--pf-h
 
 - **`--intersection D F` can report a node the expander does not treat as a D/F junction.** The inspector lists nodes both names touch, but `SegmentExpander` counts a junction only where `FindJunctionCandidates` finds an edge of the second taxiway at a node of the first. Read the `[segment] … junctions=N` line in the `--pathfinder` trace: `junctions=0` means the pair has no junction of its own (OAK D/F meet only across 15/33, which routes as an offset runway crossing, docs/ground/pathfinder.md), whatever `--intersection` printed.
 
+- **A probe from a stand beyond the start bridge's reach resolves its first transition through the detour, not the parking→taxiway bridge.** The `[bridge]` lines are then absent and the `[detour]` ranking decides the first corner.
+- **`--pathfinder N --pf-dest-node M` with no taxiway token prints nothing.** Give at least one taxiway token.
+- **`--distance N1 N2` is not repeatable.** One pair per run.
+
 ### Tips
 
 - Always use `--json` for machine-readable output when analyzing programmatically.

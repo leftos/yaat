@@ -2757,53 +2757,66 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// The position the bridge should head toward when entering the first cleared taxiway: the
-    /// junction with the next cleared taxiway when the route continues, otherwise the destination
-    /// (parking/spot/node target, or the nearest destination-runway hold-short on the taxiway).
-    /// Null when there is no directional signal — the bridge then keeps its nearest-access pick.
+    /// The position the bridge should head toward when entering the first cleared taxiway
+    /// (<see cref="ResolveOnwardTarget"/> read from the sequence's first token). Null when there is no directional
+    /// signal — the bridge then keeps its nearest-access pick.
     /// </summary>
-    private static LatLon? ResolveBridgeBias(IReadOnlyList<WaypointToken> tokens, PartialRoute head, SearchContext ctx)
+    private static LatLon? ResolveBridgeBias(IReadOnlyList<WaypointToken> tokens, PartialRoute head, SearchContext ctx) =>
+        ResolveOnwardTarget(tokens, 0, head, ctx);
+
+    /// <summary>
+    /// The position a walk starting on the taxiway named by <paramref name="tokens"/>[<paramref name="index"/>] should head
+    /// toward: the junction with the next cleared taxiway when the route continues, otherwise the destination (parking/spot/
+    /// node target, or the nearest destination-runway hold-short on the taxiway). Null when there is no directional signal.
+    /// </summary>
+    private static LatLon? ResolveOnwardTarget(IReadOnlyList<WaypointToken> tokens, int index, PartialRoute head, SearchContext ctx)
     {
-        WaypointToken first = tokens[0];
-
-        // Route continues past the first taxiway: head toward the junction with the next token.
-        if (tokens.Count >= 2)
+        if ((index < 0) || (index >= tokens.Count))
         {
-            WaypointToken next = tokens[1];
-            if (next.IsNodeRef)
-            {
-                if (ctx.Layout.Nodes.TryGetValue(next.ResolvedNodeId, out GroundNode? nextNode))
-                {
-                    return nextNode.Position;
-                }
-            }
-            else
-            {
-                List<GroundNode> junctions = FindJunctionCandidates(ctx.Layout, first.Name, next.Name);
-                if (junctions.Count > 0)
-                {
-                    double sumLat = 0;
-                    double sumLon = 0;
-                    foreach (GroundNode j in junctions)
-                    {
-                        sumLat += j.Position.Lat;
-                        sumLon += j.Position.Lon;
-                    }
-
-                    return new LatLon(sumLat / junctions.Count, sumLon / junctions.Count);
-                }
-            }
+            return null;
         }
 
-        // Single cleared taxiway: head toward the destination node when known.
-        if (ctx.Destination.TargetNodeId is { } destId && ctx.Layout.Nodes.TryGetValue(destId, out GroundNode? destNode))
+        WaypointToken current = tokens[index];
+        LatLon? junction = (index + 1 < tokens.Count) ? NextWaypointTarget(current, tokens[index + 1], ctx) : null;
+        return junction ?? ResolveDestinationTarget(head, current.Name, ctx);
+    }
+
+    /// <summary>
+    /// The point on the way toward <paramref name="next"/> from a walk on <paramref name="current"/>'s taxiway: the next
+    /// token's own node reference, or the centroid of its junctions with <paramref name="current"/>. Null when neither
+    /// exists.
+    /// </summary>
+    private static LatLon? NextWaypointTarget(WaypointToken current, WaypointToken next, SearchContext ctx)
+    {
+        if (next.IsNodeRef)
         {
-            return destNode.Position;
+            return ctx.Layout.Nodes.TryGetValue(next.ResolvedNodeId, out GroundNode? nextNode) ? nextNode.Position : null;
         }
 
-        // Runway destination has no single node — reuse the terminus bias (nearest
-        // destination-runway hold-short on the first taxiway).
-        return ResolveTerminusBias(head, first.Name, ctx);
+        List<GroundNode> junctions = FindJunctionCandidates(ctx.Layout, current.Name, next.Name);
+        return junctions.Count > 0 ? Centroid(junctions) : null;
+    }
+
+    /// <summary>
+    /// The destination a walk ends at when no junction lies ahead on <paramref name="taxiwayName"/>: the target node when
+    /// known, else the terminus bias (the nearest destination-runway hold-short on the taxiway).
+    /// </summary>
+    private static LatLon? ResolveDestinationTarget(PartialRoute head, string taxiwayName, SearchContext ctx) =>
+        ((ctx.Destination.TargetNodeId is { } destId) && ctx.Layout.Nodes.TryGetValue(destId, out GroundNode? destNode))
+            ? destNode.Position
+            : ResolveTerminusBias(head, taxiwayName, ctx);
+
+    private static LatLon Centroid(List<GroundNode> nodes)
+    {
+        double sumLat = 0;
+        double sumLon = 0;
+        foreach (GroundNode node in nodes)
+        {
+            sumLat += node.Position.Lat;
+            sumLon += node.Position.Lon;
+        }
+
+        return new LatLon(sumLat / nodes.Count, sumLon / nodes.Count);
     }
 
     // -----------------------------------------------------------------------
@@ -5674,8 +5687,11 @@ public static class SegmentExpander
     /// <summary>
     /// Pick the node on <paramref name="toTaxiway"/> the bridge should land on, and the bridge route to it.
     /// One bounded <see cref="AutoRouter"/> run per candidate node (each inheriting the authorized set, so
-    /// numbered connectors and RAMP beat unnamed letter taxiways), ranked by two terms:
-    /// <see cref="BridgePavementCost"/> plus <see cref="ReversalAgainstPoseCost"/>.
+    /// numbered connectors and RAMP beat unnamed letter taxiways), ranked by three terms:
+    /// <see cref="BridgePavementCost"/>, <see cref="ReversalAgainstPoseCost"/>, and the head turn the entry node leaves onto
+    /// the target taxiway in the direction of the route's onward target (<see cref="EntryJoinTurnCostNm"/>) — without that term a
+    /// bridge stopping at a raw junction vertex, with the whole turn still to make, beats one that has flown the corner's
+    /// fillet arc.
     ///
     /// <para>The pavement cost carries the bridge's soft taxiway policy — without its unauthorized-letter
     /// charge SFO's Y→A bridge takes taxiway H, which the controller never cleared, over the AY3 connector.
@@ -5686,8 +5702,9 @@ public static class SegmentExpander
     /// its bridge is five times as long.</para>
     ///
     /// <para>With no pose to rank by — a route resolved from a bare node, with neither a prior edge nor a
-    /// start heading — neither term carries directional information, so the order is the shortest
-    /// bridge.</para>
+    /// start heading — the pavement and reversal terms carry no directional information. The join turn still does, read
+    /// from the bridge's own arrival bearing, so the order is the shortest bridge that leaves the least turn onto the
+    /// taxiway.</para>
     ///
     /// <para>Ranking may reorder the bridges but must not cost the clearance a taxiway the shortest bridge
     /// reached: when the bridge starts <em>off</em> <paramref name="fromTaxiway"/> (it is how the route gets
@@ -5714,9 +5731,10 @@ public static class SegmentExpander
     )
     {
         BridgeRules rules = BridgeRulesFor(head, fromTaxiway, toTaxiway, transitionIndex, ctx);
+        BridgeTarget target = new(toTaxiway, ResolveOnwardTarget(ResolveWaypoints(ctx), transitionIndex + 1, head, ctx));
         (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) legal = RankBridges(
             head,
-            toTaxiway,
+            target,
             ctx,
             rules,
             ctx with
@@ -5736,7 +5754,7 @@ public static class SegmentExpander
         ctx.DiagnosticLog?.Invoke(
             $"[detour] {fromTaxiway}→{toTaxiway}: no legal bridge from any entry node; classifying with the unrestricted search"
         );
-        (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) unrestricted = RankBridges(head, toTaxiway, ctx, rules, ctx);
+        (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) unrestricted = RankBridges(head, target, ctx, rules, ctx);
         if (unrestricted is not { Route: { } bridge, Entry: { } entry })
         {
             return unrestricted;
@@ -5808,20 +5826,27 @@ public static class SegmentExpander
     private static readonly IReadOnlySet<string> NoExcludedTaxiways = new HashSet<string>();
 
     /// <summary>
-    /// One bounded search per node of <paramref name="toTaxiway"/> on <paramref name="template"/>, each surviving bridge ranked
-    /// as <see cref="PickDetourEntry"/> describes; <c>DroppedBridges</c> counts the ones <see cref="BridgeDropReason"/> refused.
-    /// With a diagnostic log, every bridge found is also judged by the search predicate (<see cref="JudgeBridge"/>) and logged as
-    /// <c>[detour] judged …</c>.
+    /// Where a detour's bridge should land: the taxiway it joins onto (<see cref="Taxiway"/>) and the point the route goes
+    /// on to from there (<see cref="Onward"/>), which sets the turn a candidate entry node leaves to make.
+    /// </summary>
+    private readonly record struct BridgeTarget(string Taxiway, LatLon? Onward);
+
+    /// <summary>
+    /// One bounded search per node of <paramref name="target"/>'s taxiway on <paramref name="template"/>, each surviving
+    /// bridge ranked as <see cref="PickDetourEntry"/> describes; <c>DroppedBridges</c> counts the ones
+    /// <see cref="BridgeDropReason"/> refused. With a diagnostic log, every bridge found is also judged by the search
+    /// predicate (<see cref="JudgeBridge"/>) and logged as <c>[detour] judged …</c>.
     /// </summary>
     private static (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) RankBridges(
         PartialRoute head,
-        string toTaxiway,
+        BridgeTarget target,
         SearchContext ctx,
         BridgeRules rules,
         SearchContext template
     )
     {
         string fromTaxiway = rules.FromTaxiway;
+        string toTaxiway = target.Taxiway;
         bool rankByPose = (head.LastEdge is not null) || (ctx.StartHeadingTrue is not null);
         bool guardFromTaxiway = rankByPose && !fromTaxiway.StartsWith('#') && !rules.HeadOnFromTaxiway;
 
@@ -5856,7 +5881,9 @@ public static class SegmentExpander
                 continue;
             }
 
-            double score = rankByPose ? BridgePavementCost(route, ctx) + ReversalAgainstPoseCost(head, route, ctx) : route.TotalDistanceNm;
+            double joinCost = EntryJoinTurnCostNm(route, entryNode, target);
+            double score =
+                (rankByPose ? BridgePavementCost(route, ctx) + ReversalAgainstPoseCost(head, route, ctx) : route.TotalDistanceNm) + joinCost;
 
             if (score < best.Score)
             {
@@ -5882,6 +5909,75 @@ public static class SegmentExpander
         }
 
         return (best.Entry, best.Route, best.Score, droppedBridges);
+    }
+
+    /// <summary>
+    /// How close a bridge's entry node must lie to <see cref="BridgeTarget.Onward"/> to be the onward point itself, when no
+    /// bearing toward it exists. The onward point is a node's own position or a centroid of junction nodes, so a coincident
+    /// entry matches it to rounding; any taxiway edge is far longer than this.
+    /// </summary>
+    private const double OnwardCoincidentFt = 1.0;
+
+    /// <summary>
+    /// The head-turn price of joining <paramref name="target"/>'s taxiway at the bridge's entry node: the bridge lands facing
+    /// its last edge's arrival bearing, and the entry's own edge on that taxiway that points most nearly at
+    /// <see cref="BridgeTarget.Onward"/> sets the direction the route must then take. Zero when the onward target or such an
+    /// edge is unknown — the pavement cost (or the raw length) then decides, as before — and when the entry is the onward
+    /// point itself, which leaves no bearing to join toward.
+    /// </summary>
+    private static double EntryJoinTurnCostNm(TaxiRoute route, GroundNode entry, BridgeTarget target)
+    {
+        if ((target.Onward is not { } onward) || (route.Segments.Count == 0))
+        {
+            return 0.0;
+        }
+
+        // The entry is the onward point itself (the next junction): there is no bearing to join toward. The discount is
+        // accepted: an entry at the onward point pays no join turn, and its next turn onto the following taxiway is priced
+        // by the route search, not here.
+        if ((GeoMath.DistanceNm(entry.Position, onward) * GeoMath.FeetPerNm) < OnwardCoincidentFt)
+        {
+            return 0.0;
+        }
+
+        DirectionalEdge arrived = route.Segments[^1].Edge;
+        IGroundEdge? onwardEdge = OnwardEdge(entry, target.Taxiway, onward);
+        if (onwardEdge is null)
+        {
+            return 0.0;
+        }
+
+        double departureBearing = GeometricAdmissibility.GetDepartureBearing(onwardEdge, entry, onwardEdge.OtherNode(entry));
+        return RouteCostFunction.JoinTurnCostNm(arrived.ArrivalBearing, departureBearing);
+    }
+
+    /// <summary>
+    /// The edge of <paramref name="taxiway"/> at <paramref name="node"/> whose departure bearing points most nearly at
+    /// <paramref name="toward"/>, the edge the bridge arrived over included: when the route goes on back the way the bridge
+    /// came, the join is a reversal and is priced as one. Chosen by direction toward the route, never by the gentlest turn,
+    /// so a fillet end facing away from it cannot win at a multi-way junction.
+    /// </summary>
+    private static IGroundEdge? OnwardEdge(GroundNode node, string taxiway, LatLon toward)
+    {
+        double towardBearing = GeoMath.BearingTo(node.Position, toward);
+        IGroundEdge? best = null;
+        double bestOffDeg = double.MaxValue;
+        foreach (IGroundEdge edge in node.Edges)
+        {
+            if (!edge.MatchesTaxiway(taxiway))
+            {
+                continue;
+            }
+
+            double departureBearing = GeometricAdmissibility.GetDepartureBearing(edge, node, edge.OtherNode(node));
+            double offDeg = GeoMath.AbsBearingDifference(towardBearing, departureBearing);
+            if (offDeg < bestOffDeg)
+            {
+                (best, bestOffDeg) = (edge, offDeg);
+            }
+        }
+
+        return best;
     }
 
     /// <summary>

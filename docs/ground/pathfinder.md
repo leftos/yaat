@@ -564,7 +564,7 @@ A leg counts as a crossing only when all hold: its centreline run is at most `Ma
 
 A runway cleared to taxi along keeps "on (runway)" even with an explicit entry hold short (`TAXI A 28L B HS 28L`), as does a leg that leaves on the side it entered from.
 
-**The bridge's landing node is ranked by pavement cost + a reversal charge, not by bridge length.** `PickDetourEntry` runs the bounded A\* once per candidate node on the far taxiway and scores each resulting bridge as `BridgePavementCost` + `ReversalAgainstPoseCost`.
+**The bridge's landing node is ranked by pavement cost + a reversal charge + a join turn, not by bridge length.** `PickDetourEntry` runs the bounded A\* once per candidate node on the far taxiway and scores each resulting bridge as `BridgePavementCost` + `ReversalAgainstPoseCost` + `EntryJoinTurnCostNm`.
 
 The pavement cost is the cost function's own view of the pavement the bridge threads — its length, a runway centreline ten times over (`RunwayCenterlineDistanceMultiplier`), and the `0.2 nm` `UnauthorizedTaxiwayFirstUseCostNm` for each unnamed letter taxiway it uses (first use only) — and *deliberately not* the turn budget, the per-transition charge or the per-crossing charge.
 
@@ -576,11 +576,15 @@ The unauthorized term has to stay in: without it SFO's Y→A bridge takes taxiwa
 
 The motivating case is SFO taxilane Yankee: an E75L resting on Y facing 208° after `PUSH Y A1` has AY2 261 ft *behind* its nose and AY3 1,383 ft ahead, and on raw bridge length `TAXI Y A A1 1R` began with a 180° about-face in a ramp alley; charged for the turn-around, the connector ahead wins (`Y, Y - AY3, AY3, A, A - A1, A1`, first segment departing on the nose).
 
-With no pose to rank by — a route resolved from a bare node with neither a prior edge nor a start heading — the order is the shortest bridge, as before.
+The join term is the head turn the entry node leaves onto the far taxiway, priced at the base turn weight (`RouteCostFunction.JoinTurnCostNm`, under every cost preference). The bridge arrives on its last edge's bearing and then goes on toward the route's onward target, the same point the start bridge's `ResolveBridgeBias` heads for (`ResolveOnwardTarget`: the next token's node or its junctions' centroid, else the destination or terminus bias). The onward edge is the entry's edge on the taxiway pointing most nearly at that target, the edge the bridge arrived over included, so a route that goes back the way the bridge came pays a reversal. Without the term a bridge stopping at a raw junction vertex, with the whole turn still to make, out-scores one that has flown the corner's fillet arc (SFO stand 9-9 `TAXI T9 A F` squared the A/T9 corner). An entry at the onward point (within 1 ft) pays no join turn: the next turn is priced by the route search, not here. With no onward target or edge there is no join term.
+
+With no pose to rank by — a route resolved from a bare node with neither a prior edge nor a start heading — the pavement and reversal terms are absent and the order is the shortest bridge plus the join turn.
 
 One do-no-harm guard rides on top: when the bridge starts *off* the from-taxiway (it is how the route gets onto it), the ranked pick does not reach that taxiway and the shortest bridge does, the shortest bridge is kept — SFO gate G3's `TAXI A Q B F 28L HS 1L` would otherwise arrive on Q having never touched A and the honor-named-taxiway check would refuse the clearance.
 
 It is only that, never "always prefer a candidate that reaches the from-taxiway": where *no* bridge reaches it the clearance is one the resolver is meant to fail (gate B20S's `TAXI M5 …` across the ramp), and that failure is exactly the cue issue #396's ramp-lane free-space cut keys on.
+
+B20S's refusal also depends on M1→A going on without touching M5: `CheckReachability` only asks whether each cleared taxiway is reached at all, so a route that visits M5 out of order is not refused there (an out-of-order loop is booked separately). With the join term in place `TAXI M5 M1 A A1` still refuses via M5 and takes the ramp-lane cut.
 
 **Curated connectors are threaded as named tokens and preferred over a blind detour.** The blind bridge above minimizes cost with no notion of *the* real connector, so it can pick a numbered ramp lane (which escapes the letter penalty) over the physically-correct letter connector.
 
@@ -991,6 +995,8 @@ Verify each against current code before relying on it — several are open work 
   The heuristic is bearing- and taxiway-independent, so A* optimality is preserved within the `(node, bucket, taxiway)` state space.
 
 - **Auto-route 200k expansion cap.** `AutoRouter.MaxExpansions = 200_000`. SFO cross-field routes legitimately explore 100k+, so this is a real ceiling, not a safety margin — a latency risk on degenerate/disconnected layouts. There is no CI latency budget yet.
+
+- **A fillet corner can be a multi-hop walk.** When a cut sits inside the fillet's span the route turns over several arcs, not one three-node run, and `RouteGeometryAsserts.FindSquarePivotsWhereFilletExists` checks only three-node runs, so it cannot see a square pivot there. The `[detour]` trace prints only the winning candidate's score, so a mis-ranked corner is diagnosed by probing the candidate entries directly.
 
 - **`WalkToNaturalTerminus` is one-step greedy.** It picks the best immediate next edge per step (with the requirement-① tier rule), not a multi-candidate search. Acceptable on forced-next-edge topologies; risky where the terminus branches.
 

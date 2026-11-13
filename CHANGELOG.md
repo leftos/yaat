@@ -55,6 +55,7 @@
 - vTDLS no longer lists airborne arrivals, departed or tracked aircraft, and an expired PDC no longer comes back as a new DCL row.
 - Amending an aircraft's departure airport moves its vTDLS entry to the new airport's facility.
 - A `TAXI $spot` or `TAXI @gate` from the ramp just short of that spot or gate rolls straight onto it ("Taxi to spot 2") instead of looping out over the taxiways.
+- A taxi route joining a taxiway at a corner now rounds the corner's fillet instead of pivoting square at the junction, as from SFO stand 9-9 onto A.
 
 ## v0.18.3-beta [2026/11/11]
 
