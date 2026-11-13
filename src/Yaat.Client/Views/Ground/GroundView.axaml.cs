@@ -56,6 +56,7 @@ public partial class GroundView : UserControl
         _canvas.RunwayThresholdClicked += OnRunwayThresholdClicked;
         _canvas.RunwayThresholdRightClicked += OnRunwayThresholdRightClicked;
         _canvas.RunwaySurfaceRightClicked += OnRunwaySurfaceRightClicked;
+        _canvas.MapRightClicked += OnMapRightClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
@@ -100,6 +101,7 @@ public partial class GroundView : UserControl
             _canvas.RunwayThresholdClicked -= OnRunwayThresholdClicked;
             _canvas.RunwayThresholdRightClicked -= OnRunwayThresholdRightClicked;
             _canvas.RunwaySurfaceRightClicked -= OnRunwaySurfaceRightClicked;
+            _canvas.MapRightClicked -= OnMapRightClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
@@ -404,7 +406,7 @@ public partial class GroundView : UserControl
     /// </summary>
     internal ContextMenu? BuildNodeContextMenu(int nodeId, Point screenPos)
     {
-        if ((DataContext is not GroundViewModel vm) || (vm.GetNode(nodeId) is null))
+        if ((DataContext is not GroundViewModel vm) || (vm.IsRunwaysOnly) || (vm.GetNode(nodeId) is null))
         {
             return null;
         }
@@ -729,7 +731,7 @@ public partial class GroundView : UserControl
     /// </summary>
     internal ContextMenu? BuildRunwayThresholdMenu(GroundViewModel vm, string runwayEnd)
     {
-        if (vm.SelectedAircraft is not { } selected)
+        if ((vm.IsRunwaysOnly) || (vm.SelectedAircraft is not { } selected))
         {
             return null;
         }
@@ -766,6 +768,26 @@ public partial class GroundView : UserControl
         return BuildPointMenu(selected, new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, runwayEnd, [], null), section);
     }
 
+    private void OnMapRightClicked(Point screenPos)
+    {
+        if ((DataContext is GroundViewModel vm) && (BuildMapMenu(vm, screenPos) is { } menu))
+        {
+            ShowContextMenu(menu);
+        }
+    }
+
+    /// <summary>
+    /// The menu a right-click on empty ground of a runways-only layout shows, built without opening it: the measuring items
+    /// at the click, then the view-wide items (<see cref="WithViewSettings"/>). No node, runway or taxi items: the layout
+    /// has no taxi graph. Null when there is nothing to show.
+    /// </summary>
+    internal ContextMenu? BuildMapMenu(GroundViewModel vm, Point screenPos)
+    {
+        List<Control> section = [];
+        AddMeasureMenuItems(section, vm, screenPos);
+        return WithViewSettings(SectionMenu(section));
+    }
+
     private void OnRunwaySurfaceRightClicked(IReadOnlyList<string> runways, Point screenPos)
     {
         if ((DataContext is not GroundViewModel vm) || (_canvas is null))
@@ -795,6 +817,11 @@ public partial class GroundView : UserControl
         Point screenPos
     )
     {
+        if (vm.IsRunwaysOnly)
+        {
+            return null;
+        }
+
         List<Control> section = [];
         AddMeasureMenuItems(section, vm, screenPos);
         if (vm.SelectedAircraft is not { } selected)

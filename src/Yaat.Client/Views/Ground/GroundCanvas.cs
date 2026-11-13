@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -713,6 +714,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     /// <summary>Fired when an aircraft is right-clicked. Args: callsign, screen position.</summary>
     public event Action<string, Point>? AircraftRightClicked;
+
+    /// <summary>A right-click on a runways-only layout that hit no aircraft: the view opens the map-level menu there.</summary>
+    public event Action<Point>? MapRightClicked;
 
     /// <summary>Fired when an aircraft is left-clicked. Args: callsign.</summary>
     public event Action<string>? AircraftLeftClicked;
@@ -1798,7 +1802,22 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
-        return TryRaiseHitRightClick(screenPos) || TryRaiseNearestNodeRightClick(screenPos);
+        return TryRaiseHitRightClick(screenPos) || TryRaiseNearestNodeRightClick(screenPos) || TryRaiseMapRightClick(screenPos);
+    }
+
+    /// <summary>
+    /// Raises <see cref="MapRightClicked"/> for a right-click on a runways-only layout that hit no aircraft: with no taxi
+    /// graph there is no nearest node to fall back to, so the view answers with the map-level items alone. False otherwise.
+    /// </summary>
+    private bool TryRaiseMapRightClick(Point screenPos)
+    {
+        if (Layout is not { IsRunwaysOnly: true })
+        {
+            return false;
+        }
+
+        MapRightClicked?.Invoke(screenPos);
+        return true;
     }
 
     /// <summary>A right-click while a route is being drawn: it reports push-route markers, or finishes the route at a node.</summary>
@@ -2038,7 +2057,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <returns>True when the press started a gesture and is handled.</returns>
     private bool TryBeginPushDrawGesture(PointerPressedEventArgs e, Point pos, PointerPointProperties props)
     {
-        if (!IsDrawingPushRoute || IsMeasuring)
+        if (!IsDrawingPushRoute || IsMeasuring || !HasGroundGraph)
         {
             return false;
         }
@@ -2147,10 +2166,18 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public static string FormatCtrlNodeLabel(GroundNodeDto node) =>
         string.IsNullOrEmpty(node.Name) ? $"#{node.Id} · {node.Type}" : $"#{node.Id} · {node.Type} {node.Name}";
 
+    /// <summary>
+    /// True when the layout carries a taxi graph to interact with: loaded and not runways-only. A runways-only layout
+    /// (<see cref="GroundLayoutDto.IsRunwaysOnly"/>) is display only, so every node, threshold and runway-surface hit and
+    /// every route or push gesture is off while it is shown; aircraft hits and measuring stay.
+    /// </summary>
+    [MemberNotNullWhen(true, nameof(Layout))]
+    public bool HasGroundGraph => (Layout is not null) && !Layout.IsRunwaysOnly;
+
     private GroundNodeDto? FindNearestNode(Point screenPos, out float distance)
     {
         distance = float.MaxValue;
-        if (Layout is null)
+        if (!HasGroundGraph)
         {
             return null;
         }
@@ -2186,7 +2213,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public (string RunwayEnd, LatLon Position)? FindRunwayThresholdAtPoint(Point screenPos)
     {
-        if ((!ShowYaatLayout) || (Layout?.Runways is not { } runways))
+        if ((!ShowYaatLayout) || (!HasGroundGraph) || (Layout.Runways is not { } runways))
         {
             return null;
         }
@@ -2299,7 +2326,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>The <c>RunwayHoldShort</c> node nearest <paramref name="screenPos"/> within the node hit radius, or null.</summary>
     private GroundNodeDto? FindHoldShortNodeAtPoint(Point screenPos)
     {
-        if (Layout is null)
+        if (!HasGroundGraph)
         {
             return null;
         }
@@ -2335,7 +2362,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public IReadOnlyList<string> FindRunwaysAtPoint(Point screenPos)
     {
-        if ((Layout?.Runways is not { } runways) || (!ShowYaatLayout && !ShowVideoMapOverlay))
+        if ((!HasGroundGraph) || (Layout.Runways is not { } runways) || (!ShowYaatLayout && !ShowVideoMapOverlay))
         {
             return [];
         }
@@ -2612,7 +2639,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private List<GroundNodeDto> StandsNearPoint(Point screenPos, AircraftModel selected)
     {
-        if (Layout is null)
+        if (!HasGroundGraph)
         {
             return [];
         }
@@ -2809,7 +2836,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        if (Layout is null || Layout.Nodes.Count == 0)
+        if (!HasFitPoints)
         {
             return;
         }
@@ -2829,9 +2856,26 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    /// <summary>Whether the layout has anything to fit the view to (<see cref="FitPoints"/>).</summary>
+    private bool HasFitPoints =>
+        (Layout is not null) && (Layout.IsRunwaysOnly ? ((Layout.Runways?.Any(r => r.Coordinates.Count > 0)) == true) : (Layout.Nodes.Count > 0));
+
+    /// <summary>The points the view fits: a runways-only layout's runway coordinates, otherwise the layout's nodes.</summary>
+    private IEnumerable<(double Lat, double Lon)> FitPoints()
+    {
+        if (Layout is null)
+        {
+            return [];
+        }
+
+        return Layout.IsRunwaysOnly
+            ? (Layout.Runways ?? []).SelectMany(r => r.Coordinates).Select(c => (c[0], c[1]))
+            : Layout.Nodes.Select(n => (n.Latitude, n.Longitude));
+    }
+
     private void FitToLayout()
     {
-        if (_initialFitDone || Layout is null || Layout.Nodes.Count == 0)
+        if (_initialFitDone || !HasFitPoints)
         {
             return;
         }
@@ -2846,12 +2890,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         double minLon = double.MaxValue,
             maxLon = double.MinValue;
 
-        foreach (GroundNodeDto node in Layout.Nodes)
+        foreach ((double lat, double lon) in FitPoints())
         {
-            minLat = Math.Min(minLat, node.Latitude);
-            maxLat = Math.Max(maxLat, node.Latitude);
-            minLon = Math.Min(minLon, node.Longitude);
-            maxLon = Math.Max(maxLon, node.Longitude);
+            minLat = Math.Min(minLat, lat);
+            maxLat = Math.Max(maxLat, lat);
+            minLon = Math.Min(minLon, lon);
+            maxLon = Math.Max(maxLon, lon);
         }
 
         double savedRotation = Viewport.RotationDeg;

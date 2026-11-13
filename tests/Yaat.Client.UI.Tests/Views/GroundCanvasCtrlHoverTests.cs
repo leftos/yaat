@@ -62,7 +62,8 @@ public class GroundCanvasCtrlHoverTests
             [],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 
         (float ax, float ay) = canvas.Viewport.LatLonToScreen(NodeALat, NodeALon);
@@ -258,6 +259,7 @@ public class GroundCanvasCtrlHoverTests
             [],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 }

@@ -90,12 +90,19 @@
           />
           <Border Width="1" Background="#555" Margin="4,2" />
           <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
-          <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
+          <Button
+            Classes="gnd-filter"
+            Classes.active="{Binding ShowTaxiwayLabels}"
+            Content="TWY"
+            Click="OnToggleTaxiwayLabels"
+            IsVisible="{Binding !IsRunwaysOnly}"
+          />
           <Button
             Classes="gnd-filter"
             Classes.active="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsActive}}"
             Classes.partial="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsPartial}}"
             Content="HS"
+            IsVisible="{Binding !IsRunwaysOnly}"
             Click="OnToggleHoldShort"
           />
           <Button
@@ -103,6 +110,7 @@
             Classes.active="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsActive}}"
             Classes.partial="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsPartial}}"
             Content="PARK"
+            IsVisible="{Binding !IsRunwaysOnly}"
             Click="OnToggleParking"
           />
           <Button
@@ -110,6 +118,7 @@
             Classes.active="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsActive}}"
             Classes.partial="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsPartial}}"
             Content="SPOT"
+            IsVisible="{Binding !IsRunwaysOnly}"
             Click="OnToggleSpot"
           />
           <Button

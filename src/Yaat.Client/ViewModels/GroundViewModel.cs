@@ -110,7 +110,15 @@ public partial class GroundViewModel : ObservableObject
     private string? SettingsKey => _activeScenarioId is null ? null : _activeScenarioId + SettingsKeySuffix;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRunwaysOnly))]
     private GroundLayoutDto? _layout;
+
+    /// <summary>
+    /// True while the layout is an airport's runways alone, drawn for display only (<see cref="GroundLayoutDto.IsRunwaysOnly"/>):
+    /// the toggles that need a taxi graph are hidden and no ground-graph menu opens. The domain layout is still present on
+    /// such an airport, with runways and no nodes.
+    /// </summary>
+    public bool IsRunwaysOnly => (Layout?.IsRunwaysOnly) == true;
 
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
@@ -611,27 +619,7 @@ public partial class GroundViewModel : ObservableObject
                 return;
             }
 
-            DataBlockState.Clear();
-            // _domainLayout is assigned before Layout so any observer of the Layout change (a mirroring
-            // extra window) sees a consistent DTO/domain pair.
-            _domainLayout = ReconstructLayout(dto);
-            Layout = dto;
-
-            // Compute airport center from node centroid
-            if (dto.Nodes.Count > 0)
-            {
-                double sumLat = 0,
-                    sumLon = 0;
-                foreach (GroundNodeDto node in dto.Nodes)
-                {
-                    sumLat += node.Latitude;
-                    sumLon += node.Longitude;
-                }
-
-                AirportCenterLat = sumLat / dto.Nodes.Count;
-                AirportCenterLon = sumLon / dto.Nodes.Count;
-            }
-
+            ApplyLoadedLayout(dto);
             AirportElevation = _getAirportElevation?.Invoke(airportId) ?? 0;
 
             _activeAirportId = airportId;
@@ -650,6 +638,52 @@ public partial class GroundViewModel : ObservableObject
         {
             _log.LogError(ex, "Failed to load ground layout for {Id}", airportId);
         }
+    }
+
+    /// <summary>
+    /// Installs a layout the server sent: the DTO the canvas draws, the domain layout routes resolve on, and the airport
+    /// centre (<see cref="SetAirportCenter"/>).
+    /// </summary>
+    internal void ApplyLoadedLayout(GroundLayoutDto dto)
+    {
+        DataBlockState.Clear();
+        // _domainLayout is assigned before Layout so any observer of the Layout change (a mirroring
+        // extra window) sees a consistent DTO/domain pair.
+        _domainLayout = ReconstructLayout(dto);
+        Layout = dto;
+        SetAirportCenter(dto);
+    }
+
+    /// <summary>
+    /// The airport centre: the mean of a runways-only layout's runway ends, else the centroid of the layout's nodes; left
+    /// as it was when the layout has neither.
+    /// </summary>
+    private void SetAirportCenter(GroundLayoutDto dto)
+    {
+        List<(double Lat, double Lon)> points = dto.IsRunwaysOnly
+            ?
+            [
+                .. (dto.Runways ?? [])
+                    .Where(r => r.Coordinates.Count >= 2)
+                    .SelectMany(r => new[] { r.Coordinates[0], r.Coordinates[^1] })
+                    .Select(c => (c[0], c[1])),
+            ]
+            : [.. dto.Nodes.Select(n => (n.Latitude, n.Longitude))];
+        if (points.Count == 0)
+        {
+            return;
+        }
+
+        double sumLat = 0,
+            sumLon = 0;
+        foreach ((double lat, double lon) in points)
+        {
+            sumLat += lat;
+            sumLon += lon;
+        }
+
+        AirportCenterLat = sumLat / points.Count;
+        AirportCenterLon = sumLon / points.Count;
     }
 
     /// <summary>The scenario this view keys its saved center/zoom on; null while no scenario is active.</summary>

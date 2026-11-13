@@ -99,7 +99,7 @@ fallback — may block on the network. The layout path is built around that cons
 
 The ground-data service caches null entries on purpose: the per-sub-tick `aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft)` fallback then costs a dictionary hit, and it is also the self-heal path once a background fetch lands.
 
-The sim never fetches a layout mid-session. An airport the scenario JSON never names (a typed `ADD` or `DEST`, a CRC-filed `DA`/`VP`, an approach clearance to a field no flight plan names) has no layout: the room's pin answers "no layout" at once, so the field has runways only, and a rewind reads the same answer.
+The sim never fetches a layout mid-session. An airport the scenario JSON never names (a typed `ADD` or `DEST`, a CRC-filed `DA`/`VP`, an approach clearance to a field no flight plan names) has no layout: the room's pin answers "no layout" at once, so the field has runways only, and a rewind reads the same answer. The Ground View hub read turns that into a runways-only `GroundLayoutDto` built from navdata (display only), and answers null only for an airport navdata does not know.
 
 ## Scenario load: prepare, commit and the load flag
 

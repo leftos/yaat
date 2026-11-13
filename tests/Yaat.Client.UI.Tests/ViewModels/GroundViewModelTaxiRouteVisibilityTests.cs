@@ -152,7 +152,8 @@ public class GroundViewModelTaxiRouteVisibilityTests
             ],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 
         var ac = new AircraftModel

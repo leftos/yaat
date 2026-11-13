@@ -138,7 +138,8 @@ public class GroundViewModelDrawRouteTests
             [new GroundEdgeDto(1, 2, "V", 0.06, null), new GroundEdgeDto(2, 3, "V", 0.06, null), new GroundEdgeDto(3, 4, "RAMP", 0.06, null)],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 
     // Linear chain 1-2 on taxiway V, then spot node 3 ("7") via a RAMP edge.
@@ -153,6 +154,7 @@ public class GroundViewModelDrawRouteTests
             [new GroundEdgeDto(1, 2, "V", 0.06, null), new GroundEdgeDto(2, 3, "RAMP", 0.06, null)],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 }

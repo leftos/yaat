@@ -272,6 +272,37 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKFont _runwayLabelFont = PlatformHelper.MonospaceFont(15);
 
+    /// <summary>How far beyond its threshold, along the runway, a runways-only layout labels each runway end, in pixels.</summary>
+    internal const float RunwayEndLabelOffsetPx = 16f;
+
+    /// <summary>The corner note of a runways-only layout: the airport has no ground map, so only its runways are drawn.</summary>
+    internal const string RunwaysOnlyNote = "No ground map — runways only";
+
+    /// <summary>How far the runways-only note's right edge sits in from the view's right edge, in pixels.</summary>
+    private const float RunwaysOnlyNoteRightInsetPx = 14f;
+
+    /// <summary>How far the runways-only note's baseline sits up from the view's bottom edge, in pixels.</summary>
+    private const float RunwaysOnlyNoteBaselineInsetPx = 12f;
+
+    /// <summary>The runways-only note box's padding either side of the text, in pixels.</summary>
+    private const float RunwaysOnlyNoteBoxPaddingPx = 5f;
+
+    /// <summary>How far the runways-only note box's top sits above the text's baseline, in pixels.</summary>
+    private const float RunwaysOnlyNoteBoxAboveBaselinePx = 13f;
+
+    /// <summary>The runways-only note box's height, in pixels.</summary>
+    private const float RunwaysOnlyNoteBoxHeightPx = 18f;
+
+    private readonly SKPaint _runwayEndLabelPaint = new() { Color = new SKColor(170, 170, 170, 230), IsAntialias = true };
+
+    private readonly SKFont _runwayEndLabelFont = PlatformHelper.MonospaceFont(13);
+
+    private readonly SKPaint _runwaysOnlyNotePaint = new() { Color = new SKColor(176, 176, 184, 217), IsAntialias = true };
+
+    private readonly SKPaint _runwaysOnlyNoteBgPaint = new() { Color = new SKColor(0, 0, 0, 140), Style = SKPaintStyle.Fill };
+
+    private readonly SKFont _runwaysOnlyNoteFont = PlatformHelper.MonospaceFont(12);
+
     private readonly SKPaint _runwayPaint = new()
     {
         Color = new SKColor(120, 120, 120),
@@ -810,20 +841,55 @@ public sealed class GroundRenderer : IDisposable
             DrawDebugOverlay(canvas, vp, layout);
         }
 
-        if (weatherInfo is not null)
+        // The missing-METAR note sits exactly where the readout would have been.
+        DrawCornerOverlays(canvas, vp, layout, weatherInfo?.ToDisplayString() ?? weatherNote, ctrlNodeHover);
+    }
+
+    /// <summary>
+    /// The text drawn over everything else: the weather line (the readout, or the note standing in for it), the runways-only
+    /// note of a layout with no ground map, and the Ctrl+hover node label.
+    /// </summary>
+    private void DrawCornerOverlays(
+        SKCanvas canvas,
+        MapViewport vp,
+        GroundLayoutDto layout,
+        string? weatherLine,
+        (string Label, SKPoint NodePos)? ctrlNodeHover
+    )
+    {
+        if (weatherLine is not null)
         {
-            DrawWeatherLines(canvas, [weatherInfo.ToDisplayString()]);
+            DrawWeatherLines(canvas, [weatherLine]);
         }
-        else if (weatherNote is not null)
+
+        if (layout.IsRunwaysOnly)
         {
-            // The missing-METAR note sits exactly where the readout would have been.
-            DrawWeatherLines(canvas, [weatherNote]);
+            DrawRunwaysOnlyNote(canvas, vp);
         }
 
         if (ctrlNodeHover is { } hover)
         {
             DrawCtrlNodeHover(canvas, hover.Label, hover.NodePos, vp.PixelWidth);
         }
+    }
+
+    /// <summary>
+    /// <see cref="RunwaysOnlyNote"/> in the bottom-right corner: monospace 12, its right edge 14 px in from the view's right
+    /// and its baseline 12 px up from the bottom, on a translucent black box 5 px wider each side.
+    /// </summary>
+    private void DrawRunwaysOnlyNote(SKCanvas canvas, MapViewport vp)
+    {
+        float width = _runwaysOnlyNoteFont.MeasureText(RunwaysOnlyNote);
+        float x = vp.PixelWidth - width - RunwaysOnlyNoteRightInsetPx;
+        float y = vp.PixelHeight - RunwaysOnlyNoteBaselineInsetPx;
+        canvas.DrawRect(
+            x - RunwaysOnlyNoteBoxPaddingPx,
+            y - RunwaysOnlyNoteBoxAboveBaselinePx,
+            width + (2 * RunwaysOnlyNoteBoxPaddingPx),
+            RunwaysOnlyNoteBoxHeightPx,
+            _runwaysOnlyNoteBgPaint
+        );
+        canvas.DrawText(RunwaysOnlyNote, x, y, SKTextAlign.Left, _runwaysOnlyNoteFont, _runwaysOnlyNotePaint);
     }
 
     /// <summary>
@@ -1077,101 +1143,161 @@ public sealed class GroundRenderer : IDisposable
 
         foreach (GroundRunwayDto rwy in layout.Runways)
         {
-            if (rwy.Coordinates.Count < 2)
+            if ((rwy.Coordinates.Count < 2) || (RunwayRectangle.ScreenCorners(rwy, vp) is not { } corners))
             {
                 continue;
             }
 
-            double[] first = rwy.Coordinates[0];
-            double[] last = rwy.Coordinates[^1];
-            if (RunwayRectangle.ScreenCorners(rwy, vp) is not { } corners)
+            DrawRunwaySurface(canvas, vp, rwy, corners);
+
+            // A runways-only layout labels each end instead of the middle, and offers no threshold to click.
+            if (showLabels && !layout.IsRunwaysOnly)
             {
-                continue;
+                AddRunwayMidLabel(vp, rwy);
             }
 
-            using var path = new SKPath();
-            path.MoveTo(corners[0]);
-            path.LineTo(corners[1]);
-            path.LineTo(corners[2]);
-            path.LineTo(corners[3]);
-            path.Close();
-
-            canvas.DrawPath(path, _runwayFillPaint);
-            canvas.DrawPath(path, _runwayOutlinePaint);
-
-            // Draw centerline dashed
-            (float cx1, float cy1) = vp.LatLonToScreen(first[0], first[1]);
-            (float cx2, float cy2) = vp.LatLonToScreen(last[0], last[1]);
-            canvas.DrawLine(cx1, cy1, cx2, cy2, _runwayPaint);
-
-            // Runway label at midpoint
-            double midLat = (first[0] + last[0]) / 2.0;
-            double midLon = (first[1] + last[1]) / 2.0;
-            (float mx, float my) = vp.LatLonToScreen(midLat, midLon);
-
-            if (showLabels)
+            if (drawThresholdMarkers && !layout.IsRunwaysOnly)
             {
-                string label = RunwayIdentifier.ToDisplayDesignator(rwy.Name.Replace(" - ", "/"));
-                _labelCandidates.Add(
-                    new LabelCandidate(
-                        [label],
-                        mx,
-                        my + 4,
-                        LabelPriority.Runway,
-                        new TextStyle(_runwayLabelFont, _runwayLabelPaint),
-                        SKTextAlign.Center,
-                        null
-                    )
-                );
-            }
-
-            if (drawThresholdMarkers)
-            {
-                const float markerRadius = 5f;
-                canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerPaint);
-                canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerOutlinePaint);
-                canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerPaint);
-                canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerOutlinePaint);
-
-                // Hover label: when the user is hovering one of the threshold
-                // markers, show "RWY {end}" next to it so they know what they'll
-                // be clearing the aircraft into. Mirrors the hold-short hover
-                // label rendered in DrawNodes.
-                if (hoveredRunwayEnd is not null)
-                {
-                    var ids = RunwayIdentifier.Parse(rwy.Name);
-                    if (string.Equals(ids.End1, hoveredRunwayEnd, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _labelCandidates.Add(
-                            new LabelCandidate(
-                                [$"RWY {RunwayIdentifier.ToDisplayDesignator(ids.End1)}"],
-                                cx1 + 10,
-                                cy1 - 12,
-                                LabelPriority.Hovered,
-                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
-                                SKTextAlign.Left,
-                                new SKColor(255, 255, 255)
-                            )
-                        );
-                    }
-                    else if (string.Equals(ids.End2, hoveredRunwayEnd, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _labelCandidates.Add(
-                            new LabelCandidate(
-                                [$"RWY {RunwayIdentifier.ToDisplayDesignator(ids.End2)}"],
-                                cx2 + 10,
-                                cy2 - 12,
-                                LabelPriority.Hovered,
-                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
-                                SKTextAlign.Left,
-                                new SKColor(255, 255, 255)
-                            )
-                        );
-                    }
-                }
+                DrawThresholdMarkers(canvas, vp, rwy, hoveredRunwayEnd);
             }
         }
+
+        // The end labels go on in a second pass, once every surface is down, so a later runway never paints over one.
+        if (showLabels && layout.IsRunwaysOnly)
+        {
+            DrawAllRunwayEndLabels(canvas, vp, layout.Runways);
+        }
     }
+
+    /// <summary>The end labels (<see cref="DrawRunwayEndLabels"/>) of every runway with both thresholds.</summary>
+    private void DrawAllRunwayEndLabels(SKCanvas canvas, MapViewport vp, List<GroundRunwayDto> runways)
+    {
+        foreach (GroundRunwayDto rwy in runways.Where(r => r.Coordinates.Count >= 2))
+        {
+            DrawRunwayEndLabels(canvas, vp, rwy);
+        }
+    }
+
+    /// <summary>The runway's rectangle, filled and outlined, and its dashed centreline from threshold to threshold.</summary>
+    private void DrawRunwaySurface(SKCanvas canvas, MapViewport vp, GroundRunwayDto rwy, SKPoint[] corners)
+    {
+        using var path = new SKPath();
+        path.MoveTo(corners[0]);
+        path.LineTo(corners[1]);
+        path.LineTo(corners[2]);
+        path.LineTo(corners[3]);
+        path.Close();
+
+        canvas.DrawPath(path, _runwayFillPaint);
+        canvas.DrawPath(path, _runwayOutlinePaint);
+
+        (float cx1, float cy1) = vp.LatLonToScreen(rwy.Coordinates[0][0], rwy.Coordinates[0][1]);
+        (float cx2, float cy2) = vp.LatLonToScreen(rwy.Coordinates[^1][0], rwy.Coordinates[^1][1]);
+        canvas.DrawLine(cx1, cy1, cx2, cy2, _runwayPaint);
+    }
+
+    /// <summary>The runway's name (e.g. "28R/10L") as a label candidate at its midpoint.</summary>
+    private void AddRunwayMidLabel(MapViewport vp, GroundRunwayDto rwy)
+    {
+        double[] first = rwy.Coordinates[0];
+        double[] last = rwy.Coordinates[^1];
+        (float mx, float my) = vp.LatLonToScreen((first[0] + last[0]) / 2.0, (first[1] + last[1]) / 2.0);
+        string label = RunwayIdentifier.ToDisplayDesignator(rwy.Name.Replace(" - ", "/"));
+        _labelCandidates.Add(
+            new LabelCandidate(
+                [label],
+                mx,
+                my + 4,
+                LabelPriority.Runway,
+                new TextStyle(_runwayLabelFont, _runwayLabelPaint),
+                SKTextAlign.Center,
+                null
+            )
+        );
+    }
+
+    /// <summary>
+    /// Each end's designator from <see cref="RunwayEndLabels"/>, centred on its point in monospace 13, light gray, with no
+    /// background box.
+    /// </summary>
+    private void DrawRunwayEndLabels(SKCanvas canvas, MapViewport vp, GroundRunwayDto rwy)
+    {
+        SKFontMetrics metrics = _runwayEndLabelFont.Metrics;
+        float toMiddle = -(metrics.Ascent + metrics.Descent) / 2f;
+        foreach ((string text, SKPoint at) in RunwayEndLabels(rwy, vp))
+        {
+            canvas.DrawText(text, at.X, at.Y + toMiddle, SKTextAlign.Center, _runwayEndLabelFont, _runwayEndLabelPaint);
+        }
+    }
+
+    /// <summary>
+    /// The end labels of a runways-only runway: each end's designator (end 1 at the first coordinate, end 2 at the last),
+    /// placed <see cref="RunwayEndLabelOffsetPx"/> beyond its threshold along the runway's axis. Empty when the two
+    /// thresholds fall on the same pixel.
+    /// </summary>
+    internal static IReadOnlyList<(string Text, SKPoint At)> RunwayEndLabels(GroundRunwayDto rwy, MapViewport vp)
+    {
+        (float x1, float y1) = vp.LatLonToScreen(rwy.Coordinates[0][0], rwy.Coordinates[0][1]);
+        (float x2, float y2) = vp.LatLonToScreen(rwy.Coordinates[^1][0], rwy.Coordinates[^1][1]);
+        float length = MathF.Sqrt(((x2 - x1) * (x2 - x1)) + ((y2 - y1) * (y2 - y1)));
+        if (length < 1f)
+        {
+            return [];
+        }
+
+        float ux = (x2 - x1) / length * RunwayEndLabelOffsetPx;
+        float uy = (y2 - y1) / length * RunwayEndLabelOffsetPx;
+        var ids = RunwayIdentifier.Parse(rwy.Name);
+        return
+        [
+            (RunwayIdentifier.ToDisplayDesignator(ids.End1), new SKPoint(x1 - ux, y1 - uy)),
+            (RunwayIdentifier.ToDisplayDesignator(ids.End2), new SKPoint(x2 + ux, y2 + uy)),
+        ];
+    }
+
+    /// <summary>
+    /// A marker at each threshold, and — while the user hovers one — a "RWY {end}" label next to it, so they know what
+    /// they'll be clearing the aircraft into. Mirrors the hold-short hover label rendered in DrawNodes.
+    /// </summary>
+    private void DrawThresholdMarkers(SKCanvas canvas, MapViewport vp, GroundRunwayDto rwy, string? hoveredRunwayEnd)
+    {
+        const float markerRadius = 5f;
+        (float cx1, float cy1) = vp.LatLonToScreen(rwy.Coordinates[0][0], rwy.Coordinates[0][1]);
+        (float cx2, float cy2) = vp.LatLonToScreen(rwy.Coordinates[^1][0], rwy.Coordinates[^1][1]);
+        canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerPaint);
+        canvas.DrawCircle(cx1, cy1, markerRadius, _runwayThresholdMarkerOutlinePaint);
+        canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerPaint);
+        canvas.DrawCircle(cx2, cy2, markerRadius, _runwayThresholdMarkerOutlinePaint);
+
+        if (hoveredRunwayEnd is null)
+        {
+            return;
+        }
+
+        var ids = RunwayIdentifier.Parse(rwy.Name);
+        if (string.Equals(ids.End1, hoveredRunwayEnd, StringComparison.OrdinalIgnoreCase))
+        {
+            AddThresholdHoverLabel(ids.End1, cx1, cy1);
+        }
+        else if (string.Equals(ids.End2, hoveredRunwayEnd, StringComparison.OrdinalIgnoreCase))
+        {
+            AddThresholdHoverLabel(ids.End2, cx2, cy2);
+        }
+    }
+
+    /// <summary>The "RWY {end}" hover label of the threshold marker at (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    private void AddThresholdHoverLabel(string runwayEnd, float x, float y) =>
+        _labelCandidates.Add(
+            new LabelCandidate(
+                [$"RWY {RunwayIdentifier.ToDisplayDesignator(runwayEnd)}"],
+                x + 10,
+                y - 12,
+                LabelPriority.Hovered,
+                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                SKTextAlign.Left,
+                new SKColor(255, 255, 255)
+            )
+        );
 
     /// <summary>Stroke width of an ADW mark in feet — heavy enough to read against the runway fill.</summary>
     private const float AdwMarkStrokeWidthFt = 8f;
@@ -3006,6 +3132,11 @@ public sealed class GroundRenderer : IDisposable
         _runwayOutlinePaint.Dispose();
         _runwayLabelPaint.Dispose();
         _runwayLabelFont.Dispose();
+        _runwayEndLabelPaint.Dispose();
+        _runwayEndLabelFont.Dispose();
+        _runwaysOnlyNotePaint.Dispose();
+        _runwaysOnlyNoteBgPaint.Dispose();
+        _runwaysOnlyNoteFont.Dispose();
         _runwayPaint.Dispose();
         _taxiwayPaint.Dispose();
         _rampEdgePaint.Dispose();

@@ -25,7 +25,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 1. **Background clear**
 2. **Layer 1 — satellite image** (`ShowSatelliteImage`, brightness-scaled)
 3. **Layer 2 — tower-cab video map overlay** (`ShowVideoMapOverlay`)
-4. **Runways** (drawn when GND *or* MAP is on; labels + threshold markers only when GND is on and an aircraft is selected), then **ADW marks** under the same condition plus the `ADW` toggle — see below
+4. **Runways** (drawn when GND *or* MAP is on; labels + threshold markers only when GND is on and an aircraft is selected), then **ADW marks** under the same condition plus the `ADW` toggle — see below. The runway pass is `DrawRunwaySurface` (fill, outline, centreline) plus the label step; a runways-only layout (below) takes `DrawRunwayEndLabels` instead of the mid label
 5. **Layer 3 — YAAT ground layout** (only when `ShowYaatLayout`), brightness-scaled, in this sub-order:
    - `DrawEdges` (taxiway/ramp infrastructure)
    - `DrawPreviewRoute` → `DrawScopePreviewRoutes` → `DrawShownTaxiRoutes` → **`DrawHoverRoute`** → `DrawDrawnRoute` → `DrawDrawHoverPreview` (the five route overlays — see below)
@@ -98,6 +98,15 @@ All five overlays (and the scope preview's two routes, below) flow VM → `Groun
 | Push-route preview | `PushRoutePreview` (`TugPlan?`) + `DrawWaypoints` | interactive "Push route…" mode: `GroundViewModel.RefreshPushRoutePreview` re-plans through `TugMovePlanner.Plan` on every added or undone point, against the same parked neighbours the server uses (`TugParkedNeighbours.Build` over the client's aircraft), resolving tokens with the sim's own `GroundCommandHandler.ResolveTugGoal` (a lone spot or stand target with `ResolveStandOrSpotGoal`, the `PUSH $spot` / `@stand` body, facing and refusals included) and marked points with `ResolveMarkedPointGoal` (declination at the pushed aircraft, as the sim), then applying each target's forced kind as `ResolveMultiGoals` does; per-target forced kinds and marked points are keyed by waypoint index and published as `PushWaypointMarks` | `DrawPushLegs`: each move's simulated samples as a polyline in push/pull colour, an arrowhead at the move's end, a dot at every reversal. Not a `TaxiRoute` — the plan carries its own path. `DrawDrawnRoute` draws markers at marked points too, a `PUSH`/`PULL` label beside a forced target's marker and a facing tick on a faced marked point |
 
 `ShownTaxiRouteEntry(Callsign, Route, Color)` pairs a resolved route with its palette color; `GroundRenderer` maps the color back to the matching pre-built `SKPaint`.
+
+## Runways-only layout
+
+For an airport the room has no ground layout for, the hub answers a `GroundLayoutDto` with `IsRunwaysOnly` true: navdata runways, no nodes, edges, arcs or marks ([training-hub-contract.md](training-hub-contract.md)). The view is display only.
+
+- **Load**: `GroundViewModel.ApplyLoadedLayout` sets the layout and the airport centre (the runway points when `IsRunwaysOnly`, the node centroid otherwise); `GroundViewModel.IsRunwaysOnly` mirrors the DTO flag for the toolbar.
+- **Draw**: runways get the normal `DrawRunwaySurface` fill, outline and centreline; with RWY on, `DrawRunwayEndLabels` puts each end's designator just beyond its threshold instead of the mid label, and no threshold markers are drawn. `DrawCornerOverlays` adds the "No ground map — runways only" note bottom right. `GroundCanvas` fits the view to the runway coordinates, not nodes.
+- **Interaction**: `GroundCanvas.HasGroundGraph` is false, so every node, threshold, runway-surface and hold-short hit, the hover hand cursor and route or push drawing are off. Aircraft still select, their menu and the range-and-bearing tool work.
+- **Toolbar**: TWY, HS, PARK and SPOT are hidden through `IsVisible`; their saved modes are untouched.
 
 ## ADW markings
 

@@ -37,7 +37,8 @@ public class GroundViewModelHoldShortNodeTests
             ],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
         vm.SetLayoutForTesting(dto);
 
@@ -67,7 +68,8 @@ public class GroundViewModelHoldShortNodeTests
             ],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
         vm.SetLayoutForTesting(dto);
 
@@ -91,7 +93,8 @@ public class GroundViewModelHoldShortNodeTests
             [new GroundEdgeDto(1, 2, "A", DistanceNm: 0.05, IntermediatePoints: null)],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
         vm.SetLayoutForTesting(dto);
 

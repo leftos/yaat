@@ -110,6 +110,6 @@ public class GroundViewModelPushbackDirectionTests
             nextId++;
         }
 
-        return new GroundLayoutDto("TST", nodes, edges, null, null, null);
+        return new GroundLayoutDto("TST", nodes, edges, null, null, null, IsRunwaysOnly: false);
     }
 }

@@ -563,7 +563,8 @@ public class GroundCanvasPushDrawGestureTests
             [],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
         canvas.IsDrawingRoute = true;
         canvas.DrawWaypoints = [1, 2];

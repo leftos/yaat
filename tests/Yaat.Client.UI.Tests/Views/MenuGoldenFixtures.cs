@@ -617,7 +617,7 @@ internal static class MenuGoldenFixtures
             );
         }
 
-        return new GroundLayoutDto(layout.AirportId, nodes, edges, arcs, ToRunwayDtos(layout), AdwMarks: null);
+        return new GroundLayoutDto(layout.AirportId, nodes, edges, arcs, ToRunwayDtos(layout), AdwMarks: null, IsRunwaysOnly: false);
     }
 
     /// <summary>The layout's runways as the server's <c>DtoConverter.ToGroundLayoutDto</c> sends them: name, coordinates and width.</summary>

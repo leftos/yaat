@@ -149,6 +149,39 @@ public class PointMenuViewTests
         Assert.Equal(["Measure from here"], Labels(menu.Items));
     }
 
+    /// <summary>
+    /// A right-click on empty ground of a runways-only layout (an airport with no ground map) opens the measuring items and
+    /// the view-wide items a normal layout's nearest-node menu ends with, and no node, runway or taxi item.
+    /// </summary>
+    [AvaloniaFact]
+    public void GroundMap_RunwaysOnly_OpensTheMeasureAndViewItemsOnly()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto start = OakNode("Spot", "I30");
+        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        GroundRunwayDto runway = MenuGoldenFixtures.OakLayoutForClient.Runways![0];
+        main.Ground.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, [runway], null, IsRunwaysOnly: true));
+        Show(Parent(view));
+
+        ContextMenu? menu = view.BuildMapMenu(main.Ground, default);
+
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+        Assert.Equal("Measure from here", labels[0]);
+        Assert.Contains("Settings for this view…", labels);
+        Assert.All(
+            labels,
+            label =>
+                Assert.True(
+                    (label == Separator)
+                        || label.StartsWith("Measure", StringComparison.Ordinal)
+                        || (label == "Show all datablocks")
+                        || (label == "Settings for this view…"),
+                    label
+                )
+        );
+    }
+
     [AvaloniaFact]
     public void GroundNode_ParkedSelected_ShowsPointStripWithTaxiHere()
     {

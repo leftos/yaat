@@ -129,7 +129,7 @@ public class GroundRendererScopePreviewTests
         renderer.Render(
             canvas,
             vp,
-            new GroundLayoutDto("TST", [], [], null, null, null),
+            new GroundLayoutDto("TST", [], [], null, null, null, IsRunwaysOnly: false),
             [target],
             selectedAircraft: null,
             hoveredNodeId: null,

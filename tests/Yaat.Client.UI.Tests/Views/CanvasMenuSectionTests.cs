@@ -216,7 +216,15 @@ public class CanvasMenuSectionTests
         try
         {
             main.Ground.SetLayoutForTesting(
-                new GroundLayoutDto("SFO", [new GroundNodeDto(1, 37.62, -122.39, "Taxiway", null, null, null)], [], null, null, null)
+                new GroundLayoutDto(
+                    "SFO",
+                    [new GroundNodeDto(1, 37.62, -122.39, "Taxiway", null, null, null)],
+                    [],
+                    null,
+                    null,
+                    null,
+                    IsRunwaysOnly: false
+                )
             );
             canvas.Aircraft = [new AircraftModel { Callsign = Callsign, IsOnGround = true }];
             Assert.False(ShowAllItem(view.BuildNodeContextMenu(1, new Avalonia.Point(10, 10))).IsEnabled);

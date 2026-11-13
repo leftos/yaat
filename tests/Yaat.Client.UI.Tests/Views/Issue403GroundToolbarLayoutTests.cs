@@ -133,6 +133,6 @@ public class Issue403GroundToolbarLayoutTests
             new(3, 37.61, -122.36, "Taxiway", null, null, null),
             new(4, 37.63, -122.36, "Taxiway", null, null, null),
         };
-        return new GroundLayoutDto("SFO", nodes, [], null, null, null);
+        return new GroundLayoutDto("SFO", nodes, [], null, null, null, IsRunwaysOnly: false);
     }
 }

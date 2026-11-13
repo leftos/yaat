@@ -126,7 +126,7 @@ public class GroundCanvasRunwaySurfaceHitTests
     public void RightClick_ThresholdMarkerWithTaxiableSelection_StaysThresholdClick()
     {
         GroundRunwayDto runway = Runway(MenuGoldenFixtures.OakLayoutForClient, "28R/10L");
-        var layout = new GroundLayoutDto("OAK", [], [], null, [runway], null);
+        var layout = new GroundLayoutDto("OAK", [], [], null, [runway], null, IsRunwaysOnly: false);
         (GroundCanvas canvas, Window window) = ShowCanvas(layout);
         try
         {
@@ -148,6 +148,78 @@ public class GroundCanvasRunwaySurfaceHitTests
             Assert.Equal([ids.End1], thresholds);
             Assert.Empty(surface);
             Assert.Empty(nodes);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // A runways-only layout (an airport with no ground map) is display only: with a taxiable selection, a right-click on the
+    // runway surface or its threshold opens no runway, threshold or node menu, while a click on an aircraft still selects
+    // it and a right-click on it still opens its menu.
+    [AvaloniaFact]
+    public void RunwaysOnly_RunwayAndThresholdClicksOpenNothing_AircraftClicksStillWork()
+    {
+        GroundRunwayDto runway = Runway(MenuGoldenFixtures.OakLayoutForClient, "28R/10L");
+        (GroundCanvas canvas, Window window) = ShowCanvas(new GroundLayoutDto("OAK", [], [], null, [runway], null, IsRunwaysOnly: false));
+        try
+        {
+            var threshold = new LatLon(runway.Coordinates[0][0], runway.Coordinates[0][1]);
+            // Along the runway from the threshold, at 2.5 ft per pixel: the aircraft 80 px in, the surface click 160 px in,
+            // each clear of the other's hit radius and of the threshold marker's.
+            LatLon aircraftPos = GeoMath.ProjectPoint(threshold, new TrueHeading(Heading(runway)), 200 / GeoMath.FeetPerNm);
+            LatLon surfacePos = GeoMath.ProjectPoint(threshold, new TrueHeading(Heading(runway)), 400 / GeoMath.FeetPerNm);
+            var aircraft = new AircraftModel
+            {
+                Callsign = "AAL202",
+                AircraftType = "B738",
+                FlightRules = "IFR",
+                IsOnGround = true,
+                CurrentPhase = "At Parking",
+                Position = aircraftPos,
+            };
+            canvas.Aircraft = [aircraft];
+            canvas.SelectedAircraft = aircraft;
+            FocusOn(canvas, runway, threshold, HalfWidthPx);
+            Point onSurface = Screen(canvas, surfacePos);
+            Point onThreshold = Screen(canvas, threshold);
+            // The same runway in a layout that is not runways-only is a surface and a threshold hit at these points.
+            Assert.Contains(runway.Name, canvas.FindRunwaysAtPoint(onSurface));
+            Assert.NotNull(canvas.FindRunwayThresholdAtPoint(onThreshold));
+            canvas.Layout = new GroundLayoutDto("OAK", [], [], null, [runway], null, IsRunwaysOnly: true);
+            Dispatcher.UIThread.RunJobs();
+            // The runways-only layout's arrival fits the view to its runway; focus back on the same points.
+            FocusOn(canvas, runway, threshold, HalfWidthPx);
+            var thresholds = new List<string>();
+            canvas.RunwayThresholdRightClicked += (end, _) => thresholds.Add(end);
+            canvas.RunwayThresholdClicked += (end, _) => thresholds.Add(end);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+            var mapClicks = new List<Point>();
+            canvas.MapRightClicked += mapClicks.Add;
+            var leftClicked = new List<string>();
+            var rightClicked = new List<string>();
+            canvas.AircraftLeftClicked += leftClicked.Add;
+            canvas.AircraftRightClicked += (callsign, _) => rightClicked.Add(callsign);
+
+            Assert.Empty(canvas.FindRunwaysAtPoint(onSurface));
+            Assert.Null(canvas.FindRunwayThresholdAtPoint(onThreshold));
+            RightClick(canvas, window, onSurface);
+            RightClick(canvas, window, onThreshold);
+            LeftClick(canvas, window, onThreshold);
+
+            Assert.Empty(surface);
+            Assert.Empty(thresholds);
+            Assert.Empty(nodes);
+            // Each right-click on empty ground opens the map-level menu (measuring and view items) instead.
+            Assert.Equal([onSurface, onThreshold], mapClicks);
+
+            Point onAircraft = Screen(canvas, aircraftPos);
+            LeftClick(canvas, window, onAircraft);
+            RightClick(canvas, window, onAircraft);
+
+            Assert.Equal(["AAL202"], leftClicked);
+            Assert.Equal(["AAL202"], rightClicked);
         }
         finally
         {

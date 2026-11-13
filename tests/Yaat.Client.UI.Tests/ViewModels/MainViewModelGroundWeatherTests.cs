@@ -28,7 +28,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null, null, null));
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
 
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
     }
@@ -38,7 +38,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null, null, null));
 
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
@@ -50,7 +50,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [OakMetar], null, null, null));
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
 
         Assert.Null(vm.Ground.WeatherInfo);
         Assert.Equal("No METAR for SFO", vm.Ground.WeatherNote);
@@ -62,7 +62,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [OakMetar, SfoMetar], null, null, null));
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
 
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
         Assert.Null(vm.Ground.WeatherNote);
@@ -74,7 +74,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [HnlMetar], null, null, null));
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("HNL", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("HNL", [], [], null, null, null, IsRunwaysOnly: false));
 
         Assert.Equal("HNL", vm.Ground.WeatherInfo?.StationId);
         Assert.Null(vm.Ground.WeatherNote);
@@ -87,15 +87,15 @@ public class MainViewModelGroundWeatherTests
 
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [SfoMetar], null, null, null));
 
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
         Assert.Null(vm.Ground.WeatherNote);
 
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, null, null, IsRunwaysOnly: false));
         Assert.Null(vm.Ground.WeatherInfo);
         Assert.Equal("No METAR for OAK", vm.Ground.WeatherNote);
 
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
         Assert.Null(vm.Ground.WeatherNote);
     }
@@ -114,7 +114,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+        vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
 
         // No profile loaded: the calm/standard default stands in for the airport's report, so there is
         // nothing to be missing and no note.
@@ -130,12 +130,12 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
-            vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+            vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
             GroundViewInstance extra = vm.OpenExtraGroundView("OAK");
 
             // OAK is neither the scenario's primary airport (there is no scenario) nor a radar weather
             // airport, so its default exists only because every Ground View's airport is covered.
-            extra.Vm.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, null, null));
+            extra.Vm.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, null, null, IsRunwaysOnly: false));
 
             Assert.Equal("OAK", extra.Vm.WeatherInfo?.StationId);
             Assert.Equal(29.92, extra.Vm.WeatherInfo?.AltimeterInHg);
@@ -153,7 +153,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
-            vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
+            vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false));
             vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [SfoMetar], null, null, null));
             Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
 
@@ -164,7 +164,7 @@ public class MainViewModelGroundWeatherTests
             Assert.Null(extra.Vm.WeatherInfo);
             Assert.Null(extra.Vm.WeatherNote);
 
-            extra.Vm.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, null, null));
+            extra.Vm.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, null, null, IsRunwaysOnly: false));
 
             Assert.Null(extra.Vm.WeatherInfo);
             Assert.Equal("No METAR for OAK", extra.Vm.WeatherNote);

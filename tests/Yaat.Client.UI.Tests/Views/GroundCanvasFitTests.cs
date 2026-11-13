@@ -116,6 +116,19 @@ public class GroundCanvasFitTests
     }
 
     [AvaloniaFact]
+    public void FitToLayout_RunwaysOnly_FitsTheRunways()
+    {
+        // An airport with no ground map arrives as its runways alone, with no nodes: the auto-fit bounds the runways.
+        (GroundCanvas? canvas, Window _) = MakeCanvas();
+        canvas.HasSavedView = false;
+        canvas.Layout = RunwaysOnlyLayout();
+
+        AttachAndSize(canvas, 800, 600);
+
+        AssertCentroidFit(canvas);
+    }
+
+    [AvaloniaFact]
     public void ViewModel_FreshProfile_AutoFitsOnLayoutLoad()
     {
         // End-to-end: GroundViewModel with empty UserPreferences, set scenario
@@ -261,6 +274,31 @@ public class GroundCanvasFitTests
             new(3, MinLat, MaxLon, "Taxiway", null, null, null),
             new(4, MaxLat, MaxLon, "Taxiway", null, null, null),
         };
-        return new GroundLayoutDto("SFO", nodes, [], null, null, null);
+        return new GroundLayoutDto("SFO", nodes, [], null, null, null, IsRunwaysOnly: false);
+    }
+
+    private static GroundLayoutDto RunwaysOnlyLayout()
+    {
+        // Two runways across the diagonals of the same bounding box, and no nodes.
+        var runways = new List<GroundRunwayDto>
+        {
+            new(
+                "10/28",
+                [
+                    [MinLat, MinLon],
+                    [MaxLat, MaxLon],
+                ],
+                150
+            ),
+            new(
+                "1/19",
+                [
+                    [MaxLat, MinLon],
+                    [MinLat, MaxLon],
+                ],
+                150
+            ),
+        };
+        return new GroundLayoutDto("SFO", [], [], null, runways, null, IsRunwaysOnly: true);
     }
 }

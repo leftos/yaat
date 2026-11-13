@@ -294,7 +294,8 @@ public class GroundCanvasRightClickTargetTests
             [],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 
     private static GroundCanvas MakeCanvas()

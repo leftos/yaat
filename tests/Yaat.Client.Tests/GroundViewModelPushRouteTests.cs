@@ -960,6 +960,7 @@ public class GroundViewModelPushRouteTests
             ],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 }

@@ -61,7 +61,7 @@ public class GroundCanvasThresholdHitTests
     public void FindRunwayThresholdAtPoint_NoRunways_ReturnsNull()
     {
         GroundCanvas canvas = MakeCanvas(800, 600);
-        canvas.Layout = new GroundLayoutDto("SFO", [], [], null, null, null);
+        canvas.Layout = new GroundLayoutDto("SFO", [], [], null, null, null, IsRunwaysOnly: false);
 
         (float sx, float sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
         (string RunwayEnd, LatLon Position)? hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
@@ -106,6 +106,6 @@ public class GroundCanvasThresholdHitTests
             ],
             150
         );
-        return new GroundLayoutDto("SFO", [], [], null, [runway], null);
+        return new GroundLayoutDto("SFO", [], [], null, [runway], null, IsRunwaysOnly: false);
     }
 }

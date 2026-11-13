@@ -2045,13 +2045,19 @@ public record OnlineControllerDto(
     public string Tooltip => $"{Callsign} — {RealName}" + (IsScenarioPosition ? " (scenario)" : "");
 }
 
+/// <summary>
+/// An airport's ground layout as the Ground View draws it. <paramref name="IsRunwaysOnly"/> marks a layout the server built
+/// from navdata for an airport the room has no ground layout for: its runways alone, with no taxi graph, drawn for display
+/// only.
+/// </summary>
 public record GroundLayoutDto(
     string AirportId,
     List<GroundNodeDto> Nodes,
     List<GroundEdgeDto> Edges,
     List<GroundArcDto>? Arcs,
     List<GroundRunwayDto>? Runways,
-    List<GroundAdwMarkDto>? AdwMarks
+    List<GroundAdwMarkDto>? AdwMarks,
+    bool IsRunwaysOnly
 );
 
 public record GroundNodeDto(int Id, double Latitude, double Longitude, string Type, string? Name, double? Heading, string? RunwayId);

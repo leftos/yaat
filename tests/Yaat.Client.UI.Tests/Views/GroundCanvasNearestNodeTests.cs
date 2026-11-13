@@ -88,6 +88,7 @@ public class GroundCanvasNearestNodeTests
             [],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
 }

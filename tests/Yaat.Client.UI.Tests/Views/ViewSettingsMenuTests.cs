@@ -48,7 +48,15 @@ public class ViewSettingsMenuTests
             RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
         };
         groundVm.SetLayoutForTesting(
-            new GroundLayoutDto("TST", [new GroundNodeDto(1, Lat, Lon, "TaxiwayIntersection", null, null, null)], [], null, null, null)
+            new GroundLayoutDto(
+                "TST",
+                [new GroundNodeDto(1, Lat, Lon, "TaxiwayIntersection", null, null, null)],
+                [],
+                null,
+                null,
+                null,
+                IsRunwaysOnly: false
+            )
         );
         var view = new GroundView { DataContext = groundVm };
         var host = new Grid { DataContext = mainVm };

@@ -4,6 +4,7 @@
 
 ### Added
 
+- The Ground View shows an airport with no ground map as its runways, each end labelled, so you can watch aircraft land and depart there.
 - Airport sidecars accept a `spotEdges` section that links taxi spots and adds charted apron taxilanes the vNAS map lacks.
 - `ATXI` warns the instructor about each runway the helicopter's direct path crosses, in the order it meets them.
 - Everyone in a room sees a progress overlay naming who rewinds and to where, and the timeline stays locked until the jump finishes.

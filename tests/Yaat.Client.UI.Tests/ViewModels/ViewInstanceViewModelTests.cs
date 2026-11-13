@@ -34,7 +34,8 @@ public class ViewInstanceViewModelTests
             [new GroundEdgeDto(1, 2, "C", DistanceNm: 0.06, IntermediatePoints: null)],
             null,
             null,
-            null
+            null,
+            IsRunwaysOnly: false
         );
     }
 
