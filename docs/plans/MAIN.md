@@ -666,7 +666,7 @@
 - [ ] YAAT-2213 Delete dead snapshot code and split RestoreFromSnapshot
 
 ### No milestone
-- [ ] YAAT-2209 Cut per-tick ground cost: skip far ground pairs, cache hold-bar braking lookups · release vNext+1
+- [ ] YAAT-2209 Cut per-tick ground cost: skip far ground pairs, cache hold-bar braking lookups · release vNext
 - [ ] YAAT-2210 Check whether a rewinding room can stall the shared tick loop for every room
 - [ ] YAAT-2219 Measure live-checkpoint memory and capture cost in a long session and soak
 
@@ -929,7 +929,7 @@
 - [ ] YAAT-2187 Let a default-circuit base widen be chosen when it reaches the keep band
 - [ ] YAAT-2188 Project a base follower's final at the speed the sim flies it
 - [ ] YAAT-2196 Keep a converging follower's turn-out from crossing the lead's final
-- [ ] YAAT-2200 Join a long final and break off outward on a FOLLOW return outside the forward window · release vNext+1
+- [ ] YAAT-2200 Join a long final and break off outward on a FOLLOW return outside the forward window · release vNext
 - [ ] YAAT-2214 Count the climb past the runway end in a crossing FOLLOW entrant's remaining path
 - [ ] YAAT-2216 A pursuer sequenced behind a landed lead from a spacing excursion goes around for alignment
 
@@ -951,7 +951,7 @@
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
 - [ ] YAAT-924 Track a JRADO radial with wind correction after the intercept
 - [ ] YAAT-935 Convert an airport-anchored FRD with the airport's variation of record
-- [ ] YAAT-2064 Hold at the destination when the route itself ends at the airport (filed route or DCT to the field) · release vNext+1
+- [ ] YAAT-2064 Hold at the destination when the route itself ends at the airport (filed route or DCT to the field) · release vNext
 - [ ] YAAT-2068 Recompute a hold's leg length and holding speed when its altitude changes
 - [ ] YAAT-2069 Decide what an APT in the clearance-limit hold does when a runway is already assigned at the new airport
 
@@ -1098,7 +1098,6 @@
 ### No milestone
 - [ ] YAAT-2048 Apply the STARS consolidation rulings: HD ILL POS with no attended owner, scenario positions attended, force handoff redirects
 - [ ] YAAT-2102 Resolve a nameless sent PDC's SID across every ops config
-- [ ] YAAT-2172 Raise ClientVersions:Minimum to the client release that reads isTrainingStaff · release vNext
 
 ## Live traffic
 
