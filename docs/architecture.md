@@ -2394,6 +2394,7 @@ ReadyLayoutReader.cs           # Reads where a layout must already be loaded (th
 ScenarioExporter.cs            # The loader run backwards: a room's live aircraft (simulated + live-traffic shadows) → Scenario JSON, for the server's
                                # ExportRoomAsScenario. Each aircraft becomes Parking/OnRunway/OnFinal/Coordinates by the same rules the loader restarts
                                # them under; anything it cannot reproduce exports as Coordinates and is flagged (ScenarioExportFlag) instead of guessed.
+                               # LayoutCandidateAirports lists the airports Export may read a layout from for ground aircraft with none of their own, so the server can await their fetches before exporting.
                                # A bare CVIA whose top is a TDLS EXC MAINT altitude exports as `CVIA nnn`.
                                # See docs/scenario-loading-and-generation.md § Export.
 ArrivalRouteResolver.cs        # Shared STAR-route builder: PopulateNavigationRoute + ApplyAltitudeProfile (descend-via

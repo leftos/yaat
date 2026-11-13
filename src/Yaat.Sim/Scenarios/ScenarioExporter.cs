@@ -633,14 +633,8 @@ public static class ScenarioExporter
             return null;
         }
 
-        string?[] candidates = [state.AirportId, plan?.Departure, plan?.Destination, context.PrimaryAirportId];
-        foreach (string? airportId in candidates)
+        foreach (string airportId in LayoutCandidates(state, plan, context.PrimaryAirportId))
         {
-            if (string.IsNullOrWhiteSpace(airportId))
-            {
-                continue;
-            }
-
             // A candidate still loading ends the search: the next airport's layout is not this aircraft's.
             GroundDataRead read = groundData.Read(airportId);
             if (!read.IsLoaded || (read.Layout is not null))
@@ -650,6 +644,40 @@ public static class ScenarioExporter
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Every airport <see cref="Export"/> may read a layout from for the ground aircraft of <paramref name="aircraft"/> that
+    /// carry none of their own (shadows), distinct and in the order the export tries them: per aircraft its airport, its
+    /// filed departure and destination, then <paramref name="primaryAirportId"/>. A caller that must not wait under a lock
+    /// collects these, waits for their fetches, then exports.
+    /// </summary>
+    public static IReadOnlyList<string> LayoutCandidateAirports(
+        IEnumerable<AircraftState> aircraft,
+        string? primaryAirportId,
+        Func<AircraftState, ScenarioFlightPlan?> shadowFlightPlan
+    )
+    {
+        var airports = new List<string>();
+        foreach (AircraftState state in aircraft.Where(s => s.IsOnGround && (s.Ground.Layout is null)))
+        {
+            ScenarioFlightPlan? plan = state.IsShadow ? shadowFlightPlan(state) : ToScenarioFlightPlan(state.FlightPlan);
+            foreach (string airportId in LayoutCandidates(state, plan, primaryAirportId))
+            {
+                if (!airports.Contains(airportId, StringComparer.OrdinalIgnoreCase))
+                {
+                    airports.Add(airportId);
+                }
+            }
+        }
+
+        return airports;
+    }
+
+    private static IEnumerable<string> LayoutCandidates(AircraftState state, ScenarioFlightPlan? plan, string? primaryAirportId)
+    {
+        string?[] candidates = [state.AirportId, plan?.Departure, plan?.Destination, primaryAirportId];
+        return candidates.Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!);
     }
 
     /// <summary>

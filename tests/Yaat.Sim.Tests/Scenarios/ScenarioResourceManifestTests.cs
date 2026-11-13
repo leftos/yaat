@@ -58,6 +58,36 @@ public class ScenarioResourceManifestTests
         );
     }
 
+    /// <summary>
+    /// Every aircraft the load builds, delayed spawns included, has its airport, departure and destination in the manifest,
+    /// so the load's prefetch has fetched each before the first tick: no aircraft's own airport is first named at runtime.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CorpusScenarios))]
+    public void Corpus_EveryLoadedAircraftsAirports_AreInTheManifest(string scenarioPath)
+    {
+        string json = File.ReadAllText(scenarioPath);
+        var manifest = ScenarioResourceManifest.FromJson(json);
+        Assert.Null(manifest.ReadError);
+
+        ScenarioLoadResult result = ScenarioLoader.Load(json, new LayoutRequestSpy(), new Random(0), MagneticDeclination.EvaluationDateUtc);
+
+        string[] missing =
+        [
+            .. result
+                .AllAircraftStates.SelectMany(state => new[] { state.AirportId, state.FlightPlan.Departure, state.FlightPlan.Destination })
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(AirportLayoutDownloader.ToFaaCode)
+                .Where(id => !manifest.AirportIds.Contains(id))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal),
+        ];
+        Assert.True(
+            missing.Length == 0,
+            $"{Path.GetFileName(scenarioPath)}: loaded aircraft name {string.Join(", ", missing)}, which the manifest does not name"
+        );
+    }
+
     [Fact]
     public void PrimaryAirport_IsNamed()
     {

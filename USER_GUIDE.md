@@ -1048,6 +1048,8 @@ Corner slowdowns, hold-short braking, and give-way yields still apply on top. `S
 
 **Command-token hints:** Hovering a taxi spot or parking node shows the token that references it in a command — `$9` for taxi spot 9, `@F7` for parking F7 — so you can read straight off the map how to `TAXI` / `PUSH` / `WARPG` to it.
 
+**Airports opened later:** Opening an airport that no scenario load fetched ahead of time (an extra Ground window, or a field a typed `ADD` or `DEST` names) waits for the server's one fetch of its layout and then shows the map. If the server cannot reach the layout source, the view stays empty; close and reopen it to ask again.
+
 **Debug overlay:** Press **Ctrl+D** to toggle node IDs, names, types, and edge labels on the ground map. Useful for finding node IDs for manual `#nodeId` taxi commands.
 
 **Controls bar** (above the map, right-aligned; when the window is too narrow for every button, hover the bar and roll the mouse wheel to scroll it sideways):
