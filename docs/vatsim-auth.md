@@ -48,11 +48,9 @@ filled automatically and not prompted for.
 - Authorize `https://auth.vatsim.net/oauth/authorize`, token `…/oauth/token`, userinfo `…/api/user`.
 - Scopes: `full_name vatsim_details` (`vatsim_details` exposes rating + subdivision).
 - Userinfo → `data.cid`, `data.personal.name_full`, `data.vatsim.rating.short`, `data.vatsim.subdivision`.
-- VATUSA: `GET https://api.vatusa.net/v2/user/{cid}` → `data.roles` (entries of `{facility, role}`; training staff
-  = MTR, FE, TA, ATM or DATM held at the controller's home facility) + `data.facility` (home
-  ARTCC, used to auto-fill the controller's ARTCC). Queried at login and re-queried on every token refresh
-  (best-effort: a null result — outage or VATUSA disabled — keeps the cached identity, so it never flips a
-  live session). Non-VATUSA controllers fall back to the VATSIM `subdivision`.
+- VATUSA: `GET https://api.vatusa.net/v2/user/{cid}` → `data.roles` (entries of `{facility, role}`; training staff = MTR, FE, TA, ATM or DATM held at the controller's home facility) + `data.facility` (home ARTCC, used to auto-fill the controller's ARTCC). A VATUSA facility code that differs from the vNAS ARTCC id is mapped to the vNAS id (`HCF` → `ZHN`) in `VatusaService`; the training-staff role check compares VATUSA's own codes. A vNAS ARTCC no VATUSA facility resolves to is permitted alongside the home that works it (`ArtccAccessPolicy`: ZHN also permits ZUA), ahead of operator grants.
+
+  Queried at login and re-queried on every token refresh (best-effort: a null result — outage or VATUSA disabled — keeps the cached identity, so it never flips a live session). Non-VATUSA controllers fall back to the VATSIM `subdivision`.
 - The flow is **Authorization Code + PKCE (S256)**. A **public** VATSIM client (no secret) is supported and is the
   expected setup; a **confidential** client additionally sends `client_secret` (set `Yaat:Vatsim:ClientSecret`).
 

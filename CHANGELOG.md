@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Controllers whose VATUSA home facility is Honolulu (HCF) now get ZHN as their ARTCC, so its scenarios list and load again.
+- Controllers whose VATUSA home facility is Honolulu (HCF) now get ZHN as their ARTCC, plus Guam (ZUA), so their scenarios list and load again.
 
 ## v0.18.4-beta [2026/11/13]
 

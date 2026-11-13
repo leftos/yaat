@@ -2629,7 +2629,7 @@ Assignments are cleared when a member leaves, an aircraft is deleted, or the sce
 
 ### Visiting another ARTCC
 
-Your scenarios normally come from your home ARTCC, which YAAT resolves from your VATSIM/VATUSA profile. A visiting controller whom another facility's Training Administrator has approved to mentor there can ask the server operator for access to that ARTCC's scenarios as well.
+Your scenarios normally come from your home ARTCC, which YAAT resolves from your VATSIM/VATUSA profile. A visiting controller whom another facility's Training Administrator has approved to mentor there can ask the server operator for access to that ARTCC's scenarios as well. Honolulu (HCF) controllers get Guam (ZUA) this way without asking.
 
 Once granted, the room list shows an ARTCC picker next to **Create Room**: pick the ARTCC for the session and the room is created for it — the scenario list, live-session picker, weather, and CRC alias file all follow the room's ARTCC, and switch back to your home ARTCC when you leave. Without a grant there is no picker and nothing changes. A grant only widens which scenarios you can load; whether you can run sessions at all still comes from your VATUSA mentor or facility training staff role (FE, TA, ATM or DATM) at your home facility, or your instructor rating.
 
