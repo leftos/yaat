@@ -177,6 +177,13 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        // A runway whose field is still loading has no landing threshold to space against: the spawn is tried again on the
+        // next tick, before any random draw or spacing read, so nothing about it is held over.
+        if (SpacingFieldLoading(gen.Runway.AirportId))
+        {
+            return;
+        }
+
         EngineKind engine = ResolveEngine(gen.Config.EngineType);
         WeightClass weight = ResolveWeight(gen.Config, engine, World.Rng);
         List<(double DistanceNm, AircraftState Aircraft)> corridor = CorridorAircraft(gen);
@@ -345,6 +352,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal List<(double DistanceNm, AircraftState Aircraft)> CorridorAircraft(GeneratorState gen)
     {
+        // Its callers skip a runway whose field is loading (SpacingFieldLoading), so the datum below is the landing threshold.
         RunwayInfo rwy = gen.Runway;
         AirportGroundLayout? layout = ResolveAirportLayout(rwy.AirportId);
         LatLon threshold = LandingThreshold.Resolve(rwy, layout);
@@ -375,6 +383,17 @@ public sealed partial class SimulationEngine
             result.Add((along, ac));
         }
         return result;
+    }
+
+    /// <summary>
+    /// Whether the field a spacing measurement is made at is loading: read through the gate first, so a first read of a
+    /// loading field defers it, then <see cref="IsLayoutLoading"/>. A spacing reader skips a loading field for the tick
+    /// rather than measure against the pavement threshold, and writes no spacing state for it.
+    /// </summary>
+    private bool SpacingFieldLoading(string airportId)
+    {
+        _ = ReadAirportLayout(airportId);
+        return IsLayoutLoading(airportId);
     }
 
     /// <summary>
@@ -493,6 +512,12 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void ManageGeneratorStream(GeneratorState gen, SimScenarioState scenario)
     {
+        // A loading field is skipped for the tick: no ceiling stamped, restored or let go of against the pavement threshold.
+        if (SpacingFieldLoading(gen.Runway.AirportId))
+        {
+            return;
+        }
+
         var stream = CorridorAircraft(gen)
             .Where(e => string.Equals(e.Aircraft.Phases?.AssignedRunway?.Designator, gen.Runway.Designator, StringComparison.OrdinalIgnoreCase))
             .OrderBy(e => e.DistanceNm)
@@ -843,6 +868,13 @@ public sealed partial class SimulationEngine
 
             RunwayInfo? runway = ResolveArrivalRunway(aircraft);
             AirportGroundLayout? layout = runway is null ? null : ResolveAirportLayout(runway.AirportId);
+
+            // The stream walk skipped a loading field, so an arrival there is neither held nor released this tick.
+            if ((runway is not null) && IsLayoutLoading(runway.AirportId))
+            {
+                continue;
+            }
+
             double distance = runway is null ? double.NaN : RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, layout);
             var datum = new ArrivalThresholdDatum(runway, layout, distance);
             if (HoldsAcrossPreClearanceDropout(aircraft, datum, scenario))
@@ -1193,7 +1225,13 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
+            // Through the gate first, so a first read of a loading field defers it; a loading field forms no stream this tick.
             AirportGroundLayout? layout = ResolveAirportLayout(runway.AirportId);
+            if (IsLayoutLoading(runway.AirportId))
+            {
+                continue;
+            }
+
             bool preClearance = aircraft.Phases?.AssignedRunway is null;
             if (!IsRunwayArrival(aircraft, runway, layout, preClearance))
             {

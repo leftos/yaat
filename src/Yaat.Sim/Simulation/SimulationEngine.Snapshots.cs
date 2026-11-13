@@ -225,10 +225,11 @@ public sealed partial class SimulationEngine
                 foreach (DelayedSpawnDto d in scenarioDto.DelayedQueue)
                 {
                     LoadedAircraft aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
-                    // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
+                    // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID through the restore's
+                    // read, so an airport deferred at the snapshot's second stays deferred and is not read from the source.
                     if (aircraft.State.Ground.LayoutAirportId is { } layoutAirportId)
                     {
-                        aircraft.State.Ground.Layout = _groundData.Read(layoutAirportId).Layout;
+                        aircraft.State.Ground.Layout = ReadRestoredLayout(layoutAirportId);
                     }
 
                     Scenario.DelayedQueue.Add(

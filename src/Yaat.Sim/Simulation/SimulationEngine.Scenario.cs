@@ -437,6 +437,29 @@ public sealed partial class SimulationEngine
     private bool IsLayoutDeferred(string airportId) => (Scenario is { } scenario) && ContainsAirport(scenario.DeferredLayoutAirports, airportId);
 
     /// <summary>
+    /// Whether <paramref name="airportId"/>'s layout is loading: the airport is in the room's deferred set
+    /// (<see cref="SimScenarioState.DeferredLayoutAirports"/>), the set the gate answers loading from. Reads no source,
+    /// records nothing and logs nothing, so a per-tick reader may ask it every tick.
+    /// </summary>
+    internal bool IsLayoutLoading(string airportId) => IsLayoutDeferred(airportId);
+
+    /// <summary>
+    /// A landing clearance's layout attach, for the runway exit and the taxi in: an aircraft carrying no layout takes the
+    /// pick's (<see cref="PickAmendedLayout"/>), or, while an airport that pick reads is loading, waits on it and attaches
+    /// the admitted layout at its admission (<see cref="AttachWaitingAircraft"/>). An aircraft already carrying a layout,
+    /// or already waiting on a pick, is left as it is.
+    /// </summary>
+    internal void AttachLayoutAfterClearance(AircraftState aircraft)
+    {
+        if ((aircraft.Ground.Layout is not null) || (aircraft.Ground.PendingLayoutAirportIds is { Count: > 0 }))
+        {
+            return;
+        }
+
+        PickAmendedLayout(aircraft);
+    }
+
+    /// <summary>
     /// Forgets the airports a replay found loading with no recorded deferral, so the run that follows reads them from the
     /// source again. The server calls this when a room leaves tape playback; a replay from t=0 starts with none.
     /// </summary>

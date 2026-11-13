@@ -81,12 +81,12 @@ internal static class ActionArms
 
         if (result.Success)
         {
-            // After CTL: the arrival airport's ground layout for the runway exit after landing. ResolveGroundLayout
-            // falls back to the assigned runway / airport context, so a VFR aircraft with no filed destination still
-            // gets a layout.
+            // After CTL: the arrival airport's ground layout for the runway exit after landing. The pick falls back to
+            // the assigned runway / airport context, so a VFR aircraft with no filed destination still gets a layout; while
+            // an airport it reads is loading, the aircraft waits on it and attaches the layout at its admission.
             if ((aircraft.Phases?.LandingClearance is not null) || (aircraft.Pattern.PendingLandingClearance is not null))
             {
-                aircraft.Ground.Layout ??= engine.ResolveGroundLayout(aircraft);
+                engine.AttachLayoutAfterClearance(aircraft);
             }
 
             if (compound.Blocks.Any(block => block.Commands.Any(command => command is ChangeDestinationCommand)))

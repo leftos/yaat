@@ -23,7 +23,8 @@ public sealed class AnswerTaxiOutRule : IDecisionRule
                 continue;
             }
 
-            if (!memo.CanAct(scope.Now))
+            // While its layout loads the taxi-out waits: the dispatcher would refuse it, and an issue counts before its result.
+            if (!memo.CanAct(scope.Now) || scope.LayoutLoading(aircraft))
             {
                 continue;
             }

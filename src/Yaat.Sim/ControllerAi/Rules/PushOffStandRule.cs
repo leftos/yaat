@@ -48,6 +48,14 @@ public sealed class PushOffStandRule : IDecisionRule
         foreach (AircraftState aircraft in scope.Jurisdiction)
         {
             AiAircraftMemo memo = scope.MemoFor(aircraft);
+
+            // While its layout loads the push waits and its wait is kept: nothing is answered or forgotten on a loading null.
+            if (scope.LayoutLoading(aircraft))
+            {
+                asking.Add(aircraft.Callsign);
+                continue;
+            }
+
             if ((scope.Tick.LayoutFor(aircraft) is not { } layout) || !Applies(aircraft, layout) || (aircraft.PendingPilotRequest is not { } request))
             {
                 memo.ForgetObservation(Name);

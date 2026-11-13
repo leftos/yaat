@@ -28,6 +28,13 @@ public sealed class RunwayCrossingRule : IDecisionRule
         foreach (AircraftState aircraft in scope.Jurisdiction)
         {
             AiAircraftMemo memo = scope.MemoFor(aircraft);
+
+            // While its layout loads the route's bars cannot be read: the crossing neither issues nor forgets what it asked.
+            if (scope.LayoutLoading(aircraft))
+            {
+                continue;
+            }
+
             AirportGroundLayout? layout = scope.Tick.LayoutFor(aircraft);
             PendingHoldShort? pending = TaxiRouteProgress.NextUnclearedCrossing(aircraft, layout);
             if (pending is null || (pending.DistanceFt > PreClearDistanceFt))

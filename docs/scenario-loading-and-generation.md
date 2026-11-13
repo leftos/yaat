@@ -505,6 +505,7 @@ All four drain in `SimulationEngine.TickPrePhysics` once per sim-second:
     `cleared → Eram.ControllerEnteredAltitude`. The STARS datablock is deliberately **not** populated from these fields (the old
     `cleared → Stars.TemporaryAltitude` mapping was removed) pending confirmation of whether/how non-ERAM (STARS) scenarios use
     them.
+- **A runway whose airport layout is loading** (a runtime-read airport; `SpacingFieldLoading`, the read through the layout gate then `SimulationEngine.IsLayoutLoading`): `TrySpawnArrival` returns before any random draw or spacing read, so no draw is consumed while waiting and the spawn is tried again each second, spawning on the admission second. `ApplyArrivalSpacing` and `ApplySameRunwayArrivalProtection` stamp, restore and release nothing there.
 - **`ApplyArrivalSpacing`** (runs each tick immediately after `ProcessGenerators`) — in-trail speed management for the generator
   stream, the simulated approach controller (TRACON) that feeds correctly-spaced traffic to the tower (LC) student. Placement
   (above) only sets spacing at the *instant* of spawn; without this, a follower spawned farther out flies the faster
