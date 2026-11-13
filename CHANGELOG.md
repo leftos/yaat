@@ -41,6 +41,8 @@
 
 ### Fixed
 
+- An aircraft on the upwind given `CM` or `DM` below pattern altitude now turns crosswind past the runway end at that altitude instead of flying on.
+- `FOLLOW` given on the upwind keeps an `OFL`/`OFR` offset until the crosswind turn instead of swinging back to the centerline.
 - Rewinding a loaded recording or replaying a bug bundle from mid-session keeps aircraft waiting to spawn on course, with strips and vTDLS items in their order.
 - A `TAXI` re-issued to a moving aircraft whose taxiway hold short it can no longer stop for now brakes firmly and reports holding position past it.
 - vTDLS keys work as in vTDLS: arrows move a highlight, Enter opens it, Tab cycles lists and fields, Esc opens the Facility Menu, Ctrl+Alt+arrows change facility.

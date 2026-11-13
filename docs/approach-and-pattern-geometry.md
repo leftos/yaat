@@ -83,7 +83,7 @@ then projected:
 - `CrosswindTurn` = the **departure end of the runway (DER)**. The upwind length is governed by runway
   geometry, not pattern size: per AIM 4-3-2 the crosswind turn is commenced **beyond the departure end of the
   runway within 300 ft of pattern altitude**, so a smaller pattern keeps the same at-the-DER upwind (and never
-  turns crosswind while still over the runway). `UpwindPhase` enforces that gate (see below).
+  turns crosswind while still over the runway). `UpwindPhase` enforces that gate (see below). An aircraft cleared (CM/DM) below pattern altitude less 300 ft turns crosswind past the departure end once within the capture tolerance of that cleared altitude, rather than holding the upwind for an altitude it was told not to climb to (`UpwindPhase.AtLegalTurnAltitude`).
 - `DownwindStart` = crosswind turn + `patternSize` perpendicular (along `crosswindHeading`).
 - `DownwindAbeam` = threshold + `patternSize` perpendicular — the canonical on-downwind reference point.
 - `BaseTurn` = downwind abeam + `BaseExtensionNm` along the downwind heading.
@@ -1063,7 +1063,7 @@ When the climb hands over, `PhaseRunner` starts the free pursuit with the circui
 
 A pursuit that starts on the departure leg carries a **climb-out gate** (`VfrFollowPhase.ClimbOutGate`, `FollowClimbOutGate`): from the climb hand-over, from FOLLOW of a runwayless lead on the upwind, and from `InstallFollow` when the follower is on its upwind, an airborne closed-traffic climb or a go-around (with no circuit, the gate is the runway's own departure end, true heading and `ResolvePatternAltitudeFt − 300`).
 
-While it holds, the pursuit flies the upwind heading and the upwind's speed schedule (the downwind baseline unless a speed was assigned, slowed for a lead close ahead) and leaves the altitude to the controller; it clears past the departure end at or above TPA − 300, or at a lower assigned altitude once reached (`UpwindPhase.PastDepartureEndAtTurnAltitude`, the upwind's own crosswind-turn rule, AIM §4-3-2.c.1, FIG 4-3-2 keys 4–5).
+While it holds, the pursuit flies the upwind heading and the upwind's speed schedule (the downwind baseline unless a speed was assigned, slowed for a lead close ahead) and leaves the altitude to the controller; it clears past the departure end (`UpwindPhase.PastDepartureEnd`) at or above TPA − 300, or at a lower assigned altitude once reached (`UpwindPhase.AtLegalTurnAltitude`; both are the upwind's own crosswind-turn rule, AIM §4-3-2.c.1, FIG 4-3-2 keys 4–5). A pursuit that starts on an upwind flying OFL/OFR keeps flying that offset track through the hold (`FollowClimbOutGate.LateralOffset`, referenced to the departure end as the upwind does).
 
 The turn point is past the departure end, as the figures' key 5 puts it, not AIM 4-3-2.c.1's "at least 1/2 mile beyond the departure end" for the departure leg: the figure is the operational turn rule, and the altitude half usually binds later. Both climbs run `CheckLeadLifecycle` while following, clearing only the follow; an IFR follower that loses its lead also gets "{cs} visual separation terminated — radar separation required".
 

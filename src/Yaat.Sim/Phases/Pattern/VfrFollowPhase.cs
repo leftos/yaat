@@ -241,9 +241,9 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         }
 
         Phase? current = aircraft.Phases?.CurrentPhase;
-        if (current is UpwindPhase { Waypoints: { } waypoints })
+        if (current is UpwindPhase { Waypoints: { } waypoints } upwind)
         {
-            return FollowClimbOutGate.FromWaypoints(waypoints);
+            return FollowClimbOutGate.FromWaypoints(waypoints, OffsetOf(upwind, waypoints));
         }
 
         bool closedTrafficClimb = (current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft);
@@ -276,9 +276,9 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             return null;
         }
 
-        if (aircraft.Phases.CurrentPhase is UpwindPhase { Waypoints: { } waypoints })
+        if (aircraft.Phases.CurrentPhase is UpwindPhase { Waypoints: { } waypoints } upwind)
         {
-            return FollowClimbOutGate.FromWaypoints(waypoints) with
+            return FollowClimbOutGate.FromWaypoints(waypoints, OffsetOf(upwind, waypoints)) with
             {
                 MinTurnAltitude = CrossingTurnAltitudeFt(aircraft, patternRunway, groundLayout),
             };
@@ -286,6 +286,26 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
 
         return FollowClimbOutGate.ForClimbOut(flown, flown, ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout));
     }
+
+    /// <summary>
+    /// The OFL/OFR offset <paramref name="upwind"/> is flying, for the departure-leg hold to keep flying: referenced to the
+    /// departure end as the upwind references it, with a copy of its state so the hold advances its own. Null when it flies none.
+    /// </summary>
+    /// <param name="upwind">The upwind leg the pursuit starts on.</param>
+    /// <param name="waypoints">That leg's circuit waypoints.</param>
+    /// <returns>The offset the hold carries, or null.</returns>
+    private static UpwindLateralOffset? OffsetOf(UpwindPhase upwind, PatternWaypoints waypoints) =>
+        upwind.LateralOffset is { } state
+            ? new UpwindLateralOffset(
+                new LatLon(waypoints.DepartureEndLat, waypoints.DepartureEndLon),
+                new PatternLateralOffsetState
+                {
+                    TargetNm = state.TargetNm,
+                    Direction = state.Direction,
+                    Acquired = state.Acquired,
+                }
+            )
+            : null;
 
     /// <summary>
     /// The legal crosswind-turn altitude of a crossing transition's upwind: <paramref name="patternRunway"/>'s pattern altitude
@@ -382,9 +402,34 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             return TickTurnOut(ctx, lead, turnOut);
         }
 
-        if (TrySequenceBehindLandedLead(ctx, lead))
+        if (LiveLeadOrEnd(ctx, lead) is not { } liveLead)
         {
             return true;
+        }
+
+        // A pursuit that started on the upwind holds the departure leg until the crosswind turn is legal: no pursuit heading,
+        // no join and no spacing from a few hundred feet over the runway, whatever the traffic ahead is doing (AIM 4-3-3,
+        // FIG 4-3-2 key 5). The gate clears on the first tick the turn is legal.
+        if (HoldDepartureLeg(ctx))
+        {
+            return false;
+        }
+
+        return TickPursuit(ctx, liveLead);
+    }
+
+    /// <summary>
+    /// Ends the follow when the lead has landed (sequencing behind it), has left the lead lifecycle or can no longer be found,
+    /// returning the follower to its pattern; otherwise returns the lead as it is now.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="lead">The lead looked up at the start of the tick, or null.</param>
+    /// <returns>The lead to pursue this tick, or null when the follow ended and the tick is done.</returns>
+    private AircraftState? LiveLeadOrEnd(PhaseContext ctx, AircraftState? lead)
+    {
+        if (TrySequenceBehindLandedLead(ctx, lead))
+        {
+            return null;
         }
 
         // Lead-not-found / lead-on-ground / runaway-distance checks are shared
@@ -395,26 +440,29 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
         {
             ReturnToPattern(ctx, LifecycleReturn(ctx, lead), forwardJoins: true);
-            return true;
+            return null;
         }
 
         // CheckLeadLifecycle ends the follow when the lead is not found, so a null here ends it the same way.
-        lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
-        if (lead is null)
+        AircraftState? liveLead = ctx.AircraftLookup?.Invoke(TargetCallsign);
+        if (liveLead is null)
         {
             AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
             ReturnToPattern(ctx, PatternReturn, forwardJoins: true);
-            return true;
         }
 
-        // A pursuit that started on the upwind holds the departure leg until the crosswind turn is legal: no pursuit heading,
-        // no join and no spacing from a few hundred feet over the runway, whatever the traffic ahead is doing (AIM §4-3-2.c.1,
-        // FIG 4-3-2 keys 4–5). The gate clears on the first tick the turn is legal.
-        if (HoldDepartureLeg(ctx))
-        {
-            return false;
-        }
+        return liveLead;
+    }
 
+    /// <summary>
+    /// One tick of the pursuit proper, once the lead is live and the departure leg is flown: records the lead's path and base,
+    /// then takes a requested turn-out, a join of the lead's base, pattern or final, a turn-out, or else free pursuit.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="lead">The lead, as it is now.</param>
+    /// <returns>The tick's result: true when a join replaced this phase or the free pursuit completed it.</returns>
+    private bool TickPursuit(PhaseContext ctx, AircraftState lead)
+    {
         SeedLeadPath(lead);
         _leadPath.Record(lead.Position);
         RememberLeadBase(ctx.Aircraft, lead);
@@ -447,10 +495,11 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     }
 
     /// <summary>
-    /// Holds the departure leg while <see cref="ClimbOutGate"/> is set: the upwind heading and the leg's speed, with no pursuit
-    /// heading and no join, until the aircraft is past the departure end at a legal turn altitude (AIM §4-3-2.c.1). The
-    /// altitude target is left alone — a circuit's pattern altitude is set once in <see cref="OnStart"/> (AIM 4-3-3), so a
-    /// controller's later CM or DM stands through the hold. True while it holds, so the caller's tick ends there; the gate is
+    /// Holds the departure leg while <see cref="ClimbOutGate"/> is set: the upwind heading (or the OFL/OFR offset the upwind was
+    /// flying, <see cref="FollowClimbOutGate.LateralOffset"/>) and the leg's speed, with no pursuit heading and no join, until
+    /// the aircraft is past the departure end at a legal turn altitude (AIM 4-3-3, FIG 4-3-2 key 5). The altitude target is
+    /// left alone — a circuit's pattern altitude is set once in <see cref="OnStart"/> (AIM 4-3-3), so a controller's later CM
+    /// or DM stands through the hold. True while it holds, so the caller's tick ends there; the gate is
     /// cleared on the first tick the turn is legal, after which the pursuit flies as any other.
     /// </summary>
     private bool HoldDepartureLeg(PhaseContext ctx)
@@ -460,7 +509,10 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             return false;
         }
 
-        if (UpwindPhase.PastDepartureEnd(ctx.Aircraft.Position, gate.DepartureEnd, gate.UpwindHeading) && AtLegalTurnAltitude(ctx, gate))
+        if (
+            UpwindPhase.PastDepartureEnd(ctx.Aircraft.Position, gate.DepartureEnd, gate.UpwindHeading)
+            && UpwindPhase.AtLegalTurnAltitude(ctx, gate.MinTurnAltitude)
+        )
         {
             _climbOutGate = null;
             Log.LogDebug(
@@ -472,28 +524,11 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             return false;
         }
 
-        ctx.Targets.TargetTrueHeading = gate.UpwindHeading;
+        ctx.Targets.TargetTrueHeading = gate.LateralOffset is { } offset
+            ? PatternLateralOffsetHelper.ComputeTargetHeading(ctx, gate.UpwindHeading, offset.Reference, offset.State)
+            : gate.UpwindHeading;
         HoldUpwindSpeed(ctx, gate);
         return true;
-    }
-
-    /// <summary>
-    /// The altitude half of the crosswind-turn condition (AIM §4-3-2.c.1): the leg's own minimum turn altitude, or — when the
-    /// controller has cleared the aircraft below it — that cleared altitude reached within the physics' capture tolerance
-    /// (<see cref="FlightPhysics.AltitudeSnapFt"/>). A CM or DM below pattern altitude less the margin is the aircraft's
-    /// clearance, so the pursuit turns when it gets there instead of holding the upwind for an altitude it was told not to
-    /// climb to. The assigned altitude stands in for the target once the physics has captured it, which is what clears the
-    /// target.
-    /// </summary>
-    private static bool AtLegalTurnAltitude(PhaseContext ctx, FollowClimbOutGate gate)
-    {
-        if (ctx.Aircraft.Altitude >= gate.MinTurnAltitude)
-        {
-            return true;
-        }
-
-        double? cleared = ctx.Targets.TargetAltitude ?? ctx.Targets.AssignedAltitude;
-        return cleared is { } target && (target < gate.MinTurnAltitude) && (ctx.Aircraft.Altitude >= (target - FlightPhysics.AltitudeSnapFt));
     }
 
     /// <summary>
@@ -965,16 +1000,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
                 }
                 : null,
             TurnOutRequested = _turnOutRequested ? true : null,
-            ClimbOutGate = ClimbOutGate is { } climbOutGate
-                ? new FollowClimbOutGateDto
-                {
-                    DepartureEndLat = climbOutGate.DepartureEnd.Lat,
-                    DepartureEndLon = climbOutGate.DepartureEnd.Lon,
-                    UpwindHeadingDeg = climbOutGate.UpwindHeading.Degrees,
-                    MinTurnAltitude = climbOutGate.MinTurnAltitude,
-                    CompressedDownwindSpeedKts = climbOutGate.CompressedDownwindSpeedKts,
-                }
-                : null,
+            ClimbOutGate = ClimbOutGateDto(ClimbOutGate),
             LowApproachAtOrAboveFt = LowApproachAtOrAboveFt,
             StallWindowStartGapNm = _parallelHold?.StartGapNm,
             StallWindowSeconds = _parallelHold?.Seconds,
@@ -1012,6 +1038,87 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
                 : null;
     }
 
+    /// <summary>The departure-leg hold's snapshot, with its lateral offset when it flies one; null when there is no hold.</summary>
+    /// <param name="gate">The hold, or null.</param>
+    /// <returns>The hold's snapshot, or null.</returns>
+    private static FollowClimbOutGateDto? ClimbOutGateDto(FollowClimbOutGate? gate) =>
+        gate is null
+            ? null
+            : new FollowClimbOutGateDto
+            {
+                DepartureEndLat = gate.DepartureEnd.Lat,
+                DepartureEndLon = gate.DepartureEnd.Lon,
+                UpwindHeadingDeg = gate.UpwindHeading.Degrees,
+                MinTurnAltitude = gate.MinTurnAltitude,
+                CompressedDownwindSpeedKts = gate.CompressedDownwindSpeedKts,
+                LateralOffsetTargetNm = gate.LateralOffset?.State.TargetNm,
+                LateralOffsetDirection = gate.LateralOffset is { } offset ? (int)offset.State.Direction : null,
+                LateralOffsetAcquired = gate.LateralOffset?.State.Acquired,
+                LateralOffsetReferenceLat = gate.LateralOffset?.Reference.Lat,
+                LateralOffsetReferenceLon = gate.LateralOffset?.Reference.Lon,
+            };
+
+    /// <summary>
+    /// The departure-leg hold's lateral offset, rebuilt only when the snapshot carries one (absent in older snapshots). A
+    /// snapshot that carries the offset's distance but not its reference point or side is logged and restores no offset, so the
+    /// hold flies the bare upwind heading rather than an offset measured from a made-up point.
+    /// </summary>
+    /// <param name="dto">The hold's snapshot.</param>
+    /// <returns>The offset, or null.</returns>
+    private static UpwindLateralOffset? RestoreLateralOffset(FollowClimbOutGateDto dto)
+    {
+        if (dto.LateralOffsetTargetNm is not { } targetNm)
+        {
+            return null;
+        }
+
+        if (
+            (dto.LateralOffsetReferenceLat is not { } lat)
+            || (dto.LateralOffsetReferenceLon is not { } lon)
+            || (dto.LateralOffsetDirection is not { } direction)
+        )
+        {
+            Log.LogWarning(
+                "[VfrFollow] climb-out gate snapshot has an offset of {TargetNm} nm but lacks {Missing}; restoring no offset",
+                targetNm,
+                MissingOffsetFields(dto)
+            );
+            return null;
+        }
+
+        PatternLateralOffsetState state = new()
+        {
+            TargetNm = targetNm,
+            Direction = (TurnDirection)direction,
+            Acquired = dto.LateralOffsetAcquired ?? false,
+        };
+        return new UpwindLateralOffset(new LatLon(lat, lon), state);
+    }
+
+    /// <summary>The names of the offset fields <paramref name="dto"/> lacks, comma-separated, for the restore warning.</summary>
+    /// <param name="dto">The hold's snapshot.</param>
+    /// <returns>The missing field names.</returns>
+    private static string MissingOffsetFields(FollowClimbOutGateDto dto)
+    {
+        List<string> missing = [];
+        if (dto.LateralOffsetReferenceLat is null)
+        {
+            missing.Add(nameof(FollowClimbOutGateDto.LateralOffsetReferenceLat));
+        }
+
+        if (dto.LateralOffsetReferenceLon is null)
+        {
+            missing.Add(nameof(FollowClimbOutGateDto.LateralOffsetReferenceLon));
+        }
+
+        if (dto.LateralOffsetDirection is null)
+        {
+            missing.Add(nameof(FollowClimbOutGateDto.LateralOffsetDirection));
+        }
+
+        return string.Join(", ", missing);
+    }
+
     public static VfrFollowPhase FromSnapshot(VfrFollowPhaseDto dto)
     {
         FollowPatternReturn? patternReturn = dto.PatternReturn is { } returnDto
@@ -1031,7 +1138,8 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
                     new LatLon(climbOutGate.DepartureEndLat, climbOutGate.DepartureEndLon),
                     new TrueHeading(climbOutGate.UpwindHeadingDeg),
                     climbOutGate.MinTurnAltitude,
-                    climbOutGate.CompressedDownwindSpeedKts
+                    climbOutGate.CompressedDownwindSpeedKts,
+                    RestoreLateralOffset(climbOutGate)
                 )
                 : null,
             LowApproachAtOrAboveFt = dto.LowApproachAtOrAboveFt,
@@ -1071,22 +1179,37 @@ public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Dir
 /// <summary>
 /// The departure leg a pursuit owes before it may steer at its lead: the departure-end / crosswind-turn point, the upwind
 /// heading held until the aircraft is over it, and the altitude that (with the point behind) makes the crosswind turn legal
-/// (AIM §4-3-2.c.1, FIG 4-3-2 keys 4–5). Derived from the circuit's <see cref="PatternWaypoints"/> exactly as the upwind leg
-/// derives its own crosswind turn (<see cref="UpwindPhase.PastDepartureEndAtTurnAltitude"/>), so a follow that starts on the
-/// upwind holds it rather than turning at traffic in the downwind at a few hundred feet.
+/// (AIM 4-3-3, FIG 4-3-2 key 5). Derived from the circuit's <see cref="PatternWaypoints"/> exactly as the upwind leg
+/// derives its own crosswind turn (<see cref="UpwindPhase.PastDepartureEnd"/>, <see cref="UpwindPhase.AtLegalTurnAltitude"/>),
+/// so a follow that starts on the upwind holds it rather than turning at traffic in the downwind at a few hundred feet.
 /// </summary>
 /// <param name="DepartureEnd">The departure-end / crosswind-turn point, past which the hold ends.</param>
 /// <param name="UpwindHeading">The upwind heading held while the gate is set.</param>
 /// <param name="MinTurnAltitude">Pattern altitude less <see cref="UpwindPhase.PatternHandoffMarginFt"/>, feet MSL.</param>
-internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading UpwindHeading, double MinTurnAltitude, double? CompressedDownwindSpeedKts)
+/// <param name="CompressedDownwindSpeedKts">Downwind speed of the compressed circuit climbed into (kt); null for a normal one.</param>
+/// <param name="LateralOffset">The OFL/OFR offset the upwind was flying, flown through the hold; null when none.</param>
+internal sealed record FollowClimbOutGate(
+    LatLon DepartureEnd,
+    TrueHeading UpwindHeading,
+    double MinTurnAltitude,
+    double? CompressedDownwindSpeedKts,
+    UpwindLateralOffset? LateralOffset
+)
 {
-    /// <summary>The gate a circuit's waypoints put on a pursuit: its crosswind-turn point, its upwind heading and its turn altitude.</summary>
-    internal static FollowClimbOutGate FromWaypoints(PatternWaypoints waypoints) =>
+    /// <summary>
+    /// The gate a circuit's waypoints put on a pursuit: its crosswind-turn point, its upwind heading and its turn altitude, with
+    /// the OFL/OFR offset the upwind was flying.
+    /// </summary>
+    /// <param name="waypoints">The circuit's waypoints.</param>
+    /// <param name="lateralOffset">The offset the hold keeps flying; null when the upwind flies none.</param>
+    /// <returns>The gate.</returns>
+    internal static FollowClimbOutGate FromWaypoints(PatternWaypoints waypoints, UpwindLateralOffset? lateralOffset) =>
         new(
             new LatLon(waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon),
             waypoints.UpwindHeading,
             waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt,
-            waypoints.CompressedDownwindSpeedKts
+            waypoints.CompressedDownwindSpeedKts,
+            lateralOffset
         );
 
     /// <summary>
@@ -1101,9 +1224,18 @@ internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading Upwin
             PatternGeometry.TransitionDepartureEnd(flownRunway, patternRunway),
             flownRunway.TrueHeading,
             patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt,
+            null,
             null
         );
 }
+
+/// <summary>
+/// An OFL/OFR lateral offset a departure-leg hold keeps flying (<see cref="FollowClimbOutGate.LateralOffset"/>): the fixed point
+/// on the upwind's original ground track the offset is measured from (the departure end) and the hold's own copy of the state.
+/// </summary>
+/// <param name="Reference">The departure end, a point on the upwind's original ground track.</param>
+/// <param name="State">The offset's target, side and acquisition, advanced by the hold.</param>
+internal sealed record UpwindLateralOffset(LatLon Reference, PatternLateralOffsetState State);
 
 /// <summary>A position and heading in a runway's final frame, for the turn-out geometry (<see cref="VfrFollowPhase.FinalFrameOf"/>).</summary>
 /// <param name="AlongNm">Distance out along the extended centerline from the threshold (negative past it).</param>

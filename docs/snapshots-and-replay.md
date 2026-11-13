@@ -126,6 +126,8 @@ These `AircraftProcedureDto` fields carry the via clearances and the speed memor
 
 `LowApproachPhaseDto.AtOrAboveFt`, `VfrFollowPhaseDto.LowApproachAtOrAboveFt` and `AircraftPatternDto.PendingLandingClearanceAtOrAboveFt` (nullable ints, written only when set, absent on older snapshots, which restore as unrestricted; no schema bump) carry a restricted low approach's at-or-above altitude (`LA 600`, feet MSL) on the live phase, through a FOLLOW join, and on a pre-issued clearance behind a queued pattern entry.
 
+`FollowClimbOutGateDto` carries an OFL/OFR offset the departure-leg hold keeps flying in five optional fields, `LateralOffsetTargetNm`, `LateralOffsetDirection` (a `TurnDirection` value), `LateralOffsetAcquired`, `LateralOffsetReferenceLat` and `LateralOffsetReferenceLon`, written only when the gate carries an offset (absent on older snapshots, which restore with none; no schema bump).
+
 `HoldShortPointDto.EndsNoDestinationRoute` (bool, written only when true, absent on older snapshots; no schema bump) carries `HoldShortPoint.EndsNoDestinationRoute`, the flag on the hold that ends a clearance with no destination short of its last taxiway, so a restored aircraft still refuses `RES`/`CROSS` there.
 
 `MakeTurnPhaseDto`, `VfrHoldPhaseDto` and `STurnPhaseDto` carry the `ManeuverSpeedController` state beyond the three older fields: `SpeedTakenOver` (bool, the controller assigned a speed during the maneuver, so neither its slow-down nor its resume touches speed) and `PriorAssignedSpeed` (double?, the pre-maneuver assigned speed restored when the prior target was null). Both are written only at a non-default value and absent on older snapshots, which restore false and null; no schema bump.

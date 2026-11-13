@@ -2088,6 +2088,26 @@ public sealed class FollowClimbOutGateDto
     /// <summary>Downwind speed of the compressed circuit the departure leg climbs into (kt); null for a normal one.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? CompressedDownwindSpeedKts { get; init; }
+
+    /// <summary>Distance (nm) of the OFL/OFR offset the hold flies; null when it flies none, which leaves the other offset fields null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? LateralOffsetTargetNm { get; init; }
+
+    /// <summary>Side of the offset as a <see cref="TurnDirection"/> value; null when the hold flies no offset.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LateralOffsetDirection { get; init; }
+
+    /// <summary>True once the offset track is acquired; null when the hold flies no offset.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LateralOffsetAcquired { get; init; }
+
+    /// <summary>Latitude of the offset's reference point (the departure end); null when the hold flies no offset.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? LateralOffsetReferenceLat { get; init; }
+
+    /// <summary>Longitude of the offset's reference point (the departure end); null when the hold flies no offset.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? LateralOffsetReferenceLon { get; init; }
 }
 
 /// <summary>A follower's turn-out to the downwind heading: the runway and circuit it rejoins, and where the turn began.</summary>
