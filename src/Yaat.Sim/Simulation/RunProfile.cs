@@ -63,4 +63,11 @@ public sealed record RunProfile(RunKind Kind)
     /// running the brains again would double them.
     /// </summary>
     public bool RunsControllerAi => Kind != RunKind.Replay;
+
+    /// <summary>
+    /// The engine may read the ground-data source to defer an airport whose layout is still loading and to admit it once
+    /// it has landed, recording both seconds. In a replay the recorded deferrals and admissions are the input, so the
+    /// engine neither defers nor admits on its own.
+    /// </summary>
+    public bool AdmitsLayoutsFromSource => Kind != RunKind.Replay;
 }

@@ -193,6 +193,11 @@ public sealed class ScenarioSnapshotDto
     // it and whenever nothing is hidden, which is also what the scenario state then holds.
     public List<string>? SuppressedLiveTraffic { get; init; }
 
+    // The airports deferred while their ground layout loads, normalized FAA codes in ordinal order. Written only when one
+    // is deferred, so a snapshot with none is byte-identical to one written before the field existed.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? DeferredLayoutAirportIds { get; init; }
+
     // The room's active runways, airport → token list (e.g. "OAK" → ["D28L","A28R","30"]), each list in the order the
     // room named it. Left out of the JSON while the room has named none (unlike this DTO's other nullable members,
     // which are written as null), so a snapshot without active runways stays byte-identical.

@@ -55,6 +55,14 @@ public class RunProfileTests(ITestOutputHelper output)
         Assert.Equal(allowed, profile.RunsControllerAi);
     }
 
+    [Theory]
+    [InlineData(RunKind.Live, true)]
+    [InlineData(RunKind.Test, true)]
+    [InlineData(RunKind.Soak, true)]
+    [InlineData(RunKind.Replay, false)]
+    public void OnlyReplay_AdmitsNoLayoutFromTheSource(RunKind kind, bool admits) =>
+        Assert.Equal(admits, RunProfile.For(kind).AdmitsLayoutsFromSource);
+
     [Fact]
     public void BareEngine_IsATestRun()
     {

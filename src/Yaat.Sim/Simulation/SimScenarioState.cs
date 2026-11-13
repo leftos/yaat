@@ -184,6 +184,23 @@ public sealed class SimScenarioState
     public HashSet<string> SuppressedLiveTraffic { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// The airports whose ground layout was still loading when the engine first read them, by normalized FAA code in
+    /// ordinal order: every read of one answers loading until its admission. Snapshotted, so a restore lands on the set
+    /// the live run held. Add through <see cref="AddDeferredLayoutAirport"/>, which keeps the order.
+    /// </summary>
+    public List<string> DeferredLayoutAirports { get; } = [];
+
+    /// <summary>Adds <paramref name="faa"/> (a normalized code) to <see cref="DeferredLayoutAirports"/> in its ordinal place, once.</summary>
+    public void AddDeferredLayoutAirport(string faa)
+    {
+        int index = DeferredLayoutAirports.BinarySearch(faa, StringComparer.Ordinal);
+        if (index < 0)
+        {
+            DeferredLayoutAirports.Insert(~index, faa);
+        }
+    }
+
+    /// <summary>
     /// Pending auto-spaced releases (one entry per departure when a field's whole held queue is
     /// released with an interval). Fired by <c>ProcessReleaseQueue</c> against <see cref="ElapsedSeconds"/>.
     /// </summary>
@@ -816,6 +833,7 @@ public sealed class SimScenarioState
             ActiveAsdexAlerts = SnapshotAsdexAlerts(),
             AsdexOppDirPairs = SnapshotAsdexOppDirPairs(),
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
+            DeferredLayoutAirportIds = DeferredLayoutAirports.Count > 0 ? [.. DeferredLayoutAirports] : null,
             ActiveRunways = SnapshotRunways(),
             DisconnectCoasts = SnapshotDisconnectCoasts(),
         };

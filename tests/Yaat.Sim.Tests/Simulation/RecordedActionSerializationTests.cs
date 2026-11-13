@@ -325,6 +325,8 @@ public class RecordedActionSerializationTests
             ),
             new RecordedAttendanceChange(120.0, ["OAK_TWR", "OAK_GND", "NCT_W_APP"]),
             new RecordedAutoTrackChange(125.0, "OAK_TWR", ["OAK", "-HWD"]),
+            new RecordedLayoutDeferred(126.0, "SMF"),
+            new RecordedLayoutAdmitted(127.0, "SMF"),
         };
 
         return samples.ToDictionary(s => s.GetType());

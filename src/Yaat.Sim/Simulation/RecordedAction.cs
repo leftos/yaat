@@ -28,7 +28,23 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedAsdexSafetyLogicChange), "AsdexSafetyLogicChange")]
 [JsonDerivedType(typeof(RecordedAttendanceChange), "AttendanceChange")]
 [JsonDerivedType(typeof(RecordedAutoTrackChange), "AutoTrackChange")]
+[JsonDerivedType(typeof(RecordedLayoutDeferred), "LayoutDeferred")]
+[JsonDerivedType(typeof(RecordedLayoutAdmitted), "LayoutAdmitted")]
 public abstract record RecordedAction(double ElapsedSeconds);
+
+/// <summary>
+/// The engine found <see cref="AirportId"/>'s ground layout still loading at its first read this session and deferred the
+/// airport: from this second every read of it answers loading, whatever the source holds, until a
+/// <see cref="RecordedLayoutAdmitted"/> for it. Applied <b>pre-tick</b>, like <see cref="RecordedAircraftSpawn"/>.
+/// <see cref="AirportId"/> is the normalized FAA code (<c>SMF</c>, not <c>KSMF</c>).
+/// </summary>
+public sealed record RecordedLayoutDeferred(double ElapsedSeconds, string AirportId) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// The engine admitted the deferred <see cref="AirportId"/>'s landed ground layout at the opening of this second: from
+/// here on its reads answer the layout. Applied <b>pre-tick</b>; a replay admits only on this record, never from the source.
+/// </summary>
+public sealed record RecordedLayoutAdmitted(double ElapsedSeconds, string AirportId) : RecordedAction(ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
     : RecordedAction(ElapsedSeconds)

@@ -37,9 +37,11 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Actions that must land before the physics of their second: aircraft spawns and live-traffic
-    /// samples (both happen in pre-physics live). Everything else applies after the second.
+    /// samples (both happen in pre-physics live), and the ground-layout deferrals and admissions, so every read in the
+    /// second sees the airport as the live run did. Everything else applies after the second.
     /// </summary>
-    public static bool IsPreTickAction(RecordedAction action) => action is RecordedAircraftSpawn or RecordedLiveTrafficSample;
+    public static bool IsPreTickAction(RecordedAction action) =>
+        action is RecordedAircraftSpawn or RecordedLiveTrafficSample or RecordedLayoutDeferred or RecordedLayoutAdmitted;
 
     /// <summary>Puts a recorded spawn's aircraft into the world as it was captured; the pre-tick half of the router's <c>ApplyRecorded</c>.</summary>
     internal void ApplyRecordedAircraftSpawn(RecordedAircraftSpawn spawn)
@@ -53,15 +55,19 @@ public sealed partial class SimulationEngine
         World.AddAircraft(state);
     }
 
-    /// <summary>The ground layout a recorded aircraft taxis on: the one it was captured with, else the scenario's primary airport's.</summary>
+    /// <summary>
+    /// The ground layout a recorded aircraft taxis on: the one it was captured with, else the scenario's primary airport's.
+    /// An airport deferred at this second reads as none, so the spawn stays detached as it was live.
+    /// </summary>
     private AirportGroundLayout? ResolveSpawnLayout(AircraftSnapshotDto recorded)
     {
-        if (recorded.Ground.LayoutAirportId is { } layoutAirportId)
+        string? airportId = recorded.Ground.LayoutAirportId ?? Scenario?.PrimaryAirportId;
+        if ((airportId is null) || IsLayoutDeferred(airportId))
         {
-            return ReadReadyLayout(layoutAirportId, "recorded spawn");
+            return null;
         }
 
-        return Scenario?.PrimaryAirportId is { } primaryAirportId ? ReadReadyLayout(primaryAirportId, "recorded spawn") : null;
+        return ReadReadyLayout(airportId, "recorded spawn");
     }
 
     /// <summary>

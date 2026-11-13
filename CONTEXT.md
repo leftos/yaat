@@ -81,6 +81,12 @@ An airport the room pinned with no ground map (vNAS had none for it, or its map 
 **Layout format version**:
 The format an archive's bundled layouts were written in (`LayoutFormatVersion`, `RecordingArchive.CurrentLayoutFormatVersion`). A load reads bundled layouts only in the current format; in an older or newer one, or none recorded, those airports are pinned from the live layouts, while its missing-map airports are still kept.
 
+**Deferred airport**:
+An airport whose ground layout was still loading when the engine first read it at runtime. Every read of it answers loading until its layout admission, whatever the source holds meanwhile; the deferral is a recorded action, so a replay defers it at the same second.
+
+**Layout admission** (also *admitted layout*):
+The second a live run lets a deferred airport's landed ground layout answer reads, checked at the opening of each second and recorded. A replay admits only on that record, never from the source.
+
 **Resource manifest**:
 What a scenario JSON will make the server fetch — its ARTCC, the roster's neighbouring ARTCCs and every airport it names — read without loading anything (`ScenarioResourceManifest`).
 

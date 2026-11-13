@@ -43,15 +43,16 @@ public sealed partial class SimulationEngine
     public void BeginSecond() => RequireScenario().ElapsedSeconds += 1;
 
     /// <summary>
-    /// Opens the second the clock now points at: resets the trace for it and applies the host's pre-tick recorded
-    /// actions, so a recorded spawn flies its first second and a live-traffic sample resyncs against the coming
-    /// second (#404). The whole-second step and the sub-tick step both call this with the clock at the integer second
+    /// Opens the second the clock now points at: resets the trace for it, admits the deferred ground layouts that have
+    /// landed (a run that admits from the source only), and applies the host's pre-tick recorded actions, so a recorded
+    /// spawn flies its first second and a live-traffic sample resyncs against the coming second (#404). The whole-second step and the sub-tick step both call this with the clock at the integer second
     /// being opened.
     /// </summary>
     public void OpenSecond(ISimulationHost host)
     {
         int second = (int)Math.Ceiling(RequireScenario().ElapsedSeconds);
         StepTrace.OpenSecond(second);
+        AdmitLandedLayouts(second);
 
         StepTrace.Record(StepId.PreTickRecordedActions, 0);
         long start = TimingStart();

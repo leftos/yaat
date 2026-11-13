@@ -88,6 +88,12 @@ public sealed class ActionRouter
                 _engine.ApplyRecordedLiveTrafficRemoval(removal);
                 host.OnAircraftDeleted(removal.Callsign, lastState: null);
                 return Applied;
+            case RecordedLayoutDeferred deferred:
+                _engine.ApplyRecordedLayoutDeferred(deferred);
+                return Applied;
+            case RecordedLayoutAdmitted admitted:
+                _engine.ApplyRecordedLayoutAdmitted(admitted);
+                return Applied;
             case RecordedCommand command:
                 return Apply(command, host).Result;
             case RecordedAmendFlightPlan amend:

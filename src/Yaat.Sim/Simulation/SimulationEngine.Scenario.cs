@@ -193,7 +193,7 @@ public sealed partial class SimulationEngine
             return primary;
         }
 
-        return _groundData.Read(airportId).Layout;
+        return ReadLayoutGate(airportId).Layout;
     }
 
     /// <summary>
@@ -244,7 +244,152 @@ public sealed partial class SimulationEngine
 
     // An airport the aircraft does not name reads as loaded with no layout.
     private GroundDataRead ReadOptionalLayout(string? airportId) =>
-        string.IsNullOrEmpty(airportId) ? new GroundDataRead(true, null, null) : _groundData.Read(airportId);
+        string.IsNullOrEmpty(airportId) ? new GroundDataRead(true, null, null) : ReadLayoutGate(airportId);
+
+    private static readonly GroundDataRead LoadingRead = new(false, null, null);
+
+    // The airports a replay found loading with no recorded deferral, by normalized code: warned once, and read as loading
+    // for the rest of the replay, so a fetch landing mid-replay never shows at a second the tape did not record.
+    private readonly List<string> _unrecordedLoadingWarned = [];
+
+    /// <summary>
+    /// The one gate every runtime layout read goes through. An airport in the room's deferred set
+    /// (<see cref="SimScenarioState.DeferredLayoutAirports"/>) answers loading without reading the source, as does, on a
+    /// replay, one this replay already found loading unrecorded. Otherwise the source answers; one still loading is
+    /// deferred and the deferral recorded at this second when the run admits layouts from the source
+    /// (<see cref="RunProfile.AdmitsLayoutsFromSource"/>), and on a replay — where only a recorded deferral may defer —
+    /// answers loading for the rest of the replay and is logged once as a replay-fidelity break.
+    /// </summary>
+    private GroundDataRead ReadLayoutGate(string airportId)
+    {
+        if (IsLayoutDeferred(airportId) || (!RunProfile.AdmitsLayoutsFromSource && ContainsAirport(_unrecordedLoadingWarned, airportId)))
+        {
+            return LoadingRead;
+        }
+
+        GroundDataRead read = _groundData.Read(airportId);
+        if (read.IsLoaded)
+        {
+            return read;
+        }
+
+        if (RunProfile.AdmitsLayoutsFromSource)
+        {
+            DeferLayout(NavigationDatabase.NormalizeAirport(airportId));
+        }
+        else
+        {
+            WarnUnrecordedLoading(NavigationDatabase.NormalizeAirport(airportId));
+        }
+
+        return read;
+    }
+
+    /// <summary>
+    /// The layout a snapshot restore re-attaches an aircraft to: a deferred airport's is none, any other the source's. A
+    /// restore is a reload read, so it never defers and never records.
+    /// </summary>
+    private AirportGroundLayout? ReadRestoredLayout(string airportId)
+    {
+        if ((World.GroundLayout is { } primary) && NavigationDatabase.AirportIdsMatch(airportId, primary.AirportId))
+        {
+            return primary;
+        }
+
+        return IsLayoutDeferred(airportId) ? null : _groundData.Read(airportId).Layout;
+    }
+
+    /// <summary>Whether <paramref name="airportId"/>, in either form of its code, is in the room's deferred set. Allocates nothing.</summary>
+    private bool IsLayoutDeferred(string airportId) => (Scenario is { } scenario) && ContainsAirport(scenario.DeferredLayoutAirports, airportId);
+
+    /// <summary>
+    /// Forgets the airports a replay found loading with no recorded deferral, so the run that follows reads them from the
+    /// source again. The server calls this when a room leaves tape playback; a replay from t=0 starts with none.
+    /// </summary>
+    internal void ForgetUnrecordedLoadingLayouts() => _unrecordedLoadingWarned.Clear();
+
+    // Whether normalized codes hold airportId in either form of its code. Allocates nothing.
+    private static bool ContainsAirport(List<string> normalizedCodes, string airportId)
+    {
+        if (normalizedCodes.Count == 0)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> key = airportId.AsSpan().Trim();
+        if ((key.Length == 4) && (key[0] is 'K' or 'k'))
+        {
+            key = key[1..];
+        }
+
+        foreach (string code in normalizedCodes)
+        {
+            if (code.AsSpan().Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void DeferLayout(string faa)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        scenario.AddDeferredLayoutAirport(faa);
+        RecordAction(new RecordedLayoutDeferred(scenario.ElapsedSeconds, faa));
+    }
+
+    private void WarnUnrecordedLoading(string faa)
+    {
+        if (!_unrecordedLoadingWarned.Contains(faa))
+        {
+            _unrecordedLoadingWarned.Add(faa);
+            _logger.LogWarning(
+                "replay-fidelity: ground layout for {AirportId} is loading on replay with no recorded deferral; reading it as loading",
+                faa
+            );
+        }
+    }
+
+    /// <summary>
+    /// Live, at the opening of <paramref name="second"/>: every deferred airport whose layout has landed, in ordinal order,
+    /// leaves the deferred set and its admission is recorded at this second. A replay admits only on the recorded admission.
+    /// </summary>
+    private void AdmitLandedLayouts(int second)
+    {
+        if (!RunProfile.AdmitsLayoutsFromSource || (Scenario is not { DeferredLayoutAirports.Count: > 0 } scenario))
+        {
+            return;
+        }
+
+        List<string> deferred = scenario.DeferredLayoutAirports;
+        int i = 0;
+        while (i < deferred.Count)
+        {
+            string faa = deferred[i];
+            if (!_groundData.Read(faa).IsLoaded)
+            {
+                i++;
+                continue;
+            }
+
+            deferred.RemoveAt(i);
+            RecordAction(new RecordedLayoutAdmitted(second, faa));
+        }
+    }
+
+    /// <summary>A recorded deferral: the airport joins the deferred set. The pre-tick half of the router's <c>ApplyRecorded</c>.</summary>
+    internal void ApplyRecordedLayoutDeferred(RecordedLayoutDeferred deferred) =>
+        Scenario?.AddDeferredLayoutAirport(NavigationDatabase.NormalizeAirport(deferred.AirportId));
+
+    /// <summary>A recorded admission: the airport leaves the deferred set, so its reads answer the source's layout.</summary>
+    internal void ApplyRecordedLayoutAdmitted(RecordedLayoutAdmitted admitted) =>
+        Scenario?.DeferredLayoutAirports.Remove(NavigationDatabase.NormalizeAirport(admitted.AirportId));
 
     /// <summary>
     /// The layout of an airport that must already be loaded at <paramref name="site"/> (a scenario load after its

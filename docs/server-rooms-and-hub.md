@@ -103,6 +103,8 @@ The ground-data service caches null entries on purpose: the per-sub-tick `aircra
 
 An airport the scenario JSON never names (a typed `ADD` or `DEST`, a CRC-filed `DA`/`VP`, an approach clearance to a field no flight plan names) is read on the tick thread as not loaded: the read starts the fetch in the background and `ResolveGroundLayout` returns null until it lands, with no wait. The layout joins the room's resource pin once a read finds it loaded, so a rewind reads the same one.
 
+The engine gates that read (`SimulationEngine.ReadLayoutGate`, over the room's pin). The first read of an airport whose layout is still loading puts it in the room's deferred set (`SimScenarioState.DeferredLayoutAirports`) and records `RecordedLayoutDeferred` at that second; while it is deferred every read answers loading without touching the pin or the service, so the tick sees one answer however the fetch races. At `OpenSecond` a live run reads each deferred airport in sorted order and records `RecordedLayoutAdmitted` for each that has landed; only then do reads answer its layout. A replay or reconstruction never defers, polls or admits on its own: it applies the recorded records pre-tick, and an airport loading with no recorded deferral reads as loading with one `replay-fidelity` warning per airport per engine. See [snapshots-and-replay.md](snapshots-and-replay.md).
+
 ## Scenario load: prepare, commit and the load flag
 
 A scenario load is two halves (`Simulation/ScenarioLifecycleService.cs`), composed by `RoomEngine`:
@@ -181,7 +183,7 @@ A `SessionRecording` load (`LoadRecordingGuardedAsync`) carries no layouts and p
 
 **Checkpoints.** A planned-restart checkpoint saves every pinned config (`artcc-configs.json.br`, version 2 on) and every pinned airport (`layouts/`, `airport-geojson/` and the manifest's `MissingLayoutAirportIds`, checkpoint version 3).
 
-Restore warms the live ARTCC caches (the position registry and the CRC broadcasts read them there), pins the archived configs, filling any manifest ARTCC the archive lacks from the live cache (`RoomResourcePin.FromArchive`; a version 1 checkpoint saved the scenario's own config alone), and seeds the layouts from the archive (`RoomCheckpointArchive.ReadAirportLayouts`, then `FromBundle`), fetching only the airports it lacks, before `ReloadForRewindAsync`.
+Restore warms the live ARTCC caches (the position registry and the CRC broadcasts read them there), pins the archived configs, filling any manifest ARTCC the archive lacks from the live cache (`RoomResourcePin.FromArchive`; a version 1 checkpoint saved the scenario's own config alone), and seeds the layouts from the archive (`RoomCheckpointArchive.ReadAirportLayouts`, then `FromBundle`), fetching only the airports it lacks, before `ReloadOnRoomSettingsAsync`.
 
 A version 2 checkpoint saved no layouts and restores on the live ones, with an Information line saying so. See [session-persistence.md](session-persistence.md).
 

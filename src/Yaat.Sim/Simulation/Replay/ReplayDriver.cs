@@ -79,6 +79,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.EramRoomSettings.Clear();
             _engine.EramSectorMessages.Clear();
             _engine.EramWeatherReports.Clear();
+            _engine.Scenario?.DeferredLayoutAirports.Clear();
+            _engine.ForgetUnrecordedLoadingLayouts();
 
             // The coordination channels need no clear: Range runs InitializeFromArtcc first, which replaces every
             // channel whole — items, NextSequence and receivers — from the ARTCC, and a recording that carries no

@@ -106,6 +106,18 @@ public sealed partial class SimulationEngine
             World.GroundLayout = groundLayout;
         }
 
+        // The deferred airports come back before any aircraft re-attaches, replacing whatever the run held: an aircraft
+        // bound to an airport deferred at the snapshot's second must come back without that airport's layout, whatever the
+        // source holds now.
+        if (Scenario is not null)
+        {
+            Scenario.DeferredLayoutAirports.Clear();
+            foreach (string airportId in scenarioDto.DeferredLayoutAirportIds ?? [])
+            {
+                Scenario.AddDeferredLayoutAirport(NavigationDatabase.NormalizeAirport(airportId));
+            }
+        }
+
         foreach (AircraftSnapshotDto acDto in snapshot.Aircraft)
         {
             // Each aircraft goes back to the layout it was carrying, not to the primary airport's: AircraftGroundOps
@@ -115,7 +127,7 @@ public sealed partial class SimulationEngine
             // verdicts across a rewind, which replay determinism does not allow. The primary stays the fallback for a
             // snapshot that carries no id, or one naming a field this engine's ground data has no map for.
             AirportGroundLayout? aircraftLayout = acDto.Ground.LayoutAirportId is { } layoutAirportId
-                ? ResolveAirportLayout(layoutAirportId) ?? groundLayout
+                ? ReadRestoredLayout(layoutAirportId) ?? groundLayout
                 : groundLayout;
             var ac = AircraftState.FromSnapshot(acDto, aircraftLayout);
             World.AddAircraft(ac);
