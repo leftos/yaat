@@ -180,7 +180,7 @@ public static class SituationClassifier
         phase switch
         {
             AtParkingPhase => AircraftSituation.AtParking,
-            PushbackPhase => AircraftSituation.PushingBack,
+            PushbackPhase or TugReleasePhase => AircraftSituation.PushingBack,
             HoldingInPositionPhase or HoldingAfterExitPhase or HoldingAfterPushbackPhase => AircraftSituation.HoldingOnGround,
             TaxiingPhase or FollowingPhase or AirTaxiPhase or CrossingRunwayPhase => AircraftSituation.Taxiing,
             HoldingShortPhase or RunwayHoldingPhase => AircraftSituation.HoldingShort,

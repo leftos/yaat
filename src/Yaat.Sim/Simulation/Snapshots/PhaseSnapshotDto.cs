@@ -340,6 +340,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(FollowingPhaseDto), "Following")]
 [JsonDerivedType(typeof(PushbackPhaseDto), "Pushback")]
 [JsonDerivedType(typeof(PushbackToSpotPhaseDto), "PushbackToSpot")]
+[JsonDerivedType(typeof(TugReleasePhaseDto), "TugRelease")]
 [JsonDerivedType(typeof(RunwayExitPhaseDto), "RunwayExit")]
 [JsonDerivedType(typeof(HelicopterLandingPhaseDto), "HelicopterLanding")]
 [JsonDerivedType(typeof(HelicopterApproachPhaseDto), "HelicopterApproach")]
@@ -594,6 +595,16 @@ public sealed class HoldingInPositionPhaseDto : PhaseDto
 }
 
 public sealed class HoldingAfterPushbackPhaseDto : PhaseDto;
+
+/// <summary>
+/// A <c>TugReleasePhase</c>: a cleared tow braking to rest. The speed, the tug headings and the towbar rates it brakes
+/// with are the aircraft's own and are saved with it; this carries only which way the tow was moving.
+/// </summary>
+public sealed class TugReleasePhaseDto : PhaseDto
+{
+    /// <summary>Push (tail-first) or pull (nose-first): how the cleared move was moving the aircraft.</summary>
+    public PushbackLegKind Kind { get; init; }
+}
 
 public sealed class HoldingAfterExitPhaseDto : PhaseDto
 {

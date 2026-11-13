@@ -82,8 +82,9 @@ public class AircraftGroundOps
 
     /// <summary>
     /// True when the aircraft is under any active hold directive. All ground phases
-    /// must short-circuit their motion logic on this predicate. A convention test
-    /// enforces that every <c>IGroundPhase</c> references this property.
+    /// must short-circuit their motion logic on this predicate.
+    /// <c>GroundPhaseConvention.EveryGroundMotionPhase_ReferencesIsImmobile</c> enforces that every
+    /// ground motion phase references it.
     /// </summary>
     public bool IsImmobile => Hold is not null;
 

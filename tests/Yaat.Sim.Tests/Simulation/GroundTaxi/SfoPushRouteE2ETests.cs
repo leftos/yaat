@@ -520,7 +520,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         CommandResult redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         Assert.True(redirect.Success, $"'{MoveCommand}' mid-push was refused: {redirect.Message}");
-        PushbackPhase first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase first = ac.Phases!.Phases.OfType<PushbackPhase>().First();
         output.WriteLine($"redirect → first move {first.Kind} {first.Move.Shape}, dwell before={first.Move.DwellBefore}");
         Assert.Equal(PushbackLegKind.Pull, first.Kind);
         Assert.True(first.Move.DwellBefore, "a pull replacing a running push is a reversal, so it dwells first");
@@ -680,7 +680,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Observe(moves, samples[0]);
         int completed = SfoGroundHarness.TickUntil(
             ground.Engine,
-            () => ac.Phases?.CurrentPhase is not PushbackPhase,
+            () => ac.Phases?.CurrentPhase is not (PushbackPhase or TugReleasePhase),
             budgetSeconds,
             second =>
             {

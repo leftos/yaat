@@ -197,7 +197,7 @@ The Tower group also holds `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingP
 
 The rest are `HelicopterApproachPhase` (LAND @spot from off the airport: hold altitude → 400 ft/nm descent to 500 ft AGL → 6° final onto the spot, hands off to `HelicopterLandingPhase` hovering at the air-taxi height; on-field LAND/ATXI use `AirTaxiPhase` instead), `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
 
-**Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`. `RunwayExitPhase.CompleteExit` sets `AircraftGroundOps.AwaitingTaxiInCall`; `HoldingAfterExitPhase` and `HoldingInPositionPhase` make the arrival's taxi-in call from it (`Pilot/TaxiInRequest.cs`).
+**Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `TugReleasePhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`. `RunwayExitPhase.CompleteExit` sets `AircraftGroundOps.AwaitingTaxiInCall`; `HoldingAfterExitPhase` and `HoldingInPositionPhase` make the arrival's taxi-in call from it (`Pilot/TaxiInRequest.cs`).
 
 `HoldingShortPhase` accepts `FOLLOWG` at every bar. At a bar that protects a runway (`ProtectsARunway`) the follow is **armed**: `GroundCommandHandler.ArmFollowBehindRunwayHold` keeps the hold and leaves [hold, `FollowingPhase`], because following is not a crossing clearance (7110.65 §3-7-2d requires the crossing clearance in addition).
 

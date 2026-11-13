@@ -904,7 +904,7 @@ public static class CommandDispatcher
             or CanonicalCommandType.ReRouteTaxi
             or CanonicalCommandType.PushbackMulti
             or CanonicalCommandType.ForcedPushbackMulti => true,
-            CanonicalCommandType.Pushback or CanonicalCommandType.ForcedPushback => phaseBeforeDispatch is not PushbackPhase,
+            CanonicalCommandType.Pushback or CanonicalCommandType.ForcedPushback => phaseBeforeDispatch is not (PushbackPhase or TugReleasePhase),
             _ => false,
         };
 
@@ -4081,6 +4081,14 @@ public static class CommandDispatcher
         string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
         aircraft.Phases?.Clear(phaseCtx);
         aircraft.Phases = null;
+
+        // A tow cleared while moving leaves the tug on for the chain installed behind it to brake to rest; with no chain
+        // behind it (DEL) nothing would, so it stops dead here.
+        if (aircraft.Ground.TowbarTrueHeading is not null)
+        {
+            TugReleasePhase.StopDead(aircraft);
+        }
+
         ReleaseChainControlState(aircraft, clearedGoAround);
 
         if (clearedSummary is not null)

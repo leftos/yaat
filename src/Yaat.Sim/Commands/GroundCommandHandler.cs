@@ -1888,7 +1888,7 @@ public static partial class GroundCommandHandler
             return (TurnAboutVerdict.TurnAbout, "held after a pushback");
         }
 
-        if (aircraft.Phases?.CurrentPhase is PushbackPhase)
+        if (aircraft.Phases?.CurrentPhase is PushbackPhase or TugReleasePhase)
         {
             return (TurnAboutVerdict.TurnAbout, "mid-tow");
         }
@@ -5608,6 +5608,12 @@ public static partial class GroundCommandHandler
         ActiveRunways activeRunways
     )
     {
+        // A cleared tow still braking to rest has no push-off left to amend and takes no new push until it stops.
+        if (aircraft.Phases?.CurrentPhase is TugReleasePhase)
+        {
+            return new CommandResult(false, "Unable, tug stopping");
+        }
+
         if (aircraft.Phases is { CurrentPhase: PushbackPhase } phases)
         {
             return TryAmendPushback(aircraft, phases, push, groundLayout, listAircraft);
@@ -6712,9 +6718,10 @@ public static partial class GroundCommandHandler
         }
 
         // A move already under way is a legal starting point: the tug is attached, and an RPO redirecting it is
-        // ordinary. The plan is made from where the aircraft is now, and InstallTugMove drops the running move
-        // along with every move still queued behind it, so the new move replaces the old one whole.
-        if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase or PushbackPhase))
+        // ordinary. The plan is made from where the tug will have braked it to rest (TugReleasePhase.PredictedStopPose),
+        // and InstallTugMove drops the running move along with every move still queued behind it, so the new move
+        // replaces the old one whole.
+        if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase or PushbackPhase or TugReleasePhase))
         {
             return new CommandResult(false, "A tug move requires the aircraft to be at parking, holding after a pushback, or already under tow");
         }
@@ -6725,8 +6732,8 @@ public static partial class GroundCommandHandler
         }
 
         // Off tow a single point is plain PUSH's job. Under tow it is a redirect like any other: the tow re-plans from
-        // the live pose to that one point and replaces the running move.
-        if ((goals.Count < 2) && (aircraft.Phases.CurrentPhase is not PushbackPhase))
+        // the predicted stop pose to that one point and replaces the running move.
+        if ((goals.Count < 2) && (aircraft.Phases.CurrentPhase is not (PushbackPhase or TugReleasePhase)))
         {
             return new CommandResult(false, "Unable, a tug move needs at least two points — use PUSH to reach a single one");
         }
@@ -6744,7 +6751,7 @@ public static partial class GroundCommandHandler
         // way; a running reversal still in its dwell has not moved yet, so the last motion is the move before it.
         var request = new TugRequest
         {
-            Start = PoseOf(aircraft),
+            Start = TugReleasePhase.PredictedStopPose(aircraft),
             StartsAtStand = atStand,
             StandName = atStand ? aircraft.Ground.ParkingSpot : null,
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
@@ -6752,7 +6759,7 @@ public static partial class GroundCommandHandler
             Goals = goals,
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = finalFacingTrueDeg,
-            PreviousKind = LastTugMotionKind(aircraft.Phases.CurrentPhase as PushbackPhase),
+            PreviousKind = LastTugMotionKind(aircraft.Phases.CurrentPhase),
             Forced = move.Forced,
         };
         TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
@@ -6914,7 +6921,8 @@ public static partial class GroundCommandHandler
         TugTerminus terminus = tow.Terminus;
         bool atStand = aircraft.Phases?.CurrentPhase is AtParkingPhase;
         bool callsAfterThisPush = InitialCallupCall.BeforeTow(aircraft, atStand, terminus.Kind == TugTerminusKind.Spot ? terminus.Name : null);
-        TugRowAnchor? rowAnchor = plan.Moves.Count > 0 ? new TugRowAnchor(PoseOf(aircraft), plan.Moves[0].Move.Kind) : null;
+        TugRowAnchor? rowAnchor =
+            plan.Moves.Count > 0 ? new TugRowAnchor(TugReleasePhase.PredictedStopPose(aircraft), plan.Moves[0].Move.Kind) : null;
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, activeRunways, groundLayout);
         aircraft.Phases!.Clear(ctx);
         aircraft.Phases = new PhaseList();
@@ -7016,22 +7024,19 @@ public static partial class GroundCommandHandler
     /// <summary>
     /// The kind of the tug's last motion while <paramref name="running"/> is under way, for a re-plan to judge its
     /// first move a reversal by: the running move's own kind once it has moved, and the other kind while it is a
-    /// reversal still waiting out its dwell — the aircraft last moved the previous move's way. Null with no tug move.
+    /// reversal still waiting out its dwell — the aircraft last moved the previous move's way. A cleared tow braking to
+    /// rest (<see cref="TugReleasePhase"/>) last moved its own kind's way. Null with no tug move.
     /// </summary>
-    private static PushbackLegKind? LastTugMotionKind(PushbackPhase? running)
-    {
-        if (running is null)
+    private static PushbackLegKind? LastTugMotionKind(Phase? running) =>
+        running switch
         {
-            return null;
-        }
-
-        if (running.Move.DwellBefore && !running.HasMoved)
-        {
-            return running.Kind == PushbackLegKind.Push ? PushbackLegKind.Pull : PushbackLegKind.Push;
-        }
-
-        return running.Kind;
-    }
+            TugReleasePhase release => release.Kind,
+            PushbackPhase { Move.DwellBefore: true, HasMoved: false } reversal => reversal.Kind == PushbackLegKind.Push
+                ? PushbackLegKind.Pull
+                : PushbackLegKind.Push,
+            PushbackPhase move => move.Kind,
+            _ => null,
+        };
 
     private static string DescribeMoves(TugPlan plan) =>
         string.Join(
@@ -7238,7 +7243,7 @@ public static partial class GroundCommandHandler
         {
             TaxiingPhase => aircraft.Ground.CurrentTaxiway is { } twy ? $"on taxiway {twy}" : "while taxiing",
             CrossingRunwayPhase => "during runway crossing",
-            PushbackPhase => "during pushback",
+            PushbackPhase or TugReleasePhase => "during pushback",
             LineUpPhase or LinedUpAndWaitingPhase => aircraft.Phases?.AssignedRunway?.Designator is { } rwy
                 ? $"on runway {RunwayIdentifier.ToDisplayDesignator(rwy)}"
                 : "lined up",

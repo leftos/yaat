@@ -693,6 +693,8 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     At a taxi-out stand (one its aircraft park facing their way out of, such as a GA tie-down, every helipad, and Oakland's whole North Field) none of the push items appear, in any view, in the quick list or on a node's "Push to": taxi the aircraft out instead. A typed `PUSH` or `PUSHM` there is still flown, with a note on the terminal (below). Where an airport marks a stand as either way (Oakland's MTN stands), the push items appear and a push carries no note.
 
+    Clearing a tow that is still moving (`TAXI`, `TAXIAUTO`, `RTAXI`, `AIRTAXI`, `LAND` or `PUSHM`) does not stop the aircraft dead: it keeps showing "Pushback" for about 5 s while the tug brakes it to rest, then the new command starts from rest with no pause. During the brake `HOLD` and `RES` work, a `PUSH` is refused ("Unable, tug stopping"), and a `PUSHM` is planned from where the tow will stop.
+
     Every push is a tug move: the aircraft turns only while rolling, pauses about 5 s at each reversal, and a push that would put it on a runway, a runway holding position or a taxiway it was not sent to is refused with the reason
   - *Pushback / Taxiing / Following*: "Hold position"
   - *Taxiing*: "Resume taxi" while the next uncleared hold-short on the route is a taxiway or spot bar. It sends a bare `RES`, which clears that one bar so the aircraft taxis through without stopping (the pilot says "continue taxi"); later bars stay armed. A runway bar is cleared with "Cross {rwy}" instead.

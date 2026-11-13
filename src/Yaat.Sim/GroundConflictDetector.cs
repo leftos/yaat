@@ -3461,6 +3461,12 @@ public static class GroundConflictDetector
             return PushbackPose.FlipForKind(ac.TrueHeading.Degrees, push.Kind);
         }
 
+        // A cleared tow braking to rest moves along the push heading the last driven tick left (the nose on a pull).
+        if (ac.Phases?.CurrentPhase is TugReleasePhase)
+        {
+            return (ac.Ground.PushbackTrueHeading ?? ac.TrueHeading).Degrees;
+        }
+
         return (FollowingPhase.DrivenRouteOf(ac) is { IsComplete: false } route) && (LookAheadPoint(ac, route) is { } point)
             ? GeoMath.BearingTo(ac.Position, point)
             : ac.TrueHeading.Degrees;

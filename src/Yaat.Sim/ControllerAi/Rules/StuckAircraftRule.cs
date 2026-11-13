@@ -76,6 +76,7 @@ public sealed class StuckAircraftRule : IDecisionRule
         phase
             is TaxiingPhase
                 or PushbackPhase
+                or TugReleasePhase
                 or CrossingRunwayPhase
                 or ClearRunwayPhase
                 or RunwayExitPhase

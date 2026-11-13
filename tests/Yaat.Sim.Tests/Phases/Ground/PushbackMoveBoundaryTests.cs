@@ -57,21 +57,6 @@ public class PushbackMoveBoundaryTests
     /// <summary>How far off the spot's outbound heading a completed spot push may rest, degrees.</summary>
     private const double SpotHeadingToleranceDeg = 15.0;
 
-    /// <summary>
-    /// The clearance that takes the tug off mid-move: a taxi to the spot, which routes from the ramp the push is
-    /// still on (a movement-area taxiway does not, mid-push-off — the route leaves the movement area). It is a TAXIAUTO: a
-    /// plain <c>TAXI $6B</c> from mid-push is refused ("Unable, need a route to spot 6B. To auto-route it: TAXIAUTO $6B"),
-    /// since no route inside the ramp fits from there and a bare TAXI from the ramp stays inside it.
-    /// </summary>
-    private const string TaxiClearance = $"TAXIAUTO ${AlleySpot}";
-
-    /// <summary>
-    /// The fastest the aircraft may be going one second after a clearance clears the push, knots: the tug let go
-    /// at a standstill, so all it can have is the one second of taxi acceleration from rest (1 kt/s) — the taxi
-    /// rate, because the towbar rates went with the tug.
-    /// </summary>
-    private const double ClearedSpeedCeilingKts = 1.0;
-
     /// <summary>How far a second's speed change may overshoot the towbar rate it is integrated at, knots.</summary>
     private const double RateToleranceKts = 0.05;
 
@@ -209,50 +194,6 @@ public class PushbackMoveBoundaryTests
             $"the push never completed within {BudgetSeconds}s (phase={push.Aircraft.Phases?.CurrentPhase?.Name ?? "null"}): {Trace(push.Samples)}"
         );
         AssertRestingOnSpot(push.Aircraft, push.Spot, push.Ground.Layout);
-    }
-
-    /// <summary>
-    /// A clearance that takes the tug off mid-move stops the aircraft dead. Only a move that runs to completion
-    /// hands its speed to the move behind it; a <c>TAXI</c> that clears the phase ends the push with the aircraft
-    /// still tail-first, and 5 kt carried into the next phase would run it on along a direction of travel that is
-    /// about to flip.
-    /// </summary>
-    [Fact]
-    public void ClearedMidMoveStopsDead()
-    {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
-        if (built is null)
-        {
-            return;
-        }
-
-        SfoGround ground = built.Value;
-        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, PusherGate);
-        string command = $"PUSH ${AlleySpot}";
-        CommandResult issued = ground.Engine.SendCommand(Pusher, command);
-        Assert.True(issued.Success, $"'{command}' from {PusherGate} failed: {issued.Message}");
-
-        int rolling = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.GroundSpeed >= PromptSpeedKts, PromptSpeedBySecond, null);
-        Assert.True(rolling > 0, $"the push never reached {PromptSpeedKts:F1} kt within {PromptSpeedBySecond}s to be cleared off");
-        PushbackPhase running = Assert.IsType<PushbackPhase>(aircraft.Phases?.CurrentPhase);
-        Assert.True(running.ContinuesIntoNextMove, "the push-off should be a move that continues into the next one");
-        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
-
-        CommandResult taxi = ground.Engine.SendCommand(Pusher, TaxiClearance);
-        Assert.True(taxi.Success, $"'{TaxiClearance}' mid-push failed: {taxi.Message}");
-        ground.Engine.TickOneSecond();
-
-        _output.WriteLine(
-            $"{Pusher}: cleared at t={rolling}s, gs={aircraft.GroundSpeed:F1}kt one second later, phase={aircraft.Phases?.CurrentPhase?.Name}"
-        );
-        Assert.True(
-            aircraft.GroundSpeed <= ClearedSpeedCeilingKts,
-            $"{Pusher} was still doing {aircraft.GroundSpeed:F1} kt a second after '{TaxiClearance}' cleared the push at "
-                + $"{PromptSpeedKts:F1}+ kt — the cleared move handed its speed on instead of stopping dead"
-        );
-        Assert.Null(aircraft.Ground.PushbackTrueHeading);
-        Assert.Null(aircraft.Targets.DesiredAccelRate);
-        Assert.Null(aircraft.Targets.DesiredDecelRate);
     }
 
     /// <summary>

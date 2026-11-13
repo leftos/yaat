@@ -126,11 +126,12 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The instructor is not the scenario: a TAXI typed mid-push still drops the tug immediately, whatever the
-    /// push is doing and whatever the scenario's own scripted commands are waiting for.
+    /// The instructor is not the scenario: a TAXI typed mid-push still ends the tow at once, whatever the
+    /// push is doing and whatever the scenario's own scripted commands are waiting for; the tug comes off once it has
+    /// braked the aircraft to rest.
     /// </summary>
     [Fact]
-    public void InstructorTaxi_MidPush_StillTakesTheTugOffImmediately()
+    public void InstructorTaxi_MidPush_TakesTheTugOffOnceBrakedToRest()
     {
         if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
@@ -158,6 +159,10 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
         output.WriteLine($"'{TaxiCommand}' mid-push at t={taxiSecond}s → \"{taxi?.Message}\"");
         Assert.True(taxi is { Success: true }, $"'{TaxiCommand}' during the pushback was refused: {taxi?.Message}");
         Assert.DoesNotContain(ac.Phases!.Phases, phase => phase is PushbackPhase);
+
+        // The tug comes off after it has braked the cleared tow to rest (TugReleasePhase), and the taxi starts then.
+        int rest = SfoGroundHarness.TickUntil(ground.Engine, () => ac.Phases?.CurrentPhase is not TugReleasePhase, 8, null);
+        Assert.True(rest > 0, "the cleared tow never braked to rest");
         Assert.IsType<TaxiingPhase>(ac.Phases?.CurrentPhase);
     }
 

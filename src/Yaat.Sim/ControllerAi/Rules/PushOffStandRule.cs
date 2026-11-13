@@ -157,7 +157,7 @@ public sealed class PushOffStandRule : IDecisionRule
     private static bool IsPushing(AiRuleScope scope, AircraftState other) =>
         other.Phases?.CurrentPhase switch
         {
-            PushbackPhase => true,
+            PushbackPhase or TugReleasePhase => true,
             AtParkingPhase => (other.Ground.PushedBackFrom is null)
                 && scope.Memos.TryGetValue(other.Callsign, out AiAircraftMemo? memo)
                 && (memo.Intent == GroundIntent.PushIssued)

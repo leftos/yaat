@@ -356,7 +356,13 @@ public static class HeldReleaseService
             return false;
         }
 
-        return ac.Phases?.CurrentPhase is AtParkingPhase or PushbackPhase or HoldingAfterPushbackPhase or TaxiingPhase or HoldingShortPhase;
+        return ac.Phases?.CurrentPhase
+            is AtParkingPhase
+                or PushbackPhase
+                or TugReleasePhase
+                or HoldingAfterPushbackPhase
+                or TaxiingPhase
+                or HoldingShortPhase;
     }
 
     private static string GroundHoldStatus(AircraftState ac) =>
@@ -365,7 +371,7 @@ public static class HeldReleaseService
             HoldingShortPhase => "Holding short",
             TaxiingPhase => "Taxiing (held)",
             AtParkingPhase => "At gate (held)",
-            PushbackPhase => "Pushing back (held)",
+            PushbackPhase or TugReleasePhase => "Pushing back (held)",
             HoldingAfterPushbackPhase => "Pushed back (held)",
             LinedUpAndWaitingPhase => "Lined up (held)",
             _ => "Held",

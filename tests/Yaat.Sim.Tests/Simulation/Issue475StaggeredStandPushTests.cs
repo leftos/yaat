@@ -166,7 +166,7 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
             closestFt = Math.Min(closestFt, GroundOutline.ClearanceBetween(pusher, aTowedNoseFirst: false, neighbour));
-            if (pusher.Phases?.CurrentPhase is not PushbackPhase)
+            if (pusher.Phases?.CurrentPhase is not (PushbackPhase or TugReleasePhase))
             {
                 return new PushRun(t, longestHold, closestFt);
             }
@@ -495,11 +495,11 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A PUSHM mid-tow is a new tug instruction: it ends the tow under way and starts a new one, anchored to the pose the
-    /// aircraft has when the instruction is given rather than to the stand the first tow left.
+    /// A PUSHM mid-tow is a new tug instruction: it ends the tow under way and starts a new one, anchored at the predicted
+    /// stop pose — where the tug brakes the cleared tow to rest — rather than at the stand the first tow left.
     /// </summary>
     [Fact]
-    public void PushTe_RedirectedMidTowByPushm_ReanchorsFromTheCurrentPose()
+    public void PushTe_RedirectedMidTowByPushm_ReanchorsFromThePredictedStopPose()
     {
         if (Build() is not var (engine, layout))
         {
@@ -518,12 +518,8 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         Assert.IsType<PushbackPhase>(pusher.Phases?.CurrentPhase);
         Assert.Equal(stand, Assert.NotNull(pusher.Ground.TowRowAnchor).TowStartPose);
         PushbackPose redirectedAt = default;
-        CommandResult? result = SendUntilTaken(
-            engine,
-            pusher,
-            "PUSHM $E $C",
-            () => redirectedAt = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees)
-        );
+        // The expected anchor is the predicted stop pose; TugReleaseTests.PushmMidTow_PlansFromThePredictedStopPose checks the formula itself.
+        CommandResult? result = SendUntilTaken(engine, pusher, "PUSHM $E $C", () => redirectedAt = TugReleasePhase.PredictedStopPose(pusher));
         Assert.True(result?.Success, $"PUSHM $E $C was never taken mid-tow: {result?.Message}");
 
         TugRowAnchor reanchored = Assert.NotNull(pusher.Ground.TowRowAnchor);
@@ -555,12 +551,8 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
 
         Assert.IsType<PushbackPhase>(pusher.Phases?.CurrentPhase);
         PushbackPose redirectedAt = default;
-        CommandResult? result = SendUntilTaken(
-            engine,
-            pusher,
-            "PUSHM $E",
-            () => redirectedAt = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees)
-        );
+        // The expected anchor is the predicted stop pose; TugReleaseTests.PushmMidTow_PlansFromThePredictedStopPose checks the formula itself.
+        CommandResult? result = SendUntilTaken(engine, pusher, "PUSHM $E", () => redirectedAt = TugReleasePhase.PredictedStopPose(pusher));
         Assert.True(result?.Success, $"PUSHM $E was never taken mid-tow: {result?.Message}");
         CommandResult taken = result ?? throw new InvalidOperationException("PUSHM $E returned no result");
         output.WriteLine($"PUSHM $E -> {taken.Message}");
@@ -597,12 +589,8 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
 
         Assert.IsType<PushbackPhase>(pusher.Phases?.CurrentPhase);
         PushbackPose redirectedAt = default;
-        CommandResult? result = SendUntilTaken(
-            engine,
-            pusher,
-            "PUSHMF $E",
-            () => redirectedAt = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees)
-        );
+        // The expected anchor is the predicted stop pose; TugReleaseTests.PushmMidTow_PlansFromThePredictedStopPose checks the formula itself.
+        CommandResult? result = SendUntilTaken(engine, pusher, "PUSHMF $E", () => redirectedAt = TugReleasePhase.PredictedStopPose(pusher));
         Assert.True(result?.Success, $"PUSHMF $E was never taken mid-tow: {result?.Message}");
         CommandResult taken = result ?? throw new InvalidOperationException("PUSHMF $E returned no result");
         output.WriteLine($"PUSHMF $E -> {taken.Message}");
@@ -651,6 +639,77 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         CommandResult result = engine.SendCommand(Pusher, command);
         Assert.False(result.Success);
         Assert.Equal("Unable, a tug move needs at least two points — use PUSH to reach a single one", result.Message);
+    }
+
+    /// <summary>
+    /// A TAXI TE issued as the push reaches its turn-off node onto TE — the first move boundary the tow flies through at
+    /// speed — on the first sub-tick the node is inside the brake distance (v² / 2a) at 2 kt or more, so the brake to rest
+    /// carries the aircraft past it: the taxi, planned from the live pose, still follows its route to its end.
+    /// </summary>
+    [Fact]
+    public void PushTe_TaxiAtTheTurnOffNode_BrakesPastIt_AndStillFollowsTheRoute()
+    {
+        if (Build() is not var (engine, layout))
+        {
+            return;
+        }
+
+        AircraftState pusher = Spawn(engine, layout, Pusher, StandPose(layout, PushingStand));
+        Assert.True(engine.SendCommand(Pusher, "PUSH TE").Success);
+        PushbackPhase? flownThrough = pusher.Phases!.Phases.OfType<PushbackPhase>().FirstOrDefault(p => p.ContinuesIntoNextMove);
+        LatLon turnOff = (flownThrough ?? throw new InvalidOperationException("PUSH TE flies through no move boundary")).PlannedEnd;
+        double decel = CategoryPerformance.TugDecelRate(AircraftCategory.Jet);
+        CommandResult? taxi = null;
+        string skipped = "";
+        SubTickDriver.TickSubTicksUntil(
+            engine,
+            Pusher,
+            _ => taxi is { Success: true },
+            BudgetSeconds,
+            a =>
+            {
+                if (taxi is { Success: true })
+                {
+                    return;
+                }
+
+                double toNodeFt = GeoMath.DistanceNm(a.Position, turnOff) * GeoMath.FeetPerNm;
+                double brakeFt = a.GroundSpeed * a.GroundSpeed / (2.0 * decel) * GeoMath.FeetPerNm / 3600.0;
+                if ((a.Phases?.CurrentPhase is not PushbackPhase) || (a.GroundSpeed < 2.0) || (toNodeFt > brakeFt))
+                {
+                    skipped = $"{a.Phases?.CurrentPhase?.Name} gs={a.GroundSpeed:F2} toNode={toNodeFt:F1} brake={brakeFt:F1}";
+                    return;
+                }
+
+                taxi = engine.SendCommand(Pusher, "TAXI TE");
+                output.WriteLine($"TAXI TE {toNodeFt:F1} ft short of the turn-off node at {a.GroundSpeed:F2} kt -> {taxi.Success}: {taxi.Message}");
+            }
+        );
+        Assert.True(
+            taxi is { Success: true },
+            $"TAXI TE was never taken inside the brake distance; last skip: {skipped}; last result: {taxi?.Message}"
+        );
+        TaxiRoute route = pusher.Ground.AssignedTaxiRoute ?? throw new InvalidOperationException("TAXI TE assigned no route");
+        LatLon routeEnd = route.Segments[^1].Edge.ToNode.Position;
+
+        bool taxied = false;
+        int done = SfoGroundHarness.TickUntil(
+            engine,
+            () =>
+            {
+                taxied |= pusher.Phases?.CurrentPhase is TaxiingPhase;
+                return taxied && (pusher.Phases?.CurrentPhase is not TaxiingPhase);
+            },
+            SpotBudgetSeconds,
+            null
+        );
+        double offEndFt = GeoMath.DistanceNm(pusher.Position, routeEnd) * GeoMath.FeetPerNm;
+        output.WriteLine($"taxi ended t={done}s in {pusher.Phases?.CurrentPhase?.Name ?? "null"}, {offEndFt:F1} ft from the route's end");
+        Assert.True(done > 0, $"the taxi never finished within {SpotBudgetSeconds}s (phase={pusher.Phases?.CurrentPhase?.Name})");
+        Assert.True(
+            offEndFt <= (AircraftFootprint.FromType(Narrowbody).LengthFt / 2.0) + 25.0,
+            $"the taxi ended {offEndFt:F1} ft from its route's end"
+        );
     }
 
     /// <summary>

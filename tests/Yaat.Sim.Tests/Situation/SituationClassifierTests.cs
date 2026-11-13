@@ -26,6 +26,7 @@ public sealed class SituationClassifierTests
     {
         [typeof(AtParkingPhase)] = AircraftSituation.AtParking,
         [typeof(PushbackPhase)] = AircraftSituation.PushingBack,
+        [typeof(TugReleasePhase)] = AircraftSituation.PushingBack,
         [typeof(HoldingInPositionPhase)] = AircraftSituation.HoldingOnGround,
         [typeof(HoldingAfterExitPhase)] = AircraftSituation.HoldingOnGround,
         [typeof(HoldingAfterPushbackPhase)] = AircraftSituation.HoldingOnGround,

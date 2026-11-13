@@ -49,9 +49,6 @@ public sealed class PushbackPhase : Phase
 
     private const double LogIntervalSeconds = 3.0;
 
-    /// <summary>Ground speed at or below which a dwelling aircraft counts as stopped, knots.</summary>
-    private const double AtRestKts = 0.01;
-
     private const double RadToDeg = 180.0 / Math.PI;
 
     /// <summary>Within this distance of the planned end the tug is down to <see cref="FinalApproachKts"/>.</summary>
@@ -445,7 +442,12 @@ public sealed class PushbackPhase : Phase
         ctx.Targets.TargetSpeed = Move.DwellBefore ? 0 : CategoryPerformance.PushbackSpeed(ctx.Category);
 
         // The move steers on its first sub-tick, which physics moves before the next OnTick runs.
-        if (!Move.DwellBefore && CanSteer(ctx) && (aircraft.IndicatedAirspeed > AtRestKts) && !TugKinematics.IsComplete(pose, Move, _progress))
+        if (
+            !Move.DwellBefore
+            && CanSteer(ctx)
+            && (aircraft.IndicatedAirspeed > TugReleasePhase.AtRestKts)
+            && !TugKinematics.IsComplete(pose, Move, _progress)
+        )
         {
             Drive(ctx, pose);
         }
@@ -528,10 +530,14 @@ public sealed class PushbackPhase : Phase
             ctx.Aircraft.TrueHeading.Degrees
         );
 
-        // Only a move that ran to completion hands its speed to the move behind it. Every other end is the tug
-        // letting go mid-move — a TAXI, TAXIAUTO, AIRTAXI, LAND, DEL or PUSHM clearing the phase, or an abort —
-        // and the aircraft is still tail-first with a direction of travel about to flip, so it stops dead.
-        if (endStatus == PhaseStatus.Completed)
+        // Only a move that ran to completion hands its speed to the move behind it. Every other end is a command clearing
+        // the move — a TAXI, TAXIAUTO, AIRTAXI, LAND, DEL or PUSHM — or an abort. One that finds the aircraft still moving
+        // leaves the tug on, the headings and the towbar rates as they are, so the chain installed behind it brakes the
+        // tow to rest first (TugReleasePhase, put there by PhaseList.Start); a DEL, which installs nothing, stops it dead
+        // (CommandDispatcher.ClearPhaseChain). One that finds it at rest lets the tug go here.
+        bool completed = endStatus == PhaseStatus.Completed;
+        bool braking = !completed && (ctx.Aircraft.GroundSpeed > TugReleasePhase.AtRestKts);
+        if (completed)
         {
             HandOver(ctx, PoseOf(ctx.Aircraft));
             if (IsLastMove)
@@ -541,31 +547,46 @@ public sealed class PushbackPhase : Phase
         }
         else
         {
-            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
         }
 
         // A forced tow ignores parked aircraft, and every move of a tow is judged against the row it began in, until it
         // ends: its last move completes, or anything else ends a move — a command clearing the tow, which a new tow's
         // install sets both again behind.
-        if ((endStatus != PhaseStatus.Completed) || IsLastMove)
+        if (!completed || IsLastMove)
         {
             ctx.Aircraft.Ground.ForcedTowIgnoresParked = false;
             ctx.Aircraft.Ground.TowRowAnchor = null;
         }
 
-        ctx.Aircraft.Ground.PushbackTrueHeading = null;
+        if (!braking)
+        {
+            LetGo(ctx, completed);
+        }
+    }
 
-        // The tug lets go with the phase, except where the tow goes straight on into the next move: that move's start
-        // picks the towbar up where this one left it, so a flown-through boundary does not snap the tug straight. A
-        // move the plan reverses after ends at a standstill, and the next move hitches up on the axis over its dwell.
-        if (!((endStatus == PhaseStatus.Completed) && ContinuesIntoNextMove))
+    /// <summary>
+    /// The tug lets go as the move ends with the aircraft at rest or handed on: a cleared move at rest is stopped dead,
+    /// the push heading goes, the towbar goes unless the tow flows on into the next move — that move's start picks it up
+    /// where this one left it, so a flown-through boundary does not snap the tug straight, while a move the plan
+    /// reverses after ends at a standstill and the next hitches up on the axis over its dwell — and the towbar rates go,
+    /// since they belong to the tug, not to the aircraft.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="completed">The move ran to completion rather than being cleared.</param>
+    private void LetGo(PhaseContext ctx, bool completed)
+    {
+        if (!completed)
+        {
+            ctx.Aircraft.IndicatedAirspeed = 0;
+        }
+
+        ctx.Aircraft.Ground.PushbackTrueHeading = null;
+        if (!(completed && ContinuesIntoNextMove))
         {
             ctx.Aircraft.Ground.TowbarTrueHeading = null;
         }
 
-        // The towbar rates belong to the tug, not to the aircraft: whatever comes next accelerates and brakes on
-        // its own terms.
         ctx.Targets.DesiredAccelRate = null;
         ctx.Targets.DesiredDecelRate = null;
     }
@@ -587,7 +608,8 @@ public sealed class PushbackPhase : Phase
     /// is carrying and publishes the move's speed as the target, so physics holds the tow at pace over the boundary
     /// until the next move's <see cref="OnStart"/> takes the targets over in the same tick. One that ends at a
     /// genuine stop — the plan's last, or the one before a reversal's dwell — stops the aircraft dead. A move ended
-    /// any other way never gets here: <see cref="OnEnd"/> stops a cleared or aborted move itself.
+    /// any other way never gets here: <see cref="OnEnd"/> leaves a cleared or aborted move still moving to the
+    /// <see cref="TugReleasePhase"/> behind it, and stops one at rest itself.
     /// </summary>
     /// <param name="ctx">The phase context.</param>
     /// <param name="pose">The pose the move ended at.</param>
@@ -643,7 +665,7 @@ public sealed class PushbackPhase : Phase
 
         PublishTugRates(ctx);
         ctx.Targets.TargetSpeed = 0;
-        if (ctx.Aircraft.GroundSpeed <= AtRestKts)
+        if (ctx.Aircraft.GroundSpeed <= TugReleasePhase.AtRestKts)
         {
             _dwellElapsedSeconds += ctx.DeltaSeconds;
         }
@@ -765,7 +787,7 @@ public sealed class PushbackPhase : Phase
     private static double StepFt(PhaseContext ctx, double targetKts)
     {
         AircraftState aircraft = ctx.Aircraft;
-        if (aircraft.IndicatedAirspeed <= AtRestKts)
+        if (aircraft.IndicatedAirspeed <= TugReleasePhase.AtRestKts)
         {
             return 0.0;
         }

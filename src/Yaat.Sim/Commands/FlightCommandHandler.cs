@@ -220,7 +220,7 @@ internal static class FlightCommandHandler
     {
         // A taxiing aircraft: SPD sets the taxi-speed cap, not an airborne target. Reaches here
         // from both direct dispatch and a fired conditional block (AT <taxiway> SPD <n>).
-        if (aircraft.Phases?.CurrentPhase is TaxiingPhase)
+        if (TugReleasePhase.IsTaxiingOrReleasingIntoTaxi(aircraft.Phases?.CurrentPhase))
         {
             return ApplyTaxiSpeed(cmd, aircraft);
         }
@@ -673,7 +673,7 @@ internal static class FlightCommandHandler
     {
         // On a taxiing aircraft, resume the category-default taxi speed (clear the cap/expedite);
         // the airborne speed targets below are navigator-owned on the ground and left untouched.
-        if (aircraft.Phases?.CurrentPhase is TaxiingPhase)
+        if (TugReleasePhase.IsTaxiingOrReleasingIntoTaxi(aircraft.Phases?.CurrentPhase))
         {
             aircraft.Ground.CommandedTaxiSpeedKts = null;
             GroundCommandHandler.EndRouteExpedite(aircraft);
@@ -1915,6 +1915,7 @@ internal static class FlightCommandHandler
             // No route to the room's active runways: this handler is not given the dispatch context.
             PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
+            TugReleasePhase.StopDead(aircraft);
             aircraft.Phases = null;
         }
         aircraft.Ground.AssignedTaxiRoute = null;
@@ -2007,6 +2008,7 @@ internal static class FlightCommandHandler
             // No route to the room's active runways: this handler is not given the dispatch context.
             PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
+            TugReleasePhase.StopDead(aircraft);
             aircraft.Phases = null;
         }
         aircraft.Ground.AssignedTaxiRoute = null;

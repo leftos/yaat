@@ -909,7 +909,7 @@ public static class FollowRoutePlanner
     private static (DirectionalEdge Current, IReadOnlyList<TaxiRouteSegment> RouteAhead)? LocateLead(
         AirportGroundLayout layout,
         AircraftState lead
-    ) => lead.Phases?.CurrentPhase is PushbackPhase or AtParkingPhase ? null : OnRoute(EdgeUnder(layout, lead), lead);
+    ) => lead.Phases?.CurrentPhase is PushbackPhase or TugReleasePhase or AtParkingPhase ? null : OnRoute(EdgeUnder(layout, lead), lead);
 
     private static GroundEdge? EdgeUnder(AirportGroundLayout layout, AircraftState aircraft) =>
         TaxiEdgeLocator.EdgeUnder(

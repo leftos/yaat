@@ -412,8 +412,18 @@ public sealed class PhaseList
 
     public void Add(Phase phase) => Phases.Add(phase);
 
+    /// <summary>
+    /// Starts the chain at its first phase. A chain installed while a tug is still attached — a command cleared a tow
+    /// that was moving, and <see cref="PushbackPhase.OnEnd"/> left the tug on — first gets a
+    /// <see cref="TugReleasePhase"/>, which brakes the aircraft to rest before the chain's own first phase starts.
+    /// </summary>
     public void Start(PhaseContext ctx)
     {
+        if ((ctx.Aircraft.Ground.TowbarTrueHeading is not null) && ctx.Aircraft.IsOnGround)
+        {
+            Phases.Insert(0, TugReleasePhase.For(ctx.Aircraft, Phases.Count > 0 ? Phases[0] : null));
+        }
+
         CurrentIndex = 0;
         if (CurrentPhase is { } phase)
         {
@@ -578,6 +588,15 @@ public sealed class PhaseList
             list.Add(phase);
         }
 
+        // A release judges the commands it does not answer by the phase behind it (TugReleasePhase.Next).
+        for (int i = 0; i < list.Phases.Count - 1; i++)
+        {
+            if (list.Phases[i] is TugReleasePhase release)
+            {
+                release.Next = list.Phases[i + 1];
+            }
+        }
+
         // Advance CurrentIndex to match — we can't set it directly (private set),
         // so we use the fact that phases are added sequentially and CurrentIndex starts at 0.
         // We need to set it via reflection-free approach: just track the index.
@@ -604,6 +623,7 @@ public sealed class PhaseList
             FollowingPhaseDto d => FollowingPhase.FromSnapshot(d, groundLayout),
             PushbackPhaseDto d => PushbackPhase.FromSnapshot(d),
             PushbackToSpotPhaseDto d => PushbackPhase.FromSnapshot(SpotPushbackAsMove(d, groundLayout)),
+            TugReleasePhaseDto d => TugReleasePhase.FromSnapshot(d),
             RunwayExitPhaseDto d => RunwayExitPhase.FromSnapshot(d, groundLayout),
             HelicopterLandingPhaseDto d => HelicopterLandingPhase.FromSnapshot(d),
             HelicopterApproachPhaseDto d => HelicopterApproachPhase.FromSnapshot(d),
