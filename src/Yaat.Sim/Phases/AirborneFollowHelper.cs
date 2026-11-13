@@ -1052,8 +1052,9 @@ public static class AirborneFollowHelper
         // (see IsLeadHoldingSharedLeg) — a controller EXT, the lead's own follow-hold behind other traffic, or a proximity
         // hold — not just the IsExtended flag, which is cleared the moment the lead is itself told to follow.
         // Generic same-leg cases are intentionally NOT flow-ahead: when both aircraft are on
-        // parallel tracks heading the same way and the lead is not holding out, the follower has
-        // no lateral option: a follower too close at minimum speed is cancelled.
+        // parallel tracks heading the same way and the lead is not holding out, the follower turns
+        // at its own point unless held. On the downwind a follower too close at minimum speed keeps
+        // the follow and extends (IsSameDownwindLeadAhead); on another shared leg it is cancelled.
         if (leadLeg == followerLeg)
         {
             return IsLeadHoldingSharedLeg(lead);
@@ -1107,16 +1108,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        return ComputeAdjustedSpeed(
-            ctx.Aircraft,
-            target,
-            normalSpeed,
-            minSpeed,
-            maxSpeedAdjustKts,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            Log
-        );
+        return ComputeAdjustedSpeed(ctx, target, new SpeedBand(normalSpeed, minSpeed, maxSpeedAdjustKts), Log);
     }
 
     /// <summary>
@@ -1241,17 +1233,7 @@ public static class AirborneFollowHelper
 
         AircraftCategory leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(
-            ctx.Aircraft,
-            target,
-            normalSpeed,
-            minSpeed,
-            desired,
-            MaxSpeedAdjustKts,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            Log
-        );
+        return ComputeAdjustedSpeedWithDesired(ctx, target, new SpeedBand(normalSpeed, minSpeed, MaxSpeedAdjustKts), desired, Log);
     }
 
     /// <summary>
@@ -1274,17 +1256,7 @@ public static class AirborneFollowHelper
     public static double? AdjustedFreeFlightSpeed(PhaseContext ctx, AircraftState lead, double minSpeed, double desiredNm, ILogger logger)
     {
         double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
-        return ComputeAdjustedSpeedWithDesired(
-            ctx.Aircraft,
-            lead,
-            normalSpeed,
-            minSpeed,
-            desiredNm,
-            MaxSpeedAdjustKts,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            logger
-        );
+        return ComputeAdjustedSpeedWithDesired(ctx, lead, new SpeedBand(normalSpeed, minSpeed, MaxSpeedAdjustKts), desiredNm, logger);
     }
 
     /// <summary>
@@ -1293,95 +1265,195 @@ public static class AirborneFollowHelper
     /// (follower too close at min speed) — in that case the caller decides how to
     /// cancel follow.
     /// </summary>
-    private static double? ComputeAdjustedSpeed(
-        AircraftState follower,
-        AircraftState lead,
-        double normalSpeed,
-        double minSpeed,
-        double maxSpeedAdjustKts,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech,
-        ILogger logger
-    )
+    private static double? ComputeAdjustedSpeed(PhaseContext ctx, AircraftState lead, SpeedBand band, ILogger logger)
     {
         AircraftCategory leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);
-        return ComputeAdjustedSpeedWithDesired(
-            follower,
-            lead,
-            normalSpeed,
-            minSpeed,
-            desired,
-            maxSpeedAdjustKts,
-            soloTrainingMode,
-            rpoShowPilotSpeech,
-            logger
-        );
+        return ComputeAdjustedSpeedWithDesired(ctx, lead, band, desired, logger);
     }
 
-    private static double? ComputeAdjustedSpeedWithDesired(
-        AircraftState follower,
-        AircraftState lead,
-        double normalSpeed,
-        double minSpeed,
-        double desired,
-        double maxSpeedAdjustKts,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech,
-        ILogger logger
-    )
+    /// <summary>The speeds a follow's speed adjustment works within: the leg baseline, the floor and the correction clamp (kt).</summary>
+    private readonly record struct SpeedBand(double NormalKts, double MinKts, double MaxAdjustKts);
+
+    private static double? ComputeAdjustedSpeedWithDesired(PhaseContext ctx, AircraftState lead, SpeedBand band, double desired, ILogger logger)
     {
+        AircraftState follower = ctx.Aircraft;
+        double minSpeed = band.MinKts;
         double distance = GeoMath.DistanceNm(follower.Position, lead.Position);
         double error = distance - desired;
-        double speedAdjust = Math.Clamp(error * SpeedGainPerNm, -maxSpeedAdjustKts, maxSpeedAdjustKts);
-        double adjusted = normalSpeed + speedAdjust;
-        double clamped = Math.Clamp(adjusted, minSpeed, normalSpeed + maxSpeedAdjustKts);
+        double speedAdjust = Math.Clamp(error * SpeedGainPerNm, -band.MaxAdjustKts, band.MaxAdjustKts);
+        double adjusted = band.NormalKts + speedAdjust;
+        double clamped = Math.Clamp(adjusted, minSpeed, band.NormalKts + band.MaxAdjustKts);
 
         // Speed clamped to minimum AND too close — the follower can't maintain
         // separation by speed alone.
         if ((adjusted < minSpeed) && (distance < desired * 0.5))
         {
             // If the follower still has a lateral option — it is on an earlier pattern
-            // leg than a flow-ahead lead on the same runway — do NOT cancel. Hold at min
-            // speed and let the downwind extension / hold-base-turn logic build the
-            // spacing; the lead-lifecycle watchdog releases the follow once the lead lands
-            // or the geometry diverges. Cancelling here would clear FollowingCallsign,
-            // drop the hold, and turn the follower base in front of the still-airborne
-            // lead (7110.65 §3-10-3.a.1 same-runway separation; AIM §4-3-4.b.4 no cut-in).
-            if (IsLeadPatternFlowAhead(follower, lead))
+            // leg than a flow-ahead lead on the same runway, or behind a lead on its own
+            // downwind — do NOT cancel. Hold at min speed and let the downwind extension /
+            // hold-base-turn logic build the spacing; the lead-lifecycle watchdog releases
+            // the follow once the lead lands or the geometry diverges. Cancelling here would
+            // clear FollowingCallsign, drop the hold, and turn the follower base in front of
+            // the still-airborne lead (7110.65 §3-10-3.a.1 same-runway separation; AIM
+            // §4-3-4.b.4 no cut-in).
+            if (IsLeadPatternFlowAhead(follower, lead) || CanExtendBehindSameDownwindLead(ctx, lead))
             {
                 return minSpeed;
             }
 
-            // No lateral option (free-flight follow, or a same/earlier-leg lead). Cancel
-            // follow and warn once so the controller can intervene. Hold the present leg —
-            // the pilot's only instruction was to follow, so it does not turn on its own.
-            CancelFollowHoldingLeg(follower);
-            Pilot.PilotResponder.RouteRpoTransmission(
-                follower,
-                soloTrainingMode,
-                rpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildUnableToMaintainSeparation(follower, lead.Callsign)
-            );
-
-            // An IFR follow on an approach is pilot-applied visual separation; with the follow ended the controller is back
-            // to radar separation (7110.65 §7-2-1). The approach itself goes on.
-            if (IsOnKeptApproach(follower) && IsIfrFollower(follower))
-            {
-                follower.PendingWarnings.Add(Tower.VisualApproachHelper.VisualSeparationTerminatedWarning(follower.Callsign));
-            }
-
-            logger.LogWarning(
-                "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",
-                follower.Callsign,
-                lead.Callsign,
-                distance,
-                desired
-            );
+            CancelUnableToMaintainSeparation(ctx, lead, distance, desired, logger);
             return null;
         }
 
         return clamped;
+    }
+
+    /// <summary>
+    /// True when a follower too close at its speed floor behind a lead on its own downwind (<see cref="IsSameDownwindLeadAhead"/>)
+    /// can extend for spacing: it can slow to the lead. A follower whose approach speed outruns the lead
+    /// (<see cref="IsStructuralOvertake"/>) and is closing on it cannot, so it breaks the follow off rather than overrun.
+    /// </summary>
+    private static bool CanExtendBehindSameDownwindLead(PhaseContext ctx, AircraftState lead) =>
+        IsSameDownwindLeadAhead(ctx.Aircraft, lead) && !(IsStructuralOvertake(ctx, lead) && IsClosing(ctx.Aircraft, lead));
+
+    /// <summary>
+    /// Ends a follow with no lateral option left (free-flight follow, a lead on an earlier or shared leg other than the
+    /// follower's downwind, or a same-downwind lead the follower cannot slow to) that is too close at minimum speed: warn once
+    /// so the controller can intervene, and hold the present leg — the pilot's only instruction was to follow, so it does not
+    /// turn on its own.
+    /// </summary>
+    private static void CancelUnableToMaintainSeparation(PhaseContext ctx, AircraftState lead, double distance, double desired, ILogger logger)
+    {
+        AircraftState follower = ctx.Aircraft;
+        CancelFollowHoldingLeg(follower);
+        Pilot.PilotResponder.RouteRpoTransmission(
+            follower,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildUnableToMaintainSeparation(follower, lead.Callsign)
+        );
+
+        // An IFR follow on an approach is pilot-applied visual separation; with the follow ended the controller is back
+        // to radar separation (7110.65 §7-2-1). The approach itself goes on.
+        if (IsOnKeptApproach(follower) && IsIfrFollower(follower))
+        {
+            follower.PendingWarnings.Add(Tower.VisualApproachHelper.VisualSeparationTerminatedWarning(follower.Callsign));
+        }
+
+        logger.LogWarning(
+            "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",
+            follower.Callsign,
+            lead.Callsign,
+            distance,
+            desired
+        );
+    }
+
+    /// <summary>
+    /// True when <paramref name="lead"/> flies the same downwind as <paramref name="follower"/>, to the same runway, ahead of it
+    /// by position and not holding the leg out (neither <see cref="IsLeadPatternFlowAhead"/> nor
+    /// <see cref="IsLeadPatternFlowBehind"/>). A follower too close behind it at its speed floor keeps the follow and extends
+    /// its downwind for spacing (<see cref="ShouldHoldForSameDownwindSpacing"/>) rather than cancelling.
+    /// </summary>
+    internal static bool IsSameDownwindLeadAhead(AircraftState follower, AircraftState lead) =>
+        (follower.Phases?.CurrentPhase is DownwindPhase)
+        && (lead.Phases?.CurrentPhase is DownwindPhase)
+        && (follower.Phases.AssignedRunway is { } runway)
+        && (lead.Phases.AssignedRunway is { } leadRunway)
+        && IsSameRunway(runway, leadRunway)
+        && !IsLeadPatternFlowAhead(follower, lead)
+        && !IsLeadPatternFlowBehind(follower, lead);
+
+    /// <summary>
+    /// True while a downwind follower behind a lead on the same downwind (<see cref="IsSameDownwindLeadAhead"/>) would roll out
+    /// of a base turned now with less than the pattern spacing (<see cref="PatternSpacingNm"/>) behind it, by the base
+    /// projection (<see cref="BaseFollowSpacing.ProjectedBaseGapNm"/>): it holds its base turn and extends the downwind. Once
+    /// the lead turns base it is on a later leg and <see cref="ShouldHoldForLeadSequencing"/> holds instead.
+    /// </summary>
+    internal static bool ShouldHoldForSameDownwindSpacing(PhaseContext ctx)
+    {
+        AircraftState follower = ctx.Aircraft;
+        if (
+            (follower.Approach.FollowingCallsign is not { } target)
+            || (ctx.AircraftLookup?.Invoke(target) is not { } lead)
+            || (follower.Phases?.AssignedRunway is not { } runway)
+            || !IsSameDownwindLeadAhead(follower, lead)
+        )
+        {
+            return false;
+        }
+
+        return BaseFollowSpacing.ProjectedBaseGapNm(ctx, lead, runway) < PatternSpacingNm(lead);
+    }
+
+    /// <summary>
+    /// True when a downwind follower held behind its follow target gives the follow up at
+    /// <see cref="VfrFollowPhase.BaseExtensionLimitNm"/> past its base point: the target lands on the follower's own runway
+    /// (both runways known, <see cref="IsSameRunway"/>) and is either on its base, final or landing, or holds its own downwind
+    /// past its base point without being extended (its own follow or a proximity hold). Behind an extended (<c>EXT</c>) lead
+    /// or a lead to another runway the follower keeps the follow and advises at <see cref="MaxFollowExtensionNm"/>.
+    /// </summary>
+    internal static bool IsExtensionLimitLead(PhaseContext ctx)
+    {
+        if (
+            (FollowTarget(ctx) is not { } lead)
+            || (ctx.Aircraft.Phases?.AssignedRunway is not { } runway)
+            || (lead.Phases?.AssignedRunway is not { } leadRunway)
+            || !IsSameRunway(runway, leadRunway)
+        )
+        {
+            return false;
+        }
+
+        return lead.Phases.CurrentPhase switch
+        {
+            BasePhase or FinalApproachPhase or LandingPhase => true,
+            DownwindPhase { IsExtended: false } downwind => downwind.HasReachedBaseTurnPoint(lead.Position),
+            _ => false,
+        };
+    }
+
+    /// <summary>True when the follow target of <paramref name="ctx"/>'s aircraft flies an extended (<c>EXT</c>) downwind.</summary>
+    internal static bool IsFollowingExtendedDownwindLead(PhaseContext ctx) =>
+        FollowTarget(ctx)?.Phases?.CurrentPhase is DownwindPhase { IsExtended: true };
+
+    private static AircraftState? FollowTarget(PhaseContext ctx) =>
+        ctx.Aircraft.Approach.FollowingCallsign is { } target ? ctx.AircraftLookup?.Invoke(target) : null;
+
+    /// <summary>
+    /// Gives up the follow of a downwind follower that has extended <see cref="VfrFollowPhase.BaseExtensionLimitNm"/> past
+    /// the point its count starts from behind its lead without the spacing: it keeps the extended downwind
+    /// (<see cref="CancelFollowHoldingLeg"/>) and says it is unable to follow and asks for a base turn (AIM §5-5-12.a.2). The
+    /// caller judges the limit and the hold.
+    /// </summary>
+    /// <returns>True when the follow was ended this tick.</returns>
+    internal static bool EndFollowAtExtensionLimit(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Approach.FollowingCallsign is not { } target)
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: extended {Limit:F1}nm past base behind {Target} without spacing, ending follow",
+            ctx.Aircraft.Callsign,
+            VfrFollowPhase.BaseExtensionLimitNm,
+            target
+        );
+        EndFollowExtendingDownwind(ctx, target);
+        return true;
+    }
+
+    /// <summary>Ends the follow holding the downwind and voices "unable to follow the traffic, extending downwind, request base turn".</summary>
+    private static void EndFollowExtendingDownwind(PhaseContext ctx, string target)
+    {
+        CancelFollowHoldingLeg(ctx.Aircraft);
+        Pilot.PilotResponder.RouteByTunedPosition(
+            ctx.Aircraft,
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(ctx.Aircraft, target)
+        );
     }
 
     /// <summary>
@@ -1901,12 +1973,7 @@ public static class AirborneFollowHelper
         }
 
         Log.LogDebug("[Follow] {Callsign}: past {Target}'s downwind join before it joined, ending follow", follower.Callsign, target);
-        CancelFollowHoldingLeg(follower);
-        Pilot.PilotResponder.RouteByTunedPosition(
-            follower,
-            Pilot.PilotReportRouting.From(ctx),
-            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(follower, target)
-        );
+        EndFollowExtendingDownwind(ctx, target);
         return true;
     }
 

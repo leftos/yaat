@@ -1987,6 +1987,17 @@ public sealed class DownwindPhaseDto : PhaseDto
     /// <summary>One-shot: the follow-extension "unable to turn" advisory has been transmitted.
     /// Nullable for tolerance of recordings predating this field.</summary>
     public bool? FollowExtensionWarningIssued { get; init; }
+
+    /// <summary>The follower's along-track (nm from the threshold) on the last tick its follow target flew an extended
+    /// (<c>EXT</c>) downwind: the follow give-up limit counts from here once that lead stops being extended. Written only when
+    /// set; null (omitted) otherwise and in snapshots predating the field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? LastExtendedLeadAlongTrackNm { get; init; }
+
+    /// <summary>The follow target whose extended downwind set <see cref="LastExtendedLeadAlongTrackNm"/>: the mark counts only
+    /// while the follow is still on it. Written only when set; null (omitted) otherwise and in snapshots predating the field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LastExtendedLeadCallsign { get; init; }
 }
 
 public sealed class UpwindPhaseDto : PhaseDto

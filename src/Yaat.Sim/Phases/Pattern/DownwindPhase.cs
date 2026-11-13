@@ -74,6 +74,11 @@ public sealed class DownwindPhase : Phase
     private bool _midfieldBroadcastIssued;
     private bool _followExtensionWarningIssued;
 
+    // This aircraft's along-track on the last tick its follow target flew an extended (EXT) downwind (null = never), and
+    // that target's callsign: the mark counts only while the follow is still on that lead.
+    private double? _lastExtendedLeadAlongTrack;
+    private string? _lastExtendedLeadCallsign;
+
     public PatternWaypoints? Waypoints { get; set; }
 
     /// <summary>
@@ -451,13 +456,14 @@ public sealed class DownwindPhase : Phase
     /// </summary>
     private bool HoldDownwind(PhaseContext ctx, double aircraftAlongTrack)
     {
-        bool followHold = !IsExtended && IsFollowHoldInForce(ctx);
+        MarkExtendedLead(ctx, aircraftAlongTrack);
+        bool followHold = !IsExtended && IsFollowHoldInForce(ctx, aircraftAlongTrack);
         if (!IsExtended && !followHold)
         {
             return false;
         }
 
-        if (followHold)
+        if (followHold && !TryGiveUpFollowAtExtensionLimit(ctx, aircraftAlongTrack))
         {
             AdviseFollowExtensionOnce(ctx, aircraftAlongTrack);
         }
@@ -539,13 +545,81 @@ public sealed class DownwindPhase : Phase
         PatternReportHelper.EmitMidfieldDownwind(ctx, side, position);
     }
 
-    private bool IsFollowHoldInForce(PhaseContext ctx)
+    private bool IsFollowHoldInForce(PhaseContext ctx, double aircraftAlongTrack)
     {
         bool holdForProximity = AirborneFollowHelper.ShouldExtendDownwind(ctx);
+        bool holdForSameDownwind = IsSameDownwindHoldInForce(ctx, aircraftAlongTrack);
         bool leadStillForward = AirborneFollowHelper.IsFlowAheadLeadForwardOfWingline(ctx);
         bool wantsSequenceHold =
             leadStillForward || (!ShortApproachArmed && Waypoints is not null && AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, Waypoints));
-        return holdForProximity || wantsSequenceHold;
+        return holdForProximity || holdForSameDownwind || wantsSequenceHold;
+    }
+
+    /// <summary>
+    /// At the base trigger or past it, behind a lead still on this downwind that a base turned now would roll out short of
+    /// the pattern spacing behind (<see cref="AirborneFollowHelper.ShouldHoldForSameDownwindSpacing"/>): the base turn waits.
+    /// </summary>
+    private bool IsSameDownwindHoldInForce(PhaseContext ctx, double aircraftAlongTrack) =>
+        (aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm) && AirborneFollowHelper.ShouldHoldForSameDownwindSpacing(ctx);
+
+    /// <summary>
+    /// <see cref="VfrFollowPhase.BaseExtensionLimitNm"/> past the base point, or past where the follower was when its lead
+    /// stopped flying an extended downwind if that is farther, held behind a lead the give-up applies to
+    /// (<see cref="AirborneFollowHelper.IsExtensionLimitLead"/>), the follower gives up the follow and keeps the extended
+    /// downwind (<see cref="AirborneFollowHelper.EndFollowAtExtensionLimit"/>). Behind an extended (<c>EXT</c>) lead the
+    /// follower keeps the follow and advises at <see cref="AirborneFollowHelper.MaxFollowExtensionNm"/>.
+    /// </summary>
+    /// <returns>True when the follow was ended this tick.</returns>
+    private bool TryGiveUpFollowAtExtensionLimit(PhaseContext ctx, double aircraftAlongTrack) =>
+        (aircraftAlongTrack >= GiveUpCountStartAlongTrack(ctx) + VfrFollowPhase.BaseExtensionLimitNm)
+        && AirborneFollowHelper.IsExtensionLimitLead(ctx)
+        && AirborneFollowHelper.EndFollowAtExtensionLimit(ctx);
+
+    /// <summary>
+    /// Where the follow give-up's count starts: the base point, or the last point behind an extended lead if farther and the
+    /// follow is still on that lead (a re-FOLLOW of another lead counts from the base point).
+    /// </summary>
+    private double GiveUpCountStartAlongTrack(PhaseContext ctx) =>
+        (_lastExtendedLeadAlongTrack is { } mark)
+        && string.Equals(_lastExtendedLeadCallsign, ctx.Aircraft.Approach.FollowingCallsign, StringComparison.Ordinal)
+            ? Math.Max(_baseTurnAlongTrack, mark)
+            : _baseTurnAlongTrack;
+
+    /// <summary>
+    /// While the follow target flies an extended (<c>EXT</c>) downwind, records where this aircraft is: once that lead is
+    /// turned or released, the follow give-up counts from the last such point (<see cref="TryGiveUpFollowAtExtensionLimit"/>).
+    /// </summary>
+    private void MarkExtendedLead(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        if (AirborneFollowHelper.IsFollowingExtendedDownwindLead(ctx))
+        {
+            _lastExtendedLeadAlongTrack = aircraftAlongTrack;
+            _lastExtendedLeadCallsign = ctx.Aircraft.Approach.FollowingCallsign;
+        }
+    }
+
+    /// <summary>
+    /// A fresh copy of this downwind for the aircraft to resume after a 360: same waypoints and extension, and this lap's
+    /// latches (<see cref="MidfieldReportIssued"/>, the follow-extension advisory, the follow give-up's restart mark).
+    /// </summary>
+    internal DownwindPhase CloneForResume()
+    {
+        var resume = new DownwindPhase
+        {
+            Waypoints = Waypoints,
+            IsExtended = IsExtended,
+            MidfieldReportIssued = MidfieldReportIssued,
+            _followExtensionWarningIssued = _followExtensionWarningIssued,
+        };
+        resume.CarryExtendedLeadMark(this);
+        return resume;
+    }
+
+    /// <summary>Takes <paramref name="replaced"/>'s follow give-up restart mark, for a downwind that re-creates this lap's.</summary>
+    internal void CarryExtendedLeadMark(DownwindPhase replaced)
+    {
+        _lastExtendedLeadAlongTrack = replaced._lastExtendedLeadAlongTrack;
+        _lastExtendedLeadCallsign = replaced._lastExtendedLeadCallsign;
     }
 
     private void AdviseFollowExtensionOnce(PhaseContext ctx, double aircraftAlongTrack)
@@ -896,6 +970,8 @@ public sealed class DownwindPhase : Phase
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
             FollowExtensionWarningIssued = _followExtensionWarningIssued,
+            LastExtendedLeadAlongTrackNm = _lastExtendedLeadAlongTrack,
+            LastExtendedLeadCallsign = _lastExtendedLeadCallsign,
         };
 
     public static DownwindPhase FromSnapshot(DownwindPhaseDto dto)
@@ -936,6 +1012,8 @@ public sealed class DownwindPhase : Phase
         phase._midfieldBroadcastIssued = dto.MidfieldBroadcastIssued;
         phase.MidfieldReportIssued = dto.MidfieldReportIssued ?? false;
         phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
+        phase._lastExtendedLeadAlongTrack = dto.LastExtendedLeadAlongTrackNm;
+        phase._lastExtendedLeadCallsign = dto.LastExtendedLeadCallsign;
         return phase;
     }
 

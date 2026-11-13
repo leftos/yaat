@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Soak;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -346,8 +349,8 @@ public class FollowAuditTests(ITestOutputHelper output)
             // Replay only while N428KK is still on the PatternEntry feeder. At ~t=1710 it
             // joins the downwind 0.69 nm AHEAD of N172SP, so from then on it is ahead in
             // sequence by position on the shared leg and the same-leg spacing takes over
-            // (too close at minimum speed: the follow ends) — no longer the pattern-flow-
-            // behind case this test covers. Under the bug the target speed is pulled toward
+            // (too close at minimum speed: the follower extends the downwind) — no longer the
+            // pattern-flow-behind case this test covers. Under the bug the target speed is pulled toward
             // Vref (62 KIAS) as soon as the follow is set; with the fix it stays at the
             // Downwind baseline (~77.5 KIAS for piston).
             engine.ReplayRange(startTime, 1705, recording.Actions);
@@ -373,12 +376,13 @@ public class FollowAuditTests(ITestOutputHelper output)
 
     /// <summary>
     /// The Bug 4 recording past t=1710, when N428KK joins the downwind 0.69 nm AHEAD of N172SP: on the shared leg it is ahead
-    /// by position, so the same-leg spacing runs, finds it too close at minimum speed and ends the follow with "unable to
-    /// maintain separation". Pins today's behaviour; the plan's backlog line "A follower that finds its lead too close on a
-    /// shared pattern leg…" tracks changing it.
+    /// by position and too close at N172SP's minimum speed. N172SP keeps the follow at its speed floor and extends the
+    /// downwind for spacing instead of cancelling it, lets N428KK turn base first, and turns base itself with the pattern
+    /// spacing projected at its rollout, within the base-spacing keep margin (<see cref="BaseFollowSpacing.KeepMarginNm"/>). It
+    /// lands second, at least the pattern spacing less that margin from the threshold as N428KK crosses it.
     /// </summary>
     [Fact]
-    public void Bug4_FollowEnds_OnceLeadJoinsDownwindAheadTooClose()
+    public void Bug4_FollowKept_LeadJoinsDownwindAheadTooClose_ExtendsAndTurnsBaseBehind()
     {
         RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
@@ -403,14 +407,100 @@ public class FollowAuditTests(ITestOutputHelper output)
                 return;
             }
             engine.RestoreFromSnapshot(snapshot.State);
+
+            // A Warning tap scoped to this test's flow: the minimum-speed cancel logs "cancelled follow" at Warning.
+            using var tap = new CapturingSimLogProvider(LogLevel.Warning, 1_000);
+            using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+            SimLog.InitializeForTest(factory);
+
             engine.ReplayRange((int)snapshot.ElapsedSeconds, 1750, recording.Actions);
 
             AircraftState? follower = engine.FindAircraft("N172SP");
             Assert.NotNull(follower);
-            Assert.Null(follower.Approach.FollowingCallsign);
-            // The "unable to maintain separation" cancel holds the present leg (CancelFollowHoldingLeg extends the downwind);
-            // a follow ended by the lead landing would not. The RPO transmission itself is not left in PendingWarnings here.
-            Assert.True(Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase).IsExtended);
+            Assert.Equal("N428KK", follower.Approach.FollowingCallsign);
+            Assert.DoesNotContain(tap.Drain(), r => r.Message.Contains("cancelled follow", StringComparison.Ordinal));
+
+            int? leadBaseAt = null;
+            int? followerBaseAt = null;
+            int? leadLandedAt = null;
+            int? followerLandedAt = null;
+            int? leadThresholdAt = null;
+            double gapAtFollowerBaseNm = double.NaN;
+            double gapAtThresholdNm = double.NaN;
+            double requiredNm = double.NaN;
+            for (int t = 1750; (t < 2400) && (followerLandedAt is null); t++)
+            {
+                engine.ReplayRange(t, t + 1, recording.Actions);
+                AircraftState? lead = engine.FindAircraft("N428KK");
+                follower = engine.FindAircraft("N172SP");
+                Assert.NotNull(lead);
+                Assert.NotNull(follower);
+                RunwayInfo? runway = follower.Phases?.AssignedRunway;
+                Assert.NotNull(runway);
+                requiredNm = AirborneFollowHelper.PatternSpacingNm(lead);
+                if ((leadBaseAt is null) && (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase or LandingPhase))
+                {
+                    leadBaseAt = t + 1;
+                }
+                if ((leadLandedAt is null) && lead.IsOnGround)
+                {
+                    leadLandedAt = t + 1;
+                }
+                if ((followerBaseAt is null) && (follower.Phases?.CurrentPhase is BasePhase))
+                {
+                    followerBaseAt = t + 1;
+                    gapAtFollowerBaseNm = BaseFollowSpacing.ProjectedBaseGapNm(ContextFor(follower, runway, engine), lead, runway);
+                }
+                if ((leadThresholdAt is null) && (leadBaseAt is not null) && IsPastThreshold(lead, runway))
+                {
+                    // The in-trail landing spacing: how far N172SP is from the threshold as N428KK crosses it.
+                    leadThresholdAt = t + 1;
+                    gapAtThresholdNm = GeoMath.DistanceNm(follower.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+                }
+                if ((followerBaseAt is not null) && follower.IsOnGround)
+                {
+                    followerLandedAt = t + 1;
+                }
+            }
+
+            output.WriteLine(
+                $"N428KK base t={leadBaseAt}, threshold t={leadThresholdAt}, landed t={leadLandedAt}; N172SP base t={followerBaseAt} "
+                    + $"(projected gap {gapAtFollowerBaseNm:F2}), {gapAtThresholdNm:F2} nm out at N428KK's threshold crossing, "
+                    + $"landed t={followerLandedAt}; required {requiredNm:F2}"
+            );
+            Assert.NotNull(leadBaseAt);
+            Assert.NotNull(followerBaseAt);
+            Assert.True(leadBaseAt < followerBaseAt, $"N172SP turned base at t={followerBaseAt}, before N428KK (t={leadBaseAt})");
+            Assert.True(
+                gapAtFollowerBaseNm >= requiredNm - BaseFollowSpacing.KeepMarginNm,
+                $"N172SP turned base with a projected gap of {gapAtFollowerBaseNm:F2} nm; required {requiredNm:F2} nm less the keep margin"
+            );
+            Assert.NotNull(leadThresholdAt);
+            Assert.NotNull(leadLandedAt);
+            Assert.NotNull(followerLandedAt);
+            Assert.True(leadLandedAt < followerLandedAt, $"N172SP landed at t={followerLandedAt}, before N428KK (t={leadLandedAt})");
+            Assert.True(
+                gapAtThresholdNm >= requiredNm - BaseFollowSpacing.KeepMarginNm,
+                $"N172SP was {gapAtThresholdNm:F2} nm from the threshold as N428KK crossed it; required {requiredNm:F2} nm less the keep margin"
+            );
         }
     }
+
+    /// <summary>True once <paramref name="aircraft"/> is at or past <paramref name="runway"/>'s landing threshold, along its heading.</summary>
+    private static bool IsPastThreshold(AircraftState aircraft, RunwayInfo runway) =>
+        GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading) >= 0.0;
+
+    private static PhaseContext ContextFor(AircraftState aircraft, RunwayInfo runway, SimulationEngine engine) =>
+        new()
+        {
+            ActiveRunways = ActiveRunways.Empty,
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategorization.Categorize(aircraft.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            AircraftLookup = engine.FindAircraft,
+            Logger = NullLogger.Instance,
+        };
 }

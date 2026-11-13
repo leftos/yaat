@@ -319,7 +319,7 @@ produces aircraft that overshoot or turn early.
 - **Base-turn trigger / completion** (`DownwindPhase.OnTick`): completes when `aircraftAlongTrack ≥ _baseTurnAlongTrack − tol`.
 - **Midfield broadcast** (`DownwindPhase.OnTick`): at the midfield point, if no landing clearance, the pilot reminds the controller (solo voices it as delayed pilot speech; RPO mode raises a `PendingWarnings` entry).
 - **Armed midfield report** (`REPORT MIDFIELD`, `DownwindPhase.IsMidfieldReportDue` / `ReportMidfield`): fires at the same midfield trigger whatever the landing clearance, once per lap behind `MidfieldReportIssued`, and stands in for that leg's reminder. Wording by position (`MidfieldReportPosition`): within `MidfieldReportBandNm` of midfield, past midfield, or from abeam the threshold on "abeam the numbers".
-  A downwind started at or past the trigger reports in `OnStart`; a join (the previous phase is not a `CrosswindPhase`) that hands over within `MidfieldCrossingPhase.ArrivalNm` of it, with `REPORT DOWNWIND` also armed, gives this one call instead of "turning downwind". A same-runway rebuild or 360 copies the latch (`PatternCommandHandler.CarryMidfieldReportLatch`); a runway switch starts it clear. A crossover's exit leg (`ExitAtMidfield`) never reports, the parallel's downwind does.
+  A downwind started at or past the trigger reports in `OnStart`; a join (the previous phase is not a `CrosswindPhase`) that hands over within `MidfieldCrossingPhase.ArrivalNm` of it, with `REPORT DOWNWIND` also armed, gives this one call instead of "turning downwind". A same-runway rebuild or 360 copies the latch (`PatternCommandHandler.CarryLapLatches`, which also carries the follow give-up's restart mark); a runway switch starts it clear. A crossover's exit leg (`ExitAtMidfield`) never reports, the parallel's downwind does.
 
 **Short approach (SA).** `ApplyShortApproach` compresses `_baseTurnAlongTrack` to `_abeamAlongTrack + ShortApproachBaseExtensionNm`, clamped via `Math.Max(compressed, currentAlongTrack)` so the aircraft never reverses backward to an already-passed base-turn point.
 
@@ -835,6 +835,10 @@ bust (a light twin, SRS Cat II, has **no** reduced-distance provision behind a C
 ground and clear before the follower crosses the threshold) and an AIM §4-3-4.b.4 cut-in.
 Regression: `N342TFollowStraightInDownwindTests`.
 
+A VFR follower too close behind a lead on the **same downwind** at its speed floor keeps the follow too: `DownwindPhase` delays its base turn (`AirborneFollowHelper.ShouldHoldForSameDownwindSpacing`) until the projected base gap reaches pattern spacing, with no call for a plain extension. A faster follower that cannot slow to its lead (`IsStructuralOvertake`, closing) still breaks off with "unable to maintain separation from {lead}, breaking off the follow."
+
+**Give-up on a downwind hold** (`DownwindPhase.TryGiveUpFollowAtExtensionLimit`). A downwind follower held `VfrFollowPhase.BaseExtensionLimitNm = 2` past its own base point behind a lead on base, final or landing to the same runway, or behind a lead holding its own downwind past its base point without an `EXT` (`AirborneFollowHelper.IsExtensionLimitLead`), ends the follow (`EndFollowAtExtensionLimit`) and calls "unable to follow the traffic, extending downwind, request base turn" (RPO: "unable to follow {lead}, …"), then flies an extended downwind until `TB`. Behind an `EXT` lead the follow stays and the 4 nm `MaxFollowExtensionNm` "unable to turn" advisory applies unchanged; when that `EXT` lead is turned base, the 2 nm count restarts from where the follower was then (`_lastExtendedLeadAlongTrack`, marked each tick the lead flies an extended downwind, tied to that lead's callsign so a re-FOLLOW counts from the base point). A runwayless lead keeps the 4 nm regime. The mark survives a 360 (`DownwindPhase.CloneForResume`) and a same-runway same-side `MLT`/`MRT`/`ELD`/`ERD` rebuild (`PatternCommandHandler.CarryLapLatches`), unless the rebuilt downwind is itself extended. Tests: `FollowSameDownwindExtensionTests`, `FollowAuditTests`, `VfrPatternFollowSequencingTests`.
+
 **Structural-overtake break-off + go-around** (`ShouldBreakOffFollowForSpacing`): a follower whose own Vref plus the gust additive exceeds the lead's indicated airspeed by more than `StructuralOvertakeMarginKts = 10` (`IsStructuralOvertake`; IAS against IAS, since both fly the same final into the same wind) can never open the gap by slowing — speed control alone is futile (e.g. a C210 told to follow a 56-kt C152).
 
 When that follower, on `BasePhase` or `FinalApproachPhase`, closes inside `FollowBreakOffGapNm = 0.8` nm of the still-airborne lead while the pair is still converging (`IsClosing`, range-rate < 0), it breaks off the follow and goes around, clearing the follow state and triggering a go-around with an "unable to maintain separation" transmission.
@@ -992,7 +996,7 @@ normally) or the controller issues a turn. The shared `MaxFollowExtensionNm = 4.
 threshold, not a forced turn: past it the pilot transmits a **one-shot** "extending {upwind/crosswind/downwind}
 behind the traffic, unable to turn — request instructions" (`PilotResponder.BuildFollowExtendingUnableToTurn`,
 latched per phase and snapshot-serialized as `FollowExtensionWarningIssued`) and continues on the leg. This applies
-on `DownwindPhase` too — the old cap-forced base turn is replaced by the same continue-and-advise behavior. AIM
+on `DownwindPhase` too (behind an `EXT` or runwayless lead; other leads hit the 2 nm give-up first) — the old cap-forced base turn is replaced by the same continue-and-advise behavior. AIM
 4-3-2.c.2 (the upwind leg is an explicit separation/sequencing leg) and 5-5-12.a.1 / 4-3-5 (the follower
 maneuvers as necessary and advises ATC — it does not fly an *unrequested* turn on its own).
 
@@ -1423,9 +1427,11 @@ writes nothing to the aircraft. It is silent when nothing stands, and when the l
 - **`ProcedureTurnPhase` turns back early by `TurnRadiusReserveNm` (2 nm)** before `MaxOutboundDistanceNm` so the
   180° turn radius itself stays inside protected airspace (AIM 5-4-9.a.3), clamps IAS to 200 KIAS via
   `SpeedCeiling`, and gates hand-off on a 1 nm lateral-intercept tolerance (not heading alone).
-- **A growing gap never cancels a follow.** The only self-generated cancel is loss of visual contact (a cloud deck
-  between the pair); the lead landing or despawning also ends it. The bound on a slow ahead-lead is the spatial
-  `MaxFollowExtensionNm = 4.0` advisory cap — past it the pilot advises once and keeps flying the leg.
+- **A growing gap never cancels a follow.** The only self-generated cancels are loss of visual contact (a cloud deck
+  between the pair) and, for a downwind follower held behind a lead on base, final or landing (or holding its own downwind
+  without an `EXT`), the 2 nm give-up past its base point (see *At-min-speed*); the lead landing or despawning also ends
+  it. The bound on a slow ahead-lead on an `EXT` or runwayless leg is the spatial `MaxFollowExtensionNm = 4.0` advisory
+  cap — past it the pilot advises once and keeps flying the leg.
 - **`PatternWaypoints.FromSnapshot` infers `Direction` from the downwind-abeam cross-track sign** for snapshots
   predating the explicit `Direction` field (`PatternGeometry.cs:97`). Don't "simplify" it away or old recordings
   replay with the wrong pattern hand.

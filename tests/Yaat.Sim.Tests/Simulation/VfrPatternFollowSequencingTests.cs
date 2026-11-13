@@ -248,8 +248,13 @@ public class VfrPatternFollowSequencingTests
         );
     }
 
+    /// <summary>
+    /// A downwind follower still held past its base point by more than <see cref="VfrFollowPhase.BaseExtensionLimitNm"/>
+    /// behind a lead on final gives up the follow: "unable to follow the traffic, extending downwind, request base turn", the
+    /// downwind held extended, and a <c>TB</c> turns it base.
+    /// </summary>
     [Fact]
-    public void Follower_KeepsExtendingAndWarns_WhenExtensionCapReached()
+    public void Follower_GivesUpTheFollow_TwoMilesPastBaseBehindLeadOnFinal()
     {
         NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
@@ -281,13 +286,14 @@ public class VfrPatternFollowSequencingTests
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
         double baseTurnAlong = GeoMath.AlongTrackDistanceNm(baseTurn, threshold, wp.DownwindHeading);
 
-        // Follower B has already extended past the MaxFollowExtensionNm cap on the
+        // Follower B has already extended past the BaseExtensionLimitNm limit on the
         // downwind track; lead A is on final still only 0.5 nm ahead of B in the
         // sequence coordinate — so the follower still *wants* to keep holding. It does
-        // NOT turn base on its own: it keeps flying the downwind and advises once so the
-        // controller can re-sequence.
-        double bAlong = baseTurnAlong + AirborneFollowHelper.MaxFollowExtensionNm + 0.5;
-        LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, AirborneFollowHelper.MaxFollowExtensionNm + 0.5);
+        // NOT turn base on its own: it gives up the follow, keeps the downwind extended
+        // and asks for a base turn.
+        double pastBaseNm = VfrFollowPhase.BaseExtensionLimitNm + 0.5;
+        double bAlong = baseTurnAlong + pastBaseNm;
+        LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, pastBaseNm);
         AircraftState follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
         follower.Approach.HasReportedTrafficInSight = true;
         follower.Approach.FollowingCallsign = LeadCallsign;
@@ -299,6 +305,7 @@ public class VfrPatternFollowSequencingTests
             PatternRunway = rwy,
         };
         follower.Phases.Add(downwind);
+        follower.Phases.Add(new BasePhase { Waypoints = wp });
 
         LatLon leadPos = GeoMath.ProjectPoint(threshold, wp.DownwindHeading, bAlong - 0.5);
         AircraftState lead = MakeVfr(LeadCallsign, leadPos, wp.FinalHeading, altitude: rwy.ElevationFt + 300, ias: 70);
@@ -321,14 +328,111 @@ public class VfrPatternFollowSequencingTests
 
         bool completed = downwind.OnTick(ctx);
 
-        Assert.False(completed, "Follower must NOT turn base on its own at the extension cap — it keeps flying the downwind.");
+        Assert.False(completed, "Follower must NOT turn base on its own at the extension limit — it keeps flying the downwind.");
         // RPO-default warning is the pilot's compact terminal line (callsign in the SAY column).
         Assert.Contains(
             follower.PendingWarnings,
-            w =>
-                w.Contains("extending downwind", StringComparison.OrdinalIgnoreCase)
-                && w.Contains("unable to turn", StringComparison.OrdinalIgnoreCase)
+            w => w.Contains($"unable to follow {LeadCallsign}, extending downwind, request base turn", StringComparison.Ordinal)
         );
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.True(downwind.IsExtended);
+
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("TB", follower.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, $"Parse of 'TB' failed: {parsed.Reason}");
+        CommandResult tb = CommandDispatcher.DispatchCompound(parsed.Value!, follower, TestDispatch.Context(Random.Shared, findAircraft: lookup));
+        Assert.True(tb.Success, $"TB failed: {tb.Message}");
+        for (int t = 0; (t < 5) && (follower.Phases.CurrentPhase is DownwindPhase); t++)
+        {
+            PhaseRunner.Tick(follower, Ctx(follower, rwy, lookup));
+        }
+        Assert.IsType<BasePhase>(follower.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// A downwind follower held 2.5 nm past its base point behind a lead on a final with no runway assigned (a lead landing a
+    /// known other runway ends the follow on its own) does not give up the follow at
+    /// <see cref="VfrFollowPhase.BaseExtensionLimitNm"/>: the give-up is for a lead landing on the follower's own runway, so
+    /// it keeps holding and following.
+    /// </summary>
+    [Fact]
+    public void Follower_KeepsTheFollow_PastTheGiveUpLimitBehindRunwaylessLeadOnFinal()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? parallel = navDb?.GetRunway("KOAK", "28L");
+        if ((navDb is null) || (rwy is null) || (parallel is null))
+        {
+            return;
+        }
+
+        const PatternDirection Dir = PatternDirection.Left;
+        PatternWaypoints wp = PatternGeometry.Compute(
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, Dir)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = navDb.GetRunways("KOAK"),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
+        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
+        var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
+        double pastBaseNm = VfrFollowPhase.BaseExtensionLimitNm + 0.5;
+        double followerAlong = GeoMath.AlongTrackDistanceNm(baseTurn, threshold, wp.DownwindHeading) + pastBaseNm;
+
+        AircraftState follower = MakeVfr(
+            FollowerCallsign,
+            GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, pastBaseNm),
+            wp.DownwindHeading,
+            wp.PatternAltitude,
+            90
+        );
+        follower.Approach.HasReportedTrafficInSight = true;
+        follower.Approach.FollowingCallsign = LeadCallsign;
+        var downwind = new DownwindPhase { Waypoints = wp };
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = rwy,
+            TrafficDirection = Dir,
+            PatternRunway = rwy,
+        };
+        follower.Phases.Add(downwind);
+        follower.Phases.Add(new BasePhase { Waypoints = wp });
+
+        // A jet on the parallel's final 1.55 nm nearer the field than the follower, no runway assigned: inside the proximity
+        // hold's reach (0.6 x its 3 nm spacing) and outside the minimum-speed cancel's (0.5 x).
+        var parallelThreshold = new LatLon(parallel.ThresholdLatitude, parallel.ThresholdLongitude);
+        LatLon leadPos = GeoMath.ProjectPoint(parallelThreshold, wp.DownwindHeading, followerAlong - 1.55);
+        AircraftState lead = MakeVfr(LeadCallsign, leadPos, parallel.TrueHeading, parallel.ElevationFt + 1200, 140);
+        lead.AircraftType = "B738";
+        lead.Phases = new PhaseList();
+        lead.Phases.Add(new FinalApproachPhase());
+
+        AircraftState? lookup(string cs) =>
+            cs == LeadCallsign ? lead
+            : cs == FollowerCallsign ? follower
+            : null;
+
+        lead.Phases.Start(Ctx(lead, parallel, lookup));
+        PhaseContext ctx = Ctx(follower, rwy, lookup);
+        follower.Phases.Start(ctx);
+        double gapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
+        double spacingNm = AirborneFollowHelper.PatternSpacingNm(lead);
+        _output.WriteLine($"gap {gapNm:F2} nm, spacing {spacingNm:F1} nm");
+        Assert.InRange(gapNm, 0.5 * spacingNm, 0.6 * spacingNm);
+
+        for (int t = 0; t < 5; t++)
+        {
+            Assert.False(downwind.OnTick(ctx), $"tick {t}: the follower must still be held on the downwind");
+        }
+
+        _output.WriteLine($"extended={downwind.IsExtended}; warnings: {string.Join(" | ", follower.PendingWarnings)}");
+
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+        Assert.False(downwind.IsExtended);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("unable to follow", StringComparison.Ordinal));
     }
 
     private static AircraftState MakeVfr(string callsign, LatLon pos, TrueHeading heading, double altitude, double ias) =>

@@ -341,7 +341,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   A HOLD readback mid-crossing says "holding position on runway {X}" (`BuildHoldingPositionOnRunwayClause`) instead of the bare hold, when any part of the aircraft is past the near marking or the HOLD cannot stop it short of it, also in the taxi stretch just before the crossing phase starts.
 
-  `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind, request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final, or a downwind follower that passed an entrant lead's join point before it joined, ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation).
+  `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind, request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final, or a downwind follower that passed an entrant lead's join point before it joined, or one held 2 nm past its base point behind a lead on base, final, landing or holding its own downwind (RPO text "unable to follow {lead}, …"), ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation).
 
   `BuildTurningDownwindForSpacing` is the one call of a follower level with or ahead of its lead on base or final, or stalled alongside it, or breaking off its own base for spacing, as it turns out to the downwind heading: Terminal "turning downwind for spacing behind the traffic, request base turn.", Tts "{callsign}, turning downwind for spacing behind the traffic, request base turn.", RpoTerminal "turning downwind for spacing behind {lead}, request base turn."
 

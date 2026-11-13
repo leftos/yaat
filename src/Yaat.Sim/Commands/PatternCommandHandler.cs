@@ -909,7 +909,7 @@ internal static class PatternCommandHandler
             }
         }
 
-        CarryMidfieldReportLatch(previousActivePhase as DownwindPhase, circuitPhases, runway);
+        CarryLapLatches(previousActivePhase as DownwindPhase, circuitPhases, runway);
         if (request.WarnRunwayCrossing)
         {
             aircraft.Pattern.NoteRunwayCrossing(circuitPhases);
@@ -1401,7 +1401,7 @@ internal static class PatternCommandHandler
                 activeRunways: activeRunways
             );
 
-            CarryMidfieldReportLatch(aircraft.Phases.CurrentPhase as DownwindPhase, rebuiltChain, runway);
+            CarryLapLatches(aircraft.Phases.CurrentPhase as DownwindPhase, rebuiltChain, runway);
             aircraft.Pattern.NoteRunwayCrossing(rebuiltChain);
             ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
 
@@ -1518,25 +1518,32 @@ internal static class PatternCommandHandler
         chain.Any(p => p is MidfieldCrossingPhase { Status: PhaseStatus.Pending or PhaseStatus.Active }) ? MidfieldCrossingSuffix : "";
 
     /// <summary>
-    /// A chain that re-creates this lap's downwind keeps its <c>REPORT MIDFIELD</c> latch, so the lap is not reported twice:
-    /// the chain's first downwind takes the latch of <paramref name="replaced"/> when both are on
-    /// <paramref name="runway"/> and on the same side. Another runway, or the other side of the same runway, is a new
-    /// downwind: it starts clear and may report once with its own designator and side.
+    /// A chain that re-creates this lap's downwind keeps the lap's latches: the chain's first downwind takes those of
+    /// <paramref name="replaced"/> when both are on <paramref name="runway"/> and on the same side. Its <c>REPORT MIDFIELD</c>
+    /// latch, so the lap is not reported twice; and, unless the new downwind is extended (an <c>EXT DOWNWIND</c> on base, which
+    /// never counts a follow give-up), the follow give-up's restart mark. Another runway, or the other side of the same runway,
+    /// is a new downwind: it starts clear, may report once with its own designator and side, and counts from its base point.
     /// </summary>
-    private static void CarryMidfieldReportLatch(DownwindPhase? replaced, List<Phase> chain, RunwayInfo runway)
+    private static void CarryLapLatches(DownwindPhase? replaced, List<Phase> chain, RunwayInfo runway)
     {
         if (
-            (replaced is { MidfieldReportIssued: true, Waypoints: { } replacedWaypoints })
-            && (chain.OfType<DownwindPhase>().FirstOrDefault() is { Waypoints: { } newWaypoints } newDownwind)
-            && (replacedWaypoints.Direction == newWaypoints.Direction)
-            && string.Equals(
+            (replaced is not { Waypoints: { } replacedWaypoints })
+            || (chain.OfType<DownwindPhase>().FirstOrDefault() is not { Waypoints: { } newWaypoints } newDownwind)
+            || (replacedWaypoints.Direction != newWaypoints.Direction)
+            || !string.Equals(
                 ResolveFlownRunway(replacedWaypoints, NavigationDatabase.Instance.GetRunways(runway.AirportId))?.Designator,
                 runway.Designator,
                 StringComparison.OrdinalIgnoreCase
             )
         )
         {
-            newDownwind.MidfieldReportIssued = true;
+            return;
+        }
+
+        newDownwind.MidfieldReportIssued |= replaced.MidfieldReportIssued;
+        if (!newDownwind.IsExtended)
+        {
+            newDownwind.CarryExtendedLeadMark(replaced);
         }
     }
 
@@ -2478,7 +2485,7 @@ internal static class PatternCommandHandler
         if (leg == PatternEntryLeg.Downwind)
         {
             DownwindPhase? flownDownwind = aircraft.Phases.Phases.Take(aircraft.Phases.CurrentIndex).OfType<DownwindPhase>().LastOrDefault();
-            CarryMidfieldReportLatch(flownDownwind, circuitPhases, runway);
+            CarryLapLatches(flownDownwind, circuitPhases, runway);
         }
 
         ApplyRebuiltPatternChain(aircraft, runway, direction, circuitPhases);
@@ -3526,12 +3533,7 @@ internal static class PatternCommandHandler
     {
         return phase switch
         {
-            DownwindPhase dw => new DownwindPhase
-            {
-                Waypoints = dw.Waypoints,
-                IsExtended = dw.IsExtended,
-                MidfieldReportIssued = dw.MidfieldReportIssued,
-            },
+            DownwindPhase dw => dw.CloneForResume(),
             BasePhase bp => new BasePhase { Waypoints = bp.Waypoints, FinalDistanceNm = bp.FinalDistanceNm },
             CrosswindPhase cw => new CrosswindPhase { Waypoints = cw.Waypoints },
             UpwindPhase up => new UpwindPhase { Waypoints = up.Waypoints },
