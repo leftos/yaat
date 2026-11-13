@@ -3577,6 +3577,24 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot advisory when a follower already extending the traffic's pre-base leg along the downwind starts a spacing
+    /// excursion: it names the maneuver it flies, the extended downwind, rather than an S-turn (AIM 4-3-5 — pilots
+    /// maneuvering for spacing advise the controller). Spoken and solo terminal forms say "the traffic"; the RPO terminal
+    /// names the lead as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildExtendingDownwindForSpacing(AircraftState aircraft, string targetCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "extending downwind for spacing behind the traffic.",
+            $"{spoken}, extending downwind for spacing behind the traffic."
+        )
+        {
+            RpoTerminal = $"extending downwind for spacing behind {targetCallsign}.",
+        };
+    }
+
+    /// <summary>
     /// Pilot advisory when a follower finds itself level with or ahead of the traffic it is following on base or final (or
     /// stuck alongside it, unable to fall behind): it turns out to the downwind heading to let the traffic pass and asks for a
     /// base turn behind it (AIM 4-3-5 — pilots maneuvering for spacing advise the controller; AIM 4-3-4 — no cutting in on

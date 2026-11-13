@@ -296,7 +296,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   silently read back as "maintain route altitudes"; and `RenderPattern` joins tokens with spaces,
   so a pattern cannot carry the comma before an altitude clause. `MTRA` and `XMTR` have no choice
   either way: neither carries its designator, which lives in aircraft state.
-- **Follow / sequencing** (all `RpoTerminal`) — `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the traffic", AIM §4-3-5).
+- **Follow / sequencing** (all `RpoTerminal`) — `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the traffic", AIM §4-3-5), `BuildExtendingDownwindForSpacing` (the same excursion call, sharing its cooldown, when the follower is extending the lead's pre-base leg along the downwind: "extending downwind for spacing behind the traffic"; the RPO terminal names the lead).
 
   `BuildUnableNoRouteToFollow` is a taxi follower's (`FOLLOWG`) one call when its plan at runtime finds no taxi route onto its traffic's path and it holds: Terminal "Unable to follow traffic, no taxi route to its path, request taxi instructions", Tts "{callsign}, unable, no route to follow traffic, request taxi.", RpoTerminal "Unable to follow {lead}, no taxi route to its path, request taxi instructions". Said once per follow, routed by tuned position (`RouteByTunedPosition`).
 

@@ -27,8 +27,9 @@ public sealed partial class VfrFollowPhase
         {
             // Helper has already added a one-shot "unable to maintain separation"
             // warning and cleared Approach.FollowingCallsign. End the phase so the
-            // helper isn't re-entered every tick (which would re-spam the warning).
-            ReturnToPattern(ctx, PatternReturn);
+            // helper isn't re-entered every tick (which would re-spam the warning). Spacing lost behind the lead never takes
+            // the return's base or final join, which would put the follower back in front of or onto it.
+            ReturnToPattern(ctx, PatternReturn, forwardJoins: false);
             return true;
         }
 
@@ -44,7 +45,7 @@ public sealed partial class VfrFollowPhase
             return false;
         }
 
-        AnnounceNewExcursion(ctx, wasWidening);
+        AnnounceNewExcursion(ctx, spacing, wasWidening);
         ctx.Targets.TargetSpeed = PursuitSpeed(ctx.Aircraft, lead, spacing, minSpeed, adjusted.Value);
         return false;
     }
@@ -121,9 +122,11 @@ public sealed partial class VfrFollowPhase
 
     /// <summary>
     /// Tell the controller when a spacing excursion starts (AIM 4-3-5: a pilot maneuvering for spacing says so), no more than
-    /// once every <see cref="STurnCallIntervalSeconds"/>.
+    /// once every <see cref="STurnCallIntervalSeconds"/>: "extending downwind for spacing" while the follower is extending
+    /// the lead's pre-base leg along the downwind (<see cref="IsExtendingDownwind"/>), else "S-turning for spacing". Both
+    /// calls share the one cooldown.
     /// </summary>
-    private void AnnounceNewExcursion(PhaseContext ctx, bool wasWidening)
+    private void AnnounceNewExcursion(PhaseContext ctx, FreePursuitSpacing spacing, bool wasWidening)
     {
         _sTurnCallCooldownSeconds = Math.Max(0.0, _sTurnCallCooldownSeconds - ctx.DeltaSeconds);
         if (wasWidening || !_widen.Active || (_sTurnCallCooldownSeconds > 0))
@@ -132,12 +135,21 @@ public sealed partial class VfrFollowPhase
         }
 
         _sTurnCallCooldownSeconds = STurnCallIntervalSeconds;
-        Pilot.PilotResponder.RouteByTunedPosition(
-            ctx.Aircraft,
-            Pilot.PilotReportRouting.From(ctx),
-            Pilot.PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, TargetCallsign)
-        );
+        Pilot.PilotSpeechText call = IsExtendingDownwind(spacing)
+            ? Pilot.PilotResponder.BuildExtendingDownwindForSpacing(ctx.Aircraft, TargetCallsign)
+            : Pilot.PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, TargetCallsign);
+        Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), call);
     }
+
+    /// <summary>
+    /// True when the follower is extending the lead's pre-base leg (<see cref="FreePursuitSpacing.ExtendedLeg"/>) and that
+    /// leg tracks within <see cref="ExtendingDownwindMaxOffDeg"/> of the excursion circuit's downwind heading: the leg it
+    /// extends is a downwind.
+    /// </summary>
+    internal static bool IsExtendingDownwind(FreePursuitSpacing spacing) =>
+        (spacing.ExtendedLeg is { } leg)
+        && (spacing.Circuit is { } circuit)
+        && (leg.Track.AbsAngleTo(circuit.Runway.TrueHeading.ToReciprocal()) <= ExtendingDownwindMaxOffDeg);
 
     /// <summary>
     /// What the pursuit steers to (<see cref="FreePursuitSpacing"/>): the desired gap (<see cref="DesiredSpacingNm"/>), the

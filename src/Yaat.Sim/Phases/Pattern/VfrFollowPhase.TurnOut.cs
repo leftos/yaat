@@ -179,14 +179,15 @@ public sealed partial class VfrFollowPhase
     /// <summary>
     /// One tick of the turn-out. A lead now landing another runway ends the follow with the instructor told
     /// (<see cref="AirborneFollowHelper.TryEndFollowLeadChangedRunway"/>). A lead that otherwise lands, goes around or leaves the
-    /// final ends it too: the follower is already on a pattern-side downwind, so it re-enters the circuit as a downwind with its
-    /// clearance, and says nothing. A lead lost from sight ends it the same way, with the loss handled as any follow's.
+    /// final ends it too: the follower re-enters the circuit by the leg <see cref="ReturnEntryLeg"/> picks from where it is (on
+    /// the turned-out downwind heading, the downwind) with its clearance, and says nothing. A lead lost from sight ends it the
+    /// same way, with the loss handled as any follow's.
     /// </summary>
     private bool TickTurnOut(PhaseContext ctx, AircraftState? lead, FollowTurnOut turnOut)
     {
         if (AirborneFollowHelper.TryEndFollowLeadChangedRunway(ctx.Aircraft, lead))
         {
-            ReturnToPattern(ctx, turnOut.Circuit);
+            ReturnToPattern(ctx, turnOut.Circuit, forwardJoins: true);
             return true;
         }
 
@@ -199,13 +200,13 @@ public sealed partial class VfrFollowPhase
                 turnOut.Circuit.Runway.Designator
             );
             AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
-            ReturnToPattern(ctx, turnOut.Circuit);
+            ReturnToPattern(ctx, turnOut.Circuit, forwardJoins: true);
             return true;
         }
 
         if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
         {
-            ReturnToPattern(ctx, turnOut.Circuit);
+            ReturnToPattern(ctx, turnOut.Circuit, forwardJoins: true);
             return true;
         }
 
@@ -213,7 +214,7 @@ public sealed partial class VfrFollowPhase
         if (lead is null)
         {
             AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
-            ReturnToPattern(ctx, turnOut.Circuit);
+            ReturnToPattern(ctx, turnOut.Circuit, forwardJoins: true);
             return true;
         }
 
@@ -274,16 +275,34 @@ public sealed partial class VfrFollowPhase
     }
 
     /// <summary>
-    /// Ends the turn-out with a base turn in the pattern direction from where the follower is: the base, final and landing on
-    /// the circuit's runway, the base's final-turn distance the follower's present distance out, still following, with its
-    /// clearance carried. The circuit is flown at a satisfied deferred pattern altitude (<see cref="ClaimSatisfiedDeferral"/>),
-    /// else an altitude the controller assigned, else the pattern altitude the turn-out captured.
+    /// Ends the turn-out with a base turn in the pattern direction from where the follower is (<see cref="BuildBaseFromHere"/>),
+    /// still following, with its clearance carried.
     /// </summary>
     private void TurnBaseBehindLead(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
     {
         FollowPatternReturn circuit = turnOut.Circuit;
+        List<Phase> legs = BuildBaseFromHere(ctx, circuit, frame.AlongNm);
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",
+            ctx.Aircraft.Callsign,
+            TargetCallsign,
+            circuit.Runway.Designator,
+            frame.AlongNm
+        );
+        InstallJoinedCircuit(ctx, circuit.Runway, circuit.Direction, legs, keepFollowing: true);
+    }
+
+    /// <summary>
+    /// A base turned in <paramref name="circuit"/>'s direction from where the follower is: the base, final and landing on the
+    /// circuit's runway, the base's final-turn distance <paramref name="finalDistanceNm"/> (the follower's present distance
+    /// out). The circuit is flown at a satisfied deferred pattern altitude (<see cref="ClaimSatisfiedDeferral"/>), else an
+    /// altitude the controller assigned, else <paramref name="circuit"/>'s pattern altitude. The turn-out's exit and the
+    /// pattern return's base join both build it.
+    /// </summary>
+    private static List<Phase> BuildBaseFromHere(PhaseContext ctx, FollowPatternReturn circuit, double finalDistanceNm)
+    {
         double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, circuit.Runway) ?? ctx.Targets.AssignedAltitude ?? circuit.PatternAltitudeFt;
-        List<Phase> legs = PatternBuilder.BuildCircuit(
+        return PatternBuilder.BuildCircuit(
             new PatternCircuitRequest
             {
                 Runway = circuit.Runway,
@@ -293,7 +312,7 @@ public sealed partial class VfrFollowPhase
                 Direction = circuit.Direction,
                 EntryLeg = PatternEntryLeg.Base,
                 TouchAndGo = false,
-                FinalDistanceNm = frame.AlongNm,
+                FinalDistanceNm = finalDistanceNm,
                 PatternSizeNm = null,
                 AltitudeOverrideFt = patternAltitudeFt,
                 AirportRunways = NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
@@ -302,14 +321,6 @@ public sealed partial class VfrFollowPhase
                 Commanded = PatternCommanded.Of(ctx.Aircraft),
             }
         );
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            circuit.Runway.Designator,
-            frame.AlongNm
-        );
-        InstallJoinedCircuit(ctx, circuit.Runway, circuit.Direction, legs, keepFollowing: true);
     }
 
     /// <summary>

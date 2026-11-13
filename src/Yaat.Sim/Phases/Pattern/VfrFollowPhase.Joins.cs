@@ -536,25 +536,40 @@ public sealed partial class VfrFollowPhase
 
     /// <summary>
     /// Replace the follower's phase list with a straight-in final + landing chain for
-    /// <paramref name="runway"/>, copying the follower's own category and inferring
-    /// pattern direction from which side of the centerline it is on. No landing
-    /// clearance is set — the follower descends behind the lead and awaits CLAND
+    /// <paramref name="runway"/> (<see cref="BuildFinalJoinLegs"/>), copying the follower's own category and inferring
+    /// pattern direction from which side of the centerline it is on, still following the lead. The standing clearance is
+    /// carried (<see cref="InstallJoinedCircuit"/>); with none, the follower descends behind the lead and awaits CLAND
     /// (going around at minimums if never cleared, per FinalApproachPhase).
-    ///
-    /// The chain is led by a <see cref="PatternEntryPhase"/> that flies the follower
-    /// onto the extended centerline before the final-approach phase. This both routes
-    /// an offset follower onto the centerline at a sane intercept and defers the
-    /// runway-dependent <see cref="FinalApproachPhase"/> to a later tick — its OnStart
-    /// needs <c>ctx.Runway</c>, which is only populated from the new AssignedRunway on
-    /// the tick after the swap. (Starting FinalApproachPhase directly here would run its
-    /// OnStart with the stale follow-phase context, whose Runway is the pursuit's own runway, not necessarily this one.)
     /// </summary>
     private void SequenceOntoFinal(PhaseContext ctx, RunwayInfo runway)
+    {
+        double crossTrack = SignedCrossTrackNm(ctx.Aircraft.Position, runway);
+        PatternDirection direction = crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
+        List<Phase> legs = BuildFinalJoinLegs(ctx, runway, direction);
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: sequenced onto {Rwy} final behind {Lead} ({Dir}) — awaiting landing clearance",
+            ctx.Aircraft.Callsign,
+            runway.Designator,
+            TargetCallsign,
+            direction
+        );
+
+        InstallJoinedCircuit(ctx, runway, direction, legs, keepFollowing: true);
+    }
+
+    /// <summary>
+    /// A final join's legs to <paramref name="runway"/> in <paramref name="direction"/> traffic: the final and landing chain,
+    /// led by a <see cref="PatternEntryPhase"/> that flies the follower onto the extended centerline before the
+    /// final-approach phase. This both routes an offset follower onto the centerline at a sane intercept and defers the
+    /// runway-dependent <see cref="FinalApproachPhase"/> to a later tick — its OnStart needs <c>ctx.Runway</c>, which is only
+    /// populated from the new AssignedRunway on the tick after the swap. (Starting FinalApproachPhase directly here would run
+    /// its OnStart with the stale follow-phase context, whose Runway is the pursuit's own runway, not necessarily this one.)
+    /// </summary>
+    private static List<Phase> BuildFinalJoinLegs(PhaseContext ctx, RunwayInfo runway, PatternDirection direction)
     {
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         TrueHeading finalCourse = runway.TrueHeading;
         double crossTrack = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, finalCourse);
-        PatternDirection direction = crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
 
         // Entry point on the extended centerline, led ahead of the follower's
         // perpendicular foot by its cross-track so the join is a ~45° intercept rather
@@ -593,16 +608,7 @@ public sealed partial class VfrFollowPhase
             PatternAltitude = entryAltitude,
             Kind = PatternEntryKind.Final,
         };
-
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: sequenced onto {Rwy} final behind {Lead} ({Dir}) — awaiting landing clearance",
-            ctx.Aircraft.Callsign,
-            runway.Designator,
-            TargetCallsign,
-            direction
-        );
-
-        InstallJoinedCircuit(ctx, runway, direction, [entryPhase, .. circuit], keepFollowing: true);
+        return [entryPhase, .. circuit];
     }
 
     /// <summary>

@@ -33,6 +33,8 @@
 - Facility engineers, training administrators and air traffic managers at your home facility can now run sessions, as mentors and instructors can.
 - `TAXI` and `RTAXI` autocomplete offers `RWY`, `@` and `$` right after the command, so the no-route `TAXI RWY 28R` form is suggested.
 - A FOLLOW behind a straight-in lead turns out on its own side at a towered field, never toward a parallel runway or across the final.
+- A follower whose FOLLOW ends off the pattern rejoins the circuit ahead, by the final, base or downwind, instead of turning back toward the field.
+- A follower already extending the traffic's downwind for spacing now says "extending downwind for spacing" instead of reporting S-turns.
 
 ### Fixed
 

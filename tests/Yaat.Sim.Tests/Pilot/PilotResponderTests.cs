@@ -2990,6 +2990,18 @@ public class PilotResponderTests
         Assert.DoesNotContain("seven eight four", result.Tts);
     }
 
+    [Fact]
+    public void BuildExtendingDownwindForSpacing_RpoTerminalNamesTarget_TtsDoesNot()
+    {
+        AircraftState ac = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildExtendingDownwindForSpacing(ac, "N784ME");
+
+        Assert.Equal("extending downwind for spacing behind the traffic.", result.Terminal);
+        Assert.Equal("extending downwind for spacing behind N784ME.", result.TerminalForRpo);
+        Assert.Contains("extending downwind for spacing behind the traffic", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
+    }
+
     // --- RouteRpoTransmission branches ---
 
     private static readonly PilotSpeechText RouteRpoSpeech = new("written", "speech");
