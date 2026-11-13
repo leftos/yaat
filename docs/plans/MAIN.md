@@ -63,6 +63,13 @@
 - [ ] YAAT-3 Scroll back through captured SWIM live traffic (DVR-style replay)
 - [ ] YAAT-23 Track the local user's accepted commands per scenario and airport
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
+  - [ ] YAAT-2220 YAAT Scope step 1: open the new scope view on the template engine (STARS, ERAM, Mixed, EuroScope templates) · release vNext
+  - [ ] YAAT-2221 YAAT Scope step 2: ERAM altitude line, line-3 status slot, line-4 HSF, VCI and dwell · release vNext
+  - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
+  - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
+  - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
+  - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
+  - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
 - [ ] YAAT-25 Controller AI v1 (radio model first) · release vNext+1
   - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences · release vNext+1
   - [ ] YAAT-804 AI departure controller vectors or releases radar-vectors SID departures when no human works departure · release vNext+1
@@ -1515,3 +1522,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-131, YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2220, YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226
