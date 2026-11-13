@@ -2494,7 +2494,7 @@ A loaded solo recording comes up in solo mode, so its replay speaks every pilot 
 
 ### Export Room as Scenario
 
-**Scenario > Export Room as Scenario...** (mentors and instructors) saves the room as it is right now as a new ATCTrainer-format scenario file, so a live-traffic session or an interesting moment can be replayed later as its own scenario. It works in any room with a scenario loaded, live-traffic sessions included. Weather is not exported.
+**Scenario > Export Room as Scenario...** (mentors, training staff and instructors) saves the room as it is right now as a new ATCTrainer-format scenario file, so a live-traffic session or an interesting moment can be replayed later as its own scenario. It works in any room with a scenario loaded, live-traffic sessions included. Weather is not exported.
 
 Every aircraft becomes a starting condition:
 
@@ -2541,7 +2541,7 @@ On servers that carry a live-traffic (FAA SWIM) feed, the session-settings (⚙)
 
 - **Starting a live session** — you don't need a scenario. **Scenario > Start Live Session...**
 
-  (mentors and instructors, on a server with the feed) opens a picker: choose the facility and the position you'll work on the left, the room's **primary airport** below (it sets the Ground View, surface traffic, flight strips and the radar centre: a tower offers itself, a TRACON the airports it controls with its primary pre-selected, a center every airport in the ARTCC with its main TRACON's primary pre-selected; your last choice is remembered) and an optional altitude ceiling.
+  (mentors, training staff and instructors, on a server with the feed) opens a picker: choose the facility and the position you'll work on the left, the room's **primary airport** below (it sets the Ground View, surface traffic, flight strips and the radar centre: a tower offers itself, a TRACON the airports it controls with its primary pre-selected, a center every airport in the ARTCC with its main TRACON's primary pre-selected; your last choice is remembered) and an optional altitude ceiling.
 
   **Start** opens the room at that position with no authored traffic: the radar centres on the airport, the ground layout loads, live traffic is on, the clock runs, and the current live weather (METARs and winds) is fetched so the room matches what the real aircraft are flying in. Everything else — assuming aircraft, tracking, strips, recordings — works as in a scenario.
 - **Live, paused, playback** — a live session's badge at the right of the timeline reads `LIVE` while the room follows real time, `PAUSED` while paused (the shadows freeze while the real aircraft fly on without you), and `PLAYBACK` after you rewind (the room's own recording plays back; real traffic replays exactly as it was seen). A red `LIVE · feed lost` means the server has lost the feed.
@@ -2635,7 +2635,7 @@ Once granted, the room list shows an ARTCC picker next to **Create Room**: pick 
 
 The room list shows only the rooms of your own ARTCC and of any ARTCC you have been granted, plus any room you are already in; rooms of other facilities are not listed. Each room is labelled with its scenario's ARTCC, or its creator's while no scenario is loaded, and once you have joined, the room's title follows that label: it changes when a scenario, a recording or a live session is loaded into the room, by you or another member, and when the scenario is unloaded.
 
-Joining is still never restricted by ARTCC: a room you cannot see in the list can be joined by its id or an invite, and a mentor's pull works as before. As a visitor you can join another facility's room (mentors and instructors) or be pulled into one from the lobby (everyone else) exactly as at home, whether or not you hold a grant there — you just can't load that ARTCC's catalog scenarios yourself; the room's host does.
+Joining is still never restricted by ARTCC: a room you cannot see in the list can be joined by its id or an invite, and a mentor's pull works as before. As a visitor you can join another facility's room (mentors, training staff and instructors) or be pulled into one from the lobby (everyone else) exactly as at home, whether or not you hold a grant there — you just can't load that ARTCC's catalog scenarios yourself; the room's host does.
 
 ### Room Members
 
@@ -3274,8 +3274,7 @@ VATSIM login page, and after you authorize, YAAT receives your verified identity
 rating) and connects. There is nothing to type — the old manual CID field is gone. Your session is
 remembered, so subsequent connects don't reopen the browser unless it has expired.
 
-Deployed servers admit **mentors and instructors** with full control: you can create rooms and load
-scenarios if you hold a VATUSA mentor role or a facility training staff role (FE, TA, ATM or DATM) at your home facility, or if your VATSIM rating is Instructor (I1/I2/I3) or higher.
+Deployed servers admit **mentors, training staff and instructors** with full control: you can create rooms and load scenarios if you hold a VATUSA mentor role or a facility training staff role (FE, TA, ATM or DATM) at your home facility, or if your VATSIM rating is Instructor (I1/I2/I3) or higher.
 
 Any other signed-in VATSIM controller — a **non-mentor** — connects in limited mode: they wait on a
 "waiting for room assignment" screen until an instructor pulls them into a room from the **YAAT Lobby**

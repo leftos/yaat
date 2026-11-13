@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.18.4-beta [2026/11/13]
+
+### Highlights
+
+- Rewinds and seeks in long sessions are much faster, and everyone in the room sees who is rewinding and how far along it is.
+- vTDLS works like the real one: keyboard navigation, Facility Menu departure frequencies, clearable fields, and departures fly the altitude in their PDC.
+- Facility engineers, training administrators and air traffic managers can now run sessions, like mentors and instructors.
+- Airports without a ground map show their runways in the Ground View, and naming one mid-session no longer stalls the room.
 
 ### Added
 
@@ -16,29 +23,27 @@
 - A tow cleared mid-move by `TAXI`, `PUSHM` or another clearance now brakes to rest over about 5 s, still shown as Pushback, instead of stopping dead.
 - Closed traffic or a follow from one runway to a widely spaced parallel now flies upwind and crosswind past both runway ends instead of crossing midfield.
 - A departure flies the altitude in the PDC sent to it from vTDLS, climb via or maintain, instead of the facility default; a voice altitude still overrides it.
-- vTDLS climb via defaults written "EXCPT MTN", "EXP MTN" or "EXPT MAINTAIN", common at ZLA facilities, now level the departure at that altitude.
-
+- A vTDLS climb via written "EXCPT MTN", "EXP MTN" or "EXPT MAINTAIN", as some facilities write it, now levels the departure at that altitude.
 - Pushback and tug planning keep taxiway clearances from AC 150/5300-13B, so an SFO alley push now stays 126.5 ft from taxiway A.
 - A push or tow of a small aircraft past a small parked neighbour (both ADG I or II) now keeps 10 ft wingtip clearance, not 25 ft.
 - A tow to a `#node` is refused when it would leave the aircraft past a taxiway at that node, except the taxiway it starts on.
 - A taxiway drawn under two names, such as FLL A and A1, now holds short at the same bar on both, so neither reaches the runway around it.
-- Wide-bodies such as the A380, 777 and 747 now turn on the ground on a radius set by their wheelbase, so they round taxi corners wider and slower.
+- Long-wheelbase aircraft, from the A380, 777 and 747 to the 757, A321, MD-80 and Q400, now turn on the ground on a radius set by their wheelbase, rounding corners wider and slower.
 - Every vTDLS dropdown can be cleared back to `- - - -`, and Climb via and Maintain clear each other both ways, as in vTDLS.
 - Choosing a SID or transition in vTDLS fills all seven fields from it, emptying any it has no default for.
 - vTDLS picks the SID and transition from any filed route fix that starts a transition, not only a SID named first.
 - `ATXI` to a spot reads "Air taxi to spot D1", and its autocomplete offers runways, `@` stands and `$` spots instead of bare taxiways.
-- A climb via from the vTDLS default works its top out again when the departure runway changes before takeoff; a controller's `CVIA` keeps its top.
+- A climb via from vTDLS, default or sent PDC, works its top out again for the runway in its line-up or takeoff clearance; a controller's `CVIA` keeps its top.
 - A push route drawn to one point on an aircraft already under tow now re-plans the tow there (`PUSHM` to that point) instead of being refused.
 - A running FOLLOW ends with an RPO note when its lead is moved to another runway, unless the follower has no runway of its own.
-- On an approach, a slower aircraft keeps its own speed at a published maximum fix speed instead of speeding up to it.
-- A following aircraft on an approach no longer speeds up toward a published fix speed, so it keeps its spacing behind the lead.
+- On an approach, a slower aircraft or a follower keeps its own speed at a published maximum fix speed instead of speeding up to it, keeping its spacing.
 - A new `TAXI`, `TAXIAUTO`, `RTAXI`, `ATXI` or `CROSS` names any stored takeoff, line-up or landing clearance it drops: "(dropped: takeoff clearance for 28R)".
 - A tug now slows before each turn of a tow, so it no longer surges to 6-12 kt entering a tight turn; tows take up to 3 s longer.
 - Facility engineers, training administrators and air traffic managers at your home facility can now run sessions, as mentors and instructors can.
 - `TAXI` and `RTAXI` autocomplete offers `RWY`, `@` and `$` right after the command, so the no-route `TAXI RWY 28R` form is suggested.
 - A FOLLOW behind a straight-in lead turns out on its own side at a towered field, never toward a parallel runway or across the final.
 - A pattern follower too close behind its traffic on the downwind extends and turns base late instead of breaking off the follow.
-- A downwind follower held 2 NM past its base point behind traffic on base or final now says "unable to follow, extending downwind, request base turn".
+- A downwind follower held 2 NM past its base point behind traffic on base, final, or holding the downwind now says "unable to follow, extending downwind, request base turn".
 - A follower whose FOLLOW ends off the pattern rejoins the circuit ahead, by the final, base or downwind, instead of turning back toward the field.
 - A follower already extending the traffic's downwind for spacing now says "extending downwind for spacing" instead of reporting S-turns.
 
