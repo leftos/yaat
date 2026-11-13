@@ -5,12 +5,11 @@
 ## Non-blocking layout miss (feat/layout-miss-nonblocking)
 
 - [ ] YAAT-187 Make a runtime airport layout miss non-blocking on the tick thread · release vNext
-  - [ ] YAAT-2151 Record the second a runtime-fetched layout is admitted, and replay it exactly · release vNext
   - [ ] YAAT-2152 Refuse, skip, hold or proceed at every engine layout read while the layout loads · release vNext
   - [ ] YAAT-2153 Await a runtime layout off the tick for the hub layout read and scenario export · release vNext
   - [ ] YAAT-2154 Prove a deferred layout replays exactly through rewind, export and archive load · release vNext
-  - [ ] YAAT-2160 Admit an unparseable runtime map as no map; retry only an unreachable fetch · release vNext
   - [ ] YAAT-2161 Merge feat/layout-miss-nonblocking to main (#1375)
+  - [ ] YAAT-2166 Attach a deferred airport's layout to waiting aircraft at its admission · release vNext
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -437,9 +436,8 @@
 - [ ] YAAT-2065 Read back the turn-about note when a post-push taxi reverses after a short first leg
 - [ ] YAAT-2110 Measure a C208 taxi-out from OAK PCM1 past an occupied PCM2's tail
 
-### 2 Refinements and rulings (3/18 done)
+### 2 Refinements and rulings (4/19 done)
 - [ ] YAAT-38 Tug-move follow-ups: span-scaled tug clearance, tow speed, steering limit · release vNext
-- [ ] YAAT-176 Measure clear push-plan swing over SFO alleys; rule the overswing filter · release vNext
 - [ ] YAAT-691 Hold an AI push for traffic taxiing into the same alley
 - [ ] YAAT-692 Crew on a push-back stand answers a TAXI with 'unable, need a push first'
 - [ ] YAAT-693 Short pushback re-ask and a reasoned STAND BY from AI Ground
@@ -453,22 +451,22 @@
 - [ ] YAAT-2113 Catch a hold-short stub swallowed by a later push sample
 - [ ] YAAT-2114 Decide whether the push check's early wingtip refusal at a taxiway stub stays
 - [ ] YAAT-2115 Rule on refusing a push across another movement-area taxiway's centreline
+- [ ] YAAT-2165 Make a ViaLine tug move's end pose independent of the tow's speed
 
-### 3 Hygiene and tests (1/6 done)
+### 3 Hygiene and tests (2/8 done)
 - [ ] YAAT-39 Push-rethink leftovers: wingtip allowance comments, turning-tow yield test, perf · release vNext
-  - [ ] YAAT-2073 Re-judge a hold-short bar after the navigator's internal hand-over makes it the target · release vNext
-  - [ ] YAAT-2074 Rule and measure the tow turn-entry overspeed above the 5 kt tug pace · release vNext
+  - [ ] YAAT-2073 Find and judge a hold-short bar that becomes unmakeable unjudged (implicit runway bars on a moving re-TAXI first) · release vNext
 - [ ] YAAT-2111 Check push overshoot at a bend made of two fused fillet arcs
 - [ ] YAAT-2125 Give design-group envelope footprints their own ADG in the outline floor
+- [ ] YAAT-2164 Split GroundCommandHandler.TryPushbackMulti under the complexity limit
+- [ ] YAAT-2168 Make the tow's turn-entry brake identical across a mid-tow snapshot restore; cut its per-sub-tick path copy
 
 ### No milestone
 - [ ] YAAT-2015 Draw the past-spot line-up's lane, outbound and turn-about legs in the Ground View overlay
-- [ ] YAAT-2159 Accept a one-target PUSHM while under tow, so draw mode re-plans the tow · release vNext
 
 ## Taxi routing and airport layouts
 
-### 1 Defects (5/33 done)
-- [ ] YAAT-61 Stop a preserved junction vertex out-scoring the fillet arc through the corner · release vNext
+### 1 Defects (6/33 done)
 - [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
 - [ ] YAAT-1306 Get SFO's real hold-line positions; unskip the E75L-on-T exit test
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
@@ -497,7 +495,7 @@
 - [ ] YAAT-1623 TAXI F 28L from SFO's L/F hold short routes west and around via A, T, B, E instead of east onto F
 - [ ] YAAT-2142 Read a null airport sidecar section or entry as empty instead of aborting every sidecar load
 
-### 2 Refinements and rulings (2/12 done)
+### 2 Refinements and rulings (2/13 done)
 - [ ] YAAT-1307 Build precompute cache entries with the tower-cab videomap the server uses
 - [ ] YAAT-862 Search start bridges heading-aware so an admissible path to the same node is not missed
 - [ ] YAAT-900 Try the next offset-crossing join pair when the closest one cannot be driven
@@ -508,8 +506,9 @@
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
 - [ ] YAAT-1208 Report KOAK 28R's 225 ft authored hold-short distance upstream to vZOA (paint says 250 ft)
 - [ ] YAAT-2032 Skip parking stops outside the destination's reach in SelectBestParkingStop
+- [ ] YAAT-2162 Refuse a taxi route that reaches the cleared taxiways out of clearance order
 
-### 3 Hygiene and tests (2/11 done)
+### 3 Hygiene and tests (2/12 done)
 - [ ] YAAT-898 Pass SegmentExpander's walk state as a SegmentWalk record
 - [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
 - [ ] YAAT-873 Split GeoJsonParser.BuildLayout under the 100-line limit
@@ -519,6 +518,7 @@
 - [ ] YAAT-1396 Move the TAXI cut helpers out of GroundCommandHandler into Data/Airport and split ResolveTaxiRouteFrom
 - [ ] YAAT-2143 Test that a sidecar spot edge reaches the server-built ground layout
 - [ ] YAAT-2149 Rebuild SpotEdgeBuildTests on a committed airport layout instead of invented taxiways
+- [ ] YAAT-2167 Split SegmentExpander.RankBridges under the complexity limit; stop BridgePavementCost allocating per candidate
 
 ### No milestone
 - [ ] YAAT-1516 Point the remaining :link literal checks at GroundEdge.IsRunwayCrossingLinkName
@@ -668,8 +668,9 @@
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
 - [ ] YAAT-787 Cap the LoadRecording upload's total size and the recording archive's other decompressed entries
 
-### 3 Hygiene and tests (0/1 done)
+### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-678 Refuse a snapshot restore into an engine with no scenario
+- [ ] YAAT-2170 Split ActionRouter.ApplyRecorded so each recorded-action arm is a helper call
 
 ## Command parser and queue
 
@@ -901,8 +902,7 @@
 - [ ] YAAT-1844 Take the pattern fixes off the route when a CM or DM ends pattern entry
 - [ ] YAAT-2148 Space a downwind follower behind a straight-in entrant still on its entry
 
-### 2 Refinements and rulings (2/15 done)
-- [ ] YAAT-143 Rule and implement the per-tick cross-runway check for a running follow · release vNext
+### 2 Refinements and rulings (3/16 done)
 - [ ] YAAT-146 Rule FOLLOW B5b-5 leftovers: FAS ceiling, at-or-below fix speeds · release vNext
 - [ ] YAAT-157 Rule parallel-vs-crossing runway classification; normalise airport ids · release vNext
 - [ ] YAAT-170 Prove or add the occupied-runway go-around for pursuit followers · release vNext
@@ -915,6 +915,7 @@
 - [ ] YAAT-1807 Read back a pattern altitude on MLT/MRT; confirm a helicopter departs where cleared after MLT
 - [ ] YAAT-1823 Plan the teardrop re-entry step-downs without a 2x descent burst on its short legs
 - [ ] YAAT-2144 Hold a downwind follower back so a 45-degree entrant it follows joins ahead
+- [ ] YAAT-2163 Restore the follow spacing ceiling when a follow ends on an approach for any reason
 
 ### 3 Hygiene and tests (3/11 done)
 - [ ] YAAT-156 FOLLOW B6b-1 brief 2 leftovers: TakeoffPhase comment, crossing-climb reuse · release vNext
@@ -1468,6 +1469,7 @@
 - [ ] YAAT-2059 Split FlightPhysics.UpdateNavigation and SnapshotSchemaMigrator.Migrate under the hard limits
 - [ ] YAAT-2141 Document the gate's --env option for gated test runs (never an env prefix)
 - [ ] YAAT-2158 Declare brotli and ruff so the Python tool tests run on a fresh venv
+- [ ] YAAT-2169 Document the menu-golden regenerate as a routed gate run with --bring-tracked
 
 ## Backlog
 
@@ -1484,8 +1486,8 @@
 - [README.md](README.md) — YAAT-1013
 - [asdex-safety-logic-parity.md](asdex-safety-logic-parity.md) — ASDE-X alert parity (feat/asdex-safety-logic)
 - [canvases/tts-benchmark/RECIPE.md](canvases/tts-benchmark/RECIPE.md) — YAAT-1617
-- [context-menu-builder-refactor.md](context-menu-builder-refactor.md) — Context-menu quick commands (#471)
-- [context-menu-quick-commands.md](context-menu-quick-commands.md) — YAAT-329, Context-menu quick commands (#471)
+- [context-menu-builder-refactor.md](context-menu-builder-refactor.md) — YAAT-2169, Context-menu quick commands (#471)
+- [context-menu-quick-commands.md](context-menu-quick-commands.md) — YAAT-329, YAAT-2169, Context-menu quick commands (#471)
 - [controller-ai/02-positions-and-handoffs.md](controller-ai/02-positions-and-handoffs.md) — YAAT-804, YAAT-1539
 - [controller-ai/04-ground-brain.md](controller-ai/04-ground-brain.md) — YAAT-1182, YAAT-1246, Controller-AI coaching
 - [controller-ai/07-soak-runner.md](controller-ai/07-soak-runner.md) — YAAT-327
@@ -1495,7 +1497,7 @@
 - [controller-ai/coaching/sessions/001-2026-10-25-s1-oak-2-3-4.md](controller-ai/coaching/sessions/001-2026-10-25-s1-oak-2-3-4.md) — YAAT-1240, YAAT-1242, YAAT-1243, YAAT-1245, YAAT-1246
 - [first-use-tutorial.md](first-use-tutorial.md) — YAAT-1253
 - [ground-expedite.md](ground-expedite.md) — YAAT-660, YAAT-859, YAAT-866, YAAT-869
-- [layout-miss-nonblocking.md](layout-miss-nonblocking.md) — YAAT-2151, YAAT-2152, YAAT-2153, YAAT-2154, Non-blocking layout miss (feat/layout-miss-nonblocking)
+- [layout-miss-nonblocking.md](layout-miss-nonblocking.md) — YAAT-2152, YAAT-2153, YAAT-2154, Non-blocking layout miss (feat/layout-miss-nonblocking)
 - [phraseology-implementation.md](phraseology-implementation.md) — YAAT-1759
 - [pilot-phraseology-variants/pilot-calls.md](pilot-phraseology-variants/pilot-calls.md) — YAAT-1094
 - [pilot-phraseology-variants/readbacks.md](pilot-phraseology-variants/readbacks.md) — YAAT-1091, YAAT-1092, YAAT-1093, YAAT-1149
