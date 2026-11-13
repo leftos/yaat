@@ -389,10 +389,10 @@ Only then does it evict any other connection that joined meanwhile (`RoomRetired
 When the client's own `JoinRoom` right after a successful create throws, it calls the hub's `CloseRoom(roomId)`, which runs the same close (`RoomRetired` `The room's creator closed it.`) but only for the room's creator (`CreatorCid`), not while a scenario load holds the room, and not while another connection is a member. A `JoinRoom` that returns null found the room already gone, so there is nothing to close.
 
 **Join gate & kick block.** Two per-room CID sets govern who may `JoinRoom`, both consulted by the pure
-`TrainingHub.CanJoinRoomCore(isMentorOrInstructor, kind, kicked, invited, restored, alreadyMember, crcBound)`:
-the invited set (`TrainingRoom.Invite` / `IsInvited`) — CIDs a mentor pulled in as RPOs, the allow-list that lets a limited (non-mentor "main") client join;
+`TrainingHub.CanJoinRoomCore(isTrainingStaffOrInstructor, kind, kicked, invited, restored, alreadyMember, crcBound)`:
+the invited set (`TrainingRoom.Invite` / `IsInvited`) — CIDs a session runner pulled in as RPOs, the allow-list that lets a limited (not training staff or instructor "main") client join;
 and the kicked set (`TrainingRoom.RecordKick` / `IsKicked`) — CIDs kicked from this room, a block-list. The kicked set is checked **first** and returns `false`
-for **everyone**, including mentors/instructors (who otherwise bypass the gate) — so a kicked user can't self-rejoin
+for **everyone**, including training staff and instructors (who otherwise bypass the gate) — so a kicked user can't self-rejoin
 from the room list; `JoinRoom` throws a kicked-specific `HubException` ("You were kicked from this room. Wait for an instructor to pull you back in.").
 A kick is of the whole CID: `KickMember(cid)` (also what `KickCrcClient` calls for a CRC client that has a CID, and what a Room Members **Kick** on any row sends) records the ban (dropping any stale invite or restored-member entry), removes every training-hub connection of the CID from the room (each hears `KickedFromRoom`), unbinds every CRC client of the CID and ends every Tower Cab 3D connection of the CID in the room (`HandleSessionEnded` "Removed from the room"). It refuses the caller's own CID and the room's `CreatorCid`.
 
@@ -431,7 +431,7 @@ The desktop client builds the URL (`MainViewModel.BuildTrafficFeedUrl`) for Tool
 
 ## `TrainingHub` — the RPC surface (`Hubs/TrainingHub.cs`)
 
-Identity comes only from the session-token claims (`CallerCid`, `CallerRating`, `CallerArtcc`, `CallerIsMentorOrInstructor`).
+Identity comes only from the session-token claims (`CallerCid`, `CallerRating`, `CallerArtcc`, `CallerIsTrainingStaffOrInstructor`).
 `CreateRoom` validates the client's `artccId` against `CallerPermittedArtccs` (`ArtccAccessPolicy`: token home ARTCC plus
 operator grants from `Data/artcc-grants.json`) and stores it normalised as `CreatorArtccId` — the ARTCC `GetScenarios` lists
 and `StartLiveSession` resolves positions in — so a room's ARTCC is always one its creator may work. `GetScenarioJsonById`

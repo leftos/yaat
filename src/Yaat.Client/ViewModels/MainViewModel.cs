@@ -1646,7 +1646,7 @@ public partial class MainViewModel : ObservableObject
     /// Instructor): they can be pulled into a room but can't create rooms or load/unload scenarios.
     /// This is a rating-derived permission tier, NOT the RPO position — a mentor can work an RPO
     /// position with full powers. User-facing text must say "non-mentor", never "RPO".
-    /// Mirrors the server's own check (<c>TrainingHub.CallerIsMentorOrInstructor</c>); the server stays
+    /// Mirrors the server's own check (<c>TrainingHub.CallerIsTrainingStaffOrInstructor</c>); the server stays
     /// authoritative and rejects with a <c>HubException</c> regardless of what the client believes.
     /// </summary>
     [ObservableProperty]

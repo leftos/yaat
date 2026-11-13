@@ -10,7 +10,7 @@ The server is the identity authority; clients never hold the OAuth secret or the
 
 Replaces manual CID/initials/ARTCC entry and the old per-ARTCC bcrypt training keys with verified
 VATSIM identity. Goals: prove who the user is, gate scenario access by real controller rating, and keep
-sub-mentor ratings (OBS/S1 and non-instructor non-mentors) off deployed servers.
+sub-mentor ratings (OBS/S1 and non-instructor non-training-staff) off deployed servers.
 
 ## Architecture — server-mediated
 
@@ -23,7 +23,7 @@ present a YAAT token to `/hubs/training` — never a VATSIM token. Two other end
 client opens browser → GET <server>/auth/vatsim/start?return=http://127.0.0.1:<port>/cb
   server stores {state,return,PKCE} → 302 to auth.vatsim.net/oauth/authorize (redirect_uri = <server>/auth/vatsim/callback)
     user logs in → 302 back to <server>/auth/vatsim/callback?code&state
-      server exchanges code (PKCE) → /api/user → VATUSA isMentor → mints YAAT access+refresh
+      server exchanges code (PKCE) → /api/user → VATUSA roles → mints YAAT access+refresh
         → stores them behind a single-use exchange code → 302 to http://127.0.0.1:<port>/cb?code=<exchangeCode>
 client HttpListener captures the code → POST /auth/exchange → receives tokens+identity
   → stores them (DPAPI-encrypted) in auth-sessions.json → connects /hubs/training with Bearer
@@ -48,7 +48,8 @@ filled automatically and not prompted for.
 - Authorize `https://auth.vatsim.net/oauth/authorize`, token `…/oauth/token`, userinfo `…/api/user`.
 - Scopes: `full_name vatsim_details` (`vatsim_details` exposes rating + subdivision).
 - Userinfo → `data.cid`, `data.personal.name_full`, `data.vatsim.rating.short`, `data.vatsim.subdivision`.
-- VATUSA: `GET https://api.vatusa.net/v2/user/{cid}` → `data.isMentor` (MTR role) + `data.facility` (home
+- VATUSA: `GET https://api.vatusa.net/v2/user/{cid}` → `data.roles` (entries of `{facility, role}`; training staff
+  = MTR, FE, TA, ATM or DATM held at the controller's home facility) + `data.facility` (home
   ARTCC, used to auto-fill the controller's ARTCC). Queried at login and re-queried on every token refresh
   (best-effort: a null result — outage or VATUSA disabled — keeps the cached identity, so it never flips a
   live session). Non-VATUSA controllers fall back to the VATSIM `subdivision`.
@@ -60,15 +61,15 @@ filled automatically and not prompted for.
 `/hubs/training` carries `[Authorize(Policy = TrainingHubAccessRequirement.PolicyName)]`, which admits
 **any authenticated VATSIM controller**. Capability is tiered on the hub methods, not at connect time:
 
-- **Mentors/instructors** (`isMentor` from VATUSA, OR rating instructor-or-above I1/I2/I3/SUP/ADM via
+- **Training staff and instructors** (`IsTrainingStaff` from VATUSA roles, OR rating instructor-or-above I1/I2/I3/SUP/ADM via
   `ScenarioRatingClassifier.IsInstructorOrAbove`) run sessions: create rooms, load/unload scenarios, kick.
-- **Non-mentors get limited access.** They wait in the lobby until a mentor pulls them into a room:
+- **Everyone else gets limited access.** They wait in the lobby until a session runner pulls them into a room:
   `PullRpo(connectionId)` records an invite on the room (`TrainingRoom.Invite`) and pushes
-  `RoomAvailableForCid`, which the client auto-joins. `JoinRoom` rejects an uninvited non-mentor "main"
+  `RoomAvailableForCid`, which the client auto-joins. `JoinRoom` rejects an uninvited limited "main"
   client (`CanJoinRoomCore`); `CreateRoom`, `LoadScenario`, `UnloadScenarioAircraft`/`ConfirmUnloadScenario`,
-  and `KickMember` throw `HubException` for non-mentors (`RequireMentorOrInstructor`). The vStrips/vTDLS
+  and `KickMember` throw `HubException` for them (`RequireTrainingStaffOrInstructor`). The vStrips/vTDLS
   position tools join freely (they follow the main client).
-- The mentor's **Room Members** modal lists waiting RPOs (`GetRpoLobbyClients` + the `RpoLobbyChanged`
+- The session runner's **Room Members** modal lists waiting RPOs (`GetRpoLobbyClients` + the `RpoLobbyChanged`
   broadcast) and CRC clients alongside each other for one-click pull.
 
 CRC trainees on `/hubs/client` are unaffected — they're not rating-gated.
@@ -94,8 +95,8 @@ approved to mentor at ZMA. They live in the **private yaat-server repo** at `src
 (`yaat-artcc-grants/1`: `grants[].cid`, `artccs`, plus free-text `name`/`note` for audit), ship inside the Docker
 image, and are read once at startup (`ArtccGrantList` → `ArtccAccessPolicy`); `Yaat:ArtccGrantsPath` overrides the
 path. A missing file means home-ARTCC access only; an unreadable or malformed one is logged as an error and treated
-the same — the file can never widen or break home access. A grant widens ARTCC access **only**: the mentor tier
-still comes from VATUSA `isMentor` / the rating. Deliberately outside the gate: **joining** — `JoinRoom`/`PullRpo`
+the same — the file can never widen or break home access. A grant widens ARTCC access **only**: the session-running tier
+still comes from the VATUSA training staff roles / the rating. Deliberately outside the gate: **joining** — `JoinRoom`/`PullRpo`
 never look at ARTCCs, so a visiting mentor/instructor joins any facility's room and a visiting non-mentor is pulled
 into one exactly as at home (the joiner's member ARTCC is display-only; a joiner without a grant simply can't *load*
 that ARTCC's catalog scenarios — the host does); the Local Files tab (`LoadScenario` raw JSON — custom scenarios for
@@ -104,9 +105,9 @@ any ARTCC still load); and rooms restored from a checkpoint (validated when they
 ## Tokens
 
 `YaatTokenService` mints HS256 JWTs (claims `sub`=cid, `name`, `rating`, `subdivision`, `artcc`,
-`is_mentor`, `token_use`; refresh tokens additionally carry a `jti`). `artcc` is the resolved ARTCC
+`is_training_staff` (JSON boolean), `token_use`; refresh tokens additionally carry a `jti`). `artcc` is the resolved ARTCC
 (VATUSA home facility, else the subdivision) and is re-resolved from VATUSA on each refresh so a
-controller's transfer or mentor-role change takes effect within the access-token lifetime (~1h). Access token ~1h (hub Bearer / `yaat_session`
+controller's transfer or training-staff role change takes effect within the access-token lifetime (~1h). The desktop `VatsimAuthClient` reads `isTrainingStaff` from the session payload at sign-in and re-reads the `is_training_staff` claim from each refreshed access token, so a role change shows without signing out; an undecodable token logs a warning and counts as expired and not training staff, and a stored session from before the rename loads as not training staff until its first refresh. Access token ~1h (hub Bearer / `yaat_session`
 cookie); refresh token ~30d (`yaat_refresh` cookie / desktop `auth-sessions.json`) re-mints access via
 `/auth/refresh` (desktop) and `/auth/token` (web). JwtBearer reads the token from the `access_token`
 query (desktop) or the `yaat_session` cookie (web) for `/hubs/training` only; no other path has its token lifted from the query or cookie.
@@ -159,7 +160,7 @@ client** with its own callback. Config (secrets via env / `appsettings.Local.jso
 |-----|---------|
 | `Yaat:Vatsim:ClientId` / `ClientSecret` | This server's VATSIM Connect client (`ClientSecret` blank for a public/PKCE client) |
 | `Yaat:Vatsim:CallbackUrl` | This server's registered redirect — in Docker, derived as `https://<YAAT_DOMAIN>/auth/vatsim/callback` |
-| `Yaat:Vatusa:Enabled` / `ApiKey` | VATUSA mentor lookup (disable for non-US; ApiKey optional) |
+| `Yaat:Vatusa:Enabled` / `ApiKey` | VATUSA training staff role lookup (disable for non-US; ApiKey optional) |
 | `Yaat:Vnas:ClientId` / `ClientSecret` | The server's second VATSIM Connect client, for vEDST (env `VNAS_VATSIM_CLIENT_ID` / `VNAS_VATSIM_CLIENT_SECRET`); only `/vnas/login` and `/vnas/auth/login` need it. Setup for the `Yaat:Vnas` keys: [vedst-sign-in.md](vedst-sign-in.md) |
 | `Yaat:Vnas:LoginReturnUrl` | Where `/vnas/login` sends the browser with the code (vEDST's `/login` page, e.g. `http://localhost:3000/login`); absolute http(s), validated at startup |
 | `Yaat:Vnas:PublicBaseUrl` | The server's public origin for the `/vnas/configuration` URLs and the expected vEDST redirect; compose sets `https://<YAAT_DOMAIN>`, blank derives it from the request |

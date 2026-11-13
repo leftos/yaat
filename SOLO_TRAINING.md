@@ -38,9 +38,9 @@ Solo Training removes the human RPO. It does not remove the mentor.
 
 Self-training needs your training administrator's (TA's) and your mentor's approval: agree it with them before you start a solo session.
 
-On a YAAT server, creating a room and loading a scenario require a **VATUSA mentor role** or a **VATSIM Instructor rating (I1/I2/I3) or higher**. Everything else — issuing commands, working the frequency, reading the Session Report — is open to any signed-in VATSIM controller. That means there are two ways into a solo session:
+On a YAAT server, creating a room and loading a scenario require a **VATUSA mentor role**, a **facility training staff role (FE, TA, ATM or DATM) at your home facility**, or a **VATSIM Instructor rating (I1/I2/I3) or higher**. Everything else — issuing commands, working the frequency, reading the Session Report — is open to any signed-in VATSIM controller. That means there are two ways into a solo session:
 
-- **You hold a mentor role or an instructor rating.** Sign in, create your own room, load whatever scenario you like, and run the session start to finish on your own.
+- **You hold a mentor or training staff role, or an instructor rating.** Sign in, create your own room, load whatever scenario you like, and run the session start to finish on your own.
 - **You are a student.** You cannot start a solo session by yourself. You sign in and connect, and then you wait in the **YAAT Lobby** for a room assignment. A mentor or instructor has to create the room, load the scenario they want you to train on, and pull you into it from **Room > Members...**. Once you are in the room, you work the traffic exactly as the rest of this guide describes.
 
 As a student you cannot create a room, load or unload a scenario, join a room you were not pulled into, or kick anyone. The practical consequence is that **your mentor chooses the scenario.** Solo Training is not a self-serve sandbox — it is a training session your facility's staff sets up for you, with the pilot side automated instead of staffed by a human RPO.

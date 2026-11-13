@@ -13,7 +13,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Services;
 
 /// <summary>The authenticated VATSIM identity resolved by the server from a YAAT session token.</summary>
-public sealed record VatsimIdentity(string Cid, string Name, string Rating, string? Subdivision, bool IsMentor, string? Artcc);
+public sealed record VatsimIdentity(string Cid, string Name, string Rating, string? Subdivision, bool IsTrainingStaff, string? Artcc);
 
 /// <summary>
 /// Client side of the server-mediated VATSIM Connect flow. Drives the system-browser + loopback
@@ -341,7 +341,14 @@ public sealed class VatsimAuthClient
             {
                 if (_sessions.TryGetValue(serverUrl, out StoredSession? session))
                 {
-                    updated = session with { AccessToken = accessToken, AccessExpiresUtc = ReadExpiry(accessToken), RefreshToken = newRefreshToken };
+                    (DateTime expiresUtc, bool isTrainingStaff) = ReadAccessClaims(accessToken);
+                    updated = session with
+                    {
+                        AccessToken = accessToken,
+                        AccessExpiresUtc = expiresUtc,
+                        IsTrainingStaff = isTrainingStaff,
+                        RefreshToken = newRefreshToken,
+                    };
                     _sessions[serverUrl] = updated;
                     SaveSessions();
                 }
@@ -356,7 +363,7 @@ public sealed class VatsimAuthClient
         }
     }
 
-    private static StoredSession? SessionFromJson(JsonElement root)
+    private StoredSession? SessionFromJson(JsonElement root)
     {
         string? accessToken = ReadString(root, "accessToken");
         string? refreshToken = ReadString(root, "refreshToken");
@@ -369,21 +376,22 @@ public sealed class VatsimAuthClient
         return new StoredSession(
             accessToken,
             refreshToken,
-            ReadExpiry(accessToken),
+            ReadAccessClaims(accessToken).ExpiresUtc,
             cid,
             ReadString(root, "name") ?? "",
             ReadString(root, "rating") ?? "",
             ReadString(root, "subdivision"),
-            root.TryGetProperty("isMentor", out JsonElement m) && m.ValueKind == JsonValueKind.True,
+            root.TryGetProperty("isTrainingStaff", out JsonElement staff) && (staff.ValueKind == JsonValueKind.True),
             ReadString(root, "artcc")
         );
     }
 
     private static async Task RespondAndCloseAsync(HttpListenerContext context, bool success)
     {
+        const string Open = "<html><body style='font-family:sans-serif;background:#252529;color:#ddd'>";
         string body = success
-            ? "<html><body style='font-family:sans-serif;background:#252529;color:#ddd'><h2>YAAT sign-in complete</h2><p>You can close this tab and return to YAAT.</p></body></html>"
-            : "<html><body style='font-family:sans-serif;background:#252529;color:#ddd'><h2>YAAT sign-in failed</h2><p>Return to YAAT and try again.</p></body></html>";
+            ? Open + "<h2>YAAT sign-in complete</h2><p>You can close this tab and return to YAAT.</p></body></html>"
+            : Open + "<h2>YAAT sign-in failed</h2><p>Return to YAAT and try again.</p></body></html>";
         byte[] bytes = Encoding.UTF8.GetBytes(body);
         context.Response.ContentType = "text/html";
         context.Response.ContentLength64 = bytes.Length;
@@ -403,16 +411,17 @@ public sealed class VatsimAuthClient
         return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
     }
 
-    // Decodes the JWT 'exp' (unix seconds) without validating the signature — the client only needs to
-    // know when to refresh; the server is authoritative on validity.
-    private static DateTime ReadExpiry(string jwt)
+    // Decodes the JWT payload without validating the signature: 'exp' (unix seconds), so the client knows when to
+    // refresh, and 'is_training_staff' (true only for the JSON boolean true), so a role change shows on the next
+    // refresh. The server is authoritative on validity and on the tier it enforces.
+    private (DateTime ExpiresUtc, bool IsTrainingStaff) ReadAccessClaims(string jwt)
     {
         try
         {
             string[] parts = jwt.Split('.');
             if (parts.Length < 2)
             {
-                return DateTime.UtcNow;
+                return (DateTime.UtcNow, false);
             }
 
             string payload = parts[1].Replace('-', '+').Replace('_', '/');
@@ -424,17 +433,21 @@ public sealed class VatsimAuthClient
             };
 
             using var doc = JsonDocument.Parse(Convert.FromBase64String(payload));
-            if (doc.RootElement.TryGetProperty("exp", out JsonElement exp) && exp.TryGetInt64(out long seconds))
-            {
-                return DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime;
-            }
+            JsonElement root = doc.RootElement;
+            bool isTrainingStaff = root.TryGetProperty("is_training_staff", out JsonElement staff) && (staff.ValueKind == JsonValueKind.True);
+            DateTime expiresUtc =
+                (root.TryGetProperty("exp", out JsonElement exp) && exp.TryGetInt64(out long seconds))
+                    ? DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime
+                    : DateTime.UtcNow;
+            return (expiresUtc, isTrainingStaff);
         }
         catch (Exception ex) when (ex is FormatException or JsonException)
         {
             // Unparseable token — treat as already expired so the next call refreshes.
+            _log.LogWarning(ex, "Could not decode the access token's claims; treating it as expired and not training staff");
         }
 
-        return DateTime.UtcNow;
+        return (DateTime.UtcNow, false);
     }
 
     private static int PickFreeLoopbackPort()
@@ -453,7 +466,7 @@ public sealed class VatsimAuthClient
 
     private static string NormalizeServer(string serverUrl) => serverUrl.TrimEnd('/');
 
-    private static VatsimIdentity ToIdentity(StoredSession s) => new(s.Cid, s.Name, s.Rating, s.Subdivision, s.IsMentor, s.Artcc);
+    private static VatsimIdentity ToIdentity(StoredSession s) => new(s.Cid, s.Name, s.Rating, s.Subdivision, s.IsTrainingStaff, s.Artcc);
 
     private bool TryGetSession(string key, out StoredSession session)
     {
@@ -527,7 +540,7 @@ public sealed class VatsimAuthClient
         string Name,
         string Rating,
         string? Subdivision,
-        bool IsMentor,
+        bool IsTrainingStaff,
         string? Artcc
     );
 }

@@ -2589,7 +2589,7 @@ Assignments are cleared when a member leaves, an aircraft is deleted, or the sce
 
 Your scenarios normally come from your home ARTCC, which YAAT resolves from your VATSIM/VATUSA profile. A visiting controller whom another facility's Training Administrator has approved to mentor there can ask the server operator for access to that ARTCC's scenarios as well.
 
-Once granted, the room list shows an ARTCC picker next to **Create Room**: pick the ARTCC for the session and the room is created for it — the scenario list, live-session picker, weather, and CRC alias file all follow the room's ARTCC, and switch back to your home ARTCC when you leave. Without a grant there is no picker and nothing changes. A grant only widens which scenarios you can load; whether you can run sessions at all still comes from your VATUSA mentor role or instructor rating.
+Once granted, the room list shows an ARTCC picker next to **Create Room**: pick the ARTCC for the session and the room is created for it — the scenario list, live-session picker, weather, and CRC alias file all follow the room's ARTCC, and switch back to your home ARTCC when you leave. Without a grant there is no picker and nothing changes. A grant only widens which scenarios you can load; whether you can run sessions at all still comes from your VATUSA mentor or facility training staff role (FE, TA, ATM or DATM) at your home facility, or your instructor rating.
 
 The room list shows only the rooms of your own ARTCC and of any ARTCC you have been granted, plus any room you are already in; rooms of other facilities are not listed. Each room is labelled with its scenario's ARTCC, or its creator's while no scenario is loaded, and once you have joined, the room's title follows that label: it changes when a scenario, a recording or a live session is loaded into the room, by you or another member, and when the scenario is unloaded.
 
@@ -3233,7 +3233,7 @@ rating) and connects. There is nothing to type — the old manual CID field is g
 remembered, so subsequent connects don't reopen the browser unless it has expired.
 
 Deployed servers admit **mentors and instructors** with full control: you can create rooms and load
-scenarios if you hold a VATUSA mentor role, or if your VATSIM rating is Instructor (I1/I2/I3) or higher.
+scenarios if you hold a VATUSA mentor role or a facility training staff role (FE, TA, ATM or DATM) at your home facility, or if your VATSIM rating is Instructor (I1/I2/I3) or higher.
 
 Any other signed-in VATSIM controller — a **non-mentor** — connects in limited mode: they wait on a
 "waiting for room assignment" screen until an instructor pulls them into a room from the **YAAT Lobby**

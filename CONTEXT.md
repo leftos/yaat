@@ -1001,6 +1001,11 @@ Report traffic in sight… in a solo session: the student types the advisory as 
 **Solo advisory settings**:
 The two client-only solo settings, "Pre-fill traffic advisories" (True values or Left for the student) and "Live advisory check" (grade the student's advisory as they type): a default in Settings › Scenario defaults › Solo training and a session copy in the session flyout that never leaves the client and reseeds from the default on a room change or a scenario or recording load (docs/client-settings-and-menus.md). Not the load prompt's **Pre-fill**.
 
+## Session access
+
+**Training staff**:
+A controller holding a VATUSA mentor (MTR), facility engineer (FE), training administrator (TA), air traffic manager (ATM) or deputy air traffic manager (DATM) role at their home facility; with instructor-rated controllers, they can run training sessions (docs/vatsim-auth.md).
+
 ## Tooling
 
 **At-risk tests**:

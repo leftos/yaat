@@ -62,7 +62,7 @@ Run the server from source in the yaat-server repo, `dotnet run --project src/Ya
 **Option A, no VATSIM.** `appsettings.Development.json` turns `RequireVatsimAuth` off, which mounts the dev login.
 
 1. In the vEDST checkout, `.env.local` needs only `VITE_VNAS_CONFIG_URL=http://localhost:5130/vnas/configuration`; run `npm start`.
-2. Mint a token pair: `GET http://localhost:5130/vnas/auth/dev-login?cid=<cid>` answers `{nasToken, vatsimToken}`. Use the CID CRC signs in with. Optional query parameters: `name` (default `Dev User`), `rating` (default `I1`), `subdivision`, `artcc` (default the subdivision), `isMentor=true`.
+2. Mint a token pair: `GET http://localhost:5130/vnas/auth/dev-login?cid=<cid>` answers `{nasToken, vatsimToken}`. Use the CID CRC signs in with. Optional query parameters: `name` (default `Dev User`), `rating` (default `I1`), `subdivision`, `artcc` (default the subdivision), `isTrainingStaff=true`.
 3. In the browser console on `http://localhost:3000`, run `localStorage.setItem("vatsim-token", "<vatsimToken>")` and reload. vEDST skips the VATSIM login and waits for the CRC session.
 4. Sign in to CRC on the local server with that CID and open an ERAM position (`Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT Local";Url="http://localhost:5130"})`, yaat-server `docs/crc-first-session.md`).
 

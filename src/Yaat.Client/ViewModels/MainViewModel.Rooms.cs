@@ -51,7 +51,7 @@ public partial class MainViewModel
 
             // Non-mentors get limited access: they can be pulled into a room but can't create rooms
             // or load/unload scenarios (the server enforces this too).
-            IsNonMentor = !(identity.IsMentor || Yaat.Sim.Scenarios.ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating));
+            IsNonMentor = !(identity.IsTrainingStaff || Yaat.Sim.Scenarios.ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating));
 
             // ARTCC is resolved authoritatively from VATUSA (home facility) with a VATSIM-subdivision
             // fallback, so the apps no longer prompt for it. It becomes the ARTCC in effect each sign-in.
