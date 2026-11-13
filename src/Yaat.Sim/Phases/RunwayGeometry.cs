@@ -1,3 +1,5 @@
+using Yaat.Sim.Data;
+
 namespace Yaat.Sim.Phases;
 
 /// <summary>
@@ -17,38 +19,39 @@ public static class RunwayGeometry
     public const double MaxSidestepCenterlineSeparationNm = 0.25;
 
     /// <summary>
-    /// Maximum runway-heading difference (degrees) between two runways for EF to be
-    /// treated as a sidestep. True parallels are typically &lt;1°; CIFP / mag-var
-    /// rounding can push apparent deltas to a few degrees; 5° is a safe cap that
-    /// still excludes non-parallel pairs.
+    /// Maximum runway-heading difference (degrees) between two runways for them to be parallel: the runway-transition
+    /// classification and the EF side-step both read it. True parallels are typically &lt;1°; CIFP / mag-var rounding can
+    /// push apparent deltas to a few degrees; 5° is a safe cap that still excludes non-parallel pairs.
     /// </summary>
-    public const double MaxSidestepHeadingDeltaDeg = 5.0;
+    public const double MaxParallelHeadingDeltaDeg = 5.0;
 
     /// <summary>
-    /// True when <paramref name="target"/> is parallel to <paramref name="current"/>
-    /// and their centerlines are within <see cref="MaxSidestepCenterlineSeparationNm"/>.
-    /// Both runways must be at the same airport; the heading delta must be within
-    /// <see cref="MaxSidestepHeadingDeltaDeg"/>.
+    /// True when <paramref name="a"/> and <paramref name="b"/> are parallel runways: two runways of one
+    /// airport (normalised ids, so <c>KOAK</c> and <c>OAK</c> name one field) whose headings differ by at
+    /// most <see cref="MaxParallelHeadingDeltaDeg"/>. There is no spacing bound — the AIM P/CG definition
+    /// of parallel runways carries none, and AIM §4-3-6.a NOTE 2 lets widely separated parallels be
+    /// designated non-parallel, so the designator is no test either. This is the partition the follow and
+    /// pattern-transition logic reads: a parallel pair continues the upwind and turns crosswind beyond both
+    /// departure ends (AIM §4-3-3 FIG 4-3-3 keys 7 and 8); every other pair crosses midfield.
     /// </summary>
-    public static bool AreCloseParallels(RunwayInfo a, RunwayInfo b)
-    {
-        if (!string.Equals(a.AirportId, b.AirportId, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
+    public static bool AreParallelRunways(RunwayInfo a, RunwayInfo b) =>
+        NavigationDatabase.AirportIdsMatch(a.AirportId, b.AirportId) && (a.TrueHeading.AbsAngleTo(b.TrueHeading) <= MaxParallelHeadingDeltaDeg);
 
-        if (a.TrueHeading.AbsAngleTo(b.TrueHeading) > MaxSidestepHeadingDeltaDeg)
-        {
-            return false;
-        }
+    /// <summary>
+    /// True when <paramref name="a"/> and <paramref name="b"/> are parallel (<see cref="AreParallelRunways"/>)
+    /// and their centerlines are within <see cref="MaxSidestepCenterlineSeparationNm"/>. This is the
+    /// side-step geometry only (AIM §5-4-19); the pattern runway transition between two parallel runways
+    /// uses <see cref="AreParallelRunways"/>, whose answer does not depend on spacing.
+    /// </summary>
+    public static bool AreCloseParallels(RunwayInfo a, RunwayInfo b) =>
+        AreParallelRunways(a, b) && (CenterlineSeparationNm(a, b) <= MaxSidestepCenterlineSeparationNm);
 
-        double crossTrackNm = Math.Abs(
+    private static double CenterlineSeparationNm(RunwayInfo a, RunwayInfo b) =>
+        Math.Abs(
             GeoMath.SignedCrossTrackDistanceNm(
                 new LatLon(b.ThresholdLatitude, b.ThresholdLongitude),
                 new LatLon(a.ThresholdLatitude, a.ThresholdLongitude),
                 a.TrueHeading
             )
         );
-        return crossTrackNm <= MaxSidestepCenterlineSeparationNm;
-    }
 }

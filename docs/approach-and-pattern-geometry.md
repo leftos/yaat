@@ -197,15 +197,16 @@ Two commands move an aircraft from one runway's pattern into another's: a cross-
 `DepartureClearanceHandler.ApplyClosedTraffic` detects pattern runway ≠ takeoff runway) and an `MLT`/`MRT` with a
 runway argument issued while the aircraft is on an active pattern leg (`TryChangePatternDirection`, below). Both
 build the first circuit through `PatternBuilder.BuildRunwayTransitionCircuit(flownRunway, patternRunway, …)`, which
-picks one of two shapes by `RunwayGeometry.AreCloseParallels` (same airport, headings within 5°, centerlines within
-0.25 nm — AIM §5-4-19's side-step envelope, shared with the `EF` sidestep):
+picks one of two shapes by `RunwayGeometry.AreParallelRunways` (same airport, ids normalised so KOAK and OAK match,
+headings within 5°, whatever the spacing; `AreCloseParallels` adds the 0.25 nm centerline limit — AIM §5-4-19's
+side-step envelope — and classifies only the `EF` sidestep):
 
-- **Close parallels** (OAK 28R → 28L): `UpwindPhase` → `CrosswindPhase` on *transition* waypoints
+- **Parallels** (OAK 28R → 28L, KMSP 30L → 30R at 3,379 ft): `UpwindPhase` → `CrosswindPhase` on *transition* waypoints
   (`PatternGeometry.ComputeTransition`) → `DownwindPhase` (`RejoinTrack = true`) → `BasePhase` →
   `FinalApproachPhase` → terminator on the pattern runway. The transition waypoints are the pattern runway's
   geometry with the crosswind turn anchored at whichever of the two departure ends projects farther along the pattern
   runway's heading, so the aircraft continues the upwind it is on and turns crosswind only once it has cleared
-  **both** departure ends (AIM 4-3-2); the downwind start follows from that turn point. No midfield crossing.
+  **both** departure ends (AIM 4-3-2); the downwind start follows from that turn point. When the farther departure end is the flown runway's, the crosswind turn and downwind start are measured from that end's abeam point on the pattern runway's centerline, so the downwind starts one pattern width from the pattern runway; otherwise the pattern runway's own departure end anchors them. No midfield crossing.
 - **Crossing runways** (33 → 28R): `UpwindPhase` (waypoints from the **departure** runway) → the shared field-crossing
   prefix (`PatternBuilder`: `MidfieldCrossingPhase` with `InitialTurn` toward the pattern side, waypoints from the **pattern**
   runway, `CrossAtPatternAltitude` — a departure never left the pattern, so AIM 4-3-3.a's entry height does not apply →
@@ -232,11 +233,11 @@ unplanned go-around voids the clearance the modifier rode on: `PhaseRunner.VoidA
 `PatternRunway` to the runway being flown, builds the plain next circuit there and warns the RPO to re-issue
 (AIM 5-5-5.a.6 — the pilot requests clearance for specific action after a missed approach); `OTG` is an explicit
 standalone instruction and still fires after a go-around. The option readback appends " (crossing midfield)" when the
-armed runway is not a close parallel, since that transition joins through a `MidfieldCrossingPhase`.
+armed runway is not a parallel, since that transition joins through a `MidfieldCrossingPhase`.
 `PhaseClearSummary` labels from `AssignedRunway` only, so an armed modifier never relabels the approach in flight. The
 handlers share one carrier for the modifier (`OptionPatternModifier`: direction, runway, altitude) and one body
 (`TrySetupOptionClearance`); the parser's `PatternModifierArgs` is a separate, parse-only result type. A pre-issued
-modifier naming a runway that is not a close parallel warns "… will cross midfield" when the entry builds its circuit.
+modifier naming a runway that is not a parallel warns "… will cross midfield" when the entry builds its circuit.
 A `FOLLOW` rebuilds the phase list but carries an armed `PatternRunway` across (`VfrFollowPhase`, same airport only) and
 warns that the follower will leave the sequence after its next terminator; when the follow's runway is the armed one
 the arming is satisfied and the join flies the armed deferred altitude. The modifier's runway/altitude tokens resolve through
@@ -260,7 +261,7 @@ instead of re-entering the pattern from outside it:
 |---|---|---|
 | Upwind | transition circuit above (either direction) | transition circuit above |
 | Crosswind | same-side rebuild | wrong-side midfield crossing via `BuildFieldCrossingPrefix` (shared with `TryEnterPattern`: crossing → `TeardropReentryPhase` when the crossing is above TPA, else straight → downwind with `RejoinTrack`) |
-| Downwind, close parallels | same-side rebuild with `RejoinTrack` (the parallel's downwind is laterally offset) | **crossover at midfield**: the old runway's `DownwindPhase` with `ExitAtMidfield` → `MidfieldCrossingPhase` (`CrossAtPatternAltitude`, `InitialTurn` toward the field = the old pattern's turn sense) → new `DownwindPhase` (`RejoinTrack`) → … Past midfield already: the chain starts at the crossing |
+| Downwind, parallels (any spacing) | same-side rebuild with `RejoinTrack` (the parallel's downwind is laterally offset) | **crossover at midfield**: the old runway's `DownwindPhase` with `ExitAtMidfield` → `MidfieldCrossingPhase` (`CrossAtPatternAltitude`, `InitialTurn` toward the field = the old pattern's turn sense) → new `DownwindPhase` (`RejoinTrack`) → … Past midfield already: the chain starts at the crossing |
 | Downwind, other pairs | same-side rebuild with `RejoinTrack` | wrong-side midfield crossing (unchanged) |
 | Base | same-side rebuild | wrong-side midfield crossing (unchanged) |
 
@@ -1062,11 +1063,11 @@ While it holds, the pursuit flies the upwind heading and the upwind's speed sche
 
 The turn point is past the departure end, as the figures' key 5 puts it, not AIM 4-3-2.c.1's "at least 1/2 mile beyond the departure end" for the departure leg: the figure is the operational turn rule, and the altitude half usually binds later. Both climbs run `CheckLeadLifecycle` while following, clearing only the follow; an IFR follower that loses its lead also gets "{cs} visual separation terminated — radar separation required".
 
-A closed-traffic climb onto a close parallel of its pattern runway (`DepartureRunway` set, same airport, `RunwayGeometry.AreCloseParallels`; depart 28R for 28L traffic) is leg 1 as well, ordered by along-track distance from the pattern runway's threshold (its transition upwind already flies on the pattern runway's frame), and is refused "Unable, on upwind for runway {pattern rwy}, …".
+A closed-traffic climb onto a parallel of its pattern runway (`DepartureRunway` set, same airport, `RunwayGeometry.AreParallelRunways`; depart 28R for 28L traffic) is leg 1 as well, ordered by along-track distance from the pattern runway's threshold (its transition upwind already flies on the pattern runway's frame), and is refused "Unable, on upwind for runway {pattern rwy}, …".
 
 Its climb-out gate is the farther of the two runways' departure ends along the pattern runway's heading (the end the transition upwind turns crosswind past, `PatternGeometry.ComputeTransition`, so the turn never crosses either runway's departure path; AIM §4-3-2.c.3, FIG 4-3-3 key 5), on the flown runway's heading, at the pattern runway's TPA − 300.
 
-A closed-traffic climb onto a runway crossing its pattern runway (same airport, not a close parallel; depart 28R for 33 traffic) is a **pattern entrant** (leg 0) as follower and lead through the airborne `TakeoffPhase` and its transition `UpwindPhase` (`AirborneFollowHelper.IsCrossingTransitionClimb`), until `MidfieldCrossingPhase` hands it to the pattern runway's downwind.
+A closed-traffic climb onto a runway crossing its pattern runway (same airport, not a parallel; depart 28R for 33 traffic) is a **pattern entrant** (leg 0) as follower and lead through the airborne `TakeoffPhase` and its transition `UpwindPhase` (`AirborneFollowHelper.IsCrossingTransitionClimb`), until `MidfieldCrossingPhase` hands it to the pattern runway's downwind.
 
 It is detected from the phase list — a closed-traffic climb whose next upwind is followed by a `MidfieldCrossingPhase`, or an upwind whose threshold lies more than 0.05 NM off the pattern runway's extended centreline — never from `DepartureRunway` alone, which is never cleared, so a later upwind reads leg 1.
 

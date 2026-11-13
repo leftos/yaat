@@ -306,8 +306,8 @@ public static class PatternBuilder
     /// upwind belongs to the runway the aircraft is actually flying (AIM 4-3-2). Subsequent circuits
     /// are built entirely from the pattern runway by the auto-cycle.
     ///
-    /// <para><b>Close parallels</b> (<see cref="RunwayGeometry.AreCloseParallels"/>): the two
-    /// centerlines are a few hundred feet apart on the same heading, so the aircraft simply continues
+    /// <para><b>Parallel runways</b> (<see cref="RunwayGeometry.AreParallelRunways"/>): the two
+    /// centerlines are on the same heading, however far apart, so the aircraft simply continues
     /// its upwind and turns crosswind beyond both departure ends
     /// (<see cref="PatternGeometry.ComputeTransition"/>), then flies the pattern runway's crosswind
     /// onto its downwind. Crossing the field is neither needed nor desirable there.</para>
@@ -330,7 +330,7 @@ public static class PatternBuilder
             }
         );
 
-        List<Phase> phases = RunwayGeometry.AreCloseParallels(request.FlownRunway, request.PatternRunway)
+        List<Phase> phases = RunwayGeometry.AreParallelRunways(request.FlownRunway, request.PatternRunway)
             ? BuildParallelTransitionLegs(request.FlownRunway, request.PatternRunway, patternWaypoints)
             : BuildCrossingTransitionLegs(
                 new CrossingTransitionLegsRequest

@@ -1755,7 +1755,7 @@ internal static class DepartureClearanceHandler
         // Cross-runway closed traffic (e.g. takeoff 33, make right traffic 28R): the
         // first circuit climbs out on the DEPARTURE runway then transitions to the PATTERN
         // runway's circuit — crossing midfield for a crossing pair, continuing the upwind
-        // past both departure ends for a close parallel. Same-runway closed traffic flies a
+        // past both departure ends for a parallel runway. Same-runway closed traffic flies a
         // normal upwind-entry circuit on the one runway.
         bool crossRunway = !string.Equals(patternRunway.Designator, request.FallbackRunway.Designator, StringComparison.OrdinalIgnoreCase);
         List<Phase> circuit = crossRunway

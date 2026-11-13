@@ -585,17 +585,17 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// True when <paramref name="aircraft"/> is airborne on a closed-traffic takeoff whose climb-out is its pattern circuit's
-    /// upwind: off the pattern runway itself, or off a close parallel of it (<see cref="PhaseList.DepartureRunway"/> set,
-    /// <see cref="RunwayGeometry.AreCloseParallels"/>), which continues its upwind past both departure ends. A climb off a
+    /// upwind: off the pattern runway itself, or off a parallel runway of it (<see cref="PhaseList.DepartureRunway"/> set,
+    /// <see cref="RunwayGeometry.AreParallelRunways"/>), which continues its upwind past both departure ends. A climb off a
     /// crossing runway is not on the pattern runway's upwind, so it is left out, and so is one whose pattern runway is at
-    /// another airport: <see cref="RunwayGeometry.AreCloseParallels"/> holds only for two runways with the same airport id.
+    /// another airport: <see cref="RunwayGeometry.AreParallelRunways"/> holds only for two runways of one airport.
     /// </summary>
     internal static bool IsClosedTrafficClimb(AircraftState aircraft) =>
         !aircraft.IsOnGround
         && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture } } phases)
         && (
             (phases.DepartureRunway is not { } flown)
-            || ((phases.AssignedRunway is { } patternRunway) && RunwayGeometry.AreCloseParallels(flown, patternRunway))
+            || ((phases.AssignedRunway is { } patternRunway) && RunwayGeometry.AreParallelRunways(flown, patternRunway))
         );
 
     /// <summary>

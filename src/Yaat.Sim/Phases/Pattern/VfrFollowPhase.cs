@@ -215,7 +215,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// <summary>
     /// The departure-leg hold pursuing <paramref name="aircraft"/> owes: its upwind leg's gate when that is the leg it is on (a
     /// FOLLOW issued on the upwind, or the hand-over from a climb-out to one); when it is still climbing out (a go-around, or a
-    /// closed-traffic climb off its pattern runway or a close parallel of it), the runway it is flying: that runway's heading,
+    /// closed-traffic climb off its pattern runway or a parallel runway of it), the runway it is flying: that runway's heading,
     /// past the farther departure end of it and the pattern runway (<see cref="PatternGeometry.TransitionDepartureEnd"/>), at
     /// the pattern runway's pattern altitude less the turn margin; else null — a pursuit started anywhere else may steer at its
     /// lead at once. A crossing-runway transition (<see cref="CrossingTransitionGate"/>) has its own gate.
@@ -237,7 +237,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         bool climbingOutOfPattern = (current is GoAroundPhase) || closedTrafficClimb;
         if (climbingOutOfPattern && (aircraft.Phases?.AssignedRunway is { } patternRunway))
         {
-            // A closed-traffic climb off a close parallel flies that runway's centerline; the pattern runway sets the altitude.
+            // A closed-traffic climb off a parallel runway flies that runway's centerline; the pattern runway sets the altitude.
             RunwayInfo flownRunway = (closedTrafficClimb ? aircraft.Phases.DepartureRunway : null) ?? patternRunway;
             return FollowClimbOutGate.ForClimbOut(flownRunway, patternRunway, ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout));
         }

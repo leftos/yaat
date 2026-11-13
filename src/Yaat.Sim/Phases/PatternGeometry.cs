@@ -24,11 +24,12 @@ public enum PatternDirection
 /// </summary>
 public sealed class PatternWaypoints
 {
-    /// <summary>Departure end of runway (start of upwind/crosswind turn point).</summary>
+    /// <summary>Departure end of the runway the upwind flies out on: the upwind's lateral-offset reference point.</summary>
     public double DepartureEndLat { get; init; }
     public double DepartureEndLon { get; init; }
 
-    /// <summary>Point where crosswind turn begins (departure end + extension).</summary>
+    /// <summary>Point where the crosswind turn begins: the upwind's end, or on a runway transition the point on the pattern
+    /// runway's centerline abeam the farther departure end.</summary>
     public double CrosswindTurnLat { get; init; }
     public double CrosswindTurnLon { get; init; }
 
@@ -115,16 +116,19 @@ public sealed class PatternWaypoints
         };
 
     /// <summary>
-    /// A copy of these waypoints whose crosswind turns at <paramref name="departureEnd"/> and joins the downwind at
-    /// <paramref name="downwindStart"/>; the arrival legs, size, speeds and turn rate are unchanged.
+    /// A copy of these waypoints whose upwind's ground track runs to <paramref name="departureEnd"/> (the leg's
+    /// lateral-offset reference), that turns crosswind at <paramref name="crosswindTurn"/> and joins the downwind at
+    /// <paramref name="downwindStart"/>; the arrival legs, size, speeds and turn rate are unchanged. The two upwind points
+    /// differ only on a runway transition, where the upwind stays on the flown runway's centerline while the turn is
+    /// anchored on the pattern runway's.
     /// </summary>
-    public PatternWaypoints WithDepartureEnd(LatLon departureEnd, LatLon downwindStart) =>
+    public PatternWaypoints WithTransitionGeometry(LatLon departureEnd, LatLon crosswindTurn, LatLon downwindStart) =>
         new()
         {
             DepartureEndLat = departureEnd.Lat,
             DepartureEndLon = departureEnd.Lon,
-            CrosswindTurnLat = departureEnd.Lat,
-            CrosswindTurnLon = departureEnd.Lon,
+            CrosswindTurnLat = crosswindTurn.Lat,
+            CrosswindTurnLon = crosswindTurn.Lon,
             DownwindStartLat = downwindStart.Lat,
             DownwindStartLon = downwindStart.Lon,
             DownwindAbeamLat = DownwindAbeamLat,
@@ -469,10 +473,13 @@ public static class PatternGeometry
         ComputeCore(request, new LatLon(request.Runway.EndLatitude, request.Runway.EndLongitude));
 
     /// <summary>
-    /// The departure end a climb-out on <paramref name="flownRunway"/> must pass before it turns crosswind into
-    /// <paramref name="patternRunway"/>'s circuit: whichever of the two runways' departure ends lies farther along the pattern
-    /// runway's heading (the same runway's own end when they are one). Turning short of either carries the aircraft back over
-    /// the runway it is leaving or the one it is joining (AIM 4-3-2).
+    /// The point a climb-out on <paramref name="flownRunway"/> turns crosswind at on its way into <paramref name="patternRunway"/>'s
+    /// circuit: whichever departure end lies farther along the pattern runway's heading (the runway's own end when they are one),
+    /// so the turn waits until both ends are behind (AIM 4-3-2) — except for a parallel pair whose farther end is the flown
+    /// runway's, where it is that end's abeam point on the pattern runway's extended centerline. A parallel transition anchors on
+    /// the pattern centerline because the flown runway's own end is displaced by the spacing, which would fly the downwind back
+    /// over the pattern runway's departure path (AIM 4-3-3 FIG 4-3-3 key 8); the pattern runway's own end already sits on that
+    /// centerline, and a crossing pair's climb-out flies the flown runway's heading past its own end.
     /// </summary>
     public static LatLon TransitionDepartureEnd(RunwayInfo flownRunway, RunwayInfo patternRunway)
     {
@@ -481,21 +488,29 @@ public static class PatternGeometry
         var patternEnd = new LatLon(patternRunway.EndLatitude, patternRunway.EndLongitude);
         double flownAlong = GeoMath.AlongTrackDistanceNm(flownEnd, patternThreshold, patternRunway.TrueHeading);
         double patternAlong = GeoMath.AlongTrackDistanceNm(patternEnd, patternThreshold, patternRunway.TrueHeading);
-        return (flownAlong > patternAlong) ? flownEnd : patternEnd;
+        bool flownFarther = flownAlong > patternAlong;
+        if (!flownFarther || !RunwayGeometry.AreParallelRunways(flownRunway, patternRunway))
+        {
+            return flownFarther ? flownEnd : patternEnd;
+        }
+
+        (double Lat, double Lon) abeam = GeoMath.ProjectPoint(patternThreshold.Lat, patternThreshold.Lon, patternRunway.TrueHeading, flownAlong);
+        return new LatLon(abeam.Lat, abeam.Lon);
     }
 
     /// <summary>
     /// Pattern geometry for an aircraft transitioning from <paramref name="flownRunway"/>'s upwind
     /// onto <paramref name="patternRunway"/>'s pattern: identical to
     /// <see cref="Compute"/>
-    /// for the pattern runway, except that the crosswind turn is anchored at whichever of the two
-    /// runways' departure ends lies farther along the pattern runway's heading.
+    /// for the pattern runway, except that the crosswind turn is anchored at
+    /// <see cref="TransitionDepartureEnd"/> — on the pattern runway's centerline, past both runways' departure ends.
     ///
     /// AIM 4-3-2 commences the crosswind turn beyond the departure end of the runway; for a runway
     /// switch the aircraft has to clear <em>both</em> departure ends before turning, or the turn
     /// carries it back over the runway it is leaving (or over the one it is joining). Everything
     /// downstream of the turn point — the downwind start, and therefore the crosswind leg's target —
-    /// follows from it.
+    /// follows from it, which is why the anchor sits on the pattern runway's centerline: the downwind
+    /// then starts one pattern width from that centerline at any runway spacing.
     /// </summary>
     /// <param name="flownRunway">The runway the aircraft climbs out on.</param>
     /// <param name="patternRunway">The runway whose circuit it joins.</param>
@@ -504,14 +519,17 @@ public static class PatternGeometry
     /// </param>
     public static PatternWaypoints ComputeTransition(RunwayInfo flownRunway, RunwayInfo patternRunway, PatternWaypoints patternWaypoints)
     {
-        LatLon departureEnd = TransitionDepartureEnd(flownRunway, patternRunway);
+        LatLon crosswindTurn = TransitionDepartureEnd(flownRunway, patternRunway);
         (double Lat, double Lon) downwindStart = GeoMath.ProjectPoint(
-            departureEnd.Lat,
-            departureEnd.Lon,
+            crosswindTurn.Lat,
+            crosswindTurn.Lon,
             patternWaypoints.CrosswindHeading,
             patternWaypoints.PatternSizeNm
         );
-        return patternWaypoints.WithDepartureEnd(departureEnd, new LatLon(downwindStart.Lat, downwindStart.Lon));
+        // The upwind's own ground track is the flown runway's: its lateral-offset (OFL/OFR) reference and its entry
+        // point stay on the centerline the aircraft is climbing out on, not the pattern runway's.
+        var flownDepartureEnd = new LatLon(flownRunway.EndLatitude, flownRunway.EndLongitude);
+        return patternWaypoints.WithTransitionGeometry(flownDepartureEnd, crosswindTurn, new LatLon(downwindStart.Lat, downwindStart.Lon));
     }
 
     /// <summary>

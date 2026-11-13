@@ -1678,12 +1678,12 @@ internal static class PatternCommandHandler
 
     /// <summary>
     /// Runway switch off an active downwind. Same side: the parallel's downwind is laterally offset,
-    /// so the rebuilt leg re-intercepts its track. Opposite side, close parallels: the aircraft flies
+    /// so the rebuilt leg re-intercepts its track. Opposite side, two parallel runways: the aircraft flies
     /// its current downwind out to midfield and crosses the field there at pattern altitude, turning
     /// toward the field (AIM 4-3-3 — the +500 ft crossing height is an entry rule for aircraft
     /// arriving from outside the pattern, and this one is already in it). Past midfield there is no
-    /// downwind left to fly, so the crossing starts immediately. Runways that are not close parallels
-    /// keep the established wrong-side crossing.
+    /// downwind left to fly, so the crossing starts immediately. A pair that is not parallel keeps the
+    /// established wrong-side crossing.
     /// </summary>
     private static List<Phase> BuildDownwindSwitchChain(
         AircraftState aircraft,
@@ -1717,7 +1717,7 @@ internal static class PatternCommandHandler
             );
         }
 
-        if (!RunwayGeometry.AreCloseParallels(flownRunway, runway))
+        if (!RunwayGeometry.AreParallelRunways(flownRunway, runway))
         {
             return BuildWrongSideJoin(
                 aircraft,
@@ -3068,7 +3068,7 @@ internal static class PatternCommandHandler
         PatternDirection direction
     )
     {
-        if (RunwayGeometry.AreCloseParallels(flownRunway, patternRunway))
+        if (RunwayGeometry.AreParallelRunways(flownRunway, patternRunway))
         {
             return;
         }
@@ -3672,13 +3672,13 @@ internal static class PatternCommandHandler
     /// <summary>
     /// The crossing-midfield suffix for an armed pattern-runway transition. The circuit is not built yet
     /// — the auto-cycle builds it after the clearance is flown — so the shape is read off the geometry
-    /// the builder will use: close parallels continue the upwind past both departure ends, and every
+    /// the builder will use: parallel runways continue the upwind past both departure ends, and every
     /// other pair joins through a <see cref="MidfieldCrossingPhase"/>. Flying an aircraft across the
     /// field is the AIM 4-3-5 "unexpected maneuver" the RPO has to be told about, and the clearance's
     /// result text is the only place they are told.
     /// </summary>
     private static string ArmedTransitionCrossesField(RunwayInfo? flownRunway, RunwayInfo? patternRunway) =>
-        (flownRunway is not null) && (patternRunway is not null) && !RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
+        (flownRunway is not null) && (patternRunway is not null) && !RunwayGeometry.AreParallelRunways(flownRunway, patternRunway)
             ? MidfieldCrossingSuffix
             : "";
 
@@ -5035,11 +5035,11 @@ internal static class PatternCommandHandler
     // 7110.65 §3-10-5 subpara 3 "change to runway"; AIM §4-3-12.1 authorizes the low-approach turn
     // ("Unless otherwise authorized by ATC, the low approach should be made straight ahead...").
 
-    // Divergence band for the low-approach runway change. Below the minimum the runways are
-    // near-parallel — that is a sidestep (RunwayGeometry.AreCloseParallels/ApplySidestep), not this
-    // maneuver. Above the maximum the heading change exceeds a single continuous base-leg turn (>90°
-    // puts the new final behind the abeam line) and needs a downwind/base re-entry, so the pilot
-    // declines. 90° is the clean textbook base-to-final edge (aviation review).
+    // Divergence band for the low-approach runway change. Below the minimum the runways are near-parallel — a side-step,
+    // which is classified by the side-step spacing (RunwayGeometry.AreCloseParallels/ApplySidestep), not this maneuver.
+    // Above the maximum the heading change exceeds a single continuous base-leg turn (>90° puts the new final behind the
+    // abeam line) and needs a downwind/base re-entry, so the pilot declines. 90° is the clean textbook base-to-final edge
+    // (aviation review).
     private const double MinRetargetDivergenceDeg = 15.0;
     private const double MaxRetargetDivergenceDeg = 90.0;
 

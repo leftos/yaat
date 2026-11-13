@@ -10,6 +10,7 @@
 ### Changed
 
 - A tow cleared mid-move by `TAXI`, `PUSHM` or another clearance now brakes to rest over about 5 s, still shown as Pushback, instead of stopping dead.
+- Closed traffic or a follow from one runway to a widely spaced parallel now flies upwind and crosswind past both runway ends instead of crossing midfield.
 - A departure flies the altitude in the PDC sent to it from vTDLS, climb via or maintain, instead of the facility default; a voice altitude still overrides it.
 - vTDLS climb via defaults written "EXCPT MTN", "EXP MTN" or "EXPT MAINTAIN", common at ZLA facilities, now level the departure at that altitude.
 
