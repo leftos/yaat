@@ -234,7 +234,7 @@ command's pushes still precede its result and tape playback pushes per record, a
 `StateChanges` spine step after the post-physics steps, before `AutoDelete` so an item's aircraft still
 resolves for the DTO. `RoomHost.OnTdlsChanged` → `TdlsBroadcaster.BroadcastChanges`: items first, then
 removals, then the full state when flagged, and nothing at all while `TrainingRoom.IsBroadcastSuppressed`
-(a reconstruction; the room re-syncs when it lands). The scenario load drains once at the end of
+(a reconstruction; the room re-syncs when it lands). An item whose DTO equals the one last sent in a delta (`TrainingRoom.LastSentTdlsItems`) is not re-sent, so an amendment touching only fields the item does not show (e.g. `Scratchpad1`) reaches no client; a full-state send clears that cache. The scenario load drains once at the end of
 `PopulateRoom` so the load-time PDCs reach the clients as before. `BareHost` discards the set.
 
 `TdlsSnapshotMapper.Capture` (into `ServerSnapshotDto.Tdls`, every snapshot the engine takes —
