@@ -1100,7 +1100,6 @@ Models/
 
 Services/
   FilePickerFactory.cs          # Create(TopLevel): the injected picker in automation mode, AvaloniaFilePickerService otherwise; the only place the client constructs AvaloniaFilePickerService
-  ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
   CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, signature help, FixDb binary search; unified ParseCommandInput drives both suggestion and signature pipelines
   CommandInputParseResult.cs    # Immutable parse result consumed by both autocomplete and signature help
   CommandSignature.cs           # SignaturePart record (AXAML DataType dependency)

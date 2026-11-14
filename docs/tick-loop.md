@@ -193,7 +193,7 @@ Two detectors. Both are server-only (clients see results in broadcast snapshots)
 
 ## Broadcast cadence
 
-After PostPhysics, `BroadcastTrainingUpdates` runs **once per sim-second**:
+`RoomTickLoopService.RunTickLoop` fires on a one-second wall-clock `PeriodicTimer`. Each wall second `ProcessRoomSecond` advances every tickable room by `max(1, SimRate)` sim-seconds (a loop of `AdvanceLiveSecond`), then `DetectChangesAsync` and `BroadcastUpdates` run **once per wall second**, after those sim-seconds, not once per sim-second (at 4x, four sim-seconds of motion arrive in one delta). `BroadcastUpdates` calls `BroadcastTrainingUpdates`, `BroadcastAdminUpdates` and `CrcBroadcastService.BroadcastUpdatesAsync`; `BroadcastTrainingUpdates`:
 
 1. `DetectChanges` walks each aircraft and computes a delta.
 2. Changed aircraft → `AircraftSnapshot` DTOs go out via SignalR (JSON to YAAT clients).

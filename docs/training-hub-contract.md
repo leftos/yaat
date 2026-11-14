@@ -199,8 +199,8 @@ single-room filter (`GetAdminFilter`); an admin with no filter set resolves to n
 
 ### Training staff/instructor gating throws, it doesn't return a failure DTO
 
-Eight methods call `RequireTrainingStaffOrInstructor()` (`TrainingHub.cs:97`) — `CreateRoom`, `LoadScenario`,
-`UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `KickMember`, `GetRpoLobbyClients`, `PullRpo`, `ExportRoomAsScenario`. Unlike the
+The room-lifecycle, export and kick/pull methods call `RequireTrainingStaffOrInstructor()` (`TrainingHub`) — among them `CreateRoom`, `LoadScenario`,
+`StartLiveSession`, `UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `KickMember`, `KickCrcClient`, `PullCrcClient`, `GetRpoLobbyClients`, `PullRpo`, `ExportRoomAsScenario`; `rg` the guard name for the full set. Unlike the
 "Not in a room" sentinel above, the guard **throws a `HubException`** ("This action requires a mentor, facility
 training staff or an instructor.") *before* any room lookup, so the client sees a thrown exception rather than a `Success == false`
 DTO. `HubException` is the one exception type SignalR relays verbatim regardless of `EnableDetailedErrors`.

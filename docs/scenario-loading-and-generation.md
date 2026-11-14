@@ -798,7 +798,7 @@ The division of labour:
 
   Pinned by `SeededSessionSettingsRecordingTests`. A bundle exported without the t=0 record cannot be repaired; a hand-injected t=0 record in `actions.json.br` plus a snapshot regeneration is the only route.
 - **`ApplyTo` must run before `DispatchPresetCommands`, not just somewhere in the reload.** A preset `TAXI` resolves its
-  route — and runs `TaxiRouteAutoCross.Apply` against `AutoCrossRunwayMode` — inside `PopulateRoomForRewind` itself, so seeding
+  route — and runs `TaxiRouteAutoCross.Apply` against `AutoCrossRunwayMode` — inside `PopulateRoom` itself, so seeding
   afterwards leaves every restarted departure holding short of crossings the controller had already cleared (#314).
   `Restart_PreservesSessionSettings` does not catch this (it loads an airborne scenario and only reads the flag back); the
   ordering guard is `Restart_WithAutoCrossOn_PreClearsPresetTaxiCrossings` plus its
