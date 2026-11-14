@@ -17,6 +17,7 @@
 ### Fixed
 
 - A crosswind or downwind departure (`CTO MRC`, `CTO MRD`) given `CM` on the roll still turns crosswind and flies its queued `DCT`.
+- A VFR arrival turned away from the field to set up its pattern entry keeps the VFR arrival quick commands instead of switching to flight following.
 - A VFR aircraft whose route runs out, after a `DCT` for example, flies straight on again instead of turning direct to its destination.
 - `SQ` accepts only a four-digit code of 0-7, so `SQ 123` is refused instead of squawking 0123.
 - vTDLS no longer re-sends an item after a flight-plan amendment that changes nothing the item shows.

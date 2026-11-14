@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -301,11 +302,29 @@ public static class SituationClassifier
             : AircraftSituation.VfrFlightFollowing;
     }
 
+    /// <summary>
+    /// A queued pattern entry makes a VFR aircraft inbound at any distance and track (a turn onto base or a downwind
+    /// vector is still an arrival). A latched non-local arrival inside the leave radius stays one whatever its track or
+    /// ground speed, mirroring <see cref="StaysIfrArrival"/>. Otherwise the aircraft is inbound while inside the radius
+    /// for its latch state and closing on the field. A local flight (origin = destination) is never inbound just after
+    /// liftoff, whatever the radius says.
+    /// </summary>
     private static bool IsVfrInbound(AircraftState ac, NavigationDatabase navDb, double simTimeSeconds, bool latched)
     {
         if (Locate(ac, navDb, ac.FlightPlan.Destination) is not { } destination)
         {
             return false;
+        }
+
+        bool departedThisField = navDb.AirportIdsMatchResolved(ac.FlightPlan.Departure, ac.FlightPlan.Destination);
+        if (PatternCommandHandler.HasQueuedPatternEntry(ac))
+        {
+            return !JustDepartedThisField(ac, departedThisField, simTimeSeconds);
+        }
+
+        if (StaysVfrArrival(destination, latched, departedThisField))
+        {
+            return true;
         }
 
         double radiusNm = latched ? VfrInboundLeaveRadiusNm : VfrInboundRadiusNm;
@@ -314,9 +333,20 @@ public static class SituationClassifier
             return false;
         }
 
-        bool departedThisField = navDb.AirportIdsMatchResolved(ac.FlightPlan.Departure, ac.FlightPlan.Destination);
-        return !(departedThisField && (SecondsSinceLiftoff(ac, simTimeSeconds) < VfrJustDepartedSeconds));
+        return !JustDepartedThisField(ac, departedThisField, simTimeSeconds);
     }
+
+    /// <summary>
+    /// The leave test for a latched VFR arrival. A non-local arrival inside the leave radius stays one whatever its
+    /// track or ground speed, mirroring <see cref="StaysIfrArrival"/>; a local flight (origin = destination) never
+    /// uses the radius test, entering or leaving.
+    /// </summary>
+    private static bool StaysVfrArrival(AirportFix destination, bool latched, bool departedThisField) =>
+        latched && (!departedThisField) && (destination.DistanceNm <= VfrInboundLeaveRadiusNm);
+
+    /// <summary>True when the aircraft just lifted off the field it is inbound to (a local flight's pattern work).</summary>
+    private static bool JustDepartedThisField(AircraftState ac, bool departedThisField, double simTimeSeconds) =>
+        departedThisField && (SecondsSinceLiftoff(ac, simTimeSeconds) < VfrJustDepartedSeconds);
 
     /// <summary>
     /// Heading away from the origin inside its radius; with no origin known, soon after liftoff and still low. An

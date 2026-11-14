@@ -414,6 +414,8 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
 **Why a quick command is missing.** A quick command shows only when the aircraft can take it right now; it is always still under All Commands.
 
+- **A VFR arrival keeps its arrival list while turned away.** Once it is a VFR arrival (inside 20 NM and heading for the field), a flight that is not a local one keeps the VFR arrival list out to about 22.5 NM whatever its heading, so vectoring it away from the field to set up a pattern entry does not change its menu. One with a pattern entry queued (`ERB`, `ELD`, …) keeps it at any distance and heading, except a local flight just after liftoff.
+
 - **Squawk normal** shows only on the ground with the transponder in standby. **Squawk assigned code** shows only while the aircraft is squawking Mode C a code other than its assigned one, which is not an emergency code (`7400`, `7500`, `7600`, `7700`, `7777`), has an assigned code (a VFR aircraft on 1200 with none is never offered it, in the Squawk submenu either), and has not been told `SQVFR`.
 - **Cross {runway}** names the runway to cross ("Cross 28R"): the one the aircraft holds short of, or the next runway on its taxi route. It shows only when a runway is the next hold-short on the route, and never while the aircraft is still crossing another runway or a runway it is already cleared to cross still lies ahead: one crossing at a time.
 

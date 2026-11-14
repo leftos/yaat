@@ -471,17 +471,55 @@ public sealed class SituationClassifierTests
     {
         AircraftSituation situation = AircraftSituation.Unknown;
 
-        situation = SituationClassifier.Classify(Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 10, 59)), Now, situation);
+        situation = SituationClassifier.Classify(Airborne("VFR", "OAK", "OAK", new Radial("OAK", 180, 10, 59)), Now, situation);
         Assert.Equal(AircraftSituation.VfrArrivalInbound, situation);
 
-        situation = SituationClassifier.Classify(Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 10, 85)), Now, situation);
+        situation = SituationClassifier.Classify(Airborne("VFR", "OAK", "OAK", new Radial("OAK", 180, 10, 85)), Now, situation);
         Assert.Equal(AircraftSituation.VfrArrivalInbound, situation);
 
-        situation = SituationClassifier.Classify(Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 10, 91)), Now, situation);
+        situation = SituationClassifier.Classify(Airborne("VFR", "OAK", "OAK", new Radial("OAK", 180, 10, 91)), Now, situation);
         Assert.Equal(AircraftSituation.VfrFlightFollowing, situation);
 
-        situation = SituationClassifier.Classify(Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 10, 85)), Now, situation);
+        situation = SituationClassifier.Classify(Airborne("VFR", "OAK", "OAK", new Radial("OAK", 180, 10, 85)), Now, situation);
         Assert.Equal(AircraftSituation.VfrFlightFollowing, situation);
+    }
+
+    [Fact]
+    public void Classify_LatchedNonLocalVfrArrival_InsideLeaveRadius_StaysInboundWhateverItsTrack()
+    {
+        // A latched non-local arrival 10 NM out and 91 deg off the bearing to the field (a turn onto base) stays one.
+        AircraftState ac = Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 10, 91));
+
+        Assert.Equal(AircraftSituation.VfrArrivalInbound, SituationClassifier.Classify(ac, Now, AircraftSituation.VfrArrivalInbound));
+    }
+
+    [Fact]
+    public void Classify_NonLocalVfrArrival_PastLeaveRadius_Leaves()
+    {
+        AircraftState ac = Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 22.6, 91));
+
+        Assert.Equal(AircraftSituation.VfrFlightFollowing, SituationClassifier.Classify(ac, Now, AircraftSituation.VfrArrivalInbound));
+    }
+
+    [Fact]
+    public void Classify_VfrArrival_WithQueuedPatternEntry_IsInboundAtAnyDistanceAndTrack()
+    {
+        // 30 NM out and 120 deg off the bearing, unlatched: no radius or closing test would call it inbound.
+        AircraftState ac = Airborne("VFR", "SAC", "OAK", new Radial("OAK", 180, 30, 120));
+        ac.Queue.Blocks.Add(new CommandBlock { SourceCommandText = "ERB 28R" });
+
+        Assert.Equal(AircraftSituation.VfrArrivalInbound, SituationClassifier.Classify(ac, Now, AircraftSituation.Unknown));
+    }
+
+    [Fact]
+    public void Classify_LocalVfrJustAfterLiftoff_WithQueuedPatternEntry_IsNotInbound()
+    {
+        // A local aircraft 120 s off the runway with ERB 28R queued is flying its own pattern, not arriving.
+        AircraftState ac = Airborne("VFR", "OAK", "OAK", new Radial("OAK", 180, 3, 0));
+        ac.Situation.AirborneAtSeconds = Now - 120;
+        ac.Queue.Blocks.Add(new CommandBlock { SourceCommandText = "ERB 28R" });
+
+        Assert.Equal(AircraftSituation.VfrFlightFollowing, SituationClassifier.Classify(ac, Now, AircraftSituation.VfrArrivalInbound));
     }
 
     [Fact]
@@ -775,10 +813,13 @@ public sealed class SituationClassifierTests
         return ac;
     }
 
-    /// <summary>A VFR aircraft 10 NM south of OAK tracking straight at it, at sea level so its ground speed is its airspeed.</summary>
+    /// <summary>
+    /// A local VFR aircraft (origin = destination OAK) 10 NM south of it tracking straight at it, at sea level so its
+    /// ground speed is its airspeed. Local, so the non-local leave radius does not hide the closing-ground-speed band.
+    /// </summary>
     private static AircraftState SlowVfrInbound(double groundSpeedKts)
     {
-        AircraftState ac = Airborne("VFR", "SAC", "OAK", Radial.Toward(180, 10));
+        AircraftState ac = Airborne("VFR", "OAK", "OAK", Radial.Toward(180, 10));
         ac.Altitude = 0;
         ac.IndicatedAirspeed = groundSpeedKts;
         Assert.Equal(groundSpeedKts, ac.GroundSpeed, 1);

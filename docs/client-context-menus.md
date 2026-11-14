@@ -357,6 +357,8 @@ Every list but Live traffic's opens with **Squawk assigned code** (bare `SQ`), a
 
 Holding is also the situation of a VFR hold and an airspace-boundary hold, which is why its IFR entries are followed by VFR-tagged pattern entries. Exit hold and Expect further clearance time have no sim command yet, so the Holding list leaves them out.
 
+A VFR arrival keeps the VFR arrival, inbound list while turned away from the field to set up a pattern entry. `SituationClassifier` holds it inbound once latched, when it is not a local flight and is inside the 22.5 NM leave radius, whatever its track or ground speed; and at any distance or track while a pattern entry (`ERB`, `ELD`, …) is queued, except a local flight just after liftoff. Otherwise it is inbound only while inside the radius and closing on the field.
+
 A closed-traffic aircraft is in the Final situation from its turn to final on every circuit, so its Final list carries the VFR option clearances as well.
 
 ### When a quick command shows
