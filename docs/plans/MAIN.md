@@ -33,7 +33,12 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-2252 When adding buttons only add to currently selected profiles by default · release vNext
+- [ ] YAAT-2248 Macro panel cut button settings · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
+- [/] YAAT-2249 Solo S3-FAT: pilots request lower every ~10 s and the approach every ~15 s · release vNext
+- [/] YAAT-2250 CTO MRC followed by CM 020: the departure never turns crosswind (KOAK 28R, straight out at 1,300 ft) · release vNext
+- [ ] YAAT-2253 Two VFR arrivals (N929AW, N2BP) show different context menus in one session · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -61,7 +66,7 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-2237 Show Accept handoff, Cancel handoff and Acknowledge pointout as quick commands while one is pending · release vNext
+- [/] YAAT-2237 Show Accept handoff, Cancel handoff and Acknowledge pointout as quick commands while one is pending · release vNext
 - [ ] YAAT-2240 Add an Altitude quick command for VFR aircraft (CM, at or above, at or below) · release vNext
 
 ## Say again
@@ -685,7 +690,7 @@
 
 ## Command parser and queue
 
-### 1 Defects (5/20 done)
+### 1 Defects (5/21 done)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
@@ -701,10 +706,10 @@
 - [ ] YAAT-1385 Clear fix crossing stamps when a transmission is rewound, so the reused id never reads them as its own
 - [ ] YAAT-1450 Complete a ; block whose only speed effect is a Mach hold
 - [ ] YAAT-1889 Dry-run a queued or conditional block as a unit when it fires, so a refused altitude does not leave its speed half-applied
+- [ ] YAAT-2244 Keep FH 360 / TL 360 / TR 360 as 360 in canonical text (today FH 000, which does not re-parse)
 
-### 2 Refinements and rulings (0/6 done)
+### 2 Refinements and rulings (1/6 done)
 - [ ] YAAT-88 Give the command queue a per-dispatch frontier for independent chains
-- [ ] YAAT-347 VFR FH with a cardinal direction: FH E / SE / W … = "proceed eastbound" → FH 090 / 135 / 270 · release vNext
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-1098 Fail a REPORT cancel with unrecognised tokens instead of cancelling every report
@@ -947,7 +952,7 @@
 
 ## Navigation data and route geometry
 
-### 1 Defects (2/13 done)
+### 1 Defects (3/13 done)
 - [ ] YAAT-676 Make a JAWY intercept planned with no airway fix behind the aircraft fire
 - [ ] YAAT-2021 Check the runway width YAAT derives for SFO (ADG ceiling comes out V, SFO runways are 200 ft)
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
@@ -958,7 +963,6 @@
 - [ ] YAAT-953 Make GeoMath's point projection agree with its great-circle distance
 - [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
 - [ ] YAAT-1688 Keep the offline CIFP stale-cache fallback to cycle-named files
-- [ ] YAAT-2230 Resolve CIFP terminal waypoints in CFIX for the aircraft's airport (CFIX CFBMS at KBCT) · release vNext
 
 ### 2 Refinements and rulings (5/11 done)
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
@@ -1092,8 +1096,7 @@
 - [ ] YAAT-1498 Keep a runway configuration that names one runway twice from throwing in the ASDE-X alert step
 - [ ] YAAT-1502 Rebuild ASDE-X hold bars when a pushed runway footprint changes, not only on a layout or id change
 
-### 2 Refinements and rulings (0/7 done)
-- [ ] YAAT-92 Skip the vTDLS re-broadcast when no field the TDLS item shows changed · release vNext
+### 2 Refinements and rulings (1/7 done)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
 - [ ] YAAT-647 Count the ERAM coverage coast's 24 s from the anchor sweep, as the disconnect coast does
@@ -1111,6 +1114,8 @@
 ### No milestone
 - [ ] YAAT-2048 Apply the STARS consolidation rulings: HD ILL POS with no attended owner, scenario positions attended, force handoff redirects
 - [ ] YAAT-2102 Resolve a nameless sent PDC's SID across every ops config
+- [ ] YAAT-2242 Mark the vTDLS item changed when the beacon code is reassigned without an amendment
+- [ ] YAAT-2243 Build the join-time strip state under the room gate
 
 ## Live traffic
 
@@ -1487,6 +1492,8 @@
 - [ ] YAAT-2158 Declare brotli and ruff so the Python tool tests run on a fresh venv
 - [ ] YAAT-2169 Document the menu-golden regenerate as a routed gate run with --bring-tracked
 - [ ] YAAT-2191 Reconcile USER_GUIDE and COMMANDS on assuming a surface shadow
+- [ ] YAAT-2251 Document gate-routed probe builds and real-scenario rigs in test-harness.md
+- [ ] YAAT-2254 Tell agents to gate each busy command separately, never in one pwsh -Command one-liner
 
 ## Backlog
 
@@ -1500,6 +1507,9 @@
 - [ ] YAAT-2204 Step a held Ctrl+Alt+Right through vTDLS facilities from the one already requested
 - [ ] YAAT-2215 LineUpPhase faults at an airport with no ground layout
 - [ ] YAAT-2218 Find a ground live-traffic aircraft's field from its position, not its filed plan
+- [ ] YAAT-2245 Give no-flight-plan live-traffic VFR (1200) aircraft VFR flight rules, so FlightPlan.IsVfr gates see them
+- [ ] YAAT-2246 Split PhraseologyVerbalizer.VerbalizeCore's direct-render prelude into a helper (over the size limits)
+- [ ] YAAT-2247 Give RadarCanvas, GroundCanvas and ScopeCanvas one disposal lifetime (Dispose is never called today)
 
 ## Design files
 
