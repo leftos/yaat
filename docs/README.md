@@ -53,7 +53,7 @@ Open the matching doc **before exploring, searching, or editing** the code it li
 - [`runway-fouling.md`](./runway-fouling.md) — which "clear of the runway" definition each consumer uses (`RunwayOccupancy`, `OccupiedRunwayGoAround`, `RunwaySafetyAdvisor`, solo runway-user scoring), from P/CG, AIM 4-3-21 / 2-3-5 and 7110.65 3-9 / 3-10
 - [`track-sharing-and-consolidation.md`](./track-sharing-and-consolidation.md) — `ConsolidationEngine`/`ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`, `StarsConsolidation`
 - [`client-mainviewmodel.md`](./client-mainviewmodel.md) — any `MainViewModel` partial, `MainWindow.axaml.cs`, SignalR-driven client features
-- [`radar-rendering.md`](./radar-rendering.md) — `Views/Radar/`, `Views/Map/` (SkiaSharp two-thread snapshot split)
+- [`radar-rendering.md`](./radar-rendering.md) — `Views/Radar/`, `Views/Map/`, the `Views/Scope/` YAAT Scope engine (SkiaSharp two-thread snapshot split)
 - [`ground-rendering.md`](./ground-rendering.md) — `Views/Ground/` (`GroundCanvas`, `GroundRenderer`, `GroundViewModel` taxi-route overlays + the client-side route-reconstruction contract)
 - [`command-input-ux.md`](./command-input-ux.md) — `CommandInputController`, `ArgumentSuggester`/`FixSuggester`, `SignatureHelpState`, `CommandInputParseResult` (pre-send)
 - [`weather-and-wind.md`](./weather-and-wind.md) — `WeatherProfile`/`WeatherTimeline`, `MetarParser`, `WindsAloftParser`, `WindInterpolator`, `MagneticDeclination`, `LiveWeatherService`
