@@ -806,6 +806,12 @@ A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough)
 **FieldRect**:
 One laid-out datablock field in YAAT Scope: its slot, screen rect, text, color token and field style; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
 
+**HSF (ERAM)**:
+The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
+
+**Status slot (YAAT Scope)**:
+ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
+
 **Template (YAAT Scope)**:
 A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "euroscope") and chosen by a profile.
 

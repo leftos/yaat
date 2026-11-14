@@ -36,10 +36,16 @@ public enum ScopeFieldSlot
     /// <summary>ATPA in-trail distance to the aircraft ahead.</summary>
     Atpa,
 
-    /// <summary>The line-3 status slot (owner, handoff, point-out and scratchpads in step 1).</summary>
+    /// <summary>
+    /// The line-3 status slot: STARS shows owner, handoff, point-out and scratchpads; ERAM one Field E text by priority
+    /// (special-purpose code, handoff, recently accepted, beacon mismatch or <c>NONE</c>, <c>FRZN</c>, <c>CST</c>).
+    /// </summary>
     StatusLine3,
 
-    /// <summary>The line-4 heading/speed/free-text notes.</summary>
+    /// <summary>The ERAM HSF indicator after the line-3 status, drawn as a path in its <see cref="TrackPresenter.EramArrowCell"/>.</summary>
+    HsfIndicator,
+
+    /// <summary>The ERAM line 4: the HSF free text or heading/speed, else the aircraft type or destination fallback.</summary>
     Line4Notes,
 
     /// <summary>Beacon-code mismatch: reported code then assigned code.</summary>

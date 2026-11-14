@@ -9,8 +9,8 @@ Grounded in the CRC manuals `docs/crc/stars.md` and `docs/crc/eram.md`. The term
 An instructor radar that takes the strongest parts of STARS and ERAM without copying either one. The student's CRC display stays exact. This scope is for the instructor, so it can be easier to read.
 
 - **Datablocks** have fixed fields and never time-share. Line 2 uses ERAM's altitude notation (`300C`, `100T253`, `230↓253`, `230XXXX`, `200B250`…) followed by the STARS right side: ground speed in tens, CWT category, `^` for RNAV, and the ATPA in-trail distance.
-  - Line 3 is a single status slot, filled in priority order: SPC › handoff › beacon mismatch › CST/FRZN › scratchpads and type.
-  - Line 4 holds ERAM's heading/speed/free-text notes, shown only when set.
+  - Line 3 is a single status slot, filled in priority order: SPC › handoff › recently accepted › beacon mismatch or NONE › FRZN › CST.
+  - Line 4 shows ERAM's heading/speed/free-text notes, else the aircraft type, else a short destination; absent when empty.
   - Column 0 holds the VCI (on-frequency mark) and `R` (not your control).
   - There are four levels: Limited, Partial, Full, and Dwell (hover expands the block).
   - Held keys stand in for time-sharing: F1 shows beacon codes, F10 shows type and destination, Alt shows scratchpads.
@@ -50,7 +50,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 ## Build order
 
 - [ ] 1. The new YAAT Scope view on the template engine, with the STARS, ERAM, Mixed and EuroScope templates, opened from the View menu beside today's Radar. Progress: the engine and the window (View > Windows > YAAT Scope: video maps, targets, leaders, STARS blocks, ERAM blocks and EuroScope tags, select, menu, pan, zoom) have landed; the Mixed template has not
-- [ ] 2. ERAM altitude line, line-3 status slot, line-4 HSF, VCI, dwell. Progress: step 2a has landed — the ERAM datablock inputs on the wire, the ERAM template with its Template menu pick, and the altitude line; the status slot, HSF, VCI and dwell have not
+- [ ] 2. ERAM altitude line, line-3 status slot, line-4 HSF, VCI, dwell. Progress: step 2a has landed — the ERAM datablock inputs on the wire, the ERAM template with its Template menu pick, and the altitude line; step 2b-ii has landed — the line-3 status slot, the HSF indicator and line 4; VCI and dwell have not
 - [ ] 3. Toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists
 - [ ] 4. Profiles and zoom bands (profile picked from the student position); one Vector control; one Rings tool; TDM toggle
 - [ ] 5. Field menus split scope data from pilot commands (click sends, Shift+click stages); middle-click executes; measure, CRR, speed-to-time; CRC-dialect entries in the command line

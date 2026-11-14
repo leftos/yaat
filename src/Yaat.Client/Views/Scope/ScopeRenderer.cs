@@ -374,6 +374,50 @@ public sealed class ScopeRenderer : IDisposable
         {
             DrawArrow(canvas, field, font, color);
         }
+
+        if (field.Style.HasFlag(ScopeFieldStyle.HsfIndicator))
+        {
+            DrawHsfIndicator(canvas, field, font, color);
+        }
+    }
+
+    /// <summary>The ERAM HSF indicator ↴ in the monospace cell <see cref="TrackPresenter.EramArrowCell"/> holds in the field's text.</summary>
+    private void DrawHsfIndicator(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
+    {
+        int cell = field.Text.IndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
+        if (cell < 0)
+        {
+            return;
+        }
+
+        using SKPath path = HsfPath(field, font, cell);
+        _arrowPaint.Color = color;
+        _arrowPaint.StrokeWidth = MathF.Max(1f, font.Size / 10f);
+        canvas.DrawPath(path, _arrowPaint);
+    }
+
+    /// <summary>
+    /// The ↴ path in cell <paramref name="cell"/> of <paramref name="field"/>: a stroke rightwards a quarter of the cap height
+    /// below the cap line, then down to the baseline, with a downward head at its foot.
+    /// </summary>
+    internal static SKPath HsfPath(FieldRect field, SKFont font, int cell)
+    {
+        float left = field.Rect.Left + font.MeasureText(field.Text[..cell]);
+        float width = font.MeasureText(TrackPresenter.EramArrowCell);
+        float capHeight = font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f;
+        float bottom = field.Rect.Bottom;
+        float y = bottom - (capHeight * 0.75f);
+        float x = left + (width * 0.65f);
+        float head = width * 0.3f;
+
+        var path = new SKPath();
+        path.MoveTo(left + (width * 0.1f), y);
+        path.LineTo(x, y);
+        path.LineTo(x, bottom);
+        path.MoveTo(x - head, bottom - head);
+        path.LineTo(x, bottom);
+        path.LineTo(x + head, bottom - head);
+        return path;
     }
 
     /// <summary>

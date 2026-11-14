@@ -547,7 +547,9 @@ internal static class ScopeTestAircraft
         UserInitials: null,
         AssignmentTint: false,
         UnassignedTint: false,
-        Viewer: ScopeViewer.None
+        Viewer: ScopeViewer.None,
+        EramLine4Type: true,
+        EramLine4Destination: true
     );
 
     /// <summary>A beacon-code mismatch: Mode C reporting 1200 while 0301 is assigned.</summary>

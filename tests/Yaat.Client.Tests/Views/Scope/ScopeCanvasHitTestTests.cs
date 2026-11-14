@@ -198,4 +198,26 @@ public class ScopeCanvasHitTestTests
         (float x, float y) = Centre(altitude);
         Assert.Equal(altitude, frame.FieldAt(x, y)?.Field);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HitTest_Eram_HsfIndicatorAndBlinkingStatus_HitInBothPhases(bool flashOn)
+    {
+        AircraftModel ac = HandingOff();
+        ac.EramAssignedHeading = "270";
+        ScopeFrame frame;
+        using (RadarBlinkPin.Phase(flashOn))
+        {
+            frame = Build(ScopeTemplates.EramId, 12f, ac);
+        }
+
+        FieldRect indicator = FieldOf(frame, ScopeFieldSlot.HsfIndicator);
+        FieldRect status = FieldOf(frame, ScopeFieldSlot.StatusLine3);
+        (float ix, float iy) = Centre(indicator);
+        (float sx, float sy) = Centre(status);
+
+        Assert.Equal(ScopeFieldSlot.HsfIndicator, frame.FieldAt(ix, iy)?.Field.Slot);
+        Assert.Equal(ScopeFieldSlot.StatusLine3, frame.FieldAt(sx, sy)?.Field.Slot);
+    }
 }

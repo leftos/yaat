@@ -303,6 +303,80 @@ public class ScopeRendererStyleTests
         Assert.True(AnyPixel(bitmap, SymbolLeftEdge(track), tint), "no unassigned-tint pixel on the symbol");
     }
 
+    [Fact]
+    public void HsfPath_RunsRightThenDownToAHead_InsideItsCell()
+    {
+        using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
+        float cellWidth = font.MeasureText(TrackPresenter.EramArrowCell);
+        const float left = 10f;
+        var field = new FieldRect(
+            ScopeFieldSlot.HsfIndicator,
+            new SKRect(left, 20f, left + cellWidth, 20f + FontSize),
+            TrackPresenter.EramArrowCell,
+            ScopeColorToken.Default,
+            ScopeFieldStyle.HsfIndicator
+        );
+
+        using SKPath path = ScopeRenderer.HsfPath(field, font, 0);
+
+        SKPoint[] p = path.Points;
+        Assert.Equal(p[0].Y, p[1].Y);
+        Assert.True(p[1].X > p[0].X, "the stroke does not run rightwards");
+        Assert.Equal(p[1].X, p[2].X);
+        Assert.True(p[2].Y > p[1].Y, "the stroke does not turn down");
+        Assert.Equal(field.Rect.Bottom, p[2].Y);
+        Assert.Contains(p.Skip(3), q => (q.Y < p[2].Y) && (q.X < p[2].X));
+        Assert.Contains(p.Skip(3), q => (q.Y < p[2].Y) && (q.X > p[2].X));
+        Assert.All(p, q => Assert.InRange(q.X, left, left + cellWidth));
+        Assert.All(p, q => Assert.InRange(q.Y, field.Rect.Top, field.Rect.Bottom));
+    }
+
+    [Fact]
+    public void HsfIndicator_DrawsInItsCellInTheBlockColour()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.EramAssignedHeading = "270";
+        using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            [ac],
+            null,
+            Viewport(),
+            ScopeTemplates.EramId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay,
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>()
+        );
+        var frame = ScopeFrame.Build(input);
+        FieldRect indicator = FieldOf(frame, ScopeFieldSlot.HsfIndicator);
+
+        using SKBitmap drawn = Render(frame);
+        using SKBitmap plain = Render(WithoutStyle(frame));
+
+        Assert.Equal(TrackPresenter.EramArrowCell, indicator.Text);
+        Assert.True(AnyLit(drawn, PixelsOf(indicator)), "nothing drawn in the HSF indicator cell");
+        Assert.False(AnyLit(plain, PixelsOf(indicator)), "the indicator cell is not blank without the style");
+    }
+
+    private static bool AnyLit(SKBitmap bitmap, SKRectI area)
+    {
+        for (int y = area.Top; y < area.Bottom; y++)
+        {
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                SKColor c = bitmap.GetPixel(x, y);
+                if ((Brightness(c) > 0) && (c.Red == c.Green) && (c.Green == c.Blue))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static ScopeFrame Frame(AircraftModel ac, bool selected, ScopeDisplayOptions display) =>
         Frame(ac, selected, display, new HashSet<string>());
 

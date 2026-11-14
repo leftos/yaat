@@ -80,8 +80,9 @@ public static class ScopeTemplates
 
     /// <summary>
     /// The ERAM datablock: line 1 as STARS; line 2 the ERAM altitude (Field B, its character 4 and Field C) followed by the
-    /// STARS right side (ground speed, cwt/type, the ATPA in-trail distance, then the ident); then the squawk-mismatch,
-    /// status, ModeC, warning, conflict and note lines.
+    /// STARS right side (ground speed, cwt/type, the ATPA in-trail distance, then the ident); line 3 the status text and
+    /// the HSF indicator; line 4 the HSF notes or the type/destination fallback; then the ModeC, warning, conflict and note
+    /// lines.
     /// </summary>
     public static readonly ScopeTemplate Eram = new(
         EramId,
@@ -103,8 +104,8 @@ public static class ScopeTemplates
                 Steady(ScopeFieldSlot.Atpa),
                 Flashing(ScopeFieldSlot.Ident)
             ),
-            Line(false, Steady(ScopeFieldSlot.Squawk)),
-            Line(false, Flashing(ScopeFieldSlot.StatusLine3)),
+            Line(false, Flashing(ScopeFieldSlot.StatusLine3), new ScopeSlotPlacement(ScopeFieldSlot.HsfIndicator, "", false)),
+            Line(false, Steady(ScopeFieldSlot.Line4Notes)),
             Line(false, Steady(ScopeFieldSlot.ModeC)),
             Line(false, Flashing(ScopeFieldSlot.NoLandingClearance)),
             Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),

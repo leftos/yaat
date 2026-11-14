@@ -313,7 +313,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             prefs?.UserInitials,
             palette.AssignedToMe is not null,
             palette.AssignedToOther is not null,
-            Viewer
+            Viewer,
+            EramLine4Type: true,
+            EramLine4Destination: true
         );
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;

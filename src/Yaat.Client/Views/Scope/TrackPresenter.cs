@@ -24,6 +24,8 @@ public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, b
 /// <param name="AssignmentTint">The assignment tint is enabled and its colour parsed.</param>
 /// <param name="UnassignedTint">The unassigned tint is enabled and its colour parsed.</param>
 /// <param name="Viewer">The position the scope is viewed from (<see cref="ScopeViewer"/>).</param>
+/// <param name="EramLine4Type">The ERAM line 4 falls back to the aircraft type and equipment suffix when no HSF is set.</param>
+/// <param name="EramLine4Destination">The ERAM line 4 falls back to a destination of four characters or fewer after the type.</param>
 public sealed record ScopeDisplayOptions(
     bool MarkStudentLevel,
     bool ShowTypeMismatchHints,
@@ -32,7 +34,9 @@ public sealed record ScopeDisplayOptions(
     string? UserInitials,
     bool AssignmentTint,
     bool UnassignedTint,
-    ScopeViewer Viewer
+    ScopeViewer Viewer,
+    bool EramLine4Type,
+    bool EramLine4Destination
 );
 
 /// <summary>Every per-frame input <see cref="TrackPresenter.Present"/> reads.</summary>
@@ -352,6 +356,11 @@ public static class TrackPresenter
             _ => throw new ArgumentException($"Unknown scope template id '{input.TemplateId}'.", nameof(input)),
         };
         fields.AddRange(AlertFields(input));
+        if (input.TemplateId == ScopeTemplates.EramId)
+        {
+            // The ERAM status text carries the beacon mismatch.
+            fields.RemoveAll(f => f.Slot == ScopeFieldSlot.Squawk);
+        }
         ScopeTintRole tint = TintFor(input);
         return new TrackPresentation(input.TemplateId, ScopeBlockLevel.Full, BlockColorFor(input, tint), tint, fields);
     }
@@ -435,8 +444,9 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The ERAM template's fields: the STARS fields with the ERAM altitude line in place of the STARS altitude. The MVA tint
-    /// does not apply: it colours a whole field, and only Field C is the reported altitude.
+    /// The ERAM template's fields: the STARS fields with the ERAM altitude line in place of the STARS altitude, and the ERAM
+    /// status, HSF indicator and line 4 in place of the STARS status. The MVA tint does not apply: it colours a whole field,
+    /// and only Field C is the reported altitude.
     /// </summary>
     private static List<ScopeField> EramFields(TrackPresenterInput input)
     {
@@ -451,7 +461,30 @@ public static class TrackPresenter
             ScopeFieldAction.None,
             eram.Style
         );
+        fields.RemoveAll(f => f.Slot == ScopeFieldSlot.StatusLine3);
+        fields.AddRange(EramLineFields(input));
         return fields;
+    }
+
+    /// <summary>
+    /// ERAM line 3 (the status text, padded to four columns when the HSF indicator follows it) and line 4. A blinking status
+    /// is spaces of its length on the off phase, unless the track is in conflict (CRC <c>GetFieldE</c>).
+    /// </summary>
+    private static IEnumerable<ScopeField> EramLineFields(TrackPresenterInput input)
+    {
+        AircraftModel ac = input.Aircraft;
+        (string status, bool blinks) = EramStatusLine.Build(ac, input.Display.Viewer);
+        bool hsf = EramLine4.HasHsf(ac);
+        string stable = hsf ? status.PadRight(4) : status;
+        bool blank = blinks && !input.FlashOn && !ConflictActive(input);
+        string text = blank ? new string(' ', stable.Length) : stable;
+        string line4 = EramLine4.Text(ac, input.Display.EramLine4Type, input.Display.EramLine4Destination);
+        return
+        [
+            new(ScopeFieldSlot.StatusLine3, text, stable, ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
+            Styled(ScopeFieldSlot.HsfIndicator, hsf ? EramArrowCell : "", hsf ? ScopeFieldStyle.HsfIndicator : ScopeFieldStyle.None),
+            Steady(ScopeFieldSlot.Line4Notes, line4, ScopeColorToken.Default),
+        ];
     }
 
     private static List<ScopeField> EuroScopeFields(TrackPresenterInput input)

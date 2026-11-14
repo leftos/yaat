@@ -675,7 +675,7 @@ FDB line 4 contains field F which may contain the following items:
 - **Speed**: the aircraft's assigned speed
 - **Free text**: free text
 
-When a heading, speed, or free text value is defined, the heading/speed/free text (HSF) indicator (↴) is displayed at the end of line 2. Left or middle-clicking the HSF indicator toggles line 4 between displaying destination or type data and HSF data.
+When a heading, speed, or free text value is defined, the heading/speed/free text (HSF) indicator (↴) is displayed in the FDB (CRC appends it to line 3, the Field D/E line: `FdbRenderObject` does `mLine3 += EramChar.HsfIndicator`, not the end of line 2 as written here). The DEST and TYPE buttons are off by default in CRC's DB FIELDS filters, so line 4 normally shows HSF data or nothing. Left or middle-clicking the HSF indicator toggles line 4 between displaying destination or type data and HSF data.
 
 ##### QS Command
 
