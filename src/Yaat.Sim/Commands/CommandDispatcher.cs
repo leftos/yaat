@@ -3144,7 +3144,7 @@ public static class CommandDispatcher
 
     /// <summary>
     /// The canonical type an active phase's <see cref="Phase.CanAcceptCommand"/> gate reads. FOLLOWF is FOLLOW with
-    /// the traffic-in-sight requirement folded into the clearance (<see cref="ApplyForcedFollow"/> is the whole
+    /// the traffic-in-sight requirement folded into the clearance (<see cref="MarkForcedFollowInSight"/> is the whole
     /// difference), so the gate must see Follow: normalising here is what keeps FOLLOWF on its pattern leg, its
     /// final approach and its landing clearance. Every phase that lists Follow covers both without a FollowForce
     /// arm of its own, and no phase can clear a chain the plain verb would have kept.
@@ -6677,8 +6677,8 @@ public static class CommandDispatcher
         if (lead.IsOnGround)
         {
             // A lead rolling out on the runway a pursuit returns to is accepted (the lead lifecycle ends the follow on the
-            // next tick). From an approach or outside the pattern every ground lead is refused: accepting it would tear
-            // down the approach, or install a pursuit, only for the follow to end on the next tick.
+            // next tick). From an approach or outside the pattern every ground lead is refused: it is no longer traffic
+            // to follow, and accepting it would keep the approach, or install a pursuit, only for the follow to end on the next tick.
             return ((PursuitRunway(aircraft, current) is { } runway) && IsRollingOutOnRunway(lead, runway)) ? null : GroundLeadRefusal(lead, target);
         }
 
