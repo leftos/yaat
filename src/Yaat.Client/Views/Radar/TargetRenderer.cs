@@ -320,6 +320,9 @@ public sealed class TargetRenderer : IDisposable
     /// </summary>
     public bool ShowMvaAltitudeTint { get; set; }
 
+    /// <summary>The facility whose MVA chart the altitude tint prefers where charts overlap; null for highest-floor-wins.</summary>
+    public string? MvaFacilityId { get; set; }
+
     /// <summary>
     /// When true, color each datablock to match the student's STARS scope (white = owned by student,
     /// green = owned by another, yellow = pointout, cyan = highlighted) from
@@ -833,7 +836,7 @@ public sealed class TargetRenderer : IDisposable
             return null;
         }
 
-        (MvaRelation relation, MvaSector? _) = MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt);
+        (MvaRelation relation, MvaSector? _) = MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt, MvaFacilityId);
         return relation switch
         {
             MvaRelation.Below => MvaBelowColor,

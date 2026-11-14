@@ -12,7 +12,7 @@ radar so an instructor can see whether a student is vectoring at, above, or belo
 
 The vNAS MVA videomap (`MVAC.geojson`) is **pure linework**: sector boundaries plus the altitude
 numbers drawn as vector glyph strokes, with no machine-readable altitudes and no label↔sector link.
-It is unusable as a data source.
+It is unusable as a data source, though its glyph strokes read as hundreds of feet (a stroked "19" is 1,900 ft), which makes it a cross-check against the FAA polygons.
 
 Instead YAAT uses the **FAA's authoritative AIXM 5.1 MVA charts** (AJV-A certified):
 `https://aeronav.faa.gov/MVA_Charts/aixm/{FACILITY}_MVA_{FUS3|FUS5}.xml`. Each `Airspace` member
@@ -38,9 +38,9 @@ scope the controller sees.
    singleton mirroring `AirspaceDatabase` (3-tier fixture search, Brotli support, empty-DB no-op,
    `SetInstance` for tests). `MvaSector` does **exterior-minus-holes** containment (inside the
    exterior ring and outside every hole) — unlike `AirspaceVolume`'s union-of-rings model. Queries:
-   - `FindSector(LatLon)` → controlling `MvaSector?` (highest floor wins on any residual overlap).
-   - `GetFloorFtMsl(LatLon)` → `int?` floor shortcut.
-   - `Classify(LatLon, altFt, atBandFt)` → `(MvaRelation, MvaSector?)` — Below/At/Above/NoData.
+   - `FindSector(LatLon, string? preferredFacility)` → controlling `MvaSector?`: the containing sector of the preferred facility's chart when it has one (case-insensitive id match), else the highest floor among all containing sectors. Null preference is plain highest-wins.
+   - `GetFloorFtMsl(LatLon, string? preferredFacility)` → `int?` floor shortcut.
+   - `Classify(LatLon, altFt, atBandFt, string? preferredFacility)` → `(MvaRelation, MvaSector?)` — Below/At/Above/NoData. The preference is a required argument.
 
 `GeoMath.PointInRing(LatLon, ring)` and the shared `LatLonBounds` pre-filter back both `MvaSector` and `AirspaceVolume`, whose points are the shared `LatLon`.
 
@@ -91,9 +91,6 @@ point.
   belongs to the separately-charted inner sector. Do not reuse `AirspaceVolume`'s OR-of-rings logic.
 - **Coverage has gaps.** Between charted sectors (and outside the FAA's ~148-facility footprint) every
   query returns null — callers must treat "no MVA here" as a non-event, never an error.
-- **Overlaps resolve to the highest floor.** Adjacent facilities' charts overlap at boundaries; with all
-  facilities loaded, `FindSector` returns the highest floor among containing sectors (the conservative,
-  safest MVA). At a boundary this can surface a neighbor facility's floor rather than the nominal
-  controlling one — acceptable for a display hint, but not a substitute for the facility's own chart.
+- **Overlaps resolve to the radar's own facility chart.** Adjacent facilities' charts overlap, and NCT's Castle/Merced chart covers most of Fresno's terminal area, so highest-wins mislabelled it (2,000 ft where FAT charts 1,900). The radar passes `RadarViewModel.MvaFacilityId` (from `FacilityVideoMapsDto.FacilityId`) as the preference to the altitude tint, the Ctrl-hover readout, the point-menu MVA row and the aircraft-menu altitude flyout (`RadarView.CreateMenuHost` hands it to `ClientMenuHost` as `mvaFacilityId`; Ground and DataGrid menus use the docked radar's). Where that chart does not cover the point, or before video maps load, the highest floor across every chart applies. Live-traffic descent floors and the military-route terrain proxy pass a null preference and keep highest-wins. Composite FAA chart ids (`D01_DEN_PUB`, `BOI_BZN`) never match a facility id, so those radars keep highest-wins (YAAT-2297).
 - **Refresh drift.** The FAA charts update on no fixed cycle; re-run `--all` and commit the regenerated
   Brotli file to refresh. The `source`/`generatedAt`/`facilityCount` metadata records provenance.

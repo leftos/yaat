@@ -1268,7 +1268,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
 ##### Minimum Vectoring Altitude awareness
 
-YAAT knows the FAA-charted Minimum Vectoring Altitude (MVA) for every facility the FAA publishes (148 TRACONs and centers nationwide) and surfaces it three ways on the radar:
+YAAT knows the FAA-charted Minimum Vectoring Altitude (MVA) for every facility the FAA publishes (148 TRACONs and centers nationwide) and surfaces it three ways on the radar. Where FAA charts overlap, the chart of the facility whose video maps the radar loaded wins (at Fresno with FAT loaded, the FAT floor rather than a neighbouring facility's higher one); where that chart does not cover the point, or before video maps load, the highest floor among all charts applies. The aircraft menu's altitude list and the right-click MVA line follow the same rule.
 
 - **Datablock altitude tint** — an airborne IFR aircraft's datablock altitude is drawn **red** when it is below the MVA for its position and **amber** when within 100 ft of it (both the STARS datablock and the EuroScope tag).
 

@@ -448,7 +448,9 @@ public sealed class MilitaryRoutePhase : Phase
     /// </summary>
     private static double? ResolveGroundReference(MilitaryRoutePoint point)
     {
-        double? fromMva = Data.Mva.MvaDatabase.Default.GetFloorFtMsl(point.Position) is { } mva ? mva - MvaObstacleBufferFt : null;
+        double? fromMva = Data.Mva.MvaDatabase.Default.GetFloorFtMsl(point.Position, preferredFacility: null) is { } mva
+            ? mva - MvaObstacleBufferFt
+            : null;
         double? fromAirport = NavigationDatabase.Instance.FindNearestAirportElevation(point.Position, AglReferenceRangeNm);
 
         return (fromMva, fromAirport) switch

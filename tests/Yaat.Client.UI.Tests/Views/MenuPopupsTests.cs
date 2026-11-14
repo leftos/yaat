@@ -251,7 +251,7 @@ public class MenuPopupsTests
 
         AircraftModel ac = TaxiingJet();
         main.Aircraft.Add(ac);
-        var host = new ClientMenuHost(main, ac, anchor);
+        var host = new ClientMenuHost(main, ac, anchor, mvaFacilityId: null);
 
         string? got = null;
         host.ShowInputPopup(

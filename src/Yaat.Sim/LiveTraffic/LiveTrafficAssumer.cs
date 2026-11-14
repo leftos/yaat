@@ -508,7 +508,7 @@ public static class LiveTrafficAssumer
 
     private static double? DescentFloor(AircraftState ac)
     {
-        double? mva = MvaDatabase.Default.GetFloorFtMsl(ac.Position);
+        double? mva = MvaDatabase.Default.GetFloorFtMsl(ac.Position, preferredFacility: null);
         double? fieldFloor = null;
         if (!string.IsNullOrWhiteSpace(ac.FlightPlan.Destination) && RunwaysFor(ac.FlightPlan.Destination) is { Count: > 0 } runways)
         {

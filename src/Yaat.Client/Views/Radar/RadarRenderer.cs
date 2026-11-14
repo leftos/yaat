@@ -306,6 +306,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.ShowMvaAltitudeTint = value;
     }
 
+    public string? MvaFacilityId
+    {
+        get => _targetRenderer.MvaFacilityId;
+        set => _targetRenderer.MvaFacilityId = value;
+    }
+
     public bool SyncStudentColors
     {
         get => _targetRenderer.SyncStudentColors;

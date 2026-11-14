@@ -550,7 +550,7 @@ public partial class GroundView : UserControl
         }
 
         TrimTrailingSeparators(section);
-        var host = new ClientMenuHost(main, selected, Canvas);
+        var host = new ClientMenuHost(main, selected, Canvas, main.Radar.MvaFacilityId);
         ContextMenu menu = AircraftMenuBuilder.Build(selected, new MenuClick(selected.Callsign, null, point, []), host, _ => section);
         menu.Closed += (_, _) => host.SetRoutePreview(null);
         return menu;
@@ -634,7 +634,7 @@ public partial class GroundView : UserControl
         MainViewModel main =
             FindMainViewModel()
             ?? throw new InvalidOperationException("The ground aircraft menu needs the main view model; the ground view is not hosted by one");
-        var host = new ClientMenuHost(main, ac, Canvas);
+        var host = new ClientMenuHost(main, ac, Canvas, main.Radar.MvaFacilityId);
         return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, context => BuildViewSection(vm, context));
     }
 

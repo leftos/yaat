@@ -25,9 +25,10 @@ namespace Yaat.Client.Views;
 /// pointer on the anchor; the session, favorites, RPO items, ground traffic and multi-selection assume come from the main
 /// view model; fix names and field elevations from its primary radar view model; the ground choices from its primary
 /// ground view model, which owns the layout the other ground windows mirror; and a route preview shows on every ground
-/// view. Route drawing and tug moves start on the primary ground view.
+/// view. Route drawing and tug moves start on the primary ground view. The MVA a menu shows (<see cref="GetMva"/>) prefers the chart
+/// of <paramref name="mvaFacilityId"/>: the facility of the radar view the menu opened on, else the docked radar's.
 /// </summary>
-internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft, Control anchor) : IMenuHost
+internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft, Control anchor, string? mvaFacilityId) : IMenuHost
 {
     private static readonly ILogger Log = AppLog.CreateLogger("ClientMenuHost");
 
@@ -360,9 +361,12 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         CommandParser.IsReportFixName(name)
         && ((NavigationDatabase.Instance.GetCustomFixName(name) is not null) || name.StartsWith("VP", StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>.</summary>
+    /// <summary>
+    /// The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>, the radar's
+    /// facility chart (the constructor's <c>mvaFacilityId</c>) winning where charts overlap.
+    /// </summary>
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
-        (MvaDatabase.Default.FindSector(position) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
+        (MvaDatabase.Default.FindSector(position, mvaFacilityId) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
 
     /// <summary>
     /// The pattern entries' runway choices at <paramref name="airportId"/> for <paramref name="aircraftType"/>

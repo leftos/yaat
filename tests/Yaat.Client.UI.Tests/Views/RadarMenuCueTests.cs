@@ -26,7 +26,7 @@ public class RadarMenuCueTests
     public void HighlightAircraft_ReachesRadarViews()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var host = new ClientMenuHost(main, null, new Border());
+        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
         main.Radar.DataBlockState.ToggleHighlight("KEEP1");
 
         host.HighlightAircraft("SWA1");
@@ -61,7 +61,7 @@ public class RadarMenuCueTests
     public void SetRadarCue_ResolvesBothEndsOnTheUiThread()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var host = new ClientMenuHost(main, null, new Border());
+        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
         (RadarCanvas canvas, Window window) = ShowRadarView(main);
         AircraftModel from = Airborne(From, new LatLon(37.70, -122.20));
         AircraftModel target = Airborne(Target, new LatLon(37.75, -122.20));

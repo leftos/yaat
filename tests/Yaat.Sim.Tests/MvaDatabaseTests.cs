@@ -23,7 +23,7 @@ public sealed class MvaDatabaseTests
     [InlineData(32.8998, -97.0403, 2000, "D10")] // DFW — Dallas TRACON
     public void FindSector_ResolvesAcrossFacilities(double lat, double lon, int expectedFloor, string expectedFacility)
     {
-        MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
+        MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(lat, lon), preferredFacility: null);
 
         Assert.NotNull(sector);
         Assert.Equal(expectedFloor, sector!.FloorFtMsl);
@@ -37,12 +37,12 @@ public sealed class MvaDatabaseTests
     [InlineData(38.6951, -121.5910, 1700)] // SMF / Sacramento
     [InlineData(39.1000, -120.0500, 11200)] // Sierra near Tahoe
     public void GetFloorFtMsl_ReturnsChartedFloor(double lat, double lon, int expectedFloor) =>
-        Assert.Equal(expectedFloor, MvaDatabase.Default.GetFloorFtMsl(new LatLon(lat, lon)));
+        Assert.Equal(expectedFloor, MvaDatabase.Default.GetFloorFtMsl(new LatLon(lat, lon), preferredFacility: null));
 
     [Fact]
     public void GetFloorFtMsl_OutsideCoverage_ReturnsNull() =>
         // Mid-Atlantic — well outside any NorCal sector.
-        Assert.Null(MvaDatabase.Default.GetFloorFtMsl(new LatLon(40.0, -70.0)));
+        Assert.Null(MvaDatabase.Default.GetFloorFtMsl(new LatLon(40.0, -70.0), preferredFacility: null));
 
     [Fact]
     public void Contains_PointInsideHole_BelongsToTheInnerSectorNotTheSurroundingOne()
@@ -72,8 +72,8 @@ public sealed class MvaDatabaseTests
 
         Assert.False(surrounding.Contains(insideHole));
         Assert.True(island.Contains(insideHole));
-        Assert.Equal(6000, db.GetFloorFtMsl(insideHole));
-        Assert.Equal("SURROUND", db.FindSector(outsideHole)!.Sector);
+        Assert.Equal(6000, db.GetFloorFtMsl(insideHole, preferredFacility: null));
+        Assert.Equal("SURROUND", db.FindSector(outsideHole, preferredFacility: null)!.Sector);
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public sealed class MvaDatabaseTests
         };
         var db = new MvaDatabase([low, high]);
 
-        Assert.Equal("HIGH", db.FindSector(new LatLon(37.5, -121.5))!.Sector);
-        Assert.Equal(5000, db.GetFloorFtMsl(new LatLon(37.5, -121.5)));
+        Assert.Equal("HIGH", db.FindSector(new LatLon(37.5, -121.5), preferredFacility: null)!.Sector);
+        Assert.Equal(5000, db.GetFloorFtMsl(new LatLon(37.5, -121.5), preferredFacility: null));
     }
 
     [Theory]
@@ -107,7 +107,12 @@ public sealed class MvaDatabaseTests
     public void Classify_AppliesAtBandAroundFloor(double altitudeFt, MvaRelation expected)
     {
         // SFO point sits in a 2600 ft sector.
-        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(new LatLon(37.6189, -122.3750), altitudeFt, atBandFt: 100);
+        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(
+            new LatLon(37.6189, -122.3750),
+            altitudeFt,
+            atBandFt: 100,
+            preferredFacility: null
+        );
 
         Assert.Equal(expected, relation);
         Assert.Equal(2600, sector!.FloorFtMsl);
@@ -116,10 +121,76 @@ public sealed class MvaDatabaseTests
     [Fact]
     public void Classify_OutsideCoverage_IsNoData()
     {
-        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(new LatLon(40.0, -70.0), 5000, atBandFt: 100);
+        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(
+            new LatLon(40.0, -70.0),
+            5000,
+            atBandFt: 100,
+            preferredFacility: null
+        );
 
         Assert.Equal(MvaRelation.NoData, relation);
         Assert.Null(sector);
+    }
+
+    // --- Preferred facility (the radar's own chart wins where charts overlap) --------------------
+
+    // Points around KFAT, each with the floor ZOA video map 322 (RVMFAT022S) labels there, and the
+    // neighbour chart whose higher floor overlaps it.
+    [Theory]
+    [InlineData(36.7762, -119.7181, 1900)] // KFAT, map 322 "19" (NCT MCE_E 2000 overlaps)
+    [InlineData(36.9470, -119.7585, 2900)] // "29" (NCT MCE_I 5500)
+    [InlineData(37.0735, -119.7842, 3400)] // "34" (NCT MCE_I 5500)
+    [InlineData(36.9824, -119.4421, 6000)] // "60" (NCT MCE_H 14000)
+    [InlineData(36.8761, -119.1308, 9700)] // "97" (JCF SequoiaNP 15500)
+    [InlineData(36.1682, -119.4486, 1900)] // "19" (BFL U 2300)
+    public void FindSector_PreferredFacilityChart_WinsOverNeighbourOverlap(double lat, double lon, int map322Label)
+    {
+        MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(lat, lon), preferredFacility: "FAT");
+
+        Assert.NotNull(sector);
+        Assert.Equal("FAT", sector!.Facility);
+        Assert.Equal(map322Label, sector.FloorFtMsl);
+        Assert.Equal(map322Label, MvaDatabase.Default.GetFloorFtMsl(new LatLon(lat, lon), preferredFacility: "FAT"));
+    }
+
+    [Fact]
+    public void FindSector_PreferredFacilityWithoutCoverage_FallsBackToHighestFloor() =>
+        // FAT's chart does not reach SFO, so the highest floor across every chart applies.
+        Assert.Equal(2600, MvaDatabase.Default.FindSector(new LatLon(37.6189, -122.3750), preferredFacility: "FAT")!.FloorFtMsl);
+
+    [Fact]
+    public void FindSector_NullPreference_KeepsHighestFloorAtKfat() =>
+        // No preference: NCT's overlapping 2000 outranks FAT's own 1900.
+        Assert.Equal(2000, MvaDatabase.Default.FindSector(new LatLon(36.7762, -119.7181), preferredFacility: null)!.FloorFtMsl);
+
+    [Fact]
+    public void FindSector_PreferredFacilityWithNoChart_FallsBackToHighestFloor() =>
+        // O90 publishes no MVA chart of its own here, so KFAT reads the highest floor across every chart (NCT's 2000).
+        Assert.Equal(2000, MvaDatabase.Default.FindSector(new LatLon(36.7762, -119.7181), preferredFacility: "O90")!.FloorFtMsl);
+
+    [Fact]
+    public void FindSector_PreferredFacility_MatchesIgnoringCase()
+    {
+        MvaSector sector = MvaDatabase.Default.FindSector(new LatLon(36.7762, -119.7181), preferredFacility: "fat")!;
+
+        Assert.Equal("FAT", sector.Facility);
+        Assert.Equal(1900, sector.FloorFtMsl);
+    }
+
+    [Fact]
+    public void Classify_PreferredFacility_UsesItsOwnFloor()
+    {
+        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(
+            new LatLon(36.7762, -119.7181),
+            1850,
+            atBandFt: 100,
+            preferredFacility: "FAT"
+        );
+
+        // 1850 is within the band of FAT's 1900 floor; against NCT's overlapping 2000 it would read Below.
+        Assert.Equal(MvaRelation.At, relation);
+        Assert.Equal(1900, sector!.FloorFtMsl);
+        Assert.Equal("FAT", sector.Facility);
     }
 
     private static List<LatLon> Ring(params (double Lat, double Lon)[] vertices)

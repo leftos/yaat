@@ -50,6 +50,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         nameof(ShowMvaAltitudeTint)
     );
 
+    /// <summary>The facility whose MVA chart wins where charts overlap (<see cref="RadarViewModel.MvaFacilityId"/>); null for none.</summary>
+    public static readonly StyledProperty<string?> MvaFacilityIdProperty = AvaloniaProperty.Register<RadarCanvas, string?>(nameof(MvaFacilityId));
+
     public static readonly StyledProperty<IReadOnlyList<(string Name, double Lat, double Lon)>?> FixesProperty = AvaloniaProperty.Register<
         RadarCanvas,
         IReadOnlyList<(string Name, double Lat, double Lon)>?
@@ -543,6 +546,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowMvaAltitudeTintProperty, value);
     }
 
+    public string? MvaFacilityId
+    {
+        get => GetValue(MvaFacilityIdProperty);
+        set => SetValue(MvaFacilityIdProperty, value);
+    }
+
     public bool SyncStudentColors
     {
         get => _renderer.SyncStudentColors;
@@ -939,6 +948,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             _renderer.ShowMvaAltitudeTint = ShowMvaAltitudeTint;
         }
 
+        if (change.Property == MvaFacilityIdProperty)
+        {
+            _renderer.MvaFacilityId = MvaFacilityId;
+        }
+
         if (
             change.Property == VideoMapsProperty
             || change.Property == AircraftProperty
@@ -947,6 +961,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == RangeNmProperty
             || change.Property == ShowFixesProperty
             || change.Property == ShowMvaAltitudeTintProperty
+            || change.Property == MvaFacilityIdProperty
             || change.Property == FixesProperty
             || change.Property == PinnedMarkersProperty
             || change.Property == RangeRingCenterLatProperty
@@ -1154,7 +1169,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (_ctrlHeldAtPointer && IsPointerOver && Viewport.PixelWidth >= 1)
         {
             (double mvaLat, double mvaLon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
-            MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(mvaLat, mvaLon));
+            MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(mvaLat, mvaLon), MvaFacilityId);
             string mvaText = sector is null ? "MVA: no data" : $"MVA {sector.FloorFtMsl} ({sector.Sector})";
             mvaHover = (mvaText, new SKPoint((float)_lastPointerPos.X, (float)_lastPointerPos.Y));
         }
