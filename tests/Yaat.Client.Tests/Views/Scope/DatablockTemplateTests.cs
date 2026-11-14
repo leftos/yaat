@@ -105,7 +105,8 @@ public class DatablockTemplateTests
         var presentation = new TrackPresentation(
             "test",
             ScopeBlockLevel.Full,
-            ScopeColorToken.Default,
+            ScopeBlockColor.Default,
+            ScopeTintRole.None,
             [
                 new ScopeField(ScopeFieldSlot.Ident, flashOn ? "ID" : "", "ID", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
                 new ScopeField(ScopeFieldSlot.Altitude, "230", "230", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
@@ -132,7 +133,8 @@ public class DatablockTemplateTests
         var presentation = new TrackPresentation(
             ScopeTemplates.StarsId,
             ScopeBlockLevel.Full,
-            ScopeColorToken.Default,
+            ScopeBlockColor.Default,
+            ScopeTintRole.None,
             [
                 new ScopeField(ScopeFieldSlot.Callsign, "UAL238", "UAL238", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
                 new ScopeField(ScopeFieldSlot.Squawk, "1200 0301", "1200 0301", ScopeColorToken.Default, ScopeFieldAction.None, squawkStyle),

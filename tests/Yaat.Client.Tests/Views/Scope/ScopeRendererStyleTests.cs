@@ -29,6 +29,13 @@ public class ScopeRendererStyleTests
     private static readonly SKColor MvaBelowColor = new(255, 90, 90);
     private static readonly SKColor MvaAtColor = new(255, 200, 60);
 
+    // Today's TargetRenderer.StarsUnownedColor and StaleAlpha, duplicated rather than exposed.
+    private static readonly SKColor StarsUnownedColor = new(50, 205, 50);
+    private const byte StaleAlpha = 128;
+
+    /// <summary>The palette with no preferences: no tints, a white selected symbol.</summary>
+    private static readonly ScopePalette NoTints = new(null, null, SKColors.White);
+
     /// <summary>KOAK, inside a 2,000 ft MVA sector.</summary>
     private static readonly LatLon Koak = new(37.7213, -122.2208);
 
@@ -58,7 +65,8 @@ public class ScopeRendererStyleTests
             metrics,
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
-            new Dictionary<string, SKPoint>()
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>()
         );
         return ScopeFrame.Build(input);
     }
@@ -70,7 +78,7 @@ public class ScopeRendererStyleTests
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
         using var renderer = new ScopeRenderer();
-        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize);
+        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize, NoTints);
         renderer.Render(canvas, viewport, snapshot);
         canvas.Flush();
         return bitmap;
@@ -186,6 +194,165 @@ public class ScopeRendererStyleTests
             Assert.Equal(ScopeColorToken.MvaAt, altitude.Token);
             Assert.True(AnyPixel(bitmap, PixelsOf(altitude), MvaAtColor), "no pixel of the MVA-at colour in the altitude field");
         }
+    }
+
+    [Fact]
+    public void UnownedBlock_DrawsItsDefaultTextAndLeaderInLimeGreen()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.StudentDatablockColor = StarsDatablockColor.Unowned;
+        ScopeFrame frame = Frame(ac, selected: false, ScopeTestAircraft.AllDisplay);
+
+        using SKBitmap bitmap = Render(frame, NoTints);
+
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        Assert.Equal(ScopeBlockColor.StudentUnowned, track.BlockColor);
+        Assert.True(AnyPixel(bitmap, PixelsOf(FieldOf(frame, ScopeFieldSlot.Callsign)), StarsUnownedColor), "no lime-green pixel in the callsign");
+        Assert.True(AnyPixel(bitmap, LeaderMidpoint(track), StarsUnownedColor), "no lime-green pixel on the leader");
+    }
+
+    [Fact]
+    public void AssignedToMeBlock_DrawsItsTextLeaderAndSymbolInThePaletteTint()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.AssignedTo = "AB";
+        ScopeDisplayOptions display = ScopeTestAircraft.AllDisplay with { UserInitials = "AB", AssignmentTint = true };
+        ScopeFrame frame = Frame(ac, selected: false, display);
+        var tint = new SKColor(0xFF, 0x00, 0xFF);
+
+        using SKBitmap bitmap = Render(frame, NoTints with { AssignedToMe = tint });
+
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        Assert.Equal(ScopeBlockColor.AssignedToMe, track.BlockColor);
+        Assert.True(AnyPixel(bitmap, PixelsOf(FieldOf(frame, ScopeFieldSlot.Callsign)), tint), "no tint pixel in the callsign");
+        Assert.True(AnyPixel(bitmap, LeaderMidpoint(track), tint), "no tint pixel on the leader");
+        Assert.True(AnyPixel(bitmap, SymbolLeftEdge(track), tint), "no tint pixel on the symbol");
+    }
+
+    [Fact]
+    public void SelectedDefaultBlock_KeepsWhiteText_AndItsSymbolTakesTheSelectedColor()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeFrame frame = Frame(ScopeTestAircraft.CreateModel(), selected: true, ScopeTestAircraft.AllDisplay);
+        var selectedSymbol = new SKColor(0x00, 0xFF, 0x00);
+
+        using SKBitmap bitmap = Render(frame, NoTints with { SelectedSymbol = selectedSymbol });
+
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        SKRectI callsign = PixelsOf(FieldOf(frame, ScopeFieldSlot.Callsign));
+        Assert.True(track.IsSelected);
+        Assert.True(AnyPixel(bitmap, callsign, BlockColor), "no white pixel in the selected block's callsign");
+        Assert.False(AnyPixel(bitmap, callsign, selectedSymbol), "the selected block's callsign took the selected colour");
+        Assert.True(AnyPixel(bitmap, SymbolLeftEdge(track), selectedSymbol), "the selected symbol did not take the selected colour");
+    }
+
+    [Fact]
+    public void StaleTrack_HalvesTheAlphaOfItsSymbolLeaderAndDefaultText_ButNotItsNote()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.LiveTrafficStale = true;
+        ac.Note = "Watch wake";
+        ScopeFrame frame = Frame(ac, selected: false, ScopeTestAircraft.AllDisplay);
+
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        SKColor block = ScopeRenderer.BlockColorOf(track, NoTints);
+        Assert.True(track.IsStale);
+        Assert.Equal(ScopeColorToken.Note, FieldOf(frame, ScopeFieldSlot.InstructorNote).Token);
+        Assert.Equal(StaleAlpha, ScopeRenderer.SymbolColorOf(track, NoTints).Alpha);
+        Assert.Equal(StaleAlpha, block.Alpha);
+        Assert.Equal(StaleAlpha, ScopeRenderer.ColorFor(ScopeColorToken.Default, block).Alpha);
+        Assert.Equal(255, ScopeRenderer.ColorFor(ScopeColorToken.Note, block).Alpha);
+    }
+
+    [Fact]
+    public void HighlightedAssignedToMeTrack_DrawsACyanBlock_AndATintedSymbol()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.AssignedTo = "AB";
+        ScopeDisplayOptions display = ScopeTestAircraft.AllDisplay with { UserInitials = "AB", AssignmentTint = true };
+        ScopeFrame frame = Frame(ac, selected: false, display, new HashSet<string> { ac.Callsign });
+        var tint = new SKColor(0xFF, 0x00, 0xFF);
+
+        using SKBitmap bitmap = Render(frame, NoTints with { AssignedToMe = tint });
+
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        Assert.Equal(ScopeBlockColor.Highlighted, track.BlockColor);
+        Assert.True(AnyPixel(bitmap, PixelsOf(FieldOf(frame, ScopeFieldSlot.Callsign)), SKColors.Cyan), "no cyan pixel in the callsign");
+        Assert.True(AnyPixel(bitmap, LeaderMidpoint(track), SKColors.Cyan), "no cyan pixel on the leader");
+        Assert.True(AnyPixel(bitmap, SymbolLeftEdge(track), tint), "the highlighted track's symbol lost its tint");
+    }
+
+    [Fact]
+    public void AssignedToOtherTrack_DrawsItsSymbolInTheUnassignedTint()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.AssignedTo = "XX";
+        ScopeDisplayOptions display = ScopeTestAircraft.AllDisplay with { UserInitials = "AB", UnassignedTint = true };
+        ScopeFrame frame = Frame(ac, selected: false, display);
+        var tint = new SKColor(0xFF, 0x80, 0x00);
+
+        using SKBitmap bitmap = Render(frame, NoTints with { AssignedToOther = tint });
+
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        Assert.Equal(ScopeBlockColor.AssignedToOther, track.BlockColor);
+        Assert.True(AnyPixel(bitmap, SymbolLeftEdge(track), tint), "no unassigned-tint pixel on the symbol");
+    }
+
+    private static ScopeFrame Frame(AircraftModel ac, bool selected, ScopeDisplayOptions display) =>
+        Frame(ac, selected, display, new HashSet<string>());
+
+    private static ScopeFrame Frame(AircraftModel ac, bool selected, ScopeDisplayOptions display, IReadOnlySet<string> highlighted)
+    {
+        using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
+        using var paint = new SKPaint();
+        var metrics = ScopeTextMetrics.FromStyle(new TextStyle(font, paint));
+        var input = new ScopeFrameInput(
+            [ac],
+            selected ? ac : null,
+            Viewport(),
+            false,
+            metrics,
+            ScopeTestAircraft.AllAlerts,
+            display,
+            new Dictionary<string, SKPoint>(),
+            highlighted
+        );
+        return ScopeFrame.Build(input);
+    }
+
+    private static SKBitmap Render(ScopeFrame frame, ScopePalette palette)
+    {
+        var bitmap = new SKBitmap(Width, Height);
+        using var canvas = new SKCanvas(bitmap);
+        using var renderer = new ScopeRenderer();
+        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize, palette);
+        renderer.Render(canvas, Viewport(), snapshot);
+        canvas.Flush();
+        return bitmap;
+    }
+
+    /// <summary>The pixels around the midpoint of the track's leader, from its symbol to its block's nearest edge.</summary>
+    private static SKRectI LeaderMidpoint(ScopeTrack track)
+    {
+        SKRect b = track.Block.Bounds;
+        float endX = Math.Clamp(track.Symbol.X, b.Left, b.Right);
+        float endY = Math.Clamp(track.Symbol.Y, b.Top, b.Bottom);
+        int x = (int)MathF.Round((track.Symbol.X + endX) / 2f);
+        int y = (int)MathF.Round((track.Symbol.Y + endY) / 2f);
+        return new SKRectI(x - 1, y - 1, x + 2, y + 2);
+    }
+
+    /// <summary>The pixels around the symbol circle's leftmost point, away from the leader.</summary>
+    private static SKRectI SymbolLeftEdge(ScopeTrack track)
+    {
+        int x = (int)MathF.Round(track.Symbol.X - 5f);
+        int y = (int)MathF.Round(track.Symbol.Y);
+        return new SKRectI(x - 2, y - 1, x + 2, y + 2);
     }
 
     /// <summary>Renders an IFR track at KOAK at <paramref name="altitude"/>, with the tint on, in a viewport centred on it.</summary>

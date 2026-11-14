@@ -47,6 +47,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     );
 
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
+    private static readonly HashSet<string> NoHighlights = [];
 
     private readonly ScopeRenderer _renderer = new();
     private readonly SKPaint _measurePaint = new();
@@ -124,7 +125,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// The frame clicks are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
     /// changed since.
     /// </summary>
-    internal ScopeFrame CurrentFrame => _lastFrame ??= BuildFrame();
+    internal ScopeFrame CurrentFrame => _lastFrame ??= BuildFrame(BuildPalette());
 
     /// <summary>The traffic collection the canvas is listening to, or null. Test seam.</summary>
     internal INotifyCollectionChanged? WatchedAircraft => _watchedAircraft;
@@ -138,7 +139,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     protected override object? CreateRenderSnapshot()
     {
-        ScopeFrame frame = BuildFrame();
+        ScopePalette palette = BuildPalette();
+        ScopeFrame frame = BuildFrame(palette);
         _lastFrame = frame;
         return new ScopeRenderSnapshot(
             frame,
@@ -147,7 +149,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             BrightnessLookup,
             MapBrightnessA,
             MapBrightnessB,
-            DatablockFontSize()
+            DatablockFontSize(),
+            palette
         );
     }
 
@@ -265,16 +268,54 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         base.OnPointerPressed(e);
     }
 
-    private ScopeFrame BuildFrame()
+    private ScopeFrame BuildFrame(ScopePalette palette)
     {
         UserPreferences? prefs = Preferences;
         IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, false, false, false, null, DateTime.UtcNow);
         var alerts = new ScopeAlertOptions(prefs?.ShowAtpa ?? false, prefs?.ShowConflictAlerts ?? false, prefs?.FlashNoLandingClearance ?? true);
-        var display = new ScopeDisplayOptions(prefs?.MarkStudentLimitedDatablocks ?? true, prefs?.ShowTypeMismatchHints ?? true, ShowMvaAltitudeTint);
+        var display = new ScopeDisplayOptions(
+            prefs?.MarkStudentLimitedDatablocks ?? true,
+            prefs?.ShowTypeMismatchHints ?? true,
+            ShowMvaAltitudeTint,
+            prefs?.SyncStudentDatablockColors ?? true,
+            prefs?.UserInitials,
+            palette.AssignedToMe is not null,
+            palette.AssignedToOther is not null
+        );
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
+        IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoHighlights;
         bool euroScope = prefs?.EuroScopeMode ?? false;
-        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, euroScope, metrics, alerts, display, offsets));
+        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, euroScope, metrics, alerts, display, offsets, highlighted));
+    }
+
+    /// <summary>The user's tints and selected-symbol colour, as today's radar reads them from the preferences.</summary>
+    private ScopePalette BuildPalette()
+    {
+        UserPreferences? prefs = Preferences;
+        if (prefs is null)
+        {
+            return new ScopePalette(null, null, new SKColor(255, 255, 255));
+        }
+
+        SKColor? assignedToMe = prefs.AssignmentTintEnabled ? TryParseHex(prefs.AssignmentTintColor) : null;
+        SKColor? assignedToOther = prefs.UnassignedTintEnabled ? TryParseHex(prefs.UnassignedTintColor) : null;
+        return new ScopePalette(assignedToMe, assignedToOther, TryParseHex(prefs.SelectedColor) ?? new SKColor(255, 255, 255));
+    }
+
+    private static SKColor? TryParseHex(string hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return null;
+        }
+
+        if (SKColor.TryParse(hex, out SKColor color))
+        {
+            return color;
+        }
+
+        return null;
     }
 
     private void OnAircraftChanged()

@@ -75,6 +75,30 @@ public class ScopeCanvasClickTests
     }
 
     [AvaloniaFact]
+    public void ScopeCanvas_HighlightedCallsign_RebuildsTheBlockHighlighted()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            Assert.Equal(ScopeBlockColor.Default, Assert.Single(view.Canvas.CurrentFrame.Tracks).BlockColor);
+
+            scope.DataBlockState.HighlightedCallsigns.Add("UAL238");
+            // The next drawn frame rebuilds the kept one, as the canvas's own repaint would.
+            view.Canvas.MarkDirty();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(ScopeBlockColor.Highlighted, Assert.Single(view.Canvas.CurrentFrame.Tracks).BlockColor);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
     public void ScopeCanvas_RightClickOnTarget_OpensTheAircraftMenu()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();

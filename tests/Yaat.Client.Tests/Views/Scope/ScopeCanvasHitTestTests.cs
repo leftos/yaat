@@ -80,7 +80,8 @@ public class ScopeCanvasHitTestTests
             metrics,
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
-            new Dictionary<string, SKPoint>()
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>()
         );
         return ScopeFrame.Build(input);
     }

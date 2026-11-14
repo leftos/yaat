@@ -108,11 +108,11 @@ public class TrackPresenterTests
         }
 
         Assert.Equal(first.Fields, second.Fields);
-        Assert.Equal(first.Token, second.Token);
+        Assert.Equal(first.BlockColor, second.BlockColor);
     }
 
     [Fact]
-    public void Presentation_IsFullLevel_WithNoActions_AndSelectionDrivesTheBlockToken()
+    public void Presentation_IsFullLevel_WithNoActions_AndSelectionLeavesTheBlockColor()
     {
         AircraftModel ac = ScopeTestAircraft.CreateModel();
 
@@ -120,10 +120,191 @@ public class TrackPresenterTests
         TrackPresentation selected = TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.EuroScopeId) with { IsSelected = true });
 
         Assert.Equal(ScopeBlockLevel.Full, idle.Level);
-        Assert.Equal(ScopeColorToken.Default, idle.Token);
-        Assert.Equal(ScopeColorToken.Selected, selected.Token);
+        Assert.Equal(ScopeBlockColor.Default, idle.BlockColor);
+        Assert.Equal(ScopeBlockColor.Default, selected.BlockColor);
         Assert.All(idle.Fields, f => Assert.Equal(ScopeFieldAction.None, f.Action));
     }
+
+    // The block-colour precedence, mirroring today's TargetRenderer.ResolveTargetColors and its tint logic:
+    // middle-click highlight, then the RPO assignment tint, then the student STARS colour (sync on), then Default.
+    private const string Initials = "AB";
+
+    private static ScopeBlockColor BlockColorOf(
+        string templateId,
+        Action<AircraftModel> setUp,
+        ScopeDisplayOptions display,
+        bool isHighlighted,
+        bool isSelected
+    )
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        setUp(ac);
+        TrackPresenterInput input = ScopeTestAircraft.Input(ac, templateId) with
+        {
+            Display = display,
+            IsHighlighted = isHighlighted,
+            IsSelected = isSelected,
+        };
+        return TrackPresenter.Present(input).BlockColor;
+    }
+
+    private static ScopeDisplayOptions Display(bool sync, string? initials, bool assignmentTint, bool unassignedTint) =>
+        ScopeTestAircraft.AllDisplay with
+        {
+            SyncStudentColors = sync,
+            UserInitials = initials,
+            AssignmentTint = assignmentTint,
+            UnassignedTint = unassignedTint,
+        };
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_HighlightOverTint(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.Highlighted,
+            BlockColorOf(templateId, ac => ac.AssignedTo = Initials, Display(true, Initials, true, false), isHighlighted: true, isSelected: false)
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Tint_HighlightedAssignedToMe_KeepsTheTintBesideTheHighlight(string templateId)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.AssignedTo = Initials;
+        TrackPresenterInput input = ScopeTestAircraft.Input(ac, templateId) with
+        {
+            Display = Display(true, Initials, true, false),
+            IsHighlighted = true,
+        };
+
+        TrackPresentation p = TrackPresenter.Present(input);
+
+        Assert.Equal(ScopeBlockColor.Highlighted, p.BlockColor);
+        Assert.Equal(ScopeTintRole.AssignedToMe, p.Tint);
+    }
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_TintOverStudent(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.AssignedToMe,
+            BlockColorOf(
+                templateId,
+                ac =>
+                {
+                    ac.AssignedTo = Initials;
+                    ac.StudentDatablockColor = StarsDatablockColor.Unowned;
+                },
+                Display(true, Initials, true, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_OthersTint(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.AssignedToOther,
+            BlockColorOf(templateId, ac => ac.AssignedTo = "XX", Display(true, Initials, false, true), isHighlighted: false, isSelected: false)
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_CaseInsensitiveMe(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.AssignedToMe,
+            BlockColorOf(templateId, ac => ac.AssignedTo = "ab", Display(true, Initials, true, false), isHighlighted: false, isSelected: false)
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_TintOffFallsToStudent(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.StudentPointout,
+            BlockColorOf(
+                templateId,
+                ac =>
+                {
+                    ac.AssignedTo = Initials;
+                    ac.StudentDatablockColor = StarsDatablockColor.Pointout;
+                },
+                Display(true, Initials, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_NullInitials_AppliesNoTint(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.StudentOwned,
+            BlockColorOf(
+                templateId,
+                ac => ac.StudentDatablockColor = StarsDatablockColor.Owned,
+                Display(true, null, true, true),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_SyncOff_IsDefault(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.Default,
+            BlockColorOf(
+                templateId,
+                ac => ac.StudentDatablockColor = StarsDatablockColor.Unowned,
+                Display(false, null, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [InlineData(ScopeTemplates.StarsId, StarsDatablockColor.Owned, ScopeBlockColor.StudentOwned)]
+    [InlineData(ScopeTemplates.StarsId, StarsDatablockColor.Unowned, ScopeBlockColor.StudentUnowned)]
+    [InlineData(ScopeTemplates.StarsId, StarsDatablockColor.Pointout, ScopeBlockColor.StudentPointout)]
+    [InlineData(ScopeTemplates.StarsId, StarsDatablockColor.Highlighted, ScopeBlockColor.StudentHighlighted)]
+    [InlineData(ScopeTemplates.EuroScopeId, StarsDatablockColor.Owned, ScopeBlockColor.StudentOwned)]
+    [InlineData(ScopeTemplates.EuroScopeId, StarsDatablockColor.Unowned, ScopeBlockColor.StudentUnowned)]
+    [InlineData(ScopeTemplates.EuroScopeId, StarsDatablockColor.Pointout, ScopeBlockColor.StudentPointout)]
+    [InlineData(ScopeTemplates.EuroScopeId, StarsDatablockColor.Highlighted, ScopeBlockColor.StudentHighlighted)]
+    public void BlockColor_EachStudentColor(string templateId, StarsDatablockColor student, ScopeBlockColor expected) =>
+        Assert.Equal(
+            expected,
+            BlockColorOf(
+                templateId,
+                ac => ac.StudentDatablockColor = student,
+                Display(true, null, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_StudentNone_IsDefault(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.Default,
+            BlockColorOf(
+                templateId,
+                ac => ac.StudentDatablockColor = null,
+                Display(true, null, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void BlockColor_SelectionIgnored(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.Default,
+            BlockColorOf(templateId, _ => { }, Display(true, null, false, false), isHighlighted: false, isSelected: true)
+        );
 
     [Fact]
     public void CwtType_FiledTypeMismatch_CarriesTheTypeMismatchToken()
@@ -352,13 +533,21 @@ internal static class ScopeTestAircraft
         bool flashOn = true,
         AircraftModel? atpaLead = null,
         AircraftModel? conflictPeer = null
-    ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts, AllDisplay, Mva: null);
+    ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts, AllDisplay, Mva: null, IsHighlighted: false);
 
     /// <summary>Every alert overlay on, matching the flags the parity rows pass to today's layouts.</summary>
     public static readonly ScopeAlertOptions AllAlerts = new(ShowAtpa: true, ShowConflictAlerts: true, ShowNoLandingClearance: true);
 
-    /// <summary>Every display hint on, as the preferences default.</summary>
-    public static readonly ScopeDisplayOptions AllDisplay = new(MarkStudentLevel: true, ShowTypeMismatchHints: true, ShowMvaAltitudeTint: true);
+    /// <summary>Every display hint on and student colour sync on, as the preferences default; no initials, both tints off.</summary>
+    public static readonly ScopeDisplayOptions AllDisplay = new(
+        MarkStudentLevel: true,
+        ShowTypeMismatchHints: true,
+        ShowMvaAltitudeTint: true,
+        SyncStudentColors: true,
+        UserInitials: null,
+        AssignmentTint: false,
+        UnassignedTint: false
+    );
 
     /// <summary>A beacon-code mismatch: Mode C reporting 1200 while 0301 is assigned.</summary>
     public static AircraftModel CreateSquawkMismatch()

@@ -22,9 +22,6 @@ public enum ScopeColorToken
     /// <summary>The block's own colour.</summary>
     Default,
 
-    /// <summary>The selected track's block.</summary>
-    Selected,
-
     /// <summary>Instructor note (amber today).</summary>
     Note,
 
@@ -48,6 +45,47 @@ public enum ScopeColorToken
 
     /// <summary>Altitude within the at-band of the MVA floor (amber today).</summary>
     MvaAt,
+}
+
+/// <summary>A track block's colour role; the renderer resolves it through the frame's palette.</summary>
+public enum ScopeBlockColor
+{
+    /// <summary>White.</summary>
+    Default,
+
+    /// <summary>The student's scope owns the track (white).</summary>
+    StudentOwned,
+
+    /// <summary>The student's scope does not own the track (lime green).</summary>
+    StudentUnowned,
+
+    /// <summary>The track is pointed out to the student's scope (yellow).</summary>
+    StudentPointout,
+
+    /// <summary>The student's scope highlights the track (cyan).</summary>
+    StudentHighlighted,
+
+    /// <summary>Assigned to the user: the user's assignment tint.</summary>
+    AssignedToMe,
+
+    /// <summary>Assigned to someone else or no one: the user's unassigned tint.</summary>
+    AssignedToOther,
+
+    /// <summary>Middle-click highlight (cyan).</summary>
+    Highlighted,
+}
+
+/// <summary>Which of the user's RPO tints applies to a track; the renderer resolves it through the frame's palette.</summary>
+public enum ScopeTintRole
+{
+    /// <summary>No tint applies.</summary>
+    None,
+
+    /// <summary>Assigned to the user: the user's assignment tint.</summary>
+    AssignedToMe,
+
+    /// <summary>Assigned to someone else or no one: the user's unassigned tint.</summary>
+    AssignedToOther,
 }
 
 /// <summary>How the renderer draws a field's text beyond its colour.</summary>
@@ -94,6 +132,15 @@ public sealed record ScopeField(
 /// </summary>
 /// <param name="TemplateId">Id of the template the fields were presented for.</param>
 /// <param name="Level">Block level.</param>
-/// <param name="Token">Colour role of the block as a whole.</param>
+/// <param name="BlockColor">
+/// Colour role of the block as a whole: its leader and every <see cref="ScopeColorToken.Default"/> field.
+/// </param>
+/// <param name="Tint">The RPO tint that applies to the track whatever its highlight; it colours the symbol.</param>
 /// <param name="Fields">Fields for every slot the template places, in template order.</param>
-public sealed record TrackPresentation(string TemplateId, ScopeBlockLevel Level, ScopeColorToken Token, IReadOnlyList<ScopeField> Fields);
+public sealed record TrackPresentation(
+    string TemplateId,
+    ScopeBlockLevel Level,
+    ScopeBlockColor BlockColor,
+    ScopeTintRole Tint,
+    IReadOnlyList<ScopeField> Fields
+);
