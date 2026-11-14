@@ -5,8 +5,10 @@
 ## YAAT Scope (feat/yaat-scope)
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
-  - [/] YAAT-2220 YAAT Scope step 1: open the new scope view on the template engine (STARS, ERAM, Mixed, EuroScope templates) · release vNext
   - [ ] YAAT-2221 YAAT Scope step 2: ERAM altitude line, line-3 status slot, line-4 HSF, VCI and dwell · release vNext
+    - [/] YAAT-2268 YAAT Scope step 2a: ERAM data on the wire, ERAM template and pick, altitude line · release vNext
+    - [ ] YAAT-2269 YAAT Scope step 2b: line-3 status slot, line-4 HSF, VCI and R, column 0 · release vNext
+    - [ ] YAAT-2270 YAAT Scope step 2c: block levels and dwell, Mixed template, altitude-mismatch marker · release vNext
   - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
@@ -15,6 +17,8 @@
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
   - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
   - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
+  - [ ] YAAT-2277 YAAT Scope: draw the RNAV ^ after the CWT category on line 2 (STARS and ERAM)
+  - [ ] YAAT-2278 YAAT Scope: bring ScopeCanvas.OnPropertyChanged under the complexity limit
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -325,7 +329,7 @@
 
 ## Taxi navigator: speed, braking and turns
 
-### 1 Defects (5/26 done)
+### 1 Defects (5/27 done)
 - [ ] YAAT-1746 Publish the line-up's straight-segment speed, not the arc speed, on non-arc segments
 - [ ] YAAT-1304 Break an exact 180-degree reversal's turn direction deterministically across platforms
 - [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
@@ -347,6 +351,7 @@
 - [ ] YAAT-1883 Solve the mid-curve entry alignment turn toward the tangent the gate judged, not the curve's start bearing
 - [ ] YAAT-1975 Measure taxi stop distances from the aircraft when it is past its segment's end node, and brake on node-arrival sub-ticks
 - [ ] YAAT-1993 Arm the nose-at-spot stop early enough when the last two legs are shorter than half the aircraft
+- [ ] YAAT-2276 UnableStopCapKts reads a bar scan an AT-node arrival made stale the same sub-tick
 
 ### 2 Refinements and rulings (2/19 done)
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
@@ -680,7 +685,6 @@
 - [ ] YAAT-2213 Delete dead snapshot code and split RestoreFromSnapshot
 
 ### No milestone
-- [ ] YAAT-2209 Cut per-tick ground cost: skip far ground pairs, cache hold-bar braking lookups · release vNext
 - [ ] YAAT-2210 Check whether a rewinding room can stall the shared tick loop for every room
 - [ ] YAAT-2219 Measure live-checkpoint memory and capture cost in a long session and soak
 
@@ -891,7 +895,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (13/37 done)
+### 1 Defects (13/38 done)
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
@@ -916,8 +920,9 @@
 - [ ] YAAT-2148 Space a downwind follower behind a straight-in entrant still on its entry
 - [ ] YAAT-2255 Keep an assigned altitude below field+400 ft at liftoff (CM on the roll climbs through it)
 - [ ] YAAT-2257 CTO MRC then CM ... OR BELOW: the departure never turns crosswind (turn gate ignores the altitude ceiling)
+- [ ] YAAT-2273 FOLLOW turn-out's base turn behind the lead starts too close to the final and overshoots toward the parallel
 
-### 2 Refinements and rulings (7/16 done)
+### 2 Refinements and rulings (7/17 done)
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
 - [ ] YAAT-332 VFR departure direction: skip heliports and private strips, prefer the 91.159 direction
 - [ ] YAAT-1642 Plan each compressed-pattern turn with its own tailwind component, not the full wind speed
@@ -927,6 +932,7 @@
 - [ ] YAAT-1823 Plan the teardrop re-entry step-downs without a 2x descent burst on its short legs
 - [ ] YAAT-2144 Hold a downwind follower back so a 45-degree entrant it follows joins ahead
 - [ ] YAAT-2163 Restore the follow spacing ceiling when a follow ends on an approach for any reason
+- [ ] YAAT-2275 Check a FOLLOW long-final join far above the glidepath (CanSequenceOntoFinal has no altitude test)
 
 ### 3 Hygiene and tests (6/12 done)
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
@@ -945,7 +951,6 @@
 - [ ] YAAT-2187 Let a default-circuit base widen be chosen when it reaches the keep band
 - [ ] YAAT-2188 Project a base follower's final at the speed the sim flies it
 - [ ] YAAT-2196 Keep a converging follower's turn-out from crossing the lead's final
-- [ ] YAAT-2200 Join a long final and break off outward on a FOLLOW return outside the forward window · release vNext
 - [ ] YAAT-2214 Count the climb past the runway end in a crossing FOLLOW entrant's remaining path
 - [ ] YAAT-2216 A pursuer sequenced behind a landed lead from a spacing excursion goes around for alignment
 
@@ -1328,9 +1333,7 @@
 - [ ] YAAT-1967 Keep LM-Kit from raising the client and its UI test host to High priority
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
-### 3 Hygiene and tests (8/64 done)
-- [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat · release vNext
-- [ ] YAAT-186 Add tick-performance regression tests (allocations, nightly p95 CPU) · release vNext
+### 3 Hygiene and tests (10/64 done)
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
@@ -1410,17 +1413,14 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (20/72 done)
+### 3 Hygiene and tests (24/72 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
 - [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits · release vNext
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
 - [ ] YAAT-118 Fail the build on unused usings (IDE0005) in both repos and CI · release vNext
-- [ ] YAAT-119 Move GuideCapture's in-process server host into a yaat-server tool · release vNext
-- [ ] YAAT-121 Add the agent-mail-guard hook to prek.toml · release vNext
 - [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
 - [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template · release vNext
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine · release vNext
-- [ ] YAAT-155 Fix the FOLLOW docs leftovers in approach-and-pattern-geometry.md · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
@@ -1461,7 +1461,6 @@
 - [ ] YAAT-1759 Repoint docs that cite CLAUDE.md sections no longer there
 - [ ] YAAT-1978 Split TryTaxiCore and TryExitCommand under the 100-line limit
 - [ ] YAAT-2232 Replace stale line anchors in radar-rendering.md and speech-context-decoder.md with symbols
-- [ ] YAAT-2264 Convert AircraftStateDto/AircraftDto to the decided shape and fix the hub-contract checklist · release vNext
 - [ ] YAAT-2265 Remove the Legacy fillet Phase-D leftovers and line citations from the ground docs
 
 ### No milestone
@@ -1478,6 +1477,9 @@
 - [ ] YAAT-2191 Reconcile USER_GUIDE and COMMANDS on assuming a surface shadow
 - [ ] YAAT-2251 Document gate-routed probe builds and real-scenario rigs in test-harness.md
 - [ ] YAAT-2254 Tell agents to gate each busy command separately, never in one pwsh -Command one-liner
+- [ ] YAAT-2271 Convert LoadScenarioResult and RoomStateDto to init properties like AircraftStateDto
+- [ ] YAAT-2272 Fix ERAM doc drift against CRC (HSF line, field-B #, Table 3 V) and link the ERAM open questions
+- [ ] YAAT-2274 Split DtoConverter.ToTrainingDto under the 100-line limit
 
 ## Backlog
 
@@ -1521,4 +1523,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2220, YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2268, YAAT-2269, YAAT-2270, YAAT-2277, YAAT Scope (feat/yaat-scope)
