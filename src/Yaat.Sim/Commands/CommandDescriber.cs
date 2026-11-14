@@ -684,7 +684,7 @@ public static class CommandDescriber
     {
         return command switch
         {
-            FlyHeadingCommand cmd => $"FH {cmd.MagneticHeading.Degrees:000}",
+            FlyHeadingCommand cmd => cmd.Cardinal is { } cardinal ? $"FH {cardinal}" : $"FH {cmd.MagneticHeading.Degrees:000}",
             TurnLeftCommand cmd => $"TL {cmd.MagneticHeading.Degrees:000}",
             TurnRightCommand cmd => $"TR {cmd.MagneticHeading.Degrees:000}",
             LeftTurnCommand cmd => $"LT {cmd.Degrees}",
@@ -1193,7 +1193,9 @@ public static class CommandDescriber
     {
         return command switch
         {
-            FlyHeadingCommand cmd => $"Fly heading {cmd.MagneticHeading.Degrees:000}",
+            FlyHeadingCommand cmd => cmd.Cardinal is { } cardinal
+                ? $"Proceed {DirectionWord(cardinal)} (heading {cmd.MagneticHeading.ToDisplayString()})"
+                : $"Fly heading {cmd.MagneticHeading.Degrees:000}",
             TurnLeftCommand cmd => $"Turn left heading {cmd.MagneticHeading.Degrees:000}",
             TurnRightCommand cmd => $"Turn right heading {cmd.MagneticHeading.Degrees:000}",
             LeftTurnCommand cmd => $"Turn {cmd.Degrees} degrees left",

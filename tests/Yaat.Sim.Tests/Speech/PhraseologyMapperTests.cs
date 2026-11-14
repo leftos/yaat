@@ -36,6 +36,22 @@ public class PhraseologyMapperTests
     }
 
     [Theory]
+    [InlineData("proceed northbound", "FH N")]
+    [InlineData("proceed northeastbound", "FH NE")]
+    [InlineData("proceed eastbound", "FH E")]
+    [InlineData("proceed southeastbound", "FH SE")]
+    [InlineData("proceed southbound", "FH S")]
+    [InlineData("proceed southwestbound", "FH SW")]
+    [InlineData("proceed westbound", "FH W")]
+    [InlineData("proceed northwestbound", "FH NW")]
+    public void ProceedCardinal_MapsToFhCardinal(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
     // Only the 7110.65 5-6-2 canonical form: "TURN (N) DEGREES LEFT/RIGHT".
     [InlineData("turn ten degrees left", "RELL 10")]
     [InlineData("turn twenty degrees right", "RELR 20")]

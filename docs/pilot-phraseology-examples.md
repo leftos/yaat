@@ -140,6 +140,8 @@ Shorter: 200 ("two-zero-zero")
 Verbose: Turning [left/right] to heading 200
 ```
 
+A VFR aircraft given a cardinal (`FH E`) answers "proceeding eastbound" (northbound through northwestbound), not a heading.
+
 ## Speed
 
 ```

@@ -284,6 +284,13 @@ public static class PhraseologyVerbalizer
             return RenderCross(crossCmd, fmt);
         }
 
+        // A cardinal heading is read back as the direction the controller named ("proceeding eastbound"), not as the
+        // numeric heading it maps to: the rule path would speak "fly heading zero nine zero" and lose the instruction.
+        if (cmd is FlyHeadingCommand { Cardinal: { } cardinal })
+        {
+            return $"proceeding {CommandDescriber.DirectionWord(cardinal)}";
+        }
+
         CanonicalCommandType canonicalType = CommandDescriber.ToCanonicalType(cmd);
         if (!RulesByType.TryGetValue(canonicalType, out PhraseologyRule[]? rules))
         {

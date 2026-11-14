@@ -28,7 +28,7 @@
       "id": "heading",
       "name": "Heading",
       "rows": [
-        { "verb": "FH", "aliases": ["h"], "description": "Fly heading" },
+        { "verb": "FH", "aliases": ["h"], "description": "Fly heading (VFR: cardinal N/NE/E/SE/S/SW/W/NW)" },
         { "verb": "TL / TR", "aliases": ["l", "r"], "description": "Turn left / right to heading" },
         { "verb": "RELL / RELR", "aliases": ["lt", "rt"], "description": "Relative turn (T30L / T30R syntax)" },
         { "verb": "FPH", "aliases": ["fch"], "description": "Fly present heading" }

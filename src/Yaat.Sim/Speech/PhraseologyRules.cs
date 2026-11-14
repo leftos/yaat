@@ -113,6 +113,16 @@ public static class PhraseologyRules
                 )
             ),
             new(["heading", "{hdg}"], "FH {hdg}", FlyHeading),
+            // Cardinal VFR forms: the controller says "proceed eastbound" and the canonical keeps the cardinal.
+            // STT only — the readback of a cardinal heading is the direction word itself (PhraseologyVerbalizer).
+            new(["proceed", "northbound"], "FH N", FlyHeading, SttOnly: true),
+            new(["proceed", "northeastbound"], "FH NE", FlyHeading, SttOnly: true),
+            new(["proceed", "eastbound"], "FH E", FlyHeading, SttOnly: true),
+            new(["proceed", "southeastbound"], "FH SE", FlyHeading, SttOnly: true),
+            new(["proceed", "southbound"], "FH S", FlyHeading, SttOnly: true),
+            new(["proceed", "southwestbound"], "FH SW", FlyHeading, SttOnly: true),
+            new(["proceed", "westbound"], "FH W", FlyHeading, SttOnly: true),
+            new(["proceed", "northwestbound"], "FH NW", FlyHeading, SttOnly: true),
             new(
                 ["fly", "present", "heading"],
                 "FPH",

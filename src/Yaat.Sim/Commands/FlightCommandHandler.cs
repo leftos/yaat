@@ -32,13 +32,23 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyHeading(FlyHeadingCommand cmd, AircraftState aircraft)
     {
+        // A cardinal heading is a VFR instruction ("proceed eastbound"); an IFR aircraft is vectored with the
+        // numeric form, so the refusal names the heading that would fly the same.
+        if ((cmd.Cardinal is { } cardinal) && !aircraft.FlightPlan.IsVfr)
+        {
+            return new CommandResult(false, $"FH {cardinal} is VFR only; use FH {cmd.MagneticHeading.ToDisplayString()}");
+        }
+
         string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
-        return CommandDispatcher.Ok($"Fly heading {cmd.MagneticHeading.Degrees:000}{prev}");
+        string message = cmd.Cardinal is { } direction
+            ? $"Proceed {CommandDescriber.DirectionWord(direction)} (heading {cmd.MagneticHeading.ToDisplayString()})"
+            : $"Fly heading {cmd.MagneticHeading.Degrees:000}{prev}";
+        return CommandDispatcher.Ok(message);
     }
 
     internal static CommandResult ApplyTurnLeft(TurnLeftCommand cmd, AircraftState aircraft)

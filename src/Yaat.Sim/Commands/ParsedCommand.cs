@@ -24,7 +24,14 @@ public readonly struct ParseResult<T>
 
 public abstract record ParsedCommand;
 
-public record FlyHeadingCommand(MagneticHeading MagneticHeading) : ParsedCommand;
+public record FlyHeadingCommand(MagneticHeading MagneticHeading) : ParsedCommand
+{
+    /// <summary>
+    /// The 8-point compass cardinal the controller named (<c>FH E</c>, read back "proceeding eastbound"), uppercase,
+    /// or null for the numeric form. <see cref="MagneticHeading"/> holds the heading that cardinal flies.
+    /// </summary>
+    public string? Cardinal { get; init; }
+}
 
 public record TurnLeftCommand(MagneticHeading MagneticHeading) : ParsedCommand;
 

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -808,7 +809,7 @@ public static class CommandParser
         return type switch
         {
             // Heading
-            FlyHeading => ParseHeading(arg, h => new FlyHeadingCommand(new MagneticHeading(h))),
+            FlyHeading => ParseFlyHeading(arg),
             TurnLeft => ParseHeading(arg, h => new TurnLeftCommand(new MagneticHeading(h))),
             TurnRight => ParseHeading(arg, h => new TurnRightCommand(new MagneticHeading(h))),
             RelativeLeft => ParseDegrees(arg, d => new LeftTurnCommand(d)),
@@ -2126,6 +2127,34 @@ public static class CommandParser
         }
 
         return PR.Ok(new WaitDistanceCommand(distNm));
+    }
+
+    /// <summary>The eight 8-point compass cardinals <c>FH</c> accepts, and the heading each one flies.</summary>
+    private static readonly FrozenDictionary<string, int> CardinalHeadings = new Dictionary<string, int>
+    {
+        ["N"] = 360,
+        ["NE"] = 45,
+        ["E"] = 90,
+        ["SE"] = 135,
+        ["S"] = 180,
+        ["SW"] = 225,
+        ["W"] = 270,
+        ["NW"] = 315,
+    }.ToFrozenDictionary();
+
+    /// <summary>
+    /// Parses the <c>FH</c> argument: a cardinal (<c>FH E</c>) keeps the controller's word beside the heading it
+    /// flies, so the readback speaks the direction and an IFR aircraft can be refused with the numeric form.
+    /// </summary>
+    private static PR ParseFlyHeading(string? arg)
+    {
+        string? cardinal = arg?.ToUpperInvariant();
+        if ((cardinal is not null) && CardinalHeadings.TryGetValue(cardinal, out int heading))
+        {
+            return PR.Ok(new FlyHeadingCommand(new MagneticHeading(heading)) { Cardinal = cardinal });
+        }
+
+        return ParseHeading(arg, h => new FlyHeadingCommand(new MagneticHeading(h)));
     }
 
     private static PR ParseHeading(string? arg, Func<int, ParsedCommand> factory)

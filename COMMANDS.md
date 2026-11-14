@@ -317,7 +317,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Fly heading | `FH 270` | `H` | `FH270`, `H270` |
+| Fly heading | `FH 270`, `FH E` (VFR only; cardinal `N`/`NE`/`E`/`SE`/`S`/`SW`/`W`/`NW` flies magnetic 360/045/090/135/180/225/270/315) | `H` | `FH270`, `H270` |
 | Turn left | `TL 180` | `L` | `TL180`, `L180` |
 | Turn right | `TR 090` | `R` | `TR090`, `R090` |
 | Relative left | `RELL 30` | `LT` | `T30L` |
@@ -546,6 +546,8 @@ set you can give an IFR aircraft without cancelling IFR first:
 | Never — require CIFR first | Every VFR-only command is refused for an IFR aircraft; `CIFR` first, as before. |
 | Make straight-in (EF) only *(default)* | `EF` works on an IFR aircraft — move a visual arrival to another runway in one command. Everything else still needs `CIFR`. |
 | All VFR commands | The whole VFR-only set works on an IFR aircraft. |
+
+The cardinal form of `FH` (`FH E`, read back "proceeding eastbound") is VFR only and is not part of this setting: an IFR aircraft is refused with `FH E is VFR only; use FH 090`, whatever the setting.
 
 The setting covers the pattern-entry and pattern-maneuver commands above, `TG` / `SG` / `LA` / `COPT`,
 the VFR holds (`HPP*` / `HFIX*`), `FOLLOW`, the `CM A`/`CM B` altitude restrictions, and the
