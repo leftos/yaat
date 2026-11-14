@@ -11,8 +11,19 @@ public static class PilotRequestTracker
     private static readonly ILogger Log = SimLog.CreateLogger("PilotRequestTracker");
 
     public const double NormalFollowUpDelaySeconds = 120.0;
-    public const double StandbyFollowUpDelaySeconds = 90.0;
+
+    /// <summary>
+    /// The re-ask delay after a "standby", longer than after silence: the wait was acknowledged, and the pilot re-calls only
+    /// when the delay is lengthy (P/CG STAND BY).
+    /// </summary>
+    public const double StandbyFollowUpDelaySeconds = 150.0;
     public const double FurtherClearanceFollowUpDelaySeconds = 300.0;
+
+    /// <summary>
+    /// The re-asks of one unanswered request for lower or approach request the pilot voices before it waits for the
+    /// controller (<see cref="PilotPendingRequest.IsCapped"/>). Other kinds re-ask without a cap.
+    /// </summary>
+    public const int MaxFollowUps = 2;
 
     private static double FollowUpDelaySeconds(PilotPendingRequestKind kind) =>
         kind == PilotPendingRequestKind.FurtherClearance ? FurtherClearanceFollowUpDelaySeconds : NormalFollowUpDelaySeconds;
@@ -20,7 +31,8 @@ public static class PilotRequestTracker
     private static double StandbyDelaySeconds(PilotPendingRequestKind kind) =>
         kind == PilotPendingRequestKind.FurtherClearance ? FurtherClearanceFollowUpDelaySeconds : StandbyFollowUpDelaySeconds;
 
-    public static void RecordRequest(
+    /// <summary>Records <paramref name="kind"/> as the aircraft's open request, replacing any other, and returns it.</summary>
+    public static PilotPendingRequest RecordRequest(
         AircraftState aircraft,
         PilotPendingRequestKind kind,
         double nowSeconds,
@@ -29,11 +41,11 @@ public static class PilotRequestTracker
     )
     {
         double firstRequestedAt =
-            aircraft.PendingPilotRequest is { IsOpen: true, Kind: var existingKind } existing && existingKind == kind
+            ((aircraft.PendingPilotRequest is { IsOpen: true, Kind: var existingKind } existing) && (existingKind == kind))
                 ? existing.FirstRequestedAtSeconds
                 : nowSeconds;
 
-        aircraft.PendingPilotRequest = new PilotPendingRequest
+        PilotPendingRequest request = new()
         {
             Kind = kind,
             ResponseState = PilotPendingRequestResponseState.None,
@@ -50,6 +62,8 @@ public static class PilotRequestTracker
             ParkingName = context.ParkingName,
             TaxiIn = context.IsTaxiIn,
         };
+        aircraft.PendingPilotRequest = request;
+        return request;
     }
 
     public static void ApplyControllerResponse(AircraftState aircraft, CompoundCommand compound, double nowSeconds)
@@ -92,6 +106,44 @@ public static class PilotRequestTracker
     }
 
     /// <summary>
+    /// Stamps <see cref="AircraftState.DescentClearedAtSeconds"/> when the compound carries a descent clearance, whether or
+    /// not the pilot asked for lower: <see cref="PilotProactive.TickDescentRequest"/> waits after it before asking. It also
+    /// clears the aircraft's memory of a capped request for lower (<see cref="AircraftState.DescentRequestCap"/>). Called
+    /// for the student's or a controller AI's accepted command once the aircraft has made its initial contact
+    /// (<c>SimulationEngine.AnswerAcceptedCommand</c>); scripted presets never stamp.
+    /// </summary>
+    public static void StampDescentClearance(AircraftState aircraft, CompoundCommand compound, double nowSeconds)
+    {
+        if (compound.Blocks.SelectMany(block => block.Commands).Any(command => IsDescentClearance(command, aircraft.Altitude)))
+        {
+            aircraft.DescentClearedAtSeconds = nowSeconds;
+            aircraft.DescentRequestCap = DescentRequestCap.None;
+            aircraft.DescentRequestCappedAtSeconds = null;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="command"/> clears the aircraft lower: an altitude command to below
+    /// <paramref name="altitudeFt"/>, or one of the descents that answer a request for lower and name no altitude (a descend
+    /// via, a constrained direct, an approach clearance).
+    /// </summary>
+    private static bool IsDescentClearance(ParsedCommand command, double altitudeFt) =>
+        CommandAltitudeFt(command) is { } targetFt
+            ? (targetFt < (altitudeFt - FlightPhysics.AltitudeSnapFt))
+            : ResolveResponse(PilotPendingRequestKind.Descent, command) == PilotPendingRequestResponseState.Satisfied;
+
+    private static int? CommandAltitudeFt(ParsedCommand command) =>
+        command switch
+        {
+            DescendMaintainCommand descend => descend.Altitude,
+            ClimbMaintainCommand climb => climb.Altitude,
+            ForceAltitudeCommand force => force.Altitude,
+            ExpediteCommand { Altitude: { } expedite } => expedite,
+            CrossFixCommand cross => cross.Altitude,
+            _ => null,
+        };
+
+    /// <summary>
     /// Answers the aircraft's open request of <paramref name="kind"/> by an action that is not an aircraft command, so it
     /// never passes <see cref="ApplyControllerResponse"/>: a release (<c>REL</c>, <c>HFROFF</c>) answers a
     /// <see cref="PilotPendingRequestKind.Release"/> request, a PDC sent by data link (<c>TDLSS</c>) a
@@ -131,9 +183,11 @@ public static class PilotRequestTracker
     /// Re-voices the aircraft's open request once its follow-up is due, or closes it as moot. A request for further
     /// clearance is also held, still open, while the pilot is tuned away from the student's frequency, and resumes at its
     /// due time once retuned. <paramref name="studentPosition"/> is the student's position, against which the pilot's
-    /// tuned position is read.
+    /// tuned position is read; <paramref name="airportLookup"/> (the engine's) places the destination for the
+    /// request-for-lower floor. A request for lower that reaches its cap is remembered on the aircraft
+    /// (<see cref="AircraftState.DescentRequestCap"/>, <see cref="AircraftState.DescentRequestCappedAtSeconds"/>).
     /// </summary>
-    public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds, TrackOwner? studentPosition)
+    public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds, TrackOwner? studentPosition, Func<string, LatLon?> airportLookup)
     {
         PilotPendingRequest? pending = aircraft.PendingPilotRequest;
         if (pending is not { IsOpen: true })
@@ -141,7 +195,7 @@ public static class PilotRequestTracker
             return false;
         }
 
-        if (IsMoot(pending, aircraft, studentPosition))
+        if (IsMoot(pending, aircraft, studentPosition, airportLookup))
         {
             pending.ResponseState = PilotPendingRequestResponseState.Superseded;
             return false;
@@ -149,6 +203,7 @@ public static class PilotRequestTracker
 
         if (
             (nowSeconds < pending.NextFollowUpDueSeconds)
+            || pending.IsCapped
             || WaitsForTheHoldReport(pending, aircraft)
             || WaitsForTheStudentsFrequency(pending, aircraft, studentPosition)
         )
@@ -176,7 +231,23 @@ public static class PilotRequestTracker
         pending.ResponseState = PilotPendingRequestResponseState.None;
         pending.LastRequestedAtSeconds = nowSeconds;
         pending.NextFollowUpDueSeconds = nowSeconds + FollowUpDelaySeconds(pending.Kind);
+        pending.FollowUpsVoiced++;
+        RememberDescentCap(aircraft, pending);
         return true;
+    }
+
+    /// <summary>
+    /// Once a request for lower reaches its cap, the aircraft remembers it: re-openable once when it was asked from the
+    /// 1,000 ft band, spent when it was asked from the 2,000 ft band or was itself the re-open.
+    /// </summary>
+    private static void RememberDescentCap(AircraftState aircraft, PilotPendingRequest request)
+    {
+        if ((request.Kind == PilotPendingRequestKind.Descent) && request.IsCapped)
+        {
+            aircraft.DescentRequestCap =
+                (request.AskedInStepDownBand || request.ReopenedAfterCap) ? DescentRequestCap.Spent : DescentRequestCap.Reopenable;
+            aircraft.DescentRequestCappedAtSeconds = request.LastRequestedAtSeconds;
+        }
     }
 
     /// <summary>
@@ -227,7 +298,7 @@ public static class PilotRequestTracker
     /// Whether an open request no longer needs its follow-up because the aircraft has moved past it, so it is closed
     /// rather than re-announced.
     /// </summary>
-    private static bool IsMoot(PilotPendingRequest request, AircraftState aircraft, TrackOwner? studentPosition)
+    private static bool IsMoot(PilotPendingRequest request, AircraftState aircraft, TrackOwner? studentPosition, Func<string, LatLon?> airportLookup)
     {
         // A ready-to-taxi / ready-for-departure call is only meaningful on the surface. Once the
         // aircraft is airborne the request is moot however it got resolved, so close it rather than
@@ -245,8 +316,8 @@ public static class PilotRequestTracker
         }
 
         // A request for lower is moot once the pilot would not ask it: a descent authorised or queued, a climb, a
-        // handoff, a hold, or an approach or landing clearance.
-        if ((request.Kind == PilotPendingRequestKind.Descent) && PilotProactive.ShouldNotAskForLower(aircraft, studentPosition))
+        // handoff, a hold, an approach or landing clearance, or inside the descent-request floor near the field.
+        if ((request.Kind == PilotPendingRequestKind.Descent) && PilotProactive.ShouldNotAskForLower(aircraft, studentPosition, airportLookup))
         {
             return true;
         }

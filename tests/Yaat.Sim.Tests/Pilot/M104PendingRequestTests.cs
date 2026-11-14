@@ -34,11 +34,11 @@ public sealed class M104PendingRequestTests
         SimScenarioState scenario = NewScenario(elapsedSeconds: 129);
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
-        PilotProactive.TickPendingRequests(ac, scenario);
+        PilotProactive.TickPendingRequests(ac, scenario, _ => null);
         Assert.Empty(ac.PendingPilotTransmissions);
 
         scenario.ElapsedSeconds = 130;
-        PilotProactive.TickPendingRequests(ac, scenario);
+        PilotProactive.TickPendingRequests(ac, scenario, _ => null);
 
         PilotTransmission transmission = Assert.Single(ac.PendingPilotTransmissions);
         // Re-queued follow-up: terminal (SAY) form is the callsign-free stored form (SAY column carries the callsign).
@@ -61,7 +61,8 @@ public sealed class M104PendingRequestTests
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PilotPendingRequestResponseState.Standby, ac.PendingPilotRequest!.ResponseState);
-        Assert.Equal(110, ac.PendingPilotRequest.NextFollowUpDueSeconds);
+        // The 150 s re-ask delay after a standby, from the acknowledgement at 20 s.
+        Assert.Equal(170, ac.PendingPilotRequest.NextFollowUpDueSeconds);
         Assert.True(ac.HasControllerAcknowledgedInitialContact);
         Assert.Empty(ac.PendingPilotTransmissions);
     }
@@ -106,7 +107,7 @@ public sealed class M104PendingRequestTests
         ac.Phases = phases;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null, airportLookup: _ => null));
 
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -156,7 +157,7 @@ public sealed class M104PendingRequestTests
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, kind, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null, airportLookup: _ => null));
 
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -169,7 +170,7 @@ public sealed class M104PendingRequestTests
         ac.IsOnGround = true;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Takeoff, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null, airportLookup: _ => null));
 
         Assert.Single(ac.PendingPilotTransmissions);
     }
@@ -182,9 +183,47 @@ public sealed class M104PendingRequestTests
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Approach, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null, airportLookup: _ => null));
 
         Assert.Single(ac.PendingPilotTransmissions);
+    }
+
+    // The two-re-ask cap is for requests for lower and approach only; a ready-to-taxi request keeps re-asking
+    // every 120 s.
+    [Fact]
+    public void TryQueueFollowUp_UnansweredTaxiRequest_ReasksPastTwoAtEvery120s()
+    {
+        AircraftState ac = NewAircraft();
+        ac.IsOnGround = true;
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
+
+        foreach (double now in new[] { 130.0, 250.0, 370.0, 490.0 })
+        {
+            Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, now, studentPosition: null, airportLookup: _ => null), $"No re-ask at {now}");
+            Assert.Single(ac.PendingPilotTransmissions);
+            ac.PendingPilotTransmissions.Clear();
+            Assert.Equal(now + 120, ac.PendingPilotRequest!.NextFollowUpDueSeconds);
+        }
+
+        Assert.Equal(4, ac.PendingPilotRequest!.FollowUpsVoiced);
+    }
+
+    [Fact]
+    public void TryQueueFollowUp_UnansweredApproachRequest_StopsAfterTwoReasks()
+    {
+        AircraftState ac = NewAircraft();
+        ac.IsOnGround = false;
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Approach, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
+
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null, airportLookup: _ => null));
+        ac.PendingPilotTransmissions.Clear();
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 250, studentPosition: null, airportLookup: _ => null));
+        ac.PendingPilotTransmissions.Clear();
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 370, studentPosition: null, airportLookup: _ => null));
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Equal(PilotRequestTracker.MaxFollowUps, ac.PendingPilotRequest!.FollowUpsVoiced);
+        Assert.True(ac.PendingPilotRequest.IsOpen);
     }
 
     [Fact]

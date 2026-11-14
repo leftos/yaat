@@ -274,6 +274,13 @@ public sealed partial class SimulationEngine
     {
         if (!PilotRepeat.IsSayAgainOnly(compound))
         {
+            // The student's or a controller AI's accepted descent, once the aircraft has made its initial contact, starts the
+            // wait before the pilot asks for lower again; scripted presets never come through here.
+            if (aircraft.HasMadeInitialContact)
+            {
+                PilotRequestTracker.StampDescentClearance(aircraft, compound, elapsedSeconds);
+            }
+
             PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
             // The controller has just spoken to this aircraft, so the
             // awaiting-controller-response gate (if it was set after this pilot's

@@ -166,6 +166,29 @@ public sealed class AircraftSnapshotDto
     public PilotPendingRequestDto? PendingPilotRequest { get; init; }
 
     /// <summary>
+    /// When the controller last gave a descent clearance, in scenario-elapsed seconds. Optional and left out of the JSON
+    /// while null: earlier snapshots restore none given, so no SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? DescentClearedAtSeconds { get; init; }
+
+    /// <summary>
+    /// The aircraft's memory of its last capped request for lower (<c>DescentRequestCap</c> as an int: 0 none, 1
+    /// re-openable, 2 spent). Optional and left out while 0: earlier snapshots restore no capped request, so no
+    /// SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int DescentRequestCap { get; init; }
+
+    /// <summary>
+    /// When the aircraft's capped request for lower was last repeated, in scenario-elapsed seconds. Optional and left out
+    /// of the JSON while null: earlier snapshots restore none, so no SnapshotSchemaMigrator step or SchemaVersion bump is
+    /// required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? DescentRequestCappedAtSeconds { get; init; }
+
+    /// <summary>
     /// The latest line this aircraft spoke. Non-required so older snapshots deserialize with none, and left out of the
     /// JSON when there is none.
     /// </summary>
@@ -340,6 +363,28 @@ public sealed class PilotPendingRequestDto
     /// SnapshotSchemaMigrator step or SchemaVersion bump is required.
     /// </summary>
     public bool ReaskedAfterStandby { get; init; }
+
+    /// <summary>
+    /// The re-asks voiced since the request was recorded. Optional and left out while zero: earlier snapshots lack it and
+    /// restore no re-asks voiced, so no SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int FollowUpsVoiced { get; init; }
+
+    /// <summary>
+    /// A request for lower re-opened after an earlier one used up its re-asks. Optional and left out while false: earlier
+    /// snapshots lack it (clean default false), so no SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ReopenedAfterCap { get; init; }
+
+    /// <summary>
+    /// A request for lower asked in the 2,000 ft band rather than the 1,000 ft one. Optional and left out while false:
+    /// earlier snapshots lack it and restore the 1,000 ft band, so no SnapshotSchemaMigrator step or SchemaVersion bump is
+    /// required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AskedInStepDownBand { get; init; }
 }
 
 public sealed class ApproachScoreDto

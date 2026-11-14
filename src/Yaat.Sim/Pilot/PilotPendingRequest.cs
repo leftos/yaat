@@ -22,7 +22,11 @@ public enum PilotPendingRequestKind
     /// </summary>
     Pushback,
 
-    /// <summary>An IFR arrival's request to the radar student for lower at its top of descent.</summary>
+    /// <summary>
+    /// An IFR arrival's request to the radar student for lower, once it is far enough above its descent profile (field
+    /// elevation plus 300 ft per NM of the route left, a published STAR altitude ahead as a lower line): 1,000 ft above it
+    /// at first, 2,000 ft above it after a descent clearance.
+    /// </summary>
     Descent,
 
     /// <summary>
@@ -30,6 +34,22 @@ public enum PilotPendingRequestKind
     /// clearance.
     /// </summary>
     FurtherClearance,
+}
+
+/// <summary>
+/// What an aircraft remembers of its last capped request for lower (<see cref="AircraftState.DescentRequestCap"/>), kept
+/// when another request replaces it and cleared by a descent clearance.
+/// </summary>
+public enum DescentRequestCap
+{
+    /// <summary>No capped request for lower since the last descent clearance.</summary>
+    None,
+
+    /// <summary>Capped after it was asked from the 1,000 ft band: it re-opens once, from the 2,000 ft band.</summary>
+    Reopenable,
+
+    /// <summary>Capped after it was asked from the 2,000 ft band, or its one re-open is spent: the pilot asks nothing more.</summary>
+    Spent,
 }
 
 public enum PilotPendingRequestResponseState
@@ -108,7 +128,41 @@ public sealed class PilotPendingRequest
     /// </summary>
     public bool ReaskedAfterStandby { get; set; }
 
+    /// <summary>
+    /// The re-asks voiced since the request was recorded. For a request for lower or an approach request
+    /// <see cref="PilotRequestTracker"/> voices at most <see cref="PilotRequestTracker.MaxFollowUps"/>, then leaves it
+    /// open and unvoiced (<see cref="IsCapped"/>); other kinds re-ask without a cap.
+    /// </summary>
+    public int FollowUpsVoiced { get; set; }
+
+    /// <summary>
+    /// A request for lower re-opened as a fresh request after an earlier one, asked in the 1,000 ft band, used up its
+    /// re-asks unanswered and the aircraft moved into the 2,000 ft band (<see cref="PilotProactive.TickDescentRequest"/>).
+    /// It is not re-opened again: after its own re-asks the pilot waits for the controller.
+    /// </summary>
+    public bool ReopenedAfterCap { get; set; }
+
+    /// <summary>
+    /// A request for lower asked in the 2,000 ft band: the pilot crossed the step-down threshold (2,000 ft above the
+    /// profile, after a descent clearance or on a re-open) rather than the first request's 1,000 ft one. False for the
+    /// 1,000 ft band. <see cref="PilotProactive.TickDescentRequest"/> re-opens only a capped request asked in the
+    /// 1,000 ft band.
+    /// </summary>
+    public bool AskedInStepDownBand { get; set; }
+
     public bool IsOpen => ResponseState is PilotPendingRequestResponseState.None or PilotPendingRequestResponseState.Standby;
+
+    /// <summary>
+    /// An open request for lower or approach request that has voiced its <see cref="PilotRequestTracker.MaxFollowUps"/>
+    /// re-asks unanswered: it stays open and silent. Every other kind is never capped and keeps re-asking.
+    /// </summary>
+    public bool IsCapped =>
+        IsOpen
+        && (Kind is PilotPendingRequestKind.Descent or PilotPendingRequestKind.Approach)
+        && (FollowUpsVoiced >= PilotRequestTracker.MaxFollowUps);
+
+    /// <summary>Whether the request holds the pilot's other calls back: open and not <see cref="IsCapped"/>.</summary>
+    public bool BlocksOtherCalls => IsOpen && !IsCapped;
 
     public PilotPendingRequestDto ToSnapshot() =>
         new()
@@ -128,6 +182,9 @@ public sealed class PilotPendingRequest
             ParkingName = ParkingName,
             TaxiIn = TaxiIn,
             ReaskedAfterStandby = ReaskedAfterStandby,
+            FollowUpsVoiced = FollowUpsVoiced,
+            ReopenedAfterCap = ReopenedAfterCap,
+            AskedInStepDownBand = AskedInStepDownBand,
         };
 
     public static PilotPendingRequest FromSnapshot(PilotPendingRequestDto dto) =>
@@ -151,5 +208,9 @@ public sealed class PilotPendingRequest
             // Snapshots from before the flag marked a taxi-in request only by its parking name.
             TaxiIn = dto.TaxiIn || (dto.ParkingName is not null),
             ReaskedAfterStandby = dto.ReaskedAfterStandby,
+            FollowUpsVoiced = dto.FollowUpsVoiced,
+            ReopenedAfterCap = dto.ReopenedAfterCap,
+            // Snapshots from before the field restore the 1,000 ft band.
+            AskedInStepDownBand = dto.AskedInStepDownBand,
         };
 }

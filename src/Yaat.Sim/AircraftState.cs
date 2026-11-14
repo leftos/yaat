@@ -452,6 +452,29 @@ public class AircraftState
     public PilotPendingRequest? PendingPilotRequest { get; set; }
 
     /// <summary>
+    /// When (scenario-elapsed seconds) the student or a controller AI last gave an accepted descent clearance to an
+    /// altitude below the aircraft, or any other descent clearance, after the aircraft made its initial contact
+    /// (<see cref="PilotRequestTracker.StampDescentClearance"/>). Scripted presets never set it. Null until one is given.
+    /// <see cref="PilotProactive.TickDescentRequest"/> waits after it before asking for lower again. Snapshot-serialized.
+    /// </summary>
+    public double? DescentClearedAtSeconds { get; set; }
+
+    /// <summary>
+    /// The aircraft's memory of its last capped request for lower: set when one reaches its cap
+    /// (<see cref="PilotRequestTracker.TryQueueFollowUp"/>) or re-opens (<see cref="PilotProactive.TickDescentRequest"/>),
+    /// kept when another request replaces it, and cleared only by a descent clearance
+    /// (<see cref="PilotRequestTracker.StampDescentClearance"/>). Snapshot-serialized.
+    /// </summary>
+    public DescentRequestCap DescentRequestCap { get; set; }
+
+    /// <summary>
+    /// When (scenario-elapsed seconds) the aircraft's capped request for lower was last repeated: set with
+    /// <see cref="DescentRequestCap"/> when the cap is reached, cleared with it by a descent clearance. A
+    /// <c>Reopenable</c> cap re-opens no sooner than 120 s after it. Snapshot-serialized.
+    /// </summary>
+    public double? DescentRequestCappedAtSeconds { get; set; }
+
+    /// <summary>
     /// The latest line this aircraft spoke, recorded when the frequency dequeued it. Null until the aircraft transmits.
     /// Snapshot-serialized so a restored aircraft can still repeat it.
     /// </summary>
@@ -541,6 +564,12 @@ public class AircraftState
     /// <summary>Position history for the radar and surface history trails, one sample every <see cref="PositionHistorySampleSeconds"/>.</summary>
     public List<(double Lat, double Lon)> PositionHistory { get; } = new(PositionHistoryCapacity);
 
+    /// <summary>The snapshot's <see cref="DescentRequestCap"/>, or an <see cref="InvalidDataException"/> naming a value it does not define.</summary>
+    private static DescentRequestCap RestoreDescentRequestCap(int value) =>
+        Enum.IsDefined(typeof(DescentRequestCap), value)
+            ? (DescentRequestCap)value
+            : throw new InvalidDataException($"Snapshot DescentRequestCap {value} is not a defined value");
+
     public static AircraftState FromSnapshot(AircraftSnapshotDto dto, AirportGroundLayout? groundLayout)
     {
         var ac = new AircraftState
@@ -582,6 +611,10 @@ public class AircraftState
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
+            DescentClearedAtSeconds = dto.DescentClearedAtSeconds,
+            // Snapshots from before the field restore no capped request for lower.
+            DescentRequestCap = RestoreDescentRequestCap(dto.DescentRequestCap),
+            DescentRequestCappedAtSeconds = dto.DescentRequestCappedAtSeconds,
             LastPilotTransmission = dto.LastPilotTransmission is not null
                 ? AircraftLastPilotTransmission.FromSnapshot(dto.LastPilotTransmission)
                 : null,
@@ -700,6 +733,9 @@ public class AircraftState
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),
+            DescentClearedAtSeconds = DescentClearedAtSeconds,
+            DescentRequestCap = (int)DescentRequestCap,
+            DescentRequestCappedAtSeconds = DescentRequestCappedAtSeconds,
             LastPilotTransmission = LastPilotTransmission?.ToSnapshot(),
             PendingRepeat = PendingRepeat,
             PendingRepeatCallsignOnly = PendingRepeatCallsignOnly,

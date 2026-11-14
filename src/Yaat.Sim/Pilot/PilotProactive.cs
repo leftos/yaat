@@ -175,7 +175,9 @@ public static class PilotProactive
             return;
         }
 
-        if (aircraft.PendingPilotRequest is { IsOpen: true })
+        // A capped request (a request for lower that used up its re-asks) does not hold the approach request back, which
+        // replaces it; a capped approach request still holds back asking it again.
+        if ((aircraft.PendingPilotRequest is { IsOpen: true } open) && (open.BlocksOtherCalls || (open.Kind == PilotPendingRequestKind.Approach)))
         {
             return;
         }
@@ -245,17 +247,38 @@ public static class PilotProactive
         );
     }
 
-    /// <summary>The field elevation plus this is the descent target of an arrival with no published altitude ahead.</summary>
-    private const double NoStarTargetAboveFieldFt = 3000.0;
+    /// <summary>The descent profile's gradient: 300 ft per NM, the top of the range controllers plan on (7110.65 4-8-1.h.2(a) NOTE).</summary>
+    private const double ProfileFtPerNm = 300.0;
 
-    /// <summary>How far short of the destination an arrival with no published altitude ahead plans to reach its target.</summary>
-    private const double NoStarTargetDistanceFromFieldNm = 10.0;
+    /// <summary>How far above the profile a pilot no controller has given a descent asks for lower.</summary>
+    private const double FirstRequestAboveProfileFt = 1000.0;
 
-    /// <summary>The seconds of flight before its top of descent at which the pilot asks for lower.</summary>
-    private const double DescentRequestLeadSeconds = 60.0;
+    /// <summary>
+    /// How far above the profile a pilot asks for lower after a descent clearance (the 2,000 ft band), and when it asks
+    /// again after an unanswered request asked in the 1,000 ft band used up its re-asks.
+    /// </summary>
+    private const double StepDownRequestAboveProfileFt = 2000.0;
 
-    /// <summary>The shallowest descent a plan allows: 3 NM of track per 1,000 ft.</summary>
-    private const double DescentGradientNmPerThousandFt = 3.0;
+    /// <summary>The least time after a descent clearance (<see cref="AircraftState.DescentClearedAtSeconds"/>) before the pilot asks again.</summary>
+    private const double StepDownWaitSeconds = 180.0;
+
+    /// <summary>
+    /// The least time after the last repeat of a capped request for lower before it re-opens, once in the 2,000 ft band.
+    /// </summary>
+    private const double CappedRequestReopenWaitSeconds = 120.0;
+
+    /// <summary>
+    /// The straight-line distance from the destination field within which the pilot never asks for lower: the approach
+    /// request takes over. A judgement call: FAA publications are silent on it; 10 NM matches the approach-request radius
+    /// (<see cref="TickArrivalApproachRequest"/>).
+    /// </summary>
+    private const double NoDescentRequestWithinNm = 10.0;
+
+    /// <summary>
+    /// The height above the destination field elevation at or below which the pilot never asks for lower. A judgement
+    /// call: FAA publications are silent on it; it pairs with <see cref="NoDescentRequestWithinNm"/>.
+    /// </summary>
+    private const double NoDescentRequestBelowFieldPlusFt = 3000.0;
 
     /// <summary>The altitude below which the 250 KIAS limit applies (14 CFR 91.117(a)).</summary>
     private const double SpeedLimitAltitudeFt = 10000.0;
@@ -267,34 +290,40 @@ public static class PilotProactive
     private const double SpeedLimitSlowdownNm = 10.0;
 
     /// <summary>
-    /// An IFR arrival with no descent clearance in force asks the radar student "request lower" about
-    /// <see cref="DescentRequestLeadSeconds"/> of flight before its top of descent, or at once when it is already past it
-    /// (a late handoff). The pilot never leaves its altitude on its own: this only records the request, which
-    /// <see cref="PilotRequestTracker"/> re-asks and any descent clearance answers. Solo only, like
-    /// <see cref="TickArrivalApproachRequest"/>. Once answered the request is no longer open, so an aircraft level again
-    /// with no further descent clearance asks again at its next top of descent.
+    /// An IFR arrival with no descent clearance in force asks the radar student "request lower" once it is
+    /// <see cref="FirstRequestAboveProfileFt"/> above its descent profile (<see cref="DescentProfileFt"/>), at once when
+    /// it is already past that (a late handoff). After any descent clearance
+    /// (<see cref="AircraftState.DescentClearedAtSeconds"/>) it asks again only <see cref="StepDownWaitSeconds"/> after
+    /// it and <see cref="StepDownRequestAboveProfileFt"/> above the profile. The pilot never leaves its altitude on its
+    /// own: this only records the request, which <see cref="PilotRequestTracker"/> re-asks and any descent clearance
+    /// answers. An unanswered request asked in the 1,000 ft band that used up its re-asks stays open and silent until the
+    /// aircraft is <see cref="StepDownRequestAboveProfileFt"/> above the profile, when it is asked once afresh
+    /// (<see cref="PilotPendingRequest.ReopenedAfterCap"/>); one asked from 2,000 ft or more above the profile is never
+    /// re-opened. The aircraft remembers the cap (<see cref="AircraftState.DescentRequestCap"/>), so a request that replaces
+    /// a capped one does not reset it; only a descent clearance does. Never
+    /// within <see cref="NoDescentRequestWithinNm"/> of the field or at or below
+    /// <see cref="NoDescentRequestBelowFieldPlusFt"/> above it (<see cref="IsInsideDescentRequestFloor"/>). Solo only,
+    /// like <see cref="TickArrivalApproachRequest"/>.
     /// </summary>
     public static void TickDescentRequest(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
     {
-        if (!IsDescentRequestEligible(aircraft, scenario) || ShouldNotAskForLower(aircraft, scenario.StudentPosition))
+        // The aircraft's memory of a capped request for lower, kept when another request replaces it: the one re-open, in
+        // the 2,000 ft band, or nothing once that is spent. An open uncapped request holds the pilot back (IsFreeToCall).
+        DescentRequestCap cap = aircraft.DescentRequestCap;
+        bool reopen = (cap == DescentRequestCap.Reopenable);
+        if (
+            (cap == DescentRequestCap.Spent)
+            || (reopen && !IsCappedRequestReopenWaitOver(aircraft, scenario.ElapsedSeconds))
+            || !IsAskForLowerEligible(aircraft, scenario, airportLookup)
+            || (ResolveDescentDestination(aircraft, airportLookup) is not { } destination)
+        )
         {
             return;
         }
 
-        if (ResolveDescentDestination(aircraft, airportLookup) is not { } destination)
-        {
-            return;
-        }
-
-        if (PlanDescentTarget(aircraft, destination.Position, destination.ElevationFt) is not { } plan)
-        {
-            return;
-        }
-
-        double groundSpeedKts = aircraft.GroundSpeed;
-        double requiredNm = RequiredDescentDistanceNm(aircraft, plan.TargetAltitudeFt, groundSpeedKts);
-        double leadNm = groundSpeedKts * DescentRequestLeadSeconds / 3600.0;
-        if ((plan.DistanceRemainingNm - requiredNm) > leadNm)
+        double aboveFt = aircraft.Altitude - DescentProfileFt(aircraft, destination.Position, destination.ElevationFt);
+        double thresholdFt = RequestThresholdAboveProfileFt(aircraft, scenario.ElapsedSeconds, reopen);
+        if (aboveFt < thresholdFt)
         {
             return;
         }
@@ -302,20 +331,82 @@ public static class PilotProactive
         string facilityCallName = StudentRadarFacilityCallName(scenario);
         PilotSpeechText line = PilotResponder.BuildDescentRequest(aircraft, facilityCallName);
         Log.LogDebug(
-            "{Callsign}: request lower, target {Target:F0} ft, {Remaining:F1} NM remaining, {Required:F1} NM required",
+            "{Callsign}: request lower, {Above:F0} ft above the profile (threshold {Threshold:F0} ft), reopened {Reopen}",
             aircraft.Callsign,
-            plan.TargetAltitudeFt,
-            plan.DistanceRemainingNm,
-            requiredNm
+            aboveFt,
+            thresholdFt,
+            reopen
         );
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
-        PilotRequestTracker.RecordRequest(
+        PilotPendingRequest request = PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.Descent,
             scenario.ElapsedSeconds,
             line,
             PilotRequestContext.Facility(facilityCallName)
         );
+        request.ReopenedAfterCap = reopen;
+        // The band is the height above the profile the pilot asks from, not the threshold it crossed.
+        request.AskedInStepDownBand = (aboveFt >= StepDownRequestAboveProfileFt);
+        if (reopen)
+        {
+            aircraft.DescentRequestCap = DescentRequestCap.Spent;
+        }
+    }
+
+    /// <summary>
+    /// Whether <see cref="CappedRequestReopenWaitSeconds"/> have passed since the last repeat of the aircraft's capped
+    /// request for lower (<see cref="AircraftState.DescentRequestCappedAtSeconds"/>).
+    /// </summary>
+    private static bool IsCappedRequestReopenWaitOver(AircraftState aircraft, double nowSeconds) =>
+        (aircraft.DescentRequestCappedAtSeconds is { } cappedAt) && ((nowSeconds - cappedAt) >= CappedRequestReopenWaitSeconds);
+
+    /// <summary>
+    /// Whether the pilot may ask for lower now: the gates of <see cref="IsDescentRequestEligible"/> (a capped request does
+    /// not hold it back) and no reason not to ask (<see cref="ShouldNotAskForLower"/>).
+    /// </summary>
+    private static bool IsAskForLowerEligible(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup) =>
+        IsDescentRequestEligible(aircraft, scenario) && !ShouldNotAskForLower(aircraft, scenario.StudentPosition, airportLookup);
+
+    /// <summary>
+    /// How far above the profile the pilot must be to ask now: <see cref="FirstRequestAboveProfileFt"/>, or
+    /// <see cref="StepDownRequestAboveProfileFt"/> after a descent clearance or for a re-opened request
+    /// (<paramref name="reopen"/>), and never (infinity) inside the wait after a descent clearance.
+    /// </summary>
+    private static double RequestThresholdAboveProfileFt(AircraftState aircraft, double nowSeconds, bool reopen)
+    {
+        if (aircraft.DescentClearedAtSeconds is { } clearedAt)
+        {
+            return ((nowSeconds - clearedAt) < StepDownWaitSeconds) ? double.PositiveInfinity : StepDownRequestAboveProfileFt;
+        }
+
+        return reopen ? StepDownRequestAboveProfileFt : FirstRequestAboveProfileFt;
+    }
+
+    /// <summary>
+    /// Whether the aircraft is inside the floor below which the pilot never asks for lower: within
+    /// <see cref="NoDescentRequestWithinNm"/> straight-line of its filed destination, or at or below the field elevation
+    /// plus <see cref="NoDescentRequestBelowFieldPlusFt"/>. The field's position comes from
+    /// <paramref name="airportLookup"/> (the engine's, as for the profile) and its elevation from the navdata. False with
+    /// no destination or no position for it; the altitude half needs the field elevation.
+    /// </summary>
+    internal static bool IsInsideDescentRequestFloor(AircraftState aircraft, Func<string, LatLon?> airportLookup)
+    {
+        string destination = aircraft.FlightPlan.Destination;
+        if (string.IsNullOrWhiteSpace(destination) || (airportLookup(destination) is not { } field))
+        {
+            return false;
+        }
+
+        if (GeoMath.DistanceNm(field, aircraft.Position) <= NoDescentRequestWithinNm)
+        {
+            return true;
+        }
+
+        // A guard: reached only when a STAR altitude ahead pulls the profile below field + 3,000 ft beyond 10 NM; no
+        // procedure in today's navdata does.
+        return (NavigationDatabase.Instance.GetAirportElevation(destination) is { } elevationFt)
+            && (aircraft.Altitude <= (elevationFt + NoDescentRequestBelowFieldPlusFt));
     }
 
     /// <summary>
@@ -434,10 +525,15 @@ public static class PilotProactive
 
     /// <summary>
     /// Whether the pilot may make a new call now: solo training with a radar student, an airborne IFR aircraft whose
-    /// check-in the controller has acknowledged, nothing queued to say and no request already open.
+    /// check-in the controller has acknowledged, nothing queued to say and no request open that holds its calls back
+    /// (<see cref="IsFreeToCall"/>).
     /// </summary>
     private static bool IsDescentRequestEligible(AircraftState aircraft, SimScenarioState scenario) =>
-        scenario.SoloTrainingMode && IsRadarStudent(scenario.StudentPositionType) && IsAirborneIfrInContact(aircraft) && IsFreeToCall(aircraft);
+        IsInContactWithRadarStudent(aircraft, scenario) && IsFreeToCall(aircraft);
+
+    /// <summary>Solo training with a radar student, and an airborne IFR aircraft whose check-in the controller has acknowledged.</summary>
+    private static bool IsInContactWithRadarStudent(AircraftState aircraft, SimScenarioState scenario) =>
+        scenario.SoloTrainingMode && IsRadarStudent(scenario.StudentPositionType) && IsAirborneIfrInContact(aircraft);
 
     /// <summary>Whether the student works a radar position: approach, departure or center, not ground or tower.</summary>
     private static bool IsRadarStudent(string? positionType) => !string.IsNullOrWhiteSpace(positionType) && (positionType is not ("GND" or "TWR"));
@@ -446,9 +542,12 @@ public static class PilotProactive
     private static bool IsAirborneIfrInContact(AircraftState aircraft) =>
         !aircraft.IsOnGround && !aircraft.FlightPlan.IsVfr && aircraft.HasMadeInitialContact && aircraft.HasControllerAcknowledgedInitialContact;
 
-    /// <summary>Whether the pilot has nothing queued to say and no request already open.</summary>
+    /// <summary>
+    /// Whether the pilot has nothing queued to say and no request open that holds its calls back: a capped request
+    /// (<see cref="PilotPendingRequest.BlocksOtherCalls"/>) does not.
+    /// </summary>
     private static bool IsFreeToCall(AircraftState aircraft) =>
-        (aircraft.PendingPilotRequest is not { IsOpen: true }) && (aircraft.PendingPilotTransmissions.Count == 0);
+        (aircraft.PendingPilotRequest is not { BlocksOtherCalls: true }) && (aircraft.PendingPilotTransmissions.Count == 0);
 
     /// <summary>
     /// The filed destination's position and field elevation, or null with no destination filed, no position for it, or
@@ -496,12 +595,17 @@ public static class PilotProactive
     /// <summary>
     /// Whether the pilot has no reason to ask for lower, or to repeat an open request for it: a descent is authorised or
     /// queued (<see cref="DescentAuthorized"/>), a climb is in progress or cleared (<see cref="IsClimbingOrDeparting"/>),
-    /// or the aircraft is off the student's work (<see cref="IsOffTheStudentsWork"/>). <see cref="PilotRequestTracker"/>
-    /// reads it to close an open request as moot. <paramref name="studentPosition"/> is the student's position, against which
-    /// the pilot's tuned position is read.
+    /// the aircraft is off the student's work (<see cref="IsOffTheStudentsWork"/>), or it is inside the floor near the
+    /// field (<see cref="IsInsideDescentRequestFloor"/>), where the approach request takes over.
+    /// <see cref="PilotRequestTracker"/> reads it to close an open request as moot. <paramref name="studentPosition"/> is
+    /// the student's position, against which the pilot's tuned position is read; <paramref name="airportLookup"/> places
+    /// the destination for the floor.
     /// </summary>
-    internal static bool ShouldNotAskForLower(AircraftState aircraft, TrackOwner? studentPosition) =>
-        DescentAuthorized(aircraft) || IsClimbingOrDeparting(aircraft) || IsOffTheStudentsWork(aircraft, studentPosition);
+    internal static bool ShouldNotAskForLower(AircraftState aircraft, TrackOwner? studentPosition, Func<string, LatLon?> airportLookup) =>
+        DescentAuthorized(aircraft)
+        || IsClimbingOrDeparting(aircraft)
+        || IsOffTheStudentsWork(aircraft, studentPosition)
+        || IsInsideDescentRequestFloor(aircraft, airportLookup);
 
     /// <summary>An assigned altitude above it, a climb via, or an initial-climb or departure-procedure phase.</summary>
     private static bool IsClimbingOrDeparting(AircraftState aircraft) =>
@@ -557,64 +661,46 @@ public static class PilotProactive
         (CommandDescriber.GetQueuedCommandDimension(command) & CommandDimension.Vertical) != CommandDimension.None;
 
     /// <summary>
-    /// The altitude a descent plans to and the along-route distance to where it is reached. On a STAR, the first route
-    /// fix whose published altitude (<see cref="CifpAltitudeRestriction.Altitude1Ft"/>, the upper bound of a window) is
-    /// below the aircraft. With no STAR or no such altitude ahead, the destination field elevation plus
-    /// <see cref="NoStarTargetAboveFieldFt"/>, reached <see cref="NoStarTargetDistanceFromFieldNm"/> from the field.
-    /// Planning to the altitude never authorises flying it. Null when the target is not below the aircraft.
+    /// The highest altitude a constant descent to the field allows here: the field elevation plus
+    /// <see cref="ProfileFtPerNm"/> of the along-route distance to the destination (the route, then direct to the field).
+    /// On a STAR, the first route fix whose published altitude (<see cref="CifpAltitudeRestriction.Altitude1Ft"/>, the
+    /// upper bound of a window) is below the aircraft gives a second line, that altitude plus <see cref="ProfileFtPerNm"/>
+    /// back from the fix, and the lower of the two lines applies. Planning to an altitude never authorises flying it.
     /// </summary>
-    private static (double TargetAltitudeFt, double DistanceRemainingNm)? PlanDescentTarget(
-        AircraftState aircraft,
-        LatLon destinationPosition,
-        double fieldElevationFt
-    )
+    private static double DescentProfileFt(AircraftState aircraft, LatLon destinationPosition, double fieldElevationFt)
     {
         double ceilingFt = aircraft.Altitude - FlightPhysics.AltitudeSnapFt;
         double alongNm = 0.0;
         LatLon previous = aircraft.Position;
         bool onStar = !string.IsNullOrEmpty(aircraft.Procedure.ActiveStarId);
+        double? starLineFt = null;
         foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
             alongNm += GeoMath.DistanceNm(previous, fix.Position);
             previous = fix.Position;
-            if (onStar && (fix.AltitudeRestriction is { } restriction) && (restriction.Altitude1Ft < ceilingFt))
+            if ((starLineFt is null) && onStar && (fix.AltitudeRestriction is { } restriction) && (restriction.Altitude1Ft < ceilingFt))
             {
-                return (restriction.Altitude1Ft, alongNm);
+                starLineFt = ProfileLineFt(aircraft, restriction.Altitude1Ft, alongNm);
             }
         }
 
-        double targetFt = fieldElevationFt + NoStarTargetAboveFieldFt;
-        if (targetFt >= ceilingFt)
-        {
-            return null;
-        }
-
         alongNm += GeoMath.DistanceNm(previous, destinationPosition);
-        return (targetFt, alongNm - NoStarTargetDistanceFromFieldNm);
+        double fieldLineFt = ProfileLineFt(aircraft, fieldElevationFt, alongNm);
+        return starLineFt is { } star ? Math.Min(fieldLineFt, star) : fieldLineFt;
     }
 
     /// <summary>
-    /// The distance a descent to <paramref name="targetAltitudeFt"/> needs: the profile descent rate over the ground speed,
-    /// no less than <see cref="DescentGradientNmPerThousandFt"/>, plus <see cref="SpeedLimitSlowdownNm"/> to slow to
-    /// <see cref="SpeedLimitKts"/> when it crosses <see cref="SpeedLimitAltitudeFt"/> faster.
+    /// The profile <paramref name="distanceNm"/> back from where it reaches <paramref name="targetAltitudeFt"/>: that
+    /// altitude plus <see cref="ProfileFtPerNm"/> per NM, with <see cref="SpeedLimitSlowdownNm"/> less to descend in when
+    /// the descent crosses <see cref="SpeedLimitAltitudeFt"/> faster than <see cref="SpeedLimitKts"/> (the track it takes to
+    /// slow).
     /// </summary>
-    private static double RequiredDescentDistanceNm(AircraftState aircraft, double targetAltitudeFt, double groundSpeedKts)
+    private static double ProfileLineFt(AircraftState aircraft, double targetAltitudeFt, double distanceNm)
     {
-        double altDeltaFt = aircraft.Altitude - targetAltitudeFt;
-        double descentRateFpm = AircraftPerformance.DescentRate(
-            aircraft.AircraftType,
-            AircraftCategorization.Categorize(aircraft.AircraftType),
-            aircraft.Altitude
-        );
-        double gradientNm = DescentGradientNmPerThousandFt * altDeltaFt / 1000.0;
-        double profileNm = (descentRateFpm > 0) ? altDeltaFt / descentRateFpm * groundSpeedKts / 60.0 : 0.0;
-        double requiredNm = Math.Max(profileNm, gradientNm);
-        if ((aircraft.Altitude > SpeedLimitAltitudeFt) && (targetAltitudeFt < SpeedLimitAltitudeFt) && (aircraft.IndicatedAirspeed > SpeedLimitKts))
-        {
-            requiredNm += SpeedLimitSlowdownNm;
-        }
-
-        return requiredNm;
+        bool slows =
+            (aircraft.Altitude > SpeedLimitAltitudeFt) && (targetAltitudeFt < SpeedLimitAltitudeFt) && (aircraft.IndicatedAirspeed > SpeedLimitKts);
+        double descentNm = distanceNm - (slows ? SpeedLimitSlowdownNm : 0.0);
+        return targetAltitudeFt + (ProfileFtPerNm * Math.Max(0.0, descentNm));
     }
 
     private const double ReportAtFixArrivalNm = 0.5;
@@ -669,7 +755,11 @@ public static class PilotProactive
         }
     }
 
-    public static void TickPendingRequests(AircraftState aircraft, SimScenarioState scenario)
+    /// <summary>
+    /// Re-voices or closes the aircraft's open request (<see cref="PilotRequestTracker.TryQueueFollowUp"/>);
+    /// <paramref name="airportLookup"/> (the engine's) places the destination for the request-for-lower floor.
+    /// </summary>
+    public static void TickPendingRequests(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
     {
         // Follow-ups re-voice an unanswered request; they belong wherever someone answers pilots (the solo student
         // or an AI position), not only in solo training.
@@ -678,7 +768,7 @@ public static class PilotProactive
             return;
         }
 
-        PilotRequestTracker.TryQueueFollowUp(aircraft, scenario.ElapsedSeconds, scenario.StudentPosition);
+        PilotRequestTracker.TryQueueFollowUp(aircraft, scenario.ElapsedSeconds, scenario.StudentPosition, airportLookup);
     }
 
     /// <summary>
@@ -752,14 +842,14 @@ public static class PilotProactive
 
     /// <summary>
     /// The pilot is free to call the student for a Class B clearance: not cleared yet, in contact with the student and
-    /// not sent to another frequency, nothing queued to say, and no other request open.
+    /// not sent to another frequency, nothing queued to say, and no request open that holds its calls back.
     /// </summary>
     private static bool CanRequestBravoClearance(AircraftState aircraft, TrackOwner? studentPosition) =>
         !aircraft.IsClearedIntoBravo
         && aircraft.HasMadeInitialContact
         && !aircraft.IsTunedAwayFrom(studentPosition)
         && (aircraft.PendingPilotTransmissions.Count == 0)
-        && (aircraft.PendingPilotRequest is not { IsOpen: true });
+        && (aircraft.PendingPilotRequest is not { BlocksOtherCalls: true });
 
     private static LatLon ResolveReference(AirspaceBoundaryCrossing crossing, Func<string, LatLon?> airportLookup) =>
         airportLookup(crossing.Volume.Ident) ?? airportLookup(crossing.Volume.IcaoId) ?? crossing.Intersection;

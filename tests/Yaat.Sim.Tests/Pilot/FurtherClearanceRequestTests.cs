@@ -191,7 +191,7 @@ public class FurtherClearanceRequestTests
         Assert.True(hold.IsClearanceLimitHold);
         Assert.False(hold.ClearanceLimitReported);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null, airportLookup: _ => null));
 
         Assert.Empty(ac.PendingPilotTransmissions);
     }
@@ -202,7 +202,7 @@ public class FurtherClearanceRequestTests
         AircraftState ac = ReportedHolding();
         Dispatch(ac, "DM 070");
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null, airportLookup: _ => null));
 
         AssertSingleCall(
             ac,
@@ -217,7 +217,7 @@ public class FurtherClearanceRequestTests
         AircraftState ac = ReportedHolding();
         ac.FlightPlan.FlightRules = "VFR";
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null, airportLookup: _ => null));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
@@ -255,10 +255,10 @@ public class FurtherClearanceRequestTests
         PilotRequestTracker.ApplyControllerResponse(ac, standby.Value!, standbyAt);
         Assert.Equal(PilotPendingRequestResponseState.Standby, ac.PendingPilotRequest!.ResponseState);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, standbyAt + 299, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, standbyAt + 299, studentPosition: null, airportLookup: _ => null));
         Assert.Empty(ac.PendingPilotTransmissions);
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, standbyAt + 300, studentPosition: null));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, standbyAt + 300, studentPosition: null, airportLookup: _ => null));
         Assert.Single(ac.PendingPilotTransmissions);
     }
 
@@ -380,7 +380,7 @@ public class FurtherClearanceRequestTests
         Assert.Single(ac.PendingPilotTransmissions);
         ac.PendingPilotTransmissions.Clear();
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null, airportLookup: _ => null));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
@@ -409,10 +409,10 @@ public class FurtherClearanceRequestTests
         PilotProactive.TickFurtherClearanceRequest(ac, scenario);
         Assert.Empty(ac.PendingPilotTransmissions);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 299, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 299, studentPosition: null, airportLookup: _ => null));
         Assert.Empty(ac.PendingPilotTransmissions);
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null, airportLookup: _ => null));
         PilotTransmission reask = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Equal(ReaskTerminal, reask.Text);
         Assert.Equal(ReaskTts, reask.SpeechText);
@@ -427,7 +427,7 @@ public class FurtherClearanceRequestTests
         CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(1)));
         Assert.True(result.Success, result.Message);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 300, studentPosition: null, airportLookup: _ => null));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
@@ -483,7 +483,7 @@ public class FurtherClearanceRequestTests
         double lastRequested = request.LastRequestedAtSeconds;
         double nextDue = request.NextFollowUpDueSeconds;
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 400, scenario.StudentPosition));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 400, scenario.StudentPosition, _ => null));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.True(request.IsOpen);
@@ -492,7 +492,7 @@ public class FurtherClearanceRequestTests
         Assert.Equal(nextDue, request.NextFollowUpDueSeconds);
 
         ac.TunedPosition = scenario.StudentPosition;
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 400, scenario.StudentPosition));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 400, scenario.StudentPosition, _ => null));
         AssertSingleCall(ac, ReaskTerminal, ReaskTts);
     }
 

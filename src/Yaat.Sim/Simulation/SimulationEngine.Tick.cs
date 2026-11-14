@@ -273,7 +273,7 @@ public sealed partial class SimulationEngine
                 Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
             }
 
-            Pilot.PilotProactive.TickPendingRequests(ac, scenario);
+            Pilot.PilotProactive.TickPendingRequests(ac, scenario, LookupAirportPosition);
             Pilot.PilotProactive.TickReportTriggers(ac, scenario);
         }
     }

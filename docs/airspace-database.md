@@ -253,7 +253,7 @@ snapshot-serialized so replays preserve gate state.
 
 Solo training only (RPO and Class C unchanged), `src/Yaat.Sim/Pilot/ImplicitBravoClearance.cs` + `PilotProactive.TryRequestBravoClearance`:
 
-- **Request.** When the first **lateral** Class B entry within 120 s (`FindFirstProjectedEntry` filtered to Bravo, so an earlier Charlie/Delta entry does not hide it) is into a volume the aircraft is not cleared into, the pilot calls `request clearance into the bravo.` (destination inside that Class B at the surface) or `…through the bravo.`, recorded as a `PilotPendingRequestKind.AirspaceEntry` request that `PilotRequestTracker` repeats every 120 s (90 s after STBY/ROGER).
+- **Request.** When the first **lateral** Class B entry within 120 s (`FindFirstProjectedEntry` filtered to Bravo, so an earlier Charlie/Delta entry does not hide it) is into a volume the aircraft is not cleared into, the pilot calls `request clearance into the bravo.` (destination inside that Class B at the surface) or `…through the bravo.`, recorded as a `PilotPendingRequestKind.AirspaceEntry` request that `PilotRequestTracker` repeats every 120 s (150 s after STBY/ROGER).
 
   Gated on initial contact, not having been tuned away from the student (`AircraftState.IsTunedAwayFrom`), an empty transmission queue and no other open request. A climb into a shelf from below stays silent (issue #154).
 - **Implicit clearance.**
