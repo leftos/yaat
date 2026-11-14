@@ -4,7 +4,7 @@
 
 ### Added
 
-- The Radar and aircraft list show an owner in another facility with the symbol the student's STARS scope draws for it, such as `3Y(1)`.
+- An owner in another facility shows the symbol the student's STARS scope draws, as in `3Y(1)`, unless it repeats the owner's first or last character.
 - The aircraft menu's quick commands offer Accept handoff, Cancel handoff and Acknowledge pointout while one is pending for the position you act as.
 - VFR aircraft get an Altitude… quick command: pick thousands and hundreds to send `CM`, `CM A` or `CM B`, with VFR cruising altitudes outlined.
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).

@@ -991,7 +991,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     /// <summary>
     /// The position symbol the student's STARS scope draws for an owner in another facility, appended to
-    /// <see cref="OwnerDisplay"/> as "3Y(1)". Null when the student's scope shows the owner's TCP itself.
+    /// <see cref="OwnerDisplay"/> as "3Y(1)" unless it repeats the owner's first or last letter or digit. Null when the student's scope shows the owner's TCP itself.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
@@ -1128,8 +1128,37 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         get
         {
             string owner = OwnerSectorCode ?? Owner ?? "";
-            return ((owner.Length > 0) && (!string.IsNullOrEmpty(StudentOwnerSymbol))) ? $"{owner}({StudentOwnerSymbol})" : owner;
+            string symbol = StudentOwnerSymbol ?? "";
+            bool showsSymbol = (owner.Length > 0) && (symbol.Length > 0) && (!SymbolRepeatsOwner(owner, symbol));
+            return showsSymbol ? $"{owner}({symbol})" : owner;
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="symbol"/> repeats the first or last letter-or-digit of
+    /// <paramref name="owner"/>, so the suffix would only repeat what the owner already shows.
+    /// </summary>
+    private static bool SymbolRepeatsOwner(string owner, string symbol)
+    {
+        string? first = null;
+        string? last = null;
+        foreach (char c in owner)
+        {
+            if (!char.IsLetterOrDigit(c))
+            {
+                continue;
+            }
+
+            first ??= c.ToString();
+            last = c.ToString();
+        }
+
+        if (first is null)
+        {
+            return false;
+        }
+
+        return string.Equals(symbol, first, StringComparison.OrdinalIgnoreCase) || string.Equals(symbol, last, StringComparison.OrdinalIgnoreCase);
     }
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";

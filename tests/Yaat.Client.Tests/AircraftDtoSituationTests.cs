@@ -212,6 +212,22 @@ public class AircraftDtoSituationTests
         Assert.Equal("3Y(1)", model.OwnerDisplay);
     }
 
+    [Theory]
+    [InlineData("3Y", "1", "3Y(1)")]
+    [InlineData("3Y", "Y", "3Y")]
+    [InlineData("3Y", "3", "3Y")]
+    [InlineData("C44", "C", "C44")]
+    [InlineData("C44", "4", "C44")]
+    [InlineData("C25", "L", "C25(L)")]
+    [InlineData("1N", "C", "1N(C)")]
+    [InlineData("c44", "C", "c44")]
+    public void OwnerDisplay_SuffixShowsOnlyWhenItDiffersFromTheOwnersEnds(string owner, string symbol, string expected)
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { OwnerSectorCode = owner, StudentOwnerSymbol = symbol });
+
+        Assert.Equal(expected, model.OwnerDisplay);
+    }
+
     [Fact]
     public void OwnerDisplay_NoSymbol_IsTheBareOwner()
     {

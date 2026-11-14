@@ -572,7 +572,7 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 | Wind | Wind at aircraft altitude (direction/speed) |
 | VS | Vertical speed (fpm) |
 | RPO | Assigned controller initials (see [Aircraft Assignments](#aircraft-assignments)) |
-| Owner | Track owner (sector code, e.g., "2B", or callsign). An owner in another facility carries the position symbol the student's scope shows after it, e.g. `3Y(1)` |
+| Owner | Track owner (sector code, e.g., "2B", or callsign). An owner in another facility carries the position symbol the student's scope shows after it, e.g. `3Y(1)`, unless the symbol repeats the owner's first or last letter or digit (a centre sector `C44` stays bare) |
 | HO | Pending handoff target |
 | SP1 | Scratchpad 1 text |
 | SP2 | Scratchpad 2 text |
@@ -1332,7 +1332,7 @@ Up to **15** measurements can be down at once, matching STARS. Removing one free
 - `.rbl <a> <b>` — draw a radar-view line between two named points (fix, FRD, or callsign each).
 - `.norbl` — remove all measurements.
 
-**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, plus a flashing `ID` while the aircraft is squawking ident (see below), (3) RPO assignment (in brackets), track owner TCP (when the owner is in another facility, followed by the position symbol the student's scope shows, e.g. `3Y(1)`), a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set.
+**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, plus a flashing `ID` while the aircraft is squawking ident (see below), (3) RPO assignment (in brackets), track owner TCP (when the owner is in another facility, followed by the position symbol the student's scope shows, e.g. `3Y(1)`, unless it repeats the owner's first or last letter or digit), a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set.
 
 When no primary scratchpad has been entered, the slot falls back to showing the destination airport, exactly as it appears on the student's STARS scope — which tracks get that fallback (arrivals into the facility's primary airport, satellite arrivals, departures) is set by the facility's STARS configuration.
 
