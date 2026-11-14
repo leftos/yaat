@@ -9,8 +9,8 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// <summary>
 /// The ARTCC in effect follows the room. A visiting mentor who creates a ZMA room must get ZMA's scenario
 /// catalog, live-session picker, weather and CRC alias file — every ARTCC-scoped consumer reads the one
-/// stored preference — and must get their home ARTCC back on leaving. <see cref="MainViewModel.ApplyRoomState"/>
-/// adopts the room's ARTCC; <see cref="MainViewModel.ClearRoomState"/> restores home.
+/// stored preference — and it stays in effect on leaving. <see cref="MainViewModel.ApplyRoomState"/>
+/// adopts the room's ARTCC; <see cref="MainViewModel.ClearRoomState"/> keeps it as the last used one.
 /// </summary>
 public class MainViewModelArtccAdoptionTests
 {
@@ -57,7 +57,7 @@ public class MainViewModelArtccAdoptionTests
     }
 
     [AvaloniaFact]
-    public void ClearRoomState_RestoresHomeArtccAndCreatePickerDefault()
+    public void ClearRoomState_KeepsTheLastUsedArtcc()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.PermittedArtccs.Add("ZOA");
@@ -69,7 +69,37 @@ public class MainViewModelArtccAdoptionTests
 
         vm.ClearRoomState();
 
-        Assert.Equal("ZOA", vm.Preferences.ArtccId);
+        Assert.Equal("ZMA", vm.Preferences.ArtccId);
+        Assert.Equal("ZMA", vm.SelectedCreateArtccId);
+    }
+
+    [Fact]
+    public void PickCreateArtcc_SavedIsPermitted_ReturnsSaved() =>
+        Assert.Equal("ZOA", MainViewModel.PickCreateArtcc(["ZAB", "ZAN", "ZOA"], "ZOA", null));
+
+    [Fact]
+    public void PickCreateArtcc_SavedIsNotPermitted_ReturnsHome() =>
+        Assert.Equal("ZAN", MainViewModel.PickCreateArtcc(["ZAB", "ZAN", "ZOA"], "ZMA", "ZAN"));
+
+    [Fact]
+    public void PickCreateArtcc_NeitherIsPermitted_ReturnsFirst() =>
+        Assert.Equal("ZAB", MainViewModel.PickCreateArtcc(["ZAB", "ZAN", "ZOA"], "ZMA", "ZNY"));
+
+    [Fact]
+    public void PickCreateArtcc_NothingPermitted_ReturnsNull() => Assert.Null(MainViewModel.PickCreateArtcc([], "ZOA", "ZAB"));
+
+    [AvaloniaFact]
+    public void ClearRoomState_KeepsTheSavedArtccWhenItIsPermitted()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.PermittedArtccs.Add("ZAB");
+        vm.PermittedArtccs.Add("ZAN");
+        vm.PermittedArtccs.Add("ZOA");
+        vm.Preferences.SetArtccId("ZOA");
+
+        vm.ClearRoomState();
+
         Assert.Equal("ZOA", vm.SelectedCreateArtccId);
+        Assert.Equal("ZOA", vm.Preferences.ArtccId);
     }
 }

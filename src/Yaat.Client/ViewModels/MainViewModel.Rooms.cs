@@ -135,7 +135,10 @@ public partial class MainViewModel
     /// </summary>
     public ObservableCollection<string> PermittedArtccs { get; } = [];
 
-    /// <summary>The ARTCC the next Create Room uses; home by default, chosen from <see cref="PermittedArtccs"/>.</summary>
+    /// <summary>
+    /// The ARTCC the next Create Room uses, chosen from <see cref="PermittedArtccs"/>: the last-used one when
+    /// it is permitted, else home.
+    /// </summary>
     [ObservableProperty]
     private string? _selectedCreateArtccId;
 
@@ -161,6 +164,33 @@ public partial class MainViewModel
         CrcAliasLoad = LoadCrcAliasesAsync();
     }
 
+    /// <summary>
+    /// The ARTCC the Create Room box shows: <paramref name="saved"/> when the controller may work it, else
+    /// <paramref name="home"/>, else the first permitted one; null when nothing is permitted. Returns the
+    /// permitted list's own spelling, so the bound combo box finds its selected item.
+    /// </summary>
+    internal static string? PickCreateArtcc(IReadOnlyList<string> permitted, string? saved, string? home) =>
+        PermittedOrNull(permitted, saved) ?? PermittedOrNull(permitted, home) ?? permitted.FirstOrDefault();
+
+    /// <summary>The permitted list's spelling of <paramref name="artccId"/>, or null when it is not permitted.</summary>
+    private static string? PermittedOrNull(IReadOnlyList<string> permitted, string? artccId)
+    {
+        if (string.IsNullOrWhiteSpace(artccId))
+        {
+            return null;
+        }
+
+        foreach (string candidate in permitted)
+        {
+            if (string.Equals(candidate, artccId, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     private async Task RefreshPermittedArtccsAsync()
     {
         List<string> permitted;
@@ -181,7 +211,7 @@ public partial class MainViewModel
         }
 
         OnPropertyChanged(nameof(HasMultiplePermittedArtccs));
-        SelectedCreateArtccId = PermittedArtccs.FirstOrDefault();
+        SelectedCreateArtccId = PickCreateArtcc(PermittedArtccs, _preferences.ArtccId, HomeArtccId);
     }
 
     private static string DeriveInitials(string name)
@@ -998,11 +1028,9 @@ public partial class MainViewModel
 
     internal void ClearRoomState()
     {
-        // Out of a room the home ARTCC is back in effect (a grants-only controller falls back to their
-        // first grant), and the next Create Room defaults to it again.
-        string? homeArtcc = HomeArtccId ?? PermittedArtccs.FirstOrDefault();
-        SetActiveArtcc(homeArtcc);
-        SelectedCreateArtccId = homeArtcc ?? SelectedCreateArtccId;
+        // Out of a room the last-used ARTCC stays in effect — joining the room made it so — and the next
+        // Create Room keeps it while it is permitted. Leaving never rewrites the preference.
+        SelectedCreateArtccId = PickCreateArtcc(PermittedArtccs, _preferences.ArtccId, HomeArtccId);
 
         ActiveRoomId = null;
         ActiveRoomName = null;
