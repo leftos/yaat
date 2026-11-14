@@ -112,7 +112,8 @@ public class ScopeFrameMvaTests
             metrics,
             ScopeTestAircraft.AllAlerts,
             display,
-            new Dictionary<string, SKPoint>()
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>()
         );
         return ScopeFrame.Build(input);
     }

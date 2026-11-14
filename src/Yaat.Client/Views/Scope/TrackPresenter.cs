@@ -18,7 +18,19 @@ public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, b
 /// <param name="MarkStudentLevel">Mark a track the student's scope shows limited or partial with <c>(LDB)</c>/<c>(PDB)</c>.</param>
 /// <param name="ShowTypeMismatchHints">Tint the STARS cwt/type token of an aircraft whose actual type differs from its filed type.</param>
 /// <param name="ShowMvaAltitudeTint">Tint the altitude by its relation to the MVA floor at the aircraft's position.</param>
-public sealed record ScopeDisplayOptions(bool MarkStudentLevel, bool ShowTypeMismatchHints, bool ShowMvaAltitudeTint);
+/// <param name="SyncStudentColors">Colour each block as the student's STARS scope colours it.</param>
+/// <param name="UserInitials">The user's initials, compared with each track's assignee; null applies neither tint.</param>
+/// <param name="AssignmentTint">The assignment tint is enabled and its colour parsed.</param>
+/// <param name="UnassignedTint">The unassigned tint is enabled and its colour parsed.</param>
+public sealed record ScopeDisplayOptions(
+    bool MarkStudentLevel,
+    bool ShowTypeMismatchHints,
+    bool ShowMvaAltitudeTint,
+    bool SyncStudentColors,
+    string? UserInitials,
+    bool AssignmentTint,
+    bool UnassignedTint
+);
 
 /// <summary>Every per-frame input <see cref="TrackPresenter.Present"/> reads.</summary>
 /// <param name="Aircraft">The track.</param>
@@ -26,13 +38,14 @@ public sealed record ScopeDisplayOptions(bool MarkStudentLevel, bool ShowTypeMis
 /// <param name="AtpaLead">The aircraft ahead in this track's ATPA pairing, or null when it is not on the scope.</param>
 /// <param name="ConflictPeer">The other member of this track's conflict pair, or null when it is not on the scope.</param>
 /// <param name="FlashOn">The 500 ms flash phase: true on the on-phase.</param>
-/// <param name="IsSelected">Whether the track is selected.</param>
+/// <param name="IsSelected">Whether the track is selected; the renderer draws it, so it does not change the presentation.</param>
 /// <param name="Alerts">Alert overlays the user's preferences allow on the block.</param>
 /// <param name="Display">Instructor display hints the user's preferences allow on the block.</param>
 /// <param name="Mva">
 /// The altitude's relation to the MVA floor at the track's position, or null when the tint does not apply; computed by
 /// <see cref="ScopeFrame.Build"/>.
 /// </param>
+/// <param name="IsHighlighted">Whether the track's block is highlighted (middle-click).</param>
 public sealed record TrackPresenterInput(
     AircraftModel Aircraft,
     string TemplateId,
@@ -42,7 +55,8 @@ public sealed record TrackPresenterInput(
     bool IsSelected,
     ScopeAlertOptions Alerts,
     ScopeDisplayOptions Display,
-    MvaRelation? Mva
+    MvaRelation? Mva,
+    bool IsHighlighted
 );
 
 /// <summary>
@@ -62,9 +76,58 @@ public static class TrackPresenter
             _ => throw new ArgumentException($"Unknown scope template id '{input.TemplateId}'.", nameof(input)),
         };
         fields.AddRange(AlertFields(input));
-        ScopeColorToken token = input.IsSelected ? ScopeColorToken.Selected : ScopeColorToken.Default;
-        return new TrackPresentation(input.TemplateId, ScopeBlockLevel.Full, token, fields);
+        ScopeTintRole tint = TintFor(input);
+        return new TrackPresentation(input.TemplateId, ScopeBlockLevel.Full, BlockColorFor(input, tint), tint, fields);
     }
+
+    /// <summary>
+    /// The block's colour role with today's radar precedence: the middle-click highlight, then the RPO assignment tint,
+    /// then the student's STARS colour when sync is on, then the default. Selection does not change it.
+    /// </summary>
+    private static ScopeBlockColor BlockColorFor(TrackPresenterInput input, ScopeTintRole tint)
+    {
+        if (input.IsHighlighted)
+        {
+            return ScopeBlockColor.Highlighted;
+        }
+
+        return tint switch
+        {
+            ScopeTintRole.AssignedToMe => ScopeBlockColor.AssignedToMe,
+            ScopeTintRole.AssignedToOther => ScopeBlockColor.AssignedToOther,
+            _ => input.Display.SyncStudentColors ? StudentBlockColor(input.Aircraft.StudentDatablockColor) : ScopeBlockColor.Default,
+        };
+    }
+
+    /// <summary>
+    /// The RPO tint that applies to the track whatever its highlight, as today's radar judges it: with the user's initials
+    /// set, an aircraft assigned to them takes the assignment tint and any other the unassigned tint, each when enabled.
+    /// </summary>
+    private static ScopeTintRole TintFor(TrackPresenterInput input)
+    {
+        ScopeDisplayOptions display = input.Display;
+        if (display.UserInitials is null)
+        {
+            return ScopeTintRole.None;
+        }
+
+        bool isMe = string.Equals(input.Aircraft.AssignedTo, display.UserInitials, StringComparison.OrdinalIgnoreCase);
+        if (isMe && display.AssignmentTint)
+        {
+            return ScopeTintRole.AssignedToMe;
+        }
+        return (!isMe && display.UnassignedTint) ? ScopeTintRole.AssignedToOther : ScopeTintRole.None;
+    }
+
+    private static ScopeBlockColor StudentBlockColor(StarsDatablockColor? student) =>
+        student switch
+        {
+            StarsDatablockColor.Owned => ScopeBlockColor.StudentOwned,
+            StarsDatablockColor.Unowned => ScopeBlockColor.StudentUnowned,
+            StarsDatablockColor.Pointout => ScopeBlockColor.StudentPointout,
+            StarsDatablockColor.Highlighted => ScopeBlockColor.StudentHighlighted,
+            _ => ScopeBlockColor.Default,
+        };
 
     private static List<ScopeField> StarsFields(TrackPresenterInput input)
     {
