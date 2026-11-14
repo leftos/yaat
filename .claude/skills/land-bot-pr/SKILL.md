@@ -127,7 +127,13 @@ git diff --cached --stat        # the csharpier/whitespace hooks fix and stage; 
 ```
 
 A non-empty staged diff is a formatting fix the hooks applied: commit it onto
-`pr-<PR>` (`chore: apply pre-commit formatting to <file>`) before going on. A
+`pr-<PR>` (`chore: apply pre-commit formatting to <file>`) before going on.
+Every commit this step makes follows the landing family's commit rules
+(`orchestrator/landing.md`, "Commit and push"): stage by name, and halt on a
+path that looks like a secrets file (`.env`, `*.pem`, `*.key`, `id_rsa*`,
+`*credentials*`); `git branch --show-current` in the committing checkout must
+print `pr-<PR>` before the commit, else halt; never `--amend` and never
+`--no-verify`, a hook failure is fixed forward with a new commit. A
 hook that *fails* (`dotnet format style`, the build) is a real defect in the
 PR — fix it as you would your own code. This ranged form was verified against
 the #444 file: it reformatted and staged the fix; a bare
@@ -143,9 +149,12 @@ git -C "$YAAT" push --force-with-lease origin pr-<PR>:<head-branch>
 **Expect a `CHANGELOG.md` conflict when a release was cut since the pin.** A
 nightly-review PR already carries its own `## Unreleased` block in its single
 commit; once `main` has promoted its `## Unreleased` into a release heading, the
-rebase conflicts on that block every time. Resolve it by placing the bot's
-`## Unreleased` block above the newest release header, leaving `main`'s released
-sections untouched, then `git add CHANGELOG.md && git rebase --continue`. The
+rebase conflicts on that block every time. Resolve it as `/ship` Phase 2 does:
+keep both sides, placing the bot's `## Unreleased` block above the newest
+release header and leaving `main`'s released sections untouched; confirm with
+`rg -n '^(<<<<<<<|=======|>>>>>>>)' CHANGELOG.md` that no markers remain; then
+`git add --resolved CHANGELOG.md` (a refusal means markers remain: resolve
+them, never fall back to a plain `git add`) and `git rebase --continue`. The
 same rule covers `docs/plans/*.md` and `docs/architecture.md` when both sides only
 added lines — keep `main`'s lines first, then the PR's; a block with a removal or
 a rewritten heading is resolved by hand. The rebase may run from the session
@@ -180,9 +189,9 @@ already on `main`.
 gh pr merge <PR> --repo leftos/yaat --merge --delete-branch
 ```
 
-This is the named exception to the feature PR's `gh pr merge --rebase`
-(`/ship` Phase 2F): a bot PR keeps its stale pinned base, where a feature
-branch is rebased onto `origin/main` before it merges.
+A bot PR merges through `gh pr merge --merge`, where a feature PR lands by a
+pushed fast-forward of its caught-up branch, never `gh pr merge` (`/ship`
+Phase 2F).
 
 `--merge` is safe: the parents are `main`'s tip and the PR head, the tree is
 correct, nothing is duplicated. `main` already carries merge commits, so one
