@@ -414,13 +414,19 @@ public record EnterFinalCommand(string? RunwayId = null) : ParsedCommand;
 
 public record MakeLeftTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand
 {
-    /// <summary>The altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    /// <summary>
+    /// The altitude token as typed, rendered verbatim in canonical text
+    /// (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).
+    /// </summary>
     public string? AltitudeText { get; init; }
 }
 
 public record MakeRightTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand
 {
-    /// <summary>The altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    /// <summary>
+    /// The altitude token as typed, rendered verbatim in canonical text
+    /// (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).
+    /// </summary>
     public string? AltitudeText { get; init; }
 }
 
@@ -483,21 +489,30 @@ public record CircleAirportCommand : ParsedCommand;
 /// <summary><c>TG [landingRwy] [MLT|MRT [patternRwy] [alt]]</c>.</summary>
 public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
 {
-    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    /// <summary>
+    /// The pattern-altitude token as typed, rendered verbatim in canonical text
+    /// (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).
+    /// </summary>
     public string? PatternAltitudeText { get; init; }
 }
 
 /// <summary><c>SG [MLT|MRT [patternRwy] [alt]]</c>.</summary>
 public record StopAndGoCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
 {
-    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    /// <summary>
+    /// The pattern-altitude token as typed, rendered verbatim in canonical text
+    /// (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).
+    /// </summary>
     public string? PatternAltitudeText { get; init; }
 }
 
 /// <summary><c>LA [alt] [MLT|MRT [patternRwy] [alt]]</c>.</summary>
 public record LowApproachCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
 {
-    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    /// <summary>
+    /// The pattern-altitude token as typed, rendered verbatim in canonical text
+    /// (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).
+    /// </summary>
     public string? PatternAltitudeText { get; init; }
 
     /// <summary>
@@ -513,7 +528,10 @@ public record LowApproachCommand(PatternDirection? TrafficPattern, string? Patte
 /// <summary><c>COPT [MLT|MRT [patternRwy] [alt]]</c>.</summary>
 public record ClearedForOptionCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
 {
-    /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
+    /// <summary>
+    /// The pattern-altitude token as typed, rendered verbatim in canonical text
+    /// (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).
+    /// </summary>
     public string? PatternAltitudeText { get; init; }
 }
 

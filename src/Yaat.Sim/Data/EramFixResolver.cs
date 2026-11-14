@@ -143,7 +143,10 @@ public static class EramFixResolver
         return true;
     }
 
-    /// <summary>True when <paramref name="upper"/> is a fix radial distance <c>aa(a)(a)(a)ddd1ddd2</c>, radial 001–360 and distance 001–999.</summary>
+    /// <summary>
+    /// True when <paramref name="upper"/> is a fix radial distance <c>aa(a)(a)(a)ddd1ddd2</c>,
+    /// radial 001–360 and distance 001–999.
+    /// </summary>
     public static bool IsFrdForm(string upper)
     {
         if ((upper.Length < 8) || !IsFixName(upper.AsSpan(0, upper.Length - 6)) || upper.AsSpan(upper.Length - 6).ContainsAnyExceptInRange('0', '9'))
