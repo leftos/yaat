@@ -48,10 +48,10 @@ Checked against the code: coast marking the previous owner `K` is **not a bug** 
 
 It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-action fields are hardcoded and QQ, QB, DM, LA/LB, conflict alert and the C.8 list are absent. What it does add:
 
-- **Cadence** (#464): SWIM ERAM data arrives ~12 s per centre (`docs/per-source-display-plan.md`); `crates/server/src/clientstate/util.rs` has `ERAM_HISTORY_INTERVAL_SEC = 12` (STARS 6) and a 24 s ERAM staleness; the 12 s send throttle is an open TODO there (`TODO.md` "send eram updates only every 12s").
+- **Cadence** (#464): SWIM ERAM data arrives ~12 s per centre ([`crc-display-state.md`](../crc-display-state.md), "ERAM 12 s sweep"); `crates/server/src/clientstate/util.rs` has `ERAM_HISTORY_INTERVAL_SEC = 12` (STARS 6) and a 24 s ERAM staleness; the 12 s send throttle is an open TODO there (`TODO.md` "send eram updates only every 12s").
 
   It re-sends ERAM targets on every trigger (STARS updates, admin toggles) and gates only the history dots on an ERAM-sourced update — so B8 must keep other triggers from re-sending ERAM position.
-- **History dots**: sent over UDP (topic `EramTargetHistories`), oldest first. CRC's history dictionary is keyed by `Id` and **never evicts** (`docs/stars-history-warmup-plan.md`), so each dot needs a stable id (callsign + sweep timestamp), never a fresh random one — check what `DtoConverter.ToEramTargetHistory` sends today.
+- **History dots**: sent over UDP (topic `EramTargetHistories`), oldest first. CRC's history dictionary is keyed by `Id` and **never evicts** ([`crc-display-state.md`](../crc-display-state.md), the ERAM history trail), so each dot needs a stable id (callsign + sweep timestamp), never a fresh random one — check what `DtoConverter.ToEramTargetHistory` sends today.
 - **QF**: its readout is `"{zulu}\n{cid} {callsign}({owner sector}) {type} {assigned beacon} {speed} {route} {remarks}"`; its comment's sample carries the assigned altitude after the speed (`… 2370 0 190 KLGA.TNNIS6…`) though the code drops it. A STARS owner prints as TRACON id + subset + sector (`Q2B`).
 - **QL**: adds sectors and drops invalid ones silently, with a "limit the QL sectors to 5" TODO — consistent with the 5-per-entry ruling; YAAT refuses invalid ones instead.
 - **FLID**: purely by length (3 = CID, 4 = beacon, else ACID); no `dLd`, no lists.

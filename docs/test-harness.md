@@ -320,6 +320,9 @@ order- and load-dependent flakes:
 
   The constructor starts the navigation-data load, which writes `StatusText` when it finishes and otherwise races the assertion (it turned CI red at 5f8719410). In this assembly the load is the offline one (`OfflineStartupLoads`, see the Client.UI section above): it re-sets the committed test navdata on a background task and touches no network, so the await is short, but it is still a task that completes off the constructor. Await it with a hang guard: `await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), …)`.
 - **A UI test that clears or asserts the terminal awaits the startup CRC alias load.** The constructor also starts the CRC alias load, which adds a "CRC aliases: N loaded from …" line to `TerminalEntries` when the user's CRC install has aliases.
+- **A UI test that turns STT on blanks the model sources first.** Setting `MainViewModel.IsSpeechEnabled = true`, or building a `MainViewModel` over preferences with speech enabled, starts the background Whisper and LLM prewarm, whose default model sources are remote, so the test reaches the network from a background thread.
+
+  Blank `WhisperModelSize` and `LlmModelPath` for the test (`UserPreferences.SetSpeechSettings(enabled, whisperModelSize, llmModelPath, …)` with `""` for both) and restore them afterwards, as `SpeechPrefsGuard` in `ViewModels/SpeechTelemetryPromptTests.cs` does (`Prepare` blanks, `Dispose` restores the captured values).
 
   `vm.CrcAliasLoad` is the most recent load and completes only once that line is in the terminal, so a test that clears or asserts `TerminalEntries` awaits it right after constructing the view model (`MainViewModelClearTerminalOnScenarioLoadTests.WithSetting`). Without the await the line landed after the clear in loaded full runs.
 

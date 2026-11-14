@@ -328,8 +328,7 @@ instructor opened the page to watch. Every member facility is always shown.
 
 ## Web app at `/vtdls/`
 
-`tools/Yaat.VTdls.Web/` publishes to
-`../../yaat-server/src/Yaat.Server/wwwroot/vtdls/`. The server's
+`tools/Yaat.VTdls.Web/` publishes (its `CopyToServerWwwroot` target, run by yaat-server's `Dockerfile` with `-p:YaatServer=/src`) into `src/Yaat.Server/wwwroot/vtdls/` of the yaat-server checkout; that folder is a build output, not committed. The server's
 `ServerApp` maps `/vtdls/{**path:nonfile}` to `vtdls/index.html`.
 
 The browser app gates the WASM boot on `?cid=…&initials=…&artcc=…` query

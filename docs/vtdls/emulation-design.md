@@ -278,7 +278,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
   - **Footer**: clearance-type status ("CLEARANCE TYPE: PDC" / "MANDATORY FIELD NOT SET") + Zulu clock.
   - **Flight plan editor** (opens on selecting an item from DCL): inline window at the bottom of the view, mirroring upstream's `flight-plan.png`. Nine field dropdowns + Send + Cancel + Dump buttons.
   - **Key commands**: F4 Dump, F10 Cancel-editor (close without send), F12 Send, Ctrl+Alt+→/← cycle facilities, ↑/↓ navigate list, Tab/` swap active list, Enter open-selected.
-- Create `src/Yaat.Client.Tdls/Views/VTdls/VTdlsViewWindow.axaml` (Window). Window uses `WindowGeometryHelper(this, vm.Preferences, $"VTdlsView:{facilityId}", w, h).Restore()`. First-time per-facility windows inherit global Topmost from `"VTdlsView"`.
+- Create `src/Yaat.Client.Core/Views/VTdls/VTdlsViewWindow.axaml` (Window). Window uses `WindowGeometryHelper(this, vm.Preferences, $"VTdlsView:{facilityId}", w, h).Restore()`. First-time per-facility windows inherit global Topmost from `"VTdlsView"`.
 - Reuse `MonoFont`, `SubtleTextBrush`, FluentTheme dark from `src/Yaat.Client/App.axaml`. No DataGrid — two `ItemsControl`s for the lists.
 - Tests: `tests/Yaat.Client.UI.Tests/VTdlsViewTests.cs` — render smoke + key-binding emission (F12 → TDLSS, F4 → TDLSDUMP) + facility cycling.
 
