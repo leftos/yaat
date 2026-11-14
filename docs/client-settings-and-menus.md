@@ -6,7 +6,7 @@ How the desktop client's configuration surfaces fit together: the Settings windo
 
 **Shape.** One window (`Views/SettingsWindow.axaml`, geometry key `"Settings"`, 1040×720, minimum 880×600) with a left sidebar, a search box over it and a footer. The sidebar groups sixteen sections by surface: General (General, Appearance); Session (Scenario defaults); Views (Radar, Ground, Aircraft list, Strips and vTDLS, Terminal); Input (Command input, Command verbs, Macros, Quick commands, Keys); Voice (Speech, Audio devices); Advanced (Server admin).
 
-The order lives in `Views/Settings/SettingsNavigation.cs` and the ids in `ViewModels/SettingsSectionId.cs`; each section is its own `Views/Settings/*Section.axaml`. Keybinds and server admin are separate sections.
+The order lives in `src/Yaat.Client/Views/Settings/SettingsNavigation.cs` and the ids in `src/Yaat.Client/ViewModels/SettingsSectionId.cs`; each section is its own `src/Yaat.Client/Views/Settings/*Section.axaml`. Keybinds and server admin are separate sections.
 
 **Save model: OK, Apply, Cancel.** Apply commits without closing and can run any number of times, OK commits and closes, and Cancel discards only what came after the last Apply. Views preview a change live while the window is open (`MainWindow.ShowSettingsDialogAsync`), and each Apply runs `ApplyCommittedSettings`. Every section has a Reset section button whose reset stays pending until Apply or OK; it is disabled on the link-only sections.
 

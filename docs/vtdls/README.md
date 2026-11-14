@@ -125,7 +125,7 @@ The architecture/scope decisions in [`docs/vtdls/emulation-design.md`](./emulati
 > relying on any figure in this table.
 
 **Implications for the plan** (mostly confirming, one adjustment):
-- ✅ Phase 1.0.2 reduces to: extend `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with a `TdlsConfig` record class + `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration { get; set; }` on `FacilityConfig`. Mirror the four nested record types from `vatsim-vnas/data/Facilities/Tdls*.cs` (`TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig`).
+- ✅ Phase 1.0.2 reduces to: extend `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with a `TdlsConfig` class + `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration { get; set; }` on `FacilityConfig`. Mirror the four types of the vNAS repository's `data/Facilities/Tdls*.cs` (`TdlsConfiguration`, `TdlsSid`, `TdlsSidTransition`, `TdlsClearanceValue`) as `TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig` and `TdlsClearanceValueConfig`.
 - ✅ No new download path / no new on-disk cache file. The existing `ArtccConfigResolver`/`ArtccConfigService` already handles caching of the parent ARTCC response, and the TDLS subtree rides along.
 - 🔁 **Plan adjustment**: there's **no global "which facilities have TDLS" registry** at the ARTCC root — it's strictly per-facility-node presence of `tdlsConfiguration != null`. The plan section that talks about `TdlsState.Configs` should derive the TDLS facility set by walking the facility tree, not by looking up a top-level list.
 - 🔁 **Plan adjustment**: the "Maintain" semantic name from upstream `vtdls.md` maps to the wire field `initialAlts` / `mandatoryInitialAlt` / `defaultInitialAlt`. Keep the wire naming verbatim in the DTO; the UI label can read "Maintain" per the upstream manual.
@@ -143,8 +143,7 @@ and distinct per-transition defaults — to each operational configuration; the 
 the active one from an **Ops Config menu in the footer** and clicks **Save**. The menu renders
 only when the facility has them enabled.
 
-**Wire shape** — `tdlsConfiguration` gained two fields, confirmed identical in the vNAS `data`
-lib (`data/Facilities/Tdls/OpConfig.cs`) and in decompiled **CRC 2.18.2**:
+**Wire shape** — `tdlsConfiguration` gained two fields, confirmed identical in the vNAS `data` lib (the vatsim-vnas repository's `data/Facilities/Tdls/OpConfig.cs`) and in decompiled **CRC 2.18.2**:
 
 ```jsonc
 "dclOpConfigsEnabled": true,
