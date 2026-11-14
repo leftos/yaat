@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope 2c-iii mock</title>
+<style>
+  :root {
+    --bg: #15171a;
+    --panel: #1f2226;
+    --text: #e6e6e6;
+    --muted: #a0a6ad;
+    --rule: #33373d;
+    --accent: #6cb6ff;
+  }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 14px/1.45 "Segoe UI", system-ui, sans-serif; padding: 20px 16px 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 6px; }
+  p { margin: 4px 0; max-width: 1100px; }
+  .muted { color: var(--muted); }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; color: #fff; }
+  .facts { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 14px; margin: 12px 0; max-width: 1100px; }
+  .facts table { border-collapse: collapse; }
+  .facts td, .facts th { text-align: left; padding: 2px 14px 2px 0; vertical-align: top; }
+  .facts th { color: var(--muted); font-weight: 600; }
+  .lanes { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
+  .lane { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px; width: 460px; max-width: 100%; box-sizing: border-box; }
+  .lane h3 { margin: 0 0 6px; font-size: 15px; }
+  .lane h3 .tag { display: inline-block; background: var(--accent); color: #000; border-radius: 4px; padding: 0 7px; margin-right: 8px; font-weight: 700; }
+  .lane svg { display: block; width: 100%; height: auto; background: #000; border-radius: 3px; }
+  .cap { margin-top: 8px; font-size: 13px; }
+  .note { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>YAAT Scope step 2c-iii (YAAT-2314): two owner questions</h1>
+<p class="muted">Static mock. Blocks follow the real Scope templates (<code>ScopeTemplates.Stars</code> / <code>ScopeTemplates.Eram</code>) and renderer look (<code>ScopeRenderer</code>: black background, bold monospace block text in the block colour, blue track circle, leader to the text bounds). Block text is 13 px.</p>
+
+<div class="facts">
+  <b>The facts behind both questions.</b> An ERAM viewer is sent <code>EramPlanAltitudeFeet</code> (the ERAM-assigned altitude, or the after-fix altitude once the altitude fix is passed); every other display is sent <code>CruiseAltitude</code> (the filed altitude). Plan: "the scope shows the profile's value and marks it when the other side differs. The dwell view lists both."
+  <table style="margin-top:8px">
+    <tr><th>Track</th><th>Owner</th><th>ERAM side</th><th>STARS side (filed)</th><th>Now</th></tr>
+    <tr><td><code>AAL1234</code></td><td>ERAM sector 36 (the viewer's sector)</td><td>240 (ERAM-assigned)</td><td>350</td><td>level FL240, 450 kt, B738</td></tr>
+    <tr><td><code>SKW5410</code></td><td>STARS TCP 1A</td><td>110 (after-fix, fix passed)</td><td>170</td><td>descending through 12,800, 280 kt, E75L</td></tr>
+    <tr><td><code>N7234K</code></td><td>unowned, VFR</td><td>VFR</td><td>VFR</td><td>4,500, 110 kt, C172</td></tr>
+  </table>
+  <p class="note">The marker is drawn as option 2i (a <code>&ne;</code> cell after the altitude) in question 1, so question 1 can be judged on its own. Column 0: VCI on row 2 (lit for the viewer's track on frequency), <code>R</code> on row 3 (any track not the viewer's).</p>
+</div>
+
+<h2>Question 1: what does the Mixed template draw?</h2>
+<p class="muted">Mixed opens when the room has no student, or the student holds both an ERAM sector and a STARS position. Same three tracks in each lane.</p>
+<div class="lanes" id="q1"></div>
+
+<h2>Question 2: how is the altitude mismatch marked?</h2>
+<p class="muted">The ERAM block of <code>AAL1234</code> (ERAM 240, filed 350), at rest and on dwell (pointer over it). On dwell the other side's altitude is listed as an extra line under line 2. The lower row shows the same option on the STARS template, for comparison.</p>
+<div class="lanes" id="q2"></div>
+
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const FONT = 'bold 13px Consolas, "Cascadia Mono", "Courier New", monospace';
+const FONT_FAMILY = 'Consolas, "Cascadia Mono", "Courier New", monospace';
+const FONT_SIZE = 13;
+const LINE_H = 15;
+const ASCENT = 11;
+const PAD = 3;
+const WHITE = "#ffffff";
+const SYMBOL = "rgb(0,176,255)";
+const MISMATCH = "#ff66ff"; // option 2iii: magenta, a hue no Scope token uses today
+const MAP = "#3a3a3a";
+
+let CW = 7.15; // monospace cell width, measured below
+
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function measureCell() {
+  const svg = el("svg", { width: 200, height: 40 }, document.body);
+  const t = el("text", { x: 0, y: 20, "font-family": FONT_FAMILY, "font-size": FONT_SIZE, "font-weight": "bold" }, svg);
+  t.textContent = "0123456789";
+  const w = t.getComputedTextLength() / 10;
+  svg.remove();
+  if (w > 0) CW = w;
+}
+
+// A segment: plain text (t), optional colour (c), underline (u); or a glyph cell (g: up | down | ne | vci).
+const T = (t, o) => Object.assign({ t }, o || {});
+const G = (g) => ({ g });
+const segLen = (s) => (s.g ? 1 : s.t.length);
+const rowLen = (row) => row.reduce((n, s) => n + segLen(s), 0);
+
+function glyph(svg, kind, x, baseline, color) {
+  const cap = FONT_SIZE * 0.7;
+  const w = Math.max(1, FONT_SIZE / 10);
+  const attrs = { fill: "none", stroke: color, "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round" };
+  if (kind === "up" || kind === "down") {
+    const cx = x + CW / 2, top = baseline - cap, bot = baseline, head = CW * 0.35;
+    const tip = kind === "up" ? top : bot, barb = kind === "up" ? top + head : bot - head;
+    el("path", Object.assign({ d: `M${cx},${bot} L${cx},${top} M${cx - head},${barb} L${cx},${tip} L${cx + head},${barb}` }, attrs), svg);
+  } else if (kind === "ne") {
+    const l = x + CW * 0.12, r = x + CW * 0.88, y1 = baseline - cap * 0.62, y2 = baseline - cap * 0.30;
+    el("path", Object.assign({ d: `M${l},${y1} L${r},${y1} M${l},${y2} L${r},${y2} M${x + CW * 0.72},${baseline - cap * 0.95} L${x + CW * 0.28},${baseline + cap * 0.05}` }, attrs), svg);
+  } else if (kind === "vci") {
+    const radius = Math.min(CW, cap) * 0.9, cx = x + CW * 0.05, cy = baseline;
+    let d = "";
+    for (const s of [1 / 3, 2 / 3, 1]) {
+      const r = radius * s;
+      d += `M${cx},${cy - r} A${r},${r} 0 0 1 ${cx + r},${cy} `;
+    }
+    el("path", Object.assign({ d }, attrs), svg);
+  }
+}
+
+function drawRow(svg, row, x, baseline, blockColor) {
+  let cx = x;
+  for (const s of row) {
+    if (s.g) {
+      glyph(svg, s.g, cx, baseline, blockColor);
+      cx += CW;
+      continue;
+    }
+    const color = s.c || blockColor;
+    const t = el("text", { x: cx, y: baseline, fill: color, "font-family": FONT_FAMILY, "font-size": FONT_SIZE, "font-weight": "bold", style: "white-space:pre" }, svg);
+    t.textContent = s.t;
+    const w = s.t.length * CW;
+    if (s.u) {
+      el("line", { x1: cx, y1: baseline + 2.5, x2: cx + w, y2: baseline + 2.5, stroke: color, "stroke-width": 1.2 }, svg);
+    }
+    cx += w;
+  }
+}
+
+/**
+ * One track: symbol, leader to the nearest point of the text bounds, the block rows, column 0, and on dwell a 1 px box
+ * on the text bounds inflated 2 px plus a pointer.
+ */
+function track(svg, o) {
+  const color = o.color || WHITE;
+  const rows = o.rows;
+  const width = Math.max(...rows.map(rowLen)) * CW;
+  const col0Rows = o.col0 ? Math.max(o.col0.vci ? 2 : 0, o.col0.r ? 3 : 0) : 0;
+  const nRows = Math.max(rows.length, col0Rows);
+  const tb = { l: o.bx - PAD, t: o.by, r: o.bx + width + PAD, b: o.by + PAD * 2 + rows.length * LINE_H };
+
+  const lx = Math.min(Math.max(o.sx, tb.l), tb.r);
+  const ly = Math.min(Math.max(o.sy, tb.t), tb.b);
+  el("line", { x1: o.sx, y1: o.sy, x2: lx, y2: ly, stroke: color, "stroke-width": 2 }, svg);
+  el("circle", { cx: o.sx, cy: o.sy, r: 5, fill: "none", stroke: SYMBOL, "stroke-width": 1.5 }, svg);
+
+  rows.forEach((row, i) => drawRow(svg, row, o.bx, o.by + PAD + i * LINE_H + ASCENT, color));
+
+  if (o.col0) {
+    const x0 = o.bx - PAD - CW - 3;
+    if (o.col0.vci) glyph(svg, "vci", x0, o.by + PAD + 1 * LINE_H + ASCENT, color);
+    if (o.col0.r) drawRow(svg, [T("R")], x0, o.by + PAD + 2 * LINE_H + ASCENT, color);
+  }
+
+  if (o.dwell) {
+    el("rect", { x: tb.l - 2, y: tb.t - 2, width: tb.r - tb.l + 4, height: tb.b - tb.t + 4, fill: "none", stroke: color, "stroke-width": 1 }, svg);
+    const px = tb.r + 4, py = tb.b - 6;
+    el("path", { d: `M${px},${py} l0,15 l4,-4 l3,7 l2.5,-1 l-3,-7 l5.5,0 z`, fill: "#fff", stroke: "#000", "stroke-width": 1 }, svg);
+  }
+  return nRows;
+}
+
+function mapBackdrop(svg, w, h, cx, cy) {
+  for (const r of [90, 180, 270, 360]) {
+    el("circle", { cx, cy, r, fill: "none", stroke: MAP, "stroke-width": 1 }, svg);
+  }
+  el("path", { d: `M0,${h * 0.62} L${w * 0.35},${h * 0.55} L${w * 0.55},${h * 0.7} L${w},${h * 0.66}`, fill: "none", stroke: MAP, "stroke-width": 1, "stroke-dasharray": "6 5" }, svg);
+}
+
+function label(svg, x, y, text, anchor) {
+  const t = el("text", { x, y, fill: "#9aa0a6", "font-family": "Segoe UI, system-ui, sans-serif", "font-size": 11.5, "text-anchor": anchor || "start" }, svg);
+  t.textContent = text;
+}
+
+function lane(container, tag, title, caption, note, w, h) {
+  const div = document.createElement("div");
+  div.className = "lane";
+  div.innerHTML = `<h3><span class="tag">${tag}</span>${title}</h3>`;
+  const svg = el("svg", { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: "img", "aria-label": `${tag}: ${title}` }, div);
+  const cap = document.createElement("div");
+  cap.className = "cap";
+  cap.textContent = caption;
+  div.appendChild(cap);
+  if (note) {
+    const n = document.createElement("div");
+    n.className = "note";
+    n.textContent = note;
+    div.appendChild(n);
+  }
+  container.appendChild(div);
+  return svg;
+}
+
+// ---- Block contents, as the templates lay them out ----
+
+const AAL_L1 = [T("AAL1234")];
+const AAL_ERAM_L2 = [T("240C"), G("ne"), T(" 45 F/B738")];
+const AAL_STARS_L2 = [T("240 45 F/B738")];
+const AAL_L4 = [T("B738/L")];
+
+const SKW_L1 = [T("SKW5410")];
+const SKW_ERAM_L2 = [T("110"), G("down"), T("128"), G("ne"), T(" 28 E/E75L")];
+const SKW_STARS_L2 = [T("128 28 E/E75L")];
+const SKW_STARS_L3 = [T("1A .OAK")];
+const SKW_L4 = [T("E75L/L")];
+
+const N_L1 = [T("N7234K*")];
+const N_ERAM_L2 = [T("VFR/45 11 I/C172")];
+const N_L4 = [T("C172")];
+
+const Q1_W = 440, Q1_H = 280;
+const POS = {
+  aal: { sx: 50, sy: 44, bx: 92, by: 34 },
+  skw: { sx: 214, sy: 132, bx: 262, by: 122 },
+  n: { sx: 60, sy: 222, bx: 104, by: 212 },
+};
+
+function q1() {
+  const box = document.getElementById("q1");
+
+  let svg = lane(box, "1a", "Per track by owner",
+    "An ERAM-owned track draws the ERAM block, a STARS-owned track the STARS block, an unowned track the ERAM block.",
+    "SKW5410's 110/170 difference cannot show: the STARS block carries no plan altitude (line 2 is the Mode C altitude), so no marker has a field to sit on.",
+    Q1_W, Q1_H);
+  mapBackdrop(svg, Q1_W, Q1_H, 300, 330);
+  track(svg, Object.assign({ rows: [AAL_L1, AAL_ERAM_L2, AAL_L4], col0: { vci: true } }, POS.aal));
+  track(svg, Object.assign({ rows: [SKW_L1, SKW_STARS_L2, SKW_STARS_L3] }, POS.skw));
+  track(svg, Object.assign({ rows: [N_L1, N_ERAM_L2, N_L4], col0: { r: true } }, POS.n));
+  label(svg, 92, 24, "ERAM block (ERAM 36)");
+  label(svg, 262, 112, "STARS block (TCP 1A)");
+  label(svg, 104, 202, "ERAM block (unowned)");
+
+  svg = lane(box, "1b", "One hybrid block for every track",
+    "Every track: ERAM altitude line (Field B/C) with the STARS right side, the STARS line 3 (owner / handoff / scratchpad), ERAM line 4, and column 0.",
+    "Line 3 is STARS's owner line, so the ERAM status slot (H-, O/K, beacon, FRZN, CST) has no row in this block.",
+    Q1_W, Q1_H);
+  mapBackdrop(svg, Q1_W, Q1_H, 300, 330);
+  track(svg, Object.assign({ rows: [AAL_L1, AAL_ERAM_L2, [T("C36")], AAL_L4], col0: { vci: true } }, POS.aal));
+  track(svg, Object.assign({ rows: [SKW_L1, SKW_ERAM_L2, SKW_STARS_L3, SKW_L4], col0: { r: true } }, POS.skw));
+  track(svg, Object.assign({ rows: [N_L1, N_ERAM_L2, N_L4], col0: { r: true } }, POS.n));
+  label(svg, 92, 24, "hybrid");
+  label(svg, 262, 112, "hybrid");
+  label(svg, 104, 202, "hybrid (unowned)");
+
+  svg = lane(box, "1c", "The ERAM block for every track",
+    "Every track draws the ERAM block; the mismatch marker is shown whenever the two sides differ, as the only sign of the STARS value.",
+    "STARS owner and scratchpad are not on the block (the ERAM line 3 is the status slot, empty here).",
+    Q1_W, Q1_H);
+  mapBackdrop(svg, Q1_W, Q1_H, 300, 330);
+  track(svg, Object.assign({ rows: [AAL_L1, AAL_ERAM_L2, AAL_L4], col0: { vci: true } }, POS.aal));
+  track(svg, Object.assign({ rows: [SKW_L1, SKW_ERAM_L2, SKW_L4], col0: { r: true } }, POS.skw));
+  track(svg, Object.assign({ rows: [N_L1, N_ERAM_L2, N_L4], col0: { r: true } }, POS.n));
+  label(svg, 92, 24, "ERAM block");
+  label(svg, 262, 112, "ERAM block");
+  label(svg, 104, 202, "ERAM block");
+}
+
+// ---- Question 2 ----
+
+const Q2_W = 440, Q2_H = 270;
+
+function q2Lane(box, tag, title, caption, note, eramL2, starsL2) {
+  const svg = lane(box, tag, title, caption, note, Q2_W, Q2_H);
+  el("line", { x1: 220, y1: 8, x2: 220, y2: Q2_H - 8, stroke: "#222", "stroke-width": 1 }, svg);
+  el("line", { x1: 8, y1: 140, x2: Q2_W - 8, y2: 140, stroke: "#222", "stroke-width": 1 }, svg);
+  label(svg, 12, 18, "ERAM template, at rest");
+  label(svg, 232, 18, "ERAM template, on dwell");
+  track(svg, { sx: 24, sy: 46, bx: 60, by: 36, rows: [AAL_L1, eramL2, AAL_L4], col0: { vci: true } });
+  track(svg, { sx: 244, sy: 46, bx: 280, by: 36, rows: [AAL_L1, eramL2, [T("STARS 350")], AAL_L4], col0: { vci: true }, dwell: true });
+  label(svg, 12, 158, "STARS template, at rest");
+  label(svg, 232, 158, "STARS template, on dwell");
+  track(svg, { sx: 24, sy: 186, bx: 60, by: 176, rows: [AAL_L1, starsL2, [T("C36")]] });
+  track(svg, { sx: 244, sy: 186, bx: 280, by: 176, rows: [AAL_L1, starsL2, [T("ERAM 240")], [T("C36")]], dwell: true });
+}
+
+function q2() {
+  const box = document.getElementById("q2");
+  const starsNote = "STARS row: STARS line 2 holds only the Mode C altitude (240 here), so the mark there says \"ERAM differs\" while sitting on a reported, not a plan, altitude.";
+
+  q2Lane(box, "2i", "A mark glyph after the altitude",
+    "A ≠ cell, drawn as a path in the block colour, right after the altitude field; the rest of line 2 shifts right by one cell.",
+    "≠ rather than *: * is already the VFR mark on line 1. " + starsNote,
+    [T("240C"), G("ne"), T(" 45 F/B738")],
+    [T("240"), G("ne"), T(" 45 F/B738")]);
+
+  q2Lane(box, "2ii", "The altitude field underlined",
+    "Field B (the plan altitude, 240) is underlined in the block colour; nothing moves, line 2 keeps its width.",
+    "The underline sits under Field B only, not B4/C, since Field B is the value the other side disagrees with. " + starsNote,
+    [T("240", { u: true }), T("C 45 F/B738")],
+    [T("240", { u: true }), T(" 45 F/B738")]);
+
+  q2Lane(box, "2iii", "The altitude in a distinct colour",
+    "Field B is drawn in magenta (#FF66FF), a hue no Scope token uses (amber/yellow are taken by notes, MVA, ATPA, type mismatch, point-out).",
+    "A new fixed colour needs a test pinning it (1c rule) and has no CRC source. " + starsNote,
+    [T("240", { c: MISMATCH }), T("C 45 F/B738")],
+    [T("240", { c: MISMATCH }), T(" 45 F/B738")]);
+}
+
+measureCell();
+q1();
+q2();
+</script>
+</body>
+</html>

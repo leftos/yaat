@@ -28,7 +28,9 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 
 - **Scope entries are shared.** Scope data the instructor enters writes the same `AircraftStarsState` / `AircraftEramState` that CRC reads, so the student sees it.
 - **ERAM vs STARS altitudes.** When ERAM and STARS viewers are sent different flight-plan altitudes, the scope shows the profile's value and marks it when the other side differs. The dwell view lists both.
-- **Profile at room open.** The student position picks STARS or ERAM; no student, or both kinds, opens Mixed. A manual pick per room type overrides this.
+
+  The mark is a `≠` cell in the block colour right after the ERAM altitude. The STARS template carries no mark (its line 2 is the Mode C altitude, never the filed one), and its dwell view lists the ERAM altitude. Mock: [`canvases/scope-2c-iii/`](../canvases/scope-2c-iii/index.html).
+- **Profile at room open.** The student position picks STARS or ERAM; no student, or both kinds, opens Mixed. The Mixed template draws each track in its owner's display kind: an ERAM-sector owner's track gets the ERAM block, a STARS position's the STARS block, an unowned track the ERAM block. A manual pick per room type overrides this.
 - **Viewer.** The viewer's ERAM sector (VCI, R, dwell lock, line-3 handoff text) is the instructor's active position: the scenario's student position by default, changed with the `AS` command.
 - **Ground.** The Ground view stays as it is. Top-down mode (TDM) is a Ctrl+T toggle on the scope, never a zoom band.
 - **Conflict alerts.** The scope mirrors the student's system rule: STARS 3 NM with a 5 s look-ahead, or ERAM's 4-minute probe that honours the datablock altitude.
