@@ -86,19 +86,21 @@ Production uses a named Docker volume (`yaat-session-checkpoints` → `/data/ses
 
 Default deploy flow (from the yaat repo):
 
-1. `POST https://yaat1.leftos.dev/admin/prepare-restart?drainSeconds=30` with header `X-Yaat-Admin-Password` (from repo-root `.env` as `ADMIN_PASSWORD`, same value as the droplet’s `ADMIN_PASSWORD` in `yaat-server/.env`).
-2. Wait for drain + checkpoint write (the HTTP call blocks until done).
-3. `git pull` on the droplet, `docker compose build`, `docker compose up -d --force-recreate`.
-4. New container starts; `SessionRestoreHostedService` reloads checkpoints from the volume.
+1. The script dispatches yaat-server's `docker-image.yml` workflow, which builds the image in CI and pushes it to ghcr.io, and waits for it (`-SkipCiBuild` deploys the image ghcr already holds; `-BuildImageLocally` builds and pushes it from this machine instead). The running server stays up meanwhile.
+2. `git pull` on the droplet, then `docker compose pull yaat-server` for the new image.
+3. `POST https://yaat1.leftos.dev/admin/prepare-restart?drainSeconds=30` with header `X-Yaat-Admin-Password` (from `.env.<target>`, else the repo-root `.env`, as `ADMIN_PASSWORD`, same value as the droplet’s `ADMIN_PASSWORD` in `yaat-server/.env`). The HTTP call blocks until the drain and the checkpoint write are done.
+4. `docker compose up -d --force-recreate --no-build` recreates the container from the pulled image, and `SessionRestoreHostedService` reloads checkpoints from the volume.
 
 Flags:
 
-- `-SkipSessionSave` — old behavior (no prepare; active rooms lost).
+- `-SkipSessionSave` — no prepare-restart; active rooms are lost.
 - `-DrainSeconds <n>` — override default 30s drain (default matches `Yaat:PrepareRestartDrainSeconds`).
+- `-RebootOnly` — recreate the container from the existing image with the same session save, to re-run the on-boot data refresh.
+- `-BuildOnDroplet` — build the image on the droplet instead of pulling it; prepare-restart then runs before the `git pull` and the rebuild.
 
 Requires `ADMIN_PASSWORD` in the yaat repo `.env` for session save. If missing or the server is unreachable, deploy continues with a warning.
 
-The step ordering matters: the `POST /admin/prepare-restart` call (step 1) runs against the **currently-running container**, before `git pull` and the rebuild (step 3). A fix to the prepare-restart code path therefore only ships with the deploy and is exercised for the first time on the **next** deploy — the deploy that delivers the fix still runs the old binary's prepare-restart.
+The step ordering matters: the `POST /admin/prepare-restart` call (step 3) runs against the **currently-running container**, before it is recreated from the new image (step 4). A fix to the prepare-restart code path therefore only ships with the deploy and is exercised for the first time on the **next** deploy — the deploy that delivers the fix still runs the old binary's prepare-restart.
 
 To validate a prepare-restart fix in the same session, probe the new container directly once the deploy reports the server is back up: `Invoke-RestMethod -Uri "https://yaat1.leftos.dev/admin/prepare-restart?drainSeconds=5" -Headers @{'X-Yaat-Admin-Password'=$pw}`. Probing leaves `_prepareCompleted=true` on the server; clear it with `docker compose restart yaat-server`.
 

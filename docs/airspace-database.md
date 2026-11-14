@@ -23,17 +23,16 @@ a source GeoJSON are silently dropped (see Footguns). All file references below 
 
 ## Data model
 
-Five small types in `Data/Airspace/`:
+Small types in `Data/Airspace/`, with points as the shared `LatLon` (`Yaat.Sim/LatLon.cs`, `readonly record struct (double Lat, double Lon)` — note **Lat first**):
 
 | Type | File | Shape |
 |---|---|---|
 | `AirspaceVolume` | `AirspaceVolume.cs` | `Id`, `Ident`, `IcaoId`, `Name`, `Class`, `LowerFtMsl`, `UpperFtMsl`, `Rings` (all `required init`). Owns the containment geometry. |
-| `AirspacePoint` | `AirspacePoint.cs` | `readonly record struct (double Lat, double Lon)` — note **Lat first**. `ToLatLon()` / `FromLatLon()`. |
 | `AirspaceClass` | `AirspaceClass.cs` | `enum { Bravo, Charlie }` — **two values only**. |
 | `AirspaceBoundaryCrossing` | `AirspaceBoundaryCrossing.cs` | Result of a projected-entry query: `Volume`, `Intersection`, `DistanceNm`, `LookaheadSeconds`, `TimeToEntrySeconds`, `EntryAltitudeFtMsl`. |
 | `AirspaceDatabase` | `AirspaceDatabase.cs` | `IReadOnlyList<AirspaceVolume> Volumes` + the lazy `Default` singleton + all loading/parsing/query methods. |
 
-`Rings` is `IReadOnlyList<IReadOnlyList<AirspacePoint>>` — one volume can carry several rings (multiple
+`Rings` is `IReadOnlyList<IReadOnlyList<LatLon>>` — one volume can carry several rings (multiple
 disjoint polygons, e.g. the surface area plus the shelf rings of a Class C). All rings are treated as
 **positive** (see the doughnut footgun).
 
@@ -85,7 +84,7 @@ the parser would discard any other class even if the fixture carried it.
 
 `ParseRings` flattens geometry: `Polygon` coordinates go straight to `ParsePolygon`; `MultiPolygon`
 coordinates are iterated polygon-by-polygon into the same flat ring list. `ParsePolygon` reads each
-coordinate pair as **`[lon, lat]`** — it stores `new AirspacePoint(pair[1] /* Lat */, pair[0] /* Lon */)`.
+coordinate pair as **`[lon, lat]`** — it stores `new LatLon(pair[1] /* Lat */, pair[0] /* Lon */)`.
 Rings with fewer than 4 points are discarded. A feature whose rings all drop out yields no volume.
 
 ## Containment geometry
@@ -339,7 +338,7 @@ sim and server rooms.
   singletons it can race in parallel xUnit if a test reads it mid-population (see the static-singleton-races
   note in `CLAUDE.md`).
 - **GeoJSON coordinate order is `[lon, lat]`.** `ParsePolygon` reads `pair[1]` as Lat and `pair[0]` as Lon, and
-  `AirspacePoint` stores `(Lat, Lon)`. Swap them and containment flips silently.
+  `LatLon` stores `(Lat, Lon)`. Swap them and containment flips silently.
 - **`FindFirstProjectedEntry` skips any volume the aircraft is already inside.** It reports only the first
   not-yet-entered boundary, never re-entry or exit. Do not repurpose it for "am I inside" — use `FindContaining`.
 - **`ParseRings` treats every ring as a positive ring.** `ContainsLateral` OR-combines all rings, so a true

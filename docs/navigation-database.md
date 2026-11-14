@@ -477,7 +477,7 @@ first. See [speech-recognition-pipeline.md](speech-recognition-pipeline.md) for 
 
 ### Fix pronunciations vs. display names
 
-`FixPronunciations/*.json` (loaded by `FixPronunciationLoader` → `LoadFixPronunciations`, `:2686`) carries two **distinct**
+`Data/ARTCCs/{ARTCC}/FixPronunciations/*.json` under `src/Yaat.Sim/` (loaded by `FixPronunciationLoader` → `LoadFixPronunciations`) carries two **distinct**
 concepts per `FixPronunciationDefinition` entry:
 
 - `pronunciations` — phonetic spelling hints for the speech engine. Used to seed Whisper's `initial_prompt` and to collapse spoken
@@ -500,7 +500,7 @@ The presentation helpers `PhraseologyVerbalizer.FixDisplayText` / `FixDisplayTex
 
 ### Gate, spot, place and procedure pronunciations
 
-`GatePronunciations/*.json` (`GatePronunciationLoader` → `LoadGatePronunciations`) and `ProcedurePronunciations/*.json` (`ProcedurePronunciationLoader` → `LoadProcedurePronunciations`) fill `_groundPronunciations` (per airport: gates, spots, named places) and `_procedurePronunciations` (base name → spoken forms). Schemas and skip rules are in `src/Yaat.Sim/Data/ARTCCs/README.md`.
+`Data/ARTCCs/{ARTCC}/GatePronunciations/*.json` (`GatePronunciationLoader` → `LoadGatePronunciations`) and `Data/ARTCCs/{ARTCC}/ProcedurePronunciations/*.json` (`ProcedurePronunciationLoader` → `LoadProcedurePronunciations`) fill `_groundPronunciations` (per airport: gates, spots, named places) and `_procedurePronunciations` (base name → spoken forms). Schemas and skip rules are in `src/Yaat.Sim/Data/ARTCCs/README.md`.
 
 | Method | Returns | Used by |
 |--------|---------|---------|

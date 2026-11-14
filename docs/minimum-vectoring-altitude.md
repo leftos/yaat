@@ -42,8 +42,7 @@ scope the controller sees.
    - `GetFloorFtMsl(LatLon)` → `int?` floor shortcut.
    - `Classify(LatLon, altFt, atBandFt)` → `(MvaRelation, MvaSector?)` — Below/At/Above/NoData.
 
-`GeoMath.PointInRing(LatLon, ring)` and the shared `LatLonBounds` pre-filter back both `MvaSector` and
-`AirspaceVolume` (factored out of `AirspaceVolume`; `AirspacePoint` was deleted in favor of `LatLon`).
+`GeoMath.PointInRing(LatLon, ring)` and the shared `LatLonBounds` pre-filter back both `MvaSector` and `AirspaceVolume`, whose points are the shared `LatLon`.
 
 ## Client display surfaces (instructor radar)
 
