@@ -3104,7 +3104,12 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Parse as compound command (handles single and multi-block)
-        CompoundParseResult? compound = CommandSchemeParser.ParseCompound(commandText, scheme, out ParseFailure? parseFailure);
+        CompoundParseResult? compound = CommandSchemeParser.ParseCompound(
+            commandText,
+            scheme,
+            out ParseFailure? parseFailure,
+            target is null ? FixResolutionContext.None : new FixResolutionContext(target.Destination, target.Departure)
+        );
         if (compound is null)
         {
             if (
@@ -3173,7 +3178,8 @@ public partial class MainViewModel : ObservableObject
         // rejection (`CTO, R270`, the mis-spelling of `CTO MR270`) — CompoundPolicy is the single shared predicate
         // for both, so the verdicts cannot drift; this just saves the round-trip and gives the RPO immediate
         // feedback while the typed text is still in the box.
-        if (CompoundPolicy.FindNonCompoundableInChain(compound.CanonicalString) is { } nonCompoundable)
+        var targetFixes = new FixResolutionContext(target.Destination, target.Departure);
+        if (CompoundPolicy.FindNonCompoundableInChain(compound.CanonicalString, targetFixes) is { } nonCompoundable)
         {
             string rejectMsg = $"{CommandDescriber.DescribeCommand(nonCompoundable)} cannot be part of a chained command";
             StatusText = rejectMsg;
@@ -3181,7 +3187,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(compound.CanonicalString) is { } pairedTurn)
+        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(compound.CanonicalString, targetFixes) is { } pairedTurn)
         {
             string rejectMsg = CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn);
             StatusText = rejectMsg;
@@ -3243,23 +3249,8 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        CommandScheme scheme = _preferences.CommandScheme;
-        CompoundParseResult? mappedCompound = CommandSchemeParser.ParseCompound(
-            normalization.CanonicalCommand,
-            scheme,
-            out ParseFailure? mappedFailure
-        );
-        if (mappedCompound is null)
-        {
-            _log.LogDebug(
-                "Solo natural mapping did not produce a dispatchable command. Input='{Input}', Mapped='{Mapped}', Reason='{Reason}'",
-                commandText,
-                normalization.CanonicalCommand,
-                mappedFailure?.Reason ?? "parse failed"
-            );
-            return false;
-        }
-
+        // The target first: the mapped command is parsed with its airports, so a fix that is only a CIFP terminal
+        // waypoint of them splits and resolves the way the server's parse does.
         AircraftModel? target = currentTarget;
         string? historyCallsign = resolvedCallsign;
         if (!string.IsNullOrWhiteSpace(normalization.Callsign))
@@ -3274,6 +3265,24 @@ public partial class MainViewModel : ObservableObject
 
         if (target is null)
         {
+            return false;
+        }
+
+        CommandScheme scheme = _preferences.CommandScheme;
+        CompoundParseResult? mappedCompound = CommandSchemeParser.ParseCompound(
+            normalization.CanonicalCommand,
+            scheme,
+            out ParseFailure? mappedFailure,
+            new FixResolutionContext(target.Destination, target.Departure)
+        );
+        if (mappedCompound is null)
+        {
+            _log.LogDebug(
+                "Solo natural mapping did not produce a dispatchable command. Input='{Input}', Mapped='{Mapped}', Reason='{Reason}'",
+                commandText,
+                normalization.CanonicalCommand,
+                mappedFailure?.Reason ?? "parse failed"
+            );
             return false;
         }
 

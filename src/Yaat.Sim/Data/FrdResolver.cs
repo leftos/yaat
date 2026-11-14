@@ -1,10 +1,18 @@
+using Yaat.Sim.Commands;
+
 namespace Yaat.Sim.Data;
 
 public static class FrdResolver
 {
     private const double NmToRadians = Math.PI / (180.0 * 60.0);
 
-    public static LatLon? Resolve(string frdString, NavigationDatabase navDb)
+    public static LatLon? Resolve(string frdString, NavigationDatabase navDb) => Resolve(frdString, navDb, FixResolutionContext.None);
+
+    /// <summary>
+    /// Resolves a fix or FRD string whose anchor fix may be a CIFP terminal waypoint of the aircraft's airports
+    /// (<see cref="NavigationDatabase.GetFixPosition(string, FixResolutionContext)"/>).
+    /// </summary>
+    public static LatLon? Resolve(string frdString, NavigationDatabase navDb, FixResolutionContext ctx)
     {
         (string Fix, int? Radial, int? Distance)? parsed = ParseFrd(frdString);
         if (parsed is null)
@@ -14,7 +22,7 @@ public static class FrdResolver
 
         (string fixName, int? radial, int? distance) = parsed.Value;
 
-        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName, ctx);
         if (fixPos is null)
         {
             return null;

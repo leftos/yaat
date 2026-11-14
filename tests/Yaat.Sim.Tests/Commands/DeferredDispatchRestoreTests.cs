@@ -56,7 +56,7 @@ public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
         // Precondition: the live payload has the WAIT gate stripped off, so this cannot pass vacuously.
         Assert.DoesNotContain(deferral.Payload.Blocks.SelectMany(b => b.Commands), c => c is WaitCommand);
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null, FixResolutionContext.None);
 
         Assert.NotNull(restored);
         Assert.Equal(deferral.RemainingSeconds, restored.RemainingSeconds);
@@ -82,7 +82,7 @@ public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
 
         Assert.IsNotType<GiveWayCondition>(deferral.Payload.Blocks[0].Condition);
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null, FixResolutionContext.None);
 
         Assert.NotNull(restored);
         Assert.Equal(deferral.GiveWayTarget, restored.GiveWayTarget);
@@ -254,7 +254,7 @@ public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
         DeferredDispatch liveDeferral = Assert.Single(live.DeferredDispatches);
 
         // Restore the deferral from its snapshot — the path AircraftState.FromSnapshot takes on a rewind / reconstruction.
-        var restored = DeferredDispatch.FromSnapshot(liveDeferral.ToSnapshot(), live.FlightPlan.Route);
+        var restored = DeferredDispatch.FromSnapshot(liveDeferral.ToSnapshot(), live.FlightPlan.Route, FixResolutionContext.None);
         Assert.NotNull(restored);
 
         // Fire each payload against an identical fresh arrival and compare the resulting procedure state.
@@ -282,7 +282,7 @@ public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
         var deferral = new DeferredDispatch(5.0, parsed.Value!) { SourceText = "FH 090", IsReactionDelay = true };
         aircraft.DeferredDispatches.Add(deferral);
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null, FixResolutionContext.None);
 
         Assert.NotNull(restored);
         Assert.True(restored.IsReactionDelay);

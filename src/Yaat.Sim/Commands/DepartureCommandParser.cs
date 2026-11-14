@@ -13,14 +13,14 @@ internal static class DepartureCommandParser
     /// A named runway is the first argument only: one or two digits, 01 to 36, with an optional L/C/R (<c>CTO 28L</c>, <c>CTO 4</c>).
     /// When no lateral modifier is present, a bare heading is exactly three digits (001-360), and the number after it is the altitude.
     /// </summary>
-    internal static PR ParseCtoArg(string? arg)
+    internal static PR ParseCtoArg(string? arg, FixResolutionContext ctx)
     {
         if (SplitLeadingRunway(arg) is not { } split)
         {
-            return ParseCtoInstruction(arg);
+            return ParseCtoInstruction(arg, ctx);
         }
 
-        PR instruction = ParseCtoInstruction(split.Remainder);
+        PR instruction = ParseCtoInstruction(split.Remainder, ctx);
         return instruction.Value is ClearedForTakeoffCommand cto ? PR.Ok(cto with { Runway = split.Runway }) : instruction;
     }
 
@@ -40,7 +40,7 @@ internal static class DepartureCommandParser
     }
 
     /// <summary>The CTO grammar after any named runway: the departure instruction, the altitude and the tower modifiers.</summary>
-    private static PR ParseCtoInstruction(string? arg)
+    private static PR ParseCtoInstruction(string? arg, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -67,7 +67,7 @@ internal static class DepartureCommandParser
                 "TRDCT" => TurnDirection.Right,
                 _ => null,
             };
-            return WithModifiers(ParseCtoDct(tokens, direction), cautionWakeTurbulence, immediate);
+            return WithModifiers(ParseCtoDct(tokens, direction, ctx), cautionWakeTurbulence, immediate);
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
@@ -410,7 +410,7 @@ internal static class DepartureCommandParser
     /// <summary>
     /// Parses CTO DCT/TLDCT/TRDCT {fix} [altitude].
     /// </summary>
-    internal static PR ParseCtoDct(string[] tokens, TurnDirection? direction)
+    internal static PR ParseCtoDct(string[] tokens, TurnDirection? direction, FixResolutionContext ctx)
     {
         // tokens[0] = "DCT"/"TLDCT"/"TRDCT", tokens[1] = fix name, tokens[2] = optional altitude
         string keyword = tokens[0].ToUpperInvariant();
@@ -421,10 +421,10 @@ internal static class DepartureCommandParser
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string fixName = tokens[1].ToUpperInvariant();
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
-            LatLon? frd = FrdResolver.Resolve(fixName, navDb);
+            LatLon? frd = FrdResolver.Resolve(fixName, navDb, ctx);
             if (frd is null)
             {
                 return PR.Fail($"{keyword} does not understand '{fixName}' — unknown fix");
@@ -446,7 +446,7 @@ internal static class DepartureCommandParser
     /// Bare CTOPP and CTOPP +AGL hold position (vertical liftoff to a hover). All other
     /// forms (heading, LT/RT heading, OC, DCT/TLDCT/TRDCT fix, optional altitude) depart.
     /// </summary>
-    internal static PR ParseCtoppArg(string? arg)
+    internal static PR ParseCtoppArg(string? arg, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -480,15 +480,15 @@ internal static class DepartureCommandParser
 
         if (mod is "TLDCT")
         {
-            return ToCtopp(ParseCtoDct(tokens, TurnDirection.Left));
+            return ToCtopp(ParseCtoDct(tokens, TurnDirection.Left, ctx));
         }
         if (mod is "TRDCT")
         {
-            return ToCtopp(ParseCtoDct(tokens, TurnDirection.Right));
+            return ToCtopp(ParseCtoDct(tokens, TurnDirection.Right, ctx));
         }
         if (mod is "DCT")
         {
-            return ToCtopp(ParseCtoDct(tokens, null));
+            return ToCtopp(ParseCtoDct(tokens, null, ctx));
         }
 
         DepartureInstruction? departure = ParseCtoModifier(mod);

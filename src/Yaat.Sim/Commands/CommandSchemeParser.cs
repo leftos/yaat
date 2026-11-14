@@ -20,11 +20,21 @@ public static class CommandSchemeParser
 {
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme) => ParseCompound(input, scheme, out _);
 
-    public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
+    /// <param name="input">The typed command text.</param>
+    /// <param name="scheme">The command scheme the text is written in.</param>
+    /// <param name="failure">Why the text did not parse, when it did not.</param>
+    /// <param name="ctx">The target aircraft's airports, so the concatenated-command splitter accepts a fix that is only a CIFP
+    /// terminal waypoint of them the way the server's parse does; <see cref="FixResolutionContext.None"/> for no aircraft.</param>
+    public static CompoundParseResult? ParseCompound(
+        string input,
+        CommandScheme scheme,
+        out ParseFailure? failure,
+        FixResolutionContext ctx = default
+    )
     {
         failure = null;
         string aliasNormalized = SplitTrailingGiveWay(NormalizeSeparatorAliases(input.Trim()));
-        string trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)));
+        string trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)), ctx);
         trimmed = CommaBeforeCondition.Replace(trimmed, ";");
         trimmed = CommaBeforeGiveWayCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
@@ -71,7 +81,7 @@ public static class CommandSchemeParser
 
         for (int i = 0; i < blocks.Count; i++)
         {
-            string? canonicalBlock = ParseBlockToCanonical(blocks[i], scheme, out failure, out bool bareCondition);
+            string? canonicalBlock = ParseBlockToCanonical(blocks[i], scheme, ctx, out failure, out bool bareCondition);
             if (canonicalBlock is null)
             {
                 return null;
@@ -288,7 +298,7 @@ public static class CommandSchemeParser
     /// when it is a bare condition — the condition and no command — is the comma a sign of the dropped
     /// command, and the returned failure suggests writing the command before the separator.
     /// </summary>
-    private static bool TrySplitBareConditionBeforeComma(string block, CommandScheme scheme, out ParseFailure? failure)
+    private static bool TrySplitBareConditionBeforeComma(string block, CommandScheme scheme, FixResolutionContext ctx, out ParseFailure? failure)
     {
         failure = null;
         int comma = block.IndexOf(',');
@@ -304,7 +314,7 @@ public static class CommandSchemeParser
             return false;
         }
 
-        string? headCanonical = ParseBlockToCanonical(head, scheme, out _, out bool headIsBare);
+        string? headCanonical = ParseBlockToCanonical(head, scheme, ctx, out _, out bool headIsBare);
         if (!headIsBare)
         {
             return false;
@@ -365,9 +375,9 @@ public static class CommandSchemeParser
     /// <see cref="ParseBlockToCanonical"/> for a block nested after another condition or expansion,
     /// where a bare altitude condition has no command to wait for.
     /// </summary>
-    private static string? ParseNestedBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure)
+    private static string? ParseNestedBlockToCanonical(string block, CommandScheme scheme, FixResolutionContext ctx, out ParseFailure? failure)
     {
-        string? canonical = ParseBlockToCanonical(block, scheme, out failure, out bool bareCondition);
+        string? canonical = ParseBlockToCanonical(block, scheme, ctx, out failure, out bool bareCondition);
         if ((canonical is not null) && bareCondition && IsBareAltitudeCondition(canonical, out failure))
         {
             return null;
@@ -376,11 +386,17 @@ public static class CommandSchemeParser
         return canonical;
     }
 
-    private static string? ParseBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure, out bool bareCondition)
+    private static string? ParseBlockToCanonical(
+        string block,
+        CommandScheme scheme,
+        FixResolutionContext ctx,
+        out ParseFailure? failure,
+        out bool bareCondition
+    )
     {
         failure = null;
         bareCondition = false;
-        if (TrySplitBareConditionBeforeComma(block, scheme, out ParseFailure? commaFailure))
+        if (TrySplitBareConditionBeforeComma(block, scheme, ctx, out ParseFailure? commaFailure))
         {
             failure = commaFailure;
             return null;
@@ -473,7 +489,7 @@ public static class CommandSchemeParser
             // then recursively parse the remainder as a separate block
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, ctx, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -498,7 +514,7 @@ public static class CommandSchemeParser
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, ctx, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -523,7 +539,7 @@ public static class CommandSchemeParser
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, ctx, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -536,7 +552,7 @@ public static class CommandSchemeParser
         }
 
         // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction
-        string expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining, scheme)));
+        string expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining, scheme)), ctx);
         if (expandedRemainder.Contains(';'))
         {
             // Expansion produced additional blocks — split and handle each
@@ -547,7 +563,7 @@ public static class CommandSchemeParser
             }
 
             // First sub-block gets the condition prefix
-            string? firstCmds = ParseCommandList(subBlocks[0], scheme, out failure);
+            string? firstCmds = ParseCommandList(subBlocks[0], scheme, ctx, out failure);
             if (firstCmds is null)
             {
                 return null;
@@ -556,7 +572,7 @@ public static class CommandSchemeParser
             var tailCanonicals = new List<string>();
             foreach (string? subBlock in subBlocks.Skip(1))
             {
-                string? canonicalBlock = ParseNestedBlockToCanonical(subBlock, scheme, out failure);
+                string? canonicalBlock = ParseNestedBlockToCanonical(subBlock, scheme, ctx, out failure);
                 if (canonicalBlock is null)
                 {
                     return null;
@@ -600,7 +616,7 @@ public static class CommandSchemeParser
             return string.Join(" ", parts);
         }
 
-        string? commandResult = ParseCommandList(remaining, scheme, out failure);
+        string? commandResult = ParseCommandList(remaining, scheme, ctx, out failure);
         if (commandResult is null)
         {
             return null;
@@ -614,7 +630,7 @@ public static class CommandSchemeParser
         return commandResult;
     }
 
-    private static string? ParseCommandList(string remaining, CommandScheme scheme, out ParseFailure? failure)
+    private static string? ParseCommandList(string remaining, CommandScheme scheme, FixResolutionContext ctx, out ParseFailure? failure)
     {
         failure = null;
         // SAY, TIMER and BM consume their entire remainder as literal text, and ARWY's runway list may be
@@ -651,7 +667,7 @@ public static class CommandSchemeParser
             }
 
             // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
-            string expanded = ExpandMultiCommand(cmd);
+            string expanded = ExpandMultiCommand(cmd, ctx);
             if (expanded == cmd)
             {
                 if (failure is null)
@@ -1139,7 +1155,9 @@ public static class CommandSchemeParser
     /// Falls back to the heuristic (strict single-arg verb-arg pairs) when the greedy parse does
     /// not produce multiple parts.
     /// </summary>
-    public static string ExpandMultiCommand(string input)
+    /// <param name="input">The command text.</param>
+    /// <param name="ctx">The aircraft's airports, for a fix that is only a CIFP terminal waypoint of them.</param>
+    public static string ExpandMultiCommand(string input, FixResolutionContext ctx = default)
     {
         if (input.Contains(',') || input.Contains(';'))
         {
@@ -1150,7 +1168,7 @@ public static class CommandSchemeParser
 
         if (tokens.Length >= 2)
         {
-            return ExpandMultiCommandGreedy(tokens);
+            return ExpandMultiCommandGreedy(tokens, ctx);
         }
 
         if (tokens.Length < 4 || tokens.Length % 2 != 0)
@@ -1212,7 +1230,7 @@ public static class CommandSchemeParser
     /// leave <c>CM 5200</c> whole. Any other command keeps its longest span only. Falls back to
     /// returning input unchanged if no split covers every token.
     /// </summary>
-    private static string ExpandMultiCommandGreedy(string[] tokens)
+    private static string ExpandMultiCommandGreedy(string[] tokens, FixResolutionContext ctx)
     {
         // Don't split commands that start with condition prefixes — ParseBlock handles those
         if (ConditionPrefixes.Contains(tokens[0]))
@@ -1220,7 +1238,7 @@ public static class CommandSchemeParser
             return string.Join(' ', tokens);
         }
 
-        var splitter = new GreedySplitter(tokens);
+        var splitter = new GreedySplitter(tokens, ctx);
         bool split = splitter.TrySplitFrom(0);
         return (split && (splitter.Parts.Count >= 2)) ? string.Join(", ", splitter.Parts) : string.Join(' ', tokens);
     }
@@ -1241,7 +1259,7 @@ public static class CommandSchemeParser
     /// longest span backs off to shorter spans. A start index whose every tried span leaves an
     /// unsplittable tail is remembered, so each index is searched once.
     /// </summary>
-    private sealed class GreedySplitter(string[] tokens)
+    private sealed class GreedySplitter(string[] tokens, FixResolutionContext ctx)
     {
         private readonly HashSet<int> _deadStarts = [];
 
@@ -1298,7 +1316,7 @@ public static class CommandSchemeParser
             for (int end = tokens.Length; end > start; end--)
             {
                 string candidate = string.Join(' ', tokens[start..end]);
-                ParseResult<ParsedCommand> result = CommandParser.Parse(candidate);
+                ParseResult<ParsedCommand> result = CommandParser.Parse(candidate, ctx: ctx);
                 if (!result.IsSuccess)
                 {
                     continue;

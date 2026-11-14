@@ -16,6 +16,7 @@
 - A VFR aircraft whose route runs out, after a `DCT` for example, flies straight on again instead of turning direct to its destination.
 - `SQ` accepts only a four-digit code of 0-7, so `SQ 123` is refused instead of squawking 0123.
 - vTDLS no longer re-sends an item after a flight-plan amendment that changes nothing the item shows.
+- `CFIX`, `AT`, `DCT` and other fix arguments accept the destination's or departure's CIFP terminal waypoints, so `CFIX CFBMS` works for a KBCT arrival.
 - The Create Room ARTCC box keeps the ARTCC you last used instead of jumping to the first in the list, and leaving a room no longer changes it.
 - Arriving airliners at SMF and FLL no longer ask for runway or terminal markers as gates, and GA arrivals never ask for an airline gate.
 - A GA arrival with no fitting parking asks ground for "taxi to parking" and waits for the instructor to assign a spot.

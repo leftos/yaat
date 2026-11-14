@@ -277,6 +277,10 @@ list of ranges. The whole-file parsers (`Parse`, `ParseRunwayEnds`, `ParseNavaid
 
 `NavigationDatabase.GetStationDeclination(navaidId)` returns it (east positive), and `GetPublishedCourseDeclination(navaid, airport, fix)` is the one declination every published approach course converts with: station declination, then the airport's variation of record, then the modelled declination.
 
+### Terminal waypoints in command arguments
+
+`GetFixPosition(name, FixResolutionContext)` is the lookup for a fix typed in a command addressed to an aircraft: `GetFixPosition(name)` first (NavData, then the military route points, so they always win), then the CIFP terminal waypoints (section C) of the aircraft's destination, then its departure, through `TryGetTerminalWaypoint(airport, ident, out pos)`. No other airport is searched; an unknown name still returns null and the command is refused. The context is `FixResolutionContext(Destination, Departure)` (`FixResolutionContext.From(flightPlan)`, `None` for no fallback), threaded through `CommandParser.Parse`/`ParseCompound`, `CommandSchemeParser`, `CompoundPolicy` and `FrdResolver.Resolve`. `ParseTerminalWaypoints` results are cached per airport (lazily, like the procedure caches). STAR body fixes and airway fixes stay context-free: they come from procedure and airway data.
+
 ## Route expansion (`RouteExpander`)
 
 `RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` (`RouteExpander.cs:31`) splits the route on spaces and

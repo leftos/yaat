@@ -25,7 +25,11 @@ public static class ScenarioValidator
                 }
 
                 totalPresets++;
-                ParseResult<CompoundCommand> result = CommandParser.ParseCompound(preset.Command, ac.FlightPlan?.Route);
+                ParseResult<CompoundCommand> result = CommandParser.ParseCompound(
+                    preset.Command,
+                    ac.FlightPlan?.Route,
+                    ctx: new FixResolutionContext(ac.FlightPlan?.Destination, ac.FlightPlan?.Departure)
+                );
                 if (!result.IsSuccess)
                 {
                     failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command, result.Reason));

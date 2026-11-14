@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
@@ -81,6 +82,9 @@ public sealed class NavigationDatabase
     private readonly ConcurrentDictionary<(string Path, string Airport), IReadOnlyList<CifpStarProcedure>> _supplementaryStarCache = new();
     private readonly ConcurrentDictionary<(string Path, string Airport), IReadOnlyList<CifpApproachProcedure>> _supplementaryApproachCache = new();
     private readonly ConcurrentDictionary<string, double?> _airportMagVarCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IReadOnlyDictionary<string, (double Lat, double Lon)>> _terminalWaypointCache = new(
+        StringComparer.OrdinalIgnoreCase
+    );
 
     private readonly string _cifpFilePath;
 
@@ -304,9 +308,9 @@ public sealed class NavigationDatabase
     /// <summary>
     /// Private constructor for <see cref="ForTesting"/>. Skips NavData/CIFP loading.
     /// </summary>
-    private NavigationDatabase()
+    private NavigationDatabase(string cifpFilePath)
     {
-        _cifpFilePath = "";
+        _cifpFilePath = cifpFilePath;
         _supplementaryCifpFilePaths = [];
         InitialContactTransfers = InitialContactTransferCatalog.Empty;
         WakeDirectives = WakeDirectiveCatalog.Empty;
@@ -348,6 +352,7 @@ public sealed class NavigationDatabase
 
     /// <summary>
     /// Creates a NavigationDatabase pre-populated with test data. Intended only for unit tests.
+    /// <paramref name="cifpFilePath"/> gives it a CIFP file to read terminal waypoints and procedures from; none by default.
     /// </summary>
     public static NavigationDatabase ForTesting(
         IReadOnlyDictionary<string, (double Lat, double Lon)>? fixes = null,
@@ -363,10 +368,11 @@ public sealed class NavigationDatabase
         IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? sidTransitions = null,
         IReadOnlyDictionary<string, string>? airports = null,
         IReadOnlyDictionary<string, (double Lat, double Lon)>? airportPositions = null,
-        MilitaryRouteDatabase? militaryRoutes = null
+        MilitaryRouteDatabase? militaryRoutes = null,
+        string? cifpFilePath = null
     )
     {
-        var db = new NavigationDatabase();
+        var db = new NavigationDatabase(cifpFilePath ?? "");
 
         // Auto-derive recognized airports from runways, approachesByAirport, and elevations
         // so tests that pre-seed those don't also have to hand-roll an airports map. Explicit
@@ -812,6 +818,56 @@ public sealed class NavigationDatabase
         // an expanded route flies and draws while ~7,000 synthetic names stay out of autocomplete
         // and out of FRD anchoring. A real fix of the same name always wins, since _navDb is first.
         return _militaryRoutePoints.TryGetValue(name, out (double Lat, double Lon) militaryPos) ? militaryPos : null;
+    }
+
+    /// <summary>
+    /// Resolves a command-argument fix name for an aircraft: <see cref="GetFixPosition(string)"/> first, exactly as
+    /// today (NavData, then the military route points), then the CIFP terminal waypoints of the destination airport,
+    /// then those of the departure airport. A name found nowhere in that scope returns null.
+    /// </summary>
+    /// <param name="name">The fix name.</param>
+    /// <param name="ctx">The aircraft's airports; <see cref="FixResolutionContext.None"/> for no terminal fallback.</param>
+    public (double Lat, double Lon)? GetFixPosition(string name, FixResolutionContext ctx)
+    {
+        if (GetFixPosition(name) is { } pos)
+        {
+            return pos;
+        }
+
+        if ((ctx.Destination is { } destination) && TryGetTerminalWaypoint(destination, name, out (double Lat, double Lon) destPos))
+        {
+            return destPos;
+        }
+
+        if ((ctx.Departure is { } departure) && TryGetTerminalWaypoint(departure, name, out (double Lat, double Lon) depPos))
+        {
+            return depPos;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Looks up one airport's CIFP terminal waypoint (subsection C), reading and caching that airport's records on
+    /// first access. False when this database has no CIFP file, the airport is empty, or the airport has no such waypoint.
+    /// </summary>
+    /// <param name="airport">The airport, FAA ("BCT") or ICAO ("KBCT") id.</param>
+    /// <param name="ident">The waypoint identifier.</param>
+    /// <param name="pos">The waypoint's position when found.</param>
+    public bool TryGetTerminalWaypoint(string airport, string ident, out (double Lat, double Lon) pos)
+    {
+        pos = default;
+        if (string.IsNullOrWhiteSpace(airport) || string.IsNullOrWhiteSpace(ident) || !HasCifpFile)
+        {
+            return false;
+        }
+
+        string icao = IcaoForCifp(airport.Trim().ToUpperInvariant());
+        IReadOnlyDictionary<string, (double Lat, double Lon)> waypoints = _terminalWaypointCache.GetOrAdd(
+            icao,
+            key => CifpParser.ParseTerminalWaypoints(_cifpFilePath, key)
+        );
+        return waypoints.TryGetValue(ident.Trim(), out pos);
     }
 
     /// <summary>

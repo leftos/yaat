@@ -319,9 +319,13 @@ public sealed class ActionRouter
         var routing = new Routing(input, host, record);
         (string? remainder, string? asOverrideTcp) = TrackResolver.ExtractAsPrefix(input.Command);
 
+        // The chain checks parse with the target aircraft's airports, as its dispatch will, so a fix that is only a CIFP
+        // terminal waypoint of them neither fails a check open nor stops a split.
+        var targetFixes = FixResolutionContext.From(_engine.FindAircraft(input.Callsign)?.FlightPlan);
+
         // A chain containing a rejection-set verb (PAUSE, spawn, flight-plan ops, room-wide commands) has no chained
         // semantics: routed as one compound it would swallow the tail or queue a block that no-ops at fire time.
-        if (CompoundPolicy.FindNonCompoundableInChain(remainder) is { } nonCompoundable)
+        if (CompoundPolicy.FindNonCompoundableInChain(remainder, targetFixes) is { } nonCompoundable)
         {
             var refusal = new CommandResult(false, $"{CommandDescriber.DescribeCommand(nonCompoundable)} cannot be part of a chained command");
             var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft);
@@ -331,7 +335,7 @@ public sealed class ActionRouter
         // `CTO, R270` is the mis-spelling of the departure modifier `CTO MR270`: the turn is refused on the ground,
         // so the block would clear the aircraft for takeoff and drop half of what was typed. Refused whole, naming
         // the modifier. The sequential `CTO; R270` queues the turn until airborne and is left alone.
-        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(remainder) is { } pairedTurn)
+        if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(remainder, targetFixes) is { } pairedTurn)
         {
             var refusal = new CommandResult(false, CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn));
             var refusalTrace = new ActionTrace(RecordedCommandKind.Compound, ActionScope.Aircraft);
@@ -340,7 +344,7 @@ public sealed class ActionRouter
 
         // A compound that concatenates a track/coordination/strip/TDLS command with ';'/',' cannot be classified as one
         // command — the single-command parser would swallow the separator tail as an argument. Route each unit.
-        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out List<CompoundUnit>? units))
+        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out List<CompoundUnit>? units, targetFixes))
         {
             return RouteUnits(routing, asOverrideTcp, units);
         }

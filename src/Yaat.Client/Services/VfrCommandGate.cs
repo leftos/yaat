@@ -56,7 +56,7 @@ public static class VfrCommandGate
             text = text[ForcePrefix.Length..];
         }
 
-        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text, ctx: new FixResolutionContext(target.Destination, target.Departure));
         if (!parsed.IsSuccess || parsed.Value is null)
         {
             return VfrGateResult.Pass;

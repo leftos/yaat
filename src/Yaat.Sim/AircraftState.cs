@@ -647,7 +647,7 @@ public class AircraftState
         {
             foreach (DeferredDispatchDto dd in dto.DeferredDispatches)
             {
-                var dispatch = DeferredDispatch.FromSnapshot(dd, ac.FlightPlan.Route);
+                var dispatch = DeferredDispatch.FromSnapshot(dd, ac.FlightPlan.Route, Commands.FixResolutionContext.From(ac.FlightPlan));
                 if (dispatch is not null)
                 {
                     ac.DeferredDispatches.Add(dispatch);

@@ -36,7 +36,11 @@ internal static class ActionArms
     {
         SimulationEngine engine = ctx.Engine;
         AircraftState aircraft = ctx.Aircraft!;
-        ParseResult<CompoundCommand> parse = CommandParser.ParseCompound(ctx.Remainder, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> parse = CommandParser.ParseCompound(
+            ctx.Remainder,
+            aircraft.FlightPlan.Route,
+            ctx: FixResolutionContext.From(aircraft.FlightPlan)
+        );
         if (!parse.IsSuccess)
         {
             return new CommandResult(false, $"Failed to parse command: {ctx.Remainder} — {parse.Reason}");
@@ -541,7 +545,9 @@ internal static class ActionArms
 
         // The addressed verb, as the aviation arm would dispatch it to the target.
         string addressed = CommandDescriber.DescribeCommand(new SayAgainCommand(command.CallsignOnly));
-        CompoundCommand compound = CommandParser.ParseCompound(addressed, target.FlightPlan.Route).Value!;
+        CompoundCommand compound = CommandParser
+            .ParseCompound(addressed, target.FlightPlan.Route, ctx: FixResolutionContext.From(target.FlightPlan))
+            .Value!;
         bool alreadyRequested = target.PendingRepeat || target.PendingRepeatCallsignOnly;
         DispatchOrigin origin = ctx.Origin;
         var capture = PreDispatchCapture.BeforeDispatch(target);

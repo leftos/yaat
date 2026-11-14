@@ -117,4 +117,48 @@ public class VnasScenarioParseTests
 
         Assert.True(loadFailures.Count == 0, $"{loadFailures.Count} scenarios failed to load:\n{string.Join("\n", loadFailures)}");
     }
+
+    /// <summary>
+    /// The CFBMS presets of the two ZMA KBCT-arrival scenarios (S3 Practical Exam and T1S3 - L4) parse: CFBMS is a KBCT CIFP
+    /// terminal waypoint NavData lacks, resolved through each aircraft's destination. The distinct preset lines are quoted
+    /// here, since the corpus is not committed; the scenario files are validated too where a local snapshot holds them.
+    /// </summary>
+    [Fact]
+    public void Zma_KbctArrivalPresets_Parse()
+    {
+        string[] cfbmsPresets = ["CFIX CFBMS 1400", "AT CFBMS DM 003", "AT CFBMS DCT OMITE", "AT CFBMS CAPP 5", "AT SCALE CFIX CFBMS 1200"];
+        var scenario = new Scenario
+        {
+            Id = "zma-kbct-arrivals",
+            Name = "ZMA KBCT arrival CFBMS presets",
+            Aircraft =
+            [
+                new ScenarioAircraft
+                {
+                    AircraftId = "RVJ100",
+                    AircraftType = "C25B",
+                    FlightPlan = new ScenarioFlightPlan { Departure = "KBWI", Destination = "KBCT" },
+                    PresetCommands = [.. cfbmsPresets.Select(c => new PresetCommand { Command = c })],
+                },
+            ],
+        };
+
+        ScenarioValidationResult quoted = ScenarioValidator.Validate(scenario);
+        Assert.Equal(cfbmsPresets.Length, quoted.TotalPresets);
+        Assert.Empty(quoted.Failures);
+
+        foreach (string id in new[] { "01HQDVNR6GTDT6AK99CYRDM3JD", "01HQC4687ZQ6TZY5TVA8FB1YFX" })
+        {
+            string file = Path.Combine(ScenariosRoot, "ZMA", $"{id}.json");
+            if (!File.Exists(file))
+            {
+                _output.WriteLine($"No local snapshot of ZMA/{id}.json; the quoted presets above stand for it");
+                continue;
+            }
+
+            ScenarioValidationResult? result = ScenarioValidator.Validate(File.ReadAllText(file));
+            Assert.NotNull(result);
+            Assert.DoesNotContain(result.Failures, f => f.Command.Contains("CFBMS", StringComparison.OrdinalIgnoreCase));
+        }
+    }
 }

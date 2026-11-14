@@ -338,6 +338,41 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
 
+    /// <summary>
+    /// A traffic call over a landmark that only the recipient's destination CIFP names (CFBMS, a KBCT terminal waypoint
+    /// NavData lacks) is credited as the directed advisory, the same as one over a NavData fix.
+    /// </summary>
+    [Fact]
+    public void Evaluate_LandmarkTrafficCallNearCfbms_CreditedForKbctArrival()
+    {
+        var cfbms = new LatLon(26.3661, -80.1989);
+        AircraftState a = CreateAircraft(
+            "AAL1",
+            "B738",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(cfbms, new TrueHeading(270), 5.0),
+            altitude: 5000,
+            isOnGround: false
+        );
+        AircraftState b = CreateAircraft("UAL2", "A320", flightRules: "IFR", cfbms, altitude: 5000, isOnGround: false);
+        b.TrueHeading = new TrueHeading(270);
+        b.TrueTrack = new TrueHeading(270);
+        a.FlightPlan.Destination = "KBCT";
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficLandmarkCommand(new TrafficLandmarkDetails("CFBMS", b.AircraftType))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        SoloTrainingEvent advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        Assert.Equal(b.Callsign, advisory.Callsigns[0]);
+        Assert.Equal(a.Callsign, advisory.Callsigns[1]);
+    }
+
     [Fact]
     public void Evaluate_ExactStructuredRtis_AddsNoImpreciseNote()
     {

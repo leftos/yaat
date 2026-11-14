@@ -3248,7 +3248,10 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficLandmark(ReportTrafficLandmarkCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(cmd.Details.FixName);
+        (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(
+            cmd.Details.FixName,
+            FixResolutionContext.From(aircraft.FlightPlan)
+        );
         if (position is null)
         {
             return new CommandResult(false, $"Unable, unknown landmark {cmd.Details.FixName}");
@@ -3567,7 +3570,7 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "REPORT requires a fix name");
         }
 
-        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(fixName, FixResolutionContext.From(aircraft.FlightPlan));
         if (pos is null)
         {
             return new CommandResult(false, $"Unable, {fixName} not in nav database");

@@ -110,7 +110,7 @@ public static class ScenarioRunwaySignals
         ParseResult<CompoundCommand> parsed;
         try
         {
-            parsed = CommandParser.ParseCompound(text, state.FlightPlan.Route);
+            parsed = CommandParser.ParseCompound(text, state.FlightPlan.Route, ctx: FixResolutionContext.From(state.FlightPlan));
         }
         catch (InvalidOperationException ex)
         {

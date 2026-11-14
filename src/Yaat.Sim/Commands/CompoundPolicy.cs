@@ -156,9 +156,12 @@ public static class CompoundPolicy
     /// "NOTE ...; expect delay"). Shared by the server's dispatch routing and the client's
     /// pre-send validation so the verdicts cannot drift.
     /// </summary>
-    public static ParsedCommand? FindNonCompoundableInChain(string command)
+    /// <param name="command">The typed line.</param>
+    /// <param name="ctx">The target aircraft's airports, so a fix that is only a CIFP terminal waypoint of them parses as it
+    /// does at dispatch; <see cref="FixResolutionContext.None"/> for no aircraft.</param>
+    public static ParsedCommand? FindNonCompoundableInChain(string command, FixResolutionContext ctx = default)
     {
-        if (!TryParseGenuineCompound(command, out CompoundCommand? compound))
+        if (!TryParseGenuineCompound(command, ctx, out CompoundCommand? compound))
         {
             return null;
         }
@@ -184,17 +187,17 @@ public static class CompoundPolicy
     /// head alone decides the verdict. The head needs only one command — the message is the second.
     /// </para>
     /// </summary>
-    private static bool TryParseGenuineCompound(string command, [NotNullWhen(true)] out CompoundCommand? compound)
+    private static bool TryParseGenuineCompound(string command, FixResolutionContext ctx, [NotNullWhen(true)] out CompoundCommand? compound)
     {
         compound = null;
 
-        ParseResult<ParsedCommand> single = CommandParser.Parse(command);
+        ParseResult<ParsedCommand> single = CommandParser.Parse(command, ctx: ctx);
         if ((single.IsSuccess) && (single.Value is not null) && IsFreeTextCommand(single.Value))
         {
             return false;
         }
 
-        if (TryWalkUnits(command, out _, out FreeTextTail freeText) && freeText.Exists)
+        if (TryWalkUnits(command, ctx, out _, out FreeTextTail freeText) && freeText.Exists)
         {
             string head = freeText.Normalized[..freeText.NormalizedStart].TrimEnd(' ', '\t', ';', ',');
             if (head.Length == 0)
@@ -202,20 +205,25 @@ public static class CompoundPolicy
                 return false;
             }
 
-            return TryParseCompoundOfAtLeast(head, 1, out compound);
+            return TryParseCompoundOfAtLeast(head, 1, ctx, out compound);
         }
 
-        return TryParseCompoundOfAtLeast(command, 2, out compound);
+        return TryParseCompoundOfAtLeast(command, 2, ctx, out compound);
     }
 
     /// <summary>
     /// The compound <paramref name="text"/> parses as, when it carries at least <paramref name="minCommands"/> commands.
     /// </summary>
-    private static bool TryParseCompoundOfAtLeast(string text, int minCommands, [NotNullWhen(true)] out CompoundCommand? compound)
+    private static bool TryParseCompoundOfAtLeast(
+        string text,
+        int minCommands,
+        FixResolutionContext ctx,
+        [NotNullWhen(true)] out CompoundCommand? compound
+    )
     {
         compound = null;
 
-        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text, ctx: ctx);
         if ((!parsed.IsSuccess) || (parsed.Value is null) || (parsed.Value.Blocks.Sum(b => b.Commands.Count) < minCommands))
         {
             return false;
@@ -254,8 +262,8 @@ public static class CompoundPolicy
     /// The text form the enforcement sites (the server's routing, the client's pre-send validation) call: they hold
     /// the typed line, not a parsed compound.
     /// </summary>
-    public static ParsedCommand? FindTakeoffPairedWithImmediateTurn(string command) =>
-        TryParseGenuineCompound(command, out CompoundCommand? compound) ? FindTakeoffPairedWithImmediateTurn(compound) : null;
+    public static ParsedCommand? FindTakeoffPairedWithImmediateTurn(string command, FixResolutionContext ctx = default) =>
+        TryParseGenuineCompound(command, ctx, out CompoundCommand? compound) ? FindTakeoffPairedWithImmediateTurn(compound) : null;
 
     /// <summary>The single wording of the paired-turn refusal, so the server and the client cannot drift.</summary>
     public static string TakeoffPairedWithImmediateTurnMessage(ParsedCommand turn) =>
@@ -351,11 +359,11 @@ public static class CompoundPolicy
     /// <c>HO 3G; RDTXT /1 HOLD, DEL</c> look like a chained delete.
     /// </para>
     /// </summary>
-    public static bool TrySplitSpecialCompound(string command, out List<CompoundUnit> units)
+    public static bool TrySplitSpecialCompound(string command, out List<CompoundUnit> units, FixResolutionContext ctx = default)
     {
         units = [];
 
-        if (!TryWalkUnits(command, out List<CompoundUnit>? walked, out FreeTextTail freeText))
+        if (!TryWalkUnits(command, ctx, out List<CompoundUnit>? walked, out FreeTextTail freeText))
         {
             return false;
         }
@@ -367,7 +375,7 @@ public static class CompoundPolicy
 
         int freeTextUnits = freeText.Exists ? 1 : 0;
         if (
-            (!TryParseUnitCommands(walked, walked.Count - freeTextUnits, out List<ParsedCommand>? commands))
+            (!TryParseUnitCommands(walked, walked.Count - freeTextUnits, ctx, out List<ParsedCommand>? commands))
             || (!IsSplittableChain(commands, freeTextUnits))
         )
         {
@@ -394,7 +402,7 @@ public static class CompoundPolicy
     /// sliced out of the line as typed, while the head before it is re-parsed from the normalized form.
     /// </para>
     /// </summary>
-    private static bool TryWalkUnits(string command, out List<CompoundUnit> units, out FreeTextTail freeText)
+    private static bool TryWalkUnits(string command, FixResolutionContext ctx, out List<CompoundUnit> units, out FreeTextTail freeText)
     {
         units = [];
 
@@ -410,7 +418,7 @@ public static class CompoundPolicy
         int blockStart = 0;
         for (int bi = 0; bi < blockStrings.Length; bi++)
         {
-            if (!TryBlockPieces(blockStrings[bi], blockStart, out List<LinePiece>? pieces))
+            if (!TryBlockPieces(blockStrings[bi], blockStart, ctx, out List<LinePiece>? pieces))
             {
                 units = [];
                 return false;
@@ -512,7 +520,7 @@ public static class CompoundPolicy
     /// special is split on <c>,</c> so every command dispatches alone, an aviation-only block stays whole. False when
     /// the block itself no longer parses.
     /// </summary>
-    private static bool TryBlockPieces(string block, int blockStart, out List<LinePiece> pieces)
+    private static bool TryBlockPieces(string block, int blockStart, FixResolutionContext ctx, out List<LinePiece> pieces)
     {
         pieces = [];
 
@@ -522,7 +530,7 @@ public static class CompoundPolicy
             return false;
         }
 
-        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(trimmed);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(trimmed, ctx: ctx);
         if ((!parsed.IsSuccess) || (parsed.Value is null))
         {
             return false;
@@ -534,7 +542,7 @@ public static class CompoundPolicy
             return true;
         }
 
-        return TryCommaPieces(block, blockStart, pieces);
+        return TryCommaPieces(block, blockStart, pieces, ctx);
     }
 
     /// <summary>
@@ -542,13 +550,13 @@ public static class CompoundPolicy
     /// scoped argument that is not free text over-splits into pieces the parser rejects, and the caller bails to the
     /// single-command path rather than dispatch half an argument.
     /// </summary>
-    private static bool TryCommaPieces(string block, int blockStart, List<LinePiece> pieces)
+    private static bool TryCommaPieces(string block, int blockStart, List<LinePiece> pieces, FixResolutionContext ctx)
     {
         int pieceStart = blockStart;
         foreach (string piece in block.Split(','))
         {
             string text = piece.Trim();
-            if ((text.Length == 0) || (!CommandParser.ParseCompound(text).IsSuccess))
+            if ((text.Length == 0) || (!CommandParser.ParseCompound(text, ctx: ctx).IsSuccess))
             {
                 return false;
             }
@@ -565,13 +573,13 @@ public static class CompoundPolicy
     /// deliberately not parsed: everything in it is message content, so scanning it for verbs is the bug the free-text
     /// rule exists to prevent.
     /// </summary>
-    private static bool TryParseUnitCommands(List<CompoundUnit> units, int count, out List<ParsedCommand> commands)
+    private static bool TryParseUnitCommands(List<CompoundUnit> units, int count, FixResolutionContext ctx, out List<ParsedCommand> commands)
     {
         commands = [];
 
         for (int i = 0; i < count; i++)
         {
-            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(units[i].Text);
+            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(units[i].Text, ctx: ctx);
             if ((!parsed.IsSuccess) || (parsed.Value is null))
             {
                 return false;

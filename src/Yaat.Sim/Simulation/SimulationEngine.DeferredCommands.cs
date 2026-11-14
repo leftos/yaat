@@ -335,7 +335,11 @@ public sealed partial class SimulationEngine
             return [];
         }
 
-        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(
+            block.SourceCommandText,
+            aircraft.FlightPlan.Route,
+            ctx: FixResolutionContext.From(aircraft.FlightPlan)
+        );
         if (!reparsed.IsSuccess || reparsed.Value is not { } compound)
         {
             return [];

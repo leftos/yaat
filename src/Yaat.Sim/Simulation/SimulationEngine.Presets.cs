@@ -381,7 +381,11 @@ public sealed partial class SimulationEngine
 
     private void AutoIssueTakeoffClearance(AircraftState aircraft, string systemNote)
     {
-        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CTO", aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(
+            "CTO",
+            aircraft.FlightPlan.Route,
+            ctx: FixResolutionContext.From(aircraft.FlightPlan)
+        );
         if (!parsed.IsSuccess)
         {
             _logger.LogWarning("Auto-CTO parse failed for released departure {Callsign}", aircraft.Callsign);
@@ -478,7 +482,11 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            ParseResult<CompoundCommand> timedResult = CommandParser.ParseCompound(preset.Command, aircraft.FlightPlan.Route);
+            ParseResult<CompoundCommand> timedResult = CommandParser.ParseCompound(
+                preset.Command,
+                aircraft.FlightPlan.Route,
+                ctx: FixResolutionContext.From(aircraft.FlightPlan)
+            );
             if (IsHeldUntilRelease(aircraft, timedResult))
             {
                 holding.Add(preset.Callsign);
@@ -628,7 +636,11 @@ public sealed partial class SimulationEngine
 
     private void DispatchSinglePreset(string command, AircraftState aircraft)
     {
-        ParseResult<CompoundCommand> presetResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> presetResult = CommandParser.ParseCompound(
+            command,
+            aircraft.FlightPlan.Route,
+            ctx: FixResolutionContext.From(aircraft.FlightPlan)
+        );
         if (!presetResult.IsSuccess)
         {
             _logger.LogWarning("Preset parse failed for {Callsign}: \"{Command}\" — {Reason}", aircraft.Callsign, command, presetResult.Reason);

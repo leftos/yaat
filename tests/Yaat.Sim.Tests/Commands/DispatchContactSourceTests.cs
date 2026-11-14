@@ -181,7 +181,7 @@ public class DispatchContactSourceTests
         CompoundCommand payload = CommandParser.ParseCompound("FH 270").Value!;
         var deferred = new DeferredDispatch(5, payload) { SourceText = "WAIT 5; FH 270", IsScenarioScripted = true };
 
-        var restored = DeferredDispatch.FromSnapshot(deferred.ToSnapshot(), null);
+        var restored = DeferredDispatch.FromSnapshot(deferred.ToSnapshot(), null, FixResolutionContext.None);
 
         Assert.NotNull(restored);
         Assert.True(restored!.IsScenarioScripted);

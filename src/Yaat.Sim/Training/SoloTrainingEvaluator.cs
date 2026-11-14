@@ -190,7 +190,10 @@ public sealed class SoloTrainingEvaluator
             }
             else if (parsedCommand is ReportTrafficLandmarkCommand landmark)
             {
-                (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(landmark.Details.FixName);
+                (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(
+                    landmark.Details.FixName,
+                    FixResolutionContext.From(aircraft.FlightPlan)
+                );
                 TrafficAdvisoryTargetMatch? match = position is null
                     ? null
                     : TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(

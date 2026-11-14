@@ -2715,7 +2715,11 @@ internal static class PatternCommandHandler
             return [];
         }
 
-        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(
+            block.SourceCommandText,
+            aircraft.FlightPlan.Route,
+            ctx: FixResolutionContext.From(aircraft.FlightPlan)
+        );
         if (!reparsed.IsSuccess || reparsed.Value is null)
         {
             return [];

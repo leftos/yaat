@@ -16,11 +16,17 @@ public static class CommandParser
     /// and ',' (parallel commands within a block). Returns a failure reason if any part fails to parse.
     /// Pass a <paramref name="debugLog"/> (e.g. Console.Out) to trace each decision point.
     /// </summary>
-    public static ParseResult<CompoundCommand> ParseCompound(string input, string? aircraftRoute = null, TextWriter? debugLog = null)
+    public static ParseResult<CompoundCommand> ParseCompound(
+        string input,
+        string? aircraftRoute = null,
+        TextWriter? debugLog = null,
+        FixResolutionContext ctx = default
+    )
     {
         string aliasNormalized = CommandSchemeParser.SplitTrailingGiveWay(CommandSchemeParser.NormalizeSeparatorAliases(input.Trim()));
         string trimmed = CommandSchemeParser.ExpandMultiCommand(
-            CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(aliasNormalized))
+            CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(aliasNormalized)),
+            ctx
         );
         debugLog?.WriteLine($"[ParseCompound] input=\"{input.Trim()}\" expanded=\"{trimmed}\"");
         if (string.IsNullOrEmpty(trimmed))
@@ -57,7 +63,7 @@ public static class CommandParser
         if (!isCompound)
         {
             // Single command — wrap in a compound structure
-            PR single = Parse(trimmed, aircraftRoute);
+            PR single = Parse(trimmed, aircraftRoute, ctx);
             debugLog?.WriteLine($"[ParseCompound] single Parse => {(single.IsSuccess ? single.Value!.GetType().Name : $"FAIL: {single.Reason}")}");
             if (!single.IsSuccess)
             {
@@ -74,7 +80,7 @@ public static class CommandParser
         {
             string blockTrimmed = blockStrings[i].Trim();
             debugLog?.WriteLine($"[ParseCompound] block[{i}]=\"{blockTrimmed}\"");
-            List<ParsedBlock>? parsed = ParseBlock(blockTrimmed, aircraftRoute, debugLog);
+            List<ParsedBlock>? parsed = ParseBlock(blockTrimmed, aircraftRoute, ctx, debugLog);
             if (parsed is null)
             {
                 debugLog?.WriteLine($"[ParseCompound] block[{i}] => FAILED");
@@ -168,24 +174,23 @@ public static class CommandParser
     /// when it is a bare condition — the condition and no command — is the comma a sign of the dropped
     /// command, and the returned failure suggests writing the command before the separator.
     /// </summary>
-    private static bool TrySplitBareConditionBeforeComma(string blockStr, string? aircraftRoute, TextWriter? debugLog, out string? failure)
+    private static string? BareConditionBeforeCommaFailure(string blockStr, string? aircraftRoute, FixResolutionContext ctx, TextWriter? debugLog)
     {
-        failure = null;
         int comma = blockStr.IndexOf(',');
         if (comma < 0)
         {
-            return false;
+            return null;
         }
 
         string head = blockStr[..comma].Trim();
         string next = blockStr[(comma + 1)..].Trim();
         if ((head.Length == 0) || (next.Length == 0))
         {
-            return false;
+            return null;
         }
 
         string? savedFailure = _lastBlockFailure;
-        List<ParsedBlock>? headBlocks = ParseBlock(head, aircraftRoute, debugLog);
+        List<ParsedBlock>? headBlocks = ParseBlock(head, aircraftRoute, ctx, debugLog);
         bool headIsBare = (headBlocks is not null) && IsBareConditionBlock(headBlocks);
 
         // The probe must leave no trace: a head that fails to parse writes the thread-static failure
@@ -194,18 +199,17 @@ public static class CommandParser
 
         if (!headIsBare)
         {
-            return false;
+            return null;
         }
 
-        failure = CommandSchemeParser.EmptyConditionMessage(head, ',', next);
-        return true;
+        return CommandSchemeParser.EmptyConditionMessage(head, ',', next);
     }
 
     // Thread-local storage for propagating block/command failure reasons through ParseBlock
     [ThreadStatic]
     private static string? _lastBlockFailure;
 
-    private static List<ParsedBlock>? ParseBlock(string blockStr, string? aircraftRoute, TextWriter? debugLog = null)
+    private static List<ParsedBlock>? ParseBlock(string blockStr, string? aircraftRoute, FixResolutionContext ctx, TextWriter? debugLog = null)
     {
         if (string.IsNullOrWhiteSpace(blockStr))
         {
@@ -215,7 +219,7 @@ public static class CommandParser
 
         // A condition immediately followed by a parallel separator has no command of its own —
         // `AT SUNOL, DM 020` is the `;` typo in comma clothing.
-        if (TrySplitBareConditionBeforeComma(blockStr, aircraftRoute, debugLog, out string? commaFailure))
+        if (BareConditionBeforeCommaFailure(blockStr, aircraftRoute, ctx, debugLog) is { } commaFailure)
         {
             _lastBlockFailure = commaFailure;
             return null;
@@ -240,7 +244,7 @@ public static class CommandParser
         }
         else if (upper.StartsWith("AT "))
         {
-            (BlockCondition Condition, string Remainder)? condResult = ParseAtCondition(remaining);
+            (BlockCondition Condition, string Remainder)? condResult = ParseAtCondition(remaining, ctx);
             if (condResult is null)
             {
                 debugLog?.WriteLine($"  [ParseBlock] AT condition parse failed for \"{blockStr}\"");
@@ -304,7 +308,7 @@ public static class CommandParser
             // block 1 = ONHO (no commands), block 2 = inner condition + commands
             if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
             {
-                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, ctx, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -331,7 +335,7 @@ public static class CommandParser
             // ONHS followed by another condition (AT/LV/ATFN) → two sequential blocks
             if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
             {
-                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, ctx, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -358,7 +362,7 @@ public static class CommandParser
             // OTG followed by another condition (AT/LV/ATFN) → two sequential blocks
             if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
             {
-                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, ctx, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -379,7 +383,7 @@ public static class CommandParser
             string remUpper = remaining.ToUpperInvariant();
             if (remUpper.StartsWith("AT ") || remUpper.StartsWith("LV ") || remUpper.StartsWith("ATFN "))
             {
-                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, ctx, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -403,7 +407,10 @@ public static class CommandParser
         }
 
         // After condition extraction, apply expansions to the remainder
-        string expanded = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)));
+        string expanded = CommandSchemeParser.ExpandMultiCommand(
+            CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)),
+            ctx
+        );
         if (expanded != remaining)
         {
             debugLog?.WriteLine($"  [ParseBlock] remainder expanded: \"{remaining}\" => \"{expanded}\"");
@@ -428,7 +435,7 @@ public static class CommandParser
 
             if (subBlocks.Count > 0)
             {
-                List<ParsedCommand>? firstCmds = ParseCommandList(subBlocks[0], aircraftRoute, debugLog);
+                List<ParsedCommand>? firstCmds = ParseCommandList(subBlocks[0], aircraftRoute, ctx, debugLog);
                 if (firstCmds is null)
                 {
                     return null;
@@ -445,7 +452,7 @@ public static class CommandParser
                     index = 1;
                     while (index < subBlocks.Count)
                     {
-                        List<ParsedBlock>? nextParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
+                        List<ParsedBlock>? nextParsed = ParseBlock(subBlocks[index], aircraftRoute, ctx, debugLog);
                         if (nextParsed is null)
                         {
                             return null;
@@ -474,7 +481,7 @@ public static class CommandParser
             for (; index < subBlocks.Count; index++)
             {
                 // Recursive call for subsequent blocks (they may have their own conditions)
-                List<ParsedBlock>? subParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
+                List<ParsedBlock>? subParsed = ParseBlock(subBlocks[index], aircraftRoute, ctx, debugLog);
                 if (subParsed is null)
                 {
                     return null;
@@ -489,7 +496,7 @@ public static class CommandParser
         remaining = expanded;
 
         // Split remaining by ',' for parallel commands
-        List<ParsedCommand>? commands = ParseCommandList(remaining, aircraftRoute, debugLog);
+        List<ParsedCommand>? commands = ParseCommandList(remaining, aircraftRoute, ctx, debugLog);
         if (commands is null)
         {
             return null;
@@ -498,7 +505,7 @@ public static class CommandParser
         return [new ParsedBlock(condition, commands)];
     }
 
-    private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, TextWriter? debugLog = null)
+    private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, FixResolutionContext ctx, TextWriter? debugLog = null)
     {
         // SAY, TIMER and BM consume their entire remainder as literal text, and ARWY's runway list may be
         // comma-separated — don't split on comma
@@ -510,7 +517,7 @@ public static class CommandParser
             || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.ActiveRunways)
         )
         {
-            PR cmd = Parse(input.Trim(), aircraftRoute);
+            PR cmd = Parse(input.Trim(), aircraftRoute, ctx);
             if (!cmd.IsSuccess)
             {
                 _lastBlockFailure = cmd.Reason;
@@ -526,7 +533,7 @@ public static class CommandParser
         foreach (string cmdStr in commandStrings)
         {
             string trimmedCmd = cmdStr.Trim();
-            PR cmd = Parse(trimmedCmd, aircraftRoute);
+            PR cmd = Parse(trimmedCmd, aircraftRoute, ctx);
             if (cmd.IsSuccess)
             {
                 debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" => {cmd.Value!.GetType().Name}");
@@ -535,7 +542,7 @@ public static class CommandParser
             }
 
             // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
-            string expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd);
+            string expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd, ctx);
             if (expanded == trimmedCmd)
             {
                 debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" => FAILED (no expansion available)");
@@ -546,7 +553,7 @@ public static class CommandParser
             debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" expanded to \"{expanded}\"");
             foreach (string subCmd in expanded.Split(','))
             {
-                PR parsed = Parse(subCmd.Trim(), aircraftRoute);
+                PR parsed = Parse(subCmd.Trim(), aircraftRoute, ctx);
                 if (!parsed.IsSuccess)
                 {
                     debugLog?.WriteLine($"    [ParseCommandList] sub \"{subCmd.Trim()}\" => FAILED");
@@ -602,7 +609,7 @@ public static class CommandParser
         return (new LevelCondition(altitude.Value), remainder);
     }
 
-    private static (BlockCondition Condition, string Remainder)? ParseAtCondition(string input)
+    private static (BlockCondition Condition, string Remainder)? ParseAtCondition(string input, FixResolutionContext ctx)
     {
         // "AT 5000 CM 190" → LevelCondition(5000), remainder="CM 190"
         // "AT SUNOL FH 090" → AtFixCondition(SUNOL, lat, lon), remainder="FH 090"
@@ -655,7 +662,7 @@ public static class CommandParser
         // Try direct airborne-fix lookup. Wins over taxiway on collision so all existing
         // AT <fix> behavior is preserved unchanged.
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(token);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(token, ctx);
         if (pos is not null)
         {
             return (new AtFixCondition(token, pos.Value.Lat, pos.Value.Lon), remainder);
@@ -666,7 +673,7 @@ public static class CommandParser
         if (parsed is { Radial: not null } frdWithRadial)
         {
             (string? fixName, int? radial, int? distance) = frdWithRadial;
-            (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
+            (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName, ctx);
             if (fixPos is not null)
             {
                 return (new AtFixCondition(fixName, fixPos.Value.Lat, fixPos.Value.Lon, radial, distance), remainder);
@@ -743,7 +750,7 @@ public static class CommandParser
     /// <summary>
     /// Parses a single command string. Extended to support DCT verb.
     /// </summary>
-    public static PR Parse(string input, string? aircraftRoute = null)
+    public static PR Parse(string input, string? aircraftRoute = null, FixResolutionContext ctx = default)
     {
         string trimmed = input.Trim();
         if (string.IsNullOrEmpty(trimmed))
@@ -766,9 +773,9 @@ public static class CommandParser
         switch (verb)
         {
             case "CTOMRT":
-                return DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : ""));
+                return DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : ""), ctx);
             case "CTOMLT":
-                return DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : ""));
+                return DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : ""), ctx);
             case "CTORH" when arg is null:
                 return PR.Ok(new ClearedForTakeoffCommand(new RunwayHeadingDeparture()));
             case "GAMRT" when arg is null:
@@ -785,7 +792,7 @@ public static class CommandParser
             string? rewritten = RewriteRwyToTaxiArg(arg);
             if (rewritten is not null)
             {
-                return ParseByType(Taxi, rewritten, aircraftRoute, trimmed);
+                return ParseByType(Taxi, rewritten, aircraftRoute, trimmed, ctx);
             }
         }
 
@@ -795,7 +802,7 @@ public static class CommandParser
             return TryConcatenation(upper);
         }
 
-        PR result = ParseByType(type, arg, aircraftRoute, trimmed);
+        PR result = ParseByType(type, arg, aircraftRoute, trimmed, ctx);
         if (!result.IsSuccess)
         {
             string expected = CommandRegistry.RenderSignature(type);
@@ -804,7 +811,7 @@ public static class CommandParser
         return result;
     }
 
-    private static PR ParseByType(CanonicalCommandType type, string? arg, string? aircraftRoute, string rawInput)
+    private static PR ParseByType(CanonicalCommandType type, string? arg, string? aircraftRoute, string rawInput, FixResolutionContext ctx)
     {
         return type switch
         {
@@ -832,7 +839,7 @@ public static class CommandParser
             ForceHeading => ParseHeading(arg, h => new ForceHeadingCommand(new MagneticHeading(h))),
             ForceAltitude => ParseAltitude(arg, a => new ForceAltitudeCommand(a)),
             ForceSpeed => ParseForceSpeed(arg),
-            Warp => ParseWarp(arg),
+            Warp => ParseWarp(arg, ctx),
             WarpGround when arg is not null => ParseWarpGround(arg),
             // Transponder
             Squawk => ParseSquawkOrReset(arg),
@@ -845,12 +852,12 @@ public static class CommandParser
             SquawkNormalAll when arg is null => PR.Ok(new SquawkNormalAllCommand()),
             SquawkStandbyAll when arg is null => PR.Ok(new SquawkStandbyAllCommand()),
             // Navigation
-            DirectTo => ParseDirectTo(arg, aircraftRoute),
-            ForceDirectTo => ParseForceDirectTo(arg, aircraftRoute),
-            AppendDirectTo => ParseAppendDirectTo(arg, aircraftRoute),
-            AppendForceDirectTo => ParseAppendForceDirectTo(arg, aircraftRoute),
-            TurnLeftDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Left),
-            TurnRightDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Right),
+            DirectTo => ParseDirectTo(arg, aircraftRoute, ctx),
+            ForceDirectTo => ParseForceDirectTo(arg, aircraftRoute, ctx),
+            AppendDirectTo => ParseAppendDirectTo(arg, aircraftRoute, ctx),
+            AppendForceDirectTo => ParseAppendForceDirectTo(arg, aircraftRoute, ctx),
+            TurnLeftDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Left, ctx),
+            TurnRightDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Right, ctx),
             // Sim control
             Delete when arg is null => PR.Ok(new DeleteCommand()),
             Assume when arg is null => PR.Ok(new AssumeCommand()),
@@ -876,7 +883,7 @@ public static class CommandParser
             Add when arg is not null => PR.Ok(new AddAircraftCommand(arg)),
             // Tower
             LineUpAndWait => DepartureCommandParser.ParseLuawArg(arg),
-            ClearedForTakeoff => DepartureCommandParser.ParseCtoArg(arg),
+            ClearedForTakeoff => DepartureCommandParser.ParseCtoArg(arg, ctx),
             CancelTakeoffClearance when arg is null => PR.Ok(new CancelTakeoffClearanceCommand()),
             GoAround => ParseGoAround(arg),
             ClearedToLand => ParseClearedToLand(arg),
@@ -928,13 +935,13 @@ public static class CommandParser
             HoldPresentPosition360Left when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Left)),
             HoldPresentPosition360Right when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Right)),
             HoldPresentPositionHover when arg is null => PR.Ok(new HoldPresentPositionHoverCommand()),
-            HoldAtFixLeft => ParseHoldAtFix(arg, TurnDirection.Left),
-            HoldAtFixRight => ParseHoldAtFix(arg, TurnDirection.Right),
-            HoldAtFixHover => ParseHoldAtFixHover(arg),
+            HoldAtFixLeft => ParseHoldAtFix(arg, TurnDirection.Left, ctx),
+            HoldAtFixRight => ParseHoldAtFix(arg, TurnDirection.Right, ctx),
+            HoldAtFixHover => ParseHoldAtFixHover(arg, ctx),
             // Helicopter
             AirTaxi => PR.Ok(ParseAirTaxi(arg)),
             Land when arg is not null => ParseLand(arg),
-            ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg),
+            ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg, ctx),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
             Pushback => GroundCommandParser.ParsePushback(arg, forced: false),
             PushbackMulti => GroundCommandParser.ParsePushbackMulti(arg, forced: false),
@@ -943,7 +950,7 @@ public static class CommandParser
             Taxi => GroundCommandParser.ParseTaxi(arg),
             AssignRunway => GroundCommandParser.ParseRwyTaxi(arg),
             HoldPosition when arg is null => PR.Ok(new HoldPositionCommand()),
-            HoldPosition when arg is not null => ApproachCommandParser.ParseHold(arg),
+            HoldPosition when arg is not null => ApproachCommandParser.ParseHold(arg, ctx),
             Resume => GroundCommandParser.ParseResume(arg),
             CrossRunway => GroundCommandParser.ParseCross(arg),
             HoldShort => GroundCommandParser.ParseHoldShort(arg),
@@ -963,8 +970,8 @@ public static class CommandParser
             ExitTaxiway when arg is not null => GroundCommandParser.ParseExitTaxiway(arg),
             // Approach
             ExpectApproach => ParseExpectApproach(arg),
-            ClearedApproach => ApproachCommandParser.ParseCapp(arg, false),
-            ClearedApproachForce => ApproachCommandParser.ParseCapp(arg, true),
+            ClearedApproach => ApproachCommandParser.ParseCapp(arg, false, ctx),
+            ClearedApproachForce => ApproachCommandParser.ParseCapp(arg, true, ctx),
             ClearedApproachStraightIn => ApproachCommandParser.ParseCappSi(arg),
             JoinApproach => ApproachCommandParser.ParseJapp(arg, false),
             JoinApproachForce => ApproachCommandParser.ParseJapp(arg, true),
@@ -977,15 +984,15 @@ public static class CommandParser
             ClearedOutOfMilitaryRoute => MilitaryRouteCommandParser.ParseClearedOutOf(arg),
             SayExitFixEstimate => MilitaryRouteCommandParser.ParseSayExitFixEstimate(arg),
             ClearedToConductRefueling => MilitaryRouteCommandParser.ParseClearedToConductRefueling(arg),
-            JoinRadialOutbound => ApproachCommandParser.ParseJrado(arg),
-            JoinRadialInbound => ApproachCommandParser.ParseJradi(arg),
-            HoldingPattern => ApproachCommandParser.ParseHold(arg),
+            JoinRadialOutbound => ApproachCommandParser.ParseJrado(arg, ctx),
+            JoinRadialInbound => ApproachCommandParser.ParseJradi(arg, ctx),
+            HoldingPattern => ApproachCommandParser.ParseHold(arg, ctx),
             PositionTurnAltitudeClearance => ApproachCommandParser.ParsePtac(arg, forced: false),
             PositionTurnAltitudeClearanceForce => ApproachCommandParser.ParsePtac(arg, forced: true),
             ClimbVia => ApproachCommandParser.ParseCvia(arg),
-            DescendVia => ApproachCommandParser.ParseDvia(arg),
-            CrossFix => ApproachCommandParser.ParseCfix(arg),
-            DepartFix => ApproachCommandParser.ParseDepart(arg),
+            DescendVia => ApproachCommandParser.ParseDvia(arg, ctx),
+            CrossFix => ApproachCommandParser.ParseCfix(arg, ctx),
+            DepartFix => ApproachCommandParser.ParseDepart(arg, ctx),
             ListApproaches => PR.Ok(ApproachCommandParser.ParseApps(arg)),
             ClearedVisualApproach => ApproachCommandParser.ParseCva(arg, force: false),
             ClearedVisualApproachForce => ApproachCommandParser.ParseCva(arg, force: true),
@@ -1194,7 +1201,8 @@ public static class CommandParser
                 continue;
             }
 
-            return ParseByType(type, remainder, null, upperInput);
+            // A concatenated argument is numeric (an altitude, heading or speed), never a fix name.
+            return ParseByType(type, remainder, null, upperInput, FixResolutionContext.None);
         }
 
         return PR.Fail(
@@ -1499,20 +1507,20 @@ public static class CommandParser
     /// Resolves a space-separated list of fix names to positions.
     /// Every name must resolve (via navdb or FRD); returns a failure reason on the first unknown.
     /// </summary>
-    private static (List<ResolvedFix>? Fixes, string? FailReason) ResolveAllFixes(string[] fixNames)
+    private static (List<ResolvedFix>? Fixes, string? FailReason) ResolveAllFixes(string[] fixNames, FixResolutionContext ctx)
     {
         NavigationDatabase navDb = NavigationDatabase.Instance;
         var resolved = new List<ResolvedFix>();
         foreach (string name in fixNames)
         {
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(name, ctx);
             if (pos is not null)
             {
                 resolved.Add(new ResolvedFix(name.ToUpperInvariant(), pos.Value.Lat, pos.Value.Lon));
                 continue;
             }
 
-            LatLon? frd = FrdResolver.Resolve(name, navDb);
+            LatLon? frd = FrdResolver.Resolve(name, navDb, ctx);
             if (frd is not null)
             {
                 resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Value.Lat, frd.Value.Lon));
@@ -1527,7 +1535,7 @@ public static class CommandParser
             : (null, $"no fixes found (tried: {string.Join(", ", fixNames.Select(n => n.ToUpperInvariant()))})");
     }
 
-    private static PR ParseDirectTo(string? arg, string? aircraftRoute)
+    private static PR ParseDirectTo(string? arg, string? aircraftRoute, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -1540,7 +1548,7 @@ public static class CommandParser
             return PR.Fail("DCT requires at least one fix name");
         }
 
-        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames, ctx);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1554,7 +1562,7 @@ public static class CommandParser
         return PR.Ok(new DirectToCommand(resolved, []));
     }
 
-    private static PR ParseAppendDirectTo(string? arg, string? aircraftRoute)
+    private static PR ParseAppendDirectTo(string? arg, string? aircraftRoute, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -1567,7 +1575,7 @@ public static class CommandParser
             return PR.Fail("ADCT requires at least one fix name");
         }
 
-        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames, ctx);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1581,7 +1589,7 @@ public static class CommandParser
         return PR.Ok(new AppendDirectToCommand(resolved, []));
     }
 
-    private static PR ParseAppendForceDirectTo(string? arg, string? aircraftRoute)
+    private static PR ParseAppendForceDirectTo(string? arg, string? aircraftRoute, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -1594,7 +1602,7 @@ public static class CommandParser
             return PR.Fail("AFDCT requires at least one fix name");
         }
 
-        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames, ctx);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1608,7 +1616,7 @@ public static class CommandParser
         return PR.Ok(new AppendForceDirectToCommand(resolved, []));
     }
 
-    private static PR ParseForceDirectTo(string? arg, string? aircraftRoute)
+    private static PR ParseForceDirectTo(string? arg, string? aircraftRoute, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -1642,7 +1650,7 @@ public static class CommandParser
                 name = token;
             }
 
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(name, ctx);
             if (pos is not null)
             {
                 int fixIndex = resolved.Count;
@@ -1661,7 +1669,7 @@ public static class CommandParser
                 continue;
             }
 
-            LatLon? frd = FrdResolver.Resolve(name, navDb);
+            LatLon? frd = FrdResolver.Resolve(name, navDb, ctx);
             if (frd is not null)
             {
                 int fixIndex = resolved.Count;
@@ -1701,7 +1709,7 @@ public static class CommandParser
         return PR.Ok(new ForceDirectToCommand(resolved, []));
     }
 
-    private static PR ParseTurnDirectTo(string? arg, string? aircraftRoute, TurnDirection direction)
+    private static PR ParseTurnDirectTo(string? arg, string? aircraftRoute, TurnDirection direction, FixResolutionContext ctx)
     {
         string label = direction == TurnDirection.Left ? "TLDCT" : "TRDCT";
         if (arg is null)
@@ -1715,7 +1723,7 @@ public static class CommandParser
             return PR.Fail($"{label} requires at least one fix name");
         }
 
-        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames, ctx);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1983,7 +1991,7 @@ public static class CommandParser
         );
     }
 
-    private static PR ParseHoldAtFix(string? arg, TurnDirection direction)
+    private static PR ParseHoldAtFix(string? arg, TurnDirection direction, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -1992,10 +2000,10 @@ public static class CommandParser
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string fixName = arg.Trim().ToUpperInvariant();
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
-            LatLon? frd = FrdResolver.Resolve(fixName, navDb);
+            LatLon? frd = FrdResolver.Resolve(fixName, navDb, ctx);
             if (frd is null)
             {
                 return PR.Fail($"fix '{fixName}' not found");
@@ -2006,7 +2014,7 @@ public static class CommandParser
         return PR.Ok(new HoldAtFixOrbitCommand(fixName, pos.Value.Lat, pos.Value.Lon, direction));
     }
 
-    private static PR ParseHoldAtFixHover(string? arg)
+    private static PR ParseHoldAtFixHover(string? arg, FixResolutionContext ctx)
     {
         if (arg is null)
         {
@@ -2015,10 +2023,10 @@ public static class CommandParser
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string fixName = arg.Trim().ToUpperInvariant();
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
-            LatLon? frd = FrdResolver.Resolve(fixName, navDb);
+            LatLon? frd = FrdResolver.Resolve(fixName, navDb, ctx);
             if (frd is null)
             {
                 return PR.Fail($"fix '{fixName}' not found");
@@ -2675,7 +2683,7 @@ public static class CommandParser
         return altitude is null ? PR.Fail($"invalid altitude '{arg}'") : PR.Ok(new ClimbMaintainCommand(altitude.Value));
     }
 
-    private static PR ParseWarp(string? arg)
+    private static PR ParseWarp(string? arg, FixResolutionContext ctx)
     {
         // WARP <FRD|FIX> [heading] [altitude] [speed]
         // heading/altitude/speed are optional and slot-filled left-to-right.
@@ -2699,7 +2707,7 @@ public static class CommandParser
 
         double lat,
             lon;
-        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(posToken);
+        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(posToken, ctx);
         if (fixPos is not null)
         {
             lat = fixPos.Value.Lat;
@@ -2707,7 +2715,7 @@ public static class CommandParser
         }
         else
         {
-            LatLon? frd = FrdResolver.Resolve(posToken, navDb);
+            LatLon? frd = FrdResolver.Resolve(posToken, navDb, ctx);
             if (frd is null)
             {
                 return PR.Fail($"fix '{posToken}' not found");

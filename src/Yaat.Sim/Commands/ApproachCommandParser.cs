@@ -16,7 +16,7 @@ internal static partial class ApproachCommandParser
     /// DCT fix approachId — direct to fix then approach.
     /// DCT fix CFIX altToken approachId — direct to fix, crossing fix altitude, then approach.
     /// </summary>
-    internal static PR ParseCapp(string? arg, bool force)
+    internal static PR ParseCapp(string? arg, bool force, FixResolutionContext ctx)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -45,7 +45,7 @@ internal static partial class ApproachCommandParser
         {
             // AT fixName approachId
             string fixName = tokens[1].ToUpperInvariant();
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
             if (pos is null)
             {
                 return PR.Fail($"fix '{fixName}' not found");
@@ -58,7 +58,7 @@ internal static partial class ApproachCommandParser
         {
             // DCT fixName [CFIX altToken] approachId
             string dctFixName = tokens[1].ToUpperInvariant();
-            (double Lat, double Lon)? dctPos = navDb.GetFixPosition(dctFixName);
+            (double Lat, double Lon)? dctPos = navDb.GetFixPosition(dctFixName, ctx);
             if (dctPos is null)
             {
                 return PR.Fail($"fix '{dctFixName}' not found");
@@ -270,12 +270,12 @@ internal static partial class ApproachCommandParser
     /// Parses JRADO fixRadial — a single token where the last 3 digits are the radial
     /// and the rest is the fix name (e.g., "OAK090" → fix=OAK, radial=090).
     /// </summary>
-    internal static PR ParseJrado(string? arg) => ParseRadialCommand(arg, outbound: true);
+    internal static PR ParseJrado(string? arg, FixResolutionContext ctx) => ParseRadialCommand(arg, outbound: true, ctx);
 
     /// <summary>
     /// Parses JRADI fixRadial — same format as JRADO but inbound.
     /// </summary>
-    internal static PR ParseJradi(string? arg) => ParseRadialCommand(arg, outbound: false);
+    internal static PR ParseJradi(string? arg, FixResolutionContext ctx) => ParseRadialCommand(arg, outbound: false, ctx);
 
     /// <summary>
     /// Parses HOLDP fixName inboundCourse [legLength[M]] [direction] [entry].
@@ -286,7 +286,7 @@ internal static partial class ApproachCommandParser
     /// Default direction is Right per 7110.65. An omitted leg is the altitude standard (AIM 5-3-8(j)(4)(a)), resolved when the
     /// hold is dispatched.
     /// </summary>
-    internal static PR ParseHold(string? arg)
+    internal static PR ParseHold(string? arg, FixResolutionContext ctx)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -301,7 +301,7 @@ internal static partial class ApproachCommandParser
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string fixName = tokens[0].ToUpperInvariant();
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
             return PR.Fail($"fix '{fixName}' not found");
@@ -516,7 +516,7 @@ internal static partial class ApproachCommandParser
     /// Parses DVIA [altitudeHundreds] or DVIA SPD &lt;speed&gt; &lt;fix&gt;.
     /// Example: "DVIA", "DVIA 040", "DVIA SPD 230 GOSHI"
     /// </summary>
-    internal static PR ParseDvia(string? arg)
+    internal static PR ParseDvia(string? arg, FixResolutionContext ctx)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -540,7 +540,7 @@ internal static partial class ApproachCommandParser
 
             string fixName = parts[2].ToUpperInvariant();
             NavigationDatabase navDb = NavigationDatabase.Instance;
-            (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
+            (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName, ctx);
             if (fixPos is null)
             {
                 return PR.Fail($"fix '{fixName}' not found");
@@ -565,7 +565,7 @@ internal static partial class ApproachCommandParser
     /// Accepts: "CFIX SUNOL A040", "CFIX SUNOL 040 250", "CFIX SUNOL AT 360"
     /// The "AT" keyword form splits altitude into a separate token.
     /// </summary>
-    internal static PR ParseCfix(string? arg)
+    internal static PR ParseCfix(string? arg, FixResolutionContext ctx)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -580,7 +580,7 @@ internal static partial class ApproachCommandParser
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string fixName = tokens[0].ToUpperInvariant();
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
             return PR.Fail($"fix '{fixName}' not found");
@@ -624,7 +624,7 @@ internal static partial class ApproachCommandParser
     /// Parses DEPART fixName heading.
     /// Example: "DEPART SUNOL 270"
     /// </summary>
-    internal static PR ParseDepart(string? arg)
+    internal static PR ParseDepart(string? arg, FixResolutionContext ctx)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -639,7 +639,7 @@ internal static partial class ApproachCommandParser
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string fixName = tokens[0].ToUpperInvariant();
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
             return PR.Fail($"fix '{fixName}' not found");
@@ -750,7 +750,7 @@ internal static partial class ApproachCommandParser
     /// Shared parser for radial commands (JRADO and JRADI).
     /// Splits a single token like "OAK090" into fix name + radial.
     /// </summary>
-    private static PR ParseRadialCommand(string? arg, bool outbound)
+    private static PR ParseRadialCommand(string? arg, bool outbound, FixResolutionContext ctx)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -774,7 +774,7 @@ internal static partial class ApproachCommandParser
         }
 
         string fixName = token[..^3];
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName, ctx);
         if (pos is null)
         {
             return PR.Fail($"fix '{fixName}' not found");

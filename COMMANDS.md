@@ -8,6 +8,7 @@ Complete reference for all YAAT commands. For a quick introduction to issuing co
 - [Command Basics](#command-basics)
   - [Selecting an Aircraft](#selecting-an-aircraft)
   - [Syntax](#syntax)
+  - [Fix Arguments](#fix-arguments)
   - [Altitude Arguments](#altitude-arguments)
   - [Runway Designators](#runway-designators)
   - [Command Chaining](#command-chaining)
@@ -119,6 +120,10 @@ Aliases are fully editable in **Settings › Command verbs**.
 Commands beginning with `.` are client-local — they act on your own displays and are never sent to aircraft.
 
 These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a radar-view line between two named points, each a fix, an FRD, or a callsign), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
+
+### Fix Arguments
+
+A fix argument is a NavData fix name, an [FRD](#fix-radial-distance-frd) or a military route point. When none of those knows the name, a command addressed to an aircraft also accepts a terminal waypoint from the CIFP of that aircraft's destination airport, then its departure airport (`CFIX CFBMS` for an aircraft bound for KBCT). No other airport is searched, and an unknown name is refused. STAR body fixes and airway fixes are not affected.
 
 ### Altitude Arguments
 
