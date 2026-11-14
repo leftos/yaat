@@ -13,6 +13,8 @@
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
+  - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
+  - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -379,6 +381,7 @@
 - [ ] YAAT-2097 Floor a heavy's tight-turn radius by its wheelbase (15 ft needs ~82° of steering)
 - [ ] YAAT-2099 Prove heavies do not orbit tight ramp-connector fillets with the per-type radius
 - [ ] YAAT-2101 Bring StraightArrivalThresholdNm and LineUpGeometry.Compute within the hard limits
+- [ ] YAAT-2263 TAXI T TE @29 from KOAK stand 20 drops T with no unable-via warning
 
 ## Ground traffic: follow, give-way and conflicts
 
@@ -1307,7 +1310,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (21/30 done)
+### 1 Defects (21/31 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
@@ -1317,6 +1320,7 @@
 - [ ] YAAT-2039 Turn on server GC for the Sim test suite (property is misspelled)
 - [ ] YAAT-2177 Fix the dotnet format style findings in untouched test files (IDE0008, IDE0044, IDE0060)
 - [ ] YAAT-2180 Stop HeldLayoutFetch.Dispose masking a test failure with Directory not empty
+- [ ] YAAT-2262 Reject NaN and Infinity in SoakRunner's --sim-hours and --sim-rate-limit
 
 ### 2 Refinements and rulings (3/7 done)
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
@@ -1324,12 +1328,8 @@
 - [ ] YAAT-1967 Keep LM-Kit from raising the client and its UI test host to High priority
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
-### 3 Hygiene and tests (4/64 done)
-- [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server) · release vNext
+### 3 Hygiene and tests (8/64 done)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat · release vNext
-- [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak) · release vNext
-- [ ] YAAT-166 Add a MainViewModel test seam that skips the nav-data download · release vNext
-- [ ] YAAT-167 Extract shared Follow test helpers in Yaat.Sim.Tests · release vNext
 - [ ] YAAT-186 Add tick-performance regression tests (allocations, nightly p95 CPU) · release vNext
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
@@ -1392,7 +1392,7 @@
 
 ## Docs, agent tooling and repo hygiene
 
-### 1 Defects (3/15 done)
+### 1 Defects (4/15 done)
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-1550 Make GuideCapture's load-weather and connected-empty scenes wait for their shown state before capturing
@@ -1403,7 +1403,6 @@
 - [ ] YAAT-1207 Keep a resolved Discord thread name within 100 characters when the emoji is added
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
-- [ ] YAAT-2094 Run the bash prek hooks under Git Bash, not WSL; then drop the --local and pre-run prek habit · release vNext
 - [ ] YAAT-2231 Halt prepare-release on a red or running CI run in either repo at the released commits
 
 ### 2 Refinements and rulings (0/3 done)
@@ -1411,33 +1410,16 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (3/70 done)
-- [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line · release vNext
+### 3 Hygiene and tests (20/72 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
-- [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC · release vNext
-- [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule · release vNext
-- [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md · release vNext
-- [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params · release vNext
-- [ ] YAAT-112 Move developer docs from the repo root into docs/ · release vNext
-- [ ] YAAT-113 Make claude-guard-bash.sh check the gate/timeout wrappers per segment · release vNext
 - [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits · release vNext
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
 - [ ] YAAT-118 Fail the build on unused usings (IDE0005) in both repos and CI · release vNext
 - [ ] YAAT-119 Move GuideCapture's in-process server host into a yaat-server tool · release vNext
-- [ ] YAAT-120 Name Git's bash explicitly in prek.toml hooks (WSL bash escapes the gate) · release vNext
 - [ ] YAAT-121 Add the agent-mail-guard hook to prek.toml · release vNext
-- [ ] YAAT-122 Wrap tools/test-all.ps1's builds and test runs in the gate · release vNext
-- [ ] YAAT-123 Document how STT-on UI tests avoid the network prewarm · release vNext
-- [ ] YAAT-125 Add Task Index rows and a brief rule naming yaat-server's owning docs · release vNext
 - [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
-- [ ] YAAT-127 Fix three stale doc facts (hub method count, PopulateRoom, ServerConnection) · release vNext
-- [ ] YAAT-129 Correct docs/tick-loop.md broadcast cadence (once per wall second) · release vNext
 - [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template · release vNext
-- [ ] YAAT-131 Fix dead doc paths rigcheck found · release vNext
-- [ ] YAAT-204 Rework the triage-open-issues skill for the Linear plan · release vNext
-- [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules · release vNext
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine · release vNext
-- [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state) · release vNext
 - [ ] YAAT-155 Fix the FOLLOW docs leftovers in approach-and-pattern-geometry.md · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
@@ -1479,6 +1461,8 @@
 - [ ] YAAT-1759 Repoint docs that cite CLAUDE.md sections no longer there
 - [ ] YAAT-1978 Split TryTaxiCore and TryExitCommand under the 100-line limit
 - [ ] YAAT-2232 Replace stale line anchors in radar-rendering.md and speech-context-decoder.md with symbols
+- [ ] YAAT-2264 Convert AircraftStateDto/AircraftDto to the decided shape and fix the hub-contract checklist · release vNext
+- [ ] YAAT-2265 Remove the Legacy fillet Phase-D leftovers and line citations from the ground docs
 
 ### No milestone
 - [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
@@ -1535,6 +1519,6 @@
 - [sfo-ground-technique-tests.md](sfo-ground-technique-tests.md) — YAAT-2228
 - [stt-rule-gaps.md](stt-rule-gaps.md) — STT tuning
 - [taxi-append.md](taxi-append.md) — Taxi append
-- [test-suite-speed.md](test-suite-speed.md) — YAAT-131, YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
+- [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2220, YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT Scope (feat/yaat-scope)
