@@ -407,7 +407,16 @@ A refusal about YAAT's own command forms is never voiced: the RPO-only commands 
 
 The request kinds: `Descent` (below), `FurtherClearance` (below), `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (an IFR or VFR departure's request to the lowest position the student works) and `Release` (an untowered runway spawn's release request).
 
-Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `FollowGroundCommand`, like any taxi or push, → Satisfied for Taxi; `SquawkCommand` / `RandomSquawkCommand` / `SquawkVfrCommand` → Satisfied for Clearance; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff). A `Release` request is answered only through `SatisfyOpenRequest`.
+Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `FollowGroundCommand`, like any taxi or push, → Satisfied for Taxi; `SquawkCommand` / `RandomSquawkCommand` / `SquawkVfrCommand` → Satisfied for Clearance; `ExpectApproachCommand` → Satisfied for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff). A `Release` request is answered only through `SatisfyOpenRequest`.
+
+### Approach request ("request approach assignment")
+
+`PilotProactive.TickArrivalApproachRequest` has an arrival with no approach assignment ask for one (`PilotResponder.BuildArrivalApproachRequest`), recorded as an `Approach` pending request.
+
+- **Has an assignment, so does not ask.** An approach clearance, active or held (`PilotProactive.HasApproachClearance`: a `CAPP` or `AT fix CAPP` deferred until the route reaches the connecting fix), or an `EAPP` the student or a controller AI gave. A held clearance a later instruction drops lets the pilot ask again, unless it was given an `EAPP`. The same check keeps a pilot holding either kind of clearance from asking for lower.
+- **The `EAPP` stamp.** `Approach.Expected` is seeded from the scenario's `primaryApproach`, so it cannot tell whether a controller issued an `EAPP`: `PilotRequestTracker.StampExpectedApproach` records it in `AircraftState.ExpectedApproachAdvisedAtSeconds`, called for the accepted command of the student or a controller AI. The seeded approach and scripted presets never stamp, so an arrival whose only expected approach is the `primaryApproach` still asks. An `EAPP` followed by an `APT` in one compound does not count for the new destination.
+- **What clears the stamp.** An `RWY` to a runway other than the expected approach's lets the pilot ask again (the expected approach itself is kept); an `RWY` to the same runway changes nothing. A change of destination airport clears it.
+- **Answered by** an `EAPP` given after the pilot asked (Satisfied, no "standby" re-ask) or any approach clearance, including a queued `AT fix CAPP` that fires later. An `EAPP` given before the request does not answer it: an "unable visual, request vectors" request stays open and is re-asked every 120 s even when the arrival had an `EAPP` before its visual.
 
 ### Descent request ("request lower")
 

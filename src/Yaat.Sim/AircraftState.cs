@@ -460,6 +460,15 @@ public class AircraftState
     public double? DescentClearedAtSeconds { get; set; }
 
     /// <summary>
+    /// When (scenario-elapsed seconds) the student or a controller AI last told the pilot what approach to expect with an
+    /// accepted EAPP (<see cref="PilotRequestTracker.StampExpectedApproach"/>). The scenario's seeded expected approach and
+    /// scripted presets never set it; leaving the destination's arrival state (an airport change) clears it. While set, the
+    /// pilot does not request an approach assignment (<see cref="PilotProactive.TickArrivalApproachRequest"/>).
+    /// Snapshot-serialized.
+    /// </summary>
+    public double? ExpectedApproachAdvisedAtSeconds { get; set; }
+
+    /// <summary>
     /// The aircraft's memory of its last capped request for lower: set when one reaches its cap
     /// (<see cref="PilotRequestTracker.TryQueueFollowUp"/>) or re-opens (<see cref="PilotProactive.TickDescentRequest"/>),
     /// kept when another request replaces it, and cleared only by a descent clearance
@@ -612,6 +621,7 @@ public class AircraftState
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
             DescentClearedAtSeconds = dto.DescentClearedAtSeconds,
+            ExpectedApproachAdvisedAtSeconds = dto.ExpectedApproachAdvisedAtSeconds,
             // Snapshots from before the field restore no capped request for lower.
             DescentRequestCap = RestoreDescentRequestCap(dto.DescentRequestCap),
             DescentRequestCappedAtSeconds = dto.DescentRequestCappedAtSeconds,
@@ -734,6 +744,7 @@ public class AircraftState
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),
             DescentClearedAtSeconds = DescentClearedAtSeconds,
+            ExpectedApproachAdvisedAtSeconds = ExpectedApproachAdvisedAtSeconds,
             DescentRequestCap = (int)DescentRequestCap,
             DescentRequestCappedAtSeconds = DescentRequestCappedAtSeconds,
             LastPilotTransmission = LastPilotTransmission?.ToSnapshot(),

@@ -803,9 +803,9 @@ public class DescentRequestTests
             }
 
             // Pinned from a run. Before this change (no re-ask cap), counted the same way: request lower N160TM=1,
-            // N2382V=4; approach N160TM=1, N172YY=1.
+            // N2382V=4; approach N160TM=1, N172YY=1. N160TM's approach request was GitHub #1380: it holds a deferred CAPP.
             Assert.Equal("N160TM=1, N2382V=2", Counts(requestsLower));
-            Assert.Equal("N160TM=1, N172YY=1", Counts(approachRequests));
+            Assert.Equal("N172YY=1", Counts(approachRequests));
         }
     }
 

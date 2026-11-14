@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- In solo training, an arrival cleared for an approach it will join from its route, or told what to expect with `EAPP`, no longer asks for an approach assignment.
 - A crosswind or downwind departure (`CTO MRC`, `CTO MRD`) given `CM` on the roll still turns crosswind and flies its queued `DCT`.
 - A VFR arrival turned away from the field to set up its pattern entry keeps the VFR arrival quick commands instead of switching to flight following.
 - Solo-training arrivals ask for lower once well above a normal descent path, not near the field, and repeat at most twice, so requests no longer flood the frequency.

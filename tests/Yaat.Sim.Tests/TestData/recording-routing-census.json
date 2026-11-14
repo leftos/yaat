@@ -652,6 +652,18 @@
     "Solo": false
   },
   {
+    "File": "issue1380-capp-eapp-approach-request-recording.yaat-bug-report-bundle.zip",
+    "Commands": 18,
+    "ByKind": {
+      "Compound": 11,
+      "TrackOwnership": 7
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
     "File": "issue154-vfr-cold-calls-recording.zip",
     "Commands": 37,
     "ByKind": {
