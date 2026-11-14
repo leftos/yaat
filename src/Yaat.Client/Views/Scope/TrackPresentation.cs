@@ -42,6 +42,12 @@ public enum ScopeColorToken
 
     /// <summary>The STARS cwt/type token of an aircraft whose actual type differs from its filed type (amber today).</summary>
     TypeMismatch,
+
+    /// <summary>Altitude below the MVA floor by more than the at-band (red today).</summary>
+    MvaBelow,
+
+    /// <summary>Altitude within the at-band of the MVA floor (amber today).</summary>
+    MvaAt,
 }
 
 /// <summary>How the renderer draws a field's text beyond its colour.</summary>

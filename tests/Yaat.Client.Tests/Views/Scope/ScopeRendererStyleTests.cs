@@ -5,6 +5,7 @@ using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
@@ -24,16 +25,27 @@ public class ScopeRendererStyleTests
     private static readonly SKColor BlockColor = SKColors.White;
     private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
 
-    private static MapViewport Viewport() =>
+    // Today's TargetRenderer.MvaBelowColor / MvaAtColor, duplicated rather than exposed.
+    private static readonly SKColor MvaBelowColor = new(255, 90, 90);
+    private static readonly SKColor MvaAtColor = new(255, 200, 60);
+
+    /// <summary>KOAK, inside a 2,000 ft MVA sector.</summary>
+    private static readonly LatLon Koak = new(37.7213, -122.2208);
+
+    private static MapViewport Viewport() => Viewport(37.0, -122.0);
+
+    private static MapViewport Viewport(double centerLat, double centerLon) =>
         new()
         {
             PixelWidth = Width,
             PixelHeight = Height,
-            CenterLat = 37.0,
-            CenterLon = -122.0,
+            CenterLat = centerLat,
+            CenterLon = centerLon,
         };
 
-    private static ScopeFrame Frame(AircraftModel ac)
+    private static ScopeFrame Frame(AircraftModel ac) => Frame(ac, Viewport());
+
+    private static ScopeFrame Frame(AircraftModel ac, MapViewport viewport)
     {
         using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
         using var paint = new SKPaint();
@@ -41,7 +53,7 @@ public class ScopeRendererStyleTests
         var input = new ScopeFrameInput(
             [ac],
             null,
-            Viewport(),
+            viewport,
             false,
             metrics,
             ScopeTestAircraft.AllAlerts,
@@ -51,13 +63,15 @@ public class ScopeRendererStyleTests
         return ScopeFrame.Build(input);
     }
 
-    private static SKBitmap Render(ScopeFrame frame)
+    private static SKBitmap Render(ScopeFrame frame) => Render(frame, Viewport());
+
+    private static SKBitmap Render(ScopeFrame frame, MapViewport viewport)
     {
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
         using var renderer = new ScopeRenderer();
         var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize);
-        renderer.Render(canvas, Viewport(), snapshot);
+        renderer.Render(canvas, viewport, snapshot);
         canvas.Flush();
         return bitmap;
     }
@@ -148,6 +162,42 @@ public class ScopeRendererStyleTests
 
         Assert.Equal(ScopeColorToken.TypeMismatch, cwtType.Token);
         Assert.True(AnyPixel(bitmap, PixelsOf(cwtType), TypeMismatchColor), "no pixel of the type-mismatch colour in the cwt/type field");
+    }
+
+    [Fact]
+    public void MvaBelowToken_DrawsTodaysRed()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        (FieldRect altitude, SKBitmap bitmap) = RenderAtKoak(1800);
+        using (bitmap)
+        {
+            Assert.Equal(ScopeColorToken.MvaBelow, altitude.Token);
+            Assert.True(AnyPixel(bitmap, PixelsOf(altitude), MvaBelowColor), "no pixel of the MVA-below colour in the altitude field");
+        }
+    }
+
+    [Fact]
+    public void MvaAtToken_DrawsTodaysAmber()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        (FieldRect altitude, SKBitmap bitmap) = RenderAtKoak(2000);
+        using (bitmap)
+        {
+            Assert.Equal(ScopeColorToken.MvaAt, altitude.Token);
+            Assert.True(AnyPixel(bitmap, PixelsOf(altitude), MvaAtColor), "no pixel of the MVA-at colour in the altitude field");
+        }
+    }
+
+    /// <summary>Renders an IFR track at KOAK at <paramref name="altitude"/>, with the tint on, in a viewport centred on it.</summary>
+    private static (FieldRect Altitude, SKBitmap Bitmap) RenderAtKoak(double altitude)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.Position = Koak;
+        ac.Altitude = altitude;
+        ac.FlightRules = "IFR";
+        MapViewport viewport = Viewport(Koak.Lat, Koak.Lon);
+        ScopeFrame frame = Frame(ac, viewport);
+        return (FieldOf(frame, ScopeFieldSlot.Altitude), Render(frame, viewport));
     }
 
     private static ScopeFrame WithoutStyle(ScopeFrame frame)

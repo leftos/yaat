@@ -3,6 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views.Scope;
@@ -16,7 +17,8 @@ public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, b
 /// <summary>Which instructor display hints a block carries, as the user's preferences set them.</summary>
 /// <param name="MarkStudentLevel">Mark a track the student's scope shows limited or partial with <c>(LDB)</c>/<c>(PDB)</c>.</param>
 /// <param name="ShowTypeMismatchHints">Tint the STARS cwt/type token of an aircraft whose actual type differs from its filed type.</param>
-public sealed record ScopeDisplayOptions(bool MarkStudentLevel, bool ShowTypeMismatchHints);
+/// <param name="ShowMvaAltitudeTint">Tint the altitude by its relation to the MVA floor at the aircraft's position.</param>
+public sealed record ScopeDisplayOptions(bool MarkStudentLevel, bool ShowTypeMismatchHints, bool ShowMvaAltitudeTint);
 
 /// <summary>Every per-frame input <see cref="TrackPresenter.Present"/> reads.</summary>
 /// <param name="Aircraft">The track.</param>
@@ -27,6 +29,10 @@ public sealed record ScopeDisplayOptions(bool MarkStudentLevel, bool ShowTypeMis
 /// <param name="IsSelected">Whether the track is selected.</param>
 /// <param name="Alerts">Alert overlays the user's preferences allow on the block.</param>
 /// <param name="Display">Instructor display hints the user's preferences allow on the block.</param>
+/// <param name="Mva">
+/// The altitude's relation to the MVA floor at the track's position, or null when the tint does not apply; computed by
+/// <see cref="ScopeFrame.Build"/>.
+/// </param>
 public sealed record TrackPresenterInput(
     AircraftModel Aircraft,
     string TemplateId,
@@ -35,7 +41,8 @@ public sealed record TrackPresenterInput(
     bool FlashOn,
     bool IsSelected,
     ScopeAlertOptions Alerts,
-    ScopeDisplayOptions Display
+    ScopeDisplayOptions Display,
+    MvaRelation? Mva
 );
 
 /// <summary>
@@ -72,7 +79,7 @@ public static class TrackPresenter
             Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.VfrMark, isVfr ? "*" : "", ScopeColorToken.Default),
             Steady(ScopeFieldSlot.StudentLevelMark, levelMark, ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
             Steady(ScopeFieldSlot.GroundSpeed, ((int)ac.GroundSpeed / 10).ToString("D2"), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.CwtType, RadarDatablockLayout.FormatCwtType(cwt, ac.DisplayAircraftType), typeToken),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
@@ -100,7 +107,7 @@ public static class TrackPresenter
             Steady(ScopeFieldSlot.TypeCwt, EuroScopeTypeCwt(ac), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Destination, ac.Destination ?? "", ScopeColorToken.Default),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
             Steady(ScopeFieldSlot.AssignedAltitude, ac.AssignedAltitude is double alt ? $"({(int)alt / 100:D3})" : "(---)", ScopeColorToken.Default),
             Steady(ScopeFieldSlot.AssignedSpeed, EuroScopeTagLayout.FormatAssignedSpeed(ac), ScopeColorToken.Default),
             Steady(
@@ -158,6 +165,14 @@ public static class TrackPresenter
         AircraftCommandApplicability.TryGetSquawkMismatch(ac, out string reported, out string assigned) ? $"{reported} {assigned}" : "";
 
     private static string AltitudeHundreds(AircraftModel ac) => ((int)ac.Altitude / 100).ToString("D3");
+
+    private static ScopeColorToken MvaToken(MvaRelation? mva) =>
+        mva switch
+        {
+            MvaRelation.Below => ScopeColorToken.MvaBelow,
+            MvaRelation.At => ScopeColorToken.MvaAt,
+            _ => ScopeColorToken.Default,
+        };
 
     private static string IdentText(AircraftModel ac) => ac.IsIdenting ? RadarDatablockLayout.IdentText : "";
 

@@ -3,6 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Sim;
+using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -225,6 +226,48 @@ public class TrackPresenterTests
         Assert.Equal(ScopeFieldStyle.None, modeC.Style);
     }
 
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Altitude_MvaBelow_CarriesTheMvaBelowToken(string templateId) =>
+        Assert.Equal(ScopeColorToken.MvaBelow, AltitudeTokenFor(templateId, MvaRelation.Below));
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Altitude_MvaAt_CarriesTheMvaAtToken(string templateId) =>
+        Assert.Equal(ScopeColorToken.MvaAt, AltitudeTokenFor(templateId, MvaRelation.At));
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Altitude_MvaAbove_KeepsTheDefaultToken(string templateId) =>
+        Assert.Equal(ScopeColorToken.Default, AltitudeTokenFor(templateId, MvaRelation.Above));
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Altitude_MvaNoData_KeepsTheDefaultToken(string templateId) =>
+        Assert.Equal(ScopeColorToken.Default, AltitudeTokenFor(templateId, MvaRelation.NoData));
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Altitude_NoMvaRelation_KeepsTheDefaultToken(string templateId) =>
+        Assert.Equal(ScopeColorToken.Default, AltitudeTokenFor(templateId, null));
+
+    [Fact]
+    public void EuroScopeAssignedAltitude_MvaBelow_KeepsTheDefaultToken()
+    {
+        TrackPresenterInput input = ScopeTestAircraft.Input(ScopeTestAircraft.CreateModel(), ScopeTemplates.EuroScopeId) with
+        {
+            Mva = MvaRelation.Below,
+        };
+
+        Assert.Equal(ScopeColorToken.Default, Field(TrackPresenter.Present(input), ScopeFieldSlot.AssignedAltitude).Token);
+    }
+
+    private static ScopeColorToken AltitudeTokenFor(string templateId, MvaRelation? mva)
+    {
+        TrackPresenterInput input = ScopeTestAircraft.Input(ScopeTestAircraft.CreateModel(), templateId) with { Mva = mva };
+        return Field(TrackPresenter.Present(input), ScopeFieldSlot.Altitude).Token;
+    }
+
     public static TheoryData<string> TemplateIds => [ScopeTemplates.StarsId, ScopeTemplates.EuroScopeId];
 
     [Fact]
@@ -309,13 +352,13 @@ internal static class ScopeTestAircraft
         bool flashOn = true,
         AircraftModel? atpaLead = null,
         AircraftModel? conflictPeer = null
-    ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts, AllDisplay);
+    ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts, AllDisplay, Mva: null);
 
     /// <summary>Every alert overlay on, matching the flags the parity rows pass to today's layouts.</summary>
     public static readonly ScopeAlertOptions AllAlerts = new(ShowAtpa: true, ShowConflictAlerts: true, ShowNoLandingClearance: true);
 
     /// <summary>Every display hint on, as the preferences default.</summary>
-    public static readonly ScopeDisplayOptions AllDisplay = new(MarkStudentLevel: true, ShowTypeMismatchHints: true);
+    public static readonly ScopeDisplayOptions AllDisplay = new(MarkStudentLevel: true, ShowTypeMismatchHints: true, ShowMvaAltitudeTint: true);
 
     /// <summary>A beacon-code mismatch: Mode C reporting 1200 while 0301 is assigned.</summary>
     public static AircraftModel CreateSquawkMismatch()
