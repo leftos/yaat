@@ -258,7 +258,9 @@ Only the legacy Whisper engine takes a prompt; the rasr engines ignore it.
 
   A `{callsign}` or `{rwy}` capture with no digit is no match for that rule. Multiple clause matches are concatenated with commas. Tie-break rule: **more literal tokens wins at equal consumed count** — so a more-specific rule always beats a shorter one. For two rules of equal pattern length this reduces to "fewer captures wins" (e.g. `squawk vfr → SQVFR` beats `squawk {code} → SQ vfr`).
 
-  The mapper skips the three tokens "i say again" like a connector (the controller repeating itself, 7110.65 PCG), so they emit nothing and the instruction after them still matches. The say-again family in `BroadcastRules` is all `SttOnly` (pilots never speak it): "say again" → `AGAIN`, "say again your call sign" → `AGAIN CS`, "aircraft/station calling [facility…] say again [your call sign]" → `AGAINU` / `AGAINU CS` (the facility is a mid-pattern variadic), and "say again all after/before {rest…}" → `AGAIN` with the tail swallowed by a rest-of-line variadic so it is never issued as a command. A spoken call sign is extracted before matching, so it keeps the line addressed. "repeat" and bare "again" map to nothing.
+  The mapper skips the three tokens "i say again" like a connector (the controller repeating itself, 7110.65 PCG), so they emit nothing and the instruction after them still matches. The say-again family in `BroadcastRules` is all `SttOnly` (pilots never speak it): "say again" → `AGAIN`, "say again your call sign" → `AGAIN CS`, "aircraft/station calling [facility…] say again [your call sign]" → `AGAINU` / `AGAINU CS` (the facility is a mid-pattern variadic), and "say again all after/before {rest…}" → `AGAIN` with the tail swallowed by a rest-of-line variadic so it is never issued as a command.
+
+  The unaddressed "aircraft/station calling [facility…] say again all after/before {rest…}" forms swallow the tail the same way and map to `AGAINU`. A spoken call sign is extracted before matching, so it keeps the line addressed. "repeat" and bare "again" map to nothing.
 
   Returns `null` if no rule matched any part of the transcript. Because the digit and NATO passes run before matching, a spoken literal they rewrite ("three sixty", "bravo") needs an `SttOnly` twin in the rewritten form; the spoken rule stays for `PhraseologyVerbalizer`.
 - `src/Yaat.Sim/Speech/NatoLetterNormalizer.cs` — after callsign +
@@ -278,6 +280,8 @@ Only the legacy Whisper engine takes a prompt; the rasr engines ignore it.
   `south` → `180`, `east` → `090`, `west` → `270`). Intercardinals
   (`northeast` etc.) fail the post-pass, causing the rule to fall
   through so the LLM fallback can handle it.
+
+  The VFR cardinal forms are the exception: "proceed northbound / northeastbound / eastbound / southeastbound / southbound / southwestbound / westbound / northwestbound" are `SttOnly` rules that map to `FH N` … `FH NW`, keeping the direction word rather than a numeric heading.
 - `src/Yaat.Sim/Speech/PhraseologyCommandMapper.cs` — thin
   `ISpeechCommandMapper` adapter (line 10) so the mapper can sit behind
   the same interface as the LLM fallback and the service can hold a
@@ -640,6 +644,7 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - `"runway {rwy}, taxi via bravo charlie"` → `TAXI B C {rwy}`
 - `"taxi via bravo charlie hold short of? runway? {rwy}"` → `TAXI B C HS {rwy}`
 - `"taxi via bravo charlie cross runway {rwy}"` → `TAXI B C CROSS {rwy}`
+- `"amended|new|revised taxi instructions taxi via bravo charlie"` → `RTAXI B C` (a re-route that keeps the aircraft's destination; `SttOnly`)
 
 **Pushback (onto-taxiway + optional facing/tail):**
 

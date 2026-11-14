@@ -81,7 +81,7 @@ Taken in issue #150, then revised by an adversarial review, whose decisions are 
   compound that is not a lone `ASSUME`, then falls through to `DispatchCompoundCore` for the same compound; the result's
   message is prefixed `{callsign} assumed — ` so one line says both things happened (`CommandDispatcher.TryAssumeShadow`).
   A command the seeded state then refuses rolls the assume back (`LiveTrafficAssumer.Rollback` with the `AssumeUndo` token
-  `Assume` captured before seeding: the satellite, the null phase list, the targets/procedure/approach snapshots and the
+  `Assume` captured before seeding: the satellite, the field (`AirportId`), the null phase list, the targets/procedure/approach snapshots and the
   pending warning/observation/transmission lists), so the aircraft is a shadow again and the refusal carries no prefix; the
   rollback is a pure function of the aircraft and the token — no draw, no record, no host call — so a replay re-derives it.
   A `;`-sequenced compound whose earlier block succeeded and wrote outside that set keeps the write, the same partial-commit
@@ -136,13 +136,13 @@ verbs — `PAUSE ; H 180` reads the same way). `DispatchCompound`'s own guard ca
 just these two: without it, `PAUSE ; H 180` to a shadow would have the gate take a real aircraft and then fail on the
 missing `PAUSE` arm.
 
-Order of business: `Advance(0)` to make the pose current → `LiveTraffic = null`, queue and deferred dispatches cleared →
+Order of business: `Advance(0)` to make the pose current → `LiveTraffic = null`, the aircraft cleared to its filed destination (`ClearToFiledDestination`, as a scenario spawn is), queue and deferred dispatches cleared →
 squawk note (7700/7600) → coasting note → `SeedState`:
 
 1. **Runway kind** via `RunwayOccupancy.ClassifyByGeometry` over the room layout's, destination's and departure's runways
    (`RunwayOccupancy.AlignedEnd` orients each pavement to the track). On the ground: `Departing` → `TakeoffPhase`;
    `OnSurface` > 30 kt → `RunwayExitPhase`; otherwise a phase-less ground aircraft (`Ground.Layout` attached,
-   `GroundSpawnSnap` when off-runway) with `TargetSpeed` = wheel speed. Airborne `Landing` (< 50 ft) → `LandingPhase`
+   `GroundSpawnSnap` when off-runway) with `TargetSpeed` = wheel speed; the layout's airport becomes the aircraft's field (`AirportId`), so it taxis on its own field's layout. Airborne `Landing` (< 50 ft) → `LandingPhase`
    with `LandingClearance = ClearedToLand` (the real aircraft has one; §3-10-5).
 2. **VFR** (`LiveTrafficAircraftFactory.RulesOf` ≠ IFR: VFR plan, a §5-2-11.a conspicuity code, or a no-plan track whose
    rules are unknown — best-guessed VFR, §5-2-7.a): heading hold (feed cleared heading first); level → altitude to the 100 ft,
@@ -167,14 +167,15 @@ squawk note (7700/7600) → coasting note → `SeedState`:
    the type's approach speed and 250 KIAS (§5-7-1.b.4 — an arrival slowed for the approach is never sped back up;
    §91.117); above, 0.75–1.25× the type's default (the seed itself applies no Vmo/Mmo; once assumed, physics holds the aircraft to them like any other). Feed `ClearedSpeedKts` overrides; `TargetMach` from the
    air vector at/above FL240.
-7. **Vertical** (skipped when an approach was installed — the approach owns the vertical path): level when the last 3
-   samples span ≤ 200 ft and |VS| ≤ 400 fpm (Mode C is 100-ft quantised), or while coasting → altitude to the 100 ft
-   (never a hemispheric snap). A feed controller altitude is taken as the assigned and target altitude even when the aircraft is observed level or above it. A departure observed level with no feed altitude keeps the level altitude as assigned and gets no climb via (the old vertical seed). A climb via in force (step 5) lets the published altitudes drive the climb, capped by the feed interim when there is one. Climbing → keep the rate to interim/assigned/filed, else the next 1 000 ft up. Descending →
-   keep the rate to interim/assigned, else the first at/at-or-below restriction on the installed route below the aircraft,
-   else `max(MVA floor, destination elevation + 2 000 ft rounded up)`; when none of those exist (no MVA coverage, no
-   destination) the aircraft is **levelled off** with a warning rather than seeded an unbounded descent (§5-6-1.a.3).
-   Targets are rounded *down* to the 100 ft so a descending aircraft never gets a target above itself. `AssignedAltitude`
-   mirrors the target.
+7. **Vertical** (skipped when an approach was installed — the approach owns the vertical path): level when the last 3 samples span ≤ 200 ft and |VS| ≤ 400 fpm (Mode C is 100-ft quantised), or while coasting → altitude to the 100 ft (never a hemispheric snap).
+
+   A feed controller altitude is taken as the assigned and target altitude even when the aircraft is observed level or above it. A departure observed level with no feed altitude keeps the level altitude as assigned and gets no climb via.
+
+   A climb via in force (step 5) lets the published altitudes drive the climb, capped by the feed interim when there is one. With no interim, its top is `NavigationCommandHandler.PublishedClimbViaTopFt`, the highest ceiling on the SID's published legs, else FL190, never below present altitude.
+
+   Climbing → keep the rate to interim/assigned/filed, else the next 1 000 ft up. Descending → keep the rate to interim/assigned, else the first at/at-or-below restriction on the installed route below the aircraft, else `max(MVA floor, destination elevation + 2 000 ft rounded up)`; when none of those exist (no MVA coverage, no destination) the aircraft is **levelled off** with a warning rather than seeded an unbounded descent (§5-6-1.a.3).
+
+   Targets are rounded *down* to the 100 ft so a descending aircraft never gets a target above itself. `AssignedAltitude` mirrors the target.
 
 Nothing is transmitted at assume. The `CommandResult` message summarises the seeded state; caveats go to
 `PendingWarnings` (amber). Tests: `LiveTrafficAssumeTests`.

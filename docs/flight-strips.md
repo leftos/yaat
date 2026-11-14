@@ -213,7 +213,7 @@ Strip state is the engine's: `SimulationEngine.Strips`, typed as `FlightStripSta
 restart therefore starts from the scenario's own strips — `RecordingManager.RestartScenarioAsync`
 re-issues only the user's separators, as fresh `SEP` commands recorded at t=0 of the new tape under the
 restarting controller's connection, so they get new ids and every later rewind or export reproduces them, then the racks that were auto-sorted as fresh `RACKSORT … ON` commands, after the separators so a re-created separator is not snapped into a sorted rack; a rack in a bay the student position can no longer address is dropped with a warning, like a separator), the snapshot's server section carries it
-(`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
+(`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`, which captures the items and the bays in ordinal id order so a capture of a restored state equals the first), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the engine's auto-print bodies, after which the room
 re-pushes the result to its clients (`RecordingManager.ResyncEngineStateAsync`). The mutation bodies are
 the engine's too: `StripMutations`, `StripCommandHandler` (static, over the engine) and
