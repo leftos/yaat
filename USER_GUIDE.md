@@ -99,6 +99,14 @@ Each extra window keeps its own centre, range, zoom, rotation, filters, DCB and 
 
 Close an extra window to remove it; open extras (with their airports) are restored on the next launch and are saved in layouts. Scope markers (`.ff`, `.markers`) and settings toggles that apply app-wide act on the main Radar/Ground view only.
 
+#### YAAT Scope (preview)
+
+**View > Windows > YAAT Scope** (just after **New radar window…**) opens a preview of the new instructor radar in a window titled "YAAT Scope"; a second click brings the open window forward. Today's Radar stays the main view and is unchanged.
+
+The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on. Left-click a target or block to select that aircraft everywhere; right-click opens the same aircraft menu as the other views (without the Radar's Display and Draw route items or "Settings for this view…"); right-drag pans and the wheel zooms.
+
+If you open it before a scenario or ARTCC is loaded, it takes the Radar's centre, range and video maps the first time the Radar has them, then stays independent. Its window position is remembered.
+
 **Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
 
 A layout never holds radar, ground or terminal view settings, so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.

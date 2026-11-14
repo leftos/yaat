@@ -48,7 +48,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 
 ## Build order
 
-- [ ] 1. The new YAAT Scope view on the template engine, with the STARS, ERAM, Mixed and EuroScope templates, opened from the View menu beside today's Radar
+- [ ] 1. The new YAAT Scope view on the template engine, with the STARS, ERAM, Mixed and EuroScope templates, opened from the View menu beside today's Radar. Progress: the engine and the window (View > Windows > YAAT Scope: video maps, targets, leaders, STARS blocks and EuroScope tags, select, menu, pan, zoom) have landed; the ERAM and Mixed templates have not
 - [ ] 2. ERAM altitude line, line-3 status slot, line-4 HSF, VCI, dwell
 - [ ] 3. Toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists
 - [ ] 4. Profiles and zoom bands (profile picked from the student position); one Vector control; one Rings tool; TDM toggle

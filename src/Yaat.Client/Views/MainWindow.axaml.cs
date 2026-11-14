@@ -44,6 +44,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private RadarViewWindow? _radarViewWindow;
     private ControllersWindow? _controllersWindow;
     private MetarWindow? _metarWindow;
+    private Scope.ScopeWindow? _scopeWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
     private ActiveRunwaysWindow? _activeRunwaysWindow;
@@ -57,6 +58,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     internal RadarViewWindow? RadarViewWindow => _radarViewWindow;
     internal ControllersWindow? ControllersWindow => _controllersWindow;
     internal MetarWindow? MetarWindow => _metarWindow;
+    internal Scope.ScopeWindow? ScopeWindow => _scopeWindow;
     internal TerminalWindow? TerminalWindow => _terminalWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
@@ -209,6 +211,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         MenuItem? newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
         newRadarWindowItem?.Click += OnNewRadarWindowClick;
+        MenuItem? yaatScopeItem = this.FindControl<MenuItem>("YaatScopeMenuItem");
+        yaatScopeItem?.Click += OnYaatScopeClick;
 
         MenuItem? newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
         newGroundWindowItem?.Click += OnNewGroundWindowClick;
@@ -2661,6 +2665,35 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async void OnNewRadarWindowClick(object? sender, RoutedEventArgs e) =>
         await OpenExtraViewAsync("New Radar Window", (vm, airportId) => vm.OpenExtraRadarView(airportId));
+
+    /// <summary>Opens the YAAT Scope window, or brings the open one forward: the scope has one instance.</summary>
+    private void OnYaatScopeClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_scopeWindow is not null)
+        {
+            _scopeWindow.RestoreAndActivate();
+            return;
+        }
+
+        _scopeWindow = new Scope.ScopeWindow(vm.Preferences, new ScopeViewModel(vm));
+        _scopeWindow.Closing += OnScopeWindowClosing;
+        _scopeWindow.Show();
+    }
+
+    private void OnScopeWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (sender is Scope.ScopeWindow window)
+        {
+            window.Closing -= OnScopeWindowClosing;
+        }
+
+        _scopeWindow = null;
+    }
 
     private async void OnNewGroundWindowClick(object? sender, RoutedEventArgs e) =>
         await OpenExtraViewAsync("New Ground Window", (vm, airportId) => vm.OpenExtraGroundView(airportId));

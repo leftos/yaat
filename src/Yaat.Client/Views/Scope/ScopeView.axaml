@@ -1,0 +1,18 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:scope="using:Yaat.Client.Views.Scope"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Scope.ScopeView"
+  x:DataType="vm:ScopeViewModel"
+  Background="Black"
+>
+  <scope:ScopeCanvas
+    x:Name="Canvas"
+    Aircraft="{Binding Aircraft}"
+    SelectedAircraft="{Binding SelectedAircraft}"
+    CenterLat="{Binding CenterLat, Mode=TwoWay}"
+    CenterLon="{Binding CenterLon, Mode=TwoWay}"
+    RangeNm="{Binding RangeNm, Mode=TwoWay}"
+  />
+</UserControl>

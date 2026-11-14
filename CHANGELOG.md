@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- View > Windows > YAAT Scope opens a preview of the new instructor radar beside today's Radar, with STARS datablocks or EuroScope tags.
+
 ### Fixed
 
 - Controllers whose VATUSA home facility is Honolulu (HCF) now get ZHN as their ARTCC, plus Guam (ZUA), so their scenarios list and load again.

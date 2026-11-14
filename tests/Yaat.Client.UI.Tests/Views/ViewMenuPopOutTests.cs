@@ -68,6 +68,7 @@ public class ViewMenuPopOutTests
                 "-",
                 "New gr_ound window…",
                 "New radar _window…",
+                "YAAT _Scope",
                 "-",
                 "_Strips",
                 "v_TDLS",

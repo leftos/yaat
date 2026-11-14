@@ -70,7 +70,7 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 ## View menu and hotkeys
 
-**Three submenus.** View holds Windows (the pop-outs, New ground window…, New radar window…, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).
+**Three submenus.** View holds Windows (the pop-outs, New ground window…, New radar window…, YAAT Scope, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).
 
 **Hotkeys on the common pop-outs, every one rebindable.** Defaults: Ctrl+Shift+L aircraft list, G ground view, R radar view, E terminal, C controllers, M METAR, F favorites bar, and Ctrl+, for Settings; Ctrl+Shift+T stays always-on-top. Settings › Keys rebinds each and shows a clash when a new binding is already taken. The View menu shows each item's current hotkey (`MainWindow.ShowMenuHotkeys`), and `Views/WindowHotkeys.cs` dispatches them from every window.
 
