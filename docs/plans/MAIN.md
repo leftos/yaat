@@ -6,8 +6,8 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2221 YAAT Scope step 2: ERAM altitude line, line-3 status slot, line-4 HSF, VCI and dwell · release vNext
-    - [/] YAAT-2268 YAAT Scope step 2a: ERAM data on the wire, ERAM template and pick, altitude line · release vNext
     - [ ] YAAT-2269 YAAT Scope step 2b: line-3 status slot, line-4 HSF, VCI and R, column 0 · release vNext
+      - [ ] YAAT-2282 YAAT Scope 2b-iii: ERAM column 0, the VCI mark and R
     - [ ] YAAT-2270 YAAT Scope step 2c: block levels and dwell, Mixed template, altitude-mismatch marker · release vNext
   - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
@@ -19,6 +19,8 @@
   - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
   - [ ] YAAT-2277 YAAT Scope: draw the RNAV ^ after the CWT category on line 2 (STARS and ERAM)
   - [ ] YAAT-2278 YAAT Scope: bring ScopeCanvas.OnPropertyChanged under the complexity limit
+  - [ ] YAAT-2283 YAAT Scope: ERAM Field E handoff text for STARS peers from the neighbour Field E format
+  - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -40,6 +42,9 @@
 ## Bug reports and feature requests
 
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
+- [ ] YAAT-2291 Guard #1381 with a replay test: no aircraft asks for lower more than six times · release vNext
+- [ ] YAAT-2298 PTAC after a speed assignment keeps the speed inside 5 NM and the aircraft goes around · release vNext
+- [ ] YAAT-2299 CAPP to an aircraft already established flies the approach from its start instead of continuing · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -67,6 +72,8 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
+- [ ] YAAT-2292 Offer CAPP as a quick command to an aircraft given EAPP or established on its expected approach · release vNext
+- [ ] YAAT-2295 A quick-command flyout (Fly Heading, Maintain Altitude) sometimes closes as the cursor moves onto it · release vNext
 
 ## Say again
 
@@ -1418,7 +1425,7 @@
 - [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits · release vNext
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
 - [ ] YAAT-118 Fail the build on unused usings (IDE0005) in both repos and CI · release vNext
-- [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
+- [/] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
 - [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template · release vNext
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
@@ -1496,6 +1503,16 @@
 - [ ] YAAT-2245 Give no-flight-plan live-traffic VFR (1200) aircraft VFR flight rules, so FlightPlan.IsVfr gates see them
 - [ ] YAAT-2246 Split PhraseologyVerbalizer.VerbalizeCore's direct-render prelude into a helper (over the size limits)
 - [ ] YAAT-2247 Give RadarCanvas, GroundCanvas and ScopeCanvas one disposal lifetime (Dispose is never called today)
+- [ ] YAAT-2284 Treat squawk 1276 as a special-purpose code in the client's mismatch check
+
+## No project
+
+- [ ] YAAT-2287 Solo: an IFR arrival told to expect an approach but never cleared queries the clearance near final or the IAF
+- [ ] YAAT-2288 Solo: time the approach-assignment request to the approach gate and skip it in visual weather
+- [ ] YAAT-2290 Replaying a solo server recording from t=0 loses the load-time auto-track state
+- [ ] YAAT-2294 Live traffic descends to the MVA of the chart that governs it, not the highest overlapping chart
+- [ ] YAAT-2296 A reaction-delayed command that later fails still answers pilot requests and stamps clearances
+- [ ] YAAT-2297 Match composite FAA MVA chart ids (D01_DEN_PUB, BOI_BZN) to the radar's facility
 
 ## Design files
 
@@ -1523,4 +1540,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2268, YAAT-2269, YAAT-2270, YAAT-2277, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2269, YAAT-2270, YAAT-2277, YAAT Scope (feat/yaat-scope)
