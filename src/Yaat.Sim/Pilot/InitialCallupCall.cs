@@ -247,29 +247,27 @@ public static class InitialCallupCall
 
     /// <summary>
     /// What the Taxi request records: a "request taxi to parking" call is a taxi-in request for a stand the pilot has in
-    /// mind (picked as an arrival's is), so the taxi-in path answers it; a layout with no parking, and every other call,
-    /// records the plain outbound request.
+    /// mind (picked as an arrival's is), so the taxi-in path answers it; where the layout has parking but none fits the
+    /// aircraft, it is a taxi-in request naming no stand, left for the instructor. A layout with no parking, and every
+    /// other call, records the plain outbound request.
     /// </summary>
     private static PilotRequestContext TaxiRequestContext(PhaseContext ctx, ReadyToTaxiLocation location, string facilityCallName)
     {
-        if (
-            PilotResponder.RequestsTaxiToParking(ctx.Aircraft, location)
-            && (
-                ArrivalParkingPicker.Pick(
-                    ctx.Aircraft,
-                    ctx.GroundLayout,
-                    ctx.ListAircraft?.Invoke() ?? [],
-                    0,
-                    NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty
-                ) is
-                { } parking
-            )
-        )
+        if (!PilotResponder.RequestsTaxiToParking(ctx.Aircraft, location))
         {
-            return PilotRequestContext.TaxiIn(facilityCallName, parking);
+            return PilotRequestContext.Facility(facilityCallName);
         }
 
-        return PilotRequestContext.Facility(facilityCallName);
+        string? parking = ArrivalParkingPicker.Pick(
+            ctx.Aircraft,
+            ctx.GroundLayout,
+            ctx.ListAircraft?.Invoke() ?? [],
+            0,
+            NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty
+        );
+        return ((parking is not null) || ArrivalParkingPicker.HasParkingNames(ctx.GroundLayout))
+            ? PilotRequestContext.TaxiIn(facilityCallName, parking)
+            : PilotRequestContext.Facility(facilityCallName);
     }
 
     /// <summary>

@@ -330,6 +330,12 @@ public sealed class PilotPendingRequestDto
     public string? ParkingName { get; init; }
 
     /// <summary>
+    /// A taxi-in request, named parking or not. Optional: earlier snapshots lack it (clean default false, and a named
+    /// parking restores it), so no SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    public bool TaxiIn { get; init; }
+
+    /// <summary>
     /// The last asking was a re-ask after a "standby". Optional: earlier snapshots lack it (clean default false), so no
     /// SnapshotSchemaMigrator step or SchemaVersion bump is required.
     /// </summary>

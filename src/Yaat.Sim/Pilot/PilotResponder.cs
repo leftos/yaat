@@ -3016,14 +3016,15 @@ public static partial class PilotResponder
     /// <c>"Oakland Ground, clear of runway 28R at W, taxi to gate 29."</c> (terminal) /
     /// <c>"Oakland Ground, november one five two sierra papa, clear of runway two eight right at W, taxi to gate two niner."</c>
     /// A gate name is a "gate", a name that reads as a word takes no noun ("taxi to SIGNATURE" / "taxi to signature"),
-    /// and anything else is "parking" spelled out ("parking sierra india golf one").
+    /// and anything else is "parking" spelled out ("parking sierra india golf one"). With no parking named the call asks
+    /// for parking itself: <c>"…, clear of runway 28R at W, taxi to parking."</c> (AIM 4-2-3.a.1.c).
     /// </summary>
     public static PilotSpeechText BuildTaxiInRequest(
         AircraftState aircraft,
         string facilityCallName,
         string? runwayId,
         string? taxiway,
-        string parking
+        string? parking
     )
     {
         string spoken = SpokenOwnCallsign(aircraft);
@@ -3032,13 +3033,23 @@ public static partial class PilotResponder
         string runwaySpoken = runwayId is { Length: > 0 } ? $"runway {PhraseologyVerbalizer.SpellRunway(runwayId)}" : "the runway";
         string at = taxiway is { Length: > 0 } ? $" at {taxiway}" : "";
         string atSpoken = taxiway is { Length: > 0 } ? $" at {PhraseologyVerbalizer.SpellTaxiway(taxiway)}" : "";
-        string noun = StandNoun(parking);
-        string destination = WithNoun(parking, noun);
-        string destinationSpoken = WithNoun(PhraseologyVerbalizer.SpellDestinationName(parking, noun), noun);
+        (string destination, string destinationSpoken) = TaxiInDestination(parking);
         return new PilotSpeechText(
             $"{facility}, clear of {runwayTerminal}{at}, taxi to {destination}.",
             $"{facility}, {spoken}, clear of {runwaySpoken}{atSpoken}, taxi to {destinationSpoken}."
         );
+    }
+
+    /// <summary>The taxi-in call's destination, terminal and spoken: the named parking with its noun, or plain "parking".</summary>
+    private static (string Terminal, string Spoken) TaxiInDestination(string? parking)
+    {
+        if (parking is null)
+        {
+            return ("parking", "parking");
+        }
+
+        string noun = StandNoun(parking);
+        return (WithNoun(parking, noun), WithNoun(PhraseologyVerbalizer.SpellDestinationName(parking, noun), noun));
     }
 
     /// <summary>

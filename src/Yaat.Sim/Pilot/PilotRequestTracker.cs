@@ -48,6 +48,7 @@ public static class PilotRequestTracker
             AirspaceIdent = context.AirspaceIdent,
             AirspaceReferencePosition = context.AirspaceReferencePosition,
             ParkingName = context.ParkingName,
+            TaxiIn = context.IsTaxiIn,
         };
     }
 

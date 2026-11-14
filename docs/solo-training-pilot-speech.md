@@ -329,9 +329,9 @@ It records a Taxi `PilotPendingRequest` carrying `ParkingName`, follows up every
 
 A silently simulated tower is no separate Local: under a GND student the aircraft the simulated tower landed calls the student for taxi without any `CT` or `FCA` first.
 
-**Non-gate names stay out of arrival picks (decided, not built yet).** A per-airport denylist data file lists the names in a layout that are not gates, and `ArrivalParkingPicker` excludes them from every pool: SMF's digit-led markers off the concourses (`1`–`4`, `30`–`32`, `40`–`43`), FLL's terminal markers (`1`–`4`), and layout placeholders such as SMF's `FAA`, `GA` and `TEXT`.
+**Non-gate names stay out of arrival picks.** The airport sidecar's `nonGateParking` lists the names in a layout that are not stands, and `ArrivalParkingPicker`'s layout `Pick` drops them before any pool is drawn: SMF's digit-led markers off the concourses (`1`–`4`, `30`–`32`, `40`–`43`), FLL's terminal markers (`1`–`4`), and layout placeholders such as SMF's `FAA`, `GA` and `TEXT`. Sidecar `parkingAreas` stands and `@GATE` are not filtered.
 
-Today `ArrivalParkingPicker.Candidates` keeps every gate name when the digit-led names are under half of them, so at SMF `UAL123` can draw `41`.
+A general-aviation arrival whose pool is empty picks nothing and never falls back to an airline gate. The taxi-in call then names no spot — "…, clear of runway 17L at X, taxi to parking." — and the Taxi request is recorded with `PilotPendingRequest.TaxiIn` set and no `ParkingName`. A taxiway spawn's "request taxi to parking" call with no spot that fits does the same. `AnswerTaxiInRule` leaves such a request for the instructor, and an AI ground never answers it as a departure taxi.
 
 **`HasMadeInitialContact` stays student-scoped; the AI latch is per position.** A call answered by an AI position
 adds only that position's id to `AircraftState.AiInitialContactPositionIds` (`PilotAnsweringPosition.MarkInitialContact`

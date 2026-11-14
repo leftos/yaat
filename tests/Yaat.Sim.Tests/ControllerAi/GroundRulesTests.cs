@@ -1155,6 +1155,48 @@ public class GroundRulesTests
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, repicked.Canonical).Success);
     }
 
+    /// <summary>
+    /// A taxi-in request that names no parking (a GA arrival whose pool is empty) is left for the instructor: the taxi-in
+    /// rule has no spot to send it to, and the taxi-out rule must not read the missing name as a departure's ready-to-taxi
+    /// call, even from holding in position, where both kinds of call are made.
+    /// </summary>
+    [Fact]
+    public void AnUnnamedTaxiInRequest_IsAnsweredByNeitherTaxiRule()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new HoldingInPositionPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, engine.ResolveGroundLayout(aircraft)));
+        double now = engine.Scenario!.ElapsedSeconds;
+        var line = new PilotSpeechText("Oakland Ground, clear of runway 28R at W, taxi to parking.", "…");
+
+        // The same aircraft with a departure's ready-to-taxi request is the taxi-out rule's, so the setup qualifies.
+        PilotRequestTracker.RecordRequest(aircraft, PilotPendingRequestKind.Taxi, now, line, PilotRequestContext.Facility("Oakland Ground"));
+        Assert.True(AnswerTaxiOutRule.Applies(aircraft));
+
+        PilotRequestTracker.RecordRequest(aircraft, PilotPendingRequestKind.Taxi, now, line, PilotRequestContext.TaxiIn("Oakland Ground", null));
+        Assert.False(AnswerTaxiOutRule.Applies(aircraft));
+        Assert.False(AnswerTaxiInRule.Applies(aircraft));
+
+        var probe = new RuleProbe(engine, ground);
+        IDecisionRule[] rules = [new AnswerTaxiInRule(), new AnswerTaxiOutRule()];
+        foreach (IDecisionRule rule in rules)
+        {
+            rule.Evaluate(probe.Scope([aircraft], now));
+            rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
+        }
+
+        Assert.Empty(probe.Sink.Issued);
+        Assert.True(aircraft.PendingPilotRequest!.IsOpen);
+    }
+
     /// <summary>Everything one rule needs to run alone: a recording sink, one pacing, one memo table, and scopes at chosen times.</summary>
     private sealed class RuleProbe(SimulationEngine engine, params AiPositionConfig[] staffed)
     {

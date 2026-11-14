@@ -45,7 +45,7 @@ public sealed class AnswerTaxiOutRule : IDecisionRule
 
     public static bool Applies(AircraftState aircraft) =>
         aircraft.IsOnGround
-        && aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi, ParkingName: null }
+        && aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi, TaxiIn: false, ParkingName: null }
         && aircraft.Phases?.CurrentPhase
             is AtParkingPhase
                 or HoldingAfterPushbackPhase

@@ -7,5 +7,6 @@
       "destinationRunway": "10R",
       "tags": ["dep", "10R"]
     }
-  ]
+  ],
+  "nonGateParking": ["1", "2", "3", "4"]
 }

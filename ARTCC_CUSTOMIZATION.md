@@ -169,13 +169,14 @@ Sets the default turn-off side for arrivals on one landing runway end, ahead of 
 "exitDirections": [ { "runway": "26R", "side": "left", "notes": "Facility request: 26R vacates left." } ]
 ```
 
-### cargoOperators, gaOperators and parkingAreas
+### cargoOperators, gaOperators, nonGateParking and parkingAreas
 
-`cargoOperators` lists the three-letter airline codes (`"FDX"`, `"UPS"`) whose arrivals count as cargo for an `exitDirections` entry. `gaOperators` lists the bizjet operator codes (`"EJA"`, `"XOJ"`) that count as general aviation, like a registration callsign, for an `exitDirections` entry and for arrival parking (off the gates); an airline not listed is not GA. `parkingAreas` names the areas a flight-plan remark may give instead of a stand (`/V/ PARKING SIGNATURE, 28R`) and the stands each covers, so YAAT can tell which side of the runway the aircraft parks on and where `@GATE` taxis it (a free stand in the area). An area may also give `maxAdg` (`"I"` to `"VI"`), the largest aircraft design group its stands take; it replaces YAAT's estimate from how far apart the layout draws the stands, whether that estimate is larger or smaller, and an invalid value is warned about and ignored. Details: [`cargoOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#cargooperators), [`gaOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#gaoperators), [`parkingAreas`](src/Yaat.Sim/Data/ARTCCs/README.md#parkingareas).
+`nonGateParking` lists layout stand names that are never arrival parking, such as runway or terminal markers and layout placeholders (`"1"`, `"FAA"`, `"TEXT"`); an arrival's parking is never picked from them. It does not touch `parkingAreas` stands or `@GATE`. A general-aviation arrival with no non-gate spot left to pick calls clear of the runway and asks for taxi to parking without naming a spot. `cargoOperators` lists the three-letter airline codes (`"FDX"`, `"UPS"`) whose arrivals count as cargo for an `exitDirections` entry. `gaOperators` lists the bizjet operator codes (`"EJA"`, `"XOJ"`) that count as general aviation, like a registration callsign, for an `exitDirections` entry and for arrival parking (off the gates); an airline not listed is not GA. `parkingAreas` names the areas a flight-plan remark may give instead of a stand (`/V/ PARKING SIGNATURE, 28R`) and the stands each covers, so YAAT can tell which side of the runway the aircraft parks on and where `@GATE` taxis it (a free stand in the area). An area may also give `maxAdg` (`"I"` to `"VI"`), the largest aircraft design group its stands take; it replaces YAAT's estimate from how far apart the layout draws the stands, whether that estimate is larger or smaller, and an invalid value is warned about and ignored. Details: [`cargoOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#cargooperators), [`gaOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#gaoperators), [`nonGateParking`](src/Yaat.Sim/Data/ARTCCs/README.md#nongateparking), [`parkingAreas`](src/Yaat.Sim/Data/ARTCCs/README.md#parkingareas).
 
 ```json
 "cargoOperators": [ "FDX", "UPS" ],
 "gaOperators": [ "EJA", "XOJ" ],
+"nonGateParking": [ "1", "2", "FAA" ],
 "parkingAreas": [ { "area": "Signature", "stands": ["SIG*"] } ]
 ```
 

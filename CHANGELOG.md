@@ -2,12 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
+
 ### Changed
 
 - An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows, asks for further clearance and holds over the airport.
 
 ### Fixed
 
+- Arriving airliners at SMF and FLL no longer ask for runway or terminal markers as gates, and GA arrivals never ask for an airline gate.
+- A GA arrival with no fitting parking asks ground for "taxi to parking" and waits for the instructor to assign a spot.
 - A route ending at a navaid named like the destination airport, such as SAC for KSAC, now continues direct to the field instead of flying straight on.
 - Exported scenarios keep a VFR aircraft's at-or-above or at-or-below altitude (`CM A050`, `CM B050`) instead of a plain or reversed climb or descent.
 - `DCT FOZZY CM 5200` and similar lists no longer swallow `CM` as a fix name, and `ER HS F` now means exit right, then hold short of F.

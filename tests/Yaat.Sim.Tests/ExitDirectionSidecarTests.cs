@@ -237,6 +237,53 @@ public class ExitDirectionSidecarTests
         Assert.Equal(["EJA", "XOJ"], Assert.Single(result.Airports).GaOperators);
     }
 
+    /// <summary>The <c>nonGateParking</c> section holds stand names, not operator codes: trimmed, upper-cased, de-duplicated.</summary>
+    [Fact]
+    public void Loader_ReadsNonGateParking()
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            """
+            {
+              "airportId": "KSMF",
+              "nonGateParking": [" 41 ", "41", "ga", "TEXT", "1"]
+            }
+            """
+        );
+
+        Assert.Empty(result.Warnings);
+        Assert.Equal(["41", "GA", "TEXT", "1"], Assert.Single(result.Airports).NonGateParking);
+    }
+
+    /// <summary>A blank stand name is warned and skipped, naming its own section and index.</summary>
+    [Fact]
+    public void Loader_BlankNonGateParking_WarnsAndSkips()
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            """
+            { "airportId": "KSMF", "nonGateParking": ["  ", "GA"] }
+            """
+        );
+
+        Assert.Equal(["GA"], Assert.Single(result.Airports).NonGateParking);
+        Assert.Contains(result.Warnings, w => w.Contains("nonGateParking[0]", StringComparison.Ordinal));
+    }
+
+    /// <summary>Two files for one airport (with and without the K) merge, and the lookup ignores case.</summary>
+    [Fact]
+    public void Catalog_MergesNonGateParking()
+    {
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KSMF") { NonGateParking = ["41"] },
+            new AirportSidecar("SMF") { NonGateParking = ["GA"] },
+        ]);
+
+        IReadOnlySet<string> names = catalog.GetNonGateParking("KSMF");
+        Assert.Equal(2, names.Count);
+        Assert.Contains("41", names);
+        Assert.Contains("ga", names);
+        Assert.Empty(catalog.GetNonGateParking("KOAK"));
+    }
+
     /// <summary>A code that is not three upper-case letters is warned and skipped, naming its own section.</summary>
     [Theory]
     [InlineData("FX")]

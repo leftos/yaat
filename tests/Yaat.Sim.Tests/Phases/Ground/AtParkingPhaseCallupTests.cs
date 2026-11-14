@@ -197,6 +197,64 @@ public class AtParkingPhaseCallupTests
         Assert.Equal($"TAXIAUTO @{parking}", answer.Command);
     }
 
+    // A GA arrival spawned on SMF's taxiway A, bound for SMF: its parking pool is empty (SMF's only non-gate names are
+    // listed as non-gate parking), so it asks for parking with no spot named.
+    private const string TaxiwayAAtSmf = """
+        {
+          "id": "callup-twy-a-smf",
+          "name": "Ground coordinate spawn on A at SMF",
+          "artccId": "ZOA",
+          "primaryAirportId": "SMF",
+          "aircraft": [
+            {
+              "id": "a1",
+              "aircraftId": "N52417",
+              "aircraftType": "C172",
+              "transponderMode": "C",
+              "startingConditions": {
+                "type": "Coordinates",
+                "coordinates": { "lat": 38.69464113842684, "lon": -121.59868295525791 }
+              },
+              "flightplan": {
+                "rules": "VFR", "departure": "KLVK", "destination": "KSMF", "cruiseAltitude": 1500, "cruiseSpeed": 100,
+                "route": "", "remarks": "", "aircraftType": "C172"
+              },
+              "airportId": "SMF"
+            }
+          ]
+        }
+        """;
+
+    /// <summary>
+    /// A taxiway spawn asking for parking where no spot fits it records a taxi-in request naming none, which an AI ground
+    /// leaves for the instructor rather than reading it as a departure's ready-to-taxi call and sending it to a runway.
+    /// </summary>
+    [Fact]
+    public void TaxiwaySpawnAskingForParking_WithNoSpotThatFits_IsLeftForTheInstructor()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.TowerCab(_zoa, "SMF_GND", ControlRole.Ground, "SMF");
+        SimulationEngine engine = AiTestFixture.LoadWith(TaxiwayAAtSmf, _zoa, 7, [ground], "17L", p => new GroundBrain(p));
+
+        AircraftState asked = AiTestFixture.TickUntil(engine, "N52417", ac => ac.PendingPilotRequest is { Kind: PilotPendingRequestKind.Taxi }, 30);
+        PilotPendingRequest request = asked.PendingPilotRequest!;
+        Assert.EndsWith("request taxi to parking.", request.LastPilotLine);
+        Assert.True(request.TaxiIn);
+        Assert.Null(request.ParkingName);
+
+        AiTestFixture.Tick(engine, 60);
+        string aiId = AiConnectionId.Format(ground.PositionId);
+        Assert.DoesNotContain(
+            engine.Scenario!.ActionLog.OfType<RecordedCommand>(),
+            a => (a.ConnectionId == aiId) && string.Equals(a.Callsign, "N52417", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.True(asked.PendingPilotRequest!.IsOpen);
+    }
+
     [Fact]
     public void CoordinateSpawnedDeparture_CallsOnceFromTheRamp()
     {

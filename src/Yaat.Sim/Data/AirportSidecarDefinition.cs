@@ -437,6 +437,13 @@ internal sealed class AirportSidecarFile
     public List<string> GaOperators { get; set; } = [];
 
     /// <summary>
+    /// Parking names that are never an arrival's own pick: runway and terminal markers and layout placeholders that the
+    /// layout draws as parking.
+    /// </summary>
+    [JsonPropertyName("nonGateParking")]
+    public List<string> NonGateParking { get; set; } = [];
+
+    /// <summary>
     /// Parking areas a flight-plan remark may name instead of a stand, each with the stands it covers; an area no entry
     /// matches gives no side.
     /// </summary>
@@ -502,6 +509,9 @@ public sealed record AirportSidecar(string AirportId)
 
     /// <summary>Upper-cased three-letter ICAO operators whose arrivals are <see cref="ArrivalClass.GeneralAviation"/>.</summary>
     public IReadOnlyList<string> GaOperators { get; init; } = [];
+
+    /// <summary>Upper-cased parking names an arriving pilot never picks for itself (markers and placeholders).</summary>
+    public IReadOnlyList<string> NonGateParking { get; init; } = [];
 
     /// <summary>The parking areas a remark may name instead of a stand, in file order.</summary>
     public IReadOnlyList<ParkingAreaAlias> ParkingAreas { get; init; } = [];

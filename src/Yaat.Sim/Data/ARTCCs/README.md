@@ -438,6 +438,16 @@ Three-letter ICAO operator codes, typically bizjet and fractional operators, who
 
 Codes are trimmed, upper-cased and de-duplicated; an entry that is not three letters warns and is skipped.
 
+### `nonGateParking`
+
+Layout stand names that are never arrival parking: runway and terminal markers a layout draws as parking nodes, and layout placeholders.
+
+```json
+"nonGateParking": [ "1", "2", "3", "4", "FAA", "GA", "TEXT" ]
+```
+
+Names are trimmed, upper-cased and de-duplicated; a blank entry warns (`nonGateParking[<i>] is blank, skipping`) and is skipped. The list applies only to an arrival's parking pick from the layout, for airline and general-aviation arrivals alike; a stand named by a `parkingAreas` entry and `TAXI … @GATE` are unaffected. A general-aviation arrival whose pool is then empty picks nothing and does not fall back to an airline gate: it calls clear of the runway and asks for taxi to parking with no spot named. SMF and FLL list their markers.
+
 ### `parkingAreas`
 
 Parking areas a flight-plan remark may name instead of a stand (`/V/ PARKING SIGNATURE, 28R`), each with the layout stands it covers.

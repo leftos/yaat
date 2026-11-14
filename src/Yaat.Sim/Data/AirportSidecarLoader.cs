@@ -125,6 +125,7 @@ public static class AirportSidecarLoader
                 ExitDirections = ParseExitDirections(file, filePath, result),
                 CargoOperators = ParseOperatorCodes(file.CargoOperators, "cargoOperators", filePath, result),
                 GaOperators = ParseOperatorCodes(file.GaOperators, "gaOperators", filePath, result),
+                NonGateParking = ParseStandNames(file.NonGateParking, "nonGateParking", filePath, result),
                 ParkingAreas = ParseParkingAreas(file, filePath, result),
                 ExitCapacity = ParseExitCapacity(file, filePath, result),
                 MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
@@ -605,6 +606,31 @@ public static class AirportSidecarLoader
         }
 
         return operators;
+    }
+
+    /// <summary>
+    /// A stand-name section (<c>nonGateParking</c>): trimmed, upper-cased, de-duplicated names in file order. A blank name is
+    /// warned and skipped.
+    /// </summary>
+    private static List<string> ParseStandNames(List<string> names, string propertyName, string filePath, AirportSidecarLoadResult result)
+    {
+        var stands = new List<string>();
+        for (int i = 0; i < names.Count; i++)
+        {
+            string name = (names[i] ?? "").Trim().ToUpperInvariant();
+            if (name.Length == 0)
+            {
+                result.Warnings.Add($"{filePath}: {propertyName}[{i}] is blank, skipping");
+                continue;
+            }
+
+            if (!stands.Contains(name))
+            {
+                stands.Add(name);
+            }
+        }
+
+        return stands;
     }
 
     /// <summary>

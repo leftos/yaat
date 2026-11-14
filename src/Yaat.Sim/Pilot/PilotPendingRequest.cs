@@ -60,9 +60,18 @@ public sealed record PilotRequestContext(
     public static PilotRequestContext Airspace(AirspaceClass airspaceClass, string airspaceIdent, LatLon referencePosition) =>
         new(null, null, airspaceClass, airspaceIdent, referencePosition, null);
 
-    /// <summary>An arrival's taxi-in request: the parking the pilot asked to taxi to.</summary>
-    public static PilotRequestContext TaxiIn(string? facilityCallName, string parkingName) =>
-        new(null, facilityCallName, null, null, null, parkingName);
+    /// <summary>
+    /// Whether the request is a taxi-in request (to parking), named spot or not, rather than a departure's ready-to-taxi
+    /// call.
+    /// </summary>
+    public bool IsTaxiIn { get; init; }
+
+    /// <summary>
+    /// An arrival's taxi-in request: the parking the pilot asked to taxi to, or null when it asked for parking without
+    /// naming a spot.
+    /// </summary>
+    public static PilotRequestContext TaxiIn(string? facilityCallName, string? parkingName) =>
+        new(null, facilityCallName, null, null, null, parkingName) { IsTaxiIn = true };
 }
 
 public sealed class PilotPendingRequest
@@ -84,8 +93,14 @@ public sealed class PilotPendingRequest
     public string? AirspaceIdent { get; init; }
     public LatLon? AirspaceReferencePosition { get; init; }
 
-    /// <summary>The parking an arrival asked to taxi to (a taxi-in request); null for a departure's ready-to-taxi call.</summary>
+    /// <summary>
+    /// The parking an arrival asked to taxi to (a taxi-in request); null for a departure's ready-to-taxi call, and for a
+    /// taxi-in request that named no spot (<see cref="TaxiIn"/>).
+    /// </summary>
     public string? ParkingName { get; init; }
+
+    /// <summary>A taxi-in request (to parking), whether or not it named a spot; false for a departure's ready-to-taxi call.</summary>
+    public bool TaxiIn { get; init; }
 
     /// <summary>
     /// The pilot's last asking was a re-ask after the controller answered "standby": the wait was acknowledged, so the
@@ -111,6 +126,7 @@ public sealed class PilotPendingRequest
             AirspaceIdent = AirspaceIdent,
             AirspaceReferencePosition = AirspaceReferencePosition,
             ParkingName = ParkingName,
+            TaxiIn = TaxiIn,
             ReaskedAfterStandby = ReaskedAfterStandby,
         };
 
@@ -132,6 +148,8 @@ public sealed class PilotPendingRequest
             AirspaceIdent = dto.AirspaceIdent,
             AirspaceReferencePosition = dto.AirspaceReferencePosition,
             ParkingName = dto.ParkingName,
+            // Snapshots from before the flag marked a taxi-in request only by its parking name.
+            TaxiIn = dto.TaxiIn || (dto.ParkingName is not null),
             ReaskedAfterStandby = dto.ReaskedAfterStandby,
         };
 }

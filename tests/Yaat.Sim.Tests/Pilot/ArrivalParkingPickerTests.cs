@@ -265,6 +265,94 @@ public class ArrivalParkingPickerTests
         Assert.Matches("^[AB]\\d", pick);
     }
 
+    /// <summary>
+    /// With SMF's committed sidecar, the runway and terminal markers (1-4, 30-32, 40-43) and the placeholders (FAA, GA,
+    /// TEXT) are never an airline's pick: every pick is a lettered terminal gate.
+    /// </summary>
+    [Theory]
+    [InlineData("AAL123")]
+    [InlineData("UAL456")]
+    [InlineData("SWA1234")]
+    [InlineData("DAL789")]
+    [InlineData("ASA321")]
+    [InlineData("JBU55")]
+    [InlineData("SKW5012")]
+    [InlineData("HAL40")]
+    public void SmfLayout_WithTheCommittedSidecar_AnAirlineNeverPicksAMarker(string callsign) =>
+        AssertAirlinePicksALetteredGate("SMF", callsign, ["1", "2", "3", "4", "30", "31", "32", "40", "41", "42", "43", "FAA", "GA", "TEXT"]);
+
+    /// <summary>With FLL's committed sidecar, the digit-only terminal markers 1-4 are never an airline's pick.</summary>
+    [Theory]
+    [InlineData("JBU101")]
+    [InlineData("SWA2201")]
+    [InlineData("NKS455")]
+    [InlineData("DAL1302")]
+    public void FllLayout_WithTheCommittedSidecar_AnAirlineNeverPicksAMarker(string callsign) =>
+        AssertAirlinePicksALetteredGate("FLL", callsign, ["1", "2", "3", "4"]);
+
+    /// <summary>
+    /// SMF's only non-gate names are the placeholders GA, FAA and TEXT, all listed as non-gate parking: a GA arrival's pool
+    /// is empty, and the pick is none rather than an airline gate.
+    /// </summary>
+    [Fact]
+    public void SmfLayout_WithTheCommittedSidecar_AGeneralAviationArrivalPicksNothing()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SMF");
+        Assert.NotNull(layout);
+        var aircraft = new AircraftState { Callsign = "N152SP", AircraftType = "C172" };
+
+        Assert.Null(ArrivalParkingPicker.Pick(aircraft, layout, [], 0, NavigationDatabase.Instance.AirportSidecars));
+        Assert.True(ArrivalParkingPicker.HasParkingNames(layout));
+    }
+
+    /// <summary>No layout means no parking names, the state in which an arrival makes no taxi-in call at all.</summary>
+    [Fact]
+    public void NoLayout_HasNoParkingNames() => Assert.False(ArrivalParkingPicker.HasParkingNames(null));
+
+    /// <summary>
+    /// JQF's committed layout has taxiway and runway nodes but no parking: it reports no parking names (so an arrival there
+    /// makes no taxi-in call) and an arrival picks nothing.
+    /// </summary>
+    [Fact]
+    public void JqfLayout_WithNodesButNoParking_HasNoParkingNames()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("JQF");
+        Assert.NotNull(layout);
+        Assert.NotEmpty(layout.Nodes);
+        var aircraft = new AircraftState { Callsign = "N152SP", AircraftType = "C172" };
+
+        Assert.False(ArrivalParkingPicker.HasParkingNames(layout));
+        Assert.Null(ArrivalParkingPicker.Pick(aircraft, layout, [], 0, NavigationDatabase.Instance.AirportSidecars));
+    }
+
+    /// <summary>A GA arrival whose pool holds no non-gate name gets no candidates rather than every gate.</summary>
+    [Fact]
+    public void GeneralAviation_WithOnlyGateNames_HasNoCandidates()
+    {
+        string[] names = ["A1", "B2", "29"];
+
+        Assert.Empty(ArrivalParkingPicker.Candidates("N123AB", names, NoGaOperators));
+        Assert.Null(ArrivalParkingPicker.Pick("N123AB", names, NoneTaken, 0, NoGaOperators));
+    }
+
+    private static void AssertAirlinePicksALetteredGate(string airportId, string callsign, string[] denied)
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airportId);
+        Assert.NotNull(layout);
+        AirportSidecarCatalog sidecars = NavigationDatabase.Instance.AirportSidecars;
+        Assert.All(denied, name => Assert.Contains(name, sidecars.GetNonGateParking(airportId)));
+        Assert.True(AirlineFleets.TryGetAirline(callsign[..3], out _), callsign);
+        var aircraft = new AircraftState { Callsign = callsign, AircraftType = "B738" };
+
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, sidecars);
+
+        Assert.NotNull(pick);
+        Assert.DoesNotContain(pick, denied);
+        Assert.True(char.IsAsciiLetterUpper(pick[0]), pick);
+        Assert.True(ArrivalParkingPicker.IsGateName(pick), pick);
+        Assert.NotNull(layout.FindParkingByName(pick));
+    }
+
     [Theory]
     [InlineData("29", true)]
     [InlineData("8B", true)]

@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
 
@@ -194,6 +195,134 @@ public class TaxiInCallTests
         Assert.EndsWith("taxi to SIGNATURE.", word.Terminal);
         Assert.EndsWith("taxi to signature.", word.Tts);
     }
+
+    /// <summary>
+    /// A GA arrival at SMF, whose only non-gate names are listed as non-gate parking, asks for plain taxi to parking with no
+    /// spot named, and the request records no parking name (the instructor assigns one).
+    /// </summary>
+    [Fact]
+    public void SmfGaArrival_AsksForTaxiToParking_NamingNone()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        PilotPendingRequest request = SmfTaxiInRequest(AiTestFixture.Callsign, "C172");
+
+        Assert.Null(request.ParkingName);
+        Assert.True(request.TaxiIn);
+        Assert.Contains("clear of runway 17L", request.LastPilotLine);
+        Assert.EndsWith(", taxi to parking.", request.LastPilotLine);
+        Assert.EndsWith(", taxi to parking.", request.LastPilotLineTts);
+    }
+
+    /// <summary>An airline arrival at SMF still names a lettered terminal gate, never a runway or terminal marker.</summary>
+    [Fact]
+    public void SmfAirlineArrival_StillNamesALetteredGate()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        PilotPendingRequest request = SmfTaxiInRequest("SWA1234", "B738");
+
+        Assert.NotNull(request.ParkingName);
+        Assert.True(request.TaxiIn);
+        Assert.True(char.IsAsciiLetterUpper(request.ParkingName[0]), request.ParkingName);
+        Assert.True(ArrivalParkingPicker.IsGateName(request.ParkingName), request.ParkingName);
+        Assert.EndsWith($", taxi to gate {request.ParkingName}.", request.LastPilotLine);
+    }
+
+    [Fact]
+    public void Snapshot_RoundTripsTheTaxiInFlag_WithAndWithoutAParkingName()
+    {
+        var unnamed = new PilotPendingRequest
+        {
+            Kind = PilotPendingRequestKind.Taxi,
+            FirstRequestedAtSeconds = 10,
+            LastPilotLine = "Sacramento Ground, clear of runway 17L at A, taxi to parking.",
+            LastPilotLineTts = "…",
+            TaxiIn = true,
+        };
+        var restored = PilotPendingRequest.FromSnapshot(unnamed.ToSnapshot());
+        Assert.True(restored.TaxiIn);
+        Assert.Null(restored.ParkingName);
+
+        var departure = new PilotPendingRequest
+        {
+            Kind = PilotPendingRequestKind.Taxi,
+            FirstRequestedAtSeconds = 10,
+            LastPilotLine = "",
+            LastPilotLineTts = "",
+        };
+        Assert.False(PilotPendingRequest.FromSnapshot(departure.ToSnapshot()).TaxiIn);
+
+        // A snapshot from before the flag: a named parking was a taxi-in request.
+        PilotPendingRequestDto older = new PilotPendingRequest
+        {
+            Kind = PilotPendingRequestKind.Taxi,
+            FirstRequestedAtSeconds = 10,
+            LastPilotLine = "",
+            LastPilotLineTts = "",
+            ParkingName = "SIG1",
+        }.ToSnapshot();
+        Assert.True(PilotPendingRequest.FromSnapshot(older).TaxiIn);
+    }
+
+    [Fact]
+    public void TaxiInWording_NoParkingNamed()
+    {
+        PilotSpeechText line = PilotResponder.BuildTaxiInRequest(
+            new AircraftState { Callsign = "N152SP", AircraftType = "C172" },
+            "Sacramento Ground",
+            "17L",
+            null,
+            null
+        );
+
+        Assert.Equal("Sacramento Ground, clear of runway 17L, taxi to parking.", line.Terminal);
+        Assert.EndsWith(", clear of runway one seven left, taxi to parking.", line.Tts);
+    }
+
+    private PilotPendingRequest SmfTaxiInRequest(string callsign, string aircraftType)
+    {
+        AiPositionConfig ground = TestAiPositions.TowerCab(_zoa!, "SMF_GND", ControlRole.Ground, "SMF");
+        string scenario = OnFinalAtSmf.Replace("CALLSIGN", callsign).Replace("ACTYPE", aircraftType);
+        SimulationEngine engine = AiTestFixture.Load(scenario, _zoa!, 7, [ground]);
+        Assert.True(engine.SendCommand(callsign, "CLAND").Success);
+        AiTestFixture.TickUntil(engine, callsign, ac => ac.Phases?.CurrentPhase is HoldingAfterExitPhase, 400);
+        AircraftState aircraft = AiTestFixture.TickUntil(
+            engine,
+            callsign,
+            ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
+            10
+        );
+        return aircraft.PendingPilotRequest!;
+    }
+
+    private const string OnFinalAtSmf = """
+        {
+          "id": "ai-on-final-smf",
+          "name": "AI on final at SMF",
+          "artccId": "ZOA",
+          "primaryAirportId": "SMF",
+          "aircraft": [
+            {
+              "id": "a1",
+              "aircraftId": "CALLSIGN",
+              "aircraftType": "ACTYPE",
+              "transponderMode": "C",
+              "startingConditions": { "type": "OnFinal", "runway": "17L", "distanceFromRunway": 4 },
+              "flightplan": {
+                "rules": "VFR", "departure": "KSMF", "destination": "KSMF", "cruiseAltitude": 1500, "cruiseSpeed": 100,
+                "route": "", "remarks": "", "aircraftType": "ACTYPE"
+              }
+            }
+          ]
+        }
+        """;
 
     private static AircraftState LandAndExit(SimulationEngine engine)
     {

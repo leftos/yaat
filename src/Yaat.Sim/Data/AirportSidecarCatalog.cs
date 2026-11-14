@@ -32,6 +32,7 @@ public sealed class AirportSidecarCatalog
     );
     private readonly Dictionary<string, HashSet<string>> _cargoOperatorsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _gaOperatorsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _nonGateParkingByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ParkingAreaAlias>> _parkingAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ExitCapacityRule>> _exitCapacityByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
@@ -66,6 +67,7 @@ public sealed class AirportSidecarCatalog
             MergeExitDirections(key, airport.ExitDirections);
             MergeNames(_cargoOperatorsByAirport, key, airport.CargoOperators);
             MergeNames(_gaOperatorsByAirport, key, airport.GaOperators);
+            MergeNames(_nonGateParkingByAirport, key, airport.NonGateParking);
             MergeParkingAreas(key, airport.ParkingAreas);
             MergeExitCapacity(key, airport.ExitCapacity);
             MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
@@ -394,6 +396,13 @@ public sealed class AirportSidecarCatalog
     /// (<see cref="Yaat.Sim.Pilot.ArrivalParkingPicker"/>). Never null — returns an empty set when the airport lists none.
     /// </summary>
     public IReadOnlySet<string> GetGaOperators(string airportId) => NamesFor(_gaOperatorsByAirport, airportId);
+
+    /// <summary>
+    /// The parking names the airport's sidecar lists in <c>nonGateParking</c> (runway and terminal markers, layout
+    /// placeholders), compared case-insensitively: an arrival never picks one for itself
+    /// (<see cref="Yaat.Sim.Pilot.ArrivalParkingPicker"/>). Never null — returns an empty set when the airport lists none.
+    /// </summary>
+    public IReadOnlySet<string> GetNonGateParking(string airportId) => NamesFor(_nonGateParkingByAirport, airportId);
 
     /// <summary>
     /// The parking areas a flight-plan remark may name at the airport, in load order, the first match winning. Never null —

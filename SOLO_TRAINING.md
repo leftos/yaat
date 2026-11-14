@@ -253,7 +253,7 @@ Solo pilots make calls when the scenario and phase call for them. Common example
 - An airborne pilot's first call states its altitude and any assigned heading and speed ("level one two thousand, heading two seven zero, assigned two five zero knots").
 - VFR pattern aircraft request closed traffic and may remind tower if landing clearance is still missing.
 - A pattern aircraft whose circuit would cross another active runway and cannot be compressed clear of it says once, per pattern runway and side, "be advised our downwind will take us across runway three zero." It flies the normal pattern and does not refuse; separate the traffic yourself or vector it.
-- Aircraft clear of the runway report clear and name the parking they picked ("clear of runway 28R at W, taxi to gate 29"), then ask again every two minutes until someone issues a taxi clearance.
+- Aircraft clear of the runway report clear and name the parking they picked ("clear of runway 28R at W, taxi to gate 29"), then ask again every two minutes until someone issues a taxi clearance. When no parking fits the aircraft, the call asks for "taxi to parking" with no spot named, and you pick where it goes.
 
 Requests remain pending until you handle the underlying need. `STBY` and `ROGER` acknowledge the call, but they do not satisfy a taxi, departure, landing, approach, or airspace-entry request. A pilot told to stand by waits longer before following up.
 

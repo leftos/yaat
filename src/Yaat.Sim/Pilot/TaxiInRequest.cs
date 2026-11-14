@@ -6,7 +6,8 @@ namespace Yaat.Sim.Pilot;
 
 /// <summary>
 /// The arrival's call to ground once it is clear of the landing runway (AIM 4-3-21.c: change to ground control and
-/// obtain a taxi clearance): "clear of runway 28R at W, taxi to gate 29". Made from whichever idle phase the exit ends
+/// obtain a taxi clearance): "clear of runway 28R at W, taxi to gate 29", or "…, taxi to parking." with no spot named
+/// when the layout has parking but none fits the arrival (the instructor assigns one). Made from whichever idle phase the exit ends
 /// in — holding after the exit, or holding in position past a parallel it had to cross first — to whichever position
 /// answers ground calls at the airport (an AI Ground, the solo student, or an AI tower working the cab alone). While a
 /// separately staffed Local answers at the airport, the pilot stays on the tower's frequency until sent to ground (AIM
@@ -44,14 +45,8 @@ public static class TaxiInRequest
             return false;
         }
 
-        string? parking = ArrivalParkingPicker.Pick(
-            aircraft,
-            ctx.GroundLayout,
-            ctx.ListAircraft?.Invoke() ?? [],
-            0,
-            NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty
-        );
-        if (parking is null)
+        string? parking = PickParking(ctx);
+        if (LayoutHasNoParking(ctx, parking))
         {
             Log.LogDebug("[TaxiIn] {Callsign}: no parking in the layout to ask for; no taxi-in call", aircraft.Callsign);
             aircraft.Ground.AwaitingTaxiInCall = false;
@@ -71,9 +66,28 @@ public static class TaxiInRequest
         answering.MarkInitialContact(aircraft);
         aircraft.Ground.AwaitingTaxiInCall = false;
         aircraft.Ground.ReleasedToGround = false;
-        Log.LogDebug("[TaxiIn] {Callsign}: asked {Facility} for taxi to {Parking}", aircraft.Callsign, facilityCallName, parking);
+        Log.LogDebug("[TaxiIn] {Callsign}: asked {Facility} for taxi to {Parking}", aircraft.Callsign, facilityCallName, DescribeParking(parking));
         return true;
     }
+
+    /// <summary>The arrival's own pick of parking (salt 0), against the traffic and the airport's sidecar.</summary>
+    private static string? PickParking(PhaseContext ctx) =>
+        ArrivalParkingPicker.Pick(
+            ctx.Aircraft,
+            ctx.GroundLayout,
+            ctx.ListAircraft?.Invoke() ?? [],
+            0,
+            NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty
+        );
+
+    /// <summary>
+    /// No pick and no parking anywhere in the layout: nothing to ask for, so no call. A layout with parking but an empty
+    /// pool still gets the call, naming no spot.
+    /// </summary>
+    private static bool LayoutHasNoParking(PhaseContext ctx, string? parking) =>
+        (parking is null) && !ArrivalParkingPicker.HasParkingNames(ctx.GroundLayout);
+
+    private static string DescribeParking(string? parking) => parking ?? "parking, no spot named";
 
     /// <summary>The same answering position under two hats (a student, or one AI position working the cab alone).</summary>
     private static bool SamePosition(PilotAnsweringPosition a, PilotAnsweringPosition b) =>

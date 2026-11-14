@@ -13,12 +13,13 @@ namespace Yaat.Sim.Pilot;
 /// nodes that fit the operator: the operator's own ramp when the layout names one (FDX*, JSX*, DHL*), a cargo apron or
 /// a gate for an airline, a non-gate spot (FBO ramps, tie-down rows) for everyone else — an operator the airport's
 /// sidecar lists in <c>gaOperators</c> among them, whatever the fleet data says — general aviation avoids every
-/// gate name, so a layout whose airline hardstands match the gate shape keeps them out of the GA pool. A gate name is an
-/// optional leading upper-case letter, one to three digits, and an optional trailing upper-case letter ("29", "F8",
-/// "A13R", "G101"); an airline's pool is the digit-led gates when they are at least half of the layout's gates (OAK's
-/// 1-32, whose lettered names are hardstands) and every gate otherwise (FLL, SMF and MIA, where the digits are runway
-/// and terminal markers beside the real gates). Spots already parked on, being taxied to, or named in another pilot's
-/// open taxi-in request are skipped.
+/// gate name, so a layout whose airline hardstands match the gate shape keeps them out of the GA pool, and a GA arrival
+/// whose pool is empty picks nothing rather than a gate. A gate name is an optional leading upper-case letter, one to
+/// three digits, and an optional trailing upper-case letter ("29", "F8", "A13R", "G101"); an airline's pool is the
+/// digit-led gates when they are at least half of the layout's gates (OAK's 1-32, whose lettered names are hardstands)
+/// and every gate otherwise. Names the airport's sidecar lists in <c>nonGateParking</c> (the runway and terminal markers
+/// SMF and FLL draw as parking, and placeholders such as SMF's GA, FAA and TEXT) are never in any pool. Spots already
+/// parked on, being taxied to, or named in another pilot's open taxi-in request are skipped.
 /// </summary>
 public static class ArrivalParkingPicker
 {
@@ -55,8 +56,10 @@ public static class ArrivalParkingPicker
 
     /// <summary>
     /// The pick for <paramref name="aircraft"/> over the layout's parking names. <paramref name="sidecars"/> supplies the
-    /// airport's <c>gaOperators</c>, so an operator the airport lists is pooled as general aviation.
+    /// airport's <c>gaOperators</c>, so an operator the airport lists is pooled as general aviation, and its
+    /// <c>nonGateParking</c>, whose names are left out before any pool is drawn.
     /// </summary>
+    /// <returns>The picked name; null with no layout, when the layout has no parking names, and when the operator's pool is empty.</returns>
     public static string? Pick(
         AircraftState aircraft,
         AirportGroundLayout? layout,
@@ -70,16 +73,26 @@ public static class ArrivalParkingPicker
             return null;
         }
 
-        var names = layout
-            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && !string.IsNullOrWhiteSpace(n.Name))
-            .Select(n => n.Name!.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(n => n, StringComparer.Ordinal)
-            .ToList();
+        IReadOnlySet<string> nonGate = sidecars.GetNonGateParking(layout.AirportId);
+        var names = ParkingNames(layout).Where(n => !nonGate.Contains(n)).ToList();
         return Pick(aircraft.Callsign, names, TakenSpots(others, aircraft.Callsign), salt, sidecars.GetGaOperators(layout.AirportId));
     }
 
-    /// <summary>The pure choice: <paramref name="names"/> in ordinal order, minus <paramref name="taken"/>, narrowed to the operator's pool.</summary>
+    /// <summary>Whether <paramref name="layout"/> names any parking node at all, whatever an arrival's pool would hold.</summary>
+    public static bool HasParkingNames(AirportGroundLayout? layout) => (layout is not null) && ParkingNames(layout).Any();
+
+    /// <summary>The layout's parking names, trimmed, each once, in ordinal order.</summary>
+    private static IEnumerable<string> ParkingNames(AirportGroundLayout layout) =>
+        layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && !string.IsNullOrWhiteSpace(n.Name))
+            .Select(n => n.Name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.Ordinal);
+
+    /// <summary>
+    /// The pure choice: <paramref name="names"/> in ordinal order, minus <paramref name="taken"/>, narrowed to the operator's
+    /// pool; null when there are no names or the pool is empty.
+    /// </summary>
     public static string? Pick(string callsign, IReadOnlyList<string> names, IReadOnlySet<string> taken, int salt, IReadOnlySet<string> gaOperators)
     {
         if (names.Count == 0)
@@ -93,7 +106,8 @@ public static class ArrivalParkingPicker
             free = [.. names];
         }
 
-        return Choose(callsign, Candidates(callsign, free, gaOperators), salt);
+        IReadOnlyList<string> pool = Candidates(callsign, free, gaOperators);
+        return (pool.Count == 0) ? null : Choose(callsign, pool, salt);
     }
 
     /// <summary>
@@ -221,18 +235,16 @@ public static class ArrivalParkingPicker
     }
 
     /// <summary>
-    /// The names an operator would taxi to, in ordinal order; never empty when <paramref name="names"/> is not. An operator
-    /// in <paramref name="gaOperators"/> pools as general aviation, whatever the fleet data says of it.
+    /// The names an operator would taxi to, in ordinal order. An airline's is never empty when <paramref name="names"/> is
+    /// not; general aviation's is empty when no name is a non-gate spot, since a GA arrival is never sent to an airline gate.
+    /// An operator in <paramref name="gaOperators"/> pools as general aviation, whatever the fleet data says of it.
     /// </summary>
     public static IReadOnlyList<string> Candidates(string callsign, IReadOnlyList<string> names, IReadOnlySet<string> gaOperators)
     {
         string? operatorCode = OperatorCode(callsign, gaOperators);
         if (operatorCode is null)
         {
-            var general = names
-                .Where(n => !IsGateName(n) && !IsOperatorRamp(n) && !n.StartsWith(CargoApronPrefix, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            return general.Count > 0 ? general : names;
+            return [.. names.Where(n => !IsGateName(n) && !IsOperatorRamp(n) && !n.StartsWith(CargoApronPrefix, StringComparison.OrdinalIgnoreCase))];
         }
 
         string ramp = RampAliases.GetValueOrDefault(operatorCode, operatorCode);
@@ -255,8 +267,8 @@ public static class ArrivalParkingPicker
         if (gates.Count > 0)
         {
             // The digit-led names are the pool only when they dominate the layout's gates: OAK's 1-32, where the lettered
-            // names are hardstands. A minority of digit-led names (FLL, SMF, MIA) means the digits are runway and
-            // terminal markers beside the real gates, so every gate name is the pool.
+            // names are hardstands. A minority of digit-led names sits beside the lettered gates, so every gate name is the
+            // pool; markers that only look like gates are the sidecar's nonGateParking, left out before this.
             var digitLed = gates.Where(g => char.IsAsciiDigit(g[0])).ToList();
             return (digitLed.Count * 2 >= gates.Count) ? digitLed : gates;
         }
