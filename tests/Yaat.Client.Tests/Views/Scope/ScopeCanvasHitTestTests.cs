@@ -79,6 +79,7 @@ public class ScopeCanvasHitTestTests
             euroScope,
             metrics,
             ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>()
         );
         return ScopeFrame.Build(input);

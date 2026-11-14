@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
@@ -19,7 +20,9 @@ public class ScopeTemplateParityTests
     private const float OriginX = 137f;
     private const float OriginY = -52f;
 
-    private sealed record Case(AircraftModel Ac, AircraftModel? Lead, AircraftModel? Peer);
+    /// <param name="Marker">The student-level marker today's renderer appends to line 1.</param>
+    /// <param name="MarkLevel">Whether the student-level marker preference is on.</param>
+    private sealed record Case(AircraftModel Ac, AircraftModel? Lead, AircraftModel? Peer, string Marker, bool MarkLevel);
 
     private static readonly Dictionary<string, Func<Case>> Cases = new()
     {
@@ -30,7 +33,7 @@ public class ScopeTemplateParityTests
                 ac.CwtCode = "";
                 ac.IsIdenting = true;
             }),
-        ["AtpaLead"] = () => new Case(ScopeTestAircraft.CreateAtpaTrailer(), ScopeTestAircraft.CreateAtpaLead(), null),
+        ["AtpaLead"] = () => new Case(ScopeTestAircraft.CreateAtpaTrailer(), ScopeTestAircraft.CreateAtpaLead(), null, Marker: "", MarkLevel: true),
         ["LongCallsign"] = () => Plain(ac => ac.Callsign = "N1234567890AB"),
         ["OwnedWithScratchpads"] = () => Plain(OwnedWithScratchpads),
         ["SquawkMismatchWithNote"] = () =>
@@ -57,8 +60,13 @@ public class ScopeTemplateParityTests
                     ac.ConflictPeerCallsign = "SWA1234";
                 }),
                 null,
-                ScopeTestAircraft.CreateConflictPeer()
+                ScopeTestAircraft.CreateConflictPeer(),
+                Marker: "",
+                MarkLevel: true
             ),
+        ["Ldb"] = () => Student(StarsDatablockLevel.Limited, markLevel: true),
+        ["Pdb"] = () => Student(StarsDatablockLevel.Partial, markLevel: true),
+        ["LdbMarkerOff"] = () => Student(StarsDatablockLevel.Limited, markLevel: false),
     };
 
     public static TheoryData<string, bool> CasesByPhase
@@ -121,7 +129,11 @@ public class ScopeTemplateParityTests
         return ac;
     }
 
-    private static Case Plain(Action<AircraftModel> setup) => new(With(setup), null, null);
+    private static Case Plain(Action<AircraftModel> setup) => new(With(setup), null, null, Marker: "", MarkLevel: true);
+
+    /// <summary>A track the student's scope shows at <paramref name="level"/>, with the marker preference on or off.</summary>
+    private static Case Student(StarsDatablockLevel level, bool markLevel) =>
+        new(With(ac => ac.StudentDatablockLevel = level), null, null, markLevel ? RadarDatablockLayout.StudentLevelMarker(level) : "", markLevel);
 
     private static void OwnedWithScratchpads(AircraftModel ac)
     {
@@ -141,7 +153,10 @@ public class ScopeTemplateParityTests
     private static ScopeBlockLayout ScopeLayout(string templateId, Case c, bool flashOn, TextStyle style)
     {
         TrackPresentation presentation = TrackPresenter.Present(
-            ScopeTestAircraft.Input(c.Ac, templateId, flashOn, atpaLead: c.Lead, conflictPeer: c.Peer)
+            ScopeTestAircraft.Input(c.Ac, templateId, flashOn, atpaLead: c.Lead, conflictPeer: c.Peer) with
+            {
+                Display = ScopeTestAircraft.AllDisplay with { MarkStudentLevel = c.MarkLevel },
+            }
         );
         return DatablockTemplate.Layout(presentation, ScopeTextMetrics.FromStyle(style));
     }
@@ -153,7 +168,7 @@ public class ScopeTemplateParityTests
             c.Ac,
             new DatablockPlacement(0, 0, style, true),
             new DatablockOverlays(true, c.Peer, true, c.Lead),
-            callsignMarker: ""
+            callsignMarker: c.Marker
         );
     }
 
@@ -239,6 +254,7 @@ public class ScopeTemplateParityTests
         TagFieldRect[] todayDrawn = [.. today.Fields.Where(f => flashOn || (f.Field != TagFieldId.Ident))];
         FieldRect[] drawn = [.. scope.Fields.Where(f => f.Text.Length > 0)];
 
+        Assert.DoesNotContain(scope.Fields, f => f.Slot == ScopeFieldSlot.StudentLevelMark);
         Assert.Equal(todayDrawn.Select(f => (f.Field, f.Text)), drawn.Select(f => (EuroScopeIds[f.Slot], f.Text)));
         for (int i = 0; i < todayDrawn.Length; i++)
         {

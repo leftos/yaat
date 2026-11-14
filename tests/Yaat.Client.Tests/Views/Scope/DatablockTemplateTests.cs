@@ -107,9 +107,9 @@ public class DatablockTemplateTests
             ScopeBlockLevel.Full,
             ScopeColorToken.Default,
             [
-                new ScopeField(ScopeFieldSlot.Ident, flashOn ? "ID" : "", "ID", ScopeColorToken.Default, ScopeFieldAction.None),
-                new ScopeField(ScopeFieldSlot.Altitude, "230", "230", ScopeColorToken.Default, ScopeFieldAction.None),
-                new ScopeField(ScopeFieldSlot.GroundSpeed, "25", "25", ScopeColorToken.Default, ScopeFieldAction.None),
+                new ScopeField(ScopeFieldSlot.Ident, flashOn ? "ID" : "", "ID", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
+                new ScopeField(ScopeFieldSlot.Altitude, "230", "230", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
+                new ScopeField(ScopeFieldSlot.GroundSpeed, "25", "25", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
             ]
         );
         ScopeTextMetrics metrics = Metrics();
@@ -125,6 +125,41 @@ public class DatablockTemplateTests
         {
             Assert.Equal(expectedLefts[i], layout.Fields[i].Rect.Left, precision: 3);
         }
+    }
+
+    private static ScopeBlockLayout LayOutStyled(ScopeFieldStyle squawkStyle)
+    {
+        var presentation = new TrackPresentation(
+            ScopeTemplates.StarsId,
+            ScopeBlockLevel.Full,
+            ScopeColorToken.Default,
+            [
+                new ScopeField(ScopeFieldSlot.Callsign, "UAL238", "UAL238", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
+                new ScopeField(ScopeFieldSlot.Squawk, "1200 0301", "1200 0301", ScopeColorToken.Default, ScopeFieldAction.None, squawkStyle),
+                new ScopeField(ScopeFieldSlot.ModeC, "ModeC", "ModeC", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.Strikethrough),
+            ]
+        );
+        return DatablockTemplate.Layout(presentation, Metrics());
+    }
+
+    [Fact]
+    public void FieldStyle_IsCopiedIntoTheRect()
+    {
+        ScopeBlockLayout layout = LayOutStyled(ScopeFieldStyle.DimTail);
+
+        Assert.Equal(ScopeFieldStyle.None, Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.Callsign).Style);
+        Assert.Equal(ScopeFieldStyle.DimTail, Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.Squawk).Style);
+        Assert.Equal(ScopeFieldStyle.Strikethrough, Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.ModeC).Style);
+    }
+
+    [Fact]
+    public void DimTailField_HasTheRectItHasWithoutTheFlag()
+    {
+        ScopeBlockLayout dim = LayOutStyled(ScopeFieldStyle.DimTail);
+        ScopeBlockLayout plain = LayOutStyled(ScopeFieldStyle.None);
+
+        Assert.Equal(plain.Bounds, dim.Bounds);
+        Assert.Equal(plain.Fields.Select(f => (f.Slot, f.Rect, f.Text)), dim.Fields.Select(f => (f.Slot, f.Rect, f.Text)));
     }
 
     [Theory]

@@ -14,6 +14,7 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="EuroScopeMode">Whether the EuroScope template is in use (else the STARS template).</param>
 /// <param name="Metrics">Datablock text measurements.</param>
 /// <param name="Alerts">Alert overlays the user's preferences allow.</param>
+/// <param name="Display">Instructor display hints the user's preferences allow.</param>
 /// <param name="ManualOffsets">Per-callsign block offsets from the symbol; a callsign absent here takes the default offset.</param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
@@ -22,6 +23,7 @@ public sealed record ScopeFrameInput(
     bool EuroScopeMode,
     ScopeTextMetrics Metrics,
     ScopeAlertOptions Alerts,
+    ScopeDisplayOptions Display,
     IReadOnlyDictionary<string, SKPoint> ManualOffsets
 );
 
@@ -74,7 +76,8 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
                 Peer(byCallsign, ac.ConflictPeerCallsign),
                 flashOn,
                 isSelected,
-                input.Alerts
+                input.Alerts,
+                input.Display
             );
             ScopeBlockLayout atOrigin = DatablockTemplate.Layout(TrackPresenter.Present(presenterInput), input.Metrics);
             bool hasManual = input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
@@ -178,6 +181,10 @@ public sealed class ScopeRenderer : IDisposable
     private static readonly SKColor ConflictAlertColor = new(255, 60, 60);
     private static readonly SKColor AtpaWarningColor = SKColors.Yellow;
     private static readonly SKColor AtpaAlertColor = new(255, 55, 0);
+    private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
+
+    // The squawk pulse's off-phase brightness, as today's radar (CRC ApplyColorBrightness(color, 25)).
+    private const float DimTailBrightness = 0.25f;
 
     private readonly VideoMapRenderer _videoMapRenderer = new();
 
@@ -205,6 +212,9 @@ public sealed class ScopeRenderer : IDisposable
     };
 
     private readonly SKPaint _textPaint = new() { IsAntialias = true };
+
+    // Antialiased like today's radar strike paint, and outside the radar line style: its width comes from the font each draw.
+    private readonly SKPaint _strikethroughPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
 
     // Stroke paints drawn in the radar's line style (no AA, device-pixel width) each frame; each carries its base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
@@ -239,6 +249,7 @@ public sealed class ScopeRenderer : IDisposable
         _leaderPaint.Dispose();
         _selectedBorderPaint.Dispose();
         _textPaint.Dispose();
+        _strikethroughPaint.Dispose();
         _font?.Dispose();
     }
 
@@ -268,19 +279,78 @@ public sealed class ScopeRenderer : IDisposable
 
         foreach (FieldRect field in track.Block.Fields)
         {
-            if (field.Text.Length == 0)
+            if (field.Text.Length > 0)
             {
-                continue;
+                DrawField(canvas, field, font);
             }
-            _textPaint.Color = ColorFor(field.Token);
-            // A field rect spans the font's ascent budget above its baseline, so the baseline is the rect's bottom.
-            canvas.DrawText(field.Text, field.Rect.Left, field.Rect.Bottom, SKTextAlign.Left, font, _textPaint);
         }
     }
+
+    private void DrawField(SKCanvas canvas, FieldRect field, SKFont font)
+    {
+        SKColor color = ColorFor(field.Token);
+        // A field rect spans the font's ascent budget above its baseline, so the baseline is the rect's bottom.
+        float baseline = field.Rect.Bottom;
+        if (field.Style.HasFlag(ScopeFieldStyle.DimTail))
+        {
+            DrawDimTail(canvas, field.Text, field.Rect.Left, baseline, font, color);
+        }
+        else
+        {
+            _textPaint.Color = color;
+            canvas.DrawText(field.Text, field.Rect.Left, baseline, SKTextAlign.Left, font, _textPaint);
+        }
+
+        if (field.Style.HasFlag(ScopeFieldStyle.Strikethrough))
+        {
+            DrawStrikethrough(canvas, field, font, color);
+        }
+    }
+
+    /// <summary>
+    /// Draws the text before the first space at <paramref name="color"/>, then the rest (its leading space included) at a
+    /// quarter of its brightness, placed as today's <c>TargetRenderer.DrawSquawkMismatchLine</c> places its head and tail.
+    /// </summary>
+    private void DrawDimTail(SKCanvas canvas, string text, float x, float baseline, SKFont font, SKColor color)
+    {
+        int space = text.IndexOf(' ');
+        string head = space < 0 ? text : text[..space];
+        _textPaint.Color = color;
+        canvas.DrawText(head, x, baseline, SKTextAlign.Left, font, _textPaint);
+        if (space < 0)
+        {
+            return;
+        }
+
+        float headWidth = font.MeasureText(head);
+        _textPaint.Color = Dim(color, DimTailBrightness);
+        canvas.DrawText(text[space..], x + headWidth, baseline, SKTextAlign.Left, font, _textPaint);
+    }
+
+    /// <summary>A line across <paramref name="field"/> at the font's strikeout position, as today's radar strikes ModeC.</summary>
+    private void DrawStrikethrough(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
+    {
+        SKFontMetrics metrics = font.Metrics;
+        // StrikeoutPosition is negative (above the baseline); a font that reports none falls back to a third of its size.
+        float strikeOffset = metrics.StrikeoutPosition.GetValueOrDefault();
+        if (strikeOffset == 0)
+        {
+            strikeOffset = -font.Size / 3f;
+        }
+        float strikeY = field.Rect.Bottom + strikeOffset;
+        _strikethroughPaint.Color = color;
+        _strikethroughPaint.StrokeWidth = MathF.Max(1f, metrics.StrikeoutThickness.GetValueOrDefault());
+        canvas.DrawLine(field.Rect.Left, strikeY, field.Rect.Right, strikeY, _strikethroughPaint);
+    }
+
+    /// <summary>Scales <paramref name="color"/>'s RGB toward black by <paramref name="factor"/>, keeping its alpha.</summary>
+    private static SKColor Dim(SKColor color, float factor) =>
+        new((byte)(color.Red * factor), (byte)(color.Green * factor), (byte)(color.Blue * factor), color.Alpha);
 
     private static SKColor ColorFor(ScopeColorToken token) =>
         token switch
         {
+            ScopeColorToken.TypeMismatch => TypeMismatchColor,
             ScopeColorToken.Note => NoteColor,
             ScopeColorToken.NoLandingClearance => NoLandingClearanceColor,
             ScopeColorToken.ConflictAlert => ConflictAlertColor,
