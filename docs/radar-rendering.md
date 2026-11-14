@@ -31,6 +31,10 @@ All paths are under `src/Yaat.Client/`.
 | `Yaat.Client.Core/ContextMenus/QuickCommandResolver.cs` / `QuickCommandDefaults.cs` / `QuickCommandStrip.cs` | Situation → the quick commands (icon strip, then text entries) at the top of the aircraft menu ([client-context-menus.md](client-context-menus.md)) |
 | `Views/Radar/Flyouts/*.cs` | EuroScope interactive-tag pickers (altitude, speed, runway, squawk, scratchpad, handoff) + heading mode |
 
+## YAAT Scope engine
+
+Beside the Radar layouts, `Views/Scope/` holds the YAAT Scope datablock engine (plan: [plans/yaat-scope/README.md](plans/yaat-scope/README.md)). It is pure and draws nothing yet. `TrackPresenter` turns an `AircraftModel` (plus template id, ATPA lead/conflict peer, flash phase, selection) into a `TrackPresentation` of slotted fields; `DatablockTemplate` lays that into a template's lines (`ScopeTemplates`: "stars", "euroscope") and returns one `FieldRect` list with the bounds and line texts, which drawing and hit-testing are to share, so the draw-vs-hit-test duplication below does not recur there. The Radar layouts above stay the live path until the view replaces them.
+
 `Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX — it builds the
 "show nav route" path segments (waypoints + optional vector tail + crossing-restriction labels) that `RadarViewModel` assembles into the
 `ShownPathEntry` overlay list drawn by `RadarRenderer.DrawShownPaths`. It only shares the `Services/` folder with other code.
