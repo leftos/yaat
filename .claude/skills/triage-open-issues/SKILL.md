@@ -1,103 +1,48 @@
 ---
 name: triage-open-issues
-description: "Use when the user asks to fold, sync or incorporate the open GitHub issues into docs/plans, asks which open issues are already fixed by unreleased work or where a given #N fits in the plan, or when the tracker and docs/plans/MAIN.md have drifted before a planning or release session."
+description: "Use when the user asks to triage the open GitHub issues, asks which untriaged issues are already fixed by unreleased work or where a given #N belongs on the board, or when issues are sitting in team YAAT's Triage state before a planning or release session."
 ---
 
-# Triage open issues into the plans
+# Triage open issues onto the board
 
-Every open issue on `leftos/yaat` ends the run with one verdict and, for the ones still open, one
-place in `docs/plans/`. Triage stops at placement: the fix is designed when the item is picked up,
-not here. Nothing on GitHub is mutated — no close, no comment, no label.
+The plan is Linear, team YAAT (`yaat-nextup`; `~/.claude/docs/plan-operations.md`). GitHub issues on `leftos/yaat` reach the team's Triage state through Linear's sync, so nothing is copied. This skill is the reading and the verdicts for the **triage** operation there: each untriaged issue ends the run with one verdict and, when it is still open work, one project. Triage stops at placement: the fix is designed when the item is picked up. `docs/plans/MAIN.md` is a generated snapshot and is never edited here. Nothing on GitHub is mutated by hand: no close, no comment, no label.
 
-## Step 1: Gather
+## Step 1: Sync and list
 
-```bash
-bash .claude/skills/triage-open-issues/scripts/gather.sh
-```
+1. `linear sync-priority yaat`, so the owner's `urgent`/`high` labels and hand-set priorities agree before anything is read; it also puts every open Urgent or High issue not yet in an open placeholder into `vNext`.
+2. `linear publish yaat --labelled` publishes every open issue the owner marked `public`.
+3. The untriaged issues are those in `linear list yaat` whose state is Triage, plus any top-level issue with `project: null`. `linear list` also gives the board to place them on: the projects, their content and milestones.
 
-Writes `.tmp/issue-triage/`: `issues.tsv` (number, date, labels, linked PR, title), `open-prs.tsv`,
-`bodies/<N>.md` (body + comments), `refs.txt` (issue numbers cited by commits since the last tag and
-by the changelog's Unreleased section), `changelog-unreleased.md`, `plan-refs.txt` (plan lines in
-both repos citing an open issue, then open checkboxes naming a class the body names), `touched-files.txt` (files each body names, with two counts of
-commits since the tag that touched each: yaat's, then yaat-server's), `new-comments.md` (per open issue, the comments posted
-since the index's `<!-- triage-open-issues: <UTC timestamp> -->` stamp; with no stamp, every comment). yaat-server has no tags, so its window is
-`--since=<yaat tag date>`. Read `issues.tsv`, `refs.txt`, `plan-refs.txt`, `touched-files.txt`, then
-every `bodies/<N>.md`. Read a comment thread to the end: the reporter or owner often states the
-current state there ("fixed in abc123, leaving open until confirmed").
+## Step 2: Read each issue
 
-## Step 2: One verdict per issue
+**Read item** every untriaged issue with `linear show <ID>`, description and whole comment thread: the reporter or owner often states the current state in a comment ("fixed in abc123, leaving open until confirmed"). Read it far enough to name the files it touches. An attachment (a screenshot, a recording, a Discord forward) is read with `multimodal-looker`; a `*-recording.zip` or bug bundle goes through `bug-bundle`. A bot issue (`nightly-review` label) states its confidence and carries a red-first repro; that is the evidence, and re-deriving the root cause from source is the implementer's work.
+
+The `suggestions` in `linear show <ID>` (Triage Intelligence, set only while the issue is in Triage) are a hint and the files decide: a suggested project that is one of the board's projects is taken when the issue's files belong there, and an open issue suggested as related is named beside the placement in the report.
+
+## Step 3: One verdict per issue
 
 Apply the first row that matches:
 
-| Verdict | Predicate | Plan action |
+| Verdict | Predicate | Action |
 |---|---|---|
-| `planned` | `plan-refs.txt` cites `#N` from a live plan line (not a folder-map row) | the pointer already exists; re-read it against `new-comments.md` (below) |
-| `pr-linked` | `issues.tsv` shows a linked PR, or an open PR title carries `(#N)` | one Backlog line naming every PR↔issue pair, routed to the `land-bot-pr` skill; the issue's own scope notes are not plan items |
-| `probably-fixed` | `refs.txt` cites `#N`, or a bullet in `changelog-unreleased.md` satisfies the body's ask (the matching rules are `prepare-release` step 2.9: read the body, a partial fix is not a fix) | none; report the evidence. Closing belongs to `prepare-release` step 8.3 after the release ships |
-| `open` | everything else | place it (Step 3) |
+| `pr-linked` | an open PR (`gh pr list --repo leftos/yaat --state open --json number,title,headRefName`) names the issue in its title, body or branch | the PR is planned by that mention; otherwise **add** `Review and land PR #N` with its files, checks and mergeability in the description, routed to the `land-bot-pr` skill for a bot's PR |
+| `probably-fixed` | a commit since the last tag cites the issue, or a bullet in `CHANGELOG.md`'s Unreleased section satisfies the body's ask (the matching rules are `prepare-release` step 2.9: read the body, a partial fix is not a fix) | probe it: when the code shows the ask met, **land** it with the fixing commit's sha (`linear land <ID> --sha <sha>`, `~/.claude/docs/plan-operations.md`); a partial or unproven fix is placed as `open` with the evidence in a comment |
+| `open` | everything else | place it (Step 4) |
 
-**A `planned` issue is re-read, never skipped.** For every issue `new-comments.md` shows activity on,
-read the new comments against the plan line that cites `#N` and change the line when a comment
-changes what the next agent would do: a reporter's answer that rules a theory in or out, a new repro
-or attachment, a second symptom, a changed scope, a "still happens in <version>", a blocker lifted
-or raised. The line states the current state, with the date of the answer; it does not narrate the
-thread. A comment that adds nothing (thanks, a bump, the agent's own audit comment) changes nothing;
-say so in the table. An "issue updated" time later than the stamp with no new comment means the body
-or labels were edited: re-read `bodies/<N>.md`.
+A file the issue names with no commits since the last tag is untouched, which settles `open` against `probably-fixed` cheaply; a file with commits gets `git log <tag>..HEAD --oneline -- <file>` (in yaat-server, `git log --since=<tag date>`) and the subjects say whether the change was the issue's or unrelated churn.
 
-`touched-files.txt` settles `open` vs `probably-fixed` cheaply: a file with zero commits in both columns
-is untouched; a file with commits gets `git log <tag>..HEAD --oneline -- <file>` (in yaat-server, `git log --since=<tag date>`) and the subjects say
-whether the change was the issue's or unrelated churn. A bot issue (`nightly-review` label) states
-its confidence and carries a red-first repro; that is the evidence, and re-deriving the root cause
-from source is the implementer's work. Rule 1 in Step 3 needs the plan files that name the
-issue's classes; `plan-refs.txt` lists those too, under its second heading, so the subplan check is
-a read. Any `rg` you run yourself takes an absolute path (`rg -n pat "$(git rev-parse --show-toplevel)/docs/plans"`): a
-`cd … && rg` is rejected by the permission guard and costs a retry.
+**A vague title is renamed.** A user submission titled broadly is renamed to say what goes wrong, where, and the command or view involved, per `yaat-nextup`'s triage paragraph: `linear edit <ID> --title "<title>"`. The reporter's own words stay in the description.
 
-## Step 3: Place each `open` issue
+## Step 4: Place each `open` issue
 
-Placement rules, first match wins:
+Each goes in the project that shares its files: the project whose issues, or whose content, name the same `docs/*.md` subsystem doc or the same fix site. Two reports of one gap are one item: the second gets a comment on the first, or a `--related` or `--duplicate-of` edit, not a second placement. Different subsystem docs are distinct items, even when the labels match. An issue no project covers goes in `Backlog`. A defect that belongs to a feature marker's outcome project goes there, under the feature parent when it is worked on the branch.
 
-1. **A subplan already covers the subsystem** (its file names the same `docs/*.md` subsystem doc or
-   the same fix site) → one checkbox in that subplan; append `#N` to the subplan's MAIN.md pointer line.
-2. **A MAIN.md Backlog line already describes the same defect family** → merge: add `#N` and one
-   clause to that line. Two reports of one gap are one item.
-3. **Two or more `open` issues share a subsystem doc and a contract or invariant** (the same
-   `docs/<subsystem>.md` section, or the same class) → one new subplan `docs/plans/<slug>.md` listing
-   them as checkboxes, plus one MAIN.md line under "Subplans without a schedule". Different subsystem
-   docs → distinct items, even when the labels match.
-4. **Otherwise** → one Backlog line. An `open-issues/<N>-<slug>.md` file exists only for an issue
-   that needs a design document of its own (a feature, a cross-repo programme); a bug gets a line.
-   Such a plan file is linked from the issue's Linear description and deleted once the issue is implemented.
+Then one **arrange** places them all: `linear arrange yaat <layout.json>`, the layout being the current one from `linear list` with each untriaged issue added to its project's list. `arrange` sets no state, so each issue placed out of Triage then gets Backlog (or Todo, in an outcome being worked) with a bare `issueUpdate(stateId)`, which posts no comment to its GitHub ticket.
 
-The MAIN.md Backlog line is one line, in the index's own voice, and carries exactly two things:
-the symptom and the fix site. The mechanism, the repro test and the fix model stay in the issue,
-which the reader opens by number:
+## Step 5: Report
 
-```markdown
-- [ ] **Free-text `RDTXT`/`SP1`/`ANNOTATE` over-split on `,`/`;`** (#421, reported 2026-09-06): the message is truncated at the separator and the tail is dispatched as a command when it happens to parse — `CompoundPolicy.TrySplitSpecialCompound`
-```
-
-Bare `#N`, not a markdown link; no longer than the neighbouring lines (under about sixty words). A
-merge (rule 2) adds `#N` and one clause to the existing line. A subplan checkbox may quote the
-issue's root-cause paragraph and its repro test name. Keep the folder-map row for `open-issues/` in
-sync when a file is added there.
-
-## Step 4: Propose, then apply on approval
-
-Post one table — `#`, verdict, evidence (one cell: the commit, changelog bullet, PR or plan line),
-placement (file + section), group — followed by the exact lines to add or change, then stop for the
-user's go. A `planned` row's evidence cell says what its new comments changed, or "no new comments".
-On approval edit `MAIN.md` and the subplans, set the index's stamp line (under the hygiene stamp) to
-the time the gather ran, `<!-- triage-open-issues: $(date -u +%Y-%m-%dT%H:%M:%SZ) -->` — also when
-no line changed, so the next run lists only what arrived after this one — show `git diff --stat docs/plans`, and offer
-a `docs:` commit; the global rule against auto-commit still holds.
+Post one table: `#` or ID, verdict, evidence (one cell: the commit, changelog bullet, PR or comment), placement (project and state), and any related open issue Triage Intelligence or the read found. Placement is applied in Step 4 without asking, since it only moves a card; a rename is reported with its old and new title.
 
 ## Completion
 
-Every number in `issues.tsv` appears in the table with a verdict from Step 2; every `open` issue has
-a placement; every `pr-linked` pair names its PR; every `probably-fixed` verdict names its evidence; every
-issue with activity in `new-comments.md` has its plan line confirmed current or changed; the index's
-triage stamp is set.
-About ten tool calls for a tracker of this size (eight open issues): one gather, the reads, the
-table.
+Every untriaged issue in the Step 1 list appears in the table with a verdict; every `open` issue has a project and left Triage; every `pr-linked` row names its PR; every `probably-fixed` row names its evidence; a vague title was renamed.

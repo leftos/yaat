@@ -43,7 +43,7 @@ Sequential and short, and finished before any work starts: the secret check can 
 
 ### 1.0 Ask: hotfix or regular
 
-When `linear queue yaat` lists `vHotfix` items first and they are Landed, ask whether this run is the hotfix for them or the regular release. With no Landed `vHotfix` item the run is regular. A hotfix run takes the **On a hotfix** notes below; its items are the Landed `vHotfix` issues and nothing else.
+When `linear queue yaat` lists `vHotfix` items first and they are Done (landed), ask whether this run is the hotfix for them or the regular release. With no Done `vHotfix` item the run is regular. A hotfix run takes the **On a hotfix** notes below; its items are the Done `vHotfix` issues and nothing else.
 
 ### 1.1 Resolve the sibling repo once, and assert it exists
 
@@ -193,7 +193,7 @@ A release never ships with a known user-reported bug: an open issue reporting a 
 
 The Discord bot's `/create-issue` labels its issues `bug` (`/create-feature-request` uses `enhancement`), so start from `gh issue list --repo leftos/yaat --state open --label bug --limit 200`; issues filed any other way (agent-filed reports from Discord, Linear-synced ones) carry no label, so also read the unlabelled open issues' bodies (`gh issue list --repo leftos/yaat --state open --limit 400 --json number,title,labels,body`) to judge them.
 
-For each user-reported bug, its Linear issue must be Landed in the open release, or the user must have agreed in this session or a comment on the issue to defer it. Any other one stops the release: list them for step 3.1, which asks the user, one question per bug, whether to fix it first or defer it; a deferral is written as a comment on the Linear issue.
+For each user-reported bug, its Linear issue must be Done (landed) in the open release, or the user must have agreed in this session or a comment on the issue to defer it. Any other one stops the release: list them for step 3.1, which asks the user, one question per bug, whether to fix it first or defer it; a deferral is written as a comment on the Linear issue.
 
 **On a hotfix** this stop does not apply: a hotfix ships only `vHotfix` items, and open user bugs wait for the regular cut.
 
@@ -313,7 +313,7 @@ For each match, log a finding: file + section + what's stale, missing, or wrong.
 
 ### 2.9 Scan for open issues this release fixes (subagent)
 
-Step 8.1's `linear release complete` moves every Landed issue in the release to Done, which closes its GitHub issue through the sync. That only catches issues someone **land**ed in Linear. Feature work driven by a Discord thread routinely ships without ever naming the issue, leaving a fixed request open — the reporter never learns it landed.
+`land` already closed a landed issue's GitHub issue when it moved it to Done (`~/.claude/docs/plan-operations.md`, **land**), and step 8.1's `linear release complete` only files those Done issues under the version. That only catches issues someone **land**ed in Linear. Feature work driven by a Discord thread routinely ships without ever naming the issue, leaving a fixed request open — the reporter never learns it landed.
 
 Match open issues against what actually shipped, not against commit metadata:
 
@@ -417,7 +417,7 @@ Read the unreleased section as 3.2 left it. Count the user-visible bullets first
 - The precompute cache is current for the tree that ships and committed (3.4): 2.2's check reported nothing stale, or a recompute ran after the last hashed-source landing.
 - 2.3's consolidation has committed or reported zero duplicates.
 - Every changed screenshot has been reviewed (3.3).
-- Every open user-reported bug is Landed in the open release or deferred by the user (2.5).
+- Every open user-reported bug is Done (landed) in the open release or deferred by the user (2.5).
 - Every agreed landing from 3.2 is in.
 
 ## Phase 4: Draft the release notes and get approval
@@ -695,15 +695,15 @@ Needs the release public (step 7.6, or 7.3 on the client-only path). Launch 8.1 
 
 ### 8.1 Complete the Linear release — no confirmation
 
-Cutting the release is the owner's ack for every issue that shipped in it, so this step runs without asking. First **land** the issue that tracks this cut, if the queue has one (a "Cut the release…" gate item), on the tag commit (`linear land <ID> --sha <tag commit>`): only Landed issues ship, so an unlanded cut item stays in `vNext`. Then:
+This step runs without asking. First **land** the issue that tracks this cut, if the queue has one (a "Cut the release…" gate item), on the tag commit (`linear land <ID> --sha <tag commit>`): only Done issues ship, so an unlanded cut item stays in `vNext`. Then:
 
 ```bash
 uv run --project ~/.claude/tools/linear python -m linear release complete yaat --version v{version} --sha "$(git rev-parse v{version}^{commit})" --repo-root "$YAAT"
 ```
 
-It creates a release `v{version}` and moves into it each Landed issue of `vNext` whose landing commit is in the tag's history, set to Done with the comment `Released v{version}` (which closes its GitHub issue through the sync), plus any issue already Done; Canceled issues leave `vNext`, every other issue stays in it, and every `vNext+1` issue moves into `vNext`.
+It creates a release `v{version}` and files under it each Done issue of `vNext` whose landing commit is in the tag's history, with the comment `Released v{version}` and no change of state (the GitHub issue closed at **land**); Canceled issues leave `vNext`, every other issue stays in it, and every `vNext+1` issue moves into `vNext`.
 
-Then it completes `v{version}` at the tag commit. `vNext` and `vNext+1` keep their ids and names. Report its `<ID>: Done` / `<ID>: stays in vNext` / `<ID>: moved to vNext` lines.
+Then it completes `v{version}` at the tag commit. `vNext` and `vNext+1` keep their ids and names. Report the lines it prints for each issue it files, keeps in `vNext` or moves down a slot.
 
 **On a hotfix** cut the `vHotfix` release instead, from `main`'s checkout, and skip the cut-item landing and the `vNext+1` move above (they belong to `vNext`):
 
