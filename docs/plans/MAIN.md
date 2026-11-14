@@ -6,7 +6,6 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2221 YAAT Scope step 2: ERAM altitude line, line-3 status slot, line-4 HSF, VCI and dwell · release vNext
-    - [ ] YAAT-2269 YAAT Scope step 2b: line-3 status slot, line-4 HSF, VCI and R, column 0 · release vNext
     - [ ] YAAT-2270 YAAT Scope step 2c: block levels and dwell, Mixed template, altitude-mismatch marker · release vNext
   - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
@@ -1543,4 +1542,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2269, YAAT-2270, YAAT-2277, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2270, YAAT-2277, YAAT Scope (feat/yaat-scope)
