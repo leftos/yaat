@@ -9,6 +9,7 @@
 ### Fixed
 
 - A route ending at a navaid named like the destination airport, such as SAC for KSAC, now continues direct to the field instead of flying straight on.
+- Exported scenarios keep a VFR aircraft's at-or-above or at-or-below altitude (`CM A050`, `CM B050`) instead of a plain or reversed climb or descent.
 - Controllers whose VATUSA home facility is Honolulu (HCF) now get ZHN as their ARTCC, plus Guam (ZUA), so their scenarios list and load again.
 
 ## v0.18.4-beta [2026/11/13]

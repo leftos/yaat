@@ -723,7 +723,7 @@ Every choice is made so that `ScenarioLoader` reloads the aircraft where it was,
 - **OnFinal** by approach phase for a simulated aircraft; for a shadow by geometry (≤ 15 NM, track within 15° of the runway course, cross-track ≤ min(1.0, 0.2 + d·tan 5°) NM, within ±1,000 ft of `GlideSlopeGeometry`'s glidepath, climbing no faster than 300 fpm). Under 0.5 NM from the threshold it is flagged instead, because `AircraftInitializer.InitializeOnFinal` only honours a positive distance and would respawn the aircraft 5 NM out.
 - **Coordinates** otherwise. Headings are written magnetic (the loader converts back with the same `MagneticModelDateUtc`); speed is **indicated** airspeed, since the loader writes `Speed` into `IndicatedAirspeed` — a shadow's IAS and heading come from `LiveTrafficKinematics.WriteAirVector`, never its ground speed and track.
 
-  An IFR aircraft on its route keeps it (a shadow's filed route cut to the fixes ahead) and gains presets for its assigned altitude (`CM`/`DM`), speed (`SPD`, with `+`/`-`) and `DVIA`/`CVIA`; a via mode suppresses the `CM`/`DM`, which would cancel it on reload.
+  An IFR aircraft on its route keeps it (a shadow's filed route cut to the fixes ahead) and gains presets for its assigned altitude (`CM`/`DM`), speed (`SPD`, with `+`/`-`) and `DVIA`/`CVIA`; a via mode suppresses the `CM`/`DM`, which would cancel it on reload. A VFR aircraft holding an at-or-above or at-or-below restriction exports it as `CM A{alt}` / `CM B{alt}` whatever its altitude; an IFR aircraft's coincident floor or ceiling (an IR clearance, a pilot level-off) keeps the plain `CM`/`DM`.
 
 Weather is not exported.
 

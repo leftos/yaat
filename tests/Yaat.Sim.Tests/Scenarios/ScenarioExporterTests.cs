@@ -487,6 +487,45 @@ public class ScenarioExporterTests
     }
 
     [Fact]
+    public void Shadow_OffEveryFix_RouteNotTrimmed()
+    {
+        LatLon offRoute = GeoMath.ProjectPoint(FixPosition("SUNOL"), new TrueHeading(0), 60.0);
+        AircraftState shadow = Shadow("SKW55", AirSample(offRoute, 12000, 280, 360, 0), null);
+        var plan = new ScenarioFlightPlan
+        {
+            Rules = "IFR",
+            Departure = "KSFO",
+            Destination = "KSAC",
+            Route = "OSI SUNOL MOD",
+        };
+
+        ScenarioExportResult result = Export(shadow, plan);
+
+        Assert.Equal("OSI SUNOL MOD", Assert.Single(result.Scenario.Aircraft).StartingConditions.NavigationPath);
+        Assert.Contains(new ScenarioExportFlag("SKW55", ScenarioExporter.ReasonRouteNotTrimmed), result.Flags);
+    }
+
+    [Fact]
+    public void Shadow_PastTheLastFix_RouteNotTrimmed()
+    {
+        double trackDeg = GeoMath.BearingTo(FixPosition("SUNOL"), FixPosition("MOD"));
+        LatLon pastMod = GeoMath.ProjectPoint(FixPosition("MOD"), new TrueHeading(trackDeg), 6.0);
+        AircraftState shadow = Shadow("SKW55", AirSample(pastMod, 12000, 280, trackDeg, 0), null);
+        var plan = new ScenarioFlightPlan
+        {
+            Rules = "IFR",
+            Departure = "KSFO",
+            Destination = "KSAC",
+            Route = "OSI SUNOL MOD",
+        };
+
+        ScenarioExportResult result = Export(shadow, plan);
+
+        Assert.Equal("OSI SUNOL MOD", Assert.Single(result.Scenario.Aircraft).StartingConditions.NavigationPath);
+        Assert.Contains(new ScenarioExportFlag("SKW55", ScenarioExporter.ReasonRouteNotTrimmed), result.Flags);
+    }
+
+    [Fact]
     public void Ifr_InHold_FlaggedProcedure()
     {
         AircraftState holding = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
@@ -512,6 +551,110 @@ public class ScenarioExporterTests
         Assert.Equal(5000, reloaded.Targets.AssignedAltitude);
         Assert.Equal(descending.Targets.AssignedAltitude, reloaded.Targets.AssignedAltitude);
         Assert.Equal(descending.Targets.TargetAltitude, reloaded.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// A ceiling with no VFR restriction behind it (an IR "at or below" or a pilot's own level-off) exports the plain
+    /// assigned-altitude form: <c>CM A</c>/<c>CM B</c> is VFR-only and an IFR reload would reject it.
+    /// </summary>
+    [Fact]
+    public void Ifr_CoincidentCeiling_ExportsPlainDmNotCmB()
+    {
+        AircraftState ifr = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
+        ifr.Targets.AssignedAltitude = 5000;
+        ifr.Targets.AltitudeCeiling = 5000;
+        Assert.True(ifr.Altitude > 5000, $"the aircraft starts above the assigned altitude at {ifr.Altitude}");
+
+        ScenarioExportResult result = Export(ifr);
+
+        Assert.Equal(["DM 050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+    }
+
+    /// <summary>
+    /// A VFR at-or-above restriction is a floor, not a clearance to one altitude: the preset carries the <c>A</c> form, so
+    /// the reload flies at or above 5,000 rather than level at it.
+    /// </summary>
+    [Fact]
+    public void VfrAtOrAbove_ExportsCmAPreset_RoundTrips()
+    {
+        AircraftState restricted = LoadSingle(AirborneJson("N172SP", "VFR", "SUNOL ECA"));
+        restricted.Altitude = 3000;
+        Dispatch(restricted, "CM A050");
+        Assert.Equal(5000, restricted.Targets.AltitudeFloor);
+
+        ScenarioExportResult result = Export(restricted);
+
+        Assert.Equal(["CM A050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+        AircraftState reloaded = ReloadWithPresets(result);
+        Assert.Equal(5000, reloaded.Targets.AssignedAltitude);
+        Assert.Equal(restricted.Targets.AltitudeFloor, reloaded.Targets.AltitudeFloor);
+        Assert.Null(reloaded.Targets.AltitudeCeiling);
+    }
+
+    /// <summary>
+    /// An aircraft above its floor is not being told to descend to it: the restriction exports as <c>CM A</c>, never the
+    /// <c>DM</c> the assigned-altitude comparison would pick.
+    /// </summary>
+    [Fact]
+    public void VfrAtOrAbove_AboveTheFloor_ExportsCmANotDm()
+    {
+        AircraftState above = LoadSingle(AirborneJson("N172SP", "VFR", "SUNOL ECA"));
+        Assert.True(above.Altitude > 5000, $"the aircraft starts above the floor at {above.Altitude}");
+        Dispatch(above, "CM A050");
+
+        ScenarioExportResult result = Export(above);
+
+        Assert.Equal(["CM A050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+    }
+
+    /// <summary>A VFR at-or-below restriction is a ceiling, and the preset carries the <c>B</c> form that restores it.</summary>
+    [Fact]
+    public void VfrAtOrBelow_ExportsCmBPreset_RoundTrips()
+    {
+        AircraftState restricted = LoadSingle(AirborneJson("N172SP", "VFR", "SUNOL ECA"));
+        Dispatch(restricted, "CM B050");
+        Assert.Equal(5000, restricted.Targets.AltitudeCeiling);
+
+        ScenarioExportResult result = Export(restricted);
+
+        Assert.Equal(["CM B050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+        AircraftState reloaded = ReloadWithPresets(result);
+        Assert.Equal(5000, reloaded.Targets.AssignedAltitude);
+        Assert.Equal(restricted.Targets.AltitudeCeiling, reloaded.Targets.AltitudeCeiling);
+        Assert.Null(reloaded.Targets.AltitudeFloor);
+    }
+
+    /// <summary>
+    /// An aircraft below its ceiling is not being told to climb to it: the restriction exports as <c>CM B</c>, never the
+    /// plain <c>CM</c> the assigned-altitude comparison would pick.
+    /// </summary>
+    [Fact]
+    public void VfrAtOrBelow_BelowTheCeiling_ExportsCmB()
+    {
+        AircraftState below = LoadSingle(AirborneJson("N172SP", "VFR", "SUNOL ECA"));
+        below.Altitude = 3000;
+        Dispatch(below, "CM B050");
+        Assert.Equal(5000, below.Targets.AltitudeCeiling);
+
+        ScenarioExportResult result = Export(below);
+
+        Assert.Equal(["CM B050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+    }
+
+    /// <summary>
+    /// An aircraft sitting at its restriction's value still has the restriction: the preset exports it rather than
+    /// dropping it on the distance-to-assigned-altitude guard.
+    /// </summary>
+    [Fact]
+    public void VfrAtOrAbove_AtTheValue_StillExportsCmA()
+    {
+        AircraftState atFloor = LoadSingle(AirborneJson("N172SP", "VFR", "SUNOL ECA"));
+        Dispatch(atFloor, "CM A050");
+        atFloor.Altitude = 5000;
+
+        ScenarioExportResult result = Export(atFloor);
+
+        Assert.Equal(["CM A050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
     }
 
     [Theory]

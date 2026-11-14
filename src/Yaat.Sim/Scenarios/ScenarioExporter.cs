@@ -401,26 +401,18 @@ public static class ScenarioExporter
 
     /// <summary>
     /// The presets that give a reloaded aircraft back the targets it was flying to: a descend-via or climb-via with its
-    /// floor or ceiling, otherwise a climb or descent to an assigned altitude it has not reached, then SMAX while the
-    /// aircraft holds its maximum forward speed, otherwise an assigned speed with its floor or ceiling suffix. Altitudes are written in hundreds of feet, the form the altitude parser reads.
+    /// floor or ceiling, otherwise an active VFR altitude restriction, otherwise a climb or descent to an assigned
+    /// altitude it has not reached, then SMAX while the aircraft holds its maximum forward speed, otherwise an assigned
+    /// speed with its floor or ceiling suffix. Altitudes are written in hundreds of feet, the form the altitude parser
+    /// reads.
     /// </summary>
     private static List<PresetCommand> PresetsOf(AircraftState state)
     {
         var commands = new List<string>();
-        AircraftProcedure procedure = state.Procedure;
         ControlTargets targets = state.Targets;
-        if (procedure.StarViaMode)
+        if (AltitudePreset(state) is { } altitude)
         {
-            commands.Add(procedure.StarViaFloor is { } floor ? $"DVIA {Hundreds(floor)}" : "DVIA");
-        }
-        else if (procedure.ClimbViaTargetFt is not null)
-        {
-            // Only a climb via in force: every SID departure flies in via mode, and one cleared to an altitude reloads by CM.
-            commands.Add(procedure.SidViaCeiling is { } ceiling ? $"CVIA {Hundreds(ceiling)}" : "CVIA");
-        }
-        else if ((targets.AssignedAltitude is { } altitude) && (Math.Abs(altitude - state.Altitude) > FlightPhysics.AltitudeSnapFt))
-        {
-            commands.Add($"{(altitude > state.Altitude ? "CM" : "DM")} {Hundreds(altitude)}");
+            commands.Add(altitude);
         }
 
         if (targets.SpeedMaxHeld)
@@ -438,6 +430,61 @@ public static class ScenarioExporter
 
         return [.. commands.Select(command => new PresetCommand { Id = Guid.NewGuid().ToString("N"), Command = command })];
     }
+
+    /// <summary>
+    /// The command that restores an aircraft's altitude target, or null when it has none: a via clearance in force first,
+    /// then a VFR altitude restriction on a VFR aircraft (which holds whatever its current altitude), then a climb or
+    /// descent to an assigned altitude the aircraft has not reached. <c>CM A</c>/<c>CM B</c> is VFR-only, and an IFR
+    /// aircraft can carry a ceiling without a restriction (an IR clearance, a pilot's own level-off), so an IFR aircraft
+    /// takes the plain form.
+    /// </summary>
+    private static string? AltitudePreset(AircraftState state)
+    {
+        if (ViaPreset(state.Procedure) is { } via)
+        {
+            return via;
+        }
+
+        if (state.Targets.AssignedAltitude is not { } altitude)
+        {
+            return null;
+        }
+
+        if ((state.FlightPlan.IsVfr) && (RestrictionPreset(state.Targets, altitude) is { } restriction))
+        {
+            return restriction;
+        }
+
+        return (Math.Abs(altitude - state.Altitude) <= FlightPhysics.AltitudeSnapFt)
+            ? null
+            : $"{(altitude > state.Altitude ? "CM" : "DM")} {Hundreds(altitude)}";
+    }
+
+    /// <summary>The descend-via or climb-via preset in force, with its floor or ceiling, or null when none is.</summary>
+    private static string? ViaPreset(AircraftProcedure procedure)
+    {
+        if (procedure.StarViaMode)
+        {
+            return procedure.StarViaFloor is { } floor ? $"DVIA {Hundreds(floor)}" : "DVIA";
+        }
+
+        if (procedure.ClimbViaTargetFt is null)
+        {
+            return null;
+        }
+
+        // Only a climb via in force: every SID departure flies in via mode, and one cleared to an altitude reloads by CM.
+        return procedure.SidViaCeiling is { } ceiling ? $"CVIA {Hundreds(ceiling)}" : "CVIA";
+    }
+
+    /// <summary>
+    /// The <c>CM A</c> / <c>CM B</c> form of a VFR at-or-above / at-or-below restriction, whose value is also the
+    /// assigned altitude, or null when the assigned altitude carries no floor or ceiling.
+    /// </summary>
+    private static string? RestrictionPreset(ControlTargets targets, double altitude) =>
+        (targets.AltitudeFloor == altitude) ? $"CM A{Hundreds(altitude)}"
+        : (targets.AltitudeCeiling == altitude) ? $"CM B{Hundreds(altitude)}"
+        : null;
 
     private static string Hundreds(double altitudeFt) => ((int)Math.Round(altitudeFt / 100.0)).ToString("D3", CultureInfo.InvariantCulture);
 
