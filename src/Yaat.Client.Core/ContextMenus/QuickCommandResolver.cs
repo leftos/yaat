@@ -29,37 +29,41 @@ public sealed record QuickCommandResolution(IReadOnlyList<QuickCommandStripItem>
 public static class QuickCommandResolver
 {
     /// <summary>The quick-list visibility rule each gated catalog action is filtered by beside its applicability.</summary>
-    private static readonly FrozenDictionary<string, Func<IMenuAircraft, bool>> Visibility = new Dictionary<string, Func<IMenuAircraft, bool>>(
-        StringComparer.Ordinal
-    )
+    private static readonly FrozenDictionary<string, Func<IMenuAircraft, MenuContext, bool>> Visibility = new Dictionary<
+        string,
+        Func<IMenuAircraft, MenuContext, bool>
+    >(StringComparer.Ordinal)
     {
-        [MenuIds.TowerClearedForTakeoff] = ac =>
+        [MenuIds.TowerClearedForTakeoff] = (ac, _) =>
             AircraftCommandApplicability.ShowsTakeoffWhileTaxiing(ac)
             && AircraftCommandApplicability.ShowsDepartureClearanceAtHoldShort(ac)
             && AircraftCommandApplicability.ShowsDepartureClearanceWhileHeld(ac),
-        [MenuIds.TowerLineUpAndWait] = ac =>
+        [MenuIds.TowerLineUpAndWait] = (ac, _) =>
             AircraftCommandApplicability.ShowsDepartureClearanceAtHoldShort(ac) && AircraftCommandApplicability.ShowsDepartureClearanceWhileHeld(ac),
-        [MenuIds.GroundGiveWay] = AircraftCommandApplicability.ShowsGiveWay,
-        [MenuIds.ProceduresClimbViaSid] = AircraftCommandApplicability.ShowsClimbViaSid,
-        [MenuIds.ProceduresDescendViaStar] = AircraftCommandApplicability.ShowsDescendViaStar,
-        [MenuIds.TowerClearedToLand] = AircraftCommandApplicability.ShowsClearedToLandOnFinal,
-        [MenuIds.ApproachCleared] = ac =>
+        [MenuIds.GroundGiveWay] = (ac, _) => AircraftCommandApplicability.ShowsGiveWay(ac),
+        [MenuIds.ProceduresClimbViaSid] = (ac, _) => AircraftCommandApplicability.ShowsClimbViaSid(ac),
+        [MenuIds.ProceduresDescendViaStar] = (ac, _) => AircraftCommandApplicability.ShowsDescendViaStar(ac),
+        [MenuIds.TowerClearedToLand] = (ac, _) => AircraftCommandApplicability.ShowsClearedToLandOnFinal(ac),
+        [MenuIds.ApproachCleared] = (ac, _) =>
             AircraftCommandApplicability.ShowsApproachClearanceAfterGoAround(ac)
             && AircraftCommandApplicability.ShowsApproachClearanceUntilCleared(ac),
-        [MenuIds.TowerCancelTakeoff] = AircraftCommandApplicability.ShowsCancelTakeoff,
-        [MenuIds.GroundCrossRunway] = AircraftCommandApplicability.ShowsCrossAtHoldShort,
-        [MenuIds.GroundResumeTaxi] = AircraftCommandApplicability.ShowsResumeTaxiAtHoldShort,
-        [MenuIds.ApproachClearedVisual] = AircraftCommandApplicability.ShowsClearedVisual,
-        [MenuIds.ApproachReportFieldInSight] = AircraftCommandApplicability.ShowsReportFieldInSight,
-        [MenuIds.SpeedAssign] = AircraftCommandApplicability.ShowsSpeedAdjustment,
-        [MenuIds.SpeedCustom] = AircraftCommandApplicability.ShowsSpeedAdjustment,
-        [MenuIds.SpeedFinalApproach] = AircraftCommandApplicability.ShowsSpeedAdjustment,
-        [MenuIds.TowerExitLeft] = AircraftCommandApplicability.ShowsRunwayExit,
-        [MenuIds.TowerExitRight] = AircraftCommandApplicability.ShowsRunwayExit,
-        [MenuIds.GroundPushback] = AircraftCommandApplicability.ShowsPushback,
-        [MenuIds.GroundPushbackTo] = AircraftCommandApplicability.ShowsPushback,
-        [MenuIds.SquawkNormal] = AircraftCommandApplicability.ShowsSquawkNormal,
-        [MenuIds.SquawkAssigned] = AircraftCommandApplicability.ShowsSquawkAssigned,
+        [MenuIds.TowerCancelTakeoff] = (ac, _) => AircraftCommandApplicability.ShowsCancelTakeoff(ac),
+        [MenuIds.GroundCrossRunway] = (ac, _) => AircraftCommandApplicability.ShowsCrossAtHoldShort(ac),
+        [MenuIds.GroundResumeTaxi] = (ac, _) => AircraftCommandApplicability.ShowsResumeTaxiAtHoldShort(ac),
+        [MenuIds.ApproachClearedVisual] = (ac, _) => AircraftCommandApplicability.ShowsClearedVisual(ac),
+        [MenuIds.ApproachReportFieldInSight] = (ac, _) => AircraftCommandApplicability.ShowsReportFieldInSight(ac),
+        [MenuIds.SpeedAssign] = (ac, _) => AircraftCommandApplicability.ShowsSpeedAdjustment(ac),
+        [MenuIds.SpeedCustom] = (ac, _) => AircraftCommandApplicability.ShowsSpeedAdjustment(ac),
+        [MenuIds.SpeedFinalApproach] = (ac, _) => AircraftCommandApplicability.ShowsSpeedAdjustment(ac),
+        [MenuIds.TowerExitLeft] = (ac, _) => AircraftCommandApplicability.ShowsRunwayExit(ac),
+        [MenuIds.TowerExitRight] = (ac, _) => AircraftCommandApplicability.ShowsRunwayExit(ac),
+        [MenuIds.GroundPushback] = (ac, _) => AircraftCommandApplicability.ShowsPushback(ac),
+        [MenuIds.GroundPushbackTo] = (ac, _) => AircraftCommandApplicability.ShowsPushback(ac),
+        [MenuIds.SquawkNormal] = (ac, _) => AircraftCommandApplicability.ShowsSquawkNormal(ac),
+        [MenuIds.SquawkAssigned] = (ac, _) => AircraftCommandApplicability.ShowsSquawkAssigned(ac),
+        [MenuIds.TrackAcceptHandoff] = AircraftCommandApplicability.ShowsAcceptHandoff,
+        [MenuIds.TrackCancelHandoff] = AircraftCommandApplicability.ShowsCancelHandoff,
+        [MenuIds.TrackAcknowledgePointout] = AircraftCommandApplicability.ShowsAcknowledgePointout,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -142,7 +146,7 @@ public static class QuickCommandResolver
     {
         MenuCatalogEntry catalogEntry = MenuCatalog.Get(entry.CatalogId);
         bool rulesMatch = MatchesFlightRules(entry.FlightRules ?? catalogEntry.DefaultFlightRules, entry.CatalogId, aircraft, context);
-        return (rulesMatch && IsAdmitted(catalogEntry, aircraft, context) && IsVisible(entry.CatalogId, aircraft)) ? catalogEntry : null;
+        return (rulesMatch && IsAdmitted(catalogEntry, aircraft, context) && IsVisible(entry.CatalogId, aircraft, context)) ? catalogEntry : null;
     }
 
     /// <summary>
@@ -192,8 +196,8 @@ public static class QuickCommandResolver
         catalogEntry.IsApplicable(aircraft, context)
         || (Widening.TryGetValue(catalogEntry.Id, out Func<IMenuAircraft, MenuContext, bool>? widen) && widen(aircraft, context));
 
-    private static bool IsVisible(string catalogId, IMenuAircraft aircraft) =>
-        !Visibility.TryGetValue(catalogId, out Func<IMenuAircraft, bool>? rule) || rule(aircraft);
+    private static bool IsVisible(string catalogId, IMenuAircraft aircraft, MenuContext context) =>
+        !Visibility.TryGetValue(catalogId, out Func<IMenuAircraft, MenuContext, bool>? rule) || rule(aircraft, context);
 
     /// <summary>
     /// Whether an entry offered under <paramref name="rules"/> fits the aircraft's filed rules. An aircraft whose rules are

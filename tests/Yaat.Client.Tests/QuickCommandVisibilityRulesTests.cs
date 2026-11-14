@@ -38,7 +38,10 @@ public class QuickCommandVisibilityRulesTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             )
         );
 
@@ -417,6 +420,144 @@ public class QuickCommandVisibilityRulesTests
         aircraft.BeaconCode = code;
         aircraft.AssignedBeaconCode = 4521;
         Assert.Equal(shown, Shows(aircraft, MenuIds.SquawkAssigned, VfrCommandsForIfr.None));
+    }
+
+    // --- Track and coordination: Accept, Cancel and Acknowledge by direction against the acting position ---
+
+    private static readonly IReadOnlyList<QuickCommandEntry> TrackRowList =
+    [
+        new CatalogQuickCommandEntry(MenuIds.TrackAcceptHandoff, null),
+        new CatalogQuickCommandEntry(MenuIds.TrackCancelHandoff, null),
+        new CatalogQuickCommandEntry(MenuIds.TrackAcknowledgePointout, null),
+    ];
+
+    /// <summary>A context whose session acts as <paramref name="tcp"/> (null: unknown), with the position's callsign in NCT.</summary>
+    private static MenuContext ActingContext(string? tcp, string? callsign)
+    {
+        MenuContext context = Context(VfrCommandsForIfr.None);
+        return context with { Session = context.Session with { ActiveTcp = tcp, ActivePositionCallsign = callsign, ActiveTrackFacilityId = "NCT" } };
+    }
+
+    /// <summary>An enroute aircraft whose track is owned by <paramref name="owner"/>, an NCT position named by its sector code.</summary>
+    private static AircraftModel Tracked(string owner)
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.IfrEnroute, "", onGround: false, "IFR");
+        aircraft.Owner = $"NCT_{owner}";
+        aircraft.OwnerSectorCode = owner;
+        aircraft.OwnerFacilityId = "NCT";
+        return aircraft;
+    }
+
+    private static AircraftModel HandingOff(string from, string to)
+    {
+        AircraftModel aircraft = Tracked(from);
+        aircraft.HandoffPeer = $"NCT_{to}";
+        aircraft.HandoffPeerSectorCode = to;
+        aircraft.HandoffPeerFacilityId = "NCT";
+        return aircraft;
+    }
+
+    private static AircraftModel PointingOut(string from, string to)
+    {
+        AircraftModel aircraft = Tracked(from);
+        aircraft.PointoutStatus = "Pending";
+        aircraft.PointoutSenderCode = from;
+        aircraft.PointoutRecipientCode = to;
+        return aircraft;
+    }
+
+    /// <summary>The Track rows the quick list shows for <paramref name="aircraft"/> from a list holding all three.</summary>
+    private static string[] TrackRows(AircraftModel aircraft, MenuContext context)
+    {
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(TrackRowList, aircraft, context, _ => true);
+        return [.. resolution.Strip.Select(item => item.Entry.Id).Concat(resolution.Text.Select(entry => entry.Id))];
+    }
+
+    [Fact]
+    public void AcceptHandoff_ShowsOnlyForAHandoffToTheActingPosition()
+    {
+        MenuContext acting2B = ActingContext("2B", "NCT_2B");
+        AircraftModel redirected = HandingOff("2C", "2D");
+        redirected.HandoffRedirectedByCallsign = "NCT_2B";
+        redirected.HandoffRedirectedBySectorCode = "2B";
+        redirected.HandoffRedirectedByFacilityId = "NCT";
+
+        Assert.Equal([MenuIds.TrackAcceptHandoff], TrackRows(HandingOff("2C", "2B"), acting2B));
+        Assert.Equal([MenuIds.TrackAcceptHandoff], TrackRows(redirected, acting2B));
+        Assert.DoesNotContain(MenuIds.TrackAcceptHandoff, TrackRows(HandingOff("2B", "2C"), acting2B));
+    }
+
+    [Fact]
+    public void CancelHandoff_ShowsOnlyForAHandoffFromTheActingPosition()
+    {
+        MenuContext acting2B = ActingContext("2B", "NCT_2B");
+
+        Assert.Equal([MenuIds.TrackCancelHandoff], TrackRows(HandingOff("2B", "2C"), acting2B));
+        Assert.DoesNotContain(MenuIds.TrackCancelHandoff, TrackRows(HandingOff("2C", "2B"), acting2B));
+        Assert.Empty(TrackRows(Tracked("2B"), acting2B));
+    }
+
+    [Fact]
+    public void AcknowledgePointout_ShowsOnlyForAPendingPointoutToTheActingPosition()
+    {
+        MenuContext acting2B = ActingContext("2B", "NCT_2B");
+        AircraftModel accepted = Tracked("2C");
+        accepted.PointoutStatus = "Accepted";
+
+        Assert.Equal([MenuIds.TrackAcknowledgePointout], TrackRows(PointingOut("2C", "2B"), acting2B));
+        Assert.Empty(TrackRows(PointingOut("2B", "2C"), acting2B));
+        Assert.Empty(TrackRows(accepted, acting2B));
+    }
+
+    [Fact]
+    public void ThirdPartyHandoffAndPointout_ShowNoRow()
+    {
+        MenuContext acting2B = ActingContext("2B", "NCT_2B");
+
+        Assert.Empty(TrackRows(HandingOff("2C", "2D"), acting2B));
+        Assert.Empty(TrackRows(PointingOut("2C", "2D"), acting2B));
+    }
+
+    [Fact]
+    public void ActingAsAnotherPosition_FollowsTheSessionsActiveTcp()
+    {
+        AircraftModel aircraft = HandingOff("2C", "2D");
+
+        Assert.Equal([MenuIds.TrackAcceptHandoff], TrackRows(aircraft, ActingContext("2D", "NCT_2D")));
+        Assert.Empty(TrackRows(aircraft, ActingContext("2B", "NCT_2B")));
+        Assert.Equal([MenuIds.TrackAcceptHandoff], TrackRows(aircraft, ActingContext("2D", null)));
+    }
+
+    /// <summary>
+    /// A tower cab acts under the facility its tracks carry (OAK_TWR as NCT 3O), so a handoff to it shows Accept and one from it
+    /// shows Cancel.
+    /// </summary>
+    [Fact]
+    public void TowerCab_ActingUnderItsTrackFacility_ShowsAcceptAndCancel()
+    {
+        MenuContext context = Context(VfrCommandsForIfr.None);
+        MenuContext oakTower = context with
+        {
+            Session = context.Session with { ActiveTcp = "3O", ActivePositionCallsign = "OAK_TWR", ActiveTrackFacilityId = "NCT" },
+        };
+        AircraftModel toTower = HandingOff("2C", "3O");
+        toTower.HandoffPeer = "OAK_TWR";
+        AircraftModel fromTower = HandingOff("3O", "2C");
+        fromTower.Owner = "OAK_TWR";
+
+        Assert.Equal([MenuIds.TrackAcceptHandoff], TrackRows(toTower, oakTower));
+        Assert.Equal([MenuIds.TrackCancelHandoff], TrackRows(fromTower, oakTower));
+    }
+
+    [Fact]
+    public void UnknownActingPosition_ShowsNoTrackRow()
+    {
+        MenuContext unknown = ActingContext(null, "NCT_2B");
+
+        Assert.Empty(TrackRows(HandingOff("2C", "2B"), unknown));
+        Assert.Empty(TrackRows(HandingOff("2B", "2C"), unknown));
+        Assert.Empty(TrackRows(PointingOut("2C", "2B"), unknown));
+        Assert.Empty(TrackRows(HandingOff("2C", "2B"), Context(VfrCommandsForIfr.None)));
     }
 
     // --- Helicopters: Air taxi and Land, and no push rows ---

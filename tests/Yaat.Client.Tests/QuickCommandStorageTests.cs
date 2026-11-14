@@ -190,11 +190,15 @@ public class QuickCommandStorageTests : IDisposable
         return root["quickCommandLists"] is JsonObject lists ? [.. lists.Select(pair => pair.Key)] : [];
     }
 
-    /// <summary>Writes <paramref name="listsJson"/> as the stored quick-command lists in the shared preferences.json on disk.</summary>
+    /// <summary>
+    /// Writes <paramref name="listsJson"/> as the stored quick-command lists in the shared preferences.json on disk, at the
+    /// current preferences version so the load reads them as written and runs no migration.
+    /// </summary>
     private static void InjectQuickCommandLists(string listsJson)
     {
         JsonObject root = File.Exists(PreferencesPath) ? JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject() : [];
         root["quickCommandLists"] = JsonNode.Parse(listsJson);
+        root["preferencesVersion"] = UserPreferences.CurrentPreferencesVersion;
         Directory.CreateDirectory(YaatPaths.AppDataRoot);
         File.WriteAllText(PreferencesPath, root.ToJsonString());
     }

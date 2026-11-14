@@ -25,7 +25,10 @@ internal static class TestMenuContext
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             )
         );
 }

@@ -3,6 +3,8 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -166,6 +168,53 @@ public class MainViewModelActivePositionTests
         vm.ActiveTcp = "1S";
 
         Assert.Null(vm.ActivePosition);
+    }
+
+    /// <summary>OAK_TWR as the server describes it: listed under the OAK tower, its tracks owned under NCT.</summary>
+    private static readonly ActivePositionDto OakTower = new(
+        "OAK_TWR",
+        "Local Control",
+        "Oakland Tower",
+        "118.300",
+        "OAK",
+        "Oakland ATCT",
+        "Atct",
+        "3O",
+        TrackFacilityId: "NCT"
+    );
+
+    /// <summary>
+    /// The menu session acts under the position's track facility, the one its tracks carry, not the facility it is listed
+    /// under, so a tower cab's handoffs match.
+    /// </summary>
+    [AvaloniaFact]
+    public void TowerPosition_MenuSessionActsUnderItsTrackFacility()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.SetActivePositionFromServer(Config("3O", OakTower));
+
+        Assert.Equal(new ActingPosition("OAK_TWR", "NCT", "3O"), ClientMenuHost.SessionOf(vm).Acting);
+    }
+
+    /// <summary>
+    /// A dropdown pick keeps the last known track facility, so a handoff to the new TCP in the same facility still matches
+    /// before the server answers (it never does while replaying), and drops the old callsign, which names the old position.
+    /// The server's next update replaces both.
+    /// </summary>
+    [AvaloniaFact]
+    public void ActingAsAnotherPosition_AfterDropdownPick_KeepsTheTrackFacility()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.SetActivePositionFromServer(Config("3O", OakTower));
+
+        vm.ActiveTcp = "2S";
+
+        Assert.Equal(new ActingPosition(null, "NCT", "2S"), ClientMenuHost.SessionOf(vm).Acting);
+
+        vm.SetActivePositionFromServer(Config("4U", SfoDep with { TrackFacilityId = "NCT" }));
+
+        Assert.Equal(new ActingPosition("SFO_DEP", "NCT", "4U"), ClientMenuHost.SessionOf(vm).Acting);
     }
 
     [AvaloniaFact]

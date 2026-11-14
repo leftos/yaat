@@ -656,7 +656,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             main.SessionSoloAdvisoryPrefill,
             main.SessionSoloAdvisoryLiveCheck,
             main.Preferences.CommandScheme,
-            main.Preferences.ShowQuickCommandIcons
+            main.Preferences.ShowQuickCommandIcons,
+            main.ActiveTcp,
+            main.ActingCallsign,
+            main.ActingTrackFacilityId
         );
 
     /// <summary>

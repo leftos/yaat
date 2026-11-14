@@ -135,7 +135,10 @@ public class QuickCommandStripTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30"));
@@ -246,7 +249,10 @@ public class QuickCommandStripTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
             TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search)),
         };

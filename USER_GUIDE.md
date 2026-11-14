@@ -396,6 +396,10 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
 **Squawk assigned code** (`SQ`, a box with a return arrow) leads every list except Live traffic whenever the datablock flags a [squawk mismatch](#squawk-beacon-code-mismatch). The same two commands are in the Squawk submenu (Squawk assigned code follows Squawk…) and under All Commands, and can be added to any situation in Settings › Quick commands.
 
+**Handoff and pointout shortcuts.** Three more commands follow Squawk assigned code in every list except Live traffic, and show by direction relative to the position you act as (your own, or the one an `AS` selected), only while the handoff or pointout is pending. **Accept handoff** (`ACCEPT`, a bracket with a check mark) shows for a handoff to your position; **Cancel handoff** (`CANCEL`, a bracket with a return arrow) for a handoff from your position; **Acknowledge pointout** (`OK`, a pointing hand with a check mark) for a pointout to your position. A handoff or pointout between two other positions shows none of them. All Commands › Track still lists them whichever way the handoff goes.
+
+If you had customised a situation's quick commands, these three were added to it once when you upgraded, after Squawk assigned code. You can remove or move them in Settings › Quick commands like any other command, and a removed one stays removed.
+
 **Helicopters.** The entries marked (helicopter) appear only for a helicopter, never for a fixed-wing aircraft.
 
 **Air taxi** is offered on the ground (at parking, holding on the ground, holding short, rollout / exit, where it waits until the helicopter is settled: after the landing rollout decelerates, at or below 30 kt in a rejected takeoff, and always while clearing or exiting the runway) and **Land** to a helicopter in the air, last in each list; a helicopter's quick list leaves out Push back and Push back to… (All Commands keeps them).

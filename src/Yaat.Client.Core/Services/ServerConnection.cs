@@ -1438,7 +1438,17 @@ public record AircraftDto(
     // The pilot's request awaiting the controller (unanswered or on standby), null when none is open; and whether the
     // pilot has made initial contact. Kept name-for-name in sync with the server's AircraftStateDto.
     PendingPilotRequestDto? PendingPilotRequest = null,
-    bool HasMadeInitialContact = false
+    bool HasMadeInitialContact = false,
+    // The identities the client compares with the position it acts as (Yaat.Sim.TrackCoordinationView): the owner's and the
+    // handoff peer's facility ids, the position that redirected the handoff, and the pending pointout's recipient and sender
+    // TCP codes (null unless the pointout is pending). Kept name-for-name in sync with the server's AircraftStateDto.
+    string? OwnerFacilityId = null,
+    string? HandoffPeerFacilityId = null,
+    string? HandoffRedirectedByCallsign = null,
+    string? HandoffRedirectedBySectorCode = null,
+    string? HandoffRedirectedByFacilityId = null,
+    string? PointoutRecipientCode = null,
+    string? PointoutSenderCode = null
 );
 
 /// <summary>
@@ -1614,6 +1624,9 @@ public record PositionDisplayConfigDto(
 /// <summary>
 /// The position the controller operates as: its callsign, name, radio name, frequency (preformatted MHz, "135.100"), facility,
 /// position type (<c>Artcc</c>, <c>Tracon</c>, <c>Atct</c>, <c>Other</c>) and the code that names exactly it to <c>HO</c>.
+/// <see cref="FacilityId"/> is the facility the position is listed under (it pairs with <see cref="FacilityName"/>);
+/// <see cref="TrackFacilityId"/> is the facility its tracks are owned under (the parent TRACON for a tower cab), the value the
+/// aircraft's owner and handoff facility ids carry, so the quick list matches the acting position against it.
 /// </summary>
 public record ActivePositionDto(
     string Callsign,
@@ -1623,7 +1636,8 @@ public record ActivePositionDto(
     string? FacilityId,
     string? FacilityName,
     string PositionType,
-    string HandoffCode
+    string HandoffCode,
+    string? TrackFacilityId = null
 );
 
 /// <summary>One room in a room list.</summary>

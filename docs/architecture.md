@@ -1743,6 +1743,7 @@ TrackOwnerType.cs              # Enum: Other, Eram, Stars, Caats, Atop
 Tcp.cs                         # Record: Subset, SectorId, Id, ParentTcpId
 StarsPointout.cs / StarsPointoutStatus.cs  # Pointout state
 StarsDatablockClassifier.cs    # Pure: projects a track's STARS view for a TCP (color White/Green/Yellow/Cyan, level LDB/PDB/FDB, leader dir); mirrors CRC DisplayElementTracks. Used by DtoConverter to fill AircraftStateDto.Student* for the instructor radar
+TrackCoordinationView.cs       # Pure: ActingPosition (the position a client acts as) and the handoff/pointout identities from AircraftUpdated judged against it (MatchesActing mirrors TrackOwner.MatchesPosition; IsHandoffToActing / IsHandoffFromActing / IsPointoutToActing). Read by the client's quick-list Accept handoff / Cancel handoff / Acknowledge pointout rules
 EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vatsim-server-rs radar_state::PointoutState)
 EramSectorKey.cs               # (Facility, Sector) key for the per-aircraft ERAM FDB-open and point-out-minimize lists
                                # Round-tripped via the Eram satellite (AircraftEramStateDto.Pointouts/ForcedPointoutsTo), like other serialized ERAM state

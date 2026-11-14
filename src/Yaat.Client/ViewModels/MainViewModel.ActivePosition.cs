@@ -38,6 +38,20 @@ public partial class MainViewModel
     public ActivePositionDto? ActivePosition { get; private set; }
 
     /// <summary>
+    /// The callsign of the position the controller acts as, for the quick list's handoff and pointout rows: the server's
+    /// last <see cref="ActivePosition"/>'s, and null from a dropdown pick until the server's next update, since the old
+    /// callsign names the old position.
+    /// </summary>
+    public string? ActingCallsign { get; private set; }
+
+    /// <summary>
+    /// The facility the acting position's tracks are owned under (<see cref="ActivePositionDto.TrackFacilityId"/>), for the
+    /// quick list's handoff and pointout rows. A dropdown pick keeps it until the server's next update replaces it, so a
+    /// position in the same facility still matches while the server has not answered (it never does while replaying).
+    /// </summary>
+    public string? ActingTrackFacilityId { get; private set; }
+
+    /// <summary>
     /// The most characters the room's STARS scratchpads hold, as the server last sent it with the active position; 0 before a
     /// scenario loads, when the student has no STARS display config, and from a room restored from an older checkpoint.
     /// </summary>
@@ -50,6 +64,8 @@ public partial class MainViewModel
     internal void SetActivePositionFromServer(PositionDisplayConfigDto? config)
     {
         ActivePosition = config?.ActivePosition;
+        ActingCallsign = config?.ActivePosition?.Callsign;
+        ActingTrackFacilityId = config?.ActivePosition?.TrackFacilityId;
         ScratchpadMaxLength = config?.ScratchpadMaxLength ?? 0;
         SetActiveTcpFromServer(config?.TcpCode);
     }
@@ -126,7 +142,9 @@ public partial class MainViewModel
 
         // The position the server last described is the old TCP's; drop it so readers fall back to the TCP until the server's
         // PositionDisplayChanged names the new one (it may never come: the server skips it while replaying).
+        // The acting track facility is kept (ActingTrackFacilityId), the old callsign is not: it would match the old position.
         ActivePosition = null;
+        ActingCallsign = null;
         _ = SetActivePositionFromDropdownAsync(value);
     }
 

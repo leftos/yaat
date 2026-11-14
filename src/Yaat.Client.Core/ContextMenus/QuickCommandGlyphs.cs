@@ -184,6 +184,12 @@ public static class QuickCommandGlyphs
             [MenuIds.TrackPointOut] = ScopeAndSim(
                 "M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10"
             ),
+            [MenuIds.TrackAcceptHandoff] = ScopeAndSim("M10 4H4v16h6 M8 12l4 4 8-9"),
+            [MenuIds.TrackCancelHandoff] = ScopeAndSim("M14 4h6v16h-6 M3 9h8.5a3.5 3.5 0 0 1 0 7H4 M7 13l-3 3 3 3"),
+            [MenuIds.TrackAcknowledgePointout] = ScopeAndSim(
+                "M4.25 15.35c0-1.87 1.53-3.4 3.4-3.4h8.5a1.275 1.275 0 0 1 0 2.55h-4.25a1.4875 1.4875 0 0 1 0 2.975"
+                    + "a1.4875 1.4875 0 0 1 0 2.975H7.65c-1.87 0-3.4-1.53-3.4-3.4z M1.7 13.65v8.5 M14.5 6.5l2.5 2.5L22 3.5"
+            ),
             [MenuIds.SquawkCode] = ScopeAndSim("M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2"),
             [MenuIds.SquawkNormal] = ScopeAndSim("M3 7h18v10H3z M8 12l3 3 5-6"),
             [MenuIds.SquawkAssigned] = ScopeAndSim("M3 7h18v10H3z M16 9.5V13H8 M10.5 10.5L8 13l2.5 2.5"),

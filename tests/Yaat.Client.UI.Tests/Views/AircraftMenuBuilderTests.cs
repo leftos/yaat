@@ -124,7 +124,10 @@ public class AircraftMenuBuilderTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
 
@@ -159,7 +162,10 @@ public class AircraftMenuBuilderTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: false
+                ShowQuickCommandIcons: false,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
 
@@ -207,7 +213,10 @@ public class AircraftMenuBuilderTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                showIcons
+                showIcons,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
 
@@ -751,7 +760,10 @@ public class AircraftMenuBuilderTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
 }

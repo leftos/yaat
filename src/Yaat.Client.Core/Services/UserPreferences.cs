@@ -120,7 +120,15 @@ public sealed partial class UserPreferences
     /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
-    private const int CurrentPreferencesVersion = 1;
+    internal const int CurrentPreferencesVersion = 2;
+
+    /// <summary>The Track and coordination quick commands the v2 migration inserts into stored lists, in list order.</summary>
+    private static readonly string[] TrackCoordinationQuickIds =
+    [
+        MenuIds.TrackAcceptHandoff,
+        MenuIds.TrackCancelHandoff,
+        MenuIds.TrackAcknowledgePointout,
+    ];
 
     /// <summary>
     /// Renames saved window profiles to layouts: every entry under the old <c>windowProfiles</c> key moves into
@@ -156,7 +164,8 @@ public sealed partial class UserPreferences
     /// <summary>
     /// Runs the one-time migrations a file below <see cref="CurrentPreferencesVersion"/> needs, then saves it at that
     /// version. v0 → v1: auto arrival spacing on occupied runway now defaults off for a TWR student, and 0.13.1 saved
-    /// its earlier default (on) to disk, so the TWR flag is reset to off once.
+    /// its earlier default (on) to disk, so the TWR flag is reset to off once. v1 → v2: every stored quick-command list but
+    /// Live traffic's gains the Track and coordination rows the defaults gained (<see cref="InsertTrackCoordinationRows"/>).
     /// </summary>
     private void MigratePreferences()
     {
@@ -172,6 +181,16 @@ public sealed partial class UserPreferences
             Log.LogInformation("Preferences v{From} → v1: auto arrival spacing on occupied runway (TWR) reset to off", fromVersion);
         }
 
+        if (fromVersion < 2)
+        {
+            int changed = InsertTrackCoordinationRows();
+            Log.LogInformation(
+                "Preferences v{From} → v2: Track and coordination quick commands added to {Count} stored list(s)",
+                fromVersion,
+                changed
+            );
+        }
+
         _data.PreferencesVersion = CurrentPreferencesVersion;
 
         // Runs from the constructor, so a failed write must not throw out of it: the migrated values stay in memory
@@ -185,6 +204,53 @@ public sealed partial class UserPreferences
             Log.LogWarning(ex, "Could not save migrated preferences to {Path}; the migration is retried on the next launch", _filePath);
         }
     }
+
+    /// <summary>
+    /// Inserts each of <see cref="TrackCoordinationQuickIds"/> a stored list does not already hold (under any flight-rules
+    /// override), in order, after its Squawk assigned code entry, else after Squawk normal, else first. Live traffic's list is
+    /// left alone, as its default takes no command. A list that then equals its default stops being stored, as
+    /// <see cref="SetQuickCommandList"/> does.
+    /// </summary>
+    /// <returns>How many stored lists gained a row.</returns>
+    private int InsertTrackCoordinationRows()
+    {
+        int changed = 0;
+        foreach (AircraftSituation situation in _quickCommandLists.Keys.Where(s => s != AircraftSituation.LiveTraffic).ToList())
+        {
+            IReadOnlyList<QuickCommandEntry> stored = _quickCommandLists[situation];
+            List<QuickCommandEntry> entries = WithTrackCoordinationRows(stored);
+            changed += (entries.Count > stored.Count) ? 1 : 0;
+            if (QuickCommandDefaults.IsDefault(situation, entries))
+            {
+                _quickCommandLists.Remove(situation);
+            }
+            else
+            {
+                _quickCommandLists[situation] = entries.AsReadOnly();
+            }
+        }
+
+        return changed;
+    }
+
+    private static List<QuickCommandEntry> WithTrackCoordinationRows(IReadOnlyList<QuickCommandEntry> stored)
+    {
+        List<QuickCommandEntry> entries = [.. stored];
+        int anchor = IndexOfCatalogEntry(entries, MenuIds.SquawkAssigned);
+        int at = ((anchor >= 0) ? anchor : IndexOfCatalogEntry(entries, MenuIds.SquawkNormal)) + 1;
+        string[] missing = [.. TrackCoordinationQuickIds.Where(id => IndexOfCatalogEntry(entries, id) < 0)];
+        foreach (string id in missing)
+        {
+            entries.Insert(at++, new CatalogQuickCommandEntry(id, null));
+        }
+
+        return entries;
+    }
+
+    private static int IndexOfCatalogEntry(List<QuickCommandEntry> entries, string catalogId) =>
+        entries.FindIndex(entry =>
+            (entry is CatalogQuickCommandEntry catalog) && string.Equals(catalog.CatalogId, catalogId, StringComparison.Ordinal)
+        );
 
     public CommandScheme CommandScheme => _commandScheme;
     public IReadOnlyList<SavedServer> SavedServers => _data.SavedServers;

@@ -148,6 +148,20 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public string? PointoutStatus { get; init; }
 
+    public string? OwnerFacilityId { get; init; }
+
+    public string? HandoffPeerFacilityId { get; init; }
+
+    public string? HandoffRedirectedByCallsign { get; init; }
+
+    public string? HandoffRedirectedBySectorCode { get; init; }
+
+    public string? HandoffRedirectedByFacilityId { get; init; }
+
+    public string? PointoutRecipientCode { get; init; }
+
+    public string? PointoutSenderCode { get; init; }
+
     public AircraftSituation Situation { get; init; }
 
     public SituationFlags SituationFlags { get; init; }

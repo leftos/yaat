@@ -1004,6 +1004,27 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private string? _pointoutToTcpCode;
 
     [ObservableProperty]
+    private string? _ownerFacilityId;
+
+    [ObservableProperty]
+    private string? _handoffPeerFacilityId;
+
+    [ObservableProperty]
+    private string? _handoffRedirectedByCallsign;
+
+    [ObservableProperty]
+    private string? _handoffRedirectedBySectorCode;
+
+    [ObservableProperty]
+    private string? _handoffRedirectedByFacilityId;
+
+    [ObservableProperty]
+    private string? _pointoutRecipientCode;
+
+    [ObservableProperty]
+    private string? _pointoutSenderCode;
+
+    [ObservableProperty]
     private string? _scratchpad1;
 
     [ObservableProperty]
@@ -1424,6 +1445,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             HandoffPeerSectorCode = dto.HandoffPeerSectorCode,
             PointoutStatus = dto.PointoutStatus,
             PointoutToTcpCode = dto.PointoutToTcpCode,
+            OwnerFacilityId = dto.OwnerFacilityId,
+            HandoffPeerFacilityId = dto.HandoffPeerFacilityId,
+            HandoffRedirectedByCallsign = dto.HandoffRedirectedByCallsign,
+            HandoffRedirectedBySectorCode = dto.HandoffRedirectedBySectorCode,
+            HandoffRedirectedByFacilityId = dto.HandoffRedirectedByFacilityId,
+            PointoutRecipientCode = dto.PointoutRecipientCode,
+            PointoutSenderCode = dto.PointoutSenderCode,
             Scratchpad1 = dto.Scratchpad1,
             Scratchpad2 = dto.Scratchpad2,
             AutoScratchpad1 = dto.AutoScratchpad1,
@@ -1570,6 +1598,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         HandoffPeerSectorCode = dto.HandoffPeerSectorCode;
         PointoutStatus = dto.PointoutStatus;
         PointoutToTcpCode = dto.PointoutToTcpCode;
+        OwnerFacilityId = dto.OwnerFacilityId;
+        HandoffPeerFacilityId = dto.HandoffPeerFacilityId;
+        HandoffRedirectedByCallsign = dto.HandoffRedirectedByCallsign;
+        HandoffRedirectedBySectorCode = dto.HandoffRedirectedBySectorCode;
+        HandoffRedirectedByFacilityId = dto.HandoffRedirectedByFacilityId;
+        PointoutRecipientCode = dto.PointoutRecipientCode;
+        PointoutSenderCode = dto.PointoutSenderCode;
         Scratchpad1 = dto.Scratchpad1;
         Scratchpad2 = dto.Scratchpad2;
         AutoScratchpad1 = dto.AutoScratchpad1;

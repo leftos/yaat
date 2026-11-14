@@ -4,6 +4,7 @@
 
 ### Added
 
+- The aircraft menu's quick commands offer Accept handoff, Cancel handoff and Acknowledge pointout while one is pending for the position you act as.
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.
 

@@ -79,6 +79,57 @@ public class QuickCommandDefaultsTests
         Assert.DoesNotContain(MenuIds.SquawkAssigned, ids);
     }
 
+    private static readonly string[] TrackCoordinationIds =
+    [
+        MenuIds.TrackAcceptHandoff,
+        MenuIds.TrackCancelHandoff,
+        MenuIds.TrackAcknowledgePointout,
+    ];
+
+    /// <summary>
+    /// Accept handoff, Cancel handoff and Acknowledge pointout follow Squawk assigned code in every list that takes commands,
+    /// in that order; each shows only while its handoff or pointout concerns the acting position.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CommandableSituations))]
+    public void DefaultList_CarriesTheTrackCoordinationRowsAfterSquawk(AircraftSituation situation)
+    {
+        List<string> ids = [.. QuickCommandDefaults.For(situation).Select(CatalogId)];
+        int squawk = ids.IndexOf(MenuIds.SquawkAssigned);
+
+        Assert.Equal(TrackCoordinationIds, ids.Skip(squawk + 1).Take(3));
+        Assert.All(QuickCommandDefaults.For(situation).Skip(squawk + 1).Take(3), entry => Assert.Null(((CatalogQuickCommandEntry)entry).FlightRules));
+    }
+
+    [Fact]
+    public void LiveTrafficList_HasNoTrackCoordinationRows()
+    {
+        List<string> ids = [.. QuickCommandDefaults.For(AircraftSituation.LiveTraffic).Select(CatalogId)];
+
+        Assert.Empty(ids.Intersect(TrackCoordinationIds));
+    }
+
+    /// <summary>
+    /// The three Track and coordination glyphs are the approved mock's (<c>docs/plans/canvases/quick-cmd-altitude</c>, lane
+    /// A2), in the grey scope family: accept a bracket closed by a check, cancel Initiate handoff's bracket with its arrow
+    /// turned back, acknowledge Point out's hand with a check.
+    /// </summary>
+    [Theory]
+    [InlineData(MenuIds.TrackAcceptHandoff, "M10 4H4v16h6 M8 12l4 4 8-9")]
+    [InlineData(MenuIds.TrackCancelHandoff, "M14 4h6v16h-6 M3 9h8.5a3.5 3.5 0 0 1 0 7H4 M7 13l-3 3 3 3")]
+    [InlineData(
+        MenuIds.TrackAcknowledgePointout,
+        "M4.25 15.35c0-1.87 1.53-3.4 3.4-3.4h8.5a1.275 1.275 0 0 1 0 2.55h-4.25a1.4875 1.4875 0 0 1 0 2.975"
+            + "a1.4875 1.4875 0 0 1 0 2.975H7.65c-1.87 0-3.4-1.53-3.4-3.4z M1.7 13.65v8.5 M14.5 6.5l2.5 2.5L22 3.5"
+    )]
+    public void TrackCoordinationGlyphs_MatchTheApprovedMock(string id, string path)
+    {
+        QuickCommandGlyph glyph = Assert.IsType<QuickCommandGlyph>(QuickCommandGlyphs.For(id));
+        Assert.Equal(path, glyph.PathData);
+        Assert.Equal(QuickCommandGlyphFamily.ScopeAndSim, glyph.Family);
+        Assert.False(glyph.HasForceMark);
+    }
+
     [Theory]
     [MemberData(nameof(ClassifiedSituations))]
     public void DefaultList_PutsEveryIconOnTheStrip(AircraftSituation situation)
@@ -199,10 +250,10 @@ public class QuickCommandDefaultsTests
     /// where nothing outranks it, after the runway-bound entries where they do.
     /// </summary>
     [Theory]
-    [InlineData(AircraftSituation.AtParking, 2)]
-    [InlineData(AircraftSituation.HoldingOnGround, 2)]
-    [InlineData(AircraftSituation.HoldingShort, 5)]
-    [InlineData(AircraftSituation.RolloutExit, 4)]
+    [InlineData(AircraftSituation.AtParking, 5)]
+    [InlineData(AircraftSituation.HoldingOnGround, 5)]
+    [InlineData(AircraftSituation.HoldingShort, 8)]
+    [InlineData(AircraftSituation.RolloutExit, 7)]
     public void AirTaxi_IsListedInTheFourGroundSituations(AircraftSituation situation, int index) =>
         Assert.Equal(index, Ids(situation).ToList().IndexOf(MenuIds.GroundAirTaxi));
 

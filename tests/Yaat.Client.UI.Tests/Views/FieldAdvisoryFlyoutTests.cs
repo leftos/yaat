@@ -455,7 +455,10 @@ public class FieldAdvisoryFlyoutTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             )
         );
 
@@ -470,7 +473,10 @@ public class FieldAdvisoryFlyoutTests
                 prefill,
                 liveCheck,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             )
         );
 

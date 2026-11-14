@@ -1,4 +1,5 @@
 using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
@@ -27,6 +28,17 @@ namespace Yaat.Client.ContextMenus;
 /// The controller's "Show quick command icons" setting: whether the menus draw their quick commands as icon strips, or as
 /// text rows with the icons off.
 /// </param>
+/// <param name="ActiveTcp">
+/// The TCP code the client acts as (<c>ActiveTcp</c>, which follows <c>AS</c>); null before a scenario loads, when the
+/// direction-aware quick rows (Accept, Cancel, Acknowledge) show for no aircraft.
+/// </param>
+/// <param name="ActivePositionCallsign">
+/// The callsign of the position the client acts as; null while the server has not sent it (after a dropdown pick).
+/// </param>
+/// <param name="ActiveTrackFacilityId">
+/// The facility the acting position's tracks are owned under (<c>ActivePositionDto.TrackFacilityId</c>: the parent TRACON for
+/// a tower cab), kept across a dropdown pick; null while unknown.
+/// </param>
 public sealed record MenuSession(
     string Initials,
     bool SoloTrainingMode,
@@ -35,5 +47,13 @@ public sealed record MenuSession(
     SoloAdvisoryPrefill SoloAdvisoryPrefill,
     bool SoloAdvisoryLiveCheck,
     CommandScheme Scheme,
-    bool ShowQuickCommandIcons
-);
+    bool ShowQuickCommandIcons,
+    string? ActiveTcp,
+    string? ActivePositionCallsign,
+    string? ActiveTrackFacilityId
+)
+{
+    /// <summary>The position the client acts as, for <see cref="TrackCoordinationView"/>; null when <see cref="ActiveTcp"/> is unknown.</summary>
+    public ActingPosition? Acting =>
+        string.IsNullOrEmpty(ActiveTcp) ? null : new ActingPosition(ActivePositionCallsign, ActiveTrackFacilityId, ActiveTcp);
+}

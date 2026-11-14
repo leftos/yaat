@@ -905,4 +905,33 @@ public static class AircraftCommandApplicability
     /// holds at least one item.
     /// </summary>
     public static bool IsUntracked(IMenuAircraft? ac) => !IsOwned(ac) && !HasHandoffInProgress(ac) && !HasPendingPointout(ac);
+
+    /// <summary>
+    /// Accept handoff shows in the quick list for a handoff in progress to the position the client acts as (the peer, or
+    /// the position that redirected it: <see cref="TrackCoordinationView.IsHandoffToActing"/>); never while that position is
+    /// unknown. All Commands keeps <see cref="HasHandoffInProgress"/>.
+    /// </summary>
+    public static bool ShowsAcceptHandoff(IMenuAircraft? ac, MenuContext context) =>
+        (ac is not null) && (context.Acting is { } acting) && TrackCoordinationView.IsHandoffToActing(HandoffPeerOf(ac), RedirectedByOf(ac), acting);
+
+    /// <summary>
+    /// Cancel handoff shows in the quick list for a handoff in progress from the position the client acts as (it owns the
+    /// track: <see cref="TrackCoordinationView.IsHandoffFromActing"/>); never while that position is unknown.
+    /// </summary>
+    public static bool ShowsCancelHandoff(IMenuAircraft? ac, MenuContext context) =>
+        (ac is not null) && (context.Acting is { } acting) && TrackCoordinationView.IsHandoffFromActing(OwnerOf(ac), HandoffPeerOf(ac), acting);
+
+    /// <summary>
+    /// Acknowledge pointout shows in the quick list for a pointout pending to the position the client acts as
+    /// (<see cref="TrackCoordinationView.IsPointoutToActing"/>); never while that position is unknown.
+    /// </summary>
+    public static bool ShowsAcknowledgePointout(IMenuAircraft? ac, MenuContext context) =>
+        (ac is not null) && (context.Acting is { } acting) && TrackCoordinationView.IsPointoutToActing(ac.PointoutRecipientCode, acting);
+
+    private static TrackPositionIdentity OwnerOf(IMenuAircraft ac) => new(ac.Owner, ac.OwnerFacilityId, ac.OwnerSectorCode);
+
+    private static TrackPositionIdentity HandoffPeerOf(IMenuAircraft ac) => new(ac.HandoffPeer, ac.HandoffPeerFacilityId, ac.HandoffPeerSectorCode);
+
+    private static TrackPositionIdentity RedirectedByOf(IMenuAircraft ac) =>
+        new(ac.HandoffRedirectedByCallsign, ac.HandoffRedirectedByFacilityId, ac.HandoffRedirectedBySectorCode);
 }

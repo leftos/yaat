@@ -268,7 +268,10 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
             SoloAdvisoryPrefill.TrueValues,
             false,
             CommandScheme.Default(),
-            ShowQuickCommandIcons: true
+            ShowQuickCommandIcons: true,
+            ActiveTcp: null,
+            ActivePositionCallsign: null,
+            ActiveTrackFacilityId: null
         );
 
     /// <summary>The callsign lists the RPO items were asked for, in order; the host answers none.</summary>

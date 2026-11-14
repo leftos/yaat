@@ -1,3 +1,4 @@
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
@@ -33,6 +34,9 @@ public sealed record MenuContext(MenuClick Click, MenuSession Session)
 
     /// <summary>Whether the menu draws its quick commands as icon strips (<see cref="MenuSession.ShowQuickCommandIcons"/>).</summary>
     public bool ShowQuickCommandIcons => Session.ShowQuickCommandIcons;
+
+    /// <summary>The position the client acts as (<see cref="MenuSession.Acting"/>); null when its TCP is unknown.</summary>
+    public ActingPosition? Acting => Session.Acting;
 
     /// <summary>The effective quick-command list for <paramref name="situation"/>: the controller's stored list, else the default.</summary>
     public IReadOnlyList<QuickCommandEntry> QuickCommandListFor(AircraftSituation situation) => Session.QuickCommandLists(situation);

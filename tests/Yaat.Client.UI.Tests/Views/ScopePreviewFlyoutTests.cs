@@ -266,7 +266,10 @@ public class ScopePreviewFlyoutTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
         host.HoldShortChoices.Add(
@@ -319,7 +322,10 @@ public class ScopePreviewFlyoutTests
                 SoloAdvisoryPrefill.TrueValues,
                 false,
                 CommandScheme.Default(),
-                ShowQuickCommandIcons: true
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
             ),
         };
         host.GroundTraffic.AddRange(traffic);

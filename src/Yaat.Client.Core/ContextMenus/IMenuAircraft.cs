@@ -266,6 +266,27 @@ public interface IMenuAircraft
     /// </summary>
     string? PointoutStatus { get; }
 
+    /// <summary>The facility id of the position that owns the aircraft's track; null when it names none.</summary>
+    string? OwnerFacilityId { get; }
+
+    /// <summary>The facility id of the position a track handoff is in progress to; null when it names none.</summary>
+    string? HandoffPeerFacilityId { get; }
+
+    /// <summary>The callsign of the position that redirected the handoff in progress; null when it was not redirected.</summary>
+    string? HandoffRedirectedByCallsign { get; }
+
+    /// <summary>The sector code of the position that redirected the handoff in progress; null when none resolves.</summary>
+    string? HandoffRedirectedBySectorCode { get; }
+
+    /// <summary>The facility id of the position that redirected the handoff in progress; null when it names none.</summary>
+    string? HandoffRedirectedByFacilityId { get; }
+
+    /// <summary>The TCP code (e.g. <c>4R</c>) the pending pointout is to; null unless a pointout is pending.</summary>
+    string? PointoutRecipientCode { get; }
+
+    /// <summary>The TCP code (e.g. <c>2S</c>) the pending pointout is from; null unless a pointout is pending.</summary>
+    string? PointoutSenderCode { get; }
+
     /// <summary>The server-computed situation flags (the stored AircraftSituationState.Flags), sent beside Situation.</summary>
     SituationFlags SituationFlags { get; }
 
