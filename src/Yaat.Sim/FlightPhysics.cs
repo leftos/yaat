@@ -165,7 +165,7 @@ public static class FlightPhysics
             }
         }
 
-        if ((route.Count == 1) && route[0].IsClearanceLimitDirect)
+        if (IsLastTargetTheClearanceLimit(aircraft))
         {
             SlowForClearanceLimit(aircraft, route[0]);
         }
@@ -2362,8 +2362,9 @@ public static class FlightPhysics
     /// <summary>
     /// What the aircraft flies laterally once its last route fix is sequenced and no approach clearance is pending. An FM
     /// terminator (most US STARs) wins: fly the published outbound course and await vectors, instead of holding the
-    /// heading the aircraft happened to arrive on. Otherwise a pilot with a cleared destination turns direct to it at
-    /// once (<see cref="DirectToClearedDestination"/>), leaving the altitude as it is; failing both, it flies straight.
+    /// heading the aircraft happened to arrive on. An IFR route ending at the cleared destination airport itself holds
+    /// there (<see cref="HoldsAtRouteEndAirport"/>). Otherwise a pilot with a cleared destination turns direct to it at
+    /// once (<see cref="DirectToClearedDestination"/>), leaving the altitude as it is; failing all three, it flies straight.
     /// </summary>
     private static void ApplyRouteEndLateral(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
     {
@@ -2376,6 +2377,10 @@ public static class FlightPhysics
         if (sequenced.TerminalCourseMagnetic is { } fmCourse)
         {
             aircraft.Targets.TargetTrueHeading = new MagneticHeading(fmCourse).ToTrue(aircraft.Declination);
+        }
+        else if (HoldsAtRouteEndAirport(aircraft, sequenced))
+        {
+            StartClearanceLimitHold(aircraft, sequenced);
         }
         else if (DirectToClearedDestination(aircraft, sequenced) is { } direct)
         {
@@ -2401,22 +2406,66 @@ public static class FlightPhysics
     /// </summary>
     internal const double FurtherClearanceRequestMinutes = 5.0;
 
+    /// <summary>
+    /// How near the cleared destination's reference point, in nm, a route target named for that airport must lie to be the
+    /// airport rather than a NAVAID sharing its name (AIM 4-4-3.a): a judgement call, not a cited value.
+    /// </summary>
+    internal const double DestinationAirportMatchNm = 1.0;
+
+    /// <summary>
+    /// Whether <paramref name="target"/> is the aircraft's cleared destination airport: named for it and within
+    /// <see cref="DestinationAirportMatchNm"/> of its reference point.
+    /// </summary>
+    internal static bool IsClearedDestinationAirport(AircraftState aircraft, NavigationTarget target)
+    {
+        string dest = aircraft.ClearedDestination;
+        if (!NavigationDatabase.AirportIdsMatch(target.Name, dest) || (NavigationDatabase.Instance.GetAirportPosition(dest) is not { } pos))
+        {
+            return false;
+        }
+
+        return GeoMath.DistanceNm(target.Position, new LatLon(pos.Lat, pos.Lon)) <= DestinationAirportMatchNm;
+    }
+
+    /// <summary>
+    /// Whether an IFR aircraft whose route ends at <paramref name="target"/>, its cleared destination airport, holds there
+    /// on crossing it (AIM 5-3-8.a.3): no approach clearance pending, no active military route, and nothing in
+    /// <see cref="RouteEndDirectRefusalByState"/>.
+    /// </summary>
+    internal static bool HoldsAtRouteEndAirport(AircraftState aircraft, NavigationTarget target) =>
+        !aircraft.FlightPlan.IsVfr
+        && (aircraft.Approach.PendingClearance is null)
+        && !aircraft.MilitaryRoute.IsActive
+        && IsClearedDestinationAirport(aircraft, target)
+        && (RouteEndDirectRefusalByState(aircraft) is null);
+
+    /// <summary>
+    /// Whether the route's only remaining target is the aircraft's clearance limit: the clearance-limit direct, or a
+    /// route end at the cleared destination where it will hold (<see cref="HoldsAtRouteEndAirport"/>).
+    /// </summary>
+    internal static bool IsLastTargetTheClearanceLimit(AircraftState aircraft)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        return (route.Count == 1) && (route[0].IsClearanceLimitDirect || HoldsAtRouteEndAirport(aircraft, route[0]));
+    }
+
     /// <summary>The minutes of flight at the present ground speed from the aircraft to <paramref name="target"/>.</summary>
     internal static double MinutesTo(AircraftState aircraft, LatLon target) =>
         GeoMath.DistanceNm(aircraft.Position, target) / aircraft.GroundSpeed * 60.0;
 
     /// <summary>
-    /// An IFR aircraft on the clearance-limit direct lowers its target speed to holding speed once it is within
-    /// <see cref="ClearanceLimitSlowdownMinutes"/> of the airport, unless ATC assigned a speed.
+    /// An IFR aircraft flying to its clearance limit (the direct, or a route end at the destination) lowers its target
+    /// speed to holding speed once it is within <see cref="ClearanceLimitSlowdownMinutes"/> of the airport, unless ATC
+    /// assigned a speed.
     /// </summary>
-    private static void SlowForClearanceLimit(AircraftState aircraft, NavigationTarget direct)
+    private static void SlowForClearanceLimit(AircraftState aircraft, NavigationTarget clearanceLimit)
     {
         if (aircraft.FlightPlan.IsVfr || aircraft.Targets.HasExplicitSpeedCommand || (aircraft.GroundSpeed < 1))
         {
             return;
         }
 
-        if (MinutesTo(aircraft, direct.Position) > ClearanceLimitSlowdownMinutes)
+        if (MinutesTo(aircraft, clearanceLimit.Position) > ClearanceLimitSlowdownMinutes)
         {
             return;
         }
@@ -2434,17 +2483,17 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Holds over the airport the clearance-limit direct reached (AIM 5-3-8): on the course the aircraft approached it on,
-    /// right turns, the altitude-standard leg, at the altitude in force.
+    /// Holds over the airport at the clearance limit just reached (the direct, or a route end at the destination; AIM
+    /// 5-3-8): on the course the aircraft approached it on, right turns, the altitude-standard leg, at the altitude in force.
     /// </summary>
-    private static void StartClearanceLimitHold(AircraftState aircraft, NavigationTarget direct)
+    private static void StartClearanceLimitHold(AircraftState aircraft, NavigationTarget clearanceLimit)
     {
-        double course = direct.ArrivalTrueCourse ?? aircraft.TrueTrack.Degrees;
+        double course = clearanceLimit.ArrivalTrueCourse ?? aircraft.TrueTrack.Degrees;
         var phase = new HoldingPatternPhase
         {
-            FixName = direct.Name,
-            FixLat = direct.Position.Lat,
-            FixLon = direct.Position.Lon,
+            FixName = clearanceLimit.Name,
+            FixLat = clearanceLimit.Position.Lat,
+            FixLon = clearanceLimit.Position.Lon,
             InboundCourse = (int)Math.Round(course) % 360,
             LegLength = Commands.NavigationCommandHandler.StandardHoldLegMinutes(aircraft.Targets.AssignedAltitude ?? aircraft.Altitude),
             IsMinuteBased = true,
@@ -2455,7 +2504,7 @@ public static class FlightPhysics
         Log.LogDebug(
             "{Callsign}: holding over {Airport} at the clearance limit, inbound {Course:000} true, {Leg} min legs",
             aircraft.Callsign,
-            direct.Name,
+            clearanceLimit.Name,
             phase.InboundCourse,
             phase.LegLength
         );
@@ -2549,7 +2598,7 @@ public static class FlightPhysics
             return "no cleared destination";
         }
 
-        return NavigationDatabase.AirportIdsMatch(sequenced.Name, aircraft.ClearedDestination) ? "last fix is the destination" : null;
+        return IsClearedDestinationAirport(aircraft, sequenced) ? "last fix is the destination" : null;
     }
 
     private static void ClearProcedureState(AircraftState aircraft)

@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+- An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows, asks for further clearance and holds over the airport.
+
 ### Fixed
 
+- A route ending at a navaid named like the destination airport, such as SAC for KSAC, now continues direct to the field instead of flying straight on.
 - Controllers whose VATUSA home facility is Honolulu (HCF) now get ZHN as their ARTCC, plus Guam (ZUA), so their scenarios list and load again.
 
 ## v0.18.4-beta [2026/11/13]

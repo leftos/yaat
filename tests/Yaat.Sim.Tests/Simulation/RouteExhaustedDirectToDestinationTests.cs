@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
@@ -227,13 +228,15 @@ public class RouteExhaustedDirectToDestinationTests
     }
 
     [Fact]
-    public void LastFixIsTheDestination_DoesNotTurnBack()
+    public void LastFixIsTheDestination_HoldsAtTheField()
     {
         AircraftState ac = Build(new NavigationTarget { Name = "KOAK", Position = KoakPosition() }, "IFR");
 
         FlightPhysics.Update(ac, 1.0);
 
-        Assert.Empty(ac.Targets.NavigationRoute);
+        HoldingPatternPhase hold = Assert.IsType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+        Assert.True(hold.IsClearanceLimitHold);
+        Assert.Equal("KOAK", hold.FixName);
     }
 
     [Fact]
@@ -259,6 +262,37 @@ public class RouteExhaustedDirectToDestinationTests
 
         FlightPhysics.Update(ac, 1.0);
 
+        Assert.Empty(ac.Targets.NavigationRoute);
+    }
+
+    [Fact]
+    public void ActiveMilitaryRoute_RouteEndingAtTheField_DoesNotHold()
+    {
+        AircraftState ac = Build(new NavigationTarget { Name = "KOAK", Position = KoakPosition() }, "IFR");
+        ac.MilitaryRoute.Designator = "IR149";
+        ac.MilitaryRoute.Status = MilitaryRouteStatus.Established;
+        Assert.True(ac.MilitaryRoute.IsActive);
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.IsNotType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+        Assert.Null(ac.Phases?.CurrentPhase);
+        Assert.Empty(ac.Targets.NavigationRoute);
+    }
+
+    [Fact]
+    public void NonDepartureNonNullPhase_RouteEndingAtTheField_DoesNotHold()
+    {
+        AircraftState ac = Build(new NavigationTarget { Name = "KOAK", Position = KoakPosition() }, "IFR");
+        ac.Phases = new PhaseList();
+        var orbit = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
+        ac.Phases.Add(orbit);
+        Assert.Same(orbit, ac.Phases.CurrentPhase);
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.IsNotType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+        Assert.Same(orbit, ac.Phases?.CurrentPhase);
         Assert.Empty(ac.Targets.NavigationRoute);
     }
 

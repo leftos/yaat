@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -278,6 +279,62 @@ public class FurtherClearanceRequestTests
         Assert.Equal(PilotPendingRequestKind.FurtherClearance, request.Kind);
         Assert.True(request.IsOpen);
         Assert.Equal(RequestTerminal, request.LastPilotLine);
+    }
+
+    /// <summary><see cref="OnTheDirect"/> with the route's last target an ordinary KOAK fix instead of the clearance-limit direct.</summary>
+    private static AircraftState OnRouteEndingAtKoak(double minutesOut)
+    {
+        AircraftState ac = OnTheDirect(minutesOut);
+        ac.Targets.NavigationRoute.Clear();
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "KOAK", Position = Koak() });
+        return ac;
+    }
+
+    [Fact]
+    public void RouteEndingAtTheField_AsksForFurtherClearanceFiveMinutesOut()
+    {
+        AircraftState ac = OnRouteEndingAtKoak(4.8);
+        SimScenarioState scenario = Scenario();
+
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Equal(RequestTerminal, call.Text);
+        Assert.Equal(RequestTts, call.SpeechText);
+        PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        Assert.Equal(PilotPendingRequestKind.FurtherClearance, request.Kind);
+        Assert.True(request.IsOpen);
+    }
+
+    [Fact]
+    public void RouteEndingAtTheField_PendingApproach_NeitherSlowsNorAsks()
+    {
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("KOAK", "30");
+        Assert.NotNull(runway);
+        AircraftState ac = OnRouteEndingAtKoak(2.0);
+        ac.Targets.TargetSpeed = 280;
+        ac.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                TransitionName = null,
+                ApproachId = "I30",
+                AirportCode = "KOAK",
+                RunwayId = "30",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+            AssignedRunway = runway,
+            ConnectingFix = null,
+        };
+
+        PilotProactive.TickFurtherClearanceRequest(ac, Scenario());
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Null(ac.PendingPilotRequest);
+        Assert.NotNull(ac.Approach.PendingClearance);
+        Assert.Equal(280, ac.Targets.TargetSpeed);
     }
 
     [Fact]

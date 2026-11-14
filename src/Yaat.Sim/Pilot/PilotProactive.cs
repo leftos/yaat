@@ -334,7 +334,7 @@ public static class PilotProactive
         }
 
         if (
-            !IsFlyingClearanceLimitDirect(aircraft)
+            !FlightPhysics.IsLastTargetTheClearanceLimit(aircraft)
             || !IsDescentRequestEligible(aircraft, scenario)
             || aircraft.IsTunedAwayFrom(scenario.StudentPosition)
         )
@@ -423,16 +423,14 @@ public static class PilotProactive
         return PilotResponder.ResolveStudentFacilityCallName(scenario, positionType, positionType == "CTR" ? "center" : "approach");
     }
 
-    /// <summary>Whether the aircraft's route holds only the clearance-limit direct to its cleared destination.</summary>
-    internal static bool IsFlyingClearanceLimitDirect(AircraftState aircraft) =>
-        (aircraft.Targets.NavigationRoute.Count == 1) && aircraft.Targets.NavigationRoute[0].IsClearanceLimitDirect;
-
     /// <summary>
-    /// Whether the aircraft still waits on a clearance beyond its destination: flying the clearance-limit direct or holding
-    /// there. <see cref="PilotRequestTracker"/> reads it to close an open request for further clearance as moot.
+    /// Whether the aircraft still waits on a clearance beyond its destination: flying to its clearance limit (the direct,
+    /// or a route end at the destination) or holding there. <see cref="PilotRequestTracker"/> reads it to close an open
+    /// request for further clearance as moot.
     /// </summary>
     internal static bool IsAwaitingFurtherClearance(AircraftState aircraft) =>
-        IsFlyingClearanceLimitDirect(aircraft) || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true });
+        FlightPhysics.IsLastTargetTheClearanceLimit(aircraft)
+        || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true });
 
     /// <summary>
     /// Whether the pilot may make a new call now: solo training with a radar student, an airborne IFR aircraft whose

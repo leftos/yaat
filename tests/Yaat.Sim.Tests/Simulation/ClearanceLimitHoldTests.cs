@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -438,6 +439,176 @@ public class ClearanceLimitHoldTests
         string plainJson = JsonSerializer.Serialize(fix.ToSnapshot());
         Assert.DoesNotContain("ArrivalTrueCourse", plainJson, StringComparison.Ordinal);
         Assert.Null(NavigationTarget.FromSnapshot(JsonSerializer.Deserialize<NavigationTargetDto>(plainJson)!).ArrivalTrueCourse);
+    }
+
+    /// <summary>
+    /// <see cref="OnTheDirectAt"/> with the route's last target an ordinary KOAK fix, as a filed route ending at the field
+    /// leaves it, instead of the clearance-limit direct.
+    /// </summary>
+    private static AircraftState OnRouteEndingAtKoak(double distanceNm, string flightRules = "IFR")
+    {
+        AircraftState ac = OnTheDirectAt(distanceNm, flightRules: flightRules);
+        ac.Targets.NavigationRoute.Clear();
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "KOAK", Position = KoakPosition() });
+        return ac;
+    }
+
+    /// <summary>
+    /// Flies until the field is sequenced (the route empties or a hold starts), asserting no hold began short of the field;
+    /// returns the track flown into the field.
+    /// </summary>
+    private static double FlyUntilTheRouteEnds(AircraftState ac)
+    {
+        for (int t = 0; t < MaxTicks; t++)
+        {
+            double track = ac.TrueTrack.Degrees;
+            FlightPhysics.Update(ac, 1.0);
+            if ((ac.Targets.NavigationRoute.Count == 0) || (ac.Phases?.CurrentPhase is HoldingPatternPhase))
+            {
+                double fromField = GeoMath.DistanceNm(ac.Position, KoakPosition());
+                Assert.True(fromField < 1.0, $"the field sequenced {fromField:F2} nm away");
+                return track;
+            }
+        }
+
+        Assert.Fail($"The aircraft did not reach KOAK within {MaxTicks} s");
+        return 0;
+    }
+
+    private static PendingApproachInfo PendingIls30()
+    {
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("KOAK", "30");
+        Assert.NotNull(runway);
+        return new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                TransitionName = null,
+                ApproachId = "I30",
+                AirportCode = "KOAK",
+                RunwayId = "30",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+            AssignedRunway = runway,
+            ConnectingFix = null,
+        };
+    }
+
+    private static void AssertClearanceLimitHoldOnTrack(AircraftState ac, double trackIntoTheField)
+    {
+        HoldingPatternPhase hold = Assert.IsType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+        Assert.True(hold.IsClearanceLimitHold);
+        Assert.Equal("KOAK", hold.FixName);
+        Assert.Equal(TurnDirection.Right, hold.Direction);
+        Assert.True(
+            AngleDiff(hold.InboundCourse, trackIntoTheField) < 1.0,
+            $"expected inbound ~{trackIntoTheField:F1}° true, got {hold.InboundCourse}°"
+        );
+    }
+
+    [Fact]
+    public void FiledRouteEndingAtTheField_Ifr_HoldsOnCrossing()
+    {
+        LatLon koak = KoakPosition();
+        LatLon berks = FixPosition("BERKS");
+        var fromField = new TrueHeading(GeoMath.BearingTo(koak, berks));
+        AircraftState ac = OnRouteEndingAtKoak(3.0);
+        ac.Targets.NavigationRoute.Clear();
+        ac.Position = GeoMath.ProjectPoint(berks, fromField, 3.0);
+        ac.TrueHeading = new TrueHeading(GeoMath.BearingTo(ac.Position, berks));
+        ac.FlightPlan.Route = "BERKS KOAK";
+        var warnings = new List<string>();
+
+        ArrivalRouteResolver.PopulateNavigationRoute(ac, ac.FlightPlan.Route, warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(["BERKS", "KOAK"], ac.Targets.NavigationRoute.Select(t => t.Name));
+        Assert.False(ac.Targets.NavigationRoute[^1].IsClearanceLimitDirect);
+        double track = FlyUntilTheRouteEnds(ac);
+
+        AssertClearanceLimitHoldOnTrack(ac, track);
+    }
+
+    [Fact]
+    public void DctToTheField_Ifr_HoldsOnCrossing()
+    {
+        AircraftState ac = OnRouteEndingAtKoak(3.0);
+        ac.Targets.NavigationRoute.Clear();
+
+        Dispatch(ac, "DCT KOAK");
+        NavigationTarget only = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.False(only.IsClearanceLimitDirect);
+        double track = FlyUntilTheRouteEnds(ac);
+
+        AssertClearanceLimitHoldOnTrack(ac, track);
+    }
+
+    [Fact]
+    public void RouteEndingAtTheField_Vfr_FliesStraightOn()
+    {
+        AircraftState ac = OnRouteEndingAtKoak(3.0, flightRules: "VFR");
+
+        FlyUntilTheRouteEnds(ac);
+
+        Assert.Null(ac.Phases?.CurrentPhase);
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.Null(ac.Targets.TargetTrueHeading);
+    }
+
+    [Fact]
+    public void RouteEndingAtTheField_AssignedHeading_DoesNotHold()
+    {
+        AircraftState ac = OnRouteEndingAtKoak(0.2);
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.IsNotType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+    }
+
+    [Fact]
+    public void RouteEndingAtTheField_PendingApproach_FliesTheApproach()
+    {
+        AircraftState ac = OnRouteEndingAtKoak(0.2);
+        ac.Approach.PendingClearance = PendingIls30();
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Null(ac.Approach.PendingClearance);
+        Assert.IsNotType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+    }
+
+    [Fact]
+    public void RouteEndingAtTheField_SlowsToHoldingSpeedThreeMinutesOut()
+    {
+        AircraftState ac = OnRouteEndingAtKoak(8.0);
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Equal(AircraftPerformance.HoldingSpeed(ac.AircraftType, ac.Altitude), ac.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void NavaidNamedLikeTheDestination_GetsTheDirectNotAHold()
+    {
+        LatLon sacVor = FixPosition("SAC");
+        (double Lat, double Lon)? ksacPos = NavigationDatabase.Instance.GetAirportPosition("KSAC");
+        Assert.NotNull(ksacPos);
+        var ksac = new LatLon(ksacPos.Value.Lat, ksacPos.Value.Lon);
+        Assert.True(GeoMath.DistanceNm(sacVor, ksac) > 1.0, "the SAC VORTAC must lie more than 1 nm from KSAC");
+        AircraftState ac = Build(new NavigationTarget { Name = "SAC", Position = sacVor }, "IFR", AssignedAltitudeFt);
+        ac.FlightPlan.Destination = "KSAC";
+        ac.ClearedDestination = "KSAC";
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.IsNotType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+        NavigationTarget direct = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.True(direct.IsClearanceLimitDirect);
+        Assert.Equal("KSAC", direct.Name);
+        Assert.Equal(ksac.Lat, direct.Position.Lat, 6);
+        Assert.Equal(ksac.Lon, direct.Position.Lon, 6);
     }
 
     [Fact]

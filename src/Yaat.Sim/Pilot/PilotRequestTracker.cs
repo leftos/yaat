@@ -180,12 +180,13 @@ public static class PilotRequestTracker
 
     /// <summary>
     /// Whether a request for further clearance waits, still open, for the aircraft to reach its clearance limit: the
-    /// five-minute call is not repeated on the direct, and the holding report there records the request re-asked after.
+    /// five-minute call is not repeated on the way to the clearance limit (the direct, or a route end at the destination),
+    /// and the holding report there records the request re-asked after.
     /// </summary>
     private static bool WaitsForTheHoldReport(PilotPendingRequest request, AircraftState aircraft) =>
         (request.Kind == PilotPendingRequestKind.FurtherClearance)
         && (
-            PilotProactive.IsFlyingClearanceLimitDirect(aircraft)
+            FlightPhysics.IsLastTargetTheClearanceLimit(aircraft)
             || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true, ClearanceLimitReported: false })
         );
 
