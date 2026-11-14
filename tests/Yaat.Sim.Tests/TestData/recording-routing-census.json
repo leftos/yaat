@@ -664,6 +664,22 @@
     "Solo": true
   },
   {
+    "File": "issue1381-everyone-wants-lower-recording.yaat-bug-report-bundle.zip",
+    "Commands": 147,
+    "ByKind": {
+      "Compound": 121,
+      "Delete": 2,
+      "TrackOwnership": 24
+    },
+    "Unparsed": [
+      "FH 1100",
+      "DCT ALTTTA"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": true
+  },
+  {
     "File": "issue154-vfr-cold-calls-recording.zip",
     "Commands": 37,
     "ByKind": {
@@ -2133,6 +2149,21 @@
     ],
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
+    "File": "yaat2298-fat-ptac-capp-recording.yaat-bug-report-bundle.zip",
+    "Commands": 158,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 113,
+      "Delete": 4,
+      "SetActivePosition": 1,
+      "TrackOwnership": 39
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 29,
     "Solo": false
   }
 ]
