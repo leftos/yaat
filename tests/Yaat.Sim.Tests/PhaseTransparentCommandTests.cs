@@ -82,13 +82,12 @@ public class PhaseTransparentCommandTests
     }
 
     /// <summary>
-    /// A code typed with its leading zero (<c>SQ 0123</c>, as the menu's Squawk box sends four digits) sets the same code as
-    /// the command bar's <c>SQ 123</c>.
+    /// A squawk code is four digits including its leading zero (<c>SQ 0123</c>), so the menu's
+    /// Squawk box and the command bar send the same form; a three-digit <c>SQ 123</c> is refused.
     /// </summary>
     [Theory]
     [InlineData("SQ 0123")]
-    [InlineData("SQ 123")]
-    public void SquawkWithLeadingZero_SetsTheSameCodeAsWithout(string text)
+    public void SquawkWithLeadingZero_SetsTheCode(string text)
     {
         AircraftState ac = MakeAircraftInUpwind();
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);

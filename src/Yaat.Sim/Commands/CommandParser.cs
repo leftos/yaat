@@ -4170,29 +4170,30 @@ public static class CommandParser
             return PR.Ok(new SquawkResetCommand());
         }
 
-        if (!uint.TryParse(arg, out uint code))
+        if (!IsFourOctalDigits(arg))
         {
-            return PR.Fail($"invalid squawk code '{arg}'");
+            return PR.Fail($"invalid squawk code '{arg}' (expected four digits 0-7)");
         }
 
-        if (code > 7777)
+        return PR.Ok(new SquawkCommand(uint.Parse(arg, CultureInfo.InvariantCulture)));
+    }
+
+    private static bool IsFourOctalDigits(string arg)
+    {
+        if (arg.Length != 4)
         {
-            return PR.Fail($"invalid squawk code '{arg}' (max 7777)");
+            return false;
         }
 
-        // Validate each digit is 0-7 (octal)
-        uint temp = code;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < arg.Length; i++)
         {
-            if (temp % 10 > 7)
+            if (arg[i] is < '0' or > '7')
             {
-                return PR.Fail($"invalid squawk code '{arg}' (digits must be 0-7)");
+                return false;
             }
-
-            temp /= 10;
         }
 
-        return PR.Ok(new SquawkCommand(code));
+        return true;
     }
 
     /// <summary>

@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- `SQ` accepts only a four-digit code of 0-7, so `SQ 123` is refused instead of squawking 0123.
 - The Create Room ARTCC box keeps the ARTCC you last used instead of jumping to the first in the list, and leaving a room no longer changes it.
 - Arriving airliners at SMF and FLL no longer ask for runway or terminal markers as gates, and GA arrivals never ask for an airline gate.
 - A GA arrival with no fitting parking asks ground for "taxi to parking" and waits for the instructor to assign a spot.
