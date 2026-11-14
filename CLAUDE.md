@@ -129,7 +129,7 @@ Tests: writing or debugging one, read tests/CLAUDE.md and docs/test-harness.md f
 ### Build & Format
 
 - **No `-q` flag**: Never pass `-q` to any dotnet command — causes spurious errors.
-- **prek**: commit hooks run only the checks scoped to the staged files; the pre-push stage runs the gated `dotnet build` itself, so a `git push` runs bare. Run bare `prek run` to check; never `prek run --all-files`, whose stash/reapply can drop unstaged work. Do NOT run bare `dotnet format`, and do NOT pass `-v q`, `--nologo`, or extra flags to it.
+- **prek**: commit hooks run only the checks scoped to the staged files; the pre-push stage runs the gated `dotnet build` itself, so a `git push` runs bare. Commit with a plain gated `git commit` (no `--local`), from the main checkout or a worktree alike: the gate routes the commit's pre-commit stage to the builder. Do not pre-run `prek run` in a heavy gate before committing, since the commit runs the same hooks and a `prek` command never routes. Never run `prek run --all-files`, whose stash/reapply can drop unstaged work. Every hook entry runs through `pwsh` or `node`, never a bare `bash`, which resolves to WSL's from PowerShell. Do NOT run bare `dotnet format`, and do NOT pass `-v q`, `--nologo`, or extra flags to it.
 
 ### Documentation
 

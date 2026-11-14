@@ -35,7 +35,7 @@ repo = "local"
 [[repos.hooks]]
 id = "whitespace-fix-autostage"
 name = "trim trailing whitespace + EOF newline (auto-stages fixes)"
-entry = "bash tools/hooks/whitespace-fix-autostage.sh"
+entry = "pwsh -NoProfile -File tools/hooks/whitespace-fix-autostage.ps1"
 language = "system"
 types = ["text"]
 stages = ["pre-commit"]
@@ -52,7 +52,7 @@ stages = ["pre-commit"]
 [[repos.hooks]]
 id = "csharpier"
 name = "dotnet csharpier format (C# + XAML)"
-entry = "bash tools/hooks/csharpier-wrapper.sh"
+entry = "pwsh -NoProfile -File tools/hooks/csharpier-wrapper.ps1"
 language = "system"
 files = '\.(cs|axaml)$'
 require_serial = true
