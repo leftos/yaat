@@ -146,6 +146,9 @@ For a gate TAXI, always run the parking-node form with `--pf-dest-rwy` + `--pf-h
 - **A probe from a stand beyond the start bridge's reach resolves its first transition through the detour, not the parking→taxiway bridge.** The `[bridge]` lines are then absent and the `[detour]` ranking decides the first corner.
 - **`--pathfinder N --pf-dest-node M` with no taxiway token prints nothing.** Give at least one taxiway token.
 - **`--distance N1 N2` is not repeatable.** One pair per run.
+- **yaat-server's harness OAK graph is not the graph LayoutInspector builds.** `RoomEngineTestHarness.CreateWithOakData` parses yaat-server's own `tests/Yaat.Server.Tests/Resources/ArtccResources/ZOA/airports/oak.geojson` with its fixture navdb's runway widths, and that file differs from yaat's `TestData/oak.geojson`. So an inspector node id is not the same harness node id, even with `--airport-code OAK`. For a server e2e test, read node ids from the harness's own layout.
+
+  A throwaway probe project under yaat-server `.tmp/` can reference `Yaat.Server.Tests` and drive the real harness. It calls `NavigationDatabase.OpenTestHolder()` in each test body, because the assembly-wide holder attribute does not apply to the probe assembly. It runs through the gate with `--local`, because a routed run does not ship `.tmp/`.
 
 ### Tips
 
