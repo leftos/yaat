@@ -1,6 +1,6 @@
 # Context-menu quick commands
 
-The aircraft right-click menus on the radar, ground and aircraft-list views offer nearly every command at once. This plan replaces that with a short flat list of **quick commands** chosen by the aircraft's **situation**, with the full tree one level down under **All Commands**, and lets the user edit each situation's list persistently. Both terms are in [`CONTEXT.md`](../../CONTEXT.md).
+The aircraft right-click menus on the radar, ground and aircraft-list views offer nearly every command at once. This plan replaces that with a short flat list of **quick commands** chosen by the aircraft's **situation**, with the full tree one level down under **All Commands**, and lets the user edit each situation's list persistently. Both terms are in [`CONTEXT.md`](../CONTEXT.md).
 
 ## Where it stands
 

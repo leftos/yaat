@@ -2,7 +2,7 @@
 
 Design canvas (visual mocks, datablock anatomy, feature matrix, technical design): https://claude.ai/artifact/Kr562HhSk9FKQbAnZVeWDb
 
-Grounded in the CRC manuals `docs/crc/stars.md` and `docs/crc/eram.md`. The terms used here (YAAT Scope, profile, zoom band, dwell, pilot lens, scope entry) are defined in [`CONTEXT.md`](../../../CONTEXT.md) § Radar display.
+Grounded in the CRC manuals `docs/crc/stars.md` and `docs/crc/eram.md`. The terms used here (YAAT Scope, profile, zoom band, dwell, pilot lens, scope entry) are defined in [`CONTEXT.md`](../../CONTEXT.md) § Radar display.
 
 ## Goal
 

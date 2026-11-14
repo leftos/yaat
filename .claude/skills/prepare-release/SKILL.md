@@ -336,7 +336,7 @@ Skipping the check leaves both errors available: a bullet that under-states its 
 
 ### 2.11 Check the feature showcase (subagent)
 
-A minor or major version bump (1.4) ships a **feature showcase** (`CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`.
+A minor or major version bump (1.4) ships a **feature showcase** (`docs/CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`.
 
 A revision bump ships none, so on one this step is skipped; a `whats-new-next.md` left from earlier work waits for the next minor release. A missing showcase is not a release failure: the release body and the Discord announcement add the "What's new" link only when the file exists.
 

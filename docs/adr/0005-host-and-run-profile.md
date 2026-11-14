@@ -48,4 +48,4 @@ being precise about which execution path you are on is the entire point.
   state; the server sets the engine's profile through one seam (`RoomEngine.EnterPlayback` /
   `LeavePlayback`) at the same moments it sets that flag, and every engine it creates starts from the
   room's `HostRunKind`.
-- Vocabulary is fixed in [`CONTEXT.md`](../../CONTEXT.md) before the names are minted, not after.
+- Vocabulary is fixed in [`CONTEXT.md`](../CONTEXT.md) before the names are minted, not after.

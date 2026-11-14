@@ -247,7 +247,7 @@ A refusal names the leg and the pavement: `Unable, the move to spot 6A would put
 
 ## The push-target cache — `PushTargetPlanner`
 
-The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores, per airport, the bare `PUSH <twy>` and `PUSH $spot` targets each stand can reach, per airplane design group, from `src/Yaat.Sim/Data/Airport/Precompute/PushTargetPlanner.cs`.
+The precompute cache ([CONTEXT.md](../CONTEXT.md) *Precompute cache*) stores, per airport, the bare `PUSH <twy>` and `PUSH $spot` targets each stand can reach, per airplane design group, from `src/Yaat.Sim/Data/Airport/Precompute/PushTargetPlanner.cs`.
 
 - **Same planner, no aircraft.** Each target is planned by `TugMovePlanner` exactly as a live push off the stand would be, with no other aircraft about and the movement-area classification built from the airport's sidecars; the targets are the ones within `TugMovePlanner.MaxGoalDistanceFt` that it accepts. Targets sort by kind (taxilane, taxiway, spot), then path length, then name.
 - **Design-group envelopes.** A group is planned with a synthetic footprint (`ADG-I` to `ADG-VI`) from `DesignGroupEnvelopes`: the greatest length, span, wheelbase and main gear width over the group's fixed-wing FAA records (`AirplaneDesignGroups.OfRecord`), each dimension taken separately, shipped as `Data/PrecomputeCache/design-group-envelopes.json` with the record that set each.

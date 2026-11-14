@@ -4,7 +4,7 @@ Instructor/RPO client and training server for VATSIM air traffic control trainin
 the simulation; every other project is a way of driving or displaying it.
 
 This glossary fixes the words that have caused real confusion. It is a glossary, not a spec — no
-implementation detail, no decisions. Decisions live in [`docs/adr/`](docs/adr/).
+implementation detail, no decisions. Decisions live in [`docs/adr/`](adr/).
 
 ## Simulation execution
 
@@ -672,7 +672,7 @@ _Avoid_: variant row (a rule's own `PilotVariantSet` row)
 A readback of two or more commands (a CAPP with a route or crossing before it included): it never takes a chatty row or the quiet "alright," / ", thanks" flavour, a quiet frequency speaks the normal-band words and a busy one keeps its terse rows on every clause. A single command, conditioned or not, is not chained.
 
 **Check-in butt-in**:
-A second solo pilot's initial-contact check-in keying up 3 s after the last transmission while the frequency still waits for the controller's answer to the first, on a seeded 10% draw (`SpokenFormDraws.DrawCheckInButtIn`); ground and departure first calls never do it. See [solo-training-pilot-speech.md](docs/solo-training-pilot-speech.md#check-in-butt-in).
+A second solo pilot's initial-contact check-in keying up 3 s after the last transmission while the frequency still waits for the controller's answer to the first, on a seeded 10% draw (`SpokenFormDraws.DrawCheckInButtIn`); ground and departure first calls never do it. See [solo-training-pilot-speech.md](solo-training-pilot-speech.md#check-in-butt-in).
 
 **Comma-led capture**:
 A spoken capture value that begins with ", " (the visual clearance's `{side}` ", left traffic" and `{follow}` ", follow the traffic"): the renderer attaches it to the text before it with no space, and an empty one leaves the next comma in place (`PhraseologyVerbalizer.Append`, `RenderVariantTemplate`).
@@ -773,7 +773,7 @@ An ERAM entry typed without a command ID, such as `<FLID>` alone to accept a han
 The ERAM logic-check override: added to a command, it lets the command act on a track the sector doesn't own, or past a check it would otherwise fail.
 
 **SRS**:
-The FAA's ERAM EDSM software requirements specification (Vol 1 Book 2, the appendices) that `docs/eram/` (its [rulings.md](docs/eram/rulings.md) above all) cites by section and printed page; the maintainer keeps the PDF outside the repo.
+The FAA's ERAM EDSM software requirements specification (Vol 1 Book 2, the appendices) that `docs/eram/` (its [rulings.md](eram/rulings.md) above all) cites by section and printed page; the maintainer keeps the PDF outside the repo.
 
 **FDB / LDB**:
 Full data block / limited data block: the two ERAM data block formats a sector sees for a track. An LDB is paired (the track has a flight plan) or unpaired.
@@ -1206,7 +1206,7 @@ _Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC confi
 ## Facility data
 
 **Sidecar**:
-A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](ARTCC_CUSTOMIZATION.md)).
+A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](../ARTCC_CUSTOMIZATION.md)).
 
 **Tower-cab videomap**:
 The vNAS GeoJSON map CRC Tower Cab draws over the satellite image, named by the facility's `towerCabConfiguration.videoMapId`; `TowerCabVideoMap.Read` keeps its two-point line segments (painted hold-short bars), and `LayoutInputs.VideoMap` carries them to the layout build (null = none).

@@ -37,7 +37,7 @@ B's area is judged per path segment (`FirstEntry`): B's S plus the angle term (`
 
 A walk that ends past S but short of D is judged on its path from the S point to the last node it reaches. A walk that dead-ends short of S has no S point and keeps the touch rule (`TouchesHoldingArea`, `DeadEndTouch`): S when a passed node touches B's S plus 5 ft, else D. A taxiway between two close runways keeps its bar out of the other's holding area.
 
-A **short bar** is a hold-short node inside S (a dead-end fallback), a **far bar** the crossed runway's bar on the side an aircraft leaves by (both in [CONTEXT.md](../../CONTEXT.md)). Because an angled bar is farther out than S, code that must reach a runway's bars bounds its walk by the largest cross-track among the runway's hold-line bars (`AirportGroundLayout.OutwardWalkBoundFt`), not by S.
+A **short bar** is a hold-short node inside S (a dead-end fallback), a **far bar** the crossed runway's bar on the side an aircraft leaves by (both in [CONTEXT.md](../CONTEXT.md)). Because an angled bar is farther out than S, code that must reach a runway's bars bounds its walk by the largest cross-track among the runway's hold-line bars (`AirportGroundLayout.OutwardWalkBoundFt`), not by S.
 
 The RSA boundary's nearest point is a line parallel to the runway centerline, so S is the same for every taxiway at a runway; the stop point on the taxiway centerline is not. Both `HoldShortDistanceForWidth` and `AirplaneDesignGroup.FromRunwayWidth` still exist for their other callers; `HoldShortDistanceForWidth` is read only by `BuildRunwayRectangle(GroundRunway)` for a runway of a layout stored before S, which has neither S nor an authored value.
 (Tail clearance for a landing aircraft rolling *out* of the runway is a separate concern, handled by
@@ -78,7 +78,7 @@ A bar on paint is the exception: `TrySeatOnNearbyNode` merges a plain taxiway sh
 
 ## Seating on the painted bar
 
-`GeoJsonParser.BuildLayout` passes the airport's `TowerCabVideoMap` (`LayoutInputs.VideoMap`, null when it has none) to `DetectRunwayCrossings`, which seats each crossing through `SeatCrossing`. The tower-cab videomap draws the real painted hold bars as two-point segments ([CONTEXT.md](../../CONTEXT.md), *Tower-cab videomap*); a crossing whose taxiway carries one is seated on it, not at D_rule.
+`GeoJsonParser.BuildLayout` passes the airport's `TowerCabVideoMap` (`LayoutInputs.VideoMap`, null when it has none) to `DetectRunwayCrossings`, which seats each crossing through `SeatCrossing`. The tower-cab videomap draws the real painted hold bars as two-point segments ([CONTEXT.md](../CONTEXT.md), *Tower-cab videomap*); a crossing whose taxiway carries one is seated on it, not at D_rule.
 
 **Pairing** (`RunwayPaintPairing.Candidates`). `RunwayCrossingDetector.PlanRunways` pairs every runway's crossings once, in a read-only pre-pass on the layout before any bar is seated, against D_rule from the uncalibrated S (rule or authored) of every runway. The pairs ride on `RunwayPlan.PaintPairs` by the crossing's node pair, and the near ends of the first-ranked bars calibrate S ([The standoff distance](#the-standoff-distance)). Seating reuses those pairs (`CandidatesFor`); a crossing the pre-pass never saw is paired live at its seat-time D_rule, logged at Debug. A segment is a candidate bar for a crossing when:
 

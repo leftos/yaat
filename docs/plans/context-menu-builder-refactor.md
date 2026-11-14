@@ -4,7 +4,7 @@
 >
 > We need a context menu builder refactor." It replaces briefs 7e-3 and 7e-4 of [context-menu-quick-commands.md](./context-menu-quick-commands.md) on `feat/context-menu-quick-commands`; step 3 (per-situation quick lists) follows it. Line references are to the feature branch at c8d9b1f4.
 
-Terms used here: **view section**, the few canvas-only items a view appends to the shared menu; **click context**, what the view tells the builder about the click; **point menu**, the menu a right-click on the map or a taxi node opens for the selected aircraft. Each needs a `CONTEXT.md` entry in the commit of brief 1.
+Terms used here: **view section**, the few canvas-only items a view appends to the shared menu; **click context**, what the view tells the builder about the click; **point menu**, the menu a right-click on the map or a taxi node opens for the selected aircraft. Each needs a `docs/CONTEXT.md` entry in the commit of brief 1.
 
 ## Goal
 

@@ -2,7 +2,7 @@
 
 **Looking for code, or about to change a subsystem? Read the map before reading source.** YAAT's docs front-load each subsystem's overview, contracts, and footguns — starting here is faster and more accurate than grepping blind.
 
-**Where docs live.** The repo root holds the user-facing docs only (`README`, `INSTALL`, `GETTING_STARTED`, `USER_GUIDE`, `COMMANDS`, `SOLO_TRAINING`, `ARTCC_CUSTOMIZATION`, `CHANGELOG`); developer docs live here in `docs/`, and the root README points users at the root set. A developer doc still at the root is moved here.
+**Where docs live.** The repo root holds the user-facing docs only (`README`, `INSTALL`, `GETTING_STARTED`, `USER_GUIDE`, `COMMANDS`, `SOLO_TRAINING`, `ARTCC_CUSTOMIZATION`, `CHANGELOG`); developer docs live here in `docs/`, and the root README points users at the root set. A developer doc found at the root is moved here (`CONTEXT.md`, the glossary, already has been).
 
 ## Locating files
 
@@ -12,7 +12,7 @@
 
 Open the matching doc **before exploring, searching, or editing** the code it lists; each carries its own overview, contracts, and footguns.
 
-- Vocabulary and decisions: [`../CONTEXT.md`](../CONTEXT.md) (the glossary — sim-second, spine, host, run kind, action, arm, baked draw), [`adr/`](./adr/) (the tick-path and action-router decisions)
+- Vocabulary and decisions: [`CONTEXT.md`](CONTEXT.md) (the glossary — sim-second, spine, host, run kind, action, arm, baked draw), [`adr/`](./adr/) (the tick-path and action-router decisions)
 - [`landing-and-runway-exit.md`](./landing-and-runway-exit.md) — `LandingPhase`, `RunwayExitPhase`, `GroundNavigator` (analog rollout)
 - [`ground/`](./ground/README.md) — ground/taxi stack index → [`fillet-generator`](./ground/fillet-generator.md), [`pathfinder`](./ground/pathfinder.md), [`navigator`](./ground/navigator.md), [`hold-short-placement`](./ground/hold-short-placement.md), [`pushback`](./ground/pushback.md)
 - [`ground-layout-generation.md`](./ground-layout-generation.md) — `GeoJsonParser` → fillet arcs → ground-graph construction (the full import pipeline behind `AirportGroundLayout`)

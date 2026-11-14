@@ -51,7 +51,7 @@ Chapters run in this order; within a room-dependent chapter, steps wait for thei
 
 ## Docs to change when it lands
 
-`GETTING_STARTED.md` (the tour as the first step), `USER_GUIDE.md` (a Tutorial section), `docs/client-settings-and-menus.md` ("Couplings a change must keep": a renamed anchor control needs its step updated), `docs/architecture.md` (Task Index row: change the first-use tutorial), `CONTEXT.md` glossary entries (coach mark, tutorial step).
+`GETTING_STARTED.md` (the tour as the first step), `USER_GUIDE.md` (a Tutorial section), `docs/client-settings-and-menus.md` ("Couplings a change must keep": a renamed anchor control needs its step updated), `docs/architecture.md` (Task Index row: change the first-use tutorial), `docs/CONTEXT.md` glossary entries (coach mark, tutorial step).
 
 ## Surfaces
 
