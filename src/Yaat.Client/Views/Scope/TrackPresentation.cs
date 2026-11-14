@@ -1,18 +1,21 @@
 namespace Yaat.Client.Views.Scope;
 
-/// <summary>How much of a track's datablock is shown. Step 1 presents only <see cref="Full"/>.</summary>
+/// <summary>
+/// How much of a track's datablock is shown: an input to <see cref="TrackPresenter.Present"/>, chosen per track by
+/// <see cref="ScopeFrame.Build"/>. Each template draws its own lines per level (<see cref="ScopeTemplate.LinesAt"/>).
+/// </summary>
 public enum ScopeBlockLevel
 {
-    /// <summary>Limited datablock.</summary>
+    /// <summary>Limited datablock: ERAM's paired LDB, the STARS LDB; EuroScope draws its full tag.</summary>
     Limited,
 
-    /// <summary>Partial datablock.</summary>
+    /// <summary>Partial datablock: ERAM's enhanced paired LDB, the STARS PDB; EuroScope draws its full tag.</summary>
     Partial,
 
     /// <summary>Full datablock.</summary>
     Full,
 
-    /// <summary>Full datablock expanded by hover.</summary>
+    /// <summary>A hovered block: the Full block's content, drawn on top with the dwell emphasis box and without the stale alpha.</summary>
     Dwell,
 }
 
@@ -143,16 +146,18 @@ public sealed record ScopeField(
 /// Everything a template needs to lay out one track's datablock, produced by <see cref="TrackPresenter.Present"/>.
 /// </summary>
 /// <param name="TemplateId">Id of the template the fields were presented for.</param>
-/// <param name="Level">Block level.</param>
+/// <param name="Level">The block level presented (the input's).</param>
 /// <param name="BlockColor">
 /// Colour role of the block as a whole: its leader and every <see cref="ScopeColorToken.Default"/> field.
 /// </param>
 /// <param name="Tint">The RPO tint that applies to the track whatever its highlight; it colours the symbol.</param>
-/// <param name="Fields">Fields for every slot the template places, in template order.</param>
+/// <param name="Fields">Fields for every slot the template places at <paramref name="Level"/>, in template order.</param>
+/// <param name="ShowsLeader">Whether the block draws its leader; CRC's ERAM LDBs have none.</param>
 public sealed record TrackPresentation(
     string TemplateId,
     ScopeBlockLevel Level,
     ScopeBlockColor BlockColor,
     ScopeTintRole Tint,
-    IReadOnlyList<ScopeField> Fields
+    IReadOnlyList<ScopeField> Fields,
+    bool ShowsLeader = true
 );

@@ -16,7 +16,7 @@ namespace Yaat.Client.Views.Scope;
 /// <summary>
 /// The YAAT Scope's map canvas. Each frame's <see cref="ScopeFrame"/> is built once on the UI thread in
 /// <see cref="CreateRenderSnapshot"/>, drawn by <see cref="ScopeRenderer"/> on the render thread, and kept for hit-testing,
-/// so a click reads the same block layouts the user sees.
+/// so clicks and hover read the same block layouts the user sees.
 /// </summary>
 public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 {
@@ -65,6 +65,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     private readonly SKPaint _measurePaint = new();
     private SKFont? _measureFont;
     private ScopeFrame? _lastFrame;
+    private string? _hoveredCallsign;
     private INotifyCollectionChanged? _watchedAircraft;
     private bool _isAttached;
 
@@ -149,10 +150,16 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     public event Action<string, Point>? AircraftRightClicked;
 
     /// <summary>
-    /// The frame clicks are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
+    /// The frame clicks and hover are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
     /// changed since.
     /// </summary>
     internal ScopeFrame CurrentFrame => _lastFrame ??= BuildFrame(BuildPalette());
+
+    /// <summary>The callsign of the track the pointer dwells on, or null. Test seam.</summary>
+    internal string? HoveredCallsign => _hoveredCallsign;
+
+    /// <summary>How many frames the pointer-move handler has built for its dwell hit-test. Test seam.</summary>
+    internal int HoverFramesBuilt { get; private set; }
 
     /// <summary>The traffic collection the canvas is listening to, or null. Test seam.</summary>
     internal INotifyCollectionChanged? WatchedAircraft => _watchedAircraft;
@@ -300,6 +307,43 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         base.OnPointerPressed(e);
     }
 
+    /// <summary>
+    /// Dwells the track under the pointer at once, as CRC does, hit-testing the drawn (dwelled) frame; the frame is rebuilt
+    /// only when the hovered callsign changes. Panning stays with the base canvas.
+    /// </summary>
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        if (e.Handled)
+        {
+            // A pan drag: the map moves with the pointer, so the dwell holds; the next free move re-tests it.
+            return;
+        }
+
+        Point pos = e.GetPosition(this);
+        HoverFramesBuilt += _lastFrame is null ? 1 : 0;
+        Hover(CurrentFrame.DwellAt((float)pos.X, (float)pos.Y)?.Callsign);
+    }
+
+    /// <summary>Releases the dwell when the pointer leaves the canvas.</summary>
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        Hover(null);
+    }
+
+    private void Hover(string? callsign)
+    {
+        if (string.Equals(callsign, _hoveredCallsign, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _hoveredCallsign = callsign;
+        _lastFrame = null;
+        MarkDirty();
+    }
+
     private ScopeFrame BuildFrame(ScopePalette palette)
     {
         UserPreferences? prefs = Preferences;
@@ -320,7 +364,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoHighlights;
-        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, TemplateId, metrics, alerts, display, offsets, highlighted));
+        return ScopeFrame.Build(
+            new ScopeFrameInput(visible, SelectedAircraft, Viewport, TemplateId, metrics, alerts, display, offsets, highlighted, _hoveredCallsign)
+        );
     }
 
     /// <summary>The user's tints and selected-symbol colour, as today's radar reads them from the preferences.</summary>

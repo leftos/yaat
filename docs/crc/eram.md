@@ -893,7 +893,7 @@ The Data Block position and [leader line length](#leader-lines) Implied command 
 
 *A Track with Dwell Emphasis*
 
-A Data Block is temporarily displayed with Dwell Emphasis when the cursor is above the Data Block or the Data Block's Track symbol. Dwell Emphasis lock is toggled by left-clicking [field A](#fdb-line-1).
+A Data Block is temporarily displayed with Dwell Emphasis when the cursor is above the Data Block or within 8 px of the Data Block's Track symbol, and is released as soon as the cursor moves off. Dwell Emphasis lock is toggled by left-clicking [field A](#fdb-line-1).
 
 ### Quick Look
 

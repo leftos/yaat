@@ -38,7 +38,8 @@ public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fi
 }
 
 /// <summary>
-/// The template engine: lays a <see cref="TrackPresentation"/>'s fields into its template's lines.
+/// The template engine: lays a <see cref="TrackPresentation"/>'s fields into its template's lines for its level
+/// (<see cref="ScopeTemplate.LinesAt"/>).
 /// <para>
 /// A field takes part when it has text, or when its slot is reserved and its stable text is non-empty; a
 /// reserved field is measured on its stable text, so neither its rect nor the block bounds change between
@@ -70,7 +71,7 @@ public static class DatablockTemplate
         float top = -metrics.Size;
         float maxRight = 0f;
 
-        foreach (ScopeTemplateLine line in template.Lines)
+        foreach (ScopeTemplateLine line in template.LinesAt(presentation.Level))
         {
             List<PlacedField> present = PresentFields(line, bySlot);
             if ((present.Count == 0) && !line.AlwaysShown)

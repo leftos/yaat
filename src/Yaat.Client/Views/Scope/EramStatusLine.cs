@@ -52,14 +52,10 @@ internal static class EramStatusLine
     // A transponder on standby or off replies with no code.
     private static bool ReportsNoCode(AircraftModel ac) => ac.TransponderMode is "Standby" or "Off";
 
-    private static (string, bool)? Spc(AircraftModel ac)
-    {
-        if (ReportsNoCode(ac) || (SpcLabel(ac.BeaconCode) is not { } label))
-        {
-            return null;
-        }
-        return (label, ac.EramIsCorrelated && ac.EramSpcBlinking);
-    }
+    /// <summary>The special-purpose-code label of a transponder that replies with a code (<see cref="SpcLabel"/>), or null.</summary>
+    internal static string? SpcText(AircraftModel ac) => ReportsNoCode(ac) ? null : SpcLabel(ac.BeaconCode);
+
+    private static (string, bool)? Spc(AircraftModel ac) => SpcText(ac) is { } label ? (label, ac.EramIsCorrelated && ac.EramSpcBlinking) : null;
 
     // The handoff peer exists under the condition AircraftModel.HandoffDisplay uses.
     private static (string, bool)? Handoff(AircraftModel ac) =>

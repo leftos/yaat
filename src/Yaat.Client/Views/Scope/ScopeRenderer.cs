@@ -18,6 +18,8 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="Display">Instructor display hints the user's preferences allow.</param>
 /// <param name="ManualOffsets">Per-callsign block offsets from the symbol; a callsign absent here takes the default offset.</param>
 /// <param name="HighlightedCallsigns">Callsigns whose blocks are highlighted (middle-click).</param>
+/// <param name="HoveredCallsign">The callsign of the track the pointer dwells on (<see cref="ScopeFrame.DwellAt"/>), or null.</param>
+/// <param name="DefaultLevel">The block level of every track that is not dwelled.</param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -27,7 +29,9 @@ public sealed record ScopeFrameInput(
     ScopeAlertOptions Alerts,
     ScopeDisplayOptions Display,
     IReadOnlyDictionary<string, SKPoint> ManualOffsets,
-    IReadOnlySet<string> HighlightedCallsigns
+    IReadOnlySet<string> HighlightedCallsigns,
+    string? HoveredCallsign = null,
+    ScopeBlockLevel DefaultLevel = ScopeBlockLevel.Full
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -38,6 +42,8 @@ public sealed record ScopeFrameInput(
 /// <param name="BlockColor">The block's colour role, as the presenter decided it.</param>
 /// <param name="IsStale">Whether the track is a coasting live-traffic shadow, drawn at half alpha.</param>
 /// <param name="Tint">The RPO tint that applies to the track, as the presenter decided it; it colours the symbol.</param>
+/// <param name="Level">The block level the track was presented at.</param>
+/// <param name="ShowsLeader">Whether the block draws its leader, as the presenter decided it.</param>
 public sealed record ScopeTrack(
     AircraftModel Aircraft,
     SKPoint Symbol,
@@ -45,8 +51,28 @@ public sealed record ScopeTrack(
     bool IsSelected,
     ScopeBlockColor BlockColor,
     bool IsStale,
-    ScopeTintRole Tint
-);
+    ScopeTintRole Tint,
+    ScopeBlockLevel Level = ScopeBlockLevel.Full,
+    bool ShowsLeader = true
+)
+{
+    /// <summary>How far the dwell box sits outside the text bounds (CRC <c>FdbRenderObject</c>: the fields rect inflated 2 px).</summary>
+    public const float DwellBoxInflatePx = 2f;
+
+    /// <summary>Whether the block is dwelled (hovered): drawn on top, without the stale alpha, with its dwell box.</summary>
+    public bool IsDwelled => Level == ScopeBlockLevel.Dwell;
+
+    /// <summary>The text bounds inflated <see cref="DwellBoxInflatePx"/>; the hover hit-test and the emphasis both read it.</summary>
+    public SKRect DwellBox
+    {
+        get
+        {
+            SKRect box = Block.TextBounds;
+            box.Inflate(DwellBoxInflatePx, DwellBoxInflatePx);
+            return box;
+        }
+    }
+}
 
 /// <summary>A field a point landed on, and whose block it is.</summary>
 public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
@@ -62,16 +88,19 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>How near a symbol a click must land to hit it, as today's radar uses.</summary>
     public const float TargetHitRadiusPx = 28f;
 
+    /// <summary>How near a symbol the pointer must be to dwell its track (CRC <c>ViewDataBlocks.GetDataBlockByPosition</c>).</summary>
+    public const float DwellSymbolRadiusPx = 8f;
+
     /// <summary>How near the MVA floor an altitude reads as at it, as today's radar uses.</summary>
     private const int MvaAtBandFt = 100;
 
     /// <summary>
     /// Lays every track out for this frame, reading the blink phase from <see cref="RadarBlink"/> once so the whole frame
-    /// shares one phase. Each block sits at the default leader offset.
+    /// shares one phase. Each block sits at the default leader offset; dwelled tracks come last, so they draw on top and
+    /// hit-test first.
     /// </summary>
     public static ScopeFrame Build(ScopeFrameInput input)
     {
-        string templateId = input.TemplateId;
         bool flashOn = RadarBlink.IsOn;
         var byCallsign = new Dictionary<string, AircraftModel>(StringComparer.Ordinal);
         foreach (AircraftModel ac in input.Aircraft)
@@ -80,31 +109,57 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         }
 
         var tracks = new List<ScopeTrack>(input.Aircraft.Count);
+        var dwelled = new List<ScopeTrack>();
         foreach (AircraftModel ac in input.Aircraft)
         {
-            bool isSelected = ReferenceEquals(ac, input.Selected);
-            var presenterInput = new TrackPresenterInput(
-                ac,
-                templateId,
-                Peer(byCallsign, ac.AtpaLeadCallsign),
-                Peer(byCallsign, ac.ConflictPeerCallsign),
-                flashOn,
-                isSelected,
-                input.Alerts,
-                input.Display,
-                MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint),
-                input.HighlightedCallsigns.Contains(ac.Callsign)
-            );
-            TrackPresentation presentation = TrackPresenter.Present(presenterInput);
-            ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
-            bool hasManual = input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
-            SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, false, hasManual, manual, atOrigin.Bounds, null);
-            (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            ScopeBlockLayout placed = atOrigin.At(sx + offset.X, sy + offset.Y);
-            tracks.Add(new ScopeTrack(ac, new SKPoint(sx, sy), placed, isSelected, presentation.BlockColor, ac.LiveTrafficStale, presentation.Tint));
+            ScopeTrack track = BuildTrack(input, byCallsign, ac, flashOn);
+            (track.IsDwelled ? dwelled : tracks).Add(track);
         }
 
-        return new ScopeFrame(templateId, tracks);
+        tracks.AddRange(dwelled);
+        return new ScopeFrame(input.TemplateId, tracks);
+    }
+
+    /// <summary>
+    /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Dwell"/> while the pointer dwells on it (the
+    /// dwell-locked set joins here), else the frame's default.
+    /// </summary>
+    private static ScopeBlockLevel LevelFor(AircraftModel ac, ScopeFrameInput input) =>
+        string.Equals(ac.Callsign, input.HoveredCallsign, StringComparison.Ordinal) ? ScopeBlockLevel.Dwell : input.DefaultLevel;
+
+    private static ScopeTrack BuildTrack(ScopeFrameInput input, Dictionary<string, AircraftModel> byCallsign, AircraftModel ac, bool flashOn)
+    {
+        bool isSelected = ReferenceEquals(ac, input.Selected);
+        var presenterInput = new TrackPresenterInput(
+            ac,
+            input.TemplateId,
+            Peer(byCallsign, ac.AtpaLeadCallsign),
+            Peer(byCallsign, ac.ConflictPeerCallsign),
+            flashOn,
+            isSelected,
+            input.Alerts,
+            input.Display,
+            MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint),
+            input.HighlightedCallsigns.Contains(ac.Callsign),
+            LevelFor(ac, input)
+        );
+        TrackPresentation presentation = TrackPresenter.Present(presenterInput);
+        ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
+        bool hasManual = input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
+        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, false, hasManual, manual, atOrigin.Bounds, null);
+        (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        ScopeBlockLayout placed = atOrigin.At(sx + offset.X, sy + offset.Y);
+        return new ScopeTrack(
+            ac,
+            new SKPoint(sx, sy),
+            placed,
+            isSelected,
+            presentation.BlockColor,
+            ac.LiveTrafficStale,
+            presentation.Tint,
+            presentation.Level,
+            presentation.ShowsLeader
+        );
     }
 
     /// <summary>
@@ -138,6 +193,25 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
                     continue;
                 }
                 return new ScopeFieldHit(track.Aircraft, field);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The aircraft the pointer at (<paramref name="x"/>, <paramref name="y"/>) dwells on, topmost block first, or null: within
+    /// <see cref="DwellSymbolRadiusPx"/> of its symbol, or inside its drawn block's <see cref="ScopeTrack.DwellBox"/> (CRC
+    /// <c>ViewDataBlocks.HandleMouseMove</c>). Separate from the click rule (<see cref="BlockAt"/>, <see cref="TargetAt"/>).
+    /// </summary>
+    public AircraftModel? DwellAt(float x, float y)
+    {
+        var point = new SKPoint(x, y);
+        for (int i = Tracks.Count - 1; i >= 0; i--)
+        {
+            ScopeTrack track = Tracks[i];
+            if ((SKPoint.Distance(track.Symbol, point) <= DwellSymbolRadiusPx) || track.DwellBox.Contains(x, y))
+            {
+                return track.Aircraft;
             }
         }
         return null;
@@ -266,6 +340,14 @@ public sealed class ScopeRenderer : IDisposable
         IsAntialias = true,
     };
 
+    // CRC's dwell emphasis box: a 1 px outline in the block's own colour (FdbRenderObject, StyleManager.FdbEmphasisBox).
+    private readonly SKPaint _dwellBoxPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
     private readonly SKPaint _textPaint = new() { IsAntialias = true };
 
     // Antialiased like today's radar strike paint, and outside the radar line style: its width comes from the font each draw.
@@ -287,7 +369,7 @@ public sealed class ScopeRenderer : IDisposable
 
     public ScopeRenderer()
     {
-        _strokePaints = [(_symbolPaint, 1.5f), (_leaderPaint, 2f), (_selectedBorderPaint, 1f)];
+        _strokePaints = [(_symbolPaint, 1.5f), (_leaderPaint, 2f), (_selectedBorderPaint, 1f), (_dwellBoxPaint, 1f)];
     }
 
     /// <summary>Draws <paramref name="snapshot"/> into <paramref name="canvas"/>.</summary>
@@ -312,6 +394,7 @@ public sealed class ScopeRenderer : IDisposable
         _symbolPaint.Dispose();
         _leaderPaint.Dispose();
         _selectedBorderPaint.Dispose();
+        _dwellBoxPaint.Dispose();
         _textPaint.Dispose();
         _strikethroughPaint.Dispose();
         _arrowPaint.Dispose();
@@ -339,9 +422,17 @@ public sealed class ScopeRenderer : IDisposable
         }
 
         SKColor blockColor = BlockColorOf(track, palette);
-        SKPoint leaderEnd = LeaderEnd(track);
-        _leaderPaint.Color = blockColor;
-        canvas.DrawLine(track.Symbol, leaderEnd, _leaderPaint);
+        if (track.IsDwelled)
+        {
+            _dwellBoxPaint.Color = blockColor;
+            canvas.DrawRect(track.DwellBox, _dwellBoxPaint);
+        }
+
+        if (track.ShowsLeader)
+        {
+            _leaderPaint.Color = blockColor;
+            canvas.DrawLine(track.Symbol, LeaderEnd(track), _leaderPaint);
+        }
 
         foreach (FieldRect field in track.Block.Fields)
         {
@@ -352,19 +443,19 @@ public sealed class ScopeRenderer : IDisposable
         }
     }
 
+    /// <summary>Draws <paramref name="field"/>; the squawk-mismatch pulse's off phase dims its tail, dwelled or not.</summary>
     private void DrawField(SKCanvas canvas, FieldRect field, SKFont font, SKColor blockColor)
     {
         SKColor color = ColorFor(field.Token, blockColor);
-        // A field rect spans the font's ascent budget above its baseline, so the baseline is the rect's bottom.
-        float baseline = field.Rect.Bottom;
         if (field.Style.HasFlag(ScopeFieldStyle.DimTail))
         {
-            DrawDimTail(canvas, field.Text, field.Rect.Left, baseline, font, color);
+            DrawDimTail(canvas, field, font, color, Dim(color, DimTailBrightness));
         }
         else
         {
             _textPaint.Color = color;
-            canvas.DrawText(field.Text, field.Rect.Left, baseline, SKTextAlign.Left, font, _textPaint);
+            // A field rect spans the font's ascent budget above its baseline, so the baseline is the rect's bottom.
+            canvas.DrawText(field.Text, field.Rect.Left, field.Rect.Bottom, SKTextAlign.Left, font, _textPaint);
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.Strikethrough))
@@ -484,11 +575,14 @@ public sealed class ScopeRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws the text before the first space at <paramref name="color"/>, then the rest (its leading space included) at a
-    /// quarter of its brightness, placed as today's <c>TargetRenderer.DrawSquawkMismatchLine</c> places its head and tail.
+    /// Draws the text before the first space at <paramref name="color"/>, then the rest (its leading space included) at
+    /// <paramref name="tailColor"/>, placed as today's <c>TargetRenderer.DrawSquawkMismatchLine</c> places its head and tail.
     /// </summary>
-    private void DrawDimTail(SKCanvas canvas, string text, float x, float baseline, SKFont font, SKColor color)
+    private void DrawDimTail(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, SKColor tailColor)
     {
+        string text = field.Text;
+        float x = field.Rect.Left;
+        float baseline = field.Rect.Bottom;
         int space = text.IndexOf(' ');
         string head = space < 0 ? text : text[..space];
         _textPaint.Color = color;
@@ -499,7 +593,7 @@ public sealed class ScopeRenderer : IDisposable
         }
 
         float headWidth = font.MeasureText(head);
-        _textPaint.Color = Dim(color, DimTailBrightness);
+        _textPaint.Color = tailColor;
         canvas.DrawText(text[space..], x + headWidth, baseline, SKTextAlign.Left, font, _textPaint);
     }
 
@@ -524,10 +618,14 @@ public sealed class ScopeRenderer : IDisposable
         new((byte)(color.Red * factor), (byte)(color.Green * factor), (byte)(color.Blue * factor), color.Alpha);
 
     /// <summary>
-    /// The colour of <paramref name="track"/>'s leader and of every <see cref="ScopeColorToken.Default"/> field, at the stale
-    /// alpha when it coasts.
+    /// The colour of <paramref name="track"/>'s leader, dwell box and every <see cref="ScopeColorToken.Default"/> field, at the
+    /// stale alpha when it coasts, unless it is dwelled: a dwelled block skips the stale alpha.
     /// </summary>
-    internal static SKColor BlockColorOf(ScopeTrack track, ScopePalette palette) => Stale(track, ResolveBlockColor(track.BlockColor, palette));
+    internal static SKColor BlockColorOf(ScopeTrack track, ScopePalette palette)
+    {
+        SKColor color = ResolveBlockColor(track.BlockColor, palette);
+        return track.IsDwelled ? color : Stale(track, color);
+    }
 
     /// <summary>
     /// The colour of <paramref name="track"/>'s symbol: the selected colour when selected, else its tint, else the symbol blue,

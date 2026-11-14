@@ -53,6 +53,7 @@ public sealed record ScopeDisplayOptions(
 /// <see cref="ScopeFrame.Build"/>.
 /// </param>
 /// <param name="IsHighlighted">Whether the track's block is highlighted (middle-click).</param>
+/// <param name="Level">The block level to present, chosen per track by <see cref="ScopeFrame.Build"/>.</param>
 public sealed record TrackPresenterInput(
     AircraftModel Aircraft,
     string TemplateId,
@@ -63,7 +64,8 @@ public sealed record TrackPresenterInput(
     ScopeAlertOptions Alerts,
     ScopeDisplayOptions Display,
     MvaRelation? Mva,
-    bool IsHighlighted
+    bool IsHighlighted,
+    ScopeBlockLevel Level = ScopeBlockLevel.Full
 );
 
 /// <summary>
@@ -174,9 +176,7 @@ public static class TrackPresenter
     /// </summary>
     public static EramAltitude EramAltitudeText(EramAltitudeInput input)
     {
-        EramReported? reported = ReportedOf(input);
-        EramPlan plan = PlanOf(input);
-        EramConformance conformance = ConformanceOf(reported, input.ReachedAssignedAltitude, plan);
+        (EramReported? reported, EramPlan plan, EramConformance conformance) = JudgeAltitude(input);
         char b4 = FieldB4(input, reported, plan, conformance);
         ScopeFieldStyle style = b4 switch
         {
@@ -186,6 +186,23 @@ public static class TrackPresenter
         };
         string cell = style == ScopeFieldStyle.None ? b4.ToString() : EramArrowCell;
         return new EramAltitude(FieldB(input, plan, conformance) + cell + FieldC(input, reported, plan, conformance), style);
+    }
+
+    /// <summary>
+    /// ERAM enhanced paired LDB line 2: Field B then Field C, with no character 4 between them (CRC
+    /// <c>PairedLdbRenderObject.FormatEnhancedPairedLdb</c>). With no character 4 there is no arrow cell to draw.
+    /// </summary>
+    public static string EramFieldsBAndC(EramAltitudeInput input)
+    {
+        (EramReported? reported, EramPlan plan, EramConformance conformance) = JudgeAltitude(input);
+        return FieldB(input, plan, conformance) + FieldC(input, reported, plan, conformance);
+    }
+
+    private static (EramReported? Reported, EramPlan Plan, EramConformance Conformance) JudgeAltitude(EramAltitudeInput input)
+    {
+        EramReported? reported = ReportedOf(input);
+        EramPlan plan = PlanOf(input);
+        return (reported, plan, ConformanceOf(reported, input.ReachedAssignedAltitude, plan));
     }
 
     // CRC GetReportedAltitude: a controller-entered altitude wins over Mode C.
@@ -344,9 +361,30 @@ public static class TrackPresenter
     // CRC FormatAltitude with pad = false: never zero-padded; a CERA takes '#'.
     private static string FormatEramAltitude(int altitude, bool isCera) => altitude.ToString(CultureInfo.InvariantCulture) + (isCera ? "#" : "");
 
-    /// <summary>Presents <paramref name="input"/>'s track for its template at the Full block level.</summary>
+    /// <summary>
+    /// Presents <paramref name="input"/>'s track for its template at its block level. Dwell presents the Full block's fields;
+    /// EuroScope presents its full tag at every level.
+    /// </summary>
     /// <exception cref="ArgumentException">The template id is unknown.</exception>
     public static TrackPresentation Present(TrackPresenterInput input)
+    {
+        List<ScopeField> fields = FieldsAt(input);
+        ScopeTintRole tint = TintFor(input);
+        // CRC's ERAM LDBs draw no leader.
+        bool leader = !((input.TemplateId == ScopeTemplates.EramId) && (input.Level is ScopeBlockLevel.Limited or ScopeBlockLevel.Partial));
+        return new TrackPresentation(input.TemplateId, input.Level, BlockColorFor(input, tint), tint, fields, leader);
+    }
+
+    private static List<ScopeField> FieldsAt(TrackPresenterInput input) =>
+        (input.TemplateId, input.Level) switch
+        {
+            (ScopeTemplates.StarsId, ScopeBlockLevel.Limited) => StarsLimitedFields(input),
+            (ScopeTemplates.StarsId, ScopeBlockLevel.Partial) => StarsPartialFields(input),
+            (ScopeTemplates.EramId, ScopeBlockLevel.Limited or ScopeBlockLevel.Partial) => EramLdbFields(input),
+            _ => FullFields(input),
+        };
+
+    private static List<ScopeField> FullFields(TrackPresenterInput input)
     {
         List<ScopeField> fields = input.TemplateId switch
         {
@@ -361,8 +399,83 @@ public static class TrackPresenter
             // The ERAM status text carries the beacon mismatch.
             fields.RemoveAll(f => f.Slot == ScopeFieldSlot.Squawk);
         }
-        ScopeTintRole tint = TintFor(input);
-        return new TrackPresentation(input.TemplateId, ScopeBlockLevel.Full, BlockColorFor(input, tint), tint, fields);
+        return fields;
+    }
+
+    /// <summary>
+    /// The Radar's collapsed LDB (<see cref="RadarDatablockLayout.BuildCollapsedLines"/>): the beacon code in the squawk slot
+    /// (empty when none), the altitude and the ident.
+    /// </summary>
+    private static List<ScopeField> StarsLimitedFields(TrackPresenterInput input)
+    {
+        AircraftModel ac = input.Aircraft;
+        string beacon = ac.BeaconCode > 0 ? ac.BeaconCode.ToString("0000", CultureInfo.InvariantCulture) : "";
+        return
+        [
+            Steady(ScopeFieldSlot.Squawk, beacon, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
+            Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
+        ];
+    }
+
+    /// <summary>
+    /// The Radar's collapsed PDB (<see cref="RadarDatablockLayout.BuildCollapsedLines"/>): the altitude, the handoff peer, the
+    /// ground speed and the ident, then scratchpad 1.
+    /// </summary>
+    private static List<ScopeField> StarsPartialFields(TrackPresenterInput input)
+    {
+        AircraftModel ac = input.Aircraft;
+        return
+        [
+            Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
+            Steady(ScopeFieldSlot.Handoff, ac.HandoffDisplay, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.GroundSpeed, GroundSpeedTens(ac), ScopeColorToken.Default),
+            Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Scratchpad1, RadarDatablockLayout.EffectiveScratchpad1(ac) ?? "", ScopeColorToken.Default),
+        ];
+    }
+
+    /// <summary>
+    /// CRC's paired LDB at Limited and enhanced paired LDB at Partial (<c>PairedLdbRenderObject</c>): the aircraft id; the
+    /// padded CERA or Mode C altitude, or Field B and Field C (<see cref="EramFieldsBAndC"/>); then the special-purpose-code
+    /// label in the status slot. The whole block blinks while a special code shows (CRC <c>BaseLdbRenderObject</c>): every
+    /// text blanks on the off phase.
+    /// </summary>
+    private static List<ScopeField> EramLdbFields(TrackPresenterInput input)
+    {
+        AircraftModel ac = input.Aircraft;
+        string spc = EramStatusLine.SpcText(ac) ?? "";
+        var altitude = EramAltitudeInput.From(ac);
+        ScopeField line2 =
+            input.Level == ScopeBlockLevel.Limited
+                ? Steady(ScopeFieldSlot.Altitude, LdbAltitude(altitude), ScopeColorToken.Default)
+                : Steady(ScopeFieldSlot.EramAltitude, EramFieldsBAndC(altitude), ScopeColorToken.Default);
+        List<ScopeField> fields =
+        [
+            Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default),
+            line2,
+            Steady(ScopeFieldSlot.StatusLine3, spc, ScopeColorToken.Default),
+        ];
+        bool blankPhase = (spc.Length > 0) && !input.FlashOn;
+        return blankPhase ? fields.ConvertAll(f => f with { Text = "" }) : fields;
+    }
+
+    // CRC FormatAltitude with pad = true: three digits (two below zero), a CERA marked '#'; empty with neither altitude.
+    private static string LdbAltitude(EramAltitudeInput input)
+    {
+        if (input.ControllerEnteredAltitude is int cera)
+        {
+            return PaddedAltitude(cera) + "#";
+        }
+        return input.ReportedAltitude is int modeC ? PaddedAltitude(modeC) : "";
+    }
+
+    private static string PaddedAltitude(int altitude) => altitude.ToString(altitude < 0 ? "D2" : "D3", CultureInfo.InvariantCulture);
+
+    private static ScopeField EramAltitudeField(AircraftModel ac)
+    {
+        EramAltitude eram = EramAltitudeText(EramAltitudeInput.From(ac));
+        return new ScopeField(ScopeFieldSlot.EramAltitude, eram.Text, eram.Text, ScopeColorToken.Default, ScopeFieldAction.None, eram.Style);
     }
 
     /// <summary>
@@ -428,7 +541,7 @@ public static class TrackPresenter
             Steady(ScopeFieldSlot.VfrMark, isVfr ? "*" : "", ScopeColorToken.Default),
             Steady(ScopeFieldSlot.StudentLevelMark, levelMark, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
-            Steady(ScopeFieldSlot.GroundSpeed, ((int)ac.GroundSpeed / 10).ToString("D2"), ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.GroundSpeed, GroundSpeedTens(ac), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.CwtType, RadarDatablockLayout.FormatCwtType(cwt, ac.DisplayAircraftType), typeToken),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
             new(
@@ -452,15 +565,7 @@ public static class TrackPresenter
     {
         List<ScopeField> fields = StarsFields(input);
         int altitude = fields.FindIndex(f => f.Slot == ScopeFieldSlot.Altitude);
-        EramAltitude eram = EramAltitudeText(EramAltitudeInput.From(input.Aircraft));
-        fields[altitude] = new ScopeField(
-            ScopeFieldSlot.EramAltitude,
-            eram.Text,
-            eram.Text,
-            ScopeColorToken.Default,
-            ScopeFieldAction.None,
-            eram.Style
-        );
+        fields[altitude] = EramAltitudeField(input.Aircraft);
         fields.RemoveAll(f => f.Slot == ScopeFieldSlot.StatusLine3);
         fields.AddRange(EramLineFields(input));
         fields.AddRange(EramColumn0Fields(input));
@@ -574,6 +679,8 @@ public static class TrackPresenter
         AircraftCommandApplicability.TryGetSquawkMismatch(ac, out string reported, out string assigned) ? $"{reported} {assigned}" : "";
 
     private static string AltitudeHundreds(AircraftModel ac) => ((int)ac.Altitude / 100).ToString("D3");
+
+    private static string GroundSpeedTens(AircraftModel ac) => ((int)ac.GroundSpeed / 10).ToString("D2", CultureInfo.InvariantCulture);
 
     private static ScopeColorToken MvaToken(MvaRelation? mva) =>
         mva switch

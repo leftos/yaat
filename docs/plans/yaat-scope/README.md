@@ -52,7 +52,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 ## Build order
 
 - [ ] 1. The new YAAT Scope view on the template engine, with the STARS, ERAM, Mixed and EuroScope templates, opened from the View menu beside today's Radar. Progress: the engine and the window (View > Windows > YAAT Scope: video maps, targets, leaders, STARS blocks, ERAM blocks and EuroScope tags, select, menu, pan, zoom) have landed; the Mixed template has not
-- [ ] 2. ERAM altitude line, line-3 status slot, line-4 HSF, VCI, dwell. Progress: step 2a has landed — the ERAM datablock inputs on the wire, the ERAM template with its Template menu pick, and the altitude line; step 2b-ii has landed — the line-3 status slot, the HSF indicator and line 4; step 2b-iii has landed — column 0, the VCI mark and `R`; dwell has not
+- [ ] 2. ERAM altitude line, line-3 status slot, line-4 HSF, VCI, dwell. Progress: step 2a has landed — the ERAM datablock inputs on the wire, the ERAM template with its Template menu pick, and the altitude line; step 2b-ii has landed — the line-3 status slot, the HSF indicator and line 4; step 2b-iii has landed — column 0, the VCI mark and `R`; step 2c-i has landed — the block levels (Limited, Partial, Full) as a presenter input and the hover dwell with CRC's dwell emphasis; the dwell lock (2c-ii) and Mixed/mismatch (2c-iii) have not
 - [ ] 3. Toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists
 - [ ] 4. Profiles and zoom bands (profile picked from the student position); one Vector control; one Rings tool; TDM toggle
 - [ ] 5. Field menus split scope data from pilot commands (click sends, Shift+click stages); middle-click executes; measure, CRR, speed-to-time; CRC-dialect entries in the command line

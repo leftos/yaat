@@ -32,14 +32,28 @@ public sealed record ScopeTemplateLine(IReadOnlyList<ScopeSlotPlacement> Slots, 
 /// <param name="Padding">Padding between the text and the block bounds.</param>
 /// <param name="Lines">The template's lines, top to bottom.</param>
 /// <param name="Column0">Marks drawn left of the text block on fixed block rows, or null when the template has no column 0.</param>
+/// <param name="LimitedLines">The lines a Limited block draws, or null when it draws <paramref name="Lines"/>.</param>
+/// <param name="PartialLines">The lines a Partial block draws, or null when it draws <paramref name="Lines"/>.</param>
 public sealed record ScopeTemplate(
     string Id,
     ScopeGapMode GapMode,
     float FieldGap,
     float Padding,
     IReadOnlyList<ScopeTemplateLine> Lines,
-    IReadOnlyList<ScopeColumn0Mark>? Column0
-);
+    IReadOnlyList<ScopeColumn0Mark>? Column0,
+    IReadOnlyList<ScopeTemplateLine>? LimitedLines = null,
+    IReadOnlyList<ScopeTemplateLine>? PartialLines = null
+)
+{
+    /// <summary>The lines a block at <paramref name="level"/> draws: <see cref="Lines"/> at Full and Dwell.</summary>
+    public IReadOnlyList<ScopeTemplateLine> LinesAt(ScopeBlockLevel level) =>
+        level switch
+        {
+            ScopeBlockLevel.Limited => LimitedLines ?? Lines,
+            ScopeBlockLevel.Partial => PartialLines ?? Lines,
+            _ => Lines,
+        };
+}
 
 /// <summary>One column-0 mark: a slot drawn left of the text block on a fixed row, whether or not a line takes that row.</summary>
 /// <param name="Slot">The slot drawn.</param>
@@ -60,7 +74,9 @@ public static class ScopeTemplates
 
     /// <summary>
     /// The STARS full datablock: callsign (with the VFR mark and the student-level marker), then altitude, ground speed, cwt/type and the
-    /// ident, then the squawk-mismatch, status, ATPA, ModeC, warning, conflict and note lines.
+    /// ident, then the squawk-mismatch, status, ATPA, ModeC, warning, conflict and note lines. Limited and Partial draw the
+    /// Radar's collapsed blocks (<see cref="Radar.RadarDatablockLayout.BuildCollapsedLines"/>): the beacon code (in the squawk
+    /// slot), altitude and ident; or the altitude, handoff, ground speed and ident, then scratchpad 1.
     /// </summary>
     public static readonly ScopeTemplate Stars = new(
         StarsId,
@@ -89,14 +105,29 @@ public static class ScopeTemplates
             Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),
             Line(false, Steady(ScopeFieldSlot.InstructorNote)),
         ],
-        Column0: null
+        Column0: null,
+        LimitedLines: [Line(true, Steady(ScopeFieldSlot.Squawk), Steady(ScopeFieldSlot.Altitude), Flashing(ScopeFieldSlot.Ident))],
+        PartialLines:
+        [
+            Line(
+                true,
+                Steady(ScopeFieldSlot.Altitude),
+                Steady(ScopeFieldSlot.Handoff),
+                Steady(ScopeFieldSlot.GroundSpeed),
+                Flashing(ScopeFieldSlot.Ident)
+            ),
+            Line(false, Steady(ScopeFieldSlot.Scratchpad1)),
+        ]
     );
 
     /// <summary>
     /// The ERAM datablock: line 1 as STARS; line 2 the ERAM altitude (Field B, its character 4 and Field C) followed by the
     /// STARS right side (ground speed, cwt/type, the ATPA in-trail distance, then the ident); line 3 the status text and
     /// the HSF indicator; line 4 the HSF notes or the type/destination fallback; then the ModeC, warning, conflict and note
-    /// lines. Column 0 holds the VCI mark on row 2 and the not-your-control <c>R</c> on row 3.
+    /// lines. Column 0 holds the VCI mark on row 2 and the not-your-control <c>R</c> on row 3. Limited draws CRC's paired LDB
+    /// (the aircraft id, the padded CERA or Mode C altitude, the special-purpose code) and Partial its enhanced paired LDB
+    /// (the aircraft id, the ERAM altitude, the special-purpose code); every placement is reserved, since the whole LDB
+    /// blinks while a special code shows.
     /// </summary>
     public static readonly ScopeTemplate Eram = new(
         EramId,
@@ -125,7 +156,9 @@ public static class ScopeTemplates
             Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),
             Line(false, Steady(ScopeFieldSlot.InstructorNote)),
         ],
-        Column0: [new(ScopeFieldSlot.Vci, 2), new(ScopeFieldSlot.NotYourControl, 3)]
+        Column0: [new(ScopeFieldSlot.Vci, 2), new(ScopeFieldSlot.NotYourControl, 3)],
+        LimitedLines: [Line(true, Flashing(ScopeFieldSlot.Callsign)), Line(false, Flashing(ScopeFieldSlot.Altitude)), SpcLine()],
+        PartialLines: [Line(true, Flashing(ScopeFieldSlot.Callsign)), Line(false, Flashing(ScopeFieldSlot.EramAltitude)), SpcLine()]
     );
 
     /// <summary>
@@ -180,6 +213,9 @@ public static class ScopeTemplates
     private static ScopeSlotPlacement Flashing(ScopeFieldSlot slot) => new(slot, " ", true);
 
     private static ScopeTemplateLine Line(bool alwaysShown, params ScopeSlotPlacement[] slots) => new(slots, alwaysShown, TrailingGapInBounds: true);
+
+    // ERAM LDB line 3: the special-purpose-code label in the status slot; it takes no row when there is none.
+    private static ScopeTemplateLine SpcLine() => Line(false, Flashing(ScopeFieldSlot.StatusLine3));
 
     private static ScopeTemplateLine WarningLine(ScopeFieldSlot slot) => new([Flashing(slot)], AlwaysShown: false, TrailingGapInBounds: false);
 }

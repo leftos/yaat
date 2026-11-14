@@ -803,6 +803,9 @@ _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
 
+**Block level**:
+How much of a YAAT Scope datablock shows: Limited, Partial, Full, or Dwell (Full with the hover emphasis); YAAT's scale, composed from CRC's ERAM paired LDB, enhanced LDB and FDB and the STARS levels (`ScopeBlockLevel`).
+
 **FieldRect**:
 One laid-out datablock field in YAAT Scope: its slot, screen rect, text, color token and field style; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
 
@@ -813,7 +816,7 @@ The heading, speed and free-text notes of an ERAM track, entered with `QS`; whil
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
 **Template (YAAT Scope)**:
-A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "euroscope") and chosen by a profile.
+A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope") and chosen by a profile.
 
 **TrackPresenter**:
 The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
@@ -828,7 +831,7 @@ A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets 
 An aircraft's ERAM position as of its last 12 s sweep (`EramSweptPosition` in yaat-server's `AircraftChangeTracker`): what CRC's ERAM display shows, and where a coverage coast and a QT without a location start from, rather than the live position.
 
 **Dwell**:
-ERAM's hover emphasis on a data block; in YAAT Scope, hovering expands the block in place, and clicking the callsign locks it open.
+ERAM's hover emphasis on a data block; in YAAT Scope, hovering a track (within 8 px of its symbol, or on its block) shows the block's Full content drawn on top, undimmed and boxed, and moving off releases it.
 
 **Pilot lens**:
 YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path, queued pilot commands, actual check-in state. Off by default.
