@@ -1507,6 +1507,25 @@ public record AircraftDto
     public bool EramIsCoastTrack { get; init; } = false;
     public bool EramIsCoverageCoasting { get; init; } = false;
 
+    // The ERAM data block's line-3, line-4 and column-0 inputs: the controller's HSF annotations (heading, speed, free
+    // text), the sector ids that marked the aircraft on frequency (VCI), whether the target is correlated, whether its
+    // special-purpose code blinks, the handoff peer's Field E id token, and the recently-accepted indicator (the previous
+    // owner's sector and facility ids, whether the track was force-taken, and the acceptor's Field E token), set only while its 30 s
+    // window is open. Kept name-for-name in sync with the server's AircraftStateDto.
+    public string? EramAssignedHeading { get; init; } = null;
+    public string? EramAssignedSpeed { get; init; } = null;
+    public string? EramFreeText { get; init; } = null;
+
+    // Nullable as the other lists here are: the hub's source-generated JSON sets a missing init-only member to null.
+    public List<string>? EramOnFrequencySectorIds { get; init; } = null;
+    public bool EramIsCorrelated { get; init; } = false;
+    public bool EramSpcBlinking { get; init; } = false;
+    public string? EramHandoffPeerFieldE { get; init; } = null;
+    public string? EramRecentHandoffFromSectorId { get; init; } = null;
+    public string? EramRecentHandoffFromFacilityId { get; init; } = null;
+    public bool EramRecentHandoffWasForced { get; init; } = false;
+    public string? EramRecentHandoffPeerFieldE { get; init; } = null;
+
     // The identities the client compares with the position it acts as (Yaat.Sim.TrackCoordinationView): the owner's and the
     // handoff peer's facility ids, the position that redirected the handoff, and the pending pointout's recipient and sender
     // TCP codes (null unless the pointout is pending). Kept name-for-name in sync with the server's AircraftStateDto.

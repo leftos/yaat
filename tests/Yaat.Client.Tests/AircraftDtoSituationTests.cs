@@ -119,6 +119,73 @@ public class AircraftDtoSituationTests
     }
 
     [Fact]
+    public void Model_CopiesEramLine34Inputs_OnCreateAndUpdate()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with
+        {
+            EramAssignedHeading = "270",
+            EramAssignedSpeed = "250",
+            EramFreeText = "WX",
+            EramOnFrequencySectorIds = ["44", "40"],
+            EramIsCorrelated = true,
+            EramSpcBlinking = true,
+            EramHandoffPeerFieldE = "L25",
+            EramRecentHandoffFromSectorId = "40",
+            EramRecentHandoffFromFacilityId = "ZOA",
+            EramRecentHandoffWasForced = true,
+            EramRecentHandoffPeerFieldE = "44",
+        };
+
+        var model = AircraftModel.FromDto(set);
+        AssertEramLine34Inputs(model, set);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        AssertEramLine34Inputs(model, Dto(AircraftSituation.Final));
+
+        model.UpdateFromDto(set);
+        AssertEramLine34Inputs(model, set);
+    }
+
+    [Fact]
+    public void Json_MissingEramLine34Inputs_DeserializeAsUnset()
+    {
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("eramHandoffPeerFieldE").ValueKind);
+        Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("eramOnFrequencySectorIds").ValueKind);
+        Assert.False(doc.RootElement.GetProperty("eramIsCorrelated").GetBoolean());
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\"}", WireOptions)!;
+
+        Assert.Null(back.EramAssignedHeading);
+        Assert.Null(back.EramAssignedSpeed);
+        Assert.Null(back.EramFreeText);
+        Assert.Null(back.EramOnFrequencySectorIds);
+        Assert.False(back.EramIsCorrelated);
+        Assert.False(back.EramSpcBlinking);
+        Assert.Null(back.EramHandoffPeerFieldE);
+        Assert.Null(back.EramRecentHandoffFromSectorId);
+        Assert.Null(back.EramRecentHandoffFromFacilityId);
+        Assert.False(back.EramRecentHandoffWasForced);
+        Assert.Null(back.EramRecentHandoffPeerFieldE);
+    }
+
+    private static void AssertEramLine34Inputs(AircraftModel model, AircraftDto dto)
+    {
+        Assert.Equal(dto.EramAssignedHeading, model.EramAssignedHeading);
+        Assert.Equal(dto.EramAssignedSpeed, model.EramAssignedSpeed);
+        Assert.Equal(dto.EramFreeText, model.EramFreeText);
+        Assert.Equal(dto.EramOnFrequencySectorIds ?? [], model.EramOnFrequencySectorIds);
+        Assert.Equal(dto.EramIsCorrelated, model.EramIsCorrelated);
+        Assert.Equal(dto.EramSpcBlinking, model.EramSpcBlinking);
+        Assert.Equal(dto.EramHandoffPeerFieldE, model.EramHandoffPeerFieldE);
+        Assert.Equal(dto.EramRecentHandoffFromSectorId, model.EramRecentHandoffFromSectorId);
+        Assert.Equal(dto.EramRecentHandoffFromFacilityId, model.EramRecentHandoffFromFacilityId);
+        Assert.Equal(dto.EramRecentHandoffWasForced, model.EramRecentHandoffWasForced);
+        Assert.Equal(dto.EramRecentHandoffPeerFieldE, model.EramRecentHandoffPeerFieldE);
+    }
+
+    [Fact]
     public void Json_SituationFlagsNumber_DeserializesToTheFlags()
     {
         string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);

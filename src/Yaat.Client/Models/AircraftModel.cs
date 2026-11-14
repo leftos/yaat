@@ -75,6 +75,50 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private bool _eramIsCoverageCoasting;
 
+    /// <summary>The ERAM HSF assigned heading annotation (QS), as entered; null when none.</summary>
+    [ObservableProperty]
+    private string? _eramAssignedHeading;
+
+    /// <summary>The ERAM HSF assigned speed annotation (QS), as entered; null when none.</summary>
+    [ObservableProperty]
+    private string? _eramAssignedSpeed;
+
+    /// <summary>The ERAM HSF free text (QS); null when none.</summary>
+    [ObservableProperty]
+    private string? _eramFreeText;
+
+    /// <summary>The ERAM sector ids that marked the aircraft on frequency (VCI).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _eramOnFrequencySectorIds = [];
+
+    /// <summary>The ERAM target is correlated with its flight plan.</summary>
+    [ObservableProperty]
+    private bool _eramIsCorrelated;
+
+    /// <summary>The ERAM Field E special-purpose-code label is inside its blink window.</summary>
+    [ObservableProperty]
+    private bool _eramSpcBlinking;
+
+    /// <summary>The handoff peer's ERAM Field E id token (<c>40</c>, <c>L25</c>, <c>UNK</c>); null without a handoff.</summary>
+    [ObservableProperty]
+    private string? _eramHandoffPeerFieldE;
+
+    /// <summary>The previous owner's sector id while the recently-accepted indicator is open; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _eramRecentHandoffFromSectorId;
+
+    /// <summary>The previous owner's facility id while the recently-accepted indicator is open; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _eramRecentHandoffFromFacilityId;
+
+    /// <summary>The recently-accepted handoff was force-taken (K rather than O); false when the indicator is closed.</summary>
+    [ObservableProperty]
+    private bool _eramRecentHandoffWasForced;
+
+    /// <summary>The acceptor's ERAM Field E id token while the recently-accepted indicator is open; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _eramRecentHandoffPeerFieldE;
+
     /// <summary>
     /// Actual aircraft type — what's physically flying. Read by Tower Cab (out-the-window
     /// datablock), physics/performance lookups, and the operator-facing Aircraft List data
@@ -1473,6 +1517,17 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             EramIsFrozen = dto.EramIsFrozen,
             EramIsCoastTrack = dto.EramIsCoastTrack,
             EramIsCoverageCoasting = dto.EramIsCoverageCoasting,
+            EramAssignedHeading = dto.EramAssignedHeading,
+            EramAssignedSpeed = dto.EramAssignedSpeed,
+            EramFreeText = dto.EramFreeText,
+            EramOnFrequencySectorIds = [.. dto.EramOnFrequencySectorIds ?? []],
+            EramIsCorrelated = dto.EramIsCorrelated,
+            EramSpcBlinking = dto.EramSpcBlinking,
+            EramHandoffPeerFieldE = dto.EramHandoffPeerFieldE,
+            EramRecentHandoffFromSectorId = dto.EramRecentHandoffFromSectorId,
+            EramRecentHandoffFromFacilityId = dto.EramRecentHandoffFromFacilityId,
+            EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced,
+            EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
@@ -1635,6 +1690,17 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         EramIsFrozen = dto.EramIsFrozen;
         EramIsCoastTrack = dto.EramIsCoastTrack;
         EramIsCoverageCoasting = dto.EramIsCoverageCoasting;
+        EramAssignedHeading = dto.EramAssignedHeading;
+        EramAssignedSpeed = dto.EramAssignedSpeed;
+        EramFreeText = dto.EramFreeText;
+        EramOnFrequencySectorIds = [.. dto.EramOnFrequencySectorIds ?? []];
+        EramIsCorrelated = dto.EramIsCorrelated;
+        EramSpcBlinking = dto.EramSpcBlinking;
+        EramHandoffPeerFieldE = dto.EramHandoffPeerFieldE;
+        EramRecentHandoffFromSectorId = dto.EramRecentHandoffFromSectorId;
+        EramRecentHandoffFromFacilityId = dto.EramRecentHandoffFromFacilityId;
+        EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced;
+        EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE;
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;
