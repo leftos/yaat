@@ -1329,8 +1329,7 @@ public sealed class FinalApproachPhase : Phase
     /// Vapp: Vref + half the steady headwind + the full gust increment (capped at 20 kt), on the assigned runway's heading.
     /// </summary>
     private double FinalApproachSpeedKts(PhaseContext ctx) =>
-        AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
-        + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
+        AircraftPerformance.FinalApproachSpeedKts(ctx.AircraftType, ctx.Category, ctx.Weather, _runwayHeading.Degrees);
 
     private void TickApproachFlapStage(PhaseContext ctx, double distNm, double fas, double decelRate)
     {

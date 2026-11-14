@@ -177,15 +177,22 @@ public sealed class InterceptCoursePhase : Phase
             && clearance is not { LateralInterceptOnly: true }
         )
         {
+            // Only ever a slowdown: once an approach clearance has released an assigned speed (7110.65 5-7-1.d), the
+            // pilot makes their own adjustments to complete the approach (AIM 4-4-12.g), which never means speeding a
+            // slowed aircraft back up to 1.3 x FAS; an aircraft faster than 1.3 x FAS still slows to it. A follower's
+            // spacing restore (AirborneFollowHelper.CheckLeadLifecycleRestoringSpacing) can still set 1.3 x FAS (YAAT-2306).
             double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            double interceptSpeed = fas * InterceptSpeedFasMultiplier;
+            double anticipationSpeed = fas * InterceptSpeedFasMultiplier;
+            double interceptSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, anticipationSpeed);
             ctx.Targets.TargetSpeed = interceptSpeed;
             _approachSpeedSet = true;
             Log.LogDebug(
-                "[InterceptCourse] {Callsign}: slowing to {Spd:F0}kts (1.3×FAS {Fas:F0}, crossTrack={XT:F1}nm)",
+                "[InterceptCourse] {Callsign}: {Action} {Spd:F0}kts (1.3×FAS {Anticipation:F0}, IAS {Ias:F0}, crossTrack={XT:F1}nm)",
                 ctx.Aircraft.Callsign,
+                interceptSpeed < ctx.Aircraft.IndicatedAirspeed ? "slowing to" : "holding",
                 interceptSpeed,
-                fas,
+                anticipationSpeed,
+                ctx.Aircraft.IndicatedAirspeed,
                 crossTrack
             );
         }

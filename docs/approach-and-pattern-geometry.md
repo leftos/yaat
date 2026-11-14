@@ -625,13 +625,17 @@ overshoots laterally, and S-turns back under `FinalApproachPhase`. Don't assume 
 
 **Parallel-offset anchor.** For parallel-offset approaches (e.g. KDCA LDA-X 19, KCCR S19R) the FAC line does not
 pass through the threshold. The phase measures cross-track against `ActiveApproach.FinalApproachAnchorLat/Lon` when
-set, falling back to the threshold otherwise (`InterceptCoursePhase.cs:94`). `FinalApproachPhase` uses the same
+set, falling back to the threshold otherwise (the `InterceptCoursePhase` anchor fields). `FinalApproachPhase` uses the same
 anchor. Code that hard-codes the threshold breaks offset approaches.
 
-**Speed anticipation.** Inside `SpeedAnticipationThresholdNm = 2.0` the phase decelerates to `1.3 × FAS`
-(`InterceptSpeedFasMultiplier`), not FAS itself — at 250 kt the turn radius is too large and would overshoot
-(`InterceptCoursePhase.cs:106`). `FinalApproachPhase` bleeds the rest to Vref closer in — at a **per-aircraft
-distance**, not a fixed one (see the FAS-reduction-variety note below).
+**Speed anticipation.** Inside `SpeedAnticipationThresholdNm = 2.0` the phase only ever slows: the target is
+`min(current target ?? IAS, 1.3 × FAS)` (`InterceptSpeedFasMultiplier`), not FAS itself — at 250 kt the turn radius is
+too large and would overshoot. An approach clearance has released any assigned speed (7110.65 5-7-1.d; AIM 4-4-12.g), so
+an aircraft already slower than 1.3 × FAS keeps its speed (`FinalApproachPhase`'s FAS stage raises it to Vapp later,
+rather than the intercept speeding it up), while one faster still slows to 1.3 × FAS. A follower's spacing restore
+(`AirborneFollowHelper.CheckLeadLifecycleRestoringSpacing`) can still set 1.3 × FAS (YAAT-2306).
+`FinalApproachPhase` bleeds the rest to Vref closer in — at a **per-aircraft distance**, not a fixed one (see the
+FAS-reduction-variety note below).
 
 **Uncontrolled long-final schedule.** With no ATC speed, `FinalApproachPhase` runs three stages ahead of the Vref
 bleed, each fired once at the kinematic trigger that lands the bleed on its reach gate
@@ -807,7 +811,7 @@ These are YAAT conventions, not FAA figures. No radar wake minimum is added on a
 **Speed adjustment** (`ComputeAdjustedSpeedWithDesired`): the correction is
 `(distance − desired) × SpeedGainPerNm (25 kt/nm)`, clamped to `±maxSpeedAdjustKts`. Pattern/entry/free-flight use
 `MaxSpeedAdjustKts = 20`; final approach uses the tighter `MaxSpeedAdjustFinalKts = 10` so the follower can't blow
-through the unstabilized-go-around gate (IAS > 1.3·Vref). The pattern-leg
+through the unstabilized-go-around gate (IAS above `max(1.3·Vref, Vapp+10)`, see `LandingPhase.StabilizedSpeedLimit`). The pattern-leg
 phases gate this block on `Approach.FollowingCallsign` (not on `TargetSpeed` — physics snaps `TargetSpeed` to null
 once the leg speed is reached, which would otherwise silently stop spacing for a settled follower) and **cap the
 result at the leg baseline** (`Math.Min(adjusted, baseline)`): spacing only ever *slows* a follower below its leg

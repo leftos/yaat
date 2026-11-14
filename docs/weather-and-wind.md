@@ -161,7 +161,7 @@ G group. `SpeciCriteria` wind checks are double-gated: vs the last issued report
 
 Pilots fly the wind too: `AircraftPerformance.WindApproachAdditive` (Vapp = Vref + ½ steady headwind + full gust increment,
 cap 20 kt — Boeing FCTM/Airbus FCOM) feeds `FinalApproachPhase`'s speed targets, and the gust-only part
-(`GustApproachAdditive`) is maintained to touchdown on `LandingPhase.Vref` and the follow-overtake floor. On the ground,
+(`GustApproachAdditive`) is maintained to touchdown on `LandingPhase.Vref` and the follow-overtake floor. `AircraftPerformance.FinalApproachSpeedKts` (Vapp) and `TypeVrefKts` (type approach speed + gust additive) expose the two figures; the landing stabilization gate's speed limit reads them. On the ground,
 `AircraftState.IndicatedAirspeed` carries WHEEL speed; `GroundFrame` owns the liftoff/touchdown conversions (rotation at Vr
 indicated — headwind shortens the roll by the v² law; touchdown wheel speed = TAS − headwind). See
 [flight-physics.md](flight-physics.md).

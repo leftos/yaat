@@ -73,7 +73,14 @@ public sealed class LandingPhase : Phase
 
     // --- Stabilization gate (FSF ALAR Briefing Note 7.1; FAA InFO 11009 endorses FSF criteria) ---
 
-    private const double StabilizedSpeedFactor = 1.3; // above 1.3·Vref → unstabilized
+    private const double StabilizedSpeedFactor = 1.3; // above max(1.3·Vref, Vapp+10), both from the type → unstabilized
+
+    /// <summary>
+    /// Margin (kts) above Vapp (the final approach speed <see cref="FinalApproachPhase"/> flies) the stabilization gate always
+    /// allows, so the gate never trips on the speed the sim told the aircraft to fly. A judgement call: no local reference
+    /// states a stabilized-approach speed band (AIM Appendix 3 defines VREF only).
+    /// </summary>
+    private const double StabilizedVappMarginKts = 10.0;
     private const double StabilizedBankDeg = 15.0;
     private const double StabilizedVsiFpm = -1200.0;
     private const double StabilizedXteNm = 0.08;
@@ -2318,6 +2325,21 @@ public sealed class LandingPhase : Phase
         return new TrueHeading(plan.RunwayHeading.Degrees - correction);
     }
 
+    /// <summary>
+    /// The stabilization gate's speed limit: <c>max(1.3 x Vref, Vapp + 10 kt)</c>, both from the aircraft's type, the source
+    /// <see cref="FinalApproachPhase"/> flies, so the gate judges the aircraft on the speed it was told to fly. Vref is the
+    /// type's approach speed plus the gust additive; Vapp is that approach speed plus the wind additive. The plan's own Vref
+    /// (flare, rollout, exit forecast) stays on the category. Returned with the name of the term that governs it.
+    /// </summary>
+    private static (double Kts, string Term) StabilizedSpeedLimit(PhaseContext ctx, LandingPlan plan)
+    {
+        double vrefTerm = AircraftPerformance.TypeVrefKts(ctx.AircraftType, ctx.Category, ctx.Weather) * StabilizedSpeedFactor;
+        double vappTerm =
+            AircraftPerformance.FinalApproachSpeedKts(ctx.AircraftType, ctx.Category, ctx.Weather, plan.RunwayHeading.Degrees)
+            + StabilizedVappMarginKts;
+        return vrefTerm >= vappTerm ? (vrefTerm, "1.3·Vref") : (vappTerm, "Vapp+10");
+    }
+
     private void CheckStabilizationGate(PhaseContext ctx, LandingPlan plan)
     {
         // CLANDF forced-landing override: a forced aircraft is committed to the runway, so the
@@ -2335,15 +2357,15 @@ public sealed class LandingPhase : Phase
         );
 
         double ias = ctx.Aircraft.IndicatedAirspeed;
-        double vrefLimit = plan.Vref * StabilizedSpeedFactor;
+        (double speedLimitKts, string speedLimitTerm) = StabilizedSpeedLimit(ctx, plan);
         double bank = Math.Abs(ctx.Aircraft.BankAngle);
         double vs = ctx.Aircraft.VerticalSpeed;
         double xteFt = Math.Abs(signedXte) * 6076.12;
 
         List<string>? failures = null;
-        if (ias > vrefLimit)
+        if (ias > speedLimitKts)
         {
-            (failures ??= []).Add($"IAS {ias:F0} > {vrefLimit:F0} kt (1.3·Vref)");
+            (failures ??= []).Add($"IAS {ias:F0} > {speedLimitKts:F0} kt ({speedLimitTerm})");
         }
         if (Math.Abs(signedXte) > StabilizedXteNm)
         {

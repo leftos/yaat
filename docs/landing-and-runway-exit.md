@@ -621,6 +621,7 @@ The aircraft flies the published final approach course down to minimums, then tr
 The `SA` (Make Short Approach) compressed pattern has two coupled geometry invariants that must hold together:
 
 - **Base-leg descent targets the rollout point.** `BasePhase`'s SA branch targets glideslope altitude at `(finalDist + turnRadius)`, not at `finalDist` — the 90° base→final turn translates the aircraft one turn radius further along the final, so targeting at `finalDist` would put it at GS-intercept altitude before the turn fires and trip the landing stabilization gate.
+- **The stabilization gate's speed limit is the type's, not the plan's.** `LandingPhase.StabilizedSpeedLimit` is `max(1.3 × type Vref, Vapp + 10 kt)` (`AircraftPerformance.TypeVrefKts`, `FinalApproachSpeedKts`), so an aircraft flying the Vapp `FinalApproachPhase` gave it does not trip the gate; the +10 kt is a judgement call (no local reference states a stabilized speed band). The go-around warning names the governing term, "(1.3·Vref)" or "(Vapp+10)". The landing plan's own Vref (flare, rollout, touchdown, exit forecast) stays category-based (YAAT-2302).
 - **LandingPhase floats over the runway while rolling out.** When heading-error from runway exceeds 5° (`_floatingForRollout`), LandingPhase holds level (target altitude = current, vertical rate = 0) until wings level, then resumes descent → flare → touchdown. This lets a tight turn complete before the bank-stabilization gate engages. The descent target is restored on the first non-rolling-out tick.
 
 ## Key Files
