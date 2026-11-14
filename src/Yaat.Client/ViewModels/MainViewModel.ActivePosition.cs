@@ -52,8 +52,9 @@ public partial class MainViewModel
     public string? ActingTrackFacilityId { get; private set; }
 
     /// <summary>
-    /// The most characters the room's STARS scratchpads hold, as the server last sent it with the active position; 0 before a
-    /// scenario loads, when the student has no STARS display config, and from a room restored from an older checkpoint.
+    /// The most characters the room's STARS scratchpads hold, as the server last sent it with the active position (3 for a position
+    /// whose facility has no STARS configuration, such as an ERAM sector); 0 before a scenario loads, when the server sent no
+    /// display config, and from a room restored from an older checkpoint.
     /// </summary>
     public int ScratchpadMaxLength { get; private set; }
 
@@ -68,6 +69,9 @@ public partial class MainViewModel
         ActingTrackFacilityId = config?.ActivePosition?.TrackFacilityId;
         ScratchpadMaxLength = config?.ScratchpadMaxLength ?? 0;
         SetActiveTcpFromServer(config?.TcpCode);
+        OnPropertyChanged(nameof(ActivePosition));
+        OnPropertyChanged(nameof(ActingCallsign));
+        OnPropertyChanged(nameof(ActingTrackFacilityId));
     }
 
     /// <summary>
@@ -145,6 +149,8 @@ public partial class MainViewModel
         // The acting track facility is kept (ActingTrackFacilityId), the old callsign is not: it would match the old position.
         ActivePosition = null;
         ActingCallsign = null;
+        OnPropertyChanged(nameof(ActivePosition));
+        OnPropertyChanged(nameof(ActingCallsign));
         _ = SetActivePositionFromDropdownAsync(value);
     }
 

@@ -597,7 +597,7 @@ public partial class RadarViewModel(
             _ = LoadVideoMapsForArtccAsync(artccId, bootstrap.PrimaryAirportId, bootstrap.ScenarioId);
         }
 
-        if (bootstrap.PositionDisplayConfig is not null)
+        if (bootstrap.PositionDisplayConfig is { NoStarsDisplay: false })
         {
             ApplyPositionDisplayConfig(bootstrap.PositionDisplayConfig);
         }

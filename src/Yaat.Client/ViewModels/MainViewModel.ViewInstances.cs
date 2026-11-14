@@ -340,7 +340,7 @@ public partial class MainViewModel
 
         vm.ShowMvaHints = Radar.ShowMvaHints;
         SeedRadarAirport(instance);
-        if (_lastPositionDisplayConfig is { } positionConfig)
+        if (_lastPositionDisplayConfig is { NoStarsDisplay: false } positionConfig)
         {
             vm.ApplyPositionDisplayConfig(positionConfig);
         }

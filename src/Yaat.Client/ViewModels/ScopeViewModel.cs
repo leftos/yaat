@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
@@ -57,6 +58,13 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsStarsTemplate), nameof(IsEramTemplate), nameof(IsEuroScopeTemplate))]
     private string _templateId;
 
+    /// <summary>
+    /// The position the scope is viewed from: the main view model's active position, rebuilt whenever its TCP, position or
+    /// acting callsign/facility changes.
+    /// </summary>
+    [ObservableProperty]
+    private ScopeViewer _viewer;
+
     /// <summary>The STARS template is in use (the Template menu's radio check).</summary>
     public bool IsStarsTemplate => TemplateId == ScopeTemplates.StarsId;
 
@@ -75,6 +83,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         Main = main;
         _selectedAircraft = main.SelectedAircraft;
         _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
+        _viewer = BuildViewer(main);
         main.PropertyChanged += OnMainPropertyChanged;
         if (!TrySeedFrom(main.Radar))
         {
@@ -175,13 +184,37 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     private void OnMainPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.SelectedAircraft))
+        switch (e.PropertyName)
         {
-            return;
+            case nameof(MainViewModel.SelectedAircraft):
+                _isSyncingSelection = true;
+                SelectedAircraft = Main.SelectedAircraft;
+                _isSyncingSelection = false;
+                break;
+            case nameof(MainViewModel.ActiveTcp)
+            or nameof(MainViewModel.ActivePosition)
+            or nameof(MainViewModel.ActingCallsign)
+            or nameof(MainViewModel.ActingTrackFacilityId):
+                Viewer = BuildViewer(Main);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The viewer <paramref name="main"/>'s active position names: the acting position as <c>MenuSession.Acting</c> builds it,
+    /// and the position's track facility (else its listing facility) and ERAM sector id.
+    /// </summary>
+    private static ScopeViewer BuildViewer(MainViewModel main)
+    {
+        ActingPosition? acting = string.IsNullOrEmpty(main.ActiveTcp)
+            ? null
+            : new ActingPosition(main.ActingCallsign, main.ActingTrackFacilityId, main.ActiveTcp);
+        ActivePositionDto? position = main.ActivePosition;
+        if ((acting is null) && (position is null))
+        {
+            return ScopeViewer.None;
         }
 
-        _isSyncingSelection = true;
-        SelectedAircraft = Main.SelectedAircraft;
-        _isSyncingSelection = false;
+        return new ScopeViewer(acting, position?.TrackFacilityId ?? position?.FacilityId, position?.EramSectorId);
     }
 }

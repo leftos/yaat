@@ -16,5 +16,6 @@
     RangeNm="{Binding RangeNm, Mode=TwoWay}"
     ShowMvaAltitudeTint="{Binding ShowMvaHints}"
     TemplateId="{Binding TemplateId}"
+    Viewer="{Binding Viewer}"
   />
 </UserControl>

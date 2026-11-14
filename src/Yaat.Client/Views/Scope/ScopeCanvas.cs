@@ -52,6 +52,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: ScopeTemplates.StarsId
     );
 
+    /// <summary>The position the scope is viewed from; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
+    public static readonly StyledProperty<ScopeViewer> ViewerProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeViewer>(
+        nameof(Viewer),
+        defaultValue: ScopeViewer.None
+    );
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoHighlights = [];
 
@@ -89,6 +95,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(TemplateIdProperty);
         set => SetValue(TemplateIdProperty, value);
+    }
+
+    public ScopeViewer Viewer
+    {
+        get => GetValue(ViewerProperty);
+        set => SetValue(ViewerProperty, value);
     }
 
     public double CenterLat
@@ -189,6 +201,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             (change.Property == SelectedAircraftProperty)
             || (change.Property == ShowMvaAltitudeTintProperty)
             || (change.Property == TemplateIdProperty)
+            || (change.Property == ViewerProperty)
         )
         {
             _lastFrame = null;
@@ -299,7 +312,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             prefs?.SyncStudentDatablockColors ?? true,
             prefs?.UserInitials,
             palette.AssignedToMe is not null,
-            palette.AssignedToOther is not null
+            palette.AssignedToOther is not null,
+            Viewer
         );
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;

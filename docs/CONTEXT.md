@@ -812,6 +812,9 @@ A C# description of a datablock's lines: which fixed named slots each line place
 **TrackPresenter**:
 The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
 
+**Viewer (YAAT Scope)**:
+The position the Scope is viewed from: the instructor's active position (the scenario's student position by default, changed with `AS`), whose ERAM sector decides VCI, R and the handoff text (`ScopeViewer`).
+
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.
 

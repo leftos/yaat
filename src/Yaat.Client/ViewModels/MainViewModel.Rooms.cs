@@ -1170,9 +1170,13 @@ public partial class MainViewModel
             SetActivePositionFromServer(config);
             // Stashed so a Radar View window opened later starts on the same position's display config.
             _lastPositionDisplayConfig = config;
-            foreach (RadarViewModel radar in AllRadarViews)
+            // An ERAM position's config names the position only; the Radar keeps the maps it has.
+            if (!config.NoStarsDisplay)
             {
-                radar.ApplyPositionDisplayConfig(config);
+                foreach (RadarViewModel radar in AllRadarViews)
+                {
+                    radar.ApplyPositionDisplayConfig(config);
+                }
             }
 
             if (HasActiveWeather)

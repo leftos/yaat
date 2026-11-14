@@ -23,6 +23,7 @@ public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, b
 /// <param name="UserInitials">The user's initials, compared with each track's assignee; null applies neither tint.</param>
 /// <param name="AssignmentTint">The assignment tint is enabled and its colour parsed.</param>
 /// <param name="UnassignedTint">The unassigned tint is enabled and its colour parsed.</param>
+/// <param name="Viewer">The position the scope is viewed from (<see cref="ScopeViewer"/>).</param>
 public sealed record ScopeDisplayOptions(
     bool MarkStudentLevel,
     bool ShowTypeMismatchHints,
@@ -30,7 +31,8 @@ public sealed record ScopeDisplayOptions(
     bool SyncStudentColors,
     string? UserInitials,
     bool AssignmentTint,
-    bool UnassignedTint
+    bool UnassignedTint,
+    ScopeViewer Viewer
 );
 
 /// <summary>Every per-frame input <see cref="TrackPresenter.Present"/> reads.</summary>

@@ -1679,6 +1679,8 @@ public sealed record ScenarioExportFlagDto(string Callsign, string Reason);
 /// The display config of the position the controller operates as (<see cref="TcpCode"/>), and that position itself
 /// (<see cref="ActivePosition"/>), null when the server does not find its config entry, and the most characters the facility's
 /// STARS scratchpads hold (<see cref="ScratchpadMaxLength"/>, 3 or 4); 0 from a room restored from an older checkpoint.
+/// <see cref="NoStarsDisplay"/> marks the config of a facility with no STARS configuration (an ERAM sector): it names the active
+/// position only, so the Radar keeps its maps; false for a STARS facility and from an older server or checkpoint.
 /// </summary>
 public record PositionDisplayConfigDto(
     List<int?> MapGroupMapIds,
@@ -1686,7 +1688,8 @@ public record PositionDisplayConfigDto(
     List<string> UnderlyingAirports,
     string TcpCode,
     ActivePositionDto? ActivePosition,
-    int ScratchpadMaxLength
+    int ScratchpadMaxLength,
+    bool NoStarsDisplay = false
 );
 
 /// <summary>
@@ -1695,6 +1698,7 @@ public record PositionDisplayConfigDto(
 /// <see cref="FacilityId"/> is the facility the position is listed under (it pairs with <see cref="FacilityName"/>);
 /// <see cref="TrackFacilityId"/> is the facility its tracks are owned under (the parent TRACON for a tower cab), the value the
 /// aircraft's owner and handoff facility ids carry, so the quick list matches the acting position against it.
+/// <see cref="EramSectorId"/> is the position's ERAM sector id (<c>"44"</c>, no <c>C</c>), null for a position without one.
 /// </summary>
 public record ActivePositionDto(
     string Callsign,
@@ -1705,7 +1709,8 @@ public record ActivePositionDto(
     string? FacilityName,
     string PositionType,
     string HandoffCode,
-    string? TrackFacilityId = null
+    string? TrackFacilityId = null,
+    string? EramSectorId = null
 );
 
 /// <summary>One room in a room list.</summary>
