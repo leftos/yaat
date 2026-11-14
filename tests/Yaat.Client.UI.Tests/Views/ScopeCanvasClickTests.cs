@@ -41,6 +41,40 @@ public class ScopeCanvasClickTests
     }
 
     [AvaloniaFact]
+    public void ScopeCanvas_MvaHintsTurnedOn_TintsTheAltitudeWithoutATrafficChange()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            var ac = new AircraftModel
+            {
+                Callsign = "UAL238",
+                AircraftType = "B738",
+                FiledAircraftType = "B738",
+                FlightRules = "IFR",
+                TransponderMode = "C",
+                Altitude = 1800,
+                GroundSpeed = 250,
+                Position = new LatLon(37.7213, -122.2208),
+            };
+            main.Aircraft.Add(ac);
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(scope.ShowMvaHints);
+            Assert.Equal(ScopeColorToken.Default, AltitudeToken(view.Canvas.CurrentFrame));
+
+            scope.ShowMvaHints = true;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(ScopeColorToken.MvaBelow, AltitudeToken(view.Canvas.CurrentFrame));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
     public void ScopeCanvas_RightClickOnTarget_OpensTheAircraftMenu()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
@@ -108,6 +142,9 @@ public class ScopeCanvasClickTests
         Dispatcher.UIThread.RunJobs();
         return ac;
     }
+
+    private static ScopeColorToken AltitudeToken(ScopeFrame frame) =>
+        Assert.Single(Assert.Single(frame.Tracks).Block.Fields, f => f.Slot == ScopeFieldSlot.Altitude).Token;
 
     private static void Click(Window window, ScopeCanvas canvas, Point canvasPoint, MouseButton button)
     {

@@ -41,6 +41,11 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: ScopeViewModel.DefaultRangeNm
     );
 
+    /// <summary>Whether altitudes are tinted against the MVA floor at each track's position.</summary>
+    public static readonly StyledProperty<bool> ShowMvaAltitudeTintProperty = AvaloniaProperty.Register<ScopeCanvas, bool>(
+        nameof(ShowMvaAltitudeTint)
+    );
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
 
     private readonly ScopeRenderer _renderer = new();
@@ -65,6 +70,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(SelectedAircraftProperty);
         set => SetValue(SelectedAircraftProperty, value);
+    }
+
+    public bool ShowMvaAltitudeTint
+    {
+        get => GetValue(ShowMvaAltitudeTintProperty);
+        set => SetValue(ShowMvaAltitudeTintProperty, value);
     }
 
     public double CenterLat
@@ -156,7 +167,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         {
             OnAircraftChanged();
         }
-        else if (change.Property == SelectedAircraftProperty)
+        else if ((change.Property == SelectedAircraftProperty) || (change.Property == ShowMvaAltitudeTintProperty))
         {
             _lastFrame = null;
             MarkDirty();
@@ -259,7 +270,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         UserPreferences? prefs = Preferences;
         IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, false, false, false, null, DateTime.UtcNow);
         var alerts = new ScopeAlertOptions(prefs?.ShowAtpa ?? false, prefs?.ShowConflictAlerts ?? false, prefs?.FlashNoLandingClearance ?? true);
-        var display = new ScopeDisplayOptions(prefs?.MarkStudentLimitedDatablocks ?? true, prefs?.ShowTypeMismatchHints ?? true);
+        var display = new ScopeDisplayOptions(prefs?.MarkStudentLimitedDatablocks ?? true, prefs?.ShowTypeMismatchHints ?? true, ShowMvaAltitudeTint);
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         bool euroScope = prefs?.EuroScopeMode ?? false;

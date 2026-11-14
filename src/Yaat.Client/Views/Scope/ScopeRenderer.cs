@@ -4,6 +4,7 @@ using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Mva;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -48,6 +49,9 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>How near a symbol a click must land to hit it, as today's radar uses.</summary>
     public const float TargetHitRadiusPx = 28f;
 
+    /// <summary>How near the MVA floor an altitude reads as at it, as today's radar uses.</summary>
+    private const int MvaAtBandFt = 100;
+
     /// <summary>The template the EuroScope-mode preference picks.</summary>
     public static string TemplateFor(bool euroScopeMode) => euroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
 
@@ -77,7 +81,8 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
                 flashOn,
                 isSelected,
                 input.Alerts,
-                input.Display
+                input.Display,
+                MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint)
             );
             ScopeBlockLayout atOrigin = DatablockTemplate.Layout(TrackPresenter.Present(presenterInput), input.Metrics);
             bool hasManual = input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
@@ -87,6 +92,20 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         }
 
         return new ScopeFrame(templateId, tracks);
+    }
+
+    /// <summary>
+    /// The altitude's relation to the MVA floor at <paramref name="ac"/>'s position, or null when the tint does not apply:
+    /// it is off, the aircraft is on the ground, established on an approach, or VFR (MSAW-inhibited), as today's radar rules.
+    /// </summary>
+    internal static MvaRelation? MvaRelationFor(AircraftModel ac, bool showTint)
+    {
+        if (!showTint || ac.IsOnGround || ac.IsEstablishedOnApproach || ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt).Relation;
     }
 
     /// <summary>
@@ -182,6 +201,8 @@ public sealed class ScopeRenderer : IDisposable
     private static readonly SKColor AtpaWarningColor = SKColors.Yellow;
     private static readonly SKColor AtpaAlertColor = new(255, 55, 0);
     private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
+    private static readonly SKColor MvaBelowColor = new(255, 90, 90);
+    private static readonly SKColor MvaAtColor = new(255, 200, 60);
 
     // The squawk pulse's off-phase brightness, as today's radar (CRC ApplyColorBrightness(color, 25)).
     private const float DimTailBrightness = 0.25f;
@@ -351,6 +372,8 @@ public sealed class ScopeRenderer : IDisposable
         token switch
         {
             ScopeColorToken.TypeMismatch => TypeMismatchColor,
+            ScopeColorToken.MvaBelow => MvaBelowColor,
+            ScopeColorToken.MvaAt => MvaAtColor,
             ScopeColorToken.Note => NoteColor,
             ScopeColorToken.NoLandingClearance => NoLandingClearanceColor,
             ScopeColorToken.ConflictAlert => ConflictAlertColor,

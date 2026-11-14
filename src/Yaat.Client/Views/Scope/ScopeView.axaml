@@ -14,5 +14,6 @@
     CenterLat="{Binding CenterLat, Mode=TwoWay}"
     CenterLon="{Binding CenterLon, Mode=TwoWay}"
     RangeNm="{Binding RangeNm, Mode=TwoWay}"
+    ShowMvaAltitudeTint="{Binding ShowMvaHints}"
   />
 </UserControl>

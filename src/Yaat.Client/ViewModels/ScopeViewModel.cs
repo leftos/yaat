@@ -9,9 +9,9 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The YAAT Scope window's view model. It keeps its own centre, range, map brightness and datablock state; nothing is
-/// shared with <see cref="RadarViewModel"/>. It starts from the radar's centre, range and video maps once, the first time
-/// the radar has a centre and maps, and is independent of the radar after that. The selection is the app-wide one: a
-/// pick here sets <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
+/// shared with <see cref="RadarViewModel"/>. It starts from the radar's centre, range, video maps and MVA-tint flag once,
+/// the first time the radar has a centre and maps, and is independent of the radar after that. The selection is the
+/// app-wide one: a pick here sets <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
 /// </summary>
 public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 {
@@ -42,6 +42,10 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>Brightness category ("A" or "B") by video map id, copied with the maps.</summary>
     [ObservableProperty]
     private IReadOnlyDictionary<string, string> _brightnessLookup = new Dictionary<string, string>();
+
+    /// <summary>Whether the scope tints altitudes against the MVA, copied from the radar when the scope is seeded.</summary>
+    [ObservableProperty]
+    private bool _showMvaHints;
 
     /// <summary>
     /// Seeds the scope from the radar now when the radar has a centre and maps; otherwise waits for the radar's first
@@ -108,8 +112,8 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Copies the radar's centre, range, video maps and their brightness categories when the radar has a centre (both
-    /// coordinates set) and at least one map.
+    /// Copies the radar's centre, range, video maps, their brightness categories and its MVA-tint flag when the radar has
+    /// a centre (both coordinates set) and at least one map.
     /// </summary>
     /// <returns>True when the scope was seeded.</returns>
     private bool TrySeedFrom(RadarViewModel radar)
@@ -121,6 +125,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
         BrightnessLookup = new Dictionary<string, string>(radar.BrightnessLookup);
         VideoMaps = [.. maps];
+        ShowMvaHints = radar.ShowMvaHints;
         RangeNm = radar.RangeNm > 0 ? radar.RangeNm : DefaultRangeNm;
         CenterLat = radar.CenterLat;
         CenterLon = radar.CenterLon;
