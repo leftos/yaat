@@ -38,7 +38,7 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [/] YAAT-2249 Solo S3-FAT: pilots request lower every ~10 s and the approach every ~15 s · release vNext
 - [/] YAAT-2250 CTO MRC followed by CM 020: the departure never turns crosswind (KOAK 28R, straight out at 1,300 ft) · release vNext
-- [ ] YAAT-2253 Two VFR arrivals (N929AW, N2BP) show different context menus in one session · release vNext
+- [/] YAAT-2253 Two VFR arrivals (N929AW, N2BP) show different context menus in one session · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -66,7 +66,6 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [/] YAAT-2237 Show Accept handoff, Cancel handoff and Acknowledge pointout as quick commands while one is pending · release vNext
 - [ ] YAAT-2240 Add an Altitude quick command for VFR aircraft (CM, at or above, at or below) · release vNext
 
 ## Say again
