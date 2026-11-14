@@ -21,27 +21,28 @@ namespace Yaat.Client.UI.Tests.Views;
 public class AircraftListAutoScrollTests
 {
     private static AircraftDto MakeAircraft(string callsign, string status = "Active") =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 0,
-            GroundSpeed: 0,
-            BeaconCode: 1200,
-            TransponderMode: "Standby",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "OAK",
-            Destination: "LAX",
-            Route: "",
-            FlightRules: "IFR",
-            Status: status
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 0,
+            GroundSpeed = 0,
+            BeaconCode = 1200,
+            TransponderMode = "Standby",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "OAK",
+            Destination = "LAX",
+            Route = "",
+            FlightRules = "IFR",
+            Status = status,
+        };
 
     private static (Window window, MainViewModel vm, DataGrid grid) HostGrid(IEnumerable<AircraftDto> aircraft)
     {

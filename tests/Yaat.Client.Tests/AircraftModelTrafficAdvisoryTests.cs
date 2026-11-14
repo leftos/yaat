@@ -50,30 +50,31 @@ public class AircraftModelTrafficAdvisoryTests
     }
 
     private static AircraftDto Dto(PatternEntryLeg? leg, PatternDirection? side, double? distanceNm) =>
-        new(
-            Callsign: "N436MS",
-            AircraftType: "C172",
-            Latitude: 37.72,
-            Longitude: -122.22,
-            Heading: 100,
-            Altitude: 1500,
-            GroundSpeed: 90,
-            BeaconCode: 1200,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "KOAK",
-            Destination: "KOAK",
-            Route: "",
-            FlightRules: "VFR",
-            Status: "",
-            TrueTrack: 95,
-            IsManeuvering: true,
-            PatternLeg: leg,
-            PatternSide: side,
-            PatternDistanceNm: distanceNm
-        );
+        new()
+        {
+            Callsign = "N436MS",
+            AircraftType = "C172",
+            Latitude = 37.72,
+            Longitude = -122.22,
+            Heading = 100,
+            Altitude = 1500,
+            GroundSpeed = 90,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "KOAK",
+            Destination = "KOAK",
+            Route = "",
+            FlightRules = "VFR",
+            Status = "",
+            TrueTrack = 95,
+            IsManeuvering = true,
+            PatternLeg = leg,
+            PatternSide = side,
+            PatternDistanceNm = distanceNm,
+        };
 }

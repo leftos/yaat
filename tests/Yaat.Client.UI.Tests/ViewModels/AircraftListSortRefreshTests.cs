@@ -26,27 +26,28 @@ public class AircraftListSortRefreshTests
     private static MainViewModel NewVm() => new(new FakeFilePickerService());
 
     private static AircraftDto MakeAircraft(string callsign, string status = "Active", string destination = "LAX") =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 0,
-            GroundSpeed: 0,
-            BeaconCode: 1200,
-            TransponderMode: "Standby",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "OAK",
-            Destination: destination,
-            Route: "",
-            FlightRules: "IFR",
-            Status: status
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 0,
+            GroundSpeed = 0,
+            BeaconCode = 1200,
+            TransponderMode = "Standby",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "OAK",
+            Destination = destination,
+            Route = "",
+            FlightRules = "IFR",
+            Status = status,
+        };
 
     private static void SortBy(MainViewModel vm, string propertyName)
     {

@@ -34,8 +34,8 @@ Yaat.Client  ◄──On<T>("EventName", payload)───────  Broadcas
 The two ends live in:
 
 - **Client** — `src/Yaat.Client.Core/Services/ServerConnection.cs`: every `InvokeAsync` wrapper, every `On<T>` handler
-  (wired in `ConnectAsync`, `ServerConnection.cs:110`), and the client copies of the DTO records (from
-  `ServerConnection.cs:723`).
+  (wired in `ConnectAsync`), and the client copies of the DTO records (from
+  `AircraftDto` on).
 - **Server** — `../yaat-server/src/Yaat.Server/Hubs/TrainingHub.cs` (the hub methods) and
   `../yaat-server/src/Yaat.Server/Dtos/TrainingDtos.cs` (the server DTO records). The server→client payloads are built by
   `../yaat-server/src/Yaat.Server/Simulation/DtoConverter.cs` and fanned out by `TrainingBroadcastService.cs`.
@@ -47,8 +47,8 @@ order in each repo**, yet it is the *same* wire object:
 
 | | Server | Client |
 |---|---|---|
-| Type | `AircraftStateDto` (`TrainingDtos.cs:3`) | `AircraftDto` (`ServerConnection.cs:723`) |
-| `Remarks` position | constructor param 24 (right after `IsOnGround`, `TrainingDtos.cs:27`) | param 19, with a `= ""` default (`ServerConnection.cs:742`) |
+| Type | `AircraftStateDto` (`TrainingDtos.cs`), `required` init properties | `AircraftDto` (`ServerConnection.cs`), init properties with default initializers |
+| `Remarks` position | declared right after `IsOnGround` | declared elsewhere, with a `""` initializer |
 
 SignalR's JSON protocol matches a DTO's fields by **property name** (the contexts set `PropertyNameCaseInsensitive = true`), so the
 positional/order difference is harmless. (A hub method's own arguments are different: they bind by position.) A side-by-side diff "screams mismatch" to a newcomer — it is not. **The
@@ -513,15 +513,10 @@ event), not the stream itself. Copying the `InvokeAsync<T>` wrapper pattern for 
 This is the canonical version of the add-a-field flow. [server-rooms-and-hub.md](server-rooms-and-hub.md) links here
 rather than restating it.
 
-**Decided shape, not converted yet:** `AircraftStateDto` becomes `required` init properties server-side and `AircraftDto` plain init properties client-side, replacing the defaulted positional constructor parameters (about 100 on the server DTO, against the no-optional-parameters rule).
-
-The defaults buy nothing: `DtoConverter.ToTrainingDto` has many callers but there is one `new AircraftStateDto(` site (inside `ToTrainingDto`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
-
-1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs`) — a new constructor param with a default
-   so older positional call sites still compile.
-2. **Add to `AircraftDto`** (`src/Yaat.Client.Core/Services/ServerConnection.cs`) — **same JSON property name**, a
-   JSON-compatible type, and a default. Order need not match the server.
-3. **Map it in `DtoConverter.ToTrainingDto`** (`../yaat-server/.../Simulation/DtoConverter.cs`) so the value is
+1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs`) — a `required` init property (a missing initializer member then fails the build in `DtoConverter.ToTrainingDto`).
+2. **Add to `AircraftDto`** (`src/Yaat.Client.Core/Services/ServerConnection.cs`) — an init property with its default as the initializer (never `required`, so a payload missing the member still deserializes); **same JSON property name** and a
+   JSON-compatible type. Order need not match the server.
+3. **Set it in `ToTrainingDto`'s object initializer** (`../yaat-server/.../Simulation/DtoConverter.cs`) so the value is
    actually written onto the wire DTO.
 4. **Add it to `TrainingDtoFingerprint`** and capture it in `CaptureTrainingDto`
    (`../yaat-server/.../Simulation/AircraftChangeTracker.cs`). **Skip this step and the field round-trips on

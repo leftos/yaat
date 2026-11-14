@@ -26,27 +26,28 @@ public class MainViewModelGlobalCommandTests
     }
 
     private static AircraftDto MakeAircraft(string callsign) =>
-        new(
-            Callsign: callsign,
-            AircraftType: "C172",
-            Latitude: 37.62,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 1500,
-            GroundSpeed: 90,
-            BeaconCode: 1200,
-            TransponderMode: "ModeC",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "OAK",
-            Destination: "SQL",
-            Route: "",
-            FlightRules: "VFR",
-            Status: "Active"
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "C172",
+            Latitude = 37.62,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 1500,
+            GroundSpeed = 90,
+            BeaconCode = 1200,
+            TransponderMode = "ModeC",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "OAK",
+            Destination = "SQL",
+            Route = "",
+            FlightRules = "VFR",
+            Status = "Active",
+        };
 
     private static async Task SendAsync(MainViewModel vm, string text)
     {

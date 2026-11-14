@@ -20,27 +20,28 @@ public class MainViewModelAtpaProjectionTests
     private static MainViewModel NewVm() => new(new FakeFilePickerService());
 
     private static AircraftDto MakeAircraft(string callsign) =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 3_000,
-            GroundSpeed: 180,
-            BeaconCode: 1200,
-            TransponderMode: "ModeC",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "SFO",
-            Destination: "OAK",
-            Route: "",
-            FlightRules: "IFR",
-            Status: "Active"
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 3_000,
+            GroundSpeed = 180,
+            BeaconCode = 1200,
+            TransponderMode = "ModeC",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "SFO",
+            Destination = "OAK",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "Active",
+        };
 
     private static MainViewModel VmWith(params string[] callsigns)
     {

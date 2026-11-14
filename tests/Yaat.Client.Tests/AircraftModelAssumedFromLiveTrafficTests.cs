@@ -49,26 +49,27 @@ public class AircraftModelAssumedFromLiveTrafficTests
     }
 
     private static AircraftDto Dto(bool assumedFromLiveTraffic) =>
-        new(
-            Callsign: "UAL123",
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.38,
-            Heading: 90,
-            Altitude: 5000,
-            GroundSpeed: 250,
-            BeaconCode: 1200,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "KSFO",
-            Destination: "KLAX",
-            Route: "",
-            FlightRules: "IFR",
-            Status: "",
-            AssumedFromLiveTraffic: assumedFromLiveTraffic
-        );
+        new()
+        {
+            Callsign = "UAL123",
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.38,
+            Heading = 90,
+            Altitude = 5000,
+            GroundSpeed = 250,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "KSFO",
+            Destination = "KLAX",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "",
+            AssumedFromLiveTraffic = assumedFromLiveTraffic,
+        };
 }

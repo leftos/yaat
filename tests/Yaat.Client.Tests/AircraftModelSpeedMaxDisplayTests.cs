@@ -58,26 +58,27 @@ public class AircraftModelSpeedMaxDisplayTests
     }
 
     private static AircraftDto Dto(bool speedMax, double? assignedSpeed) =>
-        new(
-            Callsign: "AAL123",
-            AircraftType: "B738",
-            Latitude: 37.5,
-            Longitude: -122.0,
-            Heading: 90,
-            Altitude: 8000,
-            GroundSpeed: 340,
-            BeaconCode: 4571,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: assignedSpeed,
-            Departure: "KSFO",
-            Destination: "KJFK",
-            Route: "DCT",
-            FlightRules: "IFR",
-            Status: "",
-            SpeedMax: speedMax
-        );
+        new()
+        {
+            Callsign = "AAL123",
+            AircraftType = "B738",
+            Latitude = 37.5,
+            Longitude = -122.0,
+            Heading = 90,
+            Altitude = 8000,
+            GroundSpeed = 340,
+            BeaconCode = 4571,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = assignedSpeed,
+            Departure = "KSFO",
+            Destination = "KJFK",
+            Route = "DCT",
+            FlightRules = "IFR",
+            Status = "",
+            SpeedMax = speedMax,
+        };
 }

@@ -1166,290 +1166,343 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
 // --- DTOs ---
 
-public record AircraftDto(
-    string Callsign,
-    string AircraftType,
-    double Latitude,
-    double Longitude,
-    double Heading,
-    double Altitude,
-    double GroundSpeed,
-    uint BeaconCode,
-    string TransponderMode,
-    bool IsIdenting,
-    double VerticalSpeed,
-    double? AssignedHeading,
-    double? AssignedAltitude,
-    double? AssignedSpeed,
-    string Departure,
-    string Destination,
-    string Route,
-    string FlightRules,
-    string Status,
-    string Remarks = "",
-    string PendingCommands = "",
-    string NavigatingTo = "",
-    string CurrentPhase = "",
-    string AssignedRunway = "",
-    bool IsOnGround = false,
-    string PhaseSequence = "",
-    int ActivePhaseIndex = -1,
-    string LandingClearance = "",
-    string ClearedRunway = "",
-    string PatternDirection = "",
-    List<Yaat.Sim.NavRouteFixDto>? NavigationRoute = null,
-    string EquipmentSuffix = "",
-    int CruiseAltitude = 0,
-    int CruiseSpeed = 0,
+public record AircraftDto
+{
+    public string Callsign { get; init; } = "";
+    public string AircraftType { get; init; } = "";
+    public double Latitude { get; init; }
+    public double Longitude { get; init; }
+    public double Heading { get; init; }
+    public double Altitude { get; init; }
+    public double GroundSpeed { get; init; }
+    public uint BeaconCode { get; init; }
+    public string TransponderMode { get; init; } = "";
+    public bool IsIdenting { get; init; }
+    public double VerticalSpeed { get; init; }
+    public double? AssignedHeading { get; init; }
+    public double? AssignedAltitude { get; init; }
+    public double? AssignedSpeed { get; init; }
+    public string Departure { get; init; } = "";
+    public string Destination { get; init; } = "";
+    public string Route { get; init; } = "";
+    public string FlightRules { get; init; } = "";
+    public string Status { get; init; } = "";
+    public string Remarks { get; init; } = "";
+    public string PendingCommands { get; init; } = "";
+    public string NavigatingTo { get; init; } = "";
+    public string CurrentPhase { get; init; } = "";
+    public string AssignedRunway { get; init; } = "";
+    public bool IsOnGround { get; init; } = false;
+    public string PhaseSequence { get; init; } = "";
+    public int ActivePhaseIndex { get; init; } = -1;
+    public string LandingClearance { get; init; } = "";
+    public string ClearedRunway { get; init; } = "";
+    public string PatternDirection { get; init; } = "";
+    public List<Yaat.Sim.NavRouteFixDto>? NavigationRoute { get; init; } = null;
+    public string EquipmentSuffix { get; init; } = "";
+    public int CruiseAltitude { get; init; } = 0;
+    public int CruiseSpeed { get; init; } = 0;
+
     // A filed Mach number in hundredths (M078 is 78) or a classified speed (SC); CruiseSpeed is 0 while either is filed.
-    int? CruiseMach = null,
-    bool IsSpeedClassified = false,
-    string TaxiRoute = "",
-    string ParkingSpot = "",
-    string CurrentTaxiway = "",
-    string? Owner = null,
-    string? OwnerSectorCode = null,
-    string? HandoffPeer = null,
-    string? HandoffPeerSectorCode = null,
-    string? PointoutStatus = null,
-    string? Scratchpad1 = null,
-    string? Scratchpad2 = null,
-    int? TemporaryAltitude = null,
-    bool IsAnnotated = false,
-    string? ActiveApproachId = null,
-    string? ExpectedApproach = null,
-    string CwtCode = "",
-    string ActiveSidId = "",
-    string ActiveStarId = "",
-    string DepartureRunway = "",
-    string DestinationRunway = "",
-    double IndicatedAirspeed = 0,
-    double Mach = 0,
-    double? AssignedMach = null,
-    bool SpeedMax = false,
-    int WindDirection = 0,
-    int WindSpeed = 0,
-    List<double[]>? PositionHistory = null,
-    string? PatternEntryKind = null,
-    string? FollowingCallsign = null,
+    public int? CruiseMach { get; init; } = null;
+    public bool IsSpeedClassified { get; init; } = false;
+    public string TaxiRoute { get; init; } = "";
+    public string ParkingSpot { get; init; } = "";
+    public string CurrentTaxiway { get; init; } = "";
+    public string? Owner { get; init; } = null;
+    public string? OwnerSectorCode { get; init; } = null;
+    public string? HandoffPeer { get; init; } = null;
+    public string? HandoffPeerSectorCode { get; init; } = null;
+    public string? PointoutStatus { get; init; } = null;
+    public string? Scratchpad1 { get; init; } = null;
+    public string? Scratchpad2 { get; init; } = null;
+    public int? TemporaryAltitude { get; init; } = null;
+    public bool IsAnnotated { get; init; } = false;
+    public string? ActiveApproachId { get; init; } = null;
+    public string? ExpectedApproach { get; init; } = null;
+    public string CwtCode { get; init; } = "";
+    public string ActiveSidId { get; init; } = "";
+    public string ActiveStarId { get; init; } = "";
+    public string DepartureRunway { get; init; } = "";
+    public string DestinationRunway { get; init; } = "";
+    public double IndicatedAirspeed { get; init; } = 0;
+    public double Mach { get; init; } = 0;
+    public double? AssignedMach { get; init; } = null;
+    public bool SpeedMax { get; init; } = false;
+    public int WindDirection { get; init; } = 0;
+    public int WindSpeed { get; init; } = 0;
+    public List<double[]>? PositionHistory { get; init; } = null;
+    public string? PatternEntryKind { get; init; } = null;
+    public string? FollowingCallsign { get; init; } = null;
+
     // Callsign of the traffic this aircraft most recently reported in sight (RTIS/RTISF).
     // Null until a successful report. Lets the client gate the "follow this traffic" menu item.
-    string? LastReportedTrafficCallsign = null,
-    string? ExitingRunwayId = null,
-    string FiledAircraftType = "",
-    bool IsUnsupported = false,
+    public string? LastReportedTrafficCallsign { get; init; } = null;
+    public string? ExitingRunwayId { get; init; } = null;
+    public string FiledAircraftType { get; init; } = "";
+    public bool IsUnsupported { get; init; } = false;
+
     // True when the ghost overlay sits on top of a real aircraft active in the scenario
     // (AID + slew). False for pure phantom STARS data blocks created by DA/VP typing
     // against a callsign with no aircraft body. The Aircraft List filter only hides
     // rows that are IsUnsupported && !IsGhostOverlay.
-    bool IsGhostOverlay = false,
-    bool HasActiveTaxiRoute = false,
+    public bool IsGhostOverlay { get; init; } = false;
+    public bool HasActiveTaxiRoute { get; init; } = false;
+
     // True while the aircraft has no active taxi route but one a TAXI sent on the landing rollout stored behind the runway exit,
     // started when the exit completes: the ground view draws it, and the menus offer GIVEWAY.
-    bool HasStoredTaxiRoute = false,
+    public bool HasStoredTaxiRoute { get; init; } = false;
+
     // True while the route the aircraft drives (the follow route for a FOLLOWG follower) has a taxiway or spot bar as its next
     // uncleared hold short ahead: the bar a bare RES pre-clears, so the menu offers RES to the rolling aircraft.
-    bool HasTaxiwayHoldShortAhead = false,
+    public bool HasTaxiwayHoldShortAhead { get; init; } = false;
+
     // True where the sim refuses a RES: a HOLD broke off a FOLLOWG follow and nothing comes after the hold it ends in, held short
     // ahead of it included; the menus then offer no RES.
-    bool ResumeTaxiRefused = false,
-    string TaxiDestination = "",
+    public bool ResumeTaxiRefused { get; init; } = false;
+    public string TaxiDestination { get; init; } = "";
+
     // The shape of the turn about the assigned taxi route starts with on the taxiway the aircraft stood on, while the
     // aircraft has not finished that leg: the Yaat.Sim TaxiTurnAboutShape name ("FromFarEnd" or "InPlace"), null when none
     // is pending. TaxiTurnAboutTargetNodeId is the far node it turns the aircraft toward, null when none is pending.
     // The ground overlay draws exactly this shape from this node.
-    string? TaxiTurnAboutShape = null,
-    int? TaxiTurnAboutTargetNodeId = null,
+    public string? TaxiTurnAboutShape { get; init; } = null;
+    public int? TaxiTurnAboutTargetNodeId { get; init; } = null;
+
     // Hold-state mirror of AircraftGroundOps.Hold. HoldKind is null/empty when free
     // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller
     // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).
-    string? HoldKind = null,
-    string? HoldYieldTarget = null,
+    public string? HoldKind { get; init; } = null;
+    public string? HoldYieldTarget { get; init; } = null;
+
     // Callsign this aircraft is auto-yielding to (GroundConflictDetector picked it as the yielder
     // for a converging / same-edge-trailing pair). Display-only: the aircraft is slowing, not held,
     // so IsHeld stays false. Drives the "→{target} (auto)" badge.
-    string? AutoYieldTarget = null,
+    public string? AutoYieldTarget { get; init; } = null;
+
     // True when the auto-yield is a same-edge in-trail follow ("Following") vs a converging
     // give-way ("Yielding to"). Drives the right-click menu wording.
-    bool AutoYieldIsFollowing = false,
+    public bool AutoYieldIsFollowing { get; init; } = false;
+
     // Runway being crossed during CrossingRunwayPhase (e.g. "28R/10L"). Distinct from
     // AssignedRunway which holds the aircraft's departure / destination runway —
     // those differ when an aircraft taxis across one runway to reach a different
     // departure runway. Null otherwise.
-    string? CrossingRunwayId = null,
+    public string? CrossingRunwayId { get; init; } = null;
+
     // True while the "approaching final without a landing clearance" warning has fired on
     // the current final approach and the aircraft still lacks a landing clearance. Drives
     // the flashing red "NoLndgClnc" datablock line on the radar.
-    bool NoLandingClearanceWarningActive = false,
+    public bool NoLandingClearanceWarningActive { get; init; } = false;
+
     // True when a queued ONHS DEL block is armed (or per-aircraft auto-delete has been
     // requested). Drives the small auto-delete marker in the radar / tower-cab datablock.
-    bool AutoDeletePending = false,
+    public bool AutoDeletePending { get; init; } = false;
+
     // One-line human-readable status for the Aircraft List Info column, computed server-side
     // by Yaat.Sim.AircraftStatusDescriber. The client displays it verbatim; SmartStatusSeverity
     // drives the column colour.
-    string SmartStatus = "",
-    Yaat.Sim.AircraftStatusSeverity SmartStatusSeverity = Yaat.Sim.AircraftStatusSeverity.Normal,
+    public string SmartStatus { get; init; } = "";
+    public Yaat.Sim.AircraftStatusSeverity SmartStatusSeverity { get; init; } = Yaat.Sim.AircraftStatusSeverity.Normal;
+
     // What the controller is most likely to do next with the aircraft, classified server-side by
     // Yaat.Sim.Situation.SituationClassifier and sent as a number.
-    Yaat.Sim.Situation.AircraftSituation Situation = Yaat.Sim.Situation.AircraftSituation.Unknown,
+    public Yaat.Sim.Situation.AircraftSituation Situation { get; init; } = Yaat.Sim.Situation.AircraftSituation.Unknown;
+
     // The situation flags the server's Situation step computes beside the situation (Yaat.Sim.Situation.SituationFlagCalculator),
     // sent as a number.
-    Yaat.Sim.Situation.SituationFlags SituationFlags = Yaat.Sim.Situation.SituationFlags.None,
+    public Yaat.Sim.Situation.SituationFlags SituationFlags { get; init; } = Yaat.Sim.Situation.SituationFlags.None;
+
     // Airport id of the ground layout this aircraft is on (server AircraftGroundOps.LayoutAirportId,
     // scenario primary airport as fallback). Null when airborne / unknown. Lets the radar surface a
     // ground aircraft's speech bubble when no ground view is currently showing that airport.
-    string? GroundAirportId = null,
+    public string? GroundAirportId { get; init; } = null;
+
     // True when this departure is held for release. Drives the menu header's
     // Release (HFR) item on every view and a held badge.
-    bool HeldForRelease = false,
+    public bool HeldForRelease { get; init; } = false;
+
     // Student-scope STARS view projected by the server (StarsDatablockClassifier) relative to the
     // scenario's student position. Null when there is no student position. Drives the instructor
     // radar's optional datablock color sync, LDB/PDB marker + collapse, and leader-direction sync.
-    Yaat.Sim.StarsDatablockColor? StudentDatablockColor = null,
-    Yaat.Sim.StarsDatablockLevel? StudentDatablockLevel = null,
-    int? StudentLeaderDirection = null,
+    public Yaat.Sim.StarsDatablockColor? StudentDatablockColor { get; init; } = null;
+    public Yaat.Sim.StarsDatablockLevel? StudentDatablockLevel { get; init; } = null;
+    public int? StudentLeaderDirection { get; init; } = null;
+
     // Instructor freetext note shown as an extra datablock line on radar + ground. Instructor-only.
-    string Note = "",
+    public string Note { get; init; } = "";
+
     // Instructor TPA overlay on YAAT's own radar (emulates STARS *J/*P). TpaType: 0=None, 1=J-Ring,
     // 2=Cone. TpaSize is the J-Ring radius / Cone length in nm. Instructor-only; never on the student's CRC.
-    int TpaType = 0,
-    double TpaSize = 0,
+    public int TpaType { get; init; } = 0;
+    public double TpaSize { get; init; } = 0;
+
     // Sector code of the recipient of a pending point-out the student's own position initiated
     // (e.g. "3E"). Non-null only while that outgoing point-out is still pending; drives the "{code}*"
     // indicator on the owner/scratchpad datablock line. Instructor-only.
-    string? PointoutToTcpCode = null,
+    public string? PointoutToTcpCode { get; init; } = null;
+
     // True while the displayed altitude rounds to 000 (below the acquisition floor, AGL < 100 ft,
     // field-elevation adjusted server-side). The radar withholds the target while set (matching CRC
     // STARS coast/skip); the ground view keeps a ghost overlay visible across liftoff until it clears.
-    bool BelowDisplayFloor = false,
+    public bool BelowDisplayFloor { get; init; } = false;
+
     // True while the aircraft is established on an approach procedure being descended below the MVA
     // (on final/glideslope, or cleared for a full approach and flying it). Computed server-side via
     // PhaseList.IsEstablishedOnApproach(); the radar uses it to inhibit the MVA altitude tint.
-    bool IsEstablishedOnApproach = false,
+    public bool IsEstablishedOnApproach { get; init; } = false;
+
     // Absolute-UTC bounds of the aircraft's Call-For-Release window (CFR), or null. The client
     // evaluates these against real UTC to raise instructor-facing expiry alerts; they never affect the
     // simulation (GitHub issue #230). Kept name-for-name in sync with the server's AircraftStateDto.
-    DateTime? CfrWindowStartUtc = null,
-    DateTime? CfrWindowEndUtc = null,
+    public DateTime? CfrWindowStartUtc { get; init; } = null;
+    public DateTime? CfrWindowEndUtc { get; init; } = null;
+
     // ASDE-style surface fix shown on the Ground View datablock and the Aircraft List "Fix" column:
     // exit fix or destination per the airport's ASDE-X/SAID facility config, resolved server-side.
     // Kept name-for-name in sync with the server's AircraftStateDto.
-    string AsdexFix = "",
+    public string AsdexFix { get; init; } = "";
+
     // Filed-altitude notation fields mirroring PlannedAltitude, populated server-side from
     // AircraftState.FlightPlan.Altitude. CruiseAltitude above is the ceiling/single value;
     // BlockFloorAltitude is the block floor (null = not a block). Kept name-for-name in sync with the
     // server's AircraftStateDto so the client datablock/FPE can render blocks and VFR-on-top.
-    int? BlockFloorAltitude = null,
-    bool IsVfrOnTop = false,
-    bool IsAbove = false,
+    public int? BlockFloorAltitude { get; init; } = null;
+    public bool IsVfrOnTop { get; init; } = false;
+    public bool IsAbove { get; init; } = false;
+
     // The fix of a fix-qualified altitude (ERAM AM ALT 170/SJC/110), as typed, and the altitude in feet after it; both null
     // for every other form. Kept name-for-name in sync with the server's AircraftStateDto so the Flight Plan Editor shows
     // and resends the fix-qualified altitude unchanged.
-    string? AltitudeFix = null,
-    int? AltitudeAfterFixFeet = null,
+    public string? AltitudeFix { get; init; } = null;
+    public int? AltitudeAfterFixFeet { get; init; } = null;
+
     // Controller-assigned beacon code (server Transponder.AssignedCode) — the flight-plan squawk the
     // strip and the Flight Plan Editor's BCN box display. Distinct from BeaconCode above, which is the
     // reported/squawked code (Transponder.Code) and stays 0000 until the pilot squawks the assignment.
     // Kept name-for-name in sync with the server's AircraftStateDto.
-    uint AssignedBeaconCode = 0,
+    public uint AssignedBeaconCode { get; init; } = 0;
+
     // Active-procedure geometry (hold racetracks, procedure turns, open-ended SID coded legs, military
     // route corridors, orbit circles) and queued holds' racetracks projected for the "Show nav route"
     // overlay. Kept name-for-name in sync with AircraftStateDto.
-    List<Yaat.Sim.NavRouteShapeDto>? NavRouteShapes = null,
+    public List<Yaat.Sim.NavRouteShapeDto>? NavRouteShapes { get; init; } = null;
+
     // Latched true when the pilot has been told to squawk VFR (SQVFR/SQV); the radar view then suppresses
     // the assigned-vs-reported beacon-code mismatch flash until a new beacon code is assigned. RPO-display
     // only. Kept name-for-name in sync with the server's AircraftStateDto.
-    bool CommandedSquawkVfr = false,
+    public bool CommandedSquawkVfr { get; init; } = false;
+
     // Destination airport STARS shows in the primary-scratchpad slot when no controller-entered
     // scratchpad is present, already gated server-side by the student area's display adaptation.
     // The datablock renders it exactly like a real SP1, mirroring what the student sees in CRC.
     // Null when suppressed. Kept name-for-name in sync with the server's AircraftStateDto.
-    string? AutoScratchpad1 = null,
+    public string? AutoScratchpad1 { get; init; } = null;
+
     // 1-based position in the departure line at this aircraft's runway hold-short node, or 0 when not in
     // a countable line. Drives the "#N" ground-datablock callsign suffix. Kept name-for-name in sync with
     // the server's AircraftStateDto.
-    int RunwayQueuePosition = 0,
+    public int RunwayQueuePosition { get; init; } = 0;
+
     // Display designator of the runway this aircraft is queued for (e.g. "28R"), empty when not in a line.
     // Shown next to the ordinal on the ground datablock ("28R #3"). Kept in sync with the server's DTO.
-    string RunwayQueueRunway = "",
+    public string RunwayQueueRunway { get; init; } = "";
+
     // Taxiway name of the intersection this aircraft is departing from (e.g. "E"), empty for a full-length
     // departure or when not in a line. Composed with the runway on the ground datablock ("28R@E #1").
-    string RunwayQueueIntersection = "",
+    public string RunwayQueueIntersection { get; init; } = "";
+
     // AP/1B military training route the aircraft is cleared into (e.g. "IR149"), empty when none.
     // Kept name-for-name in sync with the server's AircraftStateDto.
-    string MilitaryRoute = "",
+    public string MilitaryRoute { get; init; } = "";
+
     // Pre-rendered altitude summary for the strip / Aircraft List. Reports the resolved MSL pair the
     // sim enforced, not the published AGL/MSL notation — see the server DTO for why.
-    string MilitaryRouteAltitudeText = "",
+    public string MilitaryRouteAltitudeText { get; init; } = "";
+
     // True when the route is designated for MARSA operations (FAA JO 7110.65 §9-2-6.c).
-    bool MilitaryRouteMarsa = false,
+    public bool MilitaryRouteMarsa { get; init; } = false;
+
     // True when an unfired pattern entry is queued. A landing/option clearance issued in this window is
     // pre-issued against that entry, so the clearance verbs stay offered even with no arrival phase yet.
-    bool HasQueuedPatternEntry = false,
+    public bool HasQueuedPatternEntry { get; init; } = false;
+
     // ClearanceType name of a clearance already pre-issued against that queued entry, empty when none.
-    string PendingLandingClearance = "",
+    public string PendingLandingClearance { get; init; } = "";
+
     // ICAO field-10a equipment codes from the flight plan (empty when never entered). Feeds the
     // Flight Plan Editor's ICAO EQ field; CRC derives the ERAM SATCOMM * from the satcom codes.
-    string IcaoEquipmentCodes = "",
+    public string IcaoEquipmentCodes { get; init; } = "";
+
     // Live-traffic shadow (a real aircraft mirrored from the server's feed): not commandable until assumed.
     // LiveTrafficStale = the feed has missed its sweeps and the position is dead-reckoned (CST).
     // AssumedFromLiveTraffic marks a simulated aircraft that was assumed from the feed — the only state
     // UNASSUME accepts, so the menus offer the release-to-the-feed item exactly for those.
-    bool IsLiveTraffic = false,
-    bool LiveTrafficStale = false,
-    string? LiveTrafficSource = null,
-    bool AssumedFromLiveTraffic = false,
+    public bool IsLiveTraffic { get; init; } = false;
+    public bool LiveTrafficStale { get; init; } = false;
+    public string? LiveTrafficSource { get; init; } = null;
+    public bool AssumedFromLiveTraffic { get; init; } = false;
+
     // The tug's pose while the aircraft is under tow: the direction from the nose gear out along the towbar to
     // the tug, degrees true, null when no tug is attached. Kept name-for-name in sync with the server's
     // AircraftStateDto; the ground view draws the tug from it.
-    double? TowbarTrueHeadingDeg = null,
+    public double? TowbarTrueHeadingDeg { get; init; } = null;
+
     // The speed the aircraft is commanding, knots, null when it commands none. Kept name-for-name in sync with the
     // server's AircraftStateDto; the push-route preview reads it to tell a parked or held neighbour from a creeping one.
-    double? TargetSpeedKts = null,
+    public double? TargetSpeedKts { get; init; } = null;
+
     // The runway whose bar is the next uncleared one on the taxi route, as the end to name in CROSS ("28R"), computed
     // beside the situation flags; null when the next bar is no runway crossing. Kept name-for-name in sync with the
     // server's AircraftStateDto; the quick list's Cross names and sends it.
-    string? NextCrossingRunway = null,
+    public string? NextCrossingRunway { get; init; } = null;
+
     // The named exits the arrival can make, in order along the runway, on the last miles of final and on the rollout; empty
     // when none is makeable, null when there is no list. Kept name-for-name in sync with the server's AircraftStateDto; the
     // Exit left / Exit right flyouts offer one row per exit on that side.
-    IReadOnlyList<ExitAheadDto>? ExitsAhead = null,
+    public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; init; } = null;
+
     // Where the aircraft's taxi route meets other aircraft's routes, as the server's ground conflict detector predicts it: one
     // row per other aircraft (its callsign, the junction's node id and position); null when it meets none or has no route.
     // Kept name-for-name in sync with the server's AircraftStateDto.
-    IReadOnlyList<GroundMeetPointDto>? MeetPoints = null,
+    public IReadOnlyList<GroundMeetPointDto>? MeetPoints { get; init; } = null;
+
     // How the aircraft leaves the stand it is parked on, "PushBack", "TaxiOut" or "Either"; null when it is not at a
     // stand. Kept name-for-name in sync with the server's AircraftStateDto; the menus hide the push entries for a
     // taxi-out stand only.
-    string? StandDeparture = null,
+    public string? StandDeparture { get; init; } = null;
+
     // The traffic-advisory matcher's inputs the fields above do not carry, kept name-for-name in sync with the server's
     // AircraftStateDto (built there by Yaat.Sim.Commands.TrafficAdvisoryCandidate.From). TrueTrack is the ground track,
     // degrees true; IsManeuvering is the matcher's own bank test. The pattern triple is the sim's classification of the
     // active pattern or final phase (leg, side, distance to the threshold in NM): all null outside a pattern, the side null
     // on final. Sent, never re-derived on the client.
-    double TrueTrack = 0,
-    bool IsManeuvering = false,
-    Yaat.Sim.Phases.PatternEntryLeg? PatternLeg = null,
-    Yaat.Sim.Phases.PatternDirection? PatternSide = null,
-    double? PatternDistanceNm = null,
+    public double TrueTrack { get; init; } = 0;
+    public bool IsManeuvering { get; init; } = false;
+    public Yaat.Sim.Phases.PatternEntryLeg? PatternLeg { get; init; } = null;
+    public Yaat.Sim.Phases.PatternDirection? PatternSide { get; init; } = null;
+    public double? PatternDistanceNm { get; init; } = null;
+
     // The deferred reports armed by REPORT, as the sim projects them (the armed pattern legs, the N-mile final and the fix);
     // null when nothing is armed. Kept name-for-name in sync with the server's AircraftStateDto.
-    ArmedReportsDto? ArmedReports = null,
+    public ArmedReportsDto? ArmedReports { get; init; } = null;
+
     // The pilot's request awaiting the controller (unanswered or on standby), null when none is open; and whether the
     // pilot has made initial contact. Kept name-for-name in sync with the server's AircraftStateDto.
-    PendingPilotRequestDto? PendingPilotRequest = null,
-    bool HasMadeInitialContact = false,
+    public PendingPilotRequestDto? PendingPilotRequest { get; init; } = null;
+    public bool HasMadeInitialContact { get; init; } = false;
+
     // The identities the client compares with the position it acts as (Yaat.Sim.TrackCoordinationView): the owner's and the
     // handoff peer's facility ids, the position that redirected the handoff, and the pending pointout's recipient and sender
     // TCP codes (null unless the pointout is pending). Kept name-for-name in sync with the server's AircraftStateDto.
-    string? OwnerFacilityId = null,
-    string? HandoffPeerFacilityId = null,
-    string? HandoffRedirectedByCallsign = null,
-    string? HandoffRedirectedBySectorCode = null,
-    string? HandoffRedirectedByFacilityId = null,
-    string? PointoutRecipientCode = null,
-    string? PointoutSenderCode = null
-);
+    public string? OwnerFacilityId { get; init; } = null;
+    public string? HandoffPeerFacilityId { get; init; } = null;
+    public string? HandoffRedirectedByCallsign { get; init; } = null;
+    public string? HandoffRedirectedBySectorCode { get; init; } = null;
+    public string? HandoffRedirectedByFacilityId { get; init; } = null;
+    public string? PointoutRecipientCode { get; init; } = null;
+    public string? PointoutSenderCode { get; init; } = null;
+}
 
 /// <summary>
 /// An aircraft's open pilot request, kept name-for-name in sync with the server's <c>PendingPilotRequestDto</c>: the request

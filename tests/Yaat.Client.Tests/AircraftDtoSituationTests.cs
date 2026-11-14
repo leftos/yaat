@@ -205,26 +205,27 @@ public class AircraftDtoSituationTests
     }
 
     private static AircraftDto Dto(AircraftSituation situation) =>
-        new(
-            Callsign: "UAL123",
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.38,
-            Heading: 90,
-            Altitude: 0,
-            GroundSpeed: 0,
-            BeaconCode: 1200,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "KSFO",
-            Destination: "KLAX",
-            Route: "",
-            FlightRules: "IFR",
-            Status: "",
-            Situation: situation
-        );
+        new()
+        {
+            Callsign = "UAL123",
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.38,
+            Heading = 90,
+            Altitude = 0,
+            GroundSpeed = 0,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "KSFO",
+            Destination = "KLAX",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "",
+            Situation = situation,
+        };
 }

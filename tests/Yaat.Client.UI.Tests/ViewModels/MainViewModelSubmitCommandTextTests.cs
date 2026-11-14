@@ -15,27 +15,28 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 public class MainViewModelSubmitCommandTextTests
 {
     private static AircraftDto IfrAircraft(string callsign) =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.72,
-            Longitude: -122.22,
-            Heading: 280,
-            Altitude: 3000,
-            GroundSpeed: 180,
-            BeaconCode: 4521,
-            TransponderMode: "ModeC",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "SAN",
-            Destination: "OAK",
-            Route: "",
-            FlightRules: "IFR",
-            Status: "Active"
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.72,
+            Longitude = -122.22,
+            Heading = 280,
+            Altitude = 3000,
+            GroundSpeed = 180,
+            BeaconCode = 4521,
+            TransponderMode = "ModeC",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "SAN",
+            Destination = "OAK",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "Active",
+        };
 
     [AvaloniaFact]
     public async Task VfrGatedCommandOnAnIfrAircraft_ReturnsTheGateRejectionAsAWarning_AndSendsNothing()

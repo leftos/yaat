@@ -16,27 +16,28 @@ namespace Yaat.Client.UI.Tests.Views;
 public class Issue709FlightPlanEditorDeleteTests
 {
     private static AircraftDto MakeAircraft(string callsign) =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.72,
-            Longitude: -122.22,
-            Heading: 280,
-            Altitude: 3000,
-            GroundSpeed: 220,
-            BeaconCode: 4521,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "OAK",
-            Destination: "LAX",
-            Route: "OAK6 SNS",
-            FlightRules: "IFR",
-            Status: "Active"
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.72,
+            Longitude = -122.22,
+            Heading = 280,
+            Altitude = 3000,
+            GroundSpeed = 220,
+            BeaconCode = 4521,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "OAK",
+            Destination = "LAX",
+            Route = "OAK6 SNS",
+            FlightRules = "IFR",
+            Status = "Active",
+        };
 
     private static MainViewModel HostScenario()
     {

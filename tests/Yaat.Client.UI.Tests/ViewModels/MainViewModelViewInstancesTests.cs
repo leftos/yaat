@@ -17,27 +17,28 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 public class MainViewModelViewInstancesTests
 {
     private static AircraftDto MakeAircraft(string callsign) =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 0,
-            GroundSpeed: 0,
-            BeaconCode: 1200,
-            TransponderMode: "Standby",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "OAK",
-            Destination: "LAX",
-            Route: "",
-            FlightRules: "IFR",
-            Status: "Active"
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 0,
+            GroundSpeed = 0,
+            BeaconCode = 1200,
+            TransponderMode = "Standby",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "OAK",
+            Destination = "LAX",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "Active",
+        };
 
     private static GroundLayoutDto Layout(string airportId)
     {

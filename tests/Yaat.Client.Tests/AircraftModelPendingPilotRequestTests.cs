@@ -29,27 +29,28 @@ public class AircraftModelPendingPilotRequestTests
     }
 
     private static AircraftDto Dto(PendingPilotRequestDto? request, bool hasMadeInitialContact) =>
-        new(
-            Callsign: "UAL123",
-            AircraftType: "C172",
-            Latitude: 37.72,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 0,
-            GroundSpeed: 0,
-            BeaconCode: 1200,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "KOAK",
-            Destination: "KSFO",
-            Route: "",
-            FlightRules: "VFR",
-            Status: "",
-            PendingPilotRequest: request,
-            HasMadeInitialContact: hasMadeInitialContact
-        );
+        new()
+        {
+            Callsign = "UAL123",
+            AircraftType = "C172",
+            Latitude = 37.72,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 0,
+            GroundSpeed = 0,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "KOAK",
+            Destination = "KSFO",
+            Route = "",
+            FlightRules = "VFR",
+            Status = "",
+            PendingPilotRequest = request,
+            HasMadeInitialContact = hasMadeInitialContact,
+        };
 }

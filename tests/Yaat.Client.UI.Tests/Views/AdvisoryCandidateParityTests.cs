@@ -41,33 +41,34 @@ public class AdvisoryCandidateParityTests
     private static AircraftDto DtoOf(AircraftState state)
     {
         PatternPosition? pattern = TrafficAdvisoryCandidate.PatternPositionOf(state);
-        return new AircraftDto(
-            Callsign: state.Callsign,
-            AircraftType: state.AircraftType,
-            Latitude: state.Position.Lat,
-            Longitude: state.Position.Lon,
-            Heading: state.TrueHeading.Degrees,
-            Altitude: state.Altitude,
-            GroundSpeed: 90,
-            BeaconCode: 1200,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "KATL",
-            Destination: "KATL",
-            Route: "",
-            FlightRules: "VFR",
-            Status: "",
-            AssignedRunway: state.Phases?.AssignedRunway?.Designator ?? "",
-            TrueTrack: state.TrueTrack.Degrees,
-            IsManeuvering: TrafficAdvisoryMatcher.IsManeuvering(state.BankAngle),
-            PatternLeg: pattern?.Leg,
-            PatternSide: pattern?.Side,
-            PatternDistanceNm: pattern?.DistanceNm
-        );
+        return new AircraftDto
+        {
+            Callsign = state.Callsign,
+            AircraftType = state.AircraftType,
+            Latitude = state.Position.Lat,
+            Longitude = state.Position.Lon,
+            Heading = state.TrueHeading.Degrees,
+            Altitude = state.Altitude,
+            GroundSpeed = 90,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "KATL",
+            Destination = "KATL",
+            Route = "",
+            FlightRules = "VFR",
+            Status = "",
+            AssignedRunway = state.Phases?.AssignedRunway?.Designator ?? "",
+            TrueTrack = state.TrueTrack.Degrees,
+            IsManeuvering = TrafficAdvisoryMatcher.IsManeuvering(state.BankAngle),
+            PatternLeg = pattern?.Leg,
+            PatternSide = pattern?.Side,
+            PatternDistanceNm = pattern?.DistanceNm,
+        };
     }
 
     private static AircraftState PatternAircraft(string callsign, RunwayInfo runway)

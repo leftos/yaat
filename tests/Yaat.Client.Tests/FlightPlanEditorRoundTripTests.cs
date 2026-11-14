@@ -155,35 +155,36 @@ public class FlightPlanEditorRoundTripTests
         };
 
     private static AircraftDto Dto(AircraftFlightPlan plan) =>
-        new(
-            Callsign: Callsign,
-            AircraftType: "B738",
-            Latitude: 37.5,
-            Longitude: -122.0,
-            Heading: 90,
-            Altitude: 17000,
-            GroundSpeed: 450,
-            BeaconCode: 4571,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: plan.Departure,
-            Destination: plan.Destination,
-            Route: plan.Route,
-            FlightRules: plan.FlightRules,
-            Status: "",
-            Remarks: plan.Remarks,
-            CruiseAltitude: plan.Altitude.CruiseFeet ?? 0,
-            CruiseSpeed: plan.CruiseSpeed,
-            BlockFloorAltitude: plan.Altitude.BlockFloorFeet,
-            IsVfrOnTop: plan.Altitude.IsVfrOnTop,
-            IsAbove: plan.Altitude.IsAbove,
-            AltitudeFix: plan.Altitude.AltitudeFix,
-            AltitudeAfterFixFeet: plan.Altitude.AfterFixFeet
-        );
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = "B738",
+            Latitude = 37.5,
+            Longitude = -122.0,
+            Heading = 90,
+            Altitude = 17000,
+            GroundSpeed = 450,
+            BeaconCode = 4571,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = plan.Departure,
+            Destination = plan.Destination,
+            Route = plan.Route,
+            FlightRules = plan.FlightRules,
+            Status = "",
+            Remarks = plan.Remarks,
+            CruiseAltitude = plan.Altitude.CruiseFeet ?? 0,
+            CruiseSpeed = plan.CruiseSpeed,
+            BlockFloorAltitude = plan.Altitude.BlockFloorFeet,
+            IsVfrOnTop = plan.Altitude.IsVfrOnTop,
+            IsAbove = plan.Altitude.IsAbove,
+            AltitudeFix = plan.Altitude.AltitudeFix,
+            AltitudeAfterFixFeet = plan.Altitude.AfterFixFeet,
+        };
 
     /// <summary>No airport layouts: an airborne flight-plan amendment reads none.</summary>
     private sealed class NoGroundData : IAirportGroundData

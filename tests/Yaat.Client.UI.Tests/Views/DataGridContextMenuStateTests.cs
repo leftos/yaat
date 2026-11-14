@@ -300,27 +300,28 @@ public class DataGridContextMenuStateTests
     // --- The real list: the headless mouse device on a hosted DataGridView ---
 
     private static AircraftDto Dto(string callsign) =>
-        new(
-            Callsign: callsign,
-            AircraftType: "B738",
-            Latitude: 37.62,
-            Longitude: -122.22,
-            Heading: 90,
-            Altitude: 3000,
-            GroundSpeed: 180,
-            BeaconCode: 1200,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "LAX",
-            Destination: "OAK",
-            Route: "",
-            FlightRules: "IFR",
-            Status: "Active"
-        );
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.62,
+            Longitude = -122.22,
+            Heading = 90,
+            Altitude = 3000,
+            GroundSpeed = 180,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "LAX",
+            Destination = "OAK",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "Active",
+        };
 
     /// <summary>
     /// A hosted aircraft list with two airborne IFR arrivals, AAL601 and AAL602, where AAL602 has reported AAL601 in

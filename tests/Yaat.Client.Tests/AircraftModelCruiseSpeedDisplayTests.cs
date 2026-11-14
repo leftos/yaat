@@ -82,29 +82,30 @@ public class AircraftModelCruiseSpeedDisplayTests
     }
 
     private static AircraftDto Dto(int? cruiseMach, bool isSpeedClassified) =>
-        new(
-            Callsign: "AAL123",
-            AircraftType: "B738",
-            Latitude: 37.5,
-            Longitude: -122.0,
-            Heading: 90,
-            Altitude: 35000,
-            GroundSpeed: 450,
-            BeaconCode: 4571,
-            TransponderMode: "C",
-            IsIdenting: false,
-            VerticalSpeed: 0,
-            AssignedHeading: null,
-            AssignedAltitude: null,
-            AssignedSpeed: null,
-            Departure: "KSFO",
-            Destination: "KJFK",
-            Route: "DCT",
-            FlightRules: "IFR",
-            Status: "",
-            CruiseAltitude: 35000,
-            CruiseSpeed: 0,
-            CruiseMach: cruiseMach,
-            IsSpeedClassified: isSpeedClassified
-        );
+        new()
+        {
+            Callsign = "AAL123",
+            AircraftType = "B738",
+            Latitude = 37.5,
+            Longitude = -122.0,
+            Heading = 90,
+            Altitude = 35000,
+            GroundSpeed = 450,
+            BeaconCode = 4571,
+            TransponderMode = "C",
+            IsIdenting = false,
+            VerticalSpeed = 0,
+            AssignedHeading = null,
+            AssignedAltitude = null,
+            AssignedSpeed = null,
+            Departure = "KSFO",
+            Destination = "KJFK",
+            Route = "DCT",
+            FlightRules = "IFR",
+            Status = "",
+            CruiseAltitude = 35000,
+            CruiseSpeed = 0,
+            CruiseMach = cruiseMach,
+            IsSpeedClassified = isSpeedClassified,
+        };
 }
