@@ -63,6 +63,62 @@ public class AircraftDtoSituationTests
     }
 
     [Fact]
+    public void Model_CopiesEramDataBlockInputs_OnCreateAndUpdate()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with
+        {
+            EramInterimAltitude = 100,
+            EramLocalInterimAltitude = 110,
+            EramProcedureAltitude = 120,
+            EramControllerEnteredAltitude = 130,
+            EramReachedAssignedAltitude = true,
+            EramPlanAltitudeFeet = 25000,
+            TransponderHasReportedModeC = true,
+            EramIsFrozen = true,
+            EramIsCoastTrack = true,
+            EramIsCoverageCoasting = true,
+        };
+
+        var model = AircraftModel.FromDto(set);
+        AssertEramInputs(model, set);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        AssertEramInputs(model, Dto(AircraftSituation.Final));
+
+        model.UpdateFromDto(set);
+        AssertEramInputs(model, set);
+    }
+
+    [Fact]
+    public void Json_MissingEramDataBlockInputs_DeserializeAsUnset()
+    {
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("eramInterimAltitude").ValueKind);
+        Assert.False(doc.RootElement.GetProperty("transponderHasReportedModeC").GetBoolean());
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\"}", WireOptions)!;
+
+        Assert.Null(back.EramPlanAltitudeFeet);
+        Assert.False(back.EramReachedAssignedAltitude);
+        Assert.False(back.EramIsCoverageCoasting);
+    }
+
+    private static void AssertEramInputs(AircraftModel model, AircraftDto dto)
+    {
+        Assert.Equal(dto.EramInterimAltitude, model.EramInterimAltitude);
+        Assert.Equal(dto.EramLocalInterimAltitude, model.EramLocalInterimAltitude);
+        Assert.Equal(dto.EramProcedureAltitude, model.EramProcedureAltitude);
+        Assert.Equal(dto.EramControllerEnteredAltitude, model.EramControllerEnteredAltitude);
+        Assert.Equal(dto.EramReachedAssignedAltitude, model.EramReachedAssignedAltitude);
+        Assert.Equal(dto.EramPlanAltitudeFeet, model.EramPlanAltitudeFeet);
+        Assert.Equal(dto.TransponderHasReportedModeC, model.TransponderHasReportedModeC);
+        Assert.Equal(dto.EramIsFrozen, model.EramIsFrozen);
+        Assert.Equal(dto.EramIsCoastTrack, model.EramIsCoastTrack);
+        Assert.Equal(dto.EramIsCoverageCoasting, model.EramIsCoverageCoasting);
+    }
+
+    [Fact]
     public void Json_SituationFlagsNumber_DeserializesToTheFlags()
     {
         string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);

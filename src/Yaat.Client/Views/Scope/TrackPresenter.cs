@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Radar;
@@ -60,11 +61,283 @@ public sealed record TrackPresenterInput(
 );
 
 /// <summary>
+/// What CRC's ERAM data block reads to format FDB line 2 (Field B, its character 4, and Field C), as the YAAT Scope has it.
+/// Altitudes are in hundreds of feet unless named in feet.
+/// </summary>
+public sealed record EramAltitudeInput
+{
+    /// <summary>Interim altitude (<c>T</c>), or null.</summary>
+    public int? InterimAltitude { get; init; }
+
+    /// <summary>Local interim altitude (<c>L</c>), or null.</summary>
+    public int? LocalInterimAltitude { get; init; }
+
+    /// <summary>Procedure altitude (<c>P</c>), or null.</summary>
+    public int? ProcedureAltitude { get; init; }
+
+    /// <summary>Controller-entered reported altitude (CERA), which stands in for the Mode C altitude; or null.</summary>
+    public int? ControllerEnteredAltitude { get; init; }
+
+    /// <summary>The vertical-conformance latch: the track has reached its assigned altitude.</summary>
+    public bool ReachedAssignedAltitude { get; init; }
+
+    /// <summary>The flight-plan altitude an ERAM viewer is sent, in feet (a block's ceiling); null or 0 when none.</summary>
+    public int? PlanAltitudeFeet { get; init; }
+
+    /// <summary>The block floor in feet, or null when the altitude is not a block.</summary>
+    public int? BlockFloorFeet { get; init; }
+
+    /// <summary>The altitude is <c>ABV</c>: it has no ceiling.</summary>
+    public bool IsAbove { get; init; }
+
+    /// <summary>The altitude is VFR.</summary>
+    public bool IsVfr { get; init; }
+
+    /// <summary>The altitude is VFR-on-top (<c>OTP</c>).</summary>
+    public bool IsVfrOnTop { get; init; }
+
+    /// <summary>The Mode C altitude, or null when the transponder reports none.</summary>
+    public int? ReportedAltitude { get; init; }
+
+    /// <summary>Whether Mode C was ever received (CRC's <c>WasModeCPreviouslyReceived</c>): <c>X</c>/<c>XXX</c> rather than <c>N</c>.</summary>
+    public bool ModeCPreviouslyReceived { get; init; }
+
+    /// <summary>
+    /// The inputs as <paramref name="ac"/> carries them; Mode C is reported unless the transponder is on standby or the track
+    /// coasts.
+    /// </summary>
+    public static EramAltitudeInput From(AircraftModel ac) =>
+        new()
+        {
+            InterimAltitude = ac.EramInterimAltitude,
+            LocalInterimAltitude = ac.EramLocalInterimAltitude,
+            ProcedureAltitude = ac.EramProcedureAltitude,
+            ControllerEnteredAltitude = ac.EramControllerEnteredAltitude,
+            ReachedAssignedAltitude = ac.EramReachedAssignedAltitude,
+            PlanAltitudeFeet = ac.EramPlanAltitudeFeet,
+            BlockFloorFeet = ac.BlockFloorAltitude,
+            IsAbove = ac.IsAbove,
+            IsVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase),
+            IsVfrOnTop = ac.IsVfrOnTop,
+            ReportedAltitude = ReportsModeC(ac) ? (int)ac.Altitude / 100 : null,
+            ModeCPreviouslyReceived = ac.TransponderHasReportedModeC,
+        };
+
+    // CRC GetReportedAltitude: a coasting track (QT coast or lost coverage) reports no Mode C, nor does a standby transponder.
+    private static bool ReportsModeC(AircraftModel ac) =>
+        !ac.EramIsCoastTrack && !ac.EramIsCoverageCoasting && !string.Equals(ac.TransponderMode, "Standby", StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>The ERAM FDB line-2 text and the arrow the renderer draws in its <see cref="TrackPresenter.EramArrowCell"/>.</summary>
+/// <param name="Text">Field B, its character 4, then Field C.</param>
+/// <param name="Style"><see cref="ScopeFieldStyle.ArrowUp"/> or <see cref="ScopeFieldStyle.ArrowDown"/> when climbing or descending.</param>
+public readonly record struct EramAltitude(string Text, ScopeFieldStyle Style);
+
+/// <summary>
 /// Decides what one track's datablock says: its level, colour role and the text of every field its template
 /// places. Pure: it reads only its input, so the flash phase and every peer aircraft arrive as arguments.
 /// </summary>
 public static class TrackPresenter
 {
+    /// <summary>
+    /// The character the ERAM altitude text holds in Field B character 4 while climbing or descending; the renderer draws the
+    /// arrow as a path in that monospace cell, so column alignment never depends on the font's glyph coverage.
+    /// </summary>
+    public const string EramArrowCell = " ";
+
+    // CRC's ALTITUDE_CONFORMANCE_LIMIT, in hundreds of feet.
+    private const int EramConformanceLimit = 2;
+
+    private enum EramConformance
+    {
+        InConformance,
+        Low,
+        High,
+        Climbing,
+        Descending,
+        DoesNotExist,
+    }
+
+    private readonly record struct EramReported(int Altitude, bool IsCera);
+
+    private readonly record struct EramPlan(int? Altitude, int? BlockLow, bool IsSingle, bool IsBlock, bool IsAbove);
+
+    /// <summary>
+    /// ERAM FDB line 2, Field B + character 4 + Field C, as CRC's <c>BaseDataBlockRenderObject</c> formats it
+    /// (<c>GetFieldB</c>, <c>GetFieldB4</c>, <c>GetVerticalConformance</c>, <c>GetFieldC</c>, <c>FormatAltitude</c>).
+    /// </summary>
+    public static EramAltitude EramAltitudeText(EramAltitudeInput input)
+    {
+        EramReported? reported = ReportedOf(input);
+        EramPlan plan = PlanOf(input);
+        EramConformance conformance = ConformanceOf(reported, input.ReachedAssignedAltitude, plan);
+        char b4 = FieldB4(input, reported, plan, conformance);
+        ScopeFieldStyle style = b4 switch
+        {
+            '↑' => ScopeFieldStyle.ArrowUp,
+            '↓' => ScopeFieldStyle.ArrowDown,
+            _ => ScopeFieldStyle.None,
+        };
+        string cell = style == ScopeFieldStyle.None ? b4.ToString() : EramArrowCell;
+        return new EramAltitude(FieldB(input, plan, conformance) + cell + FieldC(input, reported, plan, conformance), style);
+    }
+
+    // CRC GetReportedAltitude: a controller-entered altitude wins over Mode C.
+    private static EramReported? ReportedOf(EramAltitudeInput input)
+    {
+        if (input.ControllerEnteredAltitude is int cera)
+        {
+            return new EramReported(cera, true);
+        }
+        return input.ReportedAltitude is int modeC ? new EramReported(modeC, false) : null;
+    }
+
+    // CRC ParsedAltitude as the server builds it: IsSingle and IsBlock exclude VFR, OTP and ABV.
+    private static EramPlan PlanOf(EramAltitudeInput input)
+    {
+        int? altitude = input.PlanAltitudeFeet is int feet and > 0 ? feet / 100 : null;
+        int? low = input.BlockFloorFeet / 100;
+        bool plain = altitude.HasValue && !input.IsVfr && !input.IsVfrOnTop && !input.IsAbove;
+        return new EramPlan(altitude, low, plain && !low.HasValue, plain && low.HasValue, input.IsAbove);
+    }
+
+    // CRC GetVerticalConformance: a ±2 tolerance unless the altitude is controller-entered; ABV has no ceiling.
+    private static EramConformance ConformanceOf(EramReported? reported, bool reached, EramPlan plan)
+    {
+        if (reported is not { } rep)
+        {
+            return EramConformance.DoesNotExist;
+        }
+        if (plan.Altitude is not int assigned)
+        {
+            return EramConformance.InConformance;
+        }
+
+        (int floor, int? ceiling) = ConformanceBand(plan, assigned, rep.IsCera);
+        if (rep.Altitude < floor)
+        {
+            return reached ? EramConformance.Low : EramConformance.Climbing;
+        }
+        if ((ceiling is int top) && (rep.Altitude > top))
+        {
+            return reached ? EramConformance.High : EramConformance.Descending;
+        }
+        return EramConformance.InConformance;
+    }
+
+    // The conformance floor (the block floor or the assigned altitude) and ceiling (none for ABV), widened by the tolerance.
+    private static (int Floor, int? Ceiling) ConformanceBand(EramPlan plan, int assigned, bool isCera)
+    {
+        int tolerance = isCera ? 0 : EramConformanceLimit;
+        int floor = (plan.BlockLow ?? assigned) - tolerance;
+        return (floor, plan.IsAbove ? null : (int?)(assigned + tolerance));
+    }
+
+    // The temporary altitude Field B shows ahead of the plan's, with its character 4: local interim, procedure, then interim.
+    private static (int Altitude, char Mark)? Temporary(EramAltitudeInput input)
+    {
+        if (input.LocalInterimAltitude is int local)
+        {
+            return (local, 'L');
+        }
+        if (input.ProcedureAltitude is int procedure)
+        {
+            return (procedure, 'P');
+        }
+        return input.InterimAltitude is int interim ? (interim, 'T') : null;
+    }
+
+    // CRC GetFieldB.
+    private static string FieldB(EramAltitudeInput input, EramPlan plan, EramConformance conformance)
+    {
+        if (Temporary(input) is { } temporary)
+        {
+            return temporary.Altitude.ToString(CultureInfo.InvariantCulture);
+        }
+        if ((plan.Altitude is int alt) && (plan.IsSingle || plan.IsAbove || plan.IsBlock))
+        {
+            return PlanFieldB(plan, alt, conformance).ToString(CultureInfo.InvariantCulture);
+        }
+        if (input.IsVfrOnTop)
+        {
+            return "OTP";
+        }
+        return input.IsVfr ? "VFR" : "";
+    }
+
+    // A block shows its floor unless the track is below it (Low or Climbing), when it shows the ceiling.
+    private static int PlanFieldB(EramPlan plan, int altitude, EramConformance conformance) =>
+        (plan.IsBlock && (plan.BlockLow is int low) && (conformance is not (EramConformance.Low or EramConformance.Climbing))) ? low : altitude;
+
+    // CRC GetFieldB4 (no reported altitude is ever Established in the sim, so that N arm has no input).
+    private static char FieldB4(EramAltitudeInput input, EramReported? reported, EramPlan plan, EramConformance conformance)
+    {
+        if (Temporary(input) is { } temporary)
+        {
+            return temporary.Mark;
+        }
+        if (reported is not { } rep)
+        {
+            return input.ModeCPreviouslyReceived ? 'X' : 'N';
+        }
+        if (input.IsVfr || input.IsVfrOnTop)
+        {
+            return '/';
+        }
+        return plan.Altitude.HasValue ? ConformanceMark(conformance, plan, rep) : 'V';
+    }
+
+    private static char ConformanceMark(EramConformance conformance, EramPlan plan, EramReported rep) =>
+        conformance switch
+        {
+            EramConformance.Low => '-',
+            EramConformance.High => '+',
+            EramConformance.Climbing => '↑',
+            EramConformance.Descending => '↓',
+            _ when plan.BlockLow.HasValue => 'B',
+            _ when rep.IsCera => 'A',
+            _ => 'C',
+        };
+
+    // CRC GetFieldC. The server always sends a RawValue, so only VFR and OTP take the "no plan altitude" arm.
+    private static string FieldC(EramAltitudeInput input, EramReported? reported, EramPlan plan, EramConformance conformance)
+    {
+        bool hasTemporary = Temporary(input).HasValue;
+        if (reported is not { } rep)
+        {
+            return MissingReportFieldC(input, plan, hasTemporary);
+        }
+        if (hasTemporary || input.IsVfr || input.IsVfrOnTop)
+        {
+            return FormatEramAltitude(rep.Altitude, hasTemporary && rep.IsCera);
+        }
+        return PlanFieldC(rep, plan, conformance);
+    }
+
+    // Out of conformance the reported altitude shows; in conformance only a block's ceiling does.
+    private static string PlanFieldC(EramReported rep, EramPlan plan, EramConformance conformance)
+    {
+        if (conformance != EramConformance.InConformance)
+        {
+            return FormatEramAltitude(rep.Altitude, rep.IsCera);
+        }
+        return BlockCeiling(plan) is int ceiling ? FormatEramAltitude(ceiling, rep.IsCera) : "";
+    }
+
+    private static string MissingReportFieldC(EramAltitudeInput input, EramPlan plan, bool hasTemporary)
+    {
+        if (input.ModeCPreviouslyReceived)
+        {
+            return "XXX";
+        }
+        return (!hasTemporary && (BlockCeiling(plan) is int ceiling)) ? FormatEramAltitude(ceiling, false) : "";
+    }
+
+    private static int? BlockCeiling(EramPlan plan) => plan.IsBlock ? plan.Altitude : null;
+
+    // CRC FormatAltitude with pad = false: never zero-padded; a CERA takes '#'.
+    private static string FormatEramAltitude(int altitude, bool isCera) => altitude.ToString(CultureInfo.InvariantCulture) + (isCera ? "#" : "");
+
     /// <summary>Presents <paramref name="input"/>'s track for its template at the Full block level.</summary>
     /// <exception cref="ArgumentException">The template id is unknown.</exception>
     public static TrackPresentation Present(TrackPresenterInput input)
@@ -72,6 +345,7 @@ public static class TrackPresenter
         List<ScopeField> fields = input.TemplateId switch
         {
             ScopeTemplates.StarsId => StarsFields(input),
+            ScopeTemplates.EramId => EramFields(input),
             ScopeTemplates.EuroScopeId => EuroScopeFields(input),
             _ => throw new ArgumentException($"Unknown scope template id '{input.TemplateId}'.", nameof(input)),
         };
@@ -156,6 +430,26 @@ public static class TrackPresenter
             ),
             AtpaField(input),
         ];
+    }
+
+    /// <summary>
+    /// The ERAM template's fields: the STARS fields with the ERAM altitude line in place of the STARS altitude. The MVA tint
+    /// does not apply: it colours a whole field, and only Field C is the reported altitude.
+    /// </summary>
+    private static List<ScopeField> EramFields(TrackPresenterInput input)
+    {
+        List<ScopeField> fields = StarsFields(input);
+        int altitude = fields.FindIndex(f => f.Slot == ScopeFieldSlot.Altitude);
+        EramAltitude eram = EramAltitudeText(EramAltitudeInput.From(input.Aircraft));
+        fields[altitude] = new ScopeField(
+            ScopeFieldSlot.EramAltitude,
+            eram.Text,
+            eram.Text,
+            ScopeColorToken.Default,
+            ScopeFieldAction.None,
+            eram.Style
+        );
+        return fields;
     }
 
     private static List<ScopeField> EuroScopeFields(TrackPresenterInput input)

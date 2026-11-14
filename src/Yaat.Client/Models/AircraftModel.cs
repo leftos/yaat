@@ -35,6 +35,46 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private bool _hasMadeInitialContact;
 
+    /// <summary>ERAM interim altitude (QQ), hundreds of feet; null when none.</summary>
+    [ObservableProperty]
+    private int? _eramInterimAltitude;
+
+    /// <summary>ERAM local interim altitude, hundreds of feet; null when none.</summary>
+    [ObservableProperty]
+    private int? _eramLocalInterimAltitude;
+
+    /// <summary>ERAM procedure altitude, hundreds of feet; null when none.</summary>
+    [ObservableProperty]
+    private int? _eramProcedureAltitude;
+
+    /// <summary>ERAM controller-entered reported altitude (CERA), hundreds of feet; null when none.</summary>
+    [ObservableProperty]
+    private int? _eramControllerEnteredAltitude;
+
+    /// <summary>The ERAM vertical-conformance latch: the track has reached its assigned altitude.</summary>
+    [ObservableProperty]
+    private bool _eramReachedAssignedAltitude;
+
+    /// <summary>The flight-plan altitude an ERAM viewer is sent, in feet; null when the plan has none.</summary>
+    [ObservableProperty]
+    private int? _eramPlanAltitudeFeet;
+
+    /// <summary>Whether the transponder has ever reported Mode C (CRC's <c>WasModeCPreviouslyReceived</c>).</summary>
+    [ObservableProperty]
+    private bool _transponderHasReportedModeC;
+
+    /// <summary>The ERAM track is frozen.</summary>
+    [ObservableProperty]
+    private bool _eramIsFrozen;
+
+    /// <summary>The ERAM track is a coast (QT) track.</summary>
+    [ObservableProperty]
+    private bool _eramIsCoastTrack;
+
+    /// <summary>The ERAM track is coasting for lack of radar coverage.</summary>
+    [ObservableProperty]
+    private bool _eramIsCoverageCoasting;
+
     /// <summary>
     /// Actual aircraft type — what's physically flying. Read by Tower Cab (out-the-window
     /// datablock), physics/performance lookups, and the operator-facing Aircraft List data
@@ -1423,6 +1463,16 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             ResumeTaxiRefused = dto.ResumeTaxiRefused,
             PendingPilotRequest = dto.PendingPilotRequest,
             HasMadeInitialContact = dto.HasMadeInitialContact,
+            EramInterimAltitude = dto.EramInterimAltitude,
+            EramLocalInterimAltitude = dto.EramLocalInterimAltitude,
+            EramProcedureAltitude = dto.EramProcedureAltitude,
+            EramControllerEnteredAltitude = dto.EramControllerEnteredAltitude,
+            EramReachedAssignedAltitude = dto.EramReachedAssignedAltitude,
+            EramPlanAltitudeFeet = dto.EramPlanAltitudeFeet,
+            TransponderHasReportedModeC = dto.TransponderHasReportedModeC,
+            EramIsFrozen = dto.EramIsFrozen,
+            EramIsCoastTrack = dto.EramIsCoastTrack,
+            EramIsCoverageCoasting = dto.EramIsCoverageCoasting,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
@@ -1575,6 +1625,16 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         ResumeTaxiRefused = dto.ResumeTaxiRefused;
         PendingPilotRequest = dto.PendingPilotRequest;
         HasMadeInitialContact = dto.HasMadeInitialContact;
+        EramInterimAltitude = dto.EramInterimAltitude;
+        EramLocalInterimAltitude = dto.EramLocalInterimAltitude;
+        EramProcedureAltitude = dto.EramProcedureAltitude;
+        EramControllerEnteredAltitude = dto.EramControllerEnteredAltitude;
+        EramReachedAssignedAltitude = dto.EramReachedAssignedAltitude;
+        EramPlanAltitudeFeet = dto.EramPlanAltitudeFeet;
+        TransponderHasReportedModeC = dto.TransponderHasReportedModeC;
+        EramIsFrozen = dto.EramIsFrozen;
+        EramIsCoastTrack = dto.EramIsCoastTrack;
+        EramIsCoverageCoasting = dto.EramIsCoverageCoasting;
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;

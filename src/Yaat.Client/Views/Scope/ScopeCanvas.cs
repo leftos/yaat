@@ -46,6 +46,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         nameof(ShowMvaAltitudeTint)
     );
 
+    /// <summary>Id of the datablock template the scope draws (see <see cref="ScopeTemplates"/>).</summary>
+    public static readonly StyledProperty<string> TemplateIdProperty = AvaloniaProperty.Register<ScopeCanvas, string>(
+        nameof(TemplateId),
+        defaultValue: ScopeTemplates.StarsId
+    );
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoHighlights = [];
 
@@ -79,6 +85,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowMvaAltitudeTintProperty, value);
     }
 
+    public string TemplateId
+    {
+        get => GetValue(TemplateIdProperty);
+        set => SetValue(TemplateIdProperty, value);
+    }
+
     public double CenterLat
     {
         get => GetValue(CenterLatProperty);
@@ -97,7 +109,10 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         set => SetValue(RangeNmProperty, value);
     }
 
-    /// <summary>The user's preferences: the template choice, the datablock font size and the alert overlays. Null draws STARS at 12.</summary>
+    /// <summary>
+    /// The user's preferences: the datablock font size and the alert overlays (the template comes from <see cref="TemplateId"/>).
+    /// Null draws at 12.
+    /// </summary>
     public UserPreferences? Preferences { get; set; }
 
     /// <summary>The scope's datablock state; each block is placed from its manual offsets. Null places every block at the default offset.</summary>
@@ -170,7 +185,11 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         {
             OnAircraftChanged();
         }
-        else if ((change.Property == SelectedAircraftProperty) || (change.Property == ShowMvaAltitudeTintProperty))
+        else if (
+            (change.Property == SelectedAircraftProperty)
+            || (change.Property == ShowMvaAltitudeTintProperty)
+            || (change.Property == TemplateIdProperty)
+        )
         {
             _lastFrame = null;
             MarkDirty();
@@ -285,8 +304,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoHighlights;
-        bool euroScope = prefs?.EuroScopeMode ?? false;
-        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, euroScope, metrics, alerts, display, offsets, highlighted));
+        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, TemplateId, metrics, alerts, display, offsets, highlighted));
     }
 
     /// <summary>The user's tints and selected-symbol colour, as today's radar reads them from the preferences.</summary>

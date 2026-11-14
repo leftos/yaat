@@ -39,6 +39,9 @@ public static class ScopeTemplates
     /// <summary>Id of the STARS template.</summary>
     public const string StarsId = "stars";
 
+    /// <summary>Id of the ERAM template.</summary>
+    public const string EramId = "eram";
+
     /// <summary>Id of the EuroScope tag template.</summary>
     public const string EuroScopeId = "euroscope";
 
@@ -68,6 +71,40 @@ public static class ScopeTemplates
             Line(false, Steady(ScopeFieldSlot.Squawk)),
             Line(false, Flashing(ScopeFieldSlot.StatusLine3)),
             Line(false, Steady(ScopeFieldSlot.Atpa)),
+            Line(false, Steady(ScopeFieldSlot.ModeC)),
+            Line(false, Flashing(ScopeFieldSlot.NoLandingClearance)),
+            Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),
+            Line(false, Steady(ScopeFieldSlot.InstructorNote)),
+        ]
+    );
+
+    /// <summary>
+    /// The ERAM datablock: line 1 as STARS; line 2 the ERAM altitude (Field B, its character 4 and Field C) followed by the
+    /// STARS right side (ground speed, cwt/type, the ATPA in-trail distance, then the ident); then the squawk-mismatch,
+    /// status, ModeC, warning, conflict and note lines.
+    /// </summary>
+    public static readonly ScopeTemplate Eram = new(
+        EramId,
+        ScopeGapMode.TextSeparator,
+        FieldGap: 0f,
+        Padding: 3f,
+        [
+            Line(
+                true,
+                Steady(ScopeFieldSlot.Callsign),
+                new ScopeSlotPlacement(ScopeFieldSlot.VfrMark, "", false),
+                new ScopeSlotPlacement(ScopeFieldSlot.StudentLevelMark, "", false)
+            ),
+            Line(
+                true,
+                Steady(ScopeFieldSlot.EramAltitude),
+                Steady(ScopeFieldSlot.GroundSpeed),
+                Steady(ScopeFieldSlot.CwtType),
+                Steady(ScopeFieldSlot.Atpa),
+                Flashing(ScopeFieldSlot.Ident)
+            ),
+            Line(false, Steady(ScopeFieldSlot.Squawk)),
+            Line(false, Flashing(ScopeFieldSlot.StatusLine3)),
             Line(false, Steady(ScopeFieldSlot.ModeC)),
             Line(false, Flashing(ScopeFieldSlot.NoLandingClearance)),
             Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),
@@ -116,6 +153,7 @@ public static class ScopeTemplates
         id switch
         {
             StarsId => Stars,
+            EramId => Eram,
             EuroScopeId => EuroScope,
             _ => throw new ArgumentException($"Unknown scope template id '{id}'.", nameof(id)),
         };

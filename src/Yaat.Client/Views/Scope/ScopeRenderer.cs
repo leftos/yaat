@@ -12,7 +12,7 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="Aircraft">The tracks to draw, already filtered for visibility.</param>
 /// <param name="Selected">The selected aircraft, or null.</param>
 /// <param name="Viewport">The viewport the frame is drawn in.</param>
-/// <param name="EuroScopeMode">Whether the EuroScope template is in use (else the STARS template).</param>
+/// <param name="TemplateId">Id of the datablock template in use (see <see cref="ScopeTemplates"/>).</param>
 /// <param name="Metrics">Datablock text measurements.</param>
 /// <param name="Alerts">Alert overlays the user's preferences allow.</param>
 /// <param name="Display">Instructor display hints the user's preferences allow.</param>
@@ -22,7 +22,7 @@ public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
     MapViewport Viewport,
-    bool EuroScopeMode,
+    string TemplateId,
     ScopeTextMetrics Metrics,
     ScopeAlertOptions Alerts,
     ScopeDisplayOptions Display,
@@ -65,16 +65,13 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>How near the MVA floor an altitude reads as at it, as today's radar uses.</summary>
     private const int MvaAtBandFt = 100;
 
-    /// <summary>The template the EuroScope-mode preference picks.</summary>
-    public static string TemplateFor(bool euroScopeMode) => euroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
-
     /// <summary>
     /// Lays every track out for this frame, reading the blink phase from <see cref="RadarBlink"/> once so the whole frame
     /// shares one phase. Each block sits at the default leader offset.
     /// </summary>
     public static ScopeFrame Build(ScopeFrameInput input)
     {
-        string templateId = TemplateFor(input.EuroScopeMode);
+        string templateId = input.TemplateId;
         bool flashOn = RadarBlink.IsOn;
         var byCallsign = new Dictionary<string, AircraftModel>(StringComparer.Ordinal);
         foreach (AircraftModel ac in input.Aircraft)
@@ -271,6 +268,15 @@ public sealed class ScopeRenderer : IDisposable
     // Antialiased like today's radar strike paint, and outside the radar line style: its width comes from the font each draw.
     private readonly SKPaint _strikethroughPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
 
+    // The ERAM climb/descend arrow, drawn as a path in its monospace cell; its width comes from the font each draw.
+    private readonly SKPaint _arrowPaint = new()
+    {
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+        StrokeJoin = SKStrokeJoin.Round,
+    };
+
     // Stroke paints drawn in the radar's line style (no AA, device-pixel width) each frame; each carries its base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
@@ -305,6 +311,7 @@ public sealed class ScopeRenderer : IDisposable
         _selectedBorderPaint.Dispose();
         _textPaint.Dispose();
         _strikethroughPaint.Dispose();
+        _arrowPaint.Dispose();
         _font?.Dispose();
     }
 
@@ -362,6 +369,51 @@ public sealed class ScopeRenderer : IDisposable
         {
             DrawStrikethrough(canvas, field, font, color);
         }
+
+        if ((field.Style & (ScopeFieldStyle.ArrowUp | ScopeFieldStyle.ArrowDown)) != 0)
+        {
+            DrawArrow(canvas, field, font, color);
+        }
+    }
+
+    /// <summary>
+    /// The ERAM climb or descend arrow in the monospace cell <see cref="TrackPresenter.EramArrowCell"/> holds in
+    /// <paramref name="field"/>'s text: a shaft from the baseline to the cap height with a head at the pointed end.
+    /// </summary>
+    private void DrawArrow(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
+    {
+        int cell = field.Text.IndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
+        if (cell < 0)
+        {
+            return;
+        }
+
+        using SKPath path = ArrowPath(field, font, cell, field.Style.HasFlag(ScopeFieldStyle.ArrowUp));
+        _arrowPaint.Color = color;
+        _arrowPaint.StrokeWidth = MathF.Max(1f, font.Size / 10f);
+        canvas.DrawPath(path, _arrowPaint);
+    }
+
+    /// <summary>The arrow's path in cell <paramref name="cell"/> of <paramref name="field"/>, pointing up or down.</summary>
+    internal static SKPath ArrowPath(FieldRect field, SKFont font, int cell, bool up)
+    {
+        float left = field.Rect.Left + font.MeasureText(field.Text[..cell]);
+        float width = font.MeasureText(TrackPresenter.EramArrowCell);
+        float capHeight = font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f;
+        float bottom = field.Rect.Bottom;
+        float top = bottom - capHeight;
+        float x = left + (width / 2f);
+        float head = width * 0.35f;
+        float tip = up ? top : bottom;
+        float barb = up ? top + head : bottom - head;
+
+        var path = new SKPath();
+        path.MoveTo(x, bottom);
+        path.LineTo(x, top);
+        path.MoveTo(x - head, barb);
+        path.LineTo(x, tip);
+        path.LineTo(x + head, barb);
+        return path;
     }
 
     /// <summary>

@@ -108,7 +108,7 @@ public class ScopeFrameMvaTests
             [ac],
             null,
             viewport,
-            false,
+            ScopeTemplates.StarsId,
             metrics,
             ScopeTestAircraft.AllAlerts,
             display,

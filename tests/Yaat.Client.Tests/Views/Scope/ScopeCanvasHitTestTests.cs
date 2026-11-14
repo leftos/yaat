@@ -15,16 +15,16 @@ namespace Yaat.Client.Tests.Views.Scope;
 [Collection(RadarBlinkClockCollection.Name)]
 public class ScopeCanvasHitTestTests
 {
-    public static TheoryData<bool, float> TemplatesBySize
+    public static TheoryData<string, float> TemplatesBySize
     {
         get
         {
-            var data = new TheoryData<bool, float>();
-            foreach (bool euroScope in new[] { false, true })
+            var data = new TheoryData<string, float>();
+            foreach (string templateId in new[] { ScopeTemplates.StarsId, ScopeTemplates.EramId, ScopeTemplates.EuroScopeId })
             {
                 foreach (float size in new[] { 9f, 12f, 14f, 18f })
                 {
-                    data.Add(euroScope, size);
+                    data.Add(templateId, size);
                 }
             }
             return data;
@@ -67,7 +67,7 @@ public class ScopeCanvasHitTestTests
         return ac;
     }
 
-    private static ScopeFrame Build(bool euroScope, float size, params AircraftModel[] aircraft)
+    private static ScopeFrame Build(string templateId, float size, params AircraftModel[] aircraft)
     {
         using var font = new SKFont { Size = size };
         using var paint = new SKPaint();
@@ -76,7 +76,7 @@ public class ScopeCanvasHitTestTests
             aircraft,
             null,
             Viewport(),
-            euroScope,
+            templateId,
             metrics,
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
@@ -93,7 +93,7 @@ public class ScopeCanvasHitTestTests
 
     [Theory]
     [MemberData(nameof(TemplatesBySize))]
-    public void HitTest_EveryDrawnField_ReturnsItsDrawnRect(bool euroScope, float fontSize)
+    public void HitTest_EveryDrawnField_ReturnsItsDrawnRect(string templateId, float fontSize)
     {
         AircraftModel busy = Busy();
         AircraftModel other = ScopeTestAircraft.CreateModel();
@@ -103,7 +103,7 @@ public class ScopeCanvasHitTestTests
         ScopeFrame frame;
         using (RadarBlinkPin.Phase(true))
         {
-            frame = Build(euroScope, fontSize, busy, other);
+            frame = Build(templateId, fontSize, busy, other);
         }
 
         Assert.Equal(2, frame.Tracks.Count);
@@ -130,11 +130,11 @@ public class ScopeCanvasHitTestTests
         ScopeFrame off;
         using (RadarBlinkPin.Phase(true))
         {
-            on = Build(false, 12f, ac);
+            on = Build(ScopeTemplates.StarsId, 12f, ac);
         }
         using (RadarBlinkPin.Phase(false))
         {
-            off = Build(false, 12f, ac);
+            off = Build(ScopeTemplates.StarsId, 12f, ac);
         }
 
         FieldRect onField = FieldOf(on, ScopeFieldSlot.StatusLine3);
@@ -155,11 +155,11 @@ public class ScopeCanvasHitTestTests
         ScopeFrame off;
         using (RadarBlinkPin.Phase(true))
         {
-            on = Build(true, 12f, ac);
+            on = Build(ScopeTemplates.EuroScopeId, 12f, ac);
         }
         using (RadarBlinkPin.Phase(false))
         {
-            off = Build(true, 12f, ac);
+            off = Build(ScopeTemplates.EuroScopeId, 12f, ac);
         }
 
         FieldRect onField = FieldOf(on, ScopeFieldSlot.Handoff);
@@ -174,13 +174,28 @@ public class ScopeCanvasHitTestTests
     }
 
     [Theory]
-    [InlineData(false, "stars")]
-    [InlineData(true, "euroscope")]
-    public void Snapshot_TemplateFollowsEuroScopeMode(bool euroScopeMode, string templateId)
+    [InlineData("stars")]
+    [InlineData("eram")]
+    [InlineData("euroscope")]
+    public void Snapshot_TemplateIsTheInputsTemplate(string templateId)
     {
-        ScopeFrame frame = Build(euroScopeMode, 12f, ScopeTestAircraft.CreateModel());
+        ScopeFrame frame = Build(templateId, 12f, ScopeTestAircraft.CreateModel());
 
         Assert.Equal(templateId, frame.TemplateId);
-        Assert.Equal(templateId, ScopeFrame.TemplateFor(euroScopeMode));
+    }
+
+    /// <summary>An ERAM block with the arrow drawn in line 2 hit-tests every field, the altitude among them, to its drawn rect.</summary>
+    [Fact]
+    public void HitTest_Eram_ClimbingAltitudeField_ReturnsItsDrawnRect()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.EramPlanAltitudeFeet = 30000;
+        ScopeFrame frame = Build(ScopeTemplates.EramId, 12f, ac);
+
+        FieldRect altitude = FieldOf(frame, ScopeFieldSlot.EramAltitude);
+        Assert.Equal("300" + TrackPresenter.EramArrowCell + "230", altitude.Text);
+        Assert.Equal(ScopeFieldStyle.ArrowUp, altitude.Style);
+        (float x, float y) = Centre(altitude);
+        Assert.Equal(altitude, frame.FieldAt(x, y)?.Field);
     }
 }

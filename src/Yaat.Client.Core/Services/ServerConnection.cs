@@ -1492,6 +1492,21 @@ public record AircraftDto
     public PendingPilotRequestDto? PendingPilotRequest { get; init; } = null;
     public bool HasMadeInitialContact { get; init; } = false;
 
+    // The ERAM data block's line-2 inputs the YAAT Scope formats as CRC does: the interim, local interim, procedure and
+    // controller-entered altitudes (hundreds of feet), the vertical-conformance latch, the flight-plan altitude an ERAM
+    // viewer is sent (feet), whether Mode C was ever received, and the frozen and coast flags. Kept name-for-name in sync
+    // with the server's AircraftStateDto.
+    public int? EramInterimAltitude { get; init; } = null;
+    public int? EramLocalInterimAltitude { get; init; } = null;
+    public int? EramProcedureAltitude { get; init; } = null;
+    public int? EramControllerEnteredAltitude { get; init; } = null;
+    public bool EramReachedAssignedAltitude { get; init; } = false;
+    public int? EramPlanAltitudeFeet { get; init; } = null;
+    public bool TransponderHasReportedModeC { get; init; } = false;
+    public bool EramIsFrozen { get; init; } = false;
+    public bool EramIsCoastTrack { get; init; } = false;
+    public bool EramIsCoverageCoasting { get; init; } = false;
+
     // The identities the client compares with the position it acts as (Yaat.Sim.TrackCoordinationView): the owner's and the
     // handoff peer's facility ids, the position that redirected the handoff, and the pending pointout's recipient and sender
     // TCP codes (null unless the pointout is pending). Kept name-for-name in sync with the server's AircraftStateDto.

@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Scope;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
@@ -48,6 +50,23 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     private bool _showMvaHints;
 
     /// <summary>
+    /// Id of the datablock template the scope draws (<see cref="ScopeTemplates"/>): seeded once from the EuroScope-mode
+    /// preference when the scope opens, then changed only from the scope's Template menu; never written to the preferences.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStarsTemplate), nameof(IsEramTemplate), nameof(IsEuroScopeTemplate))]
+    private string _templateId;
+
+    /// <summary>The STARS template is in use (the Template menu's radio check).</summary>
+    public bool IsStarsTemplate => TemplateId == ScopeTemplates.StarsId;
+
+    /// <summary>The ERAM template is in use (the Template menu's radio check).</summary>
+    public bool IsEramTemplate => TemplateId == ScopeTemplates.EramId;
+
+    /// <summary>The EuroScope template is in use (the Template menu's radio check).</summary>
+    public bool IsEuroScopeTemplate => TemplateId == ScopeTemplates.EuroScopeId;
+
+    /// <summary>
     /// Seeds the scope from the radar now when the radar has a centre and maps; otherwise waits for the radar's first
     /// centre and maps, takes them once and stops listening.
     /// </summary>
@@ -55,6 +74,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     {
         Main = main;
         _selectedAircraft = main.SelectedAircraft;
+        _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
         main.PropertyChanged += OnMainPropertyChanged;
         if (!TrySeedFrom(main.Radar))
         {
@@ -72,7 +92,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>The traffic the scope draws.</summary>
     public ObservableCollection<AircraftModel> Aircraft => Main.Aircraft;
 
-    /// <summary>The user's preferences; the scope reads its template choice and datablock font size from them.</summary>
+    /// <summary>The user's preferences; the scope reads its datablock font size from them and seeds <see cref="TemplateId"/> once.</summary>
     public UserPreferences Preferences => Main.Preferences;
 
     /// <summary>Brightness of the A-category video maps, 0 to 1.</summary>
@@ -102,6 +122,11 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         Main.PropertyChanged -= OnMainPropertyChanged;
         StopWaitingForSeed();
     }
+
+    /// <summary>Picks the datablock template with <paramref name="templateId"/>, as the Template menu's items do.</summary>
+    /// <exception cref="ArgumentException">No template has that id.</exception>
+    [RelayCommand]
+    private void PickTemplate(string templateId) => TemplateId = ScopeTemplates.Get(templateId).Id;
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {

@@ -21,6 +21,9 @@ public enum ScopeFieldSlot
     /// <summary>Reported altitude in hundreds of feet.</summary>
     Altitude,
 
+    /// <summary>ERAM FDB line 2's altitude: assigned (Field B), its character 4, and the reported altitude (Field C).</summary>
+    EramAltitude,
+
     /// <summary>Ground speed in tens of knots.</summary>
     GroundSpeed,
 
