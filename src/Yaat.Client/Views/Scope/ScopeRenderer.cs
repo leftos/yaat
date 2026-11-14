@@ -214,6 +214,9 @@ public sealed class ScopeRenderer : IDisposable
     private const float SymbolRadius = 5f;
 
     private static readonly SKColor SymbolColor = new(0, 176, 255);
+
+    /// <summary>The VCI's three arc radii as fractions of the largest.</summary>
+    private static readonly float[] VciArcScales = [1f / 3f, 2f / 3f, 1f];
     private static readonly SKColor BlockColor = SKColors.White;
     private static readonly SKColor SelectedBorderColor = SKColors.White;
     private static readonly SKColor HighlightColor = SKColors.Cyan;
@@ -330,14 +333,13 @@ public sealed class ScopeRenderer : IDisposable
         _symbolPaint.Color = SymbolColorOf(track, palette);
         canvas.DrawCircle(track.Symbol.X, track.Symbol.Y, SymbolRadius, _symbolPaint);
 
-        SKRect bounds = track.Block.Bounds;
         if (track.IsSelected)
         {
-            canvas.DrawRect(bounds, _selectedBorderPaint);
+            canvas.DrawRect(SelectionBorder(track), _selectedBorderPaint);
         }
 
         SKColor blockColor = BlockColorOf(track, palette);
-        SKPoint leaderEnd = ClampToBlockEdge(track.Symbol, bounds);
+        SKPoint leaderEnd = LeaderEnd(track);
         _leaderPaint.Color = blockColor;
         canvas.DrawLine(track.Symbol, leaderEnd, _leaderPaint);
 
@@ -372,17 +374,26 @@ public sealed class ScopeRenderer : IDisposable
 
         if ((field.Style & (ScopeFieldStyle.ArrowUp | ScopeFieldStyle.ArrowDown)) != 0)
         {
-            DrawArrow(canvas, field, font, color);
+            bool up = field.Style.HasFlag(ScopeFieldStyle.ArrowUp);
+            DrawCellPath(canvas, field, font, color, cell => ArrowPath(field, font, cell, up));
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.HsfIndicator))
         {
-            DrawHsfIndicator(canvas, field, font, color);
+            DrawCellPath(canvas, field, font, color, cell => HsfPath(field, font, cell));
+        }
+
+        if (field.Style.HasFlag(ScopeFieldStyle.Vci))
+        {
+            DrawCellPath(canvas, field, font, color, cell => VciPath(field, font, cell));
         }
     }
 
-    /// <summary>The ERAM HSF indicator ↴ in the monospace cell <see cref="TrackPresenter.EramArrowCell"/> holds in the field's text.</summary>
-    private void DrawHsfIndicator(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
+    /// <summary>
+    /// Strokes the glyph <paramref name="buildPath"/> builds in the monospace cell <see cref="TrackPresenter.EramArrowCell"/>
+    /// holds in <paramref name="field"/>'s text (the arrow, the HSF indicator, the VCI); nothing when the text holds no cell.
+    /// </summary>
+    private void DrawCellPath(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, Func<int, SKPath> buildPath)
     {
         int cell = field.Text.IndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
         if (cell < 0)
@@ -390,10 +401,41 @@ public sealed class ScopeRenderer : IDisposable
             return;
         }
 
-        using SKPath path = HsfPath(field, font, cell);
+        using SKPath path = buildPath(cell);
         _arrowPaint.Color = color;
         _arrowPaint.StrokeWidth = MathF.Max(1f, font.Size / 10f);
         canvas.DrawPath(path, _arrowPaint);
+    }
+
+    /// <summary>
+    /// Where cell <paramref name="cell"/> of <paramref name="field"/> sits: its left edge, its width and the font's cap height
+    /// (seven tenths of the size when the font reports none).
+    /// </summary>
+    private static (float Left, float Width, float CapHeight) CellOf(FieldRect field, SKFont font, int cell) =>
+        (
+            field.Rect.Left + font.MeasureText(field.Text[..cell]),
+            font.MeasureText(TrackPresenter.EramArrowCell),
+            font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f
+        );
+
+    /// <summary>
+    /// The VCI path in cell <paramref name="cell"/> of <paramref name="field"/>: three concentric quarter arcs about the cell's
+    /// bottom-left corner, opening up and right, the largest as wide as the cell or as tall as the cap height.
+    /// </summary>
+    internal static SKPath VciPath(FieldRect field, SKFont font, int cell)
+    {
+        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        float radius = MathF.Min(width, capHeight) * 0.9f;
+        float cx = left + (width * 0.05f);
+        float cy = field.Rect.Bottom;
+
+        var path = new SKPath();
+        foreach (float scale in VciArcScales)
+        {
+            float r = radius * scale;
+            path.AddArc(new SKRect(cx - r, cy - r, cx + r, cy + r), -90f, 90f);
+        }
+        return path;
     }
 
     /// <summary>
@@ -402,9 +444,7 @@ public sealed class ScopeRenderer : IDisposable
     /// </summary>
     internal static SKPath HsfPath(FieldRect field, SKFont font, int cell)
     {
-        float left = field.Rect.Left + font.MeasureText(field.Text[..cell]);
-        float width = font.MeasureText(TrackPresenter.EramArrowCell);
-        float capHeight = font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f;
+        (float left, float width, float capHeight) = CellOf(field, font, cell);
         float bottom = field.Rect.Bottom;
         float y = bottom - (capHeight * 0.75f);
         float x = left + (width * 0.65f);
@@ -421,29 +461,12 @@ public sealed class ScopeRenderer : IDisposable
     }
 
     /// <summary>
-    /// The ERAM climb or descend arrow in the monospace cell <see cref="TrackPresenter.EramArrowCell"/> holds in
-    /// <paramref name="field"/>'s text: a shaft from the baseline to the cap height with a head at the pointed end.
+    /// The ERAM climb or descend arrow's path in cell <paramref name="cell"/> of <paramref name="field"/>: a shaft from the
+    /// baseline to the cap height with a head at the pointed end.
     /// </summary>
-    private void DrawArrow(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
-    {
-        int cell = field.Text.IndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
-        if (cell < 0)
-        {
-            return;
-        }
-
-        using SKPath path = ArrowPath(field, font, cell, field.Style.HasFlag(ScopeFieldStyle.ArrowUp));
-        _arrowPaint.Color = color;
-        _arrowPaint.StrokeWidth = MathF.Max(1f, font.Size / 10f);
-        canvas.DrawPath(path, _arrowPaint);
-    }
-
-    /// <summary>The arrow's path in cell <paramref name="cell"/> of <paramref name="field"/>, pointing up or down.</summary>
     internal static SKPath ArrowPath(FieldRect field, SKFont font, int cell, bool up)
     {
-        float left = field.Rect.Left + font.MeasureText(field.Text[..cell]);
-        float width = font.MeasureText(TrackPresenter.EramArrowCell);
-        float capHeight = font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f;
+        (float left, float width, float capHeight) = CellOf(field, font, cell);
         float bottom = field.Rect.Bottom;
         float top = bottom - capHeight;
         float x = left + (width / 2f);
@@ -550,6 +573,15 @@ public sealed class ScopeRenderer : IDisposable
         };
 
     private static SKColor Stale(ScopeTrack track, SKColor color) => track.IsStale ? color.WithAlpha(StaleAlpha) : color;
+
+    /// <summary>
+    /// Where <paramref name="track"/>'s leader meets its block: the nearest point of the text bounds, so column 0 never moves it
+    /// (CRC attaches the leader to the fields box).
+    /// </summary>
+    internal static SKPoint LeaderEnd(ScopeTrack track) => ClampToBlockEdge(track.Symbol, track.Block.TextBounds);
+
+    /// <summary>The rect a selected track's border is drawn on: its text block, so column 0 never moves it.</summary>
+    internal static SKRect SelectionBorder(ScopeTrack track) => track.Block.TextBounds;
 
     /// <summary>The point on <paramref name="rect"/>'s edge nearest <paramref name="point"/>, or the point itself when inside.</summary>
     private static SKPoint ClampToBlockEdge(SKPoint point, SKRect rect) =>

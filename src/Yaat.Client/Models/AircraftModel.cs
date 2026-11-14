@@ -1693,7 +1693,11 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         EramAssignedHeading = dto.EramAssignedHeading;
         EramAssignedSpeed = dto.EramAssignedSpeed;
         EramFreeText = dto.EramFreeText;
-        EramOnFrequencySectorIds = [.. dto.EramOnFrequencySectorIds ?? []];
+        IReadOnlyList<string> onFrequency = dto.EramOnFrequencySectorIds ?? [];
+        if (!EramOnFrequencySectorIds.SequenceEqual(onFrequency))
+        {
+            EramOnFrequencySectorIds = [.. onFrequency];
+        }
         EramIsCorrelated = dto.EramIsCorrelated;
         EramSpcBlinking = dto.EramSpcBlinking;
         EramHandoffPeerFieldE = dto.EramHandoffPeerFieldE;

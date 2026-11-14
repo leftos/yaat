@@ -6,8 +6,11 @@ namespace Yaat.Client.Views.Scope;
 /// </summary>
 public enum ScopeFieldSlot
 {
-    /// <summary>Column-0 marks (the on-frequency VCI and the not-your-control <c>R</c>).</summary>
-    Column0Marks,
+    /// <summary>ERAM column 0, row 2: the VCI while the viewer's sector is on frequency, a path in its cell.</summary>
+    Vci,
+
+    /// <summary>ERAM column 0, row 3: the not-your-control <c>R</c> while the track's owner is not the viewer's sector.</summary>
+    NotYourControl,
 
     /// <summary>Aircraft callsign.</summary>
     Callsign,

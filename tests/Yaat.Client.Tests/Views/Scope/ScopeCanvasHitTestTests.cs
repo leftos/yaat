@@ -220,4 +220,47 @@ public class ScopeCanvasHitTestTests
         Assert.Equal(ScopeFieldSlot.HsfIndicator, frame.FieldAt(ix, iy)?.Field.Slot);
         Assert.Equal(ScopeFieldSlot.StatusLine3, frame.FieldAt(sx, sy)?.Field.Slot);
     }
+
+    private static ScopeFrame BuildViewedFrom(ScopeViewer viewer, AircraftModel aircraft)
+    {
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            [aircraft],
+            null,
+            Viewport(),
+            ScopeTemplates.EramId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = viewer,
+            },
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>()
+        );
+        return ScopeFrame.Build(input);
+    }
+
+    [Fact]
+    public void HitTest_Eram_ColumnZeroMarks_ReturnTheirRects()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.OwnerFacilityId = "ZOA";
+        ac.OwnerSectorCode = "C45";
+        ac.EramOnFrequencySectorIds = ["44"];
+        ScopeFrame frame;
+        using (RadarBlinkPin.Phase(true))
+        {
+            frame = BuildViewedFrom(new ScopeViewer(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44"), ac);
+        }
+
+        foreach (ScopeFieldSlot slot in new[] { ScopeFieldSlot.Vci, ScopeFieldSlot.NotYourControl })
+        {
+            FieldRect mark = FieldOf(frame, slot);
+            (float x, float y) = Centre(mark);
+            Assert.Equal(mark, frame.FieldAt(x, y)?.Field);
+            Assert.Same(ac, frame.BlockAt(x, y));
+        }
+    }
 }

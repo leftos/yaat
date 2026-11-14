@@ -170,6 +170,38 @@ public class AircraftDtoSituationTests
         Assert.Null(back.EramRecentHandoffPeerFieldE);
     }
 
+    [Fact]
+    public void ApplyDto_SameOnFrequencySectors_RaisesNoPropertyChanged()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with { EramOnFrequencySectorIds = ["44", "40"] };
+        var model = AircraftModel.FromDto(set);
+        IReadOnlyList<string> before = model.EramOnFrequencySectorIds;
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        model.UpdateFromDto(set with { EramOnFrequencySectorIds = ["44", "40"] });
+
+        Assert.DoesNotContain(nameof(AircraftModel.EramOnFrequencySectorIds), changed);
+        Assert.Same(before, model.EramOnFrequencySectorIds);
+    }
+
+    [Fact]
+    public void ApplyDto_ChangedOnFrequencySectors_Updates()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { EramOnFrequencySectorIds = ["44"] });
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final) with { EramOnFrequencySectorIds = ["40", "44"] });
+        Assert.Equal(["40", "44"], model.EramOnFrequencySectorIds);
+        Assert.Contains(nameof(AircraftModel.EramOnFrequencySectorIds), changed);
+
+        changed.Clear();
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        Assert.Empty(model.EramOnFrequencySectorIds);
+        Assert.Contains(nameof(AircraftModel.EramOnFrequencySectorIds), changed);
+    }
+
     private static void AssertEramLine34Inputs(AircraftModel model, AircraftDto dto)
     {
         Assert.Equal(dto.EramAssignedHeading, model.EramAssignedHeading);

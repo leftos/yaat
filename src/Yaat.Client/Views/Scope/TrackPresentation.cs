@@ -109,6 +109,9 @@ public enum ScopeFieldStyle
 
     /// <summary>The ERAM HSF indicator ↴ drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/>.</summary>
     HsfIndicator = 16,
+
+    /// <summary>The ERAM VCI mark drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/>.</summary>
+    Vci = 32,
 }
 
 /// <summary>What clicking a field does. Every step-1 field carries <see cref="None"/>.</summary>

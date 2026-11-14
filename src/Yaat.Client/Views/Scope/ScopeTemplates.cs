@@ -31,7 +31,20 @@ public sealed record ScopeTemplateLine(IReadOnlyList<ScopeSlotPlacement> Slots, 
 /// <param name="FieldGap">Pixel gap after each field when <see cref="GapMode"/> is <see cref="ScopeGapMode.PixelGap"/>.</param>
 /// <param name="Padding">Padding between the text and the block bounds.</param>
 /// <param name="Lines">The template's lines, top to bottom.</param>
-public sealed record ScopeTemplate(string Id, ScopeGapMode GapMode, float FieldGap, float Padding, IReadOnlyList<ScopeTemplateLine> Lines);
+/// <param name="Column0">Marks drawn left of the text block on fixed block rows, or null when the template has no column 0.</param>
+public sealed record ScopeTemplate(
+    string Id,
+    ScopeGapMode GapMode,
+    float FieldGap,
+    float Padding,
+    IReadOnlyList<ScopeTemplateLine> Lines,
+    IReadOnlyList<ScopeColumn0Mark>? Column0
+);
+
+/// <summary>One column-0 mark: a slot drawn left of the text block on a fixed row, whether or not a line takes that row.</summary>
+/// <param name="Slot">The slot drawn.</param>
+/// <param name="Row">The 1-based block row it sits on.</param>
+public sealed record ScopeColumn0Mark(ScopeFieldSlot Slot, int Row);
 
 /// <summary>The templates step 1 ships, looked up by id.</summary>
 public static class ScopeTemplates
@@ -75,14 +88,15 @@ public static class ScopeTemplates
             Line(false, Flashing(ScopeFieldSlot.NoLandingClearance)),
             Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),
             Line(false, Steady(ScopeFieldSlot.InstructorNote)),
-        ]
+        ],
+        Column0: null
     );
 
     /// <summary>
     /// The ERAM datablock: line 1 as STARS; line 2 the ERAM altitude (Field B, its character 4 and Field C) followed by the
     /// STARS right side (ground speed, cwt/type, the ATPA in-trail distance, then the ident); line 3 the status text and
     /// the HSF indicator; line 4 the HSF notes or the type/destination fallback; then the ModeC, warning, conflict and note
-    /// lines.
+    /// lines. Column 0 holds the VCI mark on row 2 and the not-your-control <c>R</c> on row 3.
     /// </summary>
     public static readonly ScopeTemplate Eram = new(
         EramId,
@@ -110,7 +124,8 @@ public static class ScopeTemplates
             Line(false, Flashing(ScopeFieldSlot.NoLandingClearance)),
             Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),
             Line(false, Steady(ScopeFieldSlot.InstructorNote)),
-        ]
+        ],
+        Column0: [new(ScopeFieldSlot.Vci, 2), new(ScopeFieldSlot.NotYourControl, 3)]
     );
 
     /// <summary>
@@ -145,7 +160,8 @@ public static class ScopeTemplates
             WarningLine(ScopeFieldSlot.NoLandingClearance),
             WarningLine(ScopeFieldSlot.ConflictAlert),
             Line(false, Steady(ScopeFieldSlot.InstructorNote)),
-        ]
+        ],
+        Column0: null
     );
 
     /// <summary>Returns the template with <paramref name="id"/>.</summary>

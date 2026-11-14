@@ -463,7 +463,24 @@ public static class TrackPresenter
         );
         fields.RemoveAll(f => f.Slot == ScopeFieldSlot.StatusLine3);
         fields.AddRange(EramLineFields(input));
+        fields.AddRange(EramColumn0Fields(input));
         return fields;
+    }
+
+    /// <summary>
+    /// ERAM column 0: the VCI mark (a placeholder cell the renderer draws in) while the viewer's sector is on frequency, and
+    /// <c>R</c> while the track is not the viewer's; each empty otherwise.
+    /// </summary>
+    private static IEnumerable<ScopeField> EramColumn0Fields(TrackPresenterInput input)
+    {
+        AircraftModel ac = input.Aircraft;
+        ScopeViewer viewer = input.Display.Viewer;
+        bool vci = EramColumn0.VciLit(ac, viewer);
+        return
+        [
+            Styled(ScopeFieldSlot.Vci, vci ? EramArrowCell : "", vci ? ScopeFieldStyle.Vci : ScopeFieldStyle.None),
+            Steady(ScopeFieldSlot.NotYourControl, EramColumn0.ShowsNotYourControl(ac, viewer) ? "R" : "", ScopeColorToken.Default),
+        ];
     }
 
     /// <summary>

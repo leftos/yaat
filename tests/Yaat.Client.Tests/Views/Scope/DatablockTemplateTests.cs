@@ -100,7 +100,8 @@ public class DatablockTemplateTests
                     AlwaysShown: true,
                     TrailingGapInBounds: true
                 ),
-            ]
+            ],
+            Column0: null
         );
         var presentation = new TrackPresentation(
             "test",

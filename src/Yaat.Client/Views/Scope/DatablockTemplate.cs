@@ -17,16 +17,24 @@ public sealed record ScopeTextMetrics(Func<string, float> Measure, float Size, f
 /// A laid-out datablock. Rects are relative to the block's text origin (the first line's baseline at x = 0)
 /// until placed with <see cref="At"/>. Drawing reads each field's rect and text; there is no per-line text.
 /// </summary>
-/// <param name="Bounds">Block bounds, padding included.</param>
+/// <param name="Bounds">Block bounds, padding and column 0 included; hit-testing reads them.</param>
 /// <param name="Fields">Every laid-out field: the single list drawing and hit-testing both read.</param>
-public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fields)
+/// <param name="TextBounds">
+/// The bounds of the text block without column 0, padding included; the leader attaches to them. Equal to
+/// <paramref name="Bounds"/> when the template has no column 0 or no mark shows.
+/// </param>
+public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fields, SKRect TextBounds)
 {
     /// <summary>Returns this layout with its text origin moved to (<paramref name="x"/>, <paramref name="y"/>).</summary>
-    public ScopeBlockLayout At(float x, float y)
-    {
-        var bounds = new SKRect(Bounds.Left + x, Bounds.Top + y, Bounds.Right + x, Bounds.Bottom + y);
-        return this with { Bounds = bounds, Fields = [.. Fields.Select(f => f.Offset(x, y))] };
-    }
+    public ScopeBlockLayout At(float x, float y) =>
+        this with
+        {
+            Bounds = Offset(Bounds, x, y),
+            TextBounds = Offset(TextBounds, x, y),
+            Fields = [.. Fields.Select(f => f.Offset(x, y))],
+        };
+
+    private static SKRect Offset(SKRect rect, float x, float y) => new(rect.Left + x, rect.Top + y, rect.Right + x, rect.Bottom + y);
 }
 
 /// <summary>
@@ -39,6 +47,9 @@ public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fi
 /// </summary>
 public static class DatablockTemplate
 {
+    /// <summary>Gap between a column-0 mark and the text block (CRC <c>FdbRenderObject</c>: 2 + 1 + 3 px left of the fields).</summary>
+    public const float ColumnGap = 6f;
+
     private readonly record struct PlacedField(ScopeSlotPlacement Placement, ScopeField Field)
     {
         public string MeasuredText => Placement.Reserved ? Field.StableText : Field.Text;
@@ -77,8 +88,51 @@ public static class DatablockTemplate
 
         float pad = template.Padding;
         var bounds = new SKRect(-pad, -metrics.Size - pad, maxRight + pad, ((rows - 1) * metrics.LineHeight) + pad);
-        return new ScopeBlockLayout(bounds, rects);
+        if (template.Column0 is not { } marks)
+        {
+            return new ScopeBlockLayout(bounds, rects, bounds);
+        }
+
+        return new ScopeBlockLayout(Widen(bounds, LayColumn0(marks, metrics, bySlot, rects), template.Padding), rects, bounds);
     }
+
+    /// <summary>
+    /// Adds a rect for each column-0 mark with text, right-aligned <see cref="ColumnGap"/> left of the text block on its row,
+    /// and returns the marks' extent; <see cref="SKRect.Empty"/> when no mark shows.
+    /// </summary>
+    private static SKRect LayColumn0(
+        IReadOnlyList<ScopeColumn0Mark> marks,
+        ScopeTextMetrics metrics,
+        Dictionary<ScopeFieldSlot, ScopeField> bySlot,
+        List<FieldRect> rects
+    )
+    {
+        SKRect extent = SKRect.Empty;
+        foreach (ScopeColumn0Mark mark in marks)
+        {
+            if (!bySlot.TryGetValue(mark.Slot, out ScopeField? field) || (field.Text.Length == 0))
+            {
+                continue;
+            }
+
+            float width = metrics.Measure(field.Text);
+            float left = -(width + ColumnGap);
+            float top = -metrics.Size + ((mark.Row - 1) * metrics.LineHeight);
+            var rect = new SKRect(left, top, left + width, top + metrics.Size);
+            rects.Add(new FieldRect(mark.Slot, rect, field.Text, field.Token, field.Style));
+            extent = extent.IsEmpty ? rect : SKRect.Union(extent, rect);
+        }
+        return extent;
+    }
+
+    /// <summary>
+    /// <paramref name="bounds"/> widened left, and down when the block has fewer rows than a mark's, to hold
+    /// <paramref name="marks"/> with <paramref name="pad"/>; unchanged when no mark shows.
+    /// </summary>
+    private static SKRect Widen(SKRect bounds, SKRect marks, float pad) =>
+        marks.IsEmpty
+            ? bounds
+            : new SKRect(MathF.Min(bounds.Left, marks.Left - pad), bounds.Top, bounds.Right, MathF.Max(bounds.Bottom, marks.Bottom + pad));
 
     private static List<PlacedField> PresentFields(ScopeTemplateLine line, Dictionary<ScopeFieldSlot, ScopeField> bySlot)
     {
