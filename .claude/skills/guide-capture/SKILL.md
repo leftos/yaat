@@ -1,11 +1,13 @@
 ---
 name: guide-capture
-description: Use when adding, changing or debugging a tools/Yaat.GuideCapture screenshot scene (a USER_GUIDE.md image, a release feature-showcase shot under docs/releases/img, a whats-new-* scene), when a capture shows the wrong state, an empty popup, a menu that never opened or no aircraft, or when a capture run is slow to iterate on.
+description: Use when adding, changing or debugging a screenshot scene of GuideCapture (yaat-server's tools/Yaat.GuideCapture) (a USER_GUIDE.md image, a release feature-showcase shot under docs/releases/img, a whats-new-* scene), when a capture shows the wrong state, an empty popup, a menu that never opened or no aircraft, or when a capture run is slow to iterate on.
 ---
 
 # GuideCapture scenes
 
 The facts (CLI, scene contract, determinism, `ADD` forms, menu builders) are in `docs/guide-capture.md`. Read it before writing or changing a scene. This skill is the decisions.
+
+The tool lives in the yaat-server repo: scene code is edited under `../yaat-server/tools/Yaat.GuideCapture` and run from that checkout (`dotnet run --project tools/Yaat.GuideCapture -- --scene <name>`, gated, or `--local`), with yaat beside it as `../yaat`; the PNGs land in the yaat checkout. A scene change is a yaat-server commit, a picture change a yaat commit.
 
 ## Decide before writing the scene
 

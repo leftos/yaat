@@ -22,11 +22,12 @@ A gated command for a worktree runs with `--cd <worktree root>` and paths relati
 dotnet workload restore                                 # Once per clone: installs wasm-tools (the .Web projects need it)
 dotnet build                                            # Build entire solution
 dotnet run --project src/Yaat.Client                    # Run client (needs yaat-server; see the port note below)
-dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
 pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server, self-gated (excludes Nightly + PathfinderGrid sweeps for speed)
 pwsh tools/test-all.ps1 -Full                           # ...including the heavy Nightly + PathfinderGrid sweeps (CI/nightly run these)
 qodana scan --results-dir .tmp/qodana-results           # Static analysis (local only)
 ```
+
+**GuideCapture lives in yaat-server.** Regenerate the `USER_GUIDE.md` screenshots from the yaat-server checkout, with yaat beside it as `../yaat`: `dotnet run --project tools/Yaat.GuideCapture` (`-- --scene <name>`, `--out <dir>`); the PNGs land in this repo's `docs/user-guide/img/`. `yaat.slnx` does not list it, so a yaat build does not compile yaat-server (the `guide-capture` skill has the details).
 
 .NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`). Close Yaat.Client before builds to avoid DLL lock warnings.
 
@@ -90,7 +91,7 @@ Aviation constants: validated category values live in docs/flight-physics.md (Ca
 
 ## Project Skills
 
-**Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`, before running any `tools/bug_bundle.py` subcommand), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene).
+**Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`, before running any `tools/bug_bundle.py` subcommand), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene; the tool is in yaat-server).
 
 Landing (cross-repo cherry-pick, hooks exception, push, issue refs): /ship with the yaat-nextup profile.
 

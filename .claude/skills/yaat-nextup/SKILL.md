@@ -83,7 +83,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - Worktrees: every item gets a pair, `../yaat.wt/<slug>/yaat` and `../yaat.wt/<slug>/yaat-server`, both on branch `<slug>` from `<base>` (from the yaat main checkout: `git worktree add ../yaat.wt/<slug>/yaat -b <slug> <base> && git -C ../yaat-server worktree add "$(cd .. && pwd)/yaat.wt/<slug>/yaat-server" -b <slug> <base>`, where yaat-server uses its `main` when it has no `<base>`).
   Then `branch.<slug>.base` / `branch.<slug>.landOn` are recorded in each half as the user-level `nextup` §3 **Base and target** says.
 
-  The pair mirrors the main layout, so yaat-server's `../yaat/src/Yaat.Sim` reference, `tools/Yaat.GuideCapture`'s reference to the server and `tools/test-all.ps1`'s default `-ServerDir` all resolve inside it, and `/ship` (with `## Ship` below) lands it as a paired session. A yaat-only item still gets both halves, since its `Yaat.Sim` gate builds the server.
+  The pair mirrors the main layout, so yaat-server's `../yaat/src/Yaat.Sim` reference, yaat-server's `tools/Yaat.GuideCapture` (which finds the yaat checkout as `../yaat`) and `tools/test-all.ps1`'s default `-ServerDir` all resolve inside it, and `/ship` (with `## Ship` below) lands it as a paired session. A yaat-only item still gets both halves, since its `Yaat.Sim` gate builds the server.
 - Ceiling: five implementers. Each works and gates in its own pair (the gate routes its builds and tests to the builders); only the cross-repo gate a `Yaat.Sim` ship runs on `main` serializes, at landing.
 - Context: the figure the status bar shows is read at every landing with `bash ~/.claude/tools/context-usage/context-usage.sh` (the user-level CLAUDE.md's "Context usage is measured" rule; never a scratchpad path taken from a task's output, which after `/clear` names an earlier session), and past the user-level `nextup`'s refill line it stops refilling: the slot a landing frees stays empty, an exploration already running is written into the plan, and the checkpoint follows the in-flight items.
 - Depends on, where yaat's file lists hide it: a `Yaat.Sim` signature, `AircraftState` field or `CanonicalCommandType` one item adds and another item's client or yaat-server work consumes; a hub method or `AircraftUpdated` field (`docs/training-hub-contract.md`) one item adds and another renders; two items that each change the snapshot schema (`SnapshotSchemaMigrator` orders the migrations).
@@ -93,7 +93,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 | What changed | Owning docs |
 |---|---|
 | Any command added, renamed, aliased or changed | `COMMANDS.md`, `docs/command-cheatsheet.json` → `node tools/build-cheatsheet.mjs` |
-| Anything an instructor or RPO sees or does | `USER_GUIDE.md` (screenshots via `tools/Yaat.GuideCapture`, run separately); `SOLO_TRAINING.md` for solo mode |
+| Anything an instructor or RPO sees or does | `USER_GUIDE.md` (screenshots via yaat-server's `tools/Yaat.GuideCapture`, run separately from the yaat-server checkout); `SOLO_TRAINING.md` for solo mode |
 | A file added, moved or removed; a subsystem's shape | `docs/architecture.md` (the `architecture-updater` agent), the subsystem doc `docs/README.md` "Subsystem docs" lists for it |
 | A hub method or `AircraftUpdated` field | `docs/training-hub-contract.md` |
 | A client-driver lesson (the MCP server, the automation pipe, how agents drive the client) | yaat-server `docs/client-driver-mcp.md`, and the rule in yaat-server `docs/DRIVING_CONVENTIONS.md` |

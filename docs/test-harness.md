@@ -292,7 +292,7 @@ order- and load-dependent flakes:
   `Dispose → Task.Wait` directly above `DispatchCore → TrySetResult` on one stack. `ConfigureAwaitOptions.ForceYielding` does **not**
   prevent this (it only covers the already-completed-at-await fast path). Hop the continuation off the session thread with
   `.ContinueWith(t => t.GetAwaiter().GetResult(), TaskScheduler.Default)` — a `ContinueWith` without `ExecuteSynchronously` is always
-  queued, never inlined. `tools/Yaat.GuideCapture/Program.cs` is the worked example.
+  queued, never inlined. yaat-server's `tools/Yaat.GuideCapture/Program.cs` is the worked example.
 - **Never race a `DispatcherTimer`-armed change against a poll.** A due `DispatcherTimer` runs ahead of an `InvokeAsync` posted before it when the UI thread is busy, so a test that arms a timer to flip state "during" a `wait_until`/`wait_for` can have the change land before the first poll, so the wait never sees the pre-change state (a `landed` wait, which needs an airborne poll first, then never holds and runs to its timeout).
 
   Script the change inside the polled read instead: the state provider for `wait_until`, a wrapped roots provider for `wait_for`, so the first poll always sees the pre-change state and the test asserts the change ran before the answer (`WaitUntilAcross` in `Automation/AutomationWaitUntilTests.cs` is the pattern). The default isolation is `PerTest`: the dispatcher is recreated for each test.

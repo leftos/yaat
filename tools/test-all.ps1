@@ -192,10 +192,9 @@ function Stop-OnBuildFailure {
     exit 1
 }
 
-# The two test suites run concurrently; the builds above do not, and must not. `yaat.slnx`
-# already contains the server project, which is why building yaat-server afterwards costs a
-# few seconds rather than a full compile — two MSBuild processes over the same obj/ trees
-# would race for the same intermediates.
+# The two test suites run concurrently; the builds above do not, and must not. `yaat-server.slnx`
+# builds yaat's Yaat.Sim (through `YaatSimProject`) and Yaat.Client (through `$(YaatRoot)`) too,
+# so two MSBuild processes over the same obj/ trees would race for the same intermediates.
 #
 # Output is captured per job and printed in a fixed order once both finish, because interleaved
 # output from two suites is unreadable exactly when it matters. Each line also goes to a log file

@@ -201,7 +201,7 @@ By default it pulls the CI-built ghcr image with the `docker-compose.image.yml` 
 
 ## Local development
 
-`dotnet run` is Development (it binds `http://localhost:5130`), and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process host) mint a dev session (rating `I1`) without any VATSIM round-trip.
+`dotnet run` is Development (it binds `http://localhost:5130`), and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and yaat-server's GuideCapture tool, whose in-process host is started Development with `RequireVatsimAuth=false` explicitly) mint a dev session (rating `I1`) without any VATSIM round-trip.
 
 **Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure).
 

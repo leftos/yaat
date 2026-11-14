@@ -59,7 +59,7 @@ Open the matching doc **before exploring, searching, or editing** the code it li
 - [`weather-and-wind.md`](./weather-and-wind.md) — `WeatherProfile`/`WeatherTimeline`, `MetarParser`, `WindsAloftParser`, `WindInterpolator`, `MagneticDeclination`, `LiveWeatherService`
 - [`airspace-database.md`](./airspace-database.md) — `src/Yaat.Sim/Data/Airspace/`, `AirspaceBoundaryHoldPhase`, `PilotProactive.TickAirspaceBoundaryRespect`, Class B/C separation
 - [`minimum-vectoring-altitude.md`](./minimum-vectoring-altitude.md) — `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, the radar MVA display surfaces
-- [`guide-capture.md`](./guide-capture.md) — writing a deterministic screenshot scene in `tools/Yaat.GuideCapture`
+- [`guide-capture.md`](./guide-capture.md) — writing a deterministic screenshot scene in yaat-server's `tools/Yaat.GuideCapture`
 - [`vedst-sign-in.md`](./vedst-sign-in.md) — vEDST sign-in: enabling it on a server, connecting a vEDST checkout
 - [`data-handling.md`](./data-handling.md) — what data YAAT collects, keeps and deletes (privacy)
 - [`installer-release.md`](./installer-release.md) — Velopack packaging, auto-update, `release.yml`, versioning (and [`macos-code-signing.md`](./macos-code-signing.md) for the notarized macOS `.pkg`/`.app`)

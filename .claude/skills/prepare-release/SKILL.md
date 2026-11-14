@@ -176,16 +176,17 @@ If the dry-run reports zero duplicates, the skill exits without committing and w
 
 ### 2.4 Refresh the screenshots
 
-Captures render the client as the code now stands, so a change this cycle that moved a picture shows up here. Run in the background, one gate call after another (the runs share one build output), on 2.0's build:
+Captures render the client as the code now stands, so a change this cycle that moved a picture shows up here. GuideCapture is a yaat-server tool, so run these from the sibling `../yaat-server` checkout (with yaat beside it as `../yaat`, which is where the PNGs land), through yaat's gate script (yaat-server has none) and a log under yaat-server's `.tmp/`. Run in the background, one gate call after another (the runs share one build output), on 2.0's build (`test-all.ps1 -BuildOnly` builds yaat-server's solution, GuideCapture included):
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/guide-capture-all.log -TimeoutSeconds 1800 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture
-for s in $(rg -o --no-filename -r '$1' 'img/(whats-new-[a-z0-9-]+)\.png' docs/releases/whats-new-next.md | sort -u); do
-  pwsh tools/gate.ps1 -Log ".tmp/guide-capture-$s.log" -TimeoutSeconds 600 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture -- --scene "$s" || echo "capture failed: $s"
+cd ../yaat-server
+pwsh ../yaat/tools/gate.ps1 -Log .tmp/guide-capture-all.log -TimeoutSeconds 1800 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture
+for s in $(rg -o --no-filename -r '$1' 'img/(whats-new-[a-z0-9-]+)\.png' ../yaat/docs/releases/whats-new-next.md | sort -u); do
+  pwsh ../yaat/tools/gate.ps1 -Log ".tmp/guide-capture-$s.log" -TimeoutSeconds 600 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture -- --scene "$s" || echo "capture failed: $s"
 done
 ```
 
-The plain run rewrites every user-guide PNG under `docs/user-guide/img/`, byte-identical where the picture has not moved, and skips every `whats-new-*` scene. The loop captures the showcase scenes `whats-new-next.md` uses, by name, into `docs/releases/img/`; a release with no showcase (2.11) skips it. Scene mechanics: `docs/guide-capture.md` and the `guide-capture` skill. Step 3.3 reviews what changed.
+The plain run rewrites every user-guide PNG under the yaat checkout's `docs/user-guide/img/`, byte-identical where the picture has not moved, and skips every `whats-new-*` scene. The loop captures the showcase scenes `whats-new-next.md` uses, by name, into `docs/releases/img/`; a release with no showcase (2.11) skips it. Scene mechanics: `docs/guide-capture.md` and the `guide-capture` skill. Step 3.3 reviews what changed.
 
 ### 2.5 Find open user-reported bugs (subagent)
 
@@ -246,7 +247,7 @@ The droplet builds its image from the yaat-server repo **plus a WASM + shared-li
 
 **Client-only — does NOT force a redeploy:**
 - `src/Yaat.Client/**`, `src/Yaat.Client.Core/**` (the desktop app; `Yaat.Client.Core` is deliberately excluded from the WASM closure)
-- client-only tools (`tools/Yaat.LayoutInspector/`, `tools/Yaat.SpeechSandbox/`, `tools/Yaat.GuideCapture/`, `tools/Yaat.CifpInspector/`, …), docs, `*.md`, `CHANGELOG.md`, `.github/`, tests
+- client-only tools (`tools/Yaat.LayoutInspector/`, `tools/Yaat.SpeechSandbox/`, `tools/Yaat.CifpInspector/`, …), docs, `*.md`, `CHANGELOG.md`, `.github/`, tests
 - this release's own `<Version>` bump in the **yaat** `Directory.Build.props` (that's the client installer version; the server image never copies it)
 
 #### Compute the changed-file set across both repos
