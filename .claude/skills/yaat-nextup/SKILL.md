@@ -59,6 +59,8 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
   A `Yaat.Sim` change is proved by a bare `pwsh tools/test-all.ps1` (both repos; it gates itself, never wrapped in `tools/gate.ps1`) before it lands. `dotnet format style … --include` takes paths relative to the working directory: absolute paths match nothing and the check passes on an empty set.
 
+  **A brief that touches yaat-server names its owning doc(s) first in its read list**, taken from the `docs/architecture.md` Task Index row for the task (`server-rooms-and-hub.md`, `crc-display-state.md`, `live-traffic.md` …). The implementer reads the doc before opening source, instead of rediscovering the file set the doc already names.
+
   **A brief that changes sim behaviour names its at-risk tests, with a ruling for each.** Sim behaviour is a phase, a pass, a detector, a planner rule or a navdata refresh. At-risk tests are the tests outside the brief's own file list that pin the behaviour being changed: the class or method names it touches, the scenario or recording it affects, the numbers it produces. Find them by searching the base for those names; where the search cannot bound the set, run the affected test project on the base branch.
 
   Each at-risk test gets one ruling: *update the expectation, because the change explains it* (and say what explains it), *keep it green unedited* (a constraint on the change), or *stop and report*. A test outside the list that goes red still stops the run. Without the list, the implementer stops `blocked` at the full-suite step and the round trip costs 60–100 of its calls.
