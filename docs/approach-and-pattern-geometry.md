@@ -1495,9 +1495,22 @@ writes nothing to the aircraft. It is silent when nothing stands, and when the l
   at *any* cut when it intercepts, never busting through. `DispatchJfac` sets `InterceptCoursePhase.RelaxedJoin`, which
   bypasses the 30° `BustThroughAlignmentDeg` gate like `ForcedIntercept` but stays **passive** (no pre-LOC steering; turns
   only at capture) — keep the two flags distinct. Only `PTAC` expects a controller-limited intercept. **A bare same-approach
-  `CAPP` on an established JFAC/JLOC join upgrades in place** via `CommandDispatcher.TryUpgradeLateralJoinInPlace` (early
+  `CAPP` on an established JFAC/JLOC join upgrades in place** via `CommandDispatcher.TryClearApproachInPlace` (early
   short-circuit before phase-clearing): it flips `LateralInterceptOnly` false with no teardown/rebuild, so there is no spurious "…cancelled by CAPP" warning,
   and it applies the same speed cancellation as a full `CAPP` (7110.65 §5-7-1.d): the assigned speed and its flags go, the STAR ends with its last-crossed published speed, and route fixes drop their speed reverts and take their published speeds back.
   A same-runway in-trail ceiling in force is kept and restated in the terminal log (§5-7-1.c; the §5-7-1.e NOTE), via the `ApproachCommandHandler` helpers the upgrade shares with the full path. `JFAC` itself keeps the assigned speed. `CAPPF`/`AT`/`DCT`/altitude/different-approach
   still rebuild. The glideslope-established bypass is scoped to `PTACF` via `ApproachClearance.ForcedInterceptCapture` (not
   the old steep-capture-angle proxy); `InterceptCaptureAngleDeg` now only feeds approach scoring.
+- **A plain `CAPP` for the approach the aircraft is already cleared for continues in place; it never rebuilds the chain.**
+  `CommandDispatcher.TryClearApproachInPlace` (AIM 5-4-3.b.1(d), 5-4-6.f, 5-4-9.a) takes a one-block, unconditional,
+  non-forced `CAPP` with no AT/DCT/altitude form that names the active approach (a bare one resolves to it unless
+  `Approach.Expected` names a different approach or a visual) while the active phase is still flying it: final,
+  intercept, the approach's fixes, a non-missed hold-in-lieu or procedure turn. Rebuilding through the filed transition would
+  restart the procedure and add a circuit. The phases stay; the pilot reads back "Cleared {id} approach, runway {rwy}",
+  the §5-7-1.d speed cancellation applies again, and `SupersedeForTransmission` drops pending WAITs and conflicting queued
+  blocks as any new transmission does. `JFAC, CAPP` for the same approach is that `CAPP` alone on final or intercepting;
+  while flying the approach's fixes it joins the final course, then upgrades in place (`TryJoinThenClearInPlace`), keeping the
+  full clearance's missed approach and releasing the dropped chain's turn-rate, turn-direction and follow overrides; a bare `JFAC`
+  respects a newer expected approach, and is refused with a visual expected, as `JFAC` alone is. `CAPPF`, AT/DCT/altitude forms,
+  a different approach, an ATC or clearance-limit hold, a missed approach, a pattern circuit's final and an active or expected
+  visual are not in-place cases and take the ordinary rebuild.
