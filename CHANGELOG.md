@@ -14,6 +14,8 @@
 
 - New favorite buttons go to the set showing in the bar, asking which when several show, and no longer turn a hidden Global back on.
 - An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows, asks for further clearance and holds over the airport.
+- A VFR follower losing spacing behind traffic on base or final within 5 NM turns out to the downwind heading and requests a base turn.
+- A VFR follower lined up on a long final whose traffic disappears keeps flying the final instead of entering the downwind.
 
 ### Fixed
 

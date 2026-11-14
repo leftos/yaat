@@ -12,11 +12,12 @@ public sealed partial class VfrFollowPhase
     /// Starts a turn-out to the downwind heading when the lead is on base or final to a runway and the follower is on that
     /// runway's pattern side within <see cref="TurnOutRangeNm"/> of its threshold (<see cref="TurnOutCircuitFor"/>), and the
     /// follower is level with or ahead of the lead (its shortest path to the threshold, <see cref="ShortestPathToThresholdNm"/>,
-    /// no longer than the lead's remaining path), its hold alongside the lead has stalled (<paramref name="stalledHold"/>), or
-    /// a base break-off asked for it (<see cref="RequestTurnOut"/>). The follower cannot fall behind a same-speed lead, and
-    /// continuing to the final ahead of it would be cutting in (AIM 4-3-4).
+    /// no longer than the lead's remaining path), its hold alongside the lead has stalled (<paramref name="stalledHold"/>), a
+    /// spacing loss broke off the follow (<paramref name="spacingLoss"/>), or a base break-off asked for it
+    /// (<see cref="RequestTurnOut"/>). The follower cannot fall behind a same-speed lead, and continuing to the final ahead of
+    /// it would be cutting in (AIM 4-3-4).
     /// </summary>
-    private bool TryStartTurnOut(PhaseContext ctx, AircraftState lead, bool stalledHold)
+    private bool TryStartTurnOut(PhaseContext ctx, AircraftState lead, bool stalledHold, bool spacingLoss)
     {
         bool requested = _turnOutRequested;
         _turnOutRequested = false;
@@ -35,7 +36,8 @@ public sealed partial class VfrFollowPhase
         }
 
         string? reason =
-            requested ? "base break-off"
+            spacingLoss ? "spacing loss"
+            : requested ? "base break-off"
             : stalledHold ? "stalled alongside at the offset cap"
             : IsLevelOrAhead(ctx, lead, circuit) ? "level with or ahead"
             : null;
@@ -177,6 +179,67 @@ public sealed partial class VfrFollowPhase
     }
 
     /// <summary>
+    /// Flies the turn-out a spacing loss just started at <see cref="BreakOffBankDegrees"/> of bank, never slower than the turn
+    /// it would otherwise fly (its turn-rate override, else its type's turn rate, as the flight physics turns), when the
+    /// follower is no farther to the circuit's pattern side of the centerline than that turn's radius at its ground speed.
+    /// The tighter reversal keeps it off a parallel runway's final, the guidance of AIM 4-3-3 FIG 4-3-3 key 7, which binds
+    /// the pilot. A turn rate the controller set (TRATE) wins. The override it replaces is kept for
+    /// <see cref="RestoreBreakOffTurnRate"/>.
+    /// </summary>
+    private void ApplyBreakOffBank(PhaseContext ctx)
+    {
+        if ((_turnOut is not { } turnOut) || ctx.Targets.HasExplicitTurnRate)
+        {
+            return;
+        }
+
+        AircraftState aircraft = ctx.Aircraft;
+        double speedKt = Math.Max(aircraft.GroundSpeed, 1.0);
+        FollowPatternReturn circuit = turnOut.Circuit;
+        FinalFramePosition frame = FinalFrameOf(aircraft.Position, aircraft.TrueHeading, circuit.Runway, circuit.Direction);
+        // The rate the reversal would otherwise fly, as FlightPhysics turns the heading.
+        double rateDegPerSec = ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
+        double radiusNm = speedKt / (rateDegPerSec * PatternCompression.RadiusDivisor);
+        if (frame.PatternSideNm > radiusNm)
+        {
+            return;
+        }
+
+        _breakOffBank = new BreakOffBank(ctx.Targets.TurnRateOverride);
+        ctx.Targets.TurnRateOverride = Math.Max(rateDegPerSec, BreakOffTurnRateDegPerSec(speedKt));
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: break-off {Side:F2} nm to the pattern side, within the {Radius:F2} nm turn radius; "
+                + "turning out at {Bank}° of bank",
+            aircraft.Callsign,
+            frame.PatternSideNm,
+            radiusNm,
+            BreakOffBankDegrees
+        );
+    }
+
+    /// <summary>The turn rate (deg/s) of a coordinated turn at <see cref="BreakOffBankDegrees"/> of bank at <paramref name="speedKt"/>.</summary>
+    internal static double BreakOffTurnRateDegPerSec(double speedKt) =>
+        PatternCompression.BankRateFactor * Math.Tan(BreakOffBankDegrees * Math.PI / 180.0) / speedKt;
+
+    /// <summary>
+    /// Gives back the turn-rate override the break-off bank replaced (<see cref="ApplyBreakOffBank"/>), unless the controller
+    /// has since set one (TRATE); nothing when no break-off bank is flown.
+    /// </summary>
+    private void RestoreBreakOffTurnRate(ControlTargets targets)
+    {
+        if (_breakOffBank is not { } bank)
+        {
+            return;
+        }
+
+        _breakOffBank = null;
+        if (!targets.HasExplicitTurnRate)
+        {
+            targets.TurnRateOverride = bank.ReplacedTurnRateOverride;
+        }
+    }
+
+    /// <summary>
     /// One tick of the turn-out. A lead now landing another runway ends the follow with the instructor told
     /// (<see cref="AirborneFollowHelper.TryEndFollowLeadChangedRunway"/>). A lead that otherwise lands, goes around or leaves the
     /// final ends it too: the follower re-enters the circuit by the leg <see cref="ReturnEntryLeg"/> picks from where it is (on
@@ -280,6 +343,7 @@ public sealed partial class VfrFollowPhase
     /// </summary>
     private void TurnBaseBehindLead(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
     {
+        RestoreBreakOffTurnRate(ctx.Targets);
         FollowPatternReturn circuit = turnOut.Circuit;
         List<Phase> legs = BuildBaseFromHere(ctx, circuit, frame.AlongNm);
         Log.LogDebug(
@@ -330,6 +394,7 @@ public sealed partial class VfrFollowPhase
     /// </summary>
     private void HoldForBaseTurn(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
     {
+        RestoreBreakOffTurnRate(ctx.Targets);
         Log.LogDebug(
             "[VfrFollow] {Callsign}: no room to turn base behind {Lead}, {Along:F2} nm out; holding the downwind heading",
             ctx.Aircraft.Callsign,

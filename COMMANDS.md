@@ -1446,7 +1446,9 @@ A follower already **on base** that would roll out too close behind the traffic 
 
 When it would roll out level with or ahead of the traffic, or a widen cannot build the spacing, it turns out to the downwind heading, says "turning downwind for spacing behind the traffic, request base turn", and turns base again behind the traffic once it has passed (or holds the downwind heading for your `TB`/`ERB`/`ELB` if it runs out of room; too close to the final turn to turn out, it goes around instead).
 
-A follower flying free behind traffic it has caught up with does the same.
+A follower flying free behind traffic it has caught up with does the same. One that can no longer keep spacing behind traffic on base or final within 5 NM of the runway warns "unable to maintain separation" and breaks off the same way, turning away from the field; farther out it re-enters by the downwind.
+
+When the traffic disappears while the follower is already lined up on the final, it keeps flying the final at any distance instead of entering the downwind.
 
 The callsign argument is **optional**. A bare `FOLLOW` defaults to the most recently reported in-sight traffic (the last callsign acquired via a successful traffic-in-sight command). An explicit callsign always overrides the stored value.
 

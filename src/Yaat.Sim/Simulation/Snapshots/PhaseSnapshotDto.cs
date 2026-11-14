@@ -2058,6 +2058,14 @@ public sealed class VfrFollowPhaseDto : PhaseDto
     /// <summary>A base break-off asked the pursuit to start with a turn-out; null (read as false) in older snapshots.</summary>
     public bool? TurnOutRequested { get; init; }
 
+    /// <summary>The turn-out flies the spacing-loss break-off bank; null (read as false) when it does not and in older snapshots.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? BreakOffBankFlown { get; init; }
+
+    /// <summary>The turn-rate override (deg/s) the break-off bank replaced, restored when the turn-out ends; null when none.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BreakOffReplacedTurnRateOverride { get; init; }
+
     /// <summary>The gap (nm) at the start of the parallel-hold stall window; null when no window is open and in older snapshots.</summary>
     public double? StallWindowStartGapNm { get; init; }
 
