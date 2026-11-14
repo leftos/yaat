@@ -1,10 +1,14 @@
+using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -84,6 +88,84 @@ public class MapCanvasTimerLifecycleTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.Null(canvas.WatchedDataBlockState);
+    }
+
+    [AvaloniaFact]
+    public void ScopeCanvas_RepaintTimer_StartsOnAttachAndStopsOnDetach()
+    {
+        var canvas = new ScopeCanvas();
+        Assert.False(canvas.IsRepaintTimerRunning, "a canvas outside the visual tree must not be repainting");
+
+        var window = new Window { Content = canvas };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(canvas.IsRepaintTimerRunning);
+
+        window.Content = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(canvas.IsRepaintTimerRunning, "a detached canvas must stop repainting so it can be collected");
+        window.Close();
+    }
+
+    // The scope canvas watches its traffic collection only while in the visual tree, so a closed scope is never rooted by
+    // the main view model's aircraft list.
+    [AvaloniaFact]
+    public void ScopeCanvas_Detached_StopsWatchingTheTrafficCollection()
+    {
+        var traffic = new ObservableCollection<AircraftModel>();
+        var canvas = new ScopeCanvas { Aircraft = traffic };
+        Assert.Null(canvas.WatchedAircraft);
+
+        var window = new Window { Content = canvas };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(traffic, canvas.WatchedAircraft);
+
+        window.Content = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(canvas.WatchedAircraft);
+        window.Close();
+    }
+
+    // A traffic list bound after the canvas is attached is watched too: an aircraft added to it shows in the kept frame
+    // the next click hit-tests, without waiting for a repaint.
+    [AvaloniaFact]
+    public void ScopeCanvas_AircraftBoundAfterAttach_IsWatched()
+    {
+        var canvas = new ScopeCanvas();
+        var window = new Window
+        {
+            Width = 800,
+            Height = 600,
+            Content = canvas,
+        };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(canvas.WatchedAircraft);
+
+        var traffic = new ObservableCollection<AircraftModel>();
+        canvas.Aircraft = traffic;
+        Assert.Same(traffic, canvas.WatchedAircraft);
+        Assert.Empty(canvas.CurrentFrame.Tracks);
+
+        (double lat, double lon) = canvas.Viewport.ScreenToLatLon(300, 300);
+        traffic.Add(
+            new AircraftModel
+            {
+                Callsign = "UAL238",
+                AircraftType = "B738",
+                FlightRules = "IFR",
+                Altitude = 5000,
+                GroundSpeed = 250,
+                Position = new LatLon(lat, lon),
+            }
+        );
+
+        Assert.Equal("UAL238", Assert.Single(canvas.CurrentFrame.Tracks).Aircraft.Callsign);
+        window.Close();
     }
 
     [AvaloniaFact]

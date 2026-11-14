@@ -9,6 +9,7 @@
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
 - Favorite buttons can be cut and pasted onto another slot, and Delete settings empties a button into a blank of the same place and size.
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.
+- View > Windows > YAAT Scope opens a preview of the new instructor radar beside today's Radar, with STARS datablocks or EuroScope tags.
 
 ### Changed
 

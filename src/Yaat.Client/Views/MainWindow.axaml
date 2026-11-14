@@ -73,6 +73,7 @@
             <Separator />
             <MenuItem Header="New gr_ound window…" x:Name="NewGroundWindowMenuItem" />
             <MenuItem Header="New radar _window…" x:Name="NewRadarWindowMenuItem" />
+            <MenuItem Header="YAAT _Scope" x:Name="YaatScopeMenuItem" />
             <Separator />
             <!-- Strips submenu is populated from code-behind to mirror
                      MainViewModel.StripsEntries. Each entry gets a checkable

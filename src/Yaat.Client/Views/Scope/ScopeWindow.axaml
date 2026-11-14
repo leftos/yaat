@@ -1,0 +1,10 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:scope="using:Yaat.Client.Views.Scope"
+  x:Class="Yaat.Client.Views.Scope.ScopeWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="YAAT Scope"
+>
+  <scope:ScopeView x:Name="View" />
+</Window>
