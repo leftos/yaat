@@ -327,7 +327,9 @@ public class ClearanceLimitHoldTests
     [Fact]
     public void VfrReachingTheAirport_FliesStraightOn()
     {
-        AircraftState ac = FlyingTheDirect("VFR");
+        // A VFR aircraft can still be carrying a clearance-limit direct (one restored from an older snapshot, or
+        // one an APT change built), but its own route end gives it none, so the direct is built here.
+        AircraftState ac = OnTheDirectAt(8.0, flightRules: "VFR");
 
         FlyUntilTheDirectIsSequenced(ac);
 

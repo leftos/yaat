@@ -2363,7 +2363,7 @@ public static class FlightPhysics
     /// What the aircraft flies laterally once its last route fix is sequenced and no approach clearance is pending. An FM
     /// terminator (most US STARs) wins: fly the published outbound course and await vectors, instead of holding the
     /// heading the aircraft happened to arrive on. An IFR route ending at the cleared destination airport itself holds
-    /// there (<see cref="HoldsAtRouteEndAirport"/>). Otherwise a pilot with a cleared destination turns direct to it at
+    /// there (<see cref="HoldsAtRouteEndAirport"/>). Otherwise an IFR pilot with a cleared destination turns direct to it at
     /// once (<see cref="DirectToClearedDestination"/>), leaving the altitude as it is; failing all three, it flies straight.
     /// </summary>
     private static void ApplyRouteEndLateral(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
@@ -2536,13 +2536,15 @@ public static class FlightPhysics
 
     /// <summary>
     /// The one-fix route to the pilot's cleared destination when its route has run out, or null when the aircraft keeps
-    /// its old route-end behaviour: a reason in <see cref="RouteEndDirectRefusalByState"/> or
+    /// its old route-end behaviour: a VFR aircraft, a reason in <see cref="RouteEndDirectRefusalByState"/> or
     /// <see cref="RouteEndDirectRefusalByClearance"/>, or a destination with no airport position.
     /// </summary>
     private static NavigationTarget? DirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced)
     {
         string dest = aircraft.ClearedDestination;
-        string? refusal = RouteEndDirectRefusalByState(aircraft) ?? RouteEndDirectRefusalByClearance(aircraft, sequenced);
+        string? refusal = aircraft.FlightPlan.IsVfr
+            ? "VFR"
+            : (RouteEndDirectRefusalByState(aircraft) ?? RouteEndDirectRefusalByClearance(aircraft, sequenced));
         if ((refusal is null) && (ClearanceLimitDirectTo(dest, aircraft.Position) is { } direct))
         {
             return direct;

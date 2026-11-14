@@ -12,7 +12,8 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// When an airborne aircraft sequences its last route fix and the route empties, with no approach clearance pending
-/// and no FM/VM terminal course on the fix, a pilot with a cleared destination turns direct to that airport at once.
+/// and no FM/VM terminal course on the fix, an IFR pilot with a cleared destination turns direct to that airport at
+/// once, while a VFR pilot gets no direct and flies straight on.
 /// Every exclusion keeps the old behaviour: an assigned heading, an active military route, a phase other than the
 /// departure climb, no cleared destination, or a last fix that is the destination itself.
 /// </summary>
@@ -110,6 +111,14 @@ public class RouteExhaustedDirectToDestinationTests
         Assert.Equal(altitudeBefore, ac.Targets.TargetAltitude);
     }
 
+    /// <summary>The route has emptied and the aircraft flies on its own heading: a VFR route end gives no direct.</summary>
+    private static void AssertFliesStraightOn(AircraftState ac)
+    {
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.DoesNotContain(ac.Targets.NavigationRoute, t => t.IsClearanceLimitDirect);
+        Assert.Null(ac.Targets.TargetTrueHeading);
+    }
+
     [Fact]
     public void IfrStarEnd_NoTerminalCourse_TurnsDirectToClearedDestination()
     {
@@ -153,14 +162,35 @@ public class RouteExhaustedDirectToDestinationTests
     }
 
     [Fact]
-    public void VfrDrainWithDestination_TurnsDirect()
+    public void VfrDrainWithDestination_FliesStraightOn()
     {
         AircraftState ac = Build(Plain(Hirmo()), "VFR");
         double? before = ac.Targets.TargetAltitude;
 
         FlightPhysics.Update(ac, 1.0);
 
-        AssertTurnsDirect(ac, before);
+        AssertFliesStraightOn(ac);
+        Assert.Equal(before, ac.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void VfrAfterDct_RouteEnds_FliesStraightOn()
+    {
+        AircraftState ac = Build(Plain(Hirmo()), "VFR");
+        ac.Targets.NavigationRoute.Clear();
+        ac.FlightPlan.Route = "";
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("DCT HIRMO");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(1)));
+        Assert.True(result.Success, result.Message);
+        Assert.False(Assert.Single(ac.Targets.NavigationRoute).IsClearanceLimitDirect);
+
+        for (int i = 0; (i < 10) && (ac.Targets.NavigationRoute.Count > 0); i++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        AssertFliesStraightOn(ac);
     }
 
     [Fact]
