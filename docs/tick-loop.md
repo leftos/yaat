@@ -188,7 +188,7 @@ A test that steps physics and then `PhaseRunner.Tick` (the order `PatternCompres
 
 Two detectors. Both are server-only (clients see results in broadcast snapshots).
 
-- **Ground** — `GroundConflictDetector.ApplySpeedLimits` runs each sub-tick *before* physics. Pairwise check, classifies movement state (taxiing / pushing / stationary / following) and runway rank (runway user / vacating / rest), applies speed caps when proximity drops below thresholds.
+- **Ground** — `GroundConflictDetector.ApplySpeedLimits` runs each sub-tick *before* physics. Pairwise check, skipping a pair beyond `SearchRangeNm` (0.3 nm) before `ResolvePair` runs, by a latitude-difference bound (`IsBeyondSearchRange`); classifies movement state (taxiing / pushing / stationary / following) and runway rank (runway user / vacating / rest), applies speed caps when proximity drops below thresholds.
 - **Airborne** — `ConflictAlertDetector.Detect` runs in the `ConflictAlerts` spine step (`SimulationEngine.TickConflictAlerts`). Predicts position 5 s ahead; reports pairs where current or predicted separation crosses thresholds (3 nm / 1000 ft IFR; 0.25 nm / 500 ft VFR). Hysteresis on existing conflicts (must reach 3.3 nm / 1100 ft to clear). Mode-C-only; ignores aircraft on ground or with CA inhibited; suppressed during paired approaches; `CASUP` pairs and shadow↔shadow pairs never alert.
 
 ## Broadcast cadence

@@ -320,7 +320,6 @@ public static class GroundConflictDetector
         }
 
         List<(AircraftState Ac, MovementState State, double? MoveDir)> entries = BuildEntries(aircraft, layout, diagnosticLog);
-
         for (int i = 0; i < entries.Count; i++)
         {
             if (entries[i].Ac.Ground.ConflictBreakRemainingSeconds > 0)
@@ -330,6 +329,11 @@ public static class GroundConflictDetector
 
             for (int j = i + 1; j < entries.Count; j++)
             {
+                if (IsBeyondSearchRange(entries[i].Ac.Position.Lat, entries[j].Ac.Position.Lat))
+                {
+                    continue;
+                }
+
                 ResolvePair(entries[i], entries[j], byCallsign, layout, diagnosticLog);
             }
         }
@@ -342,6 +346,18 @@ public static class GroundConflictDetector
         _crossingStopCurveBoundTravel = null;
         _brakedLastPass = null;
     }
+
+    /// <summary>
+    /// True when two aircraft at latitudes <paramref name="latA"/> and <paramref name="latB"/> (degrees) are provably farther
+    /// apart than <see cref="SearchRangeNm"/>, so <see cref="ResolvePair"/> would return at its range gate: a great circle is
+    /// never shorter than the Earth radius times the latitude difference (radians). The <see cref="PrefilterMarginFactor"/>
+    /// margin keeps rounding on the side of resolving the pair.
+    /// </summary>
+    internal static bool IsBeyondSearchRange(double latA, double latB) =>
+        (Math.Abs(latA - latB) * (Math.PI / 180.0) * GeoMath.EarthRadiusNm) > (SearchRangeNm * PrefilterMarginFactor);
+
+    /// <summary>How far past <see cref="SearchRangeNm"/> (0.1%) the latitude bound must reach before a pair is skipped unresolved.</summary>
+    private const double PrefilterMarginFactor = 1.001;
 
     /// <summary>
     /// The pass's diagnostic sink: <paramref name="explicitLog"/> alone when no <see cref="DebugSink"/> is installed, the

@@ -142,6 +142,8 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
 
   On a route that doubles back over its own stop, the stop is measured on the leg that drives into the bar: `HoldShortSetbackNm` walks back from the bar's segment only as far as the segment in progress, and reaches the segments behind it only when none ahead carries the stop.
 
+  `HoldShortSetbackNm` is memoised per route, keyed by bar segment, start segment, stop position and segment count: a route's segments are append-only with fixed geometry, so a cached value stays true. The memo is not snapshot state and assumes one thread per route.
+
   The unmakeable judgement in `TaxiingPhase`, the navigator's braking-curve constraint and `StopLiesOnSegment` all share it, so an aircraft rolling on the leg back toward a stop it passed on the way out is not judged unable to hold short of it.
 
   Runway bars share this: their half-length setback (65 ft for a B738) is longer than the 7–31 ft last segment at many OAK and SFO bars.
