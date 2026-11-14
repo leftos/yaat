@@ -33,12 +33,7 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2252 When adding buttons only add to currently selected profiles by default · release vNext
-- [ ] YAAT-2248 Macro panel cut button settings · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [/] YAAT-2249 Solo S3-FAT: pilots request lower every ~10 s and the approach every ~15 s · release vNext
-- [/] YAAT-2250 CTO MRC followed by CM 020: the departure never turns crosswind (KOAK 28R, straight out at 1,300 ft) · release vNext
-- [/] YAAT-2253 Two VFR arrivals (N929AW, N2BP) show different context menus in one session · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -66,7 +61,6 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-2240 Add an Altitude quick command for VFR aircraft (CM, at or above, at or below) · release vNext
 
 ## Say again
 
@@ -894,7 +888,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (13/35 done)
+### 1 Defects (13/37 done)
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
@@ -917,6 +911,8 @@
 - [ ] YAAT-1821 Reach pattern altitude well before the entry when a VFR follower hands over to pattern entry
 - [ ] YAAT-1844 Take the pattern fixes off the route when a CM or DM ends pattern entry
 - [ ] YAAT-2148 Space a downwind follower behind a straight-in entrant still on its entry
+- [ ] YAAT-2255 Keep an assigned altitude below field+400 ft at liftoff (CM on the roll climbs through it)
+- [ ] YAAT-2257 CTO MRC then CM ... OR BELOW: the departure never turns crosswind (turn gate ignores the altitude ceiling)
 
 ### 2 Refinements and rulings (7/16 done)
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
@@ -929,12 +925,13 @@
 - [ ] YAAT-2144 Hold a downwind follower back so a 45-degree entrant it follows joins ahead
 - [ ] YAAT-2163 Restore the follow spacing ceiling when a follow ends on an approach for any reason
 
-### 3 Hygiene and tests (6/11 done)
+### 3 Hygiene and tests (6/12 done)
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
 - [ ] YAAT-1639 Move pattern tests off TestRunwayFactory onto real navdata runways
 - [ ] YAAT-1646 Add the whats-new-pattern-compression GuideCapture scene for the release showcase
 - [ ] YAAT-1806 Split TryChangePatternDirection under the hard limits; reuse TryResolvePatternRunway and DirectionWord
 - [ ] YAAT-2037 Split TryClearedToLand under the hard limits
+- [ ] YAAT-2256 Check TrafficDirection clears after a pattern-exit departure leaves the pattern
 
 ### No milestone
 - [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
@@ -1045,7 +1042,7 @@
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext+1
 - [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext+1
 
-### 2 Refinements and rulings (8/17 done)
+### 2 Refinements and rulings (8/18 done)
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext+1
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range · release vNext+1
 - [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for · release vNext+1
@@ -1055,9 +1052,11 @@
 - [ ] YAAT-1223 Stagger solo parking call-ups: slower base interval with a seeded random spread · release vNext+1
 - [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi · release vNext+1
 - [ ] YAAT-2095 Have solo AI controllers handle an aircraft holding at its clearance limit on their frequency · release vNext+1
+- [ ] YAAT-2260 Decide the further-clearance request's re-ask interval (300 s vs 120/150 s)
 
-### 3 Hygiene and tests (0/1 done)
+### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext+1
+- [ ] YAAT-2259 Split PilotProactive.TickArrivalApproachRequest under the complexity limit
 
 ### No milestone
 - [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight' · release vNext+1
@@ -1208,7 +1207,7 @@
 - [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
 - [ ] YAAT-1919 Let the nav-route speed-latency walk read queued AT-fix speed blocks (SPD until E, AT N SPD)
 
-### 3 Hygiene and tests (0/15 done)
+### 3 Hygiene and tests (0/17 done)
 - [ ] YAAT-98 Observe and log a throwing onSubmit in MenuPopups' text-entry popup
 - [ ] YAAT-104 Share one runway-ends helper between RunwayFlyout and Core
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
@@ -1224,6 +1223,8 @@
 - [ ] YAAT-1725 Convert [ObservableProperty] fields to partial properties across the client projects
 - [ ] YAAT-1726 Check MainWindow's multi-line Run text for doubled spaces
 - [ ] YAAT-1900 Remove NavRouteFixDto.RestrictionLines at the next Minimum-client bump
+- [ ] YAAT-2258 Split FavoritesBarView.ShowEditFlyout and ShowEditBlankFlyout under the 100-line limit
+- [ ] YAAT-2261 Split three UserPreferences methods over the complexity limit (RecoverFields, SetPoppedOut, FromSaved)
 
 ### No milestone
 - [ ] YAAT-1907 Nav-route overlay: draw a pending hold-in-lieu of a procedure turn dashed
