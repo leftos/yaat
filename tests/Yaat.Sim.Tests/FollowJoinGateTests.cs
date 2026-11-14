@@ -7,6 +7,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -81,23 +82,6 @@ public class FollowJoinGateTests
             AircraftLookup = lookup,
             Logger = NullLogger.Instance,
         };
-
-    /// <summary>Point at <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> laterally
-    /// (positive toward the runway heading's right-hand side).</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
-            rwy.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-        TrueHeading perp = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perp, Math.Abs(crossNm));
-    }
 
     /// <summary>Follower in <see cref="VfrFollowPhase"/> behind a lead on a bare straight-in final (no pattern waypoints).</summary>
     private static (AircraftState Follower, VfrFollowPhase Phase, PhaseContext Ctx) SetupFinalJoin(

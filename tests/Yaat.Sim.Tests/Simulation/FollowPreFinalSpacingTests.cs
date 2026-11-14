@@ -11,6 +11,7 @@ using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -37,14 +38,6 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
 
     private static RunwayInfo Oak28R() =>
         NavigationDatabase.Instance.GetRunway("KOAK", "28R") ?? throw new InvalidOperationException("KOAK 28R missing from navdata");
-
-    /// <summary>A point <paramref name="alongNm"/> out the final and <paramref name="rightNm"/> right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double rightNm) =>
-        GeoMath.ProjectPoint(
-            GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), alongNm),
-            rwy.TrueHeading + 90.0,
-            rightNm
-        );
 
     private static AircraftState MakeAircraft(string callsign, string type, LatLon position, TrueHeading heading, double altitude, double ias) =>
         new()

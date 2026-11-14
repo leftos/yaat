@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -249,23 +249,6 @@ public class FollowOccupiedRunwayGoAroundTests(ITestOutputHelper output)
         $"phase {ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)"}, following {ac.Approach.FollowingCallsign ?? "(none)"}, "
         + $"{AlongFinalNm(rwy, ac.Position):F2} nm from the 28R threshold, {ac.Altitude - rwy.ElevationFt:F0} ft AGL";
 
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-        LatLon onCenterline = GeoMath.ProjectPoint(threshold, rwy.TrueHeading.ToReciprocal(), alongNm);
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
-
     private static double AlongFinalNm(RunwayInfo rwy, LatLon position) =>
         GeoMath.AlongTrackDistanceNm(position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal());
 
@@ -273,23 +256,5 @@ public class FollowOccupiedRunwayGoAroundTests(ITestOutputHelper output)
         rwy.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Piston);
 
     private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitude) =>
-        new()
-        {
-            Callsign = callsign,
-            AircraftType = "C172",
-            Position = position,
-            TrueHeading = heading,
-            TrueTrack = heading,
-            Altitude = altitude,
-            IndicatedAirspeed = AircraftPerformance.ApproachSpeed("C172", AircraftCategory.Piston),
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KOAK",
-                Destination = "KOAK",
-                FlightRules = "VFR",
-                Altitude = PlannedAltitude.Vfr(2000),
-                CruiseSpeed = 110,
-            },
-        };
+        FollowTestHelpers.MakeVfr(callsign, position, heading, altitude, AircraftPerformance.ApproachSpeed("C172", AircraftCategory.Piston));
 }

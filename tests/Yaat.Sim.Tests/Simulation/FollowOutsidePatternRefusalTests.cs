@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
@@ -9,6 +8,7 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -41,26 +41,8 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    private static LatLon Threshold(RunwayInfo rwy) => new(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-
     private static double PatternAltitudeFt(RunwayInfo rwy) =>
         rwy.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Piston);
-
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(Threshold(rwy), rwy.TrueHeading.ToReciprocal(), alongNm);
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
 
     private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitudeFt, string destination) =>
         new()
@@ -169,44 +151,6 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
         PutOnCircuit(lead, rwy, PatternEntryLeg.Final);
         Assert.IsType<FinalApproachPhase>(lead.Phases!.CurrentPhase);
         return lead;
-    }
-
-    private static void PutOnCircuit(AircraftState ac, RunwayInfo rwy, PatternEntryLeg leg)
-    {
-        List<Phase> circuit = PatternBuilder.BuildCircuit(
-            new PatternCircuitRequest
-            {
-                Runway = rwy,
-                Category = AircraftCategorization.Categorize(ac.AircraftType),
-                AircraftType = ac.AircraftType,
-                WindSpeedKt = 0,
-                Direction = PatternDirection.Right,
-                EntryLeg = leg,
-                TouchAndGo = false,
-                FinalDistanceNm = null,
-                PatternSizeNm = null,
-                AltitudeOverrideFt = null,
-                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-                AuthoredRunway = null,
-                ActiveRunways = ActiveRunways.Empty,
-                Commanded = PatternCommanded.None,
-            }
-        );
-        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
-        foreach (Phase phase in circuit)
-        {
-            ac.Phases.Add(phase);
-        }
-
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
-    }
-
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     /// <summary>The follower's state before FOLLOW, to prove a refusal leaves it untouched.</summary>

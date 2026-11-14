@@ -14,6 +14,7 @@ using Yaat.Sim.Simulation;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Situation;
 
@@ -1339,12 +1340,4 @@ public class SituationFlagCalculatorTests
 
     private static AirportGroundLayout OakLayout() =>
         new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("KOAK layout missing from TestData");
-
-    /// <summary>A point <paramref name="alongNm"/> out the final and <paramref name="rightNm"/> right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double rightNm) =>
-        GeoMath.ProjectPoint(
-            GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), alongNm),
-            rwy.TrueHeading + 90.0,
-            rightNm
-        );
 }

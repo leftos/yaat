@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Phases.Approach;
 
@@ -33,23 +34,6 @@ public class FinalApproachFixTests
     /// <summary><paramref name="runway"/>'s inside-the-FAF limit: its published FAF distance bounded by the 5 NM ceiling.</summary>
     private static double LimitNm(RunwayInfo runway) =>
         ApproachGateDatabase.InsideFafLimitNm(ApproachGateDatabase.GetFafDistanceNm(runway.AirportId, runway.Designator, thresholdDisplacementNm: 0));
-
-    /// <summary>A point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the extended centerline.</summary>
-    private static LatLon OffFinal(RunwayInfo runway, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
-            runway.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
 
     /// <summary>A point <paramref name="pastNm"/> past the landing threshold, along the landing direction.</summary>
     private static LatLon PastThreshold(RunwayInfo runway, double pastNm) =>

@@ -10,6 +10,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -45,9 +46,6 @@ public class FollowApproachCrossRunwayTests(ITestOutputHelper output)
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
     /// <summary>The OAK ground layout the engine hands the dispatcher, for the runway end's threshold displacement.</summary>
     private static AirportGroundLayout? OakLayout => new TestAirportGroundData().GetLayout("KOAK");
 
@@ -62,46 +60,8 @@ public class FollowApproachCrossRunwayTests(ITestOutputHelper output)
     private static double FafLimit(RunwayInfo rwy) =>
         ApproachGateDatabase.InsideFafLimitNm(ApproachGateDatabase.GetFafDistanceNm(rwy.AirportId, rwy.Designator, DisplacementNm(rwy)));
 
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
-            rwy.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
-
     /// <summary>A point whose along-final distance to the <em>landing</em> threshold is <paramref name="alongNm"/> nm.</summary>
     private static LatLon OnFinalAt(RunwayInfo rwy, double alongNm) => OffFinal(rwy, alongNm - DisplacementNm(rwy), 0);
-
-    private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitude) =>
-        new()
-        {
-            Callsign = callsign,
-            AircraftType = "C172",
-            Position = position,
-            TrueHeading = heading,
-            TrueTrack = heading,
-            Altitude = altitude,
-            IndicatedAirspeed = 90,
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KOAK",
-                Destination = "KOAK",
-                FlightRules = "VFR",
-                Altitude = PlannedAltitude.Vfr(2000),
-                CruiseSpeed = 110,
-            },
-        };
 
     /// <summary>A lead in <paramref name="runway"/>'s downwind circuit, positioned by <paramref name="position"/>.</summary>
     private static AircraftState AddCircuitLead(SimulationEngine engine, RunwayInfo runway, LatLon position)

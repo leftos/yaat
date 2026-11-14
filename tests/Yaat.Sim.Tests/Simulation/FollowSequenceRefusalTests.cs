@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -10,6 +9,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -34,78 +34,6 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).EnableCategory("CommandDispatcher", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-    }
-
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
-            rwy.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
-
-    private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitude) =>
-        new()
-        {
-            Callsign = callsign,
-            AircraftType = "C172",
-            Position = position,
-            TrueHeading = heading,
-            TrueTrack = heading,
-            Altitude = altitude,
-            IndicatedAirspeed = 90,
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KOAK",
-                Destination = "KOAK",
-                FlightRules = "VFR",
-                Altitude = PlannedAltitude.Vfr(2000),
-                CruiseSpeed = 110,
-            },
-        };
-
-    /// <summary>Put <paramref name="ac"/> on the right-traffic circuit for <paramref name="rwy"/> starting at <paramref name="leg"/>.</summary>
-    private static void PutOnCircuit(AircraftState ac, RunwayInfo rwy, PatternEntryLeg leg)
-    {
-        List<Phase> circuit = PatternBuilder.BuildCircuit(
-            new PatternCircuitRequest
-            {
-                Runway = rwy,
-                Category = AircraftCategorization.Categorize(ac.AircraftType),
-                AircraftType = ac.AircraftType,
-                WindSpeedKt = 0,
-                Direction = PatternDirection.Right,
-                EntryLeg = leg,
-                TouchAndGo = false,
-                FinalDistanceNm = null,
-                PatternSizeNm = null,
-                AltitudeOverrideFt = null,
-                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-                AuthoredRunway = null,
-                ActiveRunways = ActiveRunways.Empty,
-                Commanded = PatternCommanded.None,
-            }
-        );
-        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
-        foreach (Phase phase in circuit)
-        {
-            ac.Phases.Add(phase);
-        }
-
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     /// <summary>
@@ -164,14 +92,6 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
 
     private static FollowerState Capture(AircraftState ac) =>
         new(ac.Phases, ac.Phases?.CurrentPhase, ac.Phases?.Phases.Count ?? 0, ac.Phases?.LandingClearance, ac.Phases?.ClearedRunwayId);
-
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
-    }
 
     private CommandResult Send(SimulationEngine engine, string command)
     {

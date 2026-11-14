@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -704,22 +705,4 @@ public class FollowArmedPatternRunwayTests
             AircraftLookup = lookup,
             Logger = NullLogger.Instance,
         };
-
-    /// <summary>Point <paramref name="alongNm"/> out the final approach course, <paramref name="crossNm"/> laterally
-    /// (positive toward the runway heading's right-hand side).</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
-            rwy.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perp = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perp, Math.Abs(crossNm));
-    }
 }

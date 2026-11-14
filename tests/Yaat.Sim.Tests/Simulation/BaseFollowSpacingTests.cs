@@ -11,6 +11,7 @@ using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -40,24 +41,6 @@ public class BaseFollowSpacingTests(ITestOutputHelper output)
             .InitializeSimLog();
 
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-    }
-
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    private static LatLon Threshold(RunwayInfo rwy) => new(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(Threshold(rwy), rwy.TrueHeading.ToReciprocal(), alongNm);
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
     }
 
     private static double AlongFinalNm(RunwayInfo rwy, LatLon position) =>
@@ -198,15 +181,6 @@ public class BaseFollowSpacingTests(ITestOutputHelper output)
         lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         Assert.IsType<ApproachNavigationPhase>(lead.Phases.CurrentPhase);
         return lead;
-    }
-
-    /// <summary>Runs the production physics + phase step at the engine's four sub-ticks a second (no scenario loaded).</summary>
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     private static TrueHeading BaseHeading(BasePhase phase) => phase.Waypoints!.BaseHeading;

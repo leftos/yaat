@@ -11,6 +11,7 @@ using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -47,78 +48,6 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             .InitializeSimLog();
 
         return new SimulationEngine(RecordingGroundData.Evergreen("FOLLOW of a lead with no current runway"), PushPlanStore.CreateShipped());
-    }
-
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
-            rwy.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
-
-    private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitude) =>
-        new()
-        {
-            Callsign = callsign,
-            AircraftType = "C172",
-            Position = position,
-            TrueHeading = heading,
-            TrueTrack = heading,
-            Altitude = altitude,
-            IndicatedAirspeed = 90,
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KOAK",
-                Destination = "KOAK",
-                FlightRules = "VFR",
-                Altitude = PlannedAltitude.Vfr(2000),
-                CruiseSpeed = 110,
-            },
-        };
-
-    /// <summary>Put <paramref name="ac"/> on the circuit for <paramref name="rwy"/> starting at <paramref name="leg"/>.</summary>
-    private static void PutOnCircuit(AircraftState ac, RunwayInfo rwy, PatternDirection direction, PatternEntryLeg leg)
-    {
-        List<Phase> circuit = PatternBuilder.BuildCircuit(
-            new PatternCircuitRequest
-            {
-                Runway = rwy,
-                Category = AircraftCategorization.Categorize(ac.AircraftType),
-                AircraftType = ac.AircraftType,
-                WindSpeedKt = 0,
-                Direction = direction,
-                EntryLeg = leg,
-                TouchAndGo = false,
-                FinalDistanceNm = null,
-                PatternSizeNm = null,
-                AltitudeOverrideFt = null,
-                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-                AuthoredRunway = null,
-                ActiveRunways = ActiveRunways.Empty,
-                Commanded = PatternCommanded.None,
-            }
-        );
-        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = direction };
-        foreach (Phase phase in circuit)
-        {
-            ac.Phases.Add(phase);
-        }
-
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     /// <summary>Follower on the right base to 28R, 2.5 nm out and 1.5 nm right of the centerline, heading for the final.</summary>
@@ -1362,15 +1291,6 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             lead.TrueTrack.SignedAngleTo(widenHeading) < -10,
             $"widen heading {widenHeading.Degrees:F1} vs lead track {lead.TrueTrack.Degrees:F1}"
         );
-    }
-
-    /// <summary>Runs the production physics + phase step at the engine's four sub-ticks a second (no scenario loaded).</summary>
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     private static void AssertReenteredPattern(AircraftState follower)

@@ -11,6 +11,7 @@ using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -36,30 +37,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
     private static RunwayInfo Oak28R() => Oak("28R");
-
-    /// <summary>
-    /// Point <paramref name="alongNm"/> out the final (past the threshold when negative) and <paramref name="crossNm"/> to the
-    /// right.
-    /// </summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(
-            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
-            rwy.TrueHeading.ToReciprocal(),
-            alongNm
-        );
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
 
     private static AircraftState MakeAircraft(string callsign, LatLon position, TrueHeading heading, double altitude, string flightRules) =>
         new()
@@ -250,14 +228,6 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         CommandResult result = engine.SendCommand(Follower, command);
         output.WriteLine($"{command}: success={result.Success} — {result.Message}");
         return result;
-    }
-
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     /// <summary>The climb's state FOLLOW must keep: the phase list and instance, its count, the climb target and the clearance.</summary>

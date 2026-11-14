@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -115,8 +116,6 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
 
     private static double Nm(LatLon a, LatLon b) => GeoMath.DistanceNm(a, b);
 
-    private static LatLon Threshold(RunwayInfo rwy) => new(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-
     /// <summary>A point on the downwind line <paramref name="shortNm"/> before the base-turn point.</summary>
     private static LatLon OnDownwind(PatternWaypoints wp, double shortNm) =>
         GeoMath.ProjectPoint(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), wp.DownwindHeading.ToReciprocal(), shortNm);
@@ -204,10 +203,6 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
 
         Assert.Equal(expected, AirborneFollowHelper.RemainingPatternPathNm(lead, wp), ToleranceNm);
     }
-
-    /// <summary>A point <paramref name="alongNm"/> out the 28R final and <paramref name="rightNm"/> right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double rightNm) =>
-        GeoMath.ProjectPoint(GeoMath.ProjectPoint(Threshold(rwy), rwy.TrueHeading.ToReciprocal(), alongNm), rwy.TrueHeading + 90.0, rightNm);
 
     /// <summary>
     /// A straight-in <paramref name="type"/> (<see cref="Leader"/>) entering the 28R final <paramref name="joinNm"/> out on the

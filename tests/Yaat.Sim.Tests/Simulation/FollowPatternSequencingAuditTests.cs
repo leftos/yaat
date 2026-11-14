@@ -10,6 +10,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -1016,15 +1017,6 @@ public class FollowPatternSequencingAuditTests
     {
         AttachCircuit(ac, rwy, AircraftCategory.Piston, dir, entry, NavigationDatabase.Instance.GetRunways("KOAK"));
         ac.Phases!.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
-    }
-
-    /// <summary>Runs the production physics + phase step at the engine's four sub-ticks a second (no scenario loaded).</summary>
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     /// <summary>

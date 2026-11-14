@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -35,49 +36,13 @@ public class FollowReturnEntryTests(ITestOutputHelper output)
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    private static LatLon Threshold(RunwayInfo rwy) => new(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(Threshold(rwy), rwy.TrueHeading.ToReciprocal(), alongNm);
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
-
     private static double ApproachSpeedKt => AircraftPerformance.ApproachSpeed("C172", AircraftCategory.Piston);
 
     private static double PatternAltitudeFt(RunwayInfo rwy) =>
         rwy.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Piston);
 
     private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitude) =>
-        new()
-        {
-            Callsign = callsign,
-            AircraftType = "C172",
-            Position = position,
-            TrueHeading = heading,
-            TrueTrack = heading,
-            Altitude = altitude,
-            IndicatedAirspeed = ApproachSpeedKt,
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KOAK",
-                Destination = "KOAK",
-                FlightRules = "VFR",
-                Altitude = PlannedAltitude.Vfr(2000),
-                CruiseSpeed = 110,
-            },
-        };
+        FollowTestHelpers.MakeVfr(callsign, position, heading, altitude, ApproachSpeedKt);
 
     /// <summary>
     /// A follower pursuing <see cref="Leader"/> from its 28R right-traffic base, at <paramref name="alongNm"/> out and

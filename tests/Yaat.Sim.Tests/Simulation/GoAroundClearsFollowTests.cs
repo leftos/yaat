@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -44,14 +45,6 @@ public class GoAroundClearsFollowTests(ITestOutputHelper output)
         Assert.True(follow.Success, follow.Message);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
         return follower;
-    }
-
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     private static bool MentionsLeadLifecycle(string text) =>

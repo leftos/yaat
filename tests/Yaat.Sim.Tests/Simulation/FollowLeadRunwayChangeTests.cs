@@ -9,6 +9,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -42,14 +43,6 @@ public class FollowLeadRunwayChangeTests(ITestOutputHelper output)
 
     private static RunwayInfo Runway(string designator) =>
         NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    /// <summary>A point <paramref name="alongNm"/> out the final and <paramref name="rightNm"/> right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double rightNm) =>
-        GeoMath.ProjectPoint(
-            GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), alongNm),
-            rwy.TrueHeading + 90.0,
-            rightNm
-        );
 
     private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitude, string airport) =>
         new()
@@ -239,14 +232,6 @@ public class FollowLeadRunwayChangeTests(ITestOutputHelper output)
         CommandResult result = engine.SendCommand(lead, command);
         output.WriteLine($"{lead} {command}: success={result.Success} — {result.Message}");
         return result;
-    }
-
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     private void LogWarnings(AircraftState follower) => output.WriteLine($"warnings: {string.Join(" | ", follower.PendingWarnings)}");

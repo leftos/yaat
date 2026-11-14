@@ -521,6 +521,7 @@ The default run passes `--filter-not-trait` for each of the three (untagged test
   `DispatchContext` with no optional params** so the compiler enforces wiring when a new context field lands; the test factory uses
   optional params so tests that don't care about ground layout/weather/lookup stay terse. See
   [command-pipeline.md](command-pipeline.md) for what `DispatchContext` carries.
+- `FollowTestHelpers` (`Helpers/FollowTestHelpers.cs`) — the shared Follow-test helpers: KOAK runway lookup (`Oak`), `Threshold`, `OffFinal` (a point along and across a final), `TickSeconds`, a KOAK VFR C172 factory (`MakeVfr`) and right or directed circuit setup (`PutOnCircuit`). Stateless; a test file reaches them with `using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;`. Reach for these before writing another private copy.
 - `RecordingLoader` (`Helpers/RecordingLoader.cs`) — loads v4 recording archives and legacy bug-report bundles transparently
   (`Load` → base recording with no snapshots, **memoized per file path for the test process** — `SessionRecording` is init-only and
   the engine never mutates `Actions`, so parallel classes share one decode; `OpenArchive` → on-demand snapshot reader). The replay surface itself (ReplayFromStartTo /

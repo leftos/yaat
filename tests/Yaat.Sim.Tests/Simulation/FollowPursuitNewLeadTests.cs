@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -36,47 +37,11 @@ public class FollowPursuitNewLeadTests(ITestOutputHelper output)
         return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
-    private static RunwayInfo Oak(string designator) =>
-        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
-
-    private static LatLon Threshold(RunwayInfo rwy) => new(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-
     private static double PatternAltitudeFt(RunwayInfo rwy) =>
         rwy.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Piston);
 
-    /// <summary>Point <paramref name="alongNm"/> out the final and <paramref name="crossNm"/> to the right of the landing direction.</summary>
-    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
-    {
-        LatLon onCenterline = GeoMath.ProjectPoint(Threshold(rwy), rwy.TrueHeading.ToReciprocal(), alongNm);
-        if (Math.Abs(crossNm) < 1e-9)
-        {
-            return onCenterline;
-        }
-
-        TrueHeading perpendicular = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        return GeoMath.ProjectPoint(onCenterline, perpendicular, Math.Abs(crossNm));
-    }
-
     private static AircraftState MakeVfr(string callsign, LatLon position, TrueHeading heading, double altitudeFt) =>
-        new()
-        {
-            Callsign = callsign,
-            AircraftType = "C172",
-            Position = position,
-            TrueHeading = heading,
-            TrueTrack = heading,
-            Altitude = altitudeFt,
-            IndicatedAirspeed = AircraftPerformance.ApproachSpeed("C172", AircraftCategory.Piston),
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KOAK",
-                Destination = "KOAK",
-                FlightRules = "VFR",
-                Altitude = PlannedAltitude.Vfr(2000),
-                CruiseSpeed = 110,
-            },
-        };
+        FollowTestHelpers.MakeVfr(callsign, position, heading, altitudeFt, AircraftPerformance.ApproachSpeed("C172", AircraftCategory.Piston));
 
     /// <summary>
     /// A follower pursuing <paramref name="target"/> on the 28R right base, heading for the final, 2.5 nm out and 1 nm right
@@ -201,7 +166,9 @@ public class FollowPursuitNewLeadTests(ITestOutputHelper output)
 
     private static void PutOnCircuit(AircraftState ac, RunwayInfo rwy, PatternEntryLeg leg) => PutOnCircuit(ac, rwy, leg, []);
 
-    /// <summary>Gives <paramref name="ac"/> the phases <paramref name="first"/>, then the 28R right circuit from <paramref name="leg"/>, started.</summary>
+    /// <summary>
+    /// Gives <paramref name="ac"/> the phases <paramref name="first"/>, then the 28R right circuit from <paramref name="leg"/>, started.
+    /// </summary>
     private static void PutOnCircuit(AircraftState ac, RunwayInfo rwy, PatternEntryLeg leg, Phase[] first)
     {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
@@ -230,14 +197,6 @@ public class FollowPursuitNewLeadTests(ITestOutputHelper output)
         }
 
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
-    }
-
-    private static void TickSeconds(SimulationEngine engine, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            engine.TickPhysics(0.25);
-        }
     }
 
     /// <summary>The follower's shortest path to the 28R threshold on the right circuit, from its position and heading.</summary>
