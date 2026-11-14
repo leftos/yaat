@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -153,7 +154,8 @@ internal static class FlightCommandHandler
     /// <summary>
     /// An altitude assignment is the most recent one (AIM 4-4-10.a), so it replaces any altitude an option clearance deferred
     /// to the next runway's pattern (<see cref="PhaseList.TransitionPatternAltitude"/>) wherever the aircraft is — a follower
-    /// in pursuit included. Assigned in the pattern, it also becomes the standing pattern altitude.
+    /// in pursuit included. Assigned in the pattern, it also becomes the standing pattern altitude; assigned after a
+    /// pattern-exit departure, it amends only the departure's climb target (<see cref="ApplyDepartureClimbTarget"/>).
     /// </summary>
     private static void SetPatternAltitudeOverride(AircraftState aircraft, int altitude, AirportGroundLayout? groundLayout)
     {
@@ -163,11 +165,58 @@ internal static class FlightCommandHandler
         }
 
         phases.TransitionPatternAltitude = null;
-        if (phases.TrafficDirection is not null)
+        if (phases.TrafficDirection is null)
         {
-            aircraft.Pattern.SetAltitudeOverride(altitude, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
-            PatternCommandHandler.RefreshPatternWaypointsForAltitude(aircraft, groundLayout);
+            return;
         }
+
+        if (ApplyDepartureClimbTarget(phases, altitude))
+        {
+            return;
+        }
+
+        aircraft.Pattern.SetAltitudeOverride(altitude, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
+        PatternCommandHandler.RefreshPatternWaypointsForAltitude(aircraft, groundLayout);
+    }
+
+    /// <summary>
+    /// A CM/DM issued after a crosswind or downwind departure clearance (CTO MRC/MLC/MRD/MLD) amends the departure's climb
+    /// target, not the pattern altitude: the aircraft is leaving the pattern, so its crosswind turn stays at pattern altitude
+    /// less 300 ft — or at level-off when the assignment is lower (AIM 4-3-3.a and FIG 4-3-2 key 5/6, 4-4-10.a,
+    /// 4-4-3.c.1) —
+    /// and the assigned altitude holds through <see cref="PatternExitPhase"/> in place of the filed cruise. Returns false
+    /// when the list holds no pending or active <see cref="PatternExitPhase"/>: closed traffic and an arrival take the
+    /// altitude as their pattern altitude instead.
+    /// </summary>
+    private static bool ApplyDepartureClimbTarget(PhaseList phases, int altitude)
+    {
+        if (!phases.Phases.Any(p => (p is PatternExitPhase) && (p.Status is PhaseStatus.Pending or PhaseStatus.Active)))
+        {
+            return false;
+        }
+
+        foreach (Phase phase in phases.Phases)
+        {
+            if (phase.Status is not (PhaseStatus.Pending or PhaseStatus.Active))
+            {
+                continue;
+            }
+
+            switch (phase)
+            {
+                case UpwindPhase upwind:
+                    upwind.DepartureClimbTargetFt = altitude;
+                    break;
+                case CrosswindPhase crosswind:
+                    crosswind.DepartureClimbTargetFt = altitude;
+                    break;
+                case PatternExitPhase exit:
+                    exit.ClimbTargetFt = altitude;
+                    break;
+            }
+        }
+
+        return true;
     }
 
     private static CommandResult ApplyVfrAltitudeRestriction(ClimbMaintainCommand cmd, AircraftState aircraft)

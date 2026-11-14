@@ -83,7 +83,7 @@ then projected:
 - `CrosswindTurn` = the **departure end of the runway (DER)**. The upwind length is governed by runway
   geometry, not pattern size: per AIM 4-3-2 the crosswind turn is commenced **beyond the departure end of the
   runway within 300 ft of pattern altitude**, so a smaller pattern keeps the same at-the-DER upwind (and never
-  turns crosswind while still over the runway). `UpwindPhase` enforces that gate (see below). An aircraft cleared (CM/DM) below pattern altitude less 300 ft turns crosswind past the departure end once within the capture tolerance of that cleared altitude, rather than holding the upwind for an altitude it was told not to climb to (`UpwindPhase.AtLegalTurnAltitude`).
+  turns crosswind while still over the runway). `UpwindPhase` enforces that gate (see below). An aircraft cleared (CM/DM) below pattern altitude less 300 ft turns crosswind past the departure end once within the capture tolerance of that cleared altitude, rather than holding the upwind for an altitude it was told not to climb to (`UpwindPhase.AtLegalTurnAltitude`). After a pattern-exit departure (CTO MRC/MLC/MRD/MLD) a CM/DM does not move the pattern altitude or the turn point: `FlightCommandHandler.ApplyDepartureClimbTarget` sets only `DepartureClimbTargetFt` on the pending/active `UpwindPhase`/`CrosswindPhase` and `ClimbTargetFt` on the `PatternExitPhase`, so the turn is kept (closed traffic and arrivals still take the CM as the pattern altitude).
 - `DownwindStart` = crosswind turn + `patternSize` perpendicular (along `crosswindHeading`).
 - `DownwindAbeam` = threshold + `patternSize` perpendicular — the canonical on-downwind reference point.
 - `BaseTurn` = downwind abeam + `BaseExtensionNm` along the downwind heading.
