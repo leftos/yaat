@@ -146,6 +146,50 @@ public class GroundParserTests
         Assert.False(cmd.IsSuccess);
     }
 
+    // --- HS after an exit verb is the hold-short verb, never an exit taxiway ---
+
+    [Theory]
+    [InlineData("ER HS F", "ER, HS F", typeof(ExitRightCommand), "F")]
+    [InlineData("ER HS A", "ER, HS A", typeof(ExitRightCommand), "A")]
+    [InlineData("EL HS B", "EL, HS B", typeof(ExitLeftCommand), "B")]
+    public void ExitThenHs_SplitsIntoExitAndHoldShort(string input, string expanded, Type exitType, string holdShort)
+    {
+        Assert.Equal(expanded, CommandSchemeParser.ExpandMultiCommand(input));
+
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound(input);
+        Assert.True(result.IsSuccess, result.Reason);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
+        Assert.Equal(2, block.Commands.Count);
+        Assert.IsType(exitType, block.Commands[0]);
+        Assert.Null(block.Commands[0] is ExitRightCommand er ? er.Taxiway : ((ExitLeftCommand)block.Commands[0]).Taxiway);
+        Assert.Equal(holdShort, Assert.IsType<HoldShortCommand>(block.Commands[1]).Target.ToCanonical());
+    }
+
+    [Fact]
+    public void ExitRightHs_FailsAsHoldShortNotTaxiway()
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("ER HS");
+
+        Assert.False(cmd.IsSuccess);
+        Assert.StartsWith("\"ER\" ER: 'HS' is the hold-short command, not an exit taxiway — expected: ", cmd.Reason);
+    }
+
+    [Theory]
+    [InlineData("ER A B")]
+    [InlineData("TAXI B A HS @A12")]
+    [InlineData("TAXI B A $7 RWY 28L @E2")]
+    public void MalformedGroundInput_IsNotSplitAtAccept(string input) => Assert.Equal(input, CommandSchemeParser.ExpandMultiCommand(input));
+
+    [Fact]
+    public void ExitRightTaxiway_Unchanged()
+    {
+        Assert.Equal("ER F3", CommandSchemeParser.ExpandMultiCommand("ER F3"));
+        Assert.Equal("F3", Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER F3").Value).Taxiway);
+    }
+
+    [Fact]
+    public void ExitTaxiwayThenHs_Unchanged() => Assert.Equal("EXIT F3, HS F", CommandSchemeParser.ExpandMultiCommand("EXIT F3 HS F"));
+
     // --- RWY standalone ---
 
     [Fact]

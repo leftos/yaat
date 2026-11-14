@@ -147,8 +147,11 @@ Both parsers (`CommandSchemeParser.ParseCompound` on the client, `CommandParser.
 a bare condition — an `AT` block with no command of its own — that has another block or command after it (`AT SUNOL; DM 020`,
 `AT SUNOL, DM 020`), with *"AT has no command before the ';' — did you mean 'AT SUNOL DM 020'?"*
 (`CommandSchemeParser.EmptyConditionFailure`, shared). Split at the separator, the condition would trigger nothing and the
-command would run as an ordinary block. A bare condition that ends the input (`AT BRIXX`, `CM 050; AT BRIXX`) stays
-accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a missing command in its own branch.
+command would run as an ordinary block. A bare condition that ends the input (`AT BRIXX`, `CM 050; AT BRIXX`, and `AT BRIXX,` canonicalizes to `AT BRIXX`) stays
+accepted on the client; a bare altitude condition (`AT 5000`) at the end is still refused there, and `AT 5000; DM 020` gets
+the empty-condition failure like a fix. The token-shape refusals (`AT A/B/C`, `AT A/A`, `AT $`, `AT @`) are one helper,
+`CommandParser.AtConditionTokenShapeFailure`, called by both `ParseAtCondition` and the client's `ParseBlockToCanonical`, so
+the words cannot drift. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a missing command in its own branch.
 
 ## Historical failure classes (what regressions look like)
 

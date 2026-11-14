@@ -1217,7 +1217,8 @@ internal static class GroundCommandParser
     /// Parses the argument of an exit command (EL/ER/EXIT) into an optional
     /// taxiway plus the NODEL/EXP keyword modifiers, accepted in any order. The
     /// first token that is not a recognized modifier is taken as the taxiway
-    /// name; any further non-modifier token is an error.
+    /// name; any further non-modifier token is an error. A hold-short alias
+    /// (<c>HS</c>) is never a taxiway, so <c>ER HS F</c> splits as <c>ER, HS F</c>.
     /// </summary>
     private static (string? Taxiway, bool NoDelete, bool Expedite, string? Error) ParseExitModifiers(string? arg)
     {
@@ -1239,6 +1240,10 @@ internal static class GroundCommandParser
             else if (token.Equals("EXP", StringComparison.OrdinalIgnoreCase))
             {
                 expedite = true;
+            }
+            else if (CommandRegistry.IsAliasFor(CanonicalCommandType.HoldShort, token))
+            {
+                return (null, false, false, $"'{token.ToUpperInvariant()}' is the hold-short command, not an exit taxiway");
             }
             else if (taxiway is null)
             {

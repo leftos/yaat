@@ -110,6 +110,8 @@ FH 270
 
 YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and VICE. Commands are space-separated by default (e.g., `FH 270`), but numeric arguments can be written without a space when unambiguous (e.g., `FH270`, `H270`, `CM240`). This concatenation works for any verb with a numeric argument.
 
+Commands typed with no separator between them are split greedily: each verb takes the longest run of words it accepts, backing off to a shorter run when the longer one leaves a tail that is not itself a command. So `DCT FOZZY CM 5200` is `DCT FOZZY, CM 5200` even though `CM` is also a fix name.
+
 The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 270` or `H270` maps to Fly Heading. Similarly, `T` is shared: `T30L` is relative left 30°, `T30R` is relative right 30°.
 
 Aliases are fully editable in **Settings › Command verbs**.
@@ -215,7 +217,9 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   | `AT @<parking>` | Fires when the aircraft reaches the named parking spot | `AT @TERM2 FCA` |
   | `AT <t1>/<t2>` | Fires at the node where two named taxiways meet (closest to the aircraft when issued) | `AT B/C SPD 5` |
 
-  The command goes in the same block as its condition: `AT SUNOL; DM 020` or `AT SUNOL, DM 020` is refused with `has no command before the ';' — did you mean 'AT SUNOL DM 020'?`, because the separator would leave the condition with nothing to trigger. An `AT` condition on its own at the very end of the input is still accepted.
+  The command goes in the same block as its condition: `AT SUNOL; DM 020` or `AT SUNOL, DM 020` is refused with `has no command before the ';' — did you mean 'AT SUNOL DM 020'?` (the `','` form for a comma), because the separator would leave the condition with nothing to trigger. The altitude form is refused the same way (`AT 5000; DM 020`). An `AT` fix condition on its own at the very end of the input is still accepted (`AT BRIXX,` reads as `AT BRIXX`), but a trailing bare `AT 5000` is refused: *"expects a command after the altitude"*.
+
+  A malformed `AT` token is refused with the same words before it is sent: `AT A/B/C` ("AT intersection requires two taxiway names separated by '/'"), `AT A/A` ("… two distinct taxiways"), a bare `AT $` ("AT $ requires a spot name") and a bare `AT @` ("AT @ requires a parking name").
 
   **Disambiguation order:** sigils win first (`$` spot, `@` parking, `/` intersection), then bare digits stay altitudes (so `AT 30` is still 3,000 ft — to target SFO spot `30` use `AT $30`), then bare names try airborne fixes (`AT SUNOL`) before falling back to a taxiway. If the resolved entity is not present in the airport layout, the block is rejected with a `AT ground entity not found` warning.
 
@@ -1085,6 +1089,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `EL` / `EXITL` | Exit runway to the left. Requires a pending landing or active runway exit; rejected with feedback otherwise. Can be re-issued to change the exit until the aircraft starts turning off. |
 | `ER` / `EXITR` | Exit runway to the right. Same precondition as `EL`. |
 | `EXIT A3` | Exit runway at taxiway A3. Same precondition as `EL`. |
+| `ER HS F` / `EL HS F` | An exit followed by a hold-short of `F`, as `ER, HS F`. `HS` is never read as the exit taxiway: `ER HS` alone is refused with *"ER: 'HS' is the hold-short command, not an exit taxiway"*. |
 | *(no exit ahead)* | A landing with no exit available rolls to a planned stop (short of the last exit's turn-in, else 300 ft before the runway end) and, as that stop begins, says *"unable to exit, request back-taxi to {twy}"* (the nearest exit behind it), also when every exit ahead is occupied, then waits; clear it with `TAXI <rwy> <twy>` to back-taxi along the runway. |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
 | `ER W5 EXP` / `EL EXP` / `EXIT A3 EXP` | Exit **without delay** — clear the runway as fast as possible. Takes the earliest reachable exit (instead of the first comfortable one), braking harder (max-effort) to make it, then brakes at max effort to the hold-short stop after the turn-off. High-speed exits keep their higher turn-off speed. `EXP` combines with `NODEL` in any order. |

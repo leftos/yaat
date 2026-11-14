@@ -617,45 +617,29 @@ public static class CommandParser
             return null;
         }
 
-        string token = parts[1].ToUpperInvariant();
+        string? shapeFailure = AtConditionTokenShapeFailure(parts[1], out string token);
+        if (shapeFailure is not null)
+        {
+            _lastBlockFailure = $"AT {shapeFailure}";
+            return null;
+        }
+
         string remainder = parts.Length >= 3 ? string.Join(' ', parts.Skip(2)) : "";
 
         // Sigil-prefixed ground entities — resolved layout-side in CommandDispatcher.
         if (token.StartsWith('$'))
         {
-            string name = token[1..];
-            if (name.Length == 0)
-            {
-                _lastBlockFailure = "AT $ requires a spot name";
-                return null;
-            }
-            return (new AtGroundEntityCondition(GroundEntityKind.Spot, name), remainder);
+            return (new AtGroundEntityCondition(GroundEntityKind.Spot, token[1..]), remainder);
         }
 
         if (token.StartsWith('@'))
         {
-            string name = token[1..];
-            if (name.Length == 0)
-            {
-                _lastBlockFailure = "AT @ requires a parking name";
-                return null;
-            }
-            return (new AtGroundEntityCondition(GroundEntityKind.Parking, name), remainder);
+            return (new AtGroundEntityCondition(GroundEntityKind.Parking, token[1..]), remainder);
         }
 
         if (token.Contains('/'))
         {
             string[] pair = token.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (pair.Length != 2 || pair[0].Length == 0 || pair[1].Length == 0)
-            {
-                _lastBlockFailure = $"AT intersection requires two taxiway names separated by '/' (got '{token}')";
-                return null;
-            }
-            if (string.Equals(pair[0], pair[1], StringComparison.OrdinalIgnoreCase))
-            {
-                _lastBlockFailure = $"AT intersection requires two distinct taxiways (got '{token}')";
-                return null;
-            }
             return (new AtGroundEntityCondition(GroundEntityKind.Intersection, pair[0], pair[1]), remainder);
         }
 
@@ -694,6 +678,41 @@ public static class CommandParser
         // Final fallback: treat as a taxiway name. Layout existence is verified by
         // CommandDispatcher.ConvertCondition; the parser stays layout-stateless.
         return (new AtGroundEntityCondition(GroundEntityKind.Taxiway, token), remainder);
+    }
+
+    /// <summary>
+    /// The shape check of an <c>AT</c> condition token that needs no navdata, shared by the server's
+    /// <see cref="ParseAtCondition"/> and the client's pre-send canonicalizer so both refuse the same
+    /// tokens with the same words. <paramref name="token"/> is the raw token uppercased with a trailing
+    /// <c>,</c> dropped (<c>AT BRIXX,</c> is <c>AT BRIXX</c>). Returns the failure without the leading
+    /// <c>AT</c> — no token left, an empty <c>$</c> spot or <c>@</c> parking name, or an intersection
+    /// that is not two distinct taxiways — or null.
+    /// </summary>
+    internal static string? AtConditionTokenShapeFailure(string rawToken, out string token)
+    {
+        token = rawToken.TrimEnd(',').ToUpperInvariant();
+        return token switch
+        {
+            "" => "requires a fix name, ground entity, or altitude",
+            "$" => "$ requires a spot name",
+            "@" => "@ requires a parking name",
+            _ when token.StartsWith('$') || token.StartsWith('@') => null,
+            _ when token.Contains('/') => AtIntersectionShapeFailure(token),
+            _ => null,
+        };
+    }
+
+    private static string? AtIntersectionShapeFailure(string token)
+    {
+        string[] pair = token.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (pair.Length != 2)
+        {
+            return $"intersection requires two taxiway names separated by '/' (got '{token}')";
+        }
+
+        return string.Equals(pair[0], pair[1], StringComparison.OrdinalIgnoreCase)
+            ? $"intersection requires two distinct taxiways (got '{token}')"
+            : null;
     }
 
     internal static bool IsGiveWayConditionVerb(string token)

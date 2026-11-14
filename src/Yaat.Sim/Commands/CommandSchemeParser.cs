@@ -85,6 +85,11 @@ public static class CommandSchemeParser
                 return null;
             }
 
+            if (bareCondition && IsBareAltitudeCondition(canonicalBlock, out failure))
+            {
+                return null;
+            }
+
             canonicalBlocks.Add(canonicalBlock);
         }
 
@@ -344,6 +349,33 @@ public static class CommandSchemeParser
         }
     }
 
+    /// <summary>
+    /// True when a bare condition is an altitude (<c>AT 5000</c>) with nothing after it: the client
+    /// refuses that as the last thing in the input, where a bare fix condition stands.
+    /// </summary>
+    private static bool IsBareAltitudeCondition(string canonicalBlock, out ParseFailure? failure)
+    {
+        string[] tokens = canonicalBlock.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool bareAltitude = (tokens.Length == 2) && (tokens[0] == "AT") && CommandParser.IsAltitudeArg(tokens[1]);
+        failure = bareAltitude ? new ParseFailure("AT", "expects a command after the altitude (e.g. AT 5000 CM 190)") : null;
+        return bareAltitude;
+    }
+
+    /// <summary>
+    /// <see cref="ParseBlockToCanonical"/> for a block nested after another condition or expansion,
+    /// where a bare altitude condition has no command to wait for.
+    /// </summary>
+    private static string? ParseNestedBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure)
+    {
+        string? canonical = ParseBlockToCanonical(block, scheme, out failure, out bool bareCondition);
+        if ((canonical is not null) && bareCondition && IsBareAltitudeCondition(canonical, out failure))
+        {
+            return null;
+        }
+
+        return canonical;
+    }
+
     private static string? ParseBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure, out bool bareCondition)
     {
         failure = null;
@@ -386,14 +418,14 @@ public static class CommandSchemeParser
                 return null;
             }
 
-            // AT with altitude requires a following command (AT 5000 CM 190)
-            if (CommandParser.IsAltitudeArg(tokens[1]) && tokens.Length < 3)
+            string? shapeFailure = CommandParser.AtConditionTokenShapeFailure(tokens[1], out string token);
+            if (shapeFailure is not null)
             {
-                failure = new ParseFailure("AT", "expects a command after the altitude (e.g. AT 5000 CM 190)");
+                failure = new ParseFailure("AT", shapeFailure);
                 return null;
             }
 
-            parts.Add($"AT {tokens[1].ToUpperInvariant()}");
+            parts.Add($"AT {token}");
             remaining = tokens.Length >= 3 ? tokens[2] : "";
         }
         else if (upper.StartsWith("ATFN "))
@@ -441,7 +473,7 @@ public static class CommandSchemeParser
             // then recursively parse the remainder as a separate block
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure, out _);
+                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -466,7 +498,7 @@ public static class CommandSchemeParser
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure, out _);
+                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -491,7 +523,7 @@ public static class CommandSchemeParser
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure, out _);
+                string? innerCanonical = ParseNestedBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -524,7 +556,7 @@ public static class CommandSchemeParser
             var tailCanonicals = new List<string>();
             foreach (string? subBlock in subBlocks.Skip(1))
             {
-                string? canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure, out _);
+                string? canonicalBlock = ParseNestedBlockToCanonical(subBlock, scheme, out failure);
                 if (canonicalBlock is null)
                 {
                     return null;
@@ -1174,8 +1206,11 @@ public static class CommandSchemeParser
     }
 
     /// <summary>
-    /// Greedy splitting: each verb consumes tokens until Parse fails, then the next token
-    /// must be a new verb. Falls back to returning input unchanged if splitting fails.
+    /// Greedy splitting: each verb takes the longest token span CommandParser.Parse accepts. When
+    /// that span is a fix-list command and the tail after it does not split into commands, it backs
+    /// off to a shorter span — so <c>DCT FOZZY CM 5200</c> gives up <c>CM</c> as a fix name to
+    /// leave <c>CM 5200</c> whole. Any other command keeps its longest span only. Falls back to
+    /// returning input unchanged if no split covers every token.
     /// </summary>
     private static string ExpandMultiCommandGreedy(string[] tokens)
     {
@@ -1185,46 +1220,98 @@ public static class CommandSchemeParser
             return string.Join(' ', tokens);
         }
 
-        var parts = new List<string>();
-        int i = 0;
+        var splitter = new GreedySplitter(tokens);
+        bool split = splitter.TrySplitFrom(0);
+        return (split && (splitter.Parts.Count >= 2)) ? string.Join(", ", splitter.Parts) : string.Join(' ', tokens);
+    }
 
-        while (i < tokens.Length)
+    /// <summary>Whether <paramref name="command"/> takes a list of fixes, whose last member may be a verb that is also a fix name.</summary>
+    private static bool IsFixListCommand(ParsedCommand? command) =>
+        command
+            is DirectToCommand
+                or ForceDirectToCommand
+                or AppendDirectToCommand
+                or AppendForceDirectToCommand
+                or TurnLeftDirectToCommand
+                or TurnRightDirectToCommand
+                or ConstrainedForceDirectToCommand;
+
+    /// <summary>
+    /// The backtracking search behind <see cref="ExpandMultiCommandGreedy"/>. Only a fix-list
+    /// longest span backs off to shorter spans. A start index whose every tried span leaves an
+    /// unsplittable tail is remembered, so each index is searched once.
+    /// </summary>
+    private sealed class GreedySplitter(string[] tokens)
+    {
+        private readonly HashSet<int> _deadStarts = [];
+
+        public List<string> Parts { get; } = [];
+
+        public bool Aborted { get; private set; }
+
+        public bool TrySplitFrom(int start)
         {
-            // Current token should be a verb — try parsing with increasing arg counts
-            string? lastGood = null;
-            ParsedCommand? lastGoodCommand = null;
-            int lastGoodEnd = i;
-
-            for (int end = i + 1; end <= tokens.Length; end++)
+            if (start == tokens.Length)
             {
-                string candidate = string.Join(' ', tokens[i..end]);
-                ParseResult<ParsedCommand> result = CommandParser.Parse(candidate);
-                if (result.IsSuccess)
+                return true;
+            }
+
+            if (_deadStarts.Contains(start))
+            {
+                return false;
+            }
+
+            foreach ((int end, string span, ParsedCommand? command) in SpansToTry(start))
+            {
+                // A takeoff or line-up clearance names its runway without RWY: "CTO RWY 28L" stays whole for the single-command
+                // refusal rather than splitting into a clearance on the assigned runway plus a runway reassignment.
+                if (IsTakeoffOrLineUpFollowedByRwy(command, tokens, end))
                 {
-                    lastGood = candidate;
-                    lastGoodCommand = result.Value;
-                    lastGoodEnd = end;
+                    Aborted = true;
+                    return false;
+                }
+
+                Parts.Add(span);
+                if (TrySplitFrom(end))
+                {
+                    return true;
+                }
+
+                Parts.RemoveAt(Parts.Count - 1);
+                if (Aborted)
+                {
+                    return false;
                 }
             }
 
-            if (lastGood is null)
-            {
-                // First token doesn't parse as any command — can't split
-                return string.Join(' ', tokens);
-            }
-
-            // A takeoff or line-up clearance names its runway without RWY: "CTO RWY 28L" stays whole for the single-command
-            // refusal rather than splitting into a clearance on the assigned runway plus a runway reassignment.
-            if (IsTakeoffOrLineUpFollowedByRwy(lastGoodCommand, tokens, lastGoodEnd))
-            {
-                return string.Join(' ', tokens);
-            }
-
-            parts.Add(lastGood);
-            i = lastGoodEnd;
+            _deadStarts.Add(start);
+            return false;
         }
 
-        return parts.Count >= 2 ? string.Join(", ", parts) : string.Join(' ', tokens);
+        /// <summary>
+        /// The longest accepted span from <paramref name="start"/>, then — only when it is a fix-list
+        /// command — every shorter accepted span, longest first.
+        /// </summary>
+        private IEnumerable<(int End, string Span, ParsedCommand? Command)> SpansToTry(int start)
+        {
+            bool? mayBackOff = null;
+            for (int end = tokens.Length; end > start; end--)
+            {
+                string candidate = string.Join(' ', tokens[start..end]);
+                ParseResult<ParsedCommand> result = CommandParser.Parse(candidate);
+                if (!result.IsSuccess)
+                {
+                    continue;
+                }
+
+                yield return (end, candidate, result.Value);
+                mayBackOff ??= IsFixListCommand(result.Value);
+                if (mayBackOff is false)
+                {
+                    yield break;
+                }
+            }
+        }
     }
 
     /// <summary>Whether <paramref name="command"/> is a takeoff or line-up clearance followed by a <c>RWY</c> token.</summary>

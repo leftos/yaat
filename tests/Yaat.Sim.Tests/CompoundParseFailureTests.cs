@@ -113,4 +113,50 @@ public class CompoundParseFailureTests : IDisposable
         ParseResult<CompoundCommand> server = CommandParser.ParseCompound(input);
         Assert.True(server.IsSuccess, server.Reason);
     }
+
+    // --- Client and server refuse the same AT shapes with the same words ---
+
+    [Theory]
+    [InlineData("AT 5000; DM 020", "AT has no command before the ';' — did you mean 'AT 5000 DM 020'?")]
+    [InlineData("AT 5000, DM 020", "AT has no command before the ',' — did you mean 'AT 5000 DM 020'?")]
+    [InlineData("AT A/B/C, SPD 10", "AT intersection requires two taxiway names separated by '/' (got 'A/B/C')")]
+    [InlineData("AT , CM 190", "AT requires a fix name, ground entity, or altitude")]
+    public void ParseCompound_AtShapeRefusal_ClientAndServerGiveTheSameMessage(string input, string message)
+    {
+        CompoundParseResult? client = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? clientFailure);
+        ParseResult<CompoundCommand> server = CommandParser.ParseCompound(input);
+
+        Assert.Null(client);
+        Assert.NotNull(clientFailure);
+        Assert.Equal(message, $"{clientFailure.Verb} {clientFailure.Reason}");
+        Assert.False(server.IsSuccess);
+        Assert.Equal(message, server.Reason);
+    }
+
+    [Theory]
+    [InlineData("AT 5000")]
+    [InlineData("ONHO AT 5000")]
+    public void ParseCompound_BareAltitudeWithNothingAfter_IsRefusedByClient(string input)
+    {
+        CompoundParseResult? client = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
+
+        Assert.Null(client);
+        Assert.NotNull(failure);
+        Assert.Equal("AT expects a command after the altitude (e.g. AT 5000 CM 190)", $"{failure.Verb} {failure.Reason}");
+    }
+
+    [Fact]
+    public void ParseCompound_AtFixWithTrailingComma_IsTheBareCondition()
+    {
+        CompoundParseResult? client = CommandSchemeParser.ParseCompound("AT BRIXX,", Scheme, out ParseFailure? failure);
+        ParseResult<CompoundCommand> server = CommandParser.ParseCompound("AT BRIXX,");
+
+        Assert.Null(failure);
+        Assert.NotNull(client);
+        Assert.Equal("AT BRIXX", client.CanonicalString);
+        Assert.True(server.IsSuccess, server.Reason);
+        ParsedBlock block = Assert.Single(server.Value!.Blocks);
+        Assert.Equal("BRIXX", Assert.IsType<AtFixCondition>(block.Condition).FixName);
+        Assert.Empty(block.Commands);
+    }
 }

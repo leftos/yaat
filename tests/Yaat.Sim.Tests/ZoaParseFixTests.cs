@@ -662,4 +662,64 @@ public class ZoaParseFixTests : IDisposable
         Assert.IsType<DirectToCommand>(withoutComma.Value!.Blocks[0].Commands[0]);
         Assert.IsType<DescendMaintainCommand>(withoutComma.Value!.Blocks[0].Commands[1]);
     }
+
+    // --- DCT list followed by a verb that is also a fix name (CM): backtrack the greedy span ---
+
+    [Fact]
+    public void ParseCompound_AtFixDctThenCm_SplitsCmOffTheFixList()
+    {
+        TestVnasData.EnsureInitialized();
+        using IDisposable real = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+
+        CompoundParseResult? client = CommandSchemeParser.ParseCompound(
+            "AT UXEWE DCT FOZZY CM 5200",
+            CommandScheme.Default(),
+            out ParseFailure? failure
+        );
+        Assert.Null(failure);
+        Assert.NotNull(client);
+        Assert.Equal("AT UXEWE DCT FOZZY, CM 5200", client.CanonicalString);
+
+        ParseResult<CompoundCommand> server = CommandParser.ParseCompound("AT UXEWE DCT FOZZY CM 5200");
+        Assert.True(server.IsSuccess, server.Reason);
+        ParsedBlock block = Assert.Single(server.Value!.Blocks);
+        Assert.Equal("UXEWE", Assert.IsType<AtFixCondition>(block.Condition).FixName);
+        Assert.Equal(2, block.Commands.Count);
+        Assert.Equal(["FOZZY"], Assert.IsType<DirectToCommand>(block.Commands[0]).Fixes.Select(f => f.Name));
+        Assert.Equal(5200, Assert.IsType<ClimbMaintainCommand>(block.Commands[1]).Altitude);
+    }
+
+    [Fact]
+    public void ParseCompound_WaitDctThenCm_SplitsCmOffTheFixList()
+    {
+        TestVnasData.EnsureInitialized();
+        using IDisposable real = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+
+        CompoundParseResult? client = CommandSchemeParser.ParseCompound(
+            "WAIT 120 DCT KDTO CM 6500",
+            CommandScheme.Default(),
+            out ParseFailure? failure
+        );
+        Assert.Null(failure);
+        Assert.NotNull(client);
+        Assert.Equal("WAIT 120; DCT KDTO, CM 6500", client.CanonicalString);
+
+        ParseResult<CompoundCommand> server = CommandParser.ParseCompound("WAIT 120 DCT KDTO CM 6500");
+        Assert.True(server.IsSuccess, server.Reason);
+        Assert.Equal(2, server.Value!.Blocks.Count);
+        Assert.Equal(120, Assert.IsType<WaitCommand>(Assert.Single(server.Value.Blocks[0].Commands)).Seconds);
+        IReadOnlyList<ParsedCommand> commands = server.Value.Blocks[1].Commands;
+        Assert.Equal(2, commands.Count);
+        Assert.Equal(["KDTO"], Assert.IsType<DirectToCommand>(commands[0]).Fixes.Select(f => f.Name));
+        Assert.Equal(6500, Assert.IsType<ClimbMaintainCommand>(commands[1]).Altitude);
+    }
+
+    [Fact]
+    public void ExpandMultiCommand_DctThenDm_RealNavData_StillSplits()
+    {
+        TestVnasData.EnsureInitialized();
+        using IDisposable real = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+
+        Assert.Equal("DCT BILLA, DM 4800", CommandSchemeParser.ExpandMultiCommand("DCT BILLA DM 4800"));
+    }
 }
