@@ -29,6 +29,16 @@ hooks = [
 [[repos]]
 repo = "local"
 
+# Blocks a commit touching a file another Claude Code session holds an exclusive Agent Mail lease on
+# (AGENT_MAIL_BYPASS=1 overrides); the launcher passes on a machine without the user-level guard.
+[[repos.hooks]]
+id = "agent-mail-guard"
+name = "agent-mail lease guard"
+entry = "pwsh -NoProfile -File tools/agent-mail-guard.ps1"
+language = "system"
+pass_filenames = true
+stages = ["pre-commit"]
+
 # Replaces builtin `trailing-whitespace` + `end-of-file-fixer`: applies the same
 # fixes but auto-stages the result so the commit proceeds instead of failing
 # with "files were modified by this hook".
