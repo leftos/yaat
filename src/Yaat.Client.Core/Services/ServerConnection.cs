@@ -1329,6 +1329,11 @@ public record AircraftDto
     public Yaat.Sim.StarsDatablockLevel? StudentDatablockLevel { get; init; } = null;
     public int? StudentLeaderDirection { get; init; } = null;
 
+    // The position symbol the student's STARS scope draws for an owner in another facility (StarsPositionSymbol),
+    // shown after the owner's TCP as "3Y(1)". Null when there is no student or no ARTCC config loaded, the student is
+    // on ERAM, the track is unowned, the owner is in the student's facility, or the owner is not a NAS position.
+    public string? StudentOwnerSymbol { get; init; } = null;
+
     // Instructor freetext note shown as an extra datablock line on radar + ground. Instructor-only.
     public string Note { get; init; } = "";
 

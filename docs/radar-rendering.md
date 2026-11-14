@@ -182,6 +182,8 @@ Two layout families, selected by the `EuroScopeMode` preference:
 3. Beacon-code mismatch (`SquawkLine`, e.g. `1200 0301`) — the reported code solid, then the assigned code
    dim-pulsing, when they differ (see **Beacon-code mismatch** below). Empty when the codes match / it's suppressed.
 4. Owner + flashing handoff + scratchpads (`.sp1 +sp2`) + `[assignedTo]`.
+   The owner text is `AircraftModel.OwnerDisplay`, which carries the student scope's position symbol after an owner in
+   another facility (`3Y(1)`, during a handoff `3Y(1) >1F`); see [crc-display-state.md](crc-display-state.md#trackowner--how-ownership-broadcasts).
    The `.sp1` slot renders `RadarDatablockLayout.EffectiveScratchpad1(ac)` — the controller-entered `Scratchpad1` when
    set, otherwise the server-resolved `AutoScratchpad1` (the STARS destination fallback). The two render identically,
    deliberately: CRC does not distinguish them, so the instructor mirror shows exactly what the student's scope shows.

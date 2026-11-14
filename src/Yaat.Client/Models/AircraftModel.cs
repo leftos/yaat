@@ -989,6 +989,14 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
     private string? _ownerSectorCode;
 
+    /// <summary>
+    /// The position symbol the student's STARS scope draws for an owner in another facility, appended to
+    /// <see cref="OwnerDisplay"/> as "3Y(1)". Null when the student's scope shows the owner's TCP itself.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
+    private string? _studentOwnerSymbol;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HandoffDisplay))]
     private string? _handoffPeer;
@@ -1115,7 +1123,14 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private double _tpaSize;
 
-    public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
+    public string OwnerDisplay
+    {
+        get
+        {
+            string owner = OwnerSectorCode ?? Owner ?? "";
+            return ((owner.Length > 0) && (!string.IsNullOrEmpty(StudentOwnerSymbol))) ? $"{owner}({StudentOwnerSymbol})" : owner;
+        }
+    }
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
 
@@ -1463,6 +1478,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             StudentDatablockColor = dto.StudentDatablockColor,
             StudentDatablockLevel = dto.StudentDatablockLevel,
             StudentLeaderDirection = dto.StudentLeaderDirection,
+            StudentOwnerSymbol = dto.StudentOwnerSymbol,
             TpaType = dto.TpaType,
             TpaSize = dto.TpaSize,
             ActiveSidId = dto.ActiveSidId,
@@ -1616,6 +1632,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         StudentDatablockColor = dto.StudentDatablockColor;
         StudentDatablockLevel = dto.StudentDatablockLevel;
         StudentLeaderDirection = dto.StudentLeaderDirection;
+        StudentOwnerSymbol = dto.StudentOwnerSymbol;
         TpaType = dto.TpaType;
         TpaSize = dto.TpaSize;
         ActiveSidId = dto.ActiveSidId;

@@ -439,6 +439,8 @@ See [flight-strips.md](flight-strips.md) for the full strip architecture.
 
 `TrackOwner` is `(Callsign, FacilityId, Subset, SectorId, OwnerType)` (MessagePack `[Key 0..4]`). It rides along inside `StarsTrackDto.Owner` / `HandoffRedirectedBy` — there is **no separate ownership topic**. Ownership changes coalesce with the next `StarsTracks` update.
 
+CRC draws the owner's position symbol itself (`TrackManager.UpdateOwnerPositionSymbol`), from the owner's facility compared with the viewer's: the same facility shows the owner's sector letter; another STARS facility shows the first digit of that facility's entry in the viewer facility's STARS handoff list, else `C`; a centre owner shows its NAS id letter when it is a neighbouring centre or the ZOB case applies, else `C`; a non-NAS owner shows `C`. The symbol is not on the wire, so YAAT's Radar reproduces it (`StarsPositionSymbol`, sent as `StudentOwnerSymbol`) and shows it after an owner in another facility, as `3Y(1)`.
+
 ## Adding fields to display state — the contract
 
 A field can differ by **viewer type**, not only by facility or sector: the FlightPlans topic is built per connection (`CrcBroadcastService.BuildClientPayloads` and `BuildInitialData` rebuild from `FlightPlanAircraft` for each subscriber).

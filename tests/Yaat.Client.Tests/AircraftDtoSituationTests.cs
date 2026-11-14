@@ -204,6 +204,35 @@ public class AircraftDtoSituationTests
         Assert.Null(model.ArmedReports);
     }
 
+    [Fact]
+    public void OwnerDisplay_AppendsTheStudentOwnerSymbol()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { OwnerSectorCode = "3Y", StudentOwnerSymbol = "1" });
+
+        Assert.Equal("3Y(1)", model.OwnerDisplay);
+    }
+
+    [Fact]
+    public void OwnerDisplay_NoSymbol_IsTheBareOwner()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { OwnerSectorCode = "3Y" });
+
+        Assert.Equal("3Y", model.OwnerDisplay);
+    }
+
+    [Fact]
+    public void ApplyDto_StudentOwnerSymbolChange_RaisesOwnerDisplayChanged()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { OwnerSectorCode = "3Y" });
+        List<string?> changed = [];
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final) with { OwnerSectorCode = "3Y", StudentOwnerSymbol = "1" });
+
+        Assert.Contains(nameof(AircraftModel.OwnerDisplay), changed);
+        Assert.Equal("3Y(1)", model.OwnerDisplay);
+    }
+
     private static AircraftDto Dto(AircraftSituation situation) =>
         new()
         {

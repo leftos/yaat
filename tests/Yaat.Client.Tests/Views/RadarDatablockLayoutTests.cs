@@ -556,6 +556,33 @@ public class RadarDatablockLayoutTests
     }
 
     [Fact]
+    public void OwnerWithStudentSymbol_RendersOwnerThenSymbol()
+    {
+        AircraftModel ac = CreateModel();
+        ac.OwnerSectorCode = "3Y";
+        ac.StudentOwnerSymbol = "1";
+
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, CreateStyle(), false), overlays: None, callsignMarker: "");
+
+        Assert.Contains("3Y(1)", layout.Line3, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OwnerWithStudentSymbol_DuringAHandoff_RendersOwnerSymbolThenHandoff()
+    {
+        AircraftModel ac = CreateModel();
+        ac.OwnerSectorCode = "3Y";
+        ac.StudentOwnerSymbol = "1";
+        ac.HandoffPeerSectorCode = "1F";
+
+        // The flash's on phase, which shows the handoff target after the owner.
+        string? line = RadarDatablockLayout.BuildOwnerScratchpadLine(ac, showHandoff: true);
+
+        Assert.NotNull(line);
+        Assert.Contains("3Y(1) >1F", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AutoScratchpad1_AppearsOnCollapsedPdb()
     {
         AircraftModel ac = CreateModel();
