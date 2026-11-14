@@ -43,7 +43,7 @@ public static class ScopeTemplates
     public const string EuroScopeId = "euroscope";
 
     /// <summary>
-    /// The STARS full datablock: callsign (with the VFR mark), then altitude, ground speed, cwt/type and the
+    /// The STARS full datablock: callsign (with the VFR mark and the student-level marker), then altitude, ground speed, cwt/type and the
     /// ident, then the squawk-mismatch, status, ATPA, ModeC, warning, conflict and note lines.
     /// </summary>
     public static readonly ScopeTemplate Stars = new(
@@ -52,7 +52,12 @@ public static class ScopeTemplates
         FieldGap: 0f,
         Padding: 3f,
         [
-            Line(true, Steady(ScopeFieldSlot.Callsign), new ScopeSlotPlacement(ScopeFieldSlot.VfrMark, "", false)),
+            Line(
+                true,
+                Steady(ScopeFieldSlot.Callsign),
+                new ScopeSlotPlacement(ScopeFieldSlot.VfrMark, "", false),
+                new ScopeSlotPlacement(ScopeFieldSlot.StudentLevelMark, "", false)
+            ),
             Line(
                 true,
                 Steady(ScopeFieldSlot.Altitude),

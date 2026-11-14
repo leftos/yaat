@@ -13,6 +13,11 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="ShowNoLandingClearance">No-landing-clearance warning display.</param>
 public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, bool ShowNoLandingClearance);
 
+/// <summary>Which instructor display hints a block carries, as the user's preferences set them.</summary>
+/// <param name="MarkStudentLevel">Mark a track the student's scope shows limited or partial with <c>(LDB)</c>/<c>(PDB)</c>.</param>
+/// <param name="ShowTypeMismatchHints">Tint the STARS cwt/type token of an aircraft whose actual type differs from its filed type.</param>
+public sealed record ScopeDisplayOptions(bool MarkStudentLevel, bool ShowTypeMismatchHints);
+
 /// <summary>Every per-frame input <see cref="TrackPresenter.Present"/> reads.</summary>
 /// <param name="Aircraft">The track.</param>
 /// <param name="TemplateId">Id of the template to present for (see <see cref="ScopeTemplates"/>).</param>
@@ -21,6 +26,7 @@ public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, b
 /// <param name="FlashOn">The 500 ms flash phase: true on the on-phase.</param>
 /// <param name="IsSelected">Whether the track is selected.</param>
 /// <param name="Alerts">Alert overlays the user's preferences allow on the block.</param>
+/// <param name="Display">Instructor display hints the user's preferences allow on the block.</param>
 public sealed record TrackPresenterInput(
     AircraftModel Aircraft,
     string TemplateId,
@@ -28,7 +34,8 @@ public sealed record TrackPresenterInput(
     AircraftModel? ConflictPeer,
     bool FlashOn,
     bool IsSelected,
-    ScopeAlertOptions Alerts
+    ScopeAlertOptions Alerts,
+    ScopeDisplayOptions Display
 );
 
 /// <summary>
@@ -57,20 +64,25 @@ public static class TrackPresenter
         AircraftModel ac = input.Aircraft;
         bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
         string cwt = string.IsNullOrEmpty(ac.CwtCode) ? "" : ac.CwtCode;
+        string levelMark = input.Display.MarkStudentLevel ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        bool typeMismatch = input.Display.ShowTypeMismatchHints && ac.HasFiledTypeMismatch;
+        ScopeColorToken typeToken = typeMismatch ? ScopeColorToken.TypeMismatch : ScopeColorToken.Default;
         return
         [
             Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.VfrMark, isVfr ? "*" : "", ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.StudentLevelMark, levelMark, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.GroundSpeed, ((int)ac.GroundSpeed / 10).ToString("D2"), ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.CwtType, RadarDatablockLayout.FormatCwtType(cwt, ac.DisplayAircraftType), ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.CwtType, RadarDatablockLayout.FormatCwtType(cwt, ac.DisplayAircraftType), typeToken),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
             new(
                 ScopeFieldSlot.StatusLine3,
                 RadarDatablockLayout.BuildOwnerScratchpadLine(ac, showHandoff: input.FlashOn) ?? "",
                 RadarDatablockLayout.BuildOwnerScratchpadLine(ac, showHandoff: true) ?? "",
                 ScopeColorToken.Default,
-                ScopeFieldAction.None
+                ScopeFieldAction.None,
+                ScopeFieldStyle.None
             ),
             AtpaField(input),
         ];
@@ -108,10 +120,14 @@ public static class TrackPresenter
         AircraftModel ac = input.Aircraft;
         string noLandingClearance = NoLandingClearanceActive(input) ? RadarDatablockLayout.NoLandingClearanceText : "";
         string conflict = ConflictActive(input) ? RadarDatablockLayout.BuildConflictLine(ac, input.ConflictPeer) : "";
+        string squawk = SquawkText(ac);
+        // The mismatch line keeps its whole text in both phases; only its assigned-code tail dims on the off-phase.
+        ScopeFieldStyle squawkStyle = ((squawk.Length > 0) && !input.FlashOn) ? ScopeFieldStyle.DimTail : ScopeFieldStyle.None;
+        bool standby = ac.TransponderMode == "Standby";
         return
         [
-            Steady(ScopeFieldSlot.Squawk, SquawkText(ac), ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.ModeC, ac.TransponderMode == "Standby" ? "ModeC" : "", ScopeColorToken.Default),
+            Styled(ScopeFieldSlot.Squawk, squawk, squawkStyle),
+            Styled(ScopeFieldSlot.ModeC, standby ? "ModeC" : "", standby ? ScopeFieldStyle.Strikethrough : ScopeFieldStyle.None),
             Flashing(ScopeFieldSlot.NoLandingClearance, noLandingClearance, input.FlashOn, ScopeColorToken.NoLandingClearance),
             Flashing(ScopeFieldSlot.ConflictAlert, conflict, input.FlashOn, ScopeColorToken.ConflictAlert),
             Steady(ScopeFieldSlot.InstructorNote, ac.HasNote ? ac.Note : "", ScopeColorToken.Note),
@@ -159,8 +175,12 @@ public static class TrackPresenter
         return type.Length > 0 ? type : cwt;
     }
 
-    private static ScopeField Steady(ScopeFieldSlot slot, string text, ScopeColorToken token) => new(slot, text, text, token, ScopeFieldAction.None);
+    private static ScopeField Steady(ScopeFieldSlot slot, string text, ScopeColorToken token) =>
+        new(slot, text, text, token, ScopeFieldAction.None, ScopeFieldStyle.None);
+
+    private static ScopeField Styled(ScopeFieldSlot slot, string text, ScopeFieldStyle style) =>
+        new(slot, text, text, ScopeColorToken.Default, ScopeFieldAction.None, style);
 
     private static ScopeField Flashing(ScopeFieldSlot slot, string stableText, bool flashOn, ScopeColorToken token) =>
-        new(slot, flashOn ? stableText : "", stableText, token, ScopeFieldAction.None);
+        new(slot, flashOn ? stableText : "", stableText, token, ScopeFieldAction.None, ScopeFieldStyle.None);
 }

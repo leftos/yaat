@@ -15,6 +15,9 @@ public enum ScopeFieldSlot
     /// <summary>The <c>*</c> after a VFR callsign.</summary>
     VfrMark,
 
+    /// <summary>The <c>(LDB)</c>/<c>(PDB)</c> marker after the callsign: the level the student's scope shows the track at.</summary>
+    StudentLevelMark,
+
     /// <summary>Reported altitude in hundreds of feet.</summary>
     Altitude,
 

@@ -110,7 +110,8 @@ public static class DatablockTemplate
             string lead = run.Length > 0 ? run + placed.Placement.Separator : "";
             float left = lead.Length > 0 ? runStart + metrics.Measure(lead) : runStart;
             right = runStart + metrics.Measure(lead + placed.MeasuredText);
-            rects.Add(new FieldRect(placed.Placement.Slot, new SKRect(left, top, right, top + metrics.Size), placed.Field.Text, placed.Field.Token));
+            var rect = new SKRect(left, top, right, top + metrics.Size);
+            rects.Add(new FieldRect(placed.Placement.Slot, rect, placed.Field.Text, placed.Field.Token, placed.Field.Style));
 
             if (template.GapMode == ScopeGapMode.PixelGap)
             {

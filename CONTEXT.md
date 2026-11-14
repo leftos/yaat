@@ -800,14 +800,17 @@ A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock templat
 A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows, extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
 _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 
+**Field style**:
+A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
+
 **FieldRect**:
-One laid-out datablock field in YAAT Scope: its slot, screen rect, text and color token; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
+One laid-out datablock field in YAAT Scope: its slot, screen rect, text, color token and field style; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
 
 **Template (YAAT Scope)**:
 A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "euroscope") and chosen by a profile.
 
 **TrackPresenter**:
-The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token and click action.
+The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
 
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.

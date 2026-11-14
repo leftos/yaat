@@ -39,6 +39,23 @@ public enum ScopeColorToken
 
     /// <summary>ATPA in-trail distance in the alert cone state.</summary>
     AtpaAlert,
+
+    /// <summary>The STARS cwt/type token of an aircraft whose actual type differs from its filed type (amber today).</summary>
+    TypeMismatch,
+}
+
+/// <summary>How the renderer draws a field's text beyond its colour.</summary>
+[Flags]
+public enum ScopeFieldStyle
+{
+    /// <summary>Plain text.</summary>
+    None = 0,
+
+    /// <summary>The text after the first space draws at a quarter of the field colour's brightness (the squawk pulse's off-phase).</summary>
+    DimTail = 1,
+
+    /// <summary>A line of the field colour across the text at the font's strikeout position.</summary>
+    Strikethrough = 2,
 }
 
 /// <summary>What clicking a field does. Every step-1 field carries <see cref="None"/>.</summary>
@@ -56,7 +73,15 @@ public enum ScopeFieldAction
 /// <param name="StableText">Text the field shows on its on-phase, which a reserved slot measures so rects never pulse.</param>
 /// <param name="Token">Colour role of the field.</param>
 /// <param name="Action">What clicking the field does.</param>
-public sealed record ScopeField(ScopeFieldSlot Slot, string Text, string StableText, ScopeColorToken Token, ScopeFieldAction Action);
+/// <param name="Style">How the text draws beyond its colour; it never changes the field's rect.</param>
+public sealed record ScopeField(
+    ScopeFieldSlot Slot,
+    string Text,
+    string StableText,
+    ScopeColorToken Token,
+    ScopeFieldAction Action,
+    ScopeFieldStyle Style
+);
 
 /// <summary>
 /// Everything a template needs to lay out one track's datablock, produced by <see cref="TrackPresenter.Present"/>.

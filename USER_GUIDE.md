@@ -105,6 +105,8 @@ Close an extra window to remove it; open extras (with their airports) are restor
 
 The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on. Left-click a target or block to select that aircraft everywhere; right-click opens the same aircraft menu as the other views (without the Radar's Display and Draw route items or "Settings for this view…"); right-drag pans and the wheel zooms.
 
+On STARS blocks the Scope follows the Radar's preferences: with "mark student limited datablocks" on, the `(LDB)` or `(PDB)` marker shows after the callsign, and with type-mismatch hints on, the type token draws amber when the aircraft's actual type differs from its filed type (EuroScope tags show neither). In both styles a squawk mismatch keeps the reported code solid while the assigned code dims on the blink off-phase, and a standby transponder's altitude is struck through.
+
 If you open it before a scenario or ARTCC is loaded, it takes the Radar's centre, range and video maps the first time the Radar has them, then stays independent. Its window position is remembered.
 
 **Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.

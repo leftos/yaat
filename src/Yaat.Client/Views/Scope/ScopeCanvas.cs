@@ -259,9 +259,11 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         UserPreferences? prefs = Preferences;
         IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, false, false, false, null, DateTime.UtcNow);
         var alerts = new ScopeAlertOptions(prefs?.ShowAtpa ?? false, prefs?.ShowConflictAlerts ?? false, prefs?.FlashNoLandingClearance ?? true);
+        var display = new ScopeDisplayOptions(prefs?.MarkStudentLimitedDatablocks ?? true, prefs?.ShowTypeMismatchHints ?? true);
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
-        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, prefs?.EuroScopeMode ?? false, metrics, alerts, offsets));
+        bool euroScope = prefs?.EuroScopeMode ?? false;
+        return ScopeFrame.Build(new ScopeFrameInput(visible, SelectedAircraft, Viewport, euroScope, metrics, alerts, display, offsets));
     }
 
     private void OnAircraftChanged()

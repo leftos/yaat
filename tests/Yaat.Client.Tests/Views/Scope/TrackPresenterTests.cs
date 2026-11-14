@@ -125,6 +125,109 @@ public class TrackPresenterTests
     }
 
     [Fact]
+    public void CwtType_FiledTypeMismatch_CarriesTheTypeMismatchToken()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.FiledAircraftType = "B744";
+        ac.AircraftType = "B738";
+
+        TrackPresentation p = TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.StarsId));
+
+        Assert.Equal(ScopeColorToken.TypeMismatch, Field(p, ScopeFieldSlot.CwtType).Token);
+    }
+
+    [Fact]
+    public void CwtType_SuffixOnlyDifference_KeepsTheDefaultToken()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.FiledAircraftType = "B738/L";
+        ac.AircraftType = "B738";
+
+        TrackPresentation p = TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.StarsId));
+
+        Assert.Equal(ScopeColorToken.Default, Field(p, ScopeFieldSlot.CwtType).Token);
+    }
+
+    [Fact]
+    public void CwtType_HintOff_KeepsTheDefaultToken()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.FiledAircraftType = "B744";
+        TrackPresenterInput input = ScopeTestAircraft.Input(ac, ScopeTemplates.StarsId) with
+        {
+            Display = ScopeTestAircraft.AllDisplay with { ShowTypeMismatchHints = false },
+        };
+
+        Assert.Equal(ScopeColorToken.Default, Field(TrackPresenter.Present(input), ScopeFieldSlot.CwtType).Token);
+    }
+
+    [Fact]
+    public void EuroScopeTypeCwt_FiledTypeMismatch_KeepsTheDefaultToken()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.FiledAircraftType = "B744";
+
+        TrackPresentation p = TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.EuroScopeId));
+
+        Assert.Equal(ScopeColorToken.Default, Field(p, ScopeFieldSlot.TypeCwt).Token);
+    }
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Squawk_Mismatch_DimsTheTailOnlyOffPhase_WithTheSameText(string templateId)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateSquawkMismatch();
+
+        ScopeField on = Field(TrackPresenter.Present(ScopeTestAircraft.Input(ac, templateId, flashOn: true)), ScopeFieldSlot.Squawk);
+        ScopeField off = Field(TrackPresenter.Present(ScopeTestAircraft.Input(ac, templateId, flashOn: false)), ScopeFieldSlot.Squawk);
+
+        Assert.Equal("1200 0301", on.Text);
+        Assert.Equal(on.Text, off.Text);
+        Assert.Equal(on.StableText, off.StableText);
+        Assert.Equal(ScopeFieldStyle.None, on.Style);
+        Assert.Equal(ScopeFieldStyle.DimTail, off.Style);
+    }
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Squawk_NoMismatch_HasNoStyle(string templateId)
+    {
+        TrackPresentation p = TrackPresenter.Present(ScopeTestAircraft.Input(ScopeTestAircraft.CreateModel(), templateId, flashOn: false));
+
+        Assert.Equal(ScopeFieldStyle.None, Field(p, ScopeFieldSlot.Squawk).Style);
+    }
+
+    [Theory]
+    [InlineData(ScopeTemplates.StarsId, true)]
+    [InlineData(ScopeTemplates.StarsId, false)]
+    [InlineData(ScopeTemplates.EuroScopeId, true)]
+    [InlineData(ScopeTemplates.EuroScopeId, false)]
+    public void ModeC_Standby_IsStruckThroughInBothPhases(string templateId, bool flashOn)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.TransponderMode = "Standby";
+
+        ScopeField modeC = Field(TrackPresenter.Present(ScopeTestAircraft.Input(ac, templateId, flashOn)), ScopeFieldSlot.ModeC);
+
+        Assert.Equal("ModeC", modeC.Text);
+        Assert.Equal(ScopeFieldStyle.Strikethrough, modeC.Style);
+    }
+
+    [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void ModeC_TransponderOn_HasNoStyle(string templateId)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.TransponderMode = "C";
+
+        ScopeField modeC = Field(TrackPresenter.Present(ScopeTestAircraft.Input(ac, templateId)), ScopeFieldSlot.ModeC);
+
+        Assert.Equal(ScopeFieldStyle.None, modeC.Style);
+    }
+
+    public static TheoryData<string> TemplateIds => [ScopeTemplates.StarsId, ScopeTemplates.EuroScopeId];
+
+    [Fact]
     public void UnknownTemplateId_Throws() =>
         Assert.Throws<ArgumentException>(() => TrackPresenter.Present(ScopeTestAircraft.Input(ScopeTestAircraft.CreateModel(), "nope")));
 }
@@ -206,10 +309,23 @@ internal static class ScopeTestAircraft
         bool flashOn = true,
         AircraftModel? atpaLead = null,
         AircraftModel? conflictPeer = null
-    ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts);
+    ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts, AllDisplay);
 
     /// <summary>Every alert overlay on, matching the flags the parity rows pass to today's layouts.</summary>
     public static readonly ScopeAlertOptions AllAlerts = new(ShowAtpa: true, ShowConflictAlerts: true, ShowNoLandingClearance: true);
+
+    /// <summary>Every display hint on, as the preferences default.</summary>
+    public static readonly ScopeDisplayOptions AllDisplay = new(MarkStudentLevel: true, ShowTypeMismatchHints: true);
+
+    /// <summary>A beacon-code mismatch: Mode C reporting 1200 while 0301 is assigned.</summary>
+    public static AircraftModel CreateSquawkMismatch()
+    {
+        AircraftModel ac = CreateModel();
+        ac.TransponderMode = "C";
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        return ac;
+    }
 }
 
 /// <summary>
