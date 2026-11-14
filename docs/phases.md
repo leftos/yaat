@@ -199,7 +199,7 @@ The Tower group also holds `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingP
 
 The rest are `HelicopterApproachPhase` (LAND @spot from off the airport: hold altitude → 400 ft/nm descent to 500 ft AGL → 6° final onto the spot, hands off to `HelicopterLandingPhase` hovering at the air-taxi height; on-field LAND/ATXI use `AirTaxiPhase` instead), `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
 
-**Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `TugReleasePhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`. `RunwayExitPhase.CompleteExit` sets `AircraftGroundOps.AwaitingTaxiInCall`; `HoldingAfterExitPhase` and `HoldingInPositionPhase` make the arrival's taxi-in call from it (`Pilot/TaxiInRequest.cs`).
+**Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `ClearRunwayPhase`, `PushbackPhase`, `TugReleasePhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`. `RunwayExitPhase.CompleteExit` sets `AircraftGroundOps.AwaitingTaxiInCall`; `HoldingAfterExitPhase` and `HoldingInPositionPhase` make the arrival's taxi-in call from it (`Pilot/TaxiInRequest.cs`).
 
 `HoldingShortPhase` accepts `FOLLOWG` at every bar. At a bar that protects a runway (`ProtectsARunway`) the follow is **armed**: `GroundCommandHandler.ArmFollowBehindRunwayHold` keeps the hold and leaves [hold, `FollowingPhase`], because following is not a crossing clearance (7110.65 §3-7-2d requires the crossing clearance in addition).
 
@@ -227,9 +227,11 @@ They are `GroundCommandHandler.AddAirTaxiTerminus` (`ATXI`/`LAND` to a helipad o
 
 The stand writers also own `Ground.ParkingSpot`; a writer that lands the aircraft somewhere else clears it, or the Aircraft List keeps reporting a stand the aircraft left.
 
-**Pattern** (all set `ManagesSpeed = true`) — `PatternEntryPhase`, `UpwindPhase`, `CrosswindPhase`, `DownwindPhase`, `BasePhase`, `MidfieldCrossingPhase`, `TeardropReentryPhase`, `VfrFollowPhase`.
+**Pattern** (all set `ManagesSpeed = true`) — `PatternEntryPhase`, `UpwindPhase`, `CrosswindPhase`, `DownwindPhase`, `BasePhase`, `MidfieldCrossingPhase`, `TeardropReentryPhase`, `PatternExitPhase`, `VfrFollowPhase`.
 
 **Approach** — `ApproachNavigationPhase`, `InterceptCoursePhase`, `ProcedureTurnPhase`, `HoldingPatternPhase`.
+
+**Airspace hold** (`Phases/`, no subfolder) — `AirspaceBoundaryHoldPhase` is the solo-training VFR self-restriction outside Class B/C airspace: it orbits outside the boundary until the entry gate is satisfied, or levels off beneath the volume floor when the volume is overhead (see [airspace-database.md](airspace-database.md)).
 
 **Military routes** (`Phases/`, no subfolder) — `MilitaryRoutePhase` flies an AP/1B training route or
 a refueling track: lateral guidance along the published points plus the altitude block, re-armed from
@@ -283,7 +285,7 @@ ground-conflict cap cannot stop a rolling departure and is not asked to. Stoppin
 `TakeoffPhase.TickGroundRoll`, gated by the `AutoRejectTakeoffOnOccupiedRunway` session setting (helicopters and live-traffic shadows never
 auto-reject); `FlightPhysics.UpdatePosition`'s clamp stays a last-resort backstop only.
 
-- **Blockers** come from `RunwayOccupancy.Classify`: anything `OnSurface` or `Landing` blocks; a `Fouling` aircraft (past the hold line, off the pavement) blocks only with a body part over the strict paved half-width (`AnyPartOverPavement`); a `Crossing` blocks unless it is projected past the
+- **Blockers** come from `RunwayOccupancy.Classify`: anything `OnSurface` or `Landing` blocks; a `Fouling` aircraft (past the hold line, off the pavement) blocks only with a body part over the strict paved half-width (`RunwayOccupancy.AnyPartOverStrictPavement`); a `Crossing` blocks unless it is projected past the
   `ClearOfRunwayStandoffFt` (250 ft) hold-line standoff — not the pavement edge — by the time the departure arrives; a preceding `Departing` aircraft
   blocks per `PrecedingDepartureBlock`: at a standstill, 7110.65 §3-9-6.a is applied at roll start — the leader projected `ReactionSeconds`
   ahead must have crossed the runway end or be airborne (`SameRunwaySeparation.WillBeFlying`; a decelerating leader never is) with the
@@ -386,7 +388,7 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 
   The walk stops at a runway centreline node, or where no edge is within 45°, logging a Warning.
 
-  Two conditions suppress that: a binding taxiway hold-short within a fuselage downstream (`BindingTaxiwayHoldShortWithin`, issue #172) and an uncleared hold-short on the exit node itself (`ExitIsBindingHoldShort`, issue #315).
+  Two conditions suppress that: a binding taxiway hold-short within a fuselage downstream (`BindingHoldShortWithin`, issue #172) and an uncleared hold-short on the exit node itself (`ExitIsBindingHoldShort`, issue #315).
 
   The second is the parallel-runway case above — without it the aircraft ends up ~54 ft *inside* the next runway's holding position markings while announcing that it is holding short of them (AIM 4-3-18.a.6).
 
