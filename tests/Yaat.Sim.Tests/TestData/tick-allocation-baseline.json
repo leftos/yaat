@@ -1,0 +1,7 @@
+{
+  "scenario": "issue153-s2-oak-5-2-scenario.json",
+  "seed": 42,
+  "windowSeconds": 300,
+  "meanBytesPerSecond": 429154,
+  "recordedOn": "macOS 27.0.0 Arm64 .NET 10.0.12"
+}

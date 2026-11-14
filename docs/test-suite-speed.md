@@ -117,12 +117,12 @@ Note for anyone re-measuring: `--list-tests` is a poor proxy for discovery. On t
 it costs ~1.06 s more than a zero-match run at the same test count, almost all of it printing ~9,300
 lines to the console.
 
-## Tick-performance regression tests (decided design, not built yet)
+## Tick-performance regression tests
 
-A test in the suite fails early when a change makes the simulation too slow. Both assertions live in `Yaat.Sim.Tests` over the engine tick, on a realistic room of 20–30 active aircraft on a real layout (mixed airborne, on approach and taxiing, so pathfinding, conflict detection and phases all run):
+`TickPerformanceRegressionTests` (`Yaat.Sim.Tests/Simulation`) fails early when a change makes the simulation too slow. Both tests time the bare `SimulationEngine.TickOneSecond` on one room: `issue153-s2-oak-5-2-scenario.json` at seed 42 with AI Ground and AI Local observing (`ObserverBrain` issues no commands, so the scenario's preset push and taxi commands and its arrival generators move the traffic). The room ticks until at least 20 aircraft are active plus a JIT warm-up, then a 300 s window is measured; the window must keep at least 20 aircraft.
 
-- **Allocations per tick against a committed baseline, on every commit.** A deterministic measure, so it can run on shared CI runners. The baseline is a committed JSON, re-recorded by an environment flag when a slowdown is accepted.
-- **A p95 CPU budget under the `Nightly` trait**, measured in thread CPU time rather than wall time (`Yaat.Sim.Diagnostics.ThreadCpuTime`), asserted on the 95th percentile over a few simulated minutes, never on one tick. The budget is the fixed tick period / 10, which leaves headroom for ten rooms on the hosted loop's one tick thread.
+- **`TickAllocations_MeanBytesPerSimSecond_StayWithinTenPercentOfBaseline`, on every commit.** A deterministic measure, so it can run on shared CI runners. It compares the mean allocated bytes per sim-second with `tests/Yaat.Sim.Tests/TestData/tick-allocation-baseline.json` (`scenario`, `seed`, `windowSeconds`, `meanBytesPerSecond`, `recordedOn`; read from the source tree, and the first three are checked against the test). It is one-sided: it fails above +10% and only prints an "improved" note below −20%. Re-record when a change is accepted: set `YAAT_TICK_ALLOC_REBASELINE=1` (on a routed gate run pass `--env YAAT_TICK_ALLOC_REBASELINE=1`) and run only `TickPerformanceRegressionTests`; the test then rewrites the JSON instead of asserting, and the diff is reviewed before commit.
+- **`TickCpu_P95PerSimSecond_StaysWithinTenthOfTickPeriod`, under the `Nightly` trait**, measured in thread CPU time plus GC pause rather than wall time (`Yaat.Sim.Diagnostics.ThreadCpuTime`), asserted on the 95th percentile over the window, never on one tick. The budget is the fixed tick period / 10 (100 ms), which leaves headroom for ten rooms on the hosted loop's one tick thread. It runs in the existing `nightly-taxi-grid.yml` workflow.
 
 Wall time was rejected for the per-commit guard because it is noisy on shared runners. The soak runner (about 420× realtime, byte-identical seeds) and the `dotnet-test-suite-profiling` skill's trace method serve the first baseline and the diagnosis of a failure.
 

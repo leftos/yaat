@@ -555,6 +555,8 @@ The failure message says "ms of thread CPU time". The test projects run server G
 
 On Windows the clock advances only at the scheduler tick (about 15.6 ms), so a budget under about 50 ms means nothing there. Work that hops threads (`await`, `Parallel`, `Task.Run`, native worker threads) cannot be measured this way: keep wall time for it, and for anything that really is about wall time (UI-thread blocking, debounce and settle windows, hang guards). Never substitute process CPU time, which counts the other tests running in parallel.
 
+The tick-performance guards (`TickPerformanceRegressionTests`, see test-suite-speed.md) are the worked example: the CPU test adds the GC pause to thread CPU time, and the allocation test reads `GC.GetAllocatedBytesForCurrentThread` against a committed baseline that `YAAT_TICK_ALLOC_REBASELINE=1` re-records (a routed gate run passes `--env YAAT_TICK_ALLOC_REBASELINE=1`; run a filtered `TickPerformanceRegressionTests`).
+
 **Pin a cost by operation count, never by time, where the cost is a number of expensive calls.** `GroundCommandHandler.ResolveDirectCountForTests` is a `[ThreadStatic]` counter of route resolutions on the calling thread: a test zeroes it, runs the TAXI and asserts the count (`MissingTaxiwayFallbackCostTests`), which holds on a loaded machine where a millisecond budget flakes.
 
 **Loop budgets: event-bounded vs budget-bounded.** Most recording-replay tests are *event-bounded* — they tick until "reaches phase X" /
