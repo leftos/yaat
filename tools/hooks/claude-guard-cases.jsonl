@@ -57,3 +57,8 @@
 {"expect": "allow", "cmd": "gate stop-tree 1234"}
 {"expect": "deny", "cmd": "xgate run --log .tmp/t.log --timeout 30 --slot heavy; dotnet test"}
 {"expect": "deny", "cmd": "gate running --log .tmp/t.log --timeout 30 --slot heavy; dotnet test"}
+{"expect": "deny", "cmd": "pwsh tools/gate.ps1 -Log .tmp/a.log -TimeoutSeconds 300 -Slot heavy -- dotnet build && dotnet test"}
+{"expect": "deny", "cmd": "dotnet build > .tmp/b.log 2>&1; dotnet test"}
+{"expect": "deny", "cmd": "timeout 300 dotnet test > .tmp/t.log 2>&1 && dotnet test"}
+{"expect": "allow", "cmd": "pwsh tools/gate.ps1 -Log .tmp/a.log -TimeoutSeconds 300 -Slot heavy -- dotnet build && pwsh tools/gate.ps1 -Log .tmp/b.log -TimeoutSeconds 30 -Slot heavy -- dotnet test"}
+{"expect": "allow", "cmd": "dotnet build > .tmp/b.log 2>&1 && git status"}
