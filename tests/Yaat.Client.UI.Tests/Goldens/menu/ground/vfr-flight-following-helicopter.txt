@@ -2,7 +2,7 @@
 N812HP · EC35 [disabled]
 500 ft [disabled]
 ---
-strip row 1: Pilot reports: approach.report-traffic-in-sight | Vectors: heading.fly altitude.maintain navigation.direct-to | Approach: approach.expect | Taxi: ground.land-helicopter
+strip row 1: Pilot reports: approach.report-traffic-in-sight | Vectors: heading.fly altitude.vfr navigation.direct-to | Approach: approach.expect | Taxi: ground.land-helicopter
 ---
 Command…
 Note…

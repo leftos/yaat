@@ -69,6 +69,7 @@ public static class MenuAliases
             [MenuIds.HeadingTurnLeftDegrees] = ["LT"],
             [MenuIds.HeadingTurnRightDegrees] = ["RT"],
             [MenuIds.AltitudeMaintain] = ["CM", "DM"],
+            [MenuIds.AltitudeVfr] = ["CM"],
             [MenuIds.SpeedAssign] = ["SPD", "MACH", "RNS", "RFAS"],
             [MenuIds.SpeedCustom] = ["SPD", "MACH", "RNS", "RFAS"],
             [MenuIds.SpeedNormal] = ["RNS"],

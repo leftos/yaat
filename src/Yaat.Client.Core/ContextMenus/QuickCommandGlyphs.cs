@@ -139,6 +139,7 @@ public static class QuickCommandGlyphs
             [MenuIds.GroundBreakConflict] = Ground("M3 12h6 M15 12h6 M10 6l4 12"),
             [MenuIds.HeadingFly] = Flight("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z"),
             [MenuIds.AltitudeMaintain] = Flight("M3 18l7-7 4 4 7-7 M15 8h6v6"),
+            [MenuIds.AltitudeVfr] = Flight("M3 18l7-7 4 4 7-7 M15 8h6v6"),
             [MenuIds.SpeedAssign] = Flight(SpeedPath),
             [MenuIds.SpeedFinalApproach] = Flight(SpeedPath),
             [MenuIds.NavigationDirectTo] = Flight("M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"),

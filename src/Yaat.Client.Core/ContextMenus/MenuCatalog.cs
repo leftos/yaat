@@ -147,6 +147,7 @@ public static class MenuCatalog
             new HeadingFlyoutPreset("Turn right (degrees)", HeadingVerb.FlyHeading, HeadingFlyoutFocus.RightChips)
         ),
         Picker(MenuIds.AltitudeMaintain, "Maintain altitude", AltitudeFlyout.BuildMaintain),
+        Picker(MenuIds.AltitudeVfr, "Altitude…", MenuFlightRules.VfrOnly, VfrAltitudeFlyout.Build),
         Picker(MenuIds.SpeedAssign, "Assign speed", SpeedFlyout.Build),
         Picker(MenuIds.SpeedCustom, "Speed…", SpeedFlyout.Build),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
@@ -904,7 +905,15 @@ public static class MenuCatalog
     /// null when it has nothing to offer.
     /// </summary>
     private static MenuCatalogEntry Picker(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build) =>
-        new(id, label, MenuFlightRules.Both, Always, (aircraft, context, host) => build(label, aircraft, context, host));
+        Picker(id, label, MenuFlightRules.Both, build);
+
+    /// <summary>A picker entry, offered always, whose flight-rules default is <paramref name="rules"/>.</summary>
+    private static MenuCatalogEntry Picker(
+        string id,
+        string label,
+        MenuFlightRules rules,
+        Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build
+    ) => new(id, label, rules, Always, (aircraft, context, host) => build(label, aircraft, context, host));
 
     /// <summary>The reason the Squawk box gives for text that is not four octal digits.</summary>
     internal const string InvalidSquawkCode = "Not a valid squawk code (0000-7777)";

@@ -23,6 +23,8 @@ public class QuickCommandMigrationTests : IDisposable
     private static readonly QuickCommandEntry Accept = Catalog(MenuIds.TrackAcceptHandoff);
     private static readonly QuickCommandEntry Cancel = Catalog(MenuIds.TrackCancelHandoff);
     private static readonly QuickCommandEntry Acknowledge = Catalog(MenuIds.TrackAcknowledgePointout);
+    private static readonly QuickCommandEntry IfrMaintain = new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, MenuFlightRules.IfrOnly);
+    private static readonly QuickCommandEntry VfrAltitude = new CatalogQuickCommandEntry(MenuIds.AltitudeVfr, MenuFlightRules.VfrOnly);
 
     public void Dispose() => ClearStoredQuickCommandLists();
 
@@ -63,7 +65,143 @@ public class QuickCommandMigrationTests : IDisposable
         var prefs = new UserPreferences();
 
         Assert.Equal([SquawkNormal, Accept, Cancel, Acknowledge, HoldPosition], prefs.GetQuickCommandList(AircraftSituation.Taxiing));
-        Assert.Equal([Accept, Cancel, Acknowledge, Catalog(MenuIds.TowerGoAround)], prefs.GetQuickCommandList(AircraftSituation.Final));
+        Assert.Equal([Accept, Cancel, Acknowledge, Catalog(MenuIds.TowerGoAround), VfrAltitude], prefs.GetQuickCommandList(AircraftSituation.Final));
+    }
+
+    // --- v2 → v3: Altitude… for VFR aircraft -------------------------------------------------------
+
+    [Fact]
+    public void V2StoredMaintain_BecomesIfrOnly_WithAltitudeAfterIt()
+    {
+        InjectLists(
+            2,
+            $$"""{ "Departing": [ {{Json(MenuIds.SquawkAssigned)}}, {{Json(MenuIds.AltitudeMaintain)}}, {{Json(MenuIds.HeadingFly)}} ] }"""
+        );
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal([SquawkAssigned, IfrMaintain, VfrAltitude, Catalog(MenuIds.HeadingFly)], prefs.GetQuickCommandList(AircraftSituation.Departing));
+        Assert.Equal(UserPreferences.CurrentPreferencesVersion, StoredVersion());
+    }
+
+    [Fact]
+    public void V2StoredListAlreadyHoldingAltitude_IsUntouched()
+    {
+        InjectLists(2, $$"""{ "Departing": [ {{Json(MenuIds.AltitudeMaintain)}}, {{Json(MenuIds.AltitudeVfr)}}, {{Json(MenuIds.HeadingFly)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [Catalog(MenuIds.AltitudeMaintain), Catalog(MenuIds.AltitudeVfr), Catalog(MenuIds.HeadingFly)],
+            prefs.GetQuickCommandList(AircraftSituation.Departing)
+        );
+    }
+
+    /// <summary>A stored Pattern list gains Altitude… before Land; a stored Final list with no Land gains it at the end.</summary>
+    [Fact]
+    public void V2StoredPatternList_GainsAltitudeBeforeLand_FinalWithoutLandAtTheEnd()
+    {
+        InjectLists(
+            2,
+            $$"""
+            {
+              "Pattern": [ {{Json(MenuIds.TowerClearedToLand)}}, {{Json(MenuIds.GroundLandHelicopter)}} ],
+              "Final": [ {{Json(MenuIds.TowerGoAround)}} ]
+            }
+            """
+        );
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [Catalog(MenuIds.TowerClearedToLand), VfrAltitude, Catalog(MenuIds.GroundLandHelicopter)],
+            prefs.GetQuickCommandList(AircraftSituation.Pattern)
+        );
+        Assert.Equal([Catalog(MenuIds.TowerGoAround), VfrAltitude], prefs.GetQuickCommandList(AircraftSituation.Final));
+    }
+
+    /// <summary>A Maintain altitude the user restricted to VFR keeps its override, and the list gains no Altitude… after it.</summary>
+    [Fact]
+    public void V2StoredVfrOnlyMaintain_IsLeftAlone()
+    {
+        InjectLists(
+            2,
+            $$"""
+            {
+              "Departing": [
+                {{Json(MenuIds.SquawkAssigned)}},
+                { "kind": "catalog", "catalogId": "{{MenuIds.AltitudeMaintain}}", "flightRules": "VfrOnly" }
+              ]
+            }
+            """
+        );
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [SquawkAssigned, new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, MenuFlightRules.VfrOnly)],
+            prefs.GetQuickCommandList(AircraftSituation.Departing)
+        );
+    }
+
+    [Fact]
+    public void V2StoredVfrArrivalInboundList_GainsAltitudeBeforeLand()
+    {
+        InjectLists(2, $$"""{ "VfrArrivalInbound": [ {{Json(MenuIds.PatternFollow)}}, {{Json(MenuIds.GroundLandHelicopter)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [Catalog(MenuIds.PatternFollow), VfrAltitude, Catalog(MenuIds.GroundLandHelicopter)],
+            prefs.GetQuickCommandList(AircraftSituation.VfrArrivalInbound)
+        );
+    }
+
+    [Fact]
+    public void V2StoredListMadeDefault_IsNoLongerStored()
+    {
+        string[] oldDefault =
+        [
+            .. QuickCommandDefaults
+                .For(AircraftSituation.Departing)
+                .Where(entry => entry != VfrAltitude)
+                .Select(entry => (CatalogQuickCommandEntry)entry)
+                .Select(entry =>
+                    (entry.CatalogId == MenuIds.AltitudeMaintain) || (entry.FlightRules is null)
+                        ? Json(entry.CatalogId)
+                        : $$"""{ "kind": "catalog", "catalogId": "{{entry.CatalogId}}", "flightRules": "{{entry.FlightRules}}" }"""
+                ),
+        ];
+        InjectLists(2, $$"""{ "Departing": [ {{string.Join(", ", oldDefault)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(QuickCommandDefaults.For(AircraftSituation.Departing), prefs.GetQuickCommandList(AircraftSituation.Departing));
+        Assert.Empty(prefs.QuickCommandOverrides);
+        Assert.Empty(StoredSituationNames());
+    }
+
+    [Fact]
+    public void V2LiveTrafficStoredList_IsLeftAlone()
+    {
+        InjectLists(2, $$"""{ "LiveTraffic": [ {{Json(MenuIds.LiveTrafficAssume)}}, {{Json(MenuIds.AltitudeMaintain)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [Catalog(MenuIds.LiveTrafficAssume), Catalog(MenuIds.AltitudeMaintain)],
+            prefs.GetQuickCommandList(AircraftSituation.LiveTraffic)
+        );
+    }
+
+    [Fact]
+    public void V1File_RunsBothMigrations()
+    {
+        InjectVersion1Lists($$"""{ "Departing": [ {{Json(MenuIds.SquawkAssigned)}}, {{Json(MenuIds.AltitudeMaintain)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal([SquawkAssigned, Accept, Cancel, Acknowledge, IfrMaintain, VfrAltitude], prefs.GetQuickCommandList(AircraftSituation.Departing));
     }
 
     [Fact]
@@ -131,7 +269,7 @@ public class QuickCommandMigrationTests : IDisposable
     }
 
     [Fact]
-    public void FreshFile_StartsAtVersion2WithNoMigration()
+    public void FreshFile_StartsAtTheCurrentVersionWithNoMigration()
     {
         File.Delete(PreferencesPath);
         new UserPreferences().SetQuickCommandList(AircraftSituation.Taxiing, [SquawkAssigned, HoldPosition]);
@@ -181,11 +319,14 @@ public class QuickCommandMigrationTests : IDisposable
     /// Writes <paramref name="listsJson"/> as the stored quick-command lists in the shared preferences.json on disk, at
     /// preferences version 1, the last before the Track and coordination rows.
     /// </summary>
-    private static void InjectVersion1Lists(string listsJson)
+    private static void InjectVersion1Lists(string listsJson) => InjectLists(1, listsJson);
+
+    /// <summary>Writes <paramref name="listsJson"/> as the stored quick-command lists at preferences version <paramref name="version"/>.</summary>
+    private static void InjectLists(int version, string listsJson)
     {
         JsonObject root = File.Exists(PreferencesPath) ? JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject() : [];
         root["quickCommandLists"] = JsonNode.Parse(listsJson);
-        root["preferencesVersion"] = 1;
+        root["preferencesVersion"] = version;
         Directory.CreateDirectory(YaatPaths.AppDataRoot);
         File.WriteAllText(PreferencesPath, root.ToJsonString());
     }

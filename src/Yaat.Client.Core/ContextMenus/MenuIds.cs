@@ -159,6 +159,12 @@ public static class MenuIds
     /// <summary>Climb or descend to an altitude picked from the list (<c>CM</c> above the current altitude, <c>DM</c> otherwise).</summary>
     public const string AltitudeMaintain = "altitude.maintain";
 
+    /// <summary>
+    /// A VFR aircraft's altitude, picked as a thousand then a hundred: maintain it (<c>CM</c> above the current altitude, <c>DM</c>
+    /// otherwise), at or above it (<c>CM A</c>) or at or below it (<c>CM B</c>). A quick-command entry only.
+    /// </summary>
+    public const string AltitudeVfr = "altitude.vfr";
+
     /// <summary>Assign a speed picked from the list (<c>SPD</c>).</summary>
     public const string SpeedAssign = "speed.assign";
 

@@ -141,6 +141,7 @@ public static class MenuCategories
                 MenuIds.HeadingTurnLeftDegrees,
                 MenuIds.HeadingTurnRightDegrees,
                 MenuIds.AltitudeMaintain,
+                MenuIds.AltitudeVfr,
                 MenuIds.SpeedAssign,
                 MenuIds.SpeedCustom,
                 MenuIds.SpeedNormal,

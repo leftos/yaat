@@ -178,6 +178,8 @@ public class MenuCatalogCommandTests
         MenuIds.HeadingTurnRightDegrees,
         // The altitude entries open the altitude flyouts; AltitudeFlyoutTests clicks their rows and boxes.
         MenuIds.AltitudeMaintain,
+        // Altitude… opens the VFR altitude flyout; VfrAltitudeFlyoutTests clicks its cells.
+        MenuIds.AltitudeVfr,
         MenuIds.DataBlockTempAltitude,
         MenuIds.DataBlockCruise,
         // Assign speed and Speed… open the speed flyout; SpeedFlyoutTests clicks its rows, chips and box.

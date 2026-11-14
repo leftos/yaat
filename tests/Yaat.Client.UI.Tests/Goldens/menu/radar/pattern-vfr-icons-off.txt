@@ -9,6 +9,9 @@ Touch and go 28R alias:TG
 Stop and go 28R alias:SG
 Low approach 28R alias:LA
 Go around 28R alias:GA
+Vectors [disabled]
+Altitude… alias:CM
+  vfr altitude flyout
 Pattern [disabled]
 Follow traffic… · no other aircraft airborne [disabled]
 Extend pattern leg alias:EXT

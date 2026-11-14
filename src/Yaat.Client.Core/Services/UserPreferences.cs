@@ -120,7 +120,15 @@ public sealed partial class UserPreferences
     /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
-    internal const int CurrentPreferencesVersion = 2;
+    internal const int CurrentPreferencesVersion = 3;
+
+    /// <summary>The situations whose default list carries Altitude… with no Maintain altitude: it goes before Land.</summary>
+    private static readonly AircraftSituation[] AltitudeBeforeLandSituations =
+    [
+        AircraftSituation.Pattern,
+        AircraftSituation.Final,
+        AircraftSituation.VfrArrivalInbound,
+    ];
 
     /// <summary>The Track and coordination quick commands the v2 migration inserts into stored lists, in list order.</summary>
     private static readonly string[] TrackCoordinationQuickIds =
@@ -166,6 +174,8 @@ public sealed partial class UserPreferences
     /// version. v0 → v1: auto arrival spacing on occupied runway now defaults off for a TWR student, and 0.13.1 saved
     /// its earlier default (on) to disk, so the TWR flag is reset to off once. v1 → v2: every stored quick-command list but
     /// Live traffic's gains the Track and coordination rows the defaults gained (<see cref="InsertTrackCoordinationRows"/>).
+    /// v2 → v3: every stored quick-command list but Live traffic's gains Altitude… for VFR aircraft
+    /// (<see cref="InsertVfrAltitudeRows"/>).
     /// </summary>
     private void MigratePreferences()
     {
@@ -191,6 +201,12 @@ public sealed partial class UserPreferences
             );
         }
 
+        if (fromVersion < 3)
+        {
+            int changed = InsertVfrAltitudeRows();
+            Log.LogInformation("Preferences v{From} → v3: Altitude… quick command added to {Count} stored list(s)", fromVersion, changed);
+        }
+
         _data.PreferencesVersion = CurrentPreferencesVersion;
 
         // Runs from the constructor, so a failed write must not throw out of it: the migrated values stay in memory
@@ -212,13 +228,29 @@ public sealed partial class UserPreferences
     /// <see cref="SetQuickCommandList"/> does.
     /// </summary>
     /// <returns>How many stored lists gained a row.</returns>
-    private int InsertTrackCoordinationRows()
+    private int InsertTrackCoordinationRows() => RewriteStoredLists((_, stored) => WithTrackCoordinationRows(stored));
+
+    /// <summary>
+    /// Brings Altitude… (VFR only) to each stored list but Live traffic's that does not hold it yet: a Maintain altitude entry
+    /// with no flight-rules override becomes IFR only with Altitude… right after it; else the Pattern, Final and VFR arrival
+    /// inbound lists gain it before Land, or at the end without Land. A list already holding Altitude… is left alone. A list
+    /// that then equals its default stops being stored.
+    /// </summary>
+    /// <returns>How many stored lists gained the row.</returns>
+    private int InsertVfrAltitudeRows() => RewriteStoredLists(WithVfrAltitudeRow);
+
+    /// <summary>
+    /// Replaces each stored list but Live traffic's with what <paramref name="rewrite"/> makes of it, dropping a list that then
+    /// equals its default, as <see cref="SetQuickCommandList"/> does.
+    /// </summary>
+    /// <returns>How many stored lists gained an entry.</returns>
+    private int RewriteStoredLists(Func<AircraftSituation, IReadOnlyList<QuickCommandEntry>, List<QuickCommandEntry>> rewrite)
     {
         int changed = 0;
         foreach (AircraftSituation situation in _quickCommandLists.Keys.Where(s => s != AircraftSituation.LiveTraffic).ToList())
         {
             IReadOnlyList<QuickCommandEntry> stored = _quickCommandLists[situation];
-            List<QuickCommandEntry> entries = WithTrackCoordinationRows(stored);
+            List<QuickCommandEntry> entries = rewrite(situation, stored);
             changed += (entries.Count > stored.Count) ? 1 : 0;
             if (QuickCommandDefaults.IsDefault(situation, entries))
             {
@@ -231,6 +263,30 @@ public sealed partial class UserPreferences
         }
 
         return changed;
+    }
+
+    private static List<QuickCommandEntry> WithVfrAltitudeRow(AircraftSituation situation, IReadOnlyList<QuickCommandEntry> stored)
+    {
+        List<QuickCommandEntry> entries = [.. stored];
+        if (IndexOfCatalogEntry(entries, MenuIds.AltitudeVfr) >= 0)
+        {
+            return entries;
+        }
+
+        var altitude = new CatalogQuickCommandEntry(MenuIds.AltitudeVfr, MenuFlightRules.VfrOnly);
+        int maintain = entries.IndexOf(new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, null));
+        if (maintain >= 0)
+        {
+            entries[maintain] = new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, MenuFlightRules.IfrOnly);
+            entries.Insert(maintain + 1, altitude);
+        }
+        else if (AltitudeBeforeLandSituations.Contains(situation))
+        {
+            int land = IndexOfCatalogEntry(entries, MenuIds.GroundLandHelicopter);
+            entries.Insert((land >= 0) ? land : entries.Count, altitude);
+        }
+
+        return entries;
     }
 
     private static List<QuickCommandEntry> WithTrackCoordinationRows(IReadOnlyList<QuickCommandEntry> stored)

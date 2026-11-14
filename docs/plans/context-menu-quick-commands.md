@@ -49,6 +49,8 @@ Reviewed by `aviation-sim-expert` against 7110.65 / AIM (2026-09-28). Order is m
 | 16 | VFR arrival, inbound | airborne VFR inbound to destination, not yet in the pattern | Enter L/R downwind ▸, Enter base ▸, Straight-in, Report N-mile / at fix, Cleared to land, Follow… |
 | 17 | VFR departure, leaving the pattern | airborne VFR departing, not staying in the pattern | Fly heading ▸ / on course, Maintain ▸, Report at fix, Make L/R closed traffic |
 
+For a VFR aircraft, "Maintain ▸" in these rows is the VFR "Altitude…" picker (Maintain, At or above, At or below), which Pattern, Final and VFR arrival also list just before Land; IFR aircraft keep Maintain.
+
 Review notes that drive predicates:
 
 - Final (12) offers no exit instruction: 7110.65 §3-10-9 note says exit instructions should not normally be issued before or immediately after touchdown. Rollout (13) shows exits only once decelerating.

@@ -352,6 +352,39 @@ public class QuickCommandResolverTests
         Assert.Equal(kept, TextIds(resolution).Contains(CustomQuickCommandEntry.MenuId));
     }
 
+    /// <summary>
+    /// In Departing, a VFR aircraft gets Altitude… and no Maintain altitude, an IFR one Maintain altitude and no Altitude…, and an
+    /// IFR one under "VFR commands for IFR aircraft = All" both.
+    /// </summary>
+    [Theory]
+    [InlineData("VFR", VfrCommandsForIfr.None, false, true)]
+    [InlineData("IFR", VfrCommandsForIfr.None, true, false)]
+    [InlineData("IFR", VfrCommandsForIfr.All, true, true)]
+    public void DepartingDefaults_OfferMaintainOrAltitudeByFlightRules(string rules, VfrCommandsForIfr mode, bool maintain, bool altitude)
+    {
+        var context = new MenuContext(
+            new MenuClick("TST123", null, null, []),
+            new MenuSession(
+                "XX",
+                false,
+                mode,
+                QuickCommandDefaults.For,
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
+            )
+        );
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(Airborne(rules, AircraftSituation.Departing), context, _ => true);
+
+        Assert.Equal(maintain, StripIds(resolution).Contains(MenuIds.AltitudeMaintain));
+        Assert.Equal(altitude, StripIds(resolution).Contains(MenuIds.AltitudeVfr));
+    }
+
     [Fact]
     public void CustomEntry_NeverEntersTheStrip_EvenWithStripRoomLeft()
     {

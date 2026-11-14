@@ -32,6 +32,18 @@ public class AltitudeRestrictionCommandTests
         AltitudeAssignmentModifier.AtOrAbove,
         "maintain VFR at or above two thousand five hundred, november one two three alpha bravo."
     )]
+    [InlineData(
+        "CM A5500",
+        5500,
+        AltitudeAssignmentModifier.AtOrAbove,
+        "maintain VFR at or above five thousand five hundred, november one two three alpha bravo."
+    )]
+    [InlineData(
+        "CM B5500",
+        5500,
+        AltitudeAssignmentModifier.AtOrBelow,
+        "maintain VFR at or below five thousand five hundred, november one two three alpha bravo."
+    )]
     public void ClimbMaintain_AltitudeRestriction_ParsesAndReadsBackVfr(
         string text,
         int expectedAltitude,

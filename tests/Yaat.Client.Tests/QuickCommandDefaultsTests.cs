@@ -4,6 +4,9 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Xunit;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Models;
+using Yaat.Client.Services;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Tests;
@@ -272,6 +275,109 @@ public class QuickCommandDefaultsTests
             AircraftSituation.VfrArrivalInbound,
             AircraftSituation.VfrDeparting,
         ];
+
+    /// <summary>The situations whose default list carries Maintain altitude: each lists it IFR-only, Altitude… VFR-only right after.</summary>
+    private static readonly AircraftSituation[] MaintainSituationList =
+    [
+        AircraftSituation.Departing,
+        AircraftSituation.IfrEnroute,
+        AircraftSituation.IfrArrival,
+        AircraftSituation.VfrFlightFollowing,
+        AircraftSituation.Approach,
+        AircraftSituation.Holding,
+        AircraftSituation.GoAround,
+        AircraftSituation.VfrDeparting,
+    ];
+
+    public static TheoryData<AircraftSituation> MaintainSituations() => [.. MaintainSituationList];
+
+    [Theory]
+    [MemberData(nameof(MaintainSituations))]
+    public void MaintainSituation_ListsIfrMaintain_ThenVfrAltitude(AircraftSituation situation)
+    {
+        List<QuickCommandEntry> entries = [.. QuickCommandDefaults.For(situation)];
+        int maintain = entries.IndexOf(new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, MenuFlightRules.IfrOnly));
+
+        Assert.True(maintain >= 0, $"{situation} lists no IFR-only Maintain altitude");
+        Assert.Equal(new CatalogQuickCommandEntry(MenuIds.AltitudeVfr, MenuFlightRules.VfrOnly), entries[maintain + 1]);
+        Assert.DoesNotContain(new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, null), entries);
+    }
+
+    /// <summary>Pattern, Final and VFR arrival inbound list no Maintain; Altitude… sits just before Land, which stays last.</summary>
+    [Theory]
+    [InlineData(AircraftSituation.Pattern)]
+    [InlineData(AircraftSituation.Final)]
+    [InlineData(AircraftSituation.VfrArrivalInbound)]
+    public void NoMaintainAirborneSituation_ListsVfrAltitudeBeforeLand(AircraftSituation situation)
+    {
+        List<QuickCommandEntry> entries = [.. QuickCommandDefaults.For(situation)];
+
+        Assert.Equal(new CatalogQuickCommandEntry(MenuIds.AltitudeVfr, MenuFlightRules.VfrOnly), entries[^2]);
+        Assert.Equal(MenuIds.GroundLandHelicopter, CatalogId(entries[^1]));
+        Assert.DoesNotContain(MenuIds.AltitudeMaintain, entries.Select(CatalogId));
+    }
+
+    public static TheoryData<AircraftSituation, bool> AltitudeSituations()
+    {
+        var data = new TheoryData<AircraftSituation, bool>();
+        foreach (AircraftSituation situation in MaintainSituationList)
+        {
+            data.Add(situation, true);
+        }
+
+        data.Add(AircraftSituation.Pattern, false);
+        data.Add(AircraftSituation.Final, false);
+        data.Add(AircraftSituation.VfrArrivalInbound, false);
+        return data;
+    }
+
+    /// <summary>
+    /// Through the resolver, a VFR aircraft's default list offers Altitude… and never Maintain altitude in every airborne situation;
+    /// an IFR aircraft's offers Maintain altitude where the list carries it, and never Altitude….
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AltitudeSituations))]
+    public void ResolvedDefaultList_OffersAltitudeToVfr_MaintainToIfr(AircraftSituation situation, bool listsMaintain)
+    {
+        List<string> vfr = ResolvedIds("VFR", situation);
+        List<string> ifr = ResolvedIds("IFR", situation);
+
+        Assert.Contains(MenuIds.AltitudeVfr, vfr);
+        Assert.DoesNotContain(MenuIds.AltitudeMaintain, vfr);
+        Assert.Equal(listsMaintain, ifr.Contains(MenuIds.AltitudeMaintain));
+        Assert.DoesNotContain(MenuIds.AltitudeVfr, ifr);
+        Assert.Equal(MenuIds.GroundLandHelicopter, CatalogId(QuickCommandDefaults.For(situation)[^1]));
+    }
+
+    private static List<string> ResolvedIds(string rules, AircraftSituation situation)
+    {
+        var aircraft = new AircraftModel
+        {
+            Callsign = "TST123",
+            CurrentPhase = "",
+            IsOnGround = false,
+            FlightRules = rules,
+            Situation = situation,
+        };
+        var context = new MenuContext(
+            new MenuClick("TST123", null, null, []),
+            new MenuSession(
+                "XX",
+                false,
+                VfrCommandsForIfr.None,
+                QuickCommandDefaults.For,
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true,
+                ActiveTcp: null,
+                ActivePositionCallsign: null,
+                ActiveTrackFacilityId: null
+            )
+        );
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(aircraft, context, _ => true);
+        return [.. resolution.Strip.Select(item => item.Entry.Id), .. resolution.Text.Select(entry => entry.Id)];
+    }
 
     /// <summary>Land closes every list an airborne helicopter can be in, the air-taxiing one (Taxiing) included.</summary>
     [Theory]

@@ -335,11 +335,15 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
   These flyouts have no visual rows, no airport row, no Force toggle and no Cancel IFR. The two (force) commands send the forced forms (`CAPPF`, `JAPPF`) on every row, and their title and rows carry an amber "!" force mark. A destination with no published approaches shows the Approach box alone. Every approach flyout, **Expect approach** included, has a title line naming its command.
 
-  **Maintain altitude** (the strip button, and All Commands › Vectors › Altitude › Maintain altitude) opens a flyout beside the menu, titled `Maintain altitude` with `now 7,500 · assigned 10,000` at the right. The **Altitude** box ("e.g. 230 or 23000") holds focus; below it a list, at most 300 px tall, runs from the aircraft type's ceiling down, opening centred on the assigned altitude, else the current one.
+  **Maintain altitude** (the strip button of an IFR aircraft, and All Commands › Vectors › Altitude › Maintain altitude) opens a flyout beside the menu, titled `Maintain altitude` with `now 7,500 · assigned 10,000` at the right. The **Altitude** box ("e.g. 230 or 23000") holds focus; below it a list, at most 300 px tall, runs from the aircraft type's ceiling down, opening centred on the assigned altitude, else the current one.
 
   Each row shows a mark, the altitude, a note and the command it sends. ↑ sends a climb (`CM 25000`) and ↓ a descent (`DM 25000`); ● marks the current altitude (`now`) and ◆ the assigned one (`assigned`), and clicking ● sends the verb toward the assignment. Where the minimum vectoring altitude is charted, an "MVA 5,000 here (sector SCK_M)" line sits in the list and the rows below it are greyed "below MVA", but they can still be picked.
 
   Type an altitude the way commands take one (`35`, `350`, `23000`, `FL350`): the nearest row is outlined and the box shows the command Enter would send, or `CM ···` faded while the text is not an altitude. Down from the box goes to the ● row; Up and Down walk the rows (the MVA line is skipped), Up from the top row returns to the box, Enter sends and Escape goes back to the strip button. Once a second the marks, the verbs, the MVA line and "now" follow the aircraft; the rows never move.
+
+  **Altitude…** (the strip button of a VFR aircraft, `CM`) opens a flyout titled `Altitude` with `now 4,200 · 095°` (the altitude and the magnetic ground track) at the right. The **Altitude** box takes a typed altitude and Enter sends it in the current mode; one outside the field's floor to 17,500 ft is refused with "{floor} to 17,500 only". Below it a toggle picks the mode, **Maintain**, **At or above A** or **At or below B**, and a hint line gives the cruising rule for the track (`VFR cruising, 095° odd + 500, above 3,600 (3,000 AGL)`).
+
+  The header shows the value and the command you would send, `—` and `···` until you point at an offered value. Pick a thousand in the **Thousands** column (from 17 down to the destination field's thousand, the current one marked "now"), then a hundred in the **Hundreds** column (000 to 900). Maintain sends `CM 5500` to climb or `DM 5500` to descend, At or above `CM A5500`, At or below `CM B5500`. A thousand is outlined when its +500 is a VFR cruising altitude for the track (odd thousands + 500 for 0-179°, even for 180-359°, 14 CFR 91.159) and more than 3,000 ft above the nearest airport. Values stop at 17,500.
 
   **Temporary altitude…** and **Cruise…**, under All Commands › Track and coordination › Data block, each open a one-box flyout titled `Temporary altitude` or `Cruise` with `now 7,500` at the right. The box previews the command as you type (`TEMPALT 120`, `CRUISE 240`) and shows `Not a valid altitude` in red when the text cannot be read. Enter sends; Enter on an empty box closes the menu.
 
@@ -378,19 +382,19 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | Taxiing | Hold position, Resume taxi, Hold short of…, Cross {runway}, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff, Cancel takeoff clearance, Land (helicopter) |
 | Holding short | Cleared for takeoff, Line up and wait (at the departure runway); Cross {runway}, Air taxi (helicopter), Resume taxi (at any other); Hold short of… (when the route has a stop) |
 | Lined up | Cleared for takeoff, Cancel takeoff clearance, Draw taxi route… |
-| Departing | Fly heading, Maintain altitude, Climb via SID (IFR), Direct to…, Assign speed, Land (helicopter) |
-| IFR enroute | Fly heading, Maintain altitude, Direct to…, Assign speed, Hold at fix…, Cross fix, Land (helicopter) |
-| IFR arrival | Descend via STAR (IFR), Maintain altitude, Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix…, Land (helicopter) |
-| VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude, Direct to…, Expect approach, Land (helicopter) |
-| Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight…, Cleared visual (IFR), Cleared to land, Land (helicopter) |
-| Holding | Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land (helicopter) |
-| Final | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach (these four VFR only), Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Land (helicopter) |
+| Departing | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Climb via SID (IFR), Direct to…, Assign speed, Land (helicopter) |
+| IFR enroute | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Direct to…, Assign speed, Hold at fix…, Cross fix, Land (helicopter) |
+| IFR arrival | Descend via STAR (IFR), Maintain altitude (IFR), Altitude… (VFR), Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix…, Land (helicopter) |
+| VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude (IFR), Altitude… (VFR), Direct to…, Expect approach, Land (helicopter) |
+| Approach | Cleared approach, Maintain altitude (IFR), Altitude… (VFR), Assign speed, Report field in sight…, Cleared visual (IFR), Cleared to land, Land (helicopter) |
+| Holding | Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR), Direct to…, Maintain altitude (IFR), Altitude… (VFR); for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Altitude… (VFR), Land (helicopter) |
+| Final | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach (these four VFR only), Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Altitude… (VFR), Land (helicopter) |
 | Rollout / exit | Exit left, Exit right, Air taxi (helicopter, once settled), Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
-| Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
+| Go-around or missed approach | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, Report when…, Cleared to land, Follow traffic…, Land (helicopter) |
-| VFR departure | Fly heading, Proceed on course, Maintain altitude, Report when…, Make left / right closed traffic, Land (helicopter) |
+| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, Report when…, Cleared to land, Follow traffic…, Altitude… (VFR), Land (helicopter) |
+| VFR departure | Fly heading, Proceed on course, Maintain altitude (IFR), Altitude… (VFR), Report when…, Make left / right closed traffic, Land (helicopter) |
 
 **Squawk shortcuts.** Two squawk commands lead a list when they apply, and are not repeated in the table. **Squawk normal** (`SQNORM`, a transponder box with a check mark) leads the ground lists (At parking through Lined up, and Rollout / exit) while the aircraft sits on the ground with its transponder in standby.
 
@@ -399,6 +403,8 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 **Handoff and pointout shortcuts.** Three more commands follow Squawk assigned code in every list except Live traffic, and show by direction relative to the position you act as (your own, or the one an `AS` selected), only while the handoff or pointout is pending. **Accept handoff** (`ACCEPT`, a bracket with a check mark) shows for a handoff to your position; **Cancel handoff** (`CANCEL`, a bracket with a return arrow) for a handoff from your position; **Acknowledge pointout** (`OK`, a pointing hand with a check mark) for a pointout to your position. A handoff or pointout between two other positions shows none of them. All Commands › Track still lists them whichever way the handoff goes.
 
 If you had customised a situation's quick commands, these three were added to it once when you upgraded, after Squawk assigned code. You can remove or move them in Settings › Quick commands like any other command, and a removed one stays removed.
+
+**Altitude…** (`CM`, the Maintain glyph) is the VFR aircraft's altitude command: it replaces Maintain altitude, which now shows for IFR aircraft only, in every list above, and Pattern, Final and VFR arrival gain it just before Land. With **VFR commands for IFR aircraft** set to All an IFR aircraft sees both. All Commands › Vectors › Altitude still holds only Maintain altitude. A customised list gained the row once when you upgraded: after its Maintain altitude (which became IFR only), or before Land in Pattern, Final and VFR arrival. It is removable like any other, and a removed one stays removed.
 
 **Helicopters.** The entries marked (helicopter) appear only for a helicopter, never for a fixed-wing aircraft.
 

@@ -58,7 +58,7 @@ public class UserPreferencesAutoArrivalSpacingTests
 
                 Assert.False(prefs.AutoArrivalSpacingOnOccupiedRunwayTwr);
                 JsonObject rewritten = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
-                Assert.Equal(2, rewritten["preferencesVersion"]!.GetValue<int>());
+                Assert.Equal(UserPreferences.CurrentPreferencesVersion, rewritten["preferencesVersion"]!.GetValue<int>());
                 Assert.False(rewritten["autoArrivalSpacingOnOccupiedRunwayTwr"]!.GetValue<bool>());
             }
         );
@@ -143,18 +143,18 @@ public class UserPreferencesAutoArrivalSpacingTests
 
                 Assert.False(prefs.AutoArrivalSpacingOnOccupiedRunwayTwr);
                 JsonObject rewritten = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
-                Assert.Equal(2, rewritten["preferencesVersion"]!.GetValue<int>());
+                Assert.Equal(UserPreferences.CurrentPreferencesVersion, rewritten["preferencesVersion"]!.GetValue<int>());
                 Assert.False(rewritten["autoArrivalSpacingOnOccupiedRunwayTwr"]!.GetValue<bool>());
                 Assert.True(File.Exists(BackupPath), "field-by-field recovery did not back up the original file");
             }
         );
     }
 
-    /// <summary>A file written by a newer build (version 2) is left alone: TWR stays on and the file is not rewritten.</summary>
+    /// <summary>A file written by a newer build is left alone: TWR stays on and the file is not rewritten.</summary>
     [Fact]
     public void NewerVersionFile_IsLeftAlone()
     {
-        string json = PrefsJson(version: 2, gnd: true, twr: true);
+        string json = PrefsJson(version: UserPreferences.CurrentPreferencesVersion + 1, gnd: true, twr: true);
         WithPreferencesFile(
             json,
             () =>
