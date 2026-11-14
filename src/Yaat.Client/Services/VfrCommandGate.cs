@@ -93,6 +93,14 @@ public static class VfrCommandGate
 
     private static string BuildRejection(AircraftModel target, ParsedCommand command)
     {
+        // The cardinal FH has a numeric twin that flies the same heading, so the refusal names it
+        // rather than telling the controller to cancel IFR first.
+        if (command is FlyHeadingCommand { Cardinal: not null } heading)
+        {
+            return $"FH {heading.Cardinal} is VFR only; use FH {heading.MagneticHeading.ToDisplayString()} on {target.Callsign} "
+                + "— or change Settings > Scenarios > VFR commands for IFR aircraft.";
+        }
+
         string verb = CommandDescriber.DescribeCommand(command);
         return $"{verb} requires a VFR aircraft — use CIFR on {target.Callsign} first, "
             + "or change Settings > Scenarios > VFR commands for IFR aircraft.";

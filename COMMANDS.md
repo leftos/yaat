@@ -547,7 +547,7 @@ set you can give an IFR aircraft without cancelling IFR first:
 | Make straight-in (EF) only *(default)* | `EF` works on an IFR aircraft — move a visual arrival to another runway in one command. Everything else still needs `CIFR`. |
 | All VFR commands | The whole VFR-only set works on an IFR aircraft. |
 
-The cardinal form of `FH` (`FH E`, read back "proceeding eastbound") is VFR only and is not part of this setting: an IFR aircraft is refused with `FH E is VFR only; use FH 090`, whatever the setting.
+The cardinal form of `FH` (`FH E`, read back "proceeding eastbound") is part of the VFR-only set: an IFR aircraft is refused with `FH E is VFR only; use FH 090` unless this setting is All VFR commands.
 
 The setting covers the pattern-entry and pattern-maneuver commands above, `TG` / `SG` / `LA` / `COPT`,
 the VFR holds (`HPP*` / `HFIX*`), `FOLLOW`, the `CM A`/`CM B` altitude restrictions, and the

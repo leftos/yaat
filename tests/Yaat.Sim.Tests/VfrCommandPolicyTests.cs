@@ -123,6 +123,30 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
         Assert.True(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.None));
     }
 
+    /// <summary>
+    /// The cardinal <c>FH</c> is a VFR instruction ("proceed eastbound"), so it joins the set; the numeric
+    /// form is an ordinary IFR vector and stays ungated.
+    /// </summary>
+    [Fact]
+    public void FhCardinal_IsVfrOnly()
+    {
+        ParsedCommand command = ParseSingle("FH E");
+
+        Assert.True(VfrCommandPolicy.IsVfrOnly(command));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.None));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.EnterFinalOnly));
+        Assert.True(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.All));
+    }
+
+    [Fact]
+    public void FhNumeric_IsNotVfrOnly()
+    {
+        ParsedCommand command = ParseSingle("FH 090");
+
+        Assert.False(VfrCommandPolicy.IsVfrOnly(command));
+        Assert.True(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.None));
+    }
+
     [Theory]
     [InlineData(VfrCommandsForIfr.None, false)]
     [InlineData(VfrCommandsForIfr.EnterFinalOnly, true)]

@@ -22,9 +22,10 @@ public enum VfrCommandsForIfr
 }
 
 /// <summary>
-/// Classifies commands that model VFR-only operations — traffic-pattern work, the pattern-relative
-/// takeoff modifiers, <c>FOLLOW</c>, and the <c>CM A/B</c> altitude restrictions — and decides which
-/// of them an IFR aircraft may still be given under a chosen <see cref="VfrCommandsForIfr"/>.
+/// Classifies commands that model VFR-only operations — traffic-pattern work, the cardinal <c>FH</c>,
+/// the pattern-relative takeoff modifiers, <c>FOLLOW</c>, and the <c>CM A/B</c> altitude restrictions
+/// — and decides which of them an IFR aircraft may still be given under a chosen
+/// <see cref="VfrCommandsForIfr"/>.
 ///
 /// <para>The predicates live here rather than in <see cref="CommandDispatcher"/> because the desktop
 /// client is what enforces them: it evaluates the policy against the target aircraft's flight rules
@@ -93,11 +94,13 @@ public static class VfrCommandPolicy
 
     /// <summary>
     /// Whether the command models a VFR-only operation. Beyond <see cref="RequiresVfr"/> this covers
-    /// the VFR-only takeoff modifiers, <c>FOLLOW</c> (IFR traffic uses <c>CVA FOLLOW</c> for visual
-    /// separation), and the <c>CM A/B</c> at-or-above / at-or-below altitude restrictions.
+    /// the cardinal <c>FH</c> (<c>FH E</c>, "proceed eastbound"), the VFR-only takeoff modifiers,
+    /// <c>FOLLOW</c> (IFR traffic uses <c>CVA FOLLOW</c> for visual separation), and the <c>CM A/B</c>
+    /// at-or-above / at-or-below altitude restrictions.
     /// </summary>
     public static bool IsVfrOnly(ParsedCommand command) =>
         RequiresVfr(command)
+        || (command is FlyHeadingCommand { Cardinal: not null })
         || (command is FollowCommand)
         || (command is ClimbMaintainCommand { Modifier: not AltitudeAssignmentModifier.None })
         || (command is ClearedForTakeoffCommand cto && IsVfrOnlyDeparture(cto.Departure))

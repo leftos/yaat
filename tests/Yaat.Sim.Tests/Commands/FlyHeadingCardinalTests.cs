@@ -7,7 +7,8 @@ namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// The VFR cardinals of <c>FH</c>: <c>FH E</c> flies what <c>FH 090</c> flies but keeps the controller's own
-/// word, so the readback says "proceeding eastbound" and an IFR aircraft is refused with the numeric form.
+/// word, so the readback says "proceeding eastbound". The dispatcher does not gate on flight rules; the
+/// client's VFR gate refuses the cardinal for an IFR aircraft unless the controller's setting allows it.
 /// </summary>
 public class FlyHeadingCardinalTests
 {
@@ -97,8 +98,13 @@ public class FlyHeadingCardinalTests
         Assert.Equal(cmd.MagneticHeading, reparsed.MagneticHeading);
     }
 
+    /// <summary>
+    /// The simulation applies what it is given: a cardinal <c>FH</c> reaches an IFR aircraft exactly as
+    /// the numeric form does. The client's VFR gate, not the dispatcher, decides whether the controller
+    /// may give it.
+    /// </summary>
     [Fact]
-    public void Dispatch_FhCardinal_Ifr_IsRefused()
+    public void Dispatch_FhCardinal_Ifr_FliesHeading()
     {
         AircraftState aircraft = CreateAircraft();
         aircraft.FlightPlan.FlightRules = "IFR";
@@ -107,10 +113,10 @@ public class FlyHeadingCardinalTests
 
         CommandResult result = CommandDispatcher.Dispatch(ParseFlyHeading("FH E"), aircraft, TestDispatch.Context(Random.Shared));
 
-        Assert.False(result.Success);
-        Assert.Equal("FH E is VFR only; use FH 090", result.Message);
-        Assert.Equal(new MagneticHeading(180), aircraft.Targets.AssignedMagneticHeading);
-        Assert.Equal(new TrueHeading(180), aircraft.Targets.TargetTrueHeading);
+        Assert.True(result.Success);
+        Assert.Equal("Proceed eastbound (heading 090)", result.Message);
+        Assert.Equal(new MagneticHeading(90), aircraft.Targets.AssignedMagneticHeading);
+        Assert.Equal(new TrueHeading(90), aircraft.Targets.TargetTrueHeading);
     }
 
     [Fact]

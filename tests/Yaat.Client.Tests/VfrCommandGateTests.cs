@@ -42,6 +42,32 @@ public class VfrCommandGateTests
         Assert.Equal(allowed, result.Allowed);
     }
 
+    /// <summary>
+    /// The cardinal <c>FH</c> is a VFR instruction, so the gate treats it like the rest of the set: refused
+    /// for an IFR aircraft under every mode but <see cref="VfrCommandsForIfr.All"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(VfrCommandsForIfr.None, false)]
+    [InlineData(VfrCommandsForIfr.EnterFinalOnly, false)]
+    [InlineData(VfrCommandsForIfr.All, true)]
+    public void FhCardinal_OnIfr_FollowsTheMode(VfrCommandsForIfr mode, bool allowed)
+    {
+        VfrGateResult result = VfrCommandGate.Evaluate(Ifr(), "FH E", mode);
+
+        Assert.Equal(allowed, result.Allowed);
+        Assert.Equal(allowed, result.BypassedForIfr);
+        Assert.Equal(allowed, result.RejectionMessage is null);
+    }
+
+    /// <summary>The refusal names the numeric heading that would fly the same, the callsign, and the setting.</summary>
+    [Fact]
+    public void FhCardinal_OnIfr_RejectionNamesTheNumericHeading()
+    {
+        string? message = VfrCommandGate.Evaluate(Ifr(), "FH E", VfrCommandsForIfr.None).RejectionMessage;
+
+        Assert.Equal("FH E is VFR only; use FH 090 on UAL123 — or change Settings > Scenarios > VFR commands for IFR aircraft.", message);
+    }
+
     [Theory]
     [InlineData("EF 28L")]
     [InlineData("ELD 28L")]
