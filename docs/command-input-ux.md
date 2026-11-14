@@ -192,7 +192,7 @@ Type and airline names come from `AircraftGenerator.GetTypesForCombo` / `GetAirl
 
 ## Send-path callsign rewrite — the one server-facing touchpoint
 
-`CallsignArgumentResolver.TryRewrite` (`CallsignArgumentResolver.cs:43`) runs in `MainViewModel.SendCommandAsync` **after** `MacroExpander.TryExpand` and `CallsignPrefixResolver.Resolve`, **before** the command is sent (`MainViewModel.cs:1691` → `1710` → `1727`). It is the only place this subsystem mutates the server-bound string; everything after it is [command-pipeline.md](command-pipeline.md).
+`CallsignArgumentResolver.TryRewrite` runs in `MainViewModel.SendCommandAsync` **after** macro expansion (`TypedCommandText.TryExpandMacros`, which calls `MacroExpander.TryExpand`) and `CallsignPrefixResolver.Resolve`, **before** the command is sent. It is the only place this subsystem mutates the server-bound string; everything after it is [command-pipeline.md](command-pipeline.md).
 
 What it does:
 
@@ -204,10 +204,10 @@ What it does:
 
 ## Integration and threading
 
-- **Triggers.** `MainViewModel.OnCommandTextChanged` (`MainViewModel.cs:1592`) and `OnCommandCaretIndexChanged` (line 1603) call `UpdateSuggestions` + `UpdateSignatureHelp`. `OnCommandTextChanged` clamps the caret to the new length first; `OnCommandCaretIndexChanged` skips updates while history navigation is active.
+- **Triggers.** `MainViewModel.OnCommandTextChanged` and `OnCommandCaretIndexChanged` call `UpdateSuggestions` + `UpdateSignatureHelp`. `OnCommandTextChanged` clamps the caret to the new length first; `OnCommandCaretIndexChanged` skips updates while history navigation is active.
 - **Injection points.** `_commandInput.Macros` is set from preferences; `NavDbReady` flips true when the nav database loads; `PrimaryAirportId` is set on scenario/timeline bootstrap and cleared on disconnect (`MainViewModel.Scenario.cs:484`, `585`).
 - **Key handling** (`CommandInputView.axaml.cs:91`): Tab accepts (auto-selecting index 0 if none selected); Enter auto-expands the highlighted suggestion (gated on `Preferences.AutoExpandSuggestionOnEnter` and `SelectedSuggestionIndex >= 0` — usually satisfied by the auto-highlight above) then sends; Up/Down select within the dropdown or navigate history when it's closed; Escape dismisses popups or clears the input; Alt+Up/Down cycles signature-help overloads.
-- **History recall is aircraft-filtered.** Each `CommandHistory` entry is a `CommandHistoryEntry(Callsign, Command)` — the callsign-less command text plus the aircraft it was sent to (empty for global/untargeted commands). The view passes `vm.GetRecallHistory()` (not the raw `CommandHistory`) to `NavigateHistory`: with an aircraft selected it returns only that aircraft's commands plus untargeted ones; with none selected it returns all.
+- **History recall is aircraft-filtered.** Each `CommandHistory` entry is a `CommandHistoryEntry(Callsign, Command)` — the callsign-less command text plus the aircraft it was sent to (empty for global/untargeted commands). `MainViewModel.AddHistory` also records chat messages (the `'` `/` `>` prefixes) and client-only dot commands, aliases and `*T` input with an empty callsign, so they recall like any global command. The view passes `vm.GetRecallHistory()` (not the raw `CommandHistory`) to `NavigateHistory`: with an aircraft selected it returns only that aircraft's commands plus untargeted ones; with none selected it returns all.
 
   The controller's typed-prefix filter composes on top. `OnSelectedAircraftChanged` calls `ResetHistoryNavigation()` so a selection change doesn't leave the recall index pointing into the previously-filtered list. Persisted per scenario as `Dictionary<string, List<CommandHistoryEntry>>` in `UserPreferences`.
 - **Popup gating.** Two `CommandInputView` instances share one `MainViewModel`. The popup `IsOpen` is driven from code-behind, gated on `IsVisible` (`CommandInputView.axaml.cs:81`), so the hidden embedded instance never pops a dropdown at screen (0,0).

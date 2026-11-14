@@ -645,7 +645,7 @@ With no bias (single-taxiway with no known destination node) the score falls bac
    - named / node-ref → node-ref: `RouteToNodeRef` → `RouteToSpecificNode` (direct edge, else `AutoRouter`)
    - named → named: `RouteNamedToNamed` (the common case)
 
-**4. `RouteNamedToNamed`** (`:1877`). `FindJunctionCandidates` finds every node on `fromTaxiway` with an edge matching `toTaxiway`. For each candidate, `LocalSearchToJunction` runs a bounded best-first search (A*) **constrained to edges on `fromTaxiway`** (plus the direct junction edge), capped at `MaxLocalExpansions = 500`. Each candidate's score is `cost-to-reach + continuationCost`:
+**4. `RouteNamedToNamed`**. `FindJunctionCandidates` finds every node on `fromTaxiway` with an edge matching `toTaxiway`. For each candidate, `LocalSearchToJunction` runs a bounded best-first search (A*) **constrained to edges on `fromTaxiway`** (plus the direct junction edge), capped at `MaxLocalExpansions = 500`. Each candidate's score is `cost-to-reach + continuationCost`:
    - `continuationCost` = recursive one-level probe when there is a meaningful tail and look-ahead is on — the probe runs with `enableLookahead: false` to bound recursion.
    - else geometric anchor heuristic — penalizes junctions whose `toTaxiway` edges point away from the next-next taxiway's anchor.
    - **turn-direction hint** (issue #172 W7): when the entered taxiway carries a `>`/`<` hint (`SearchContext.WaypointTurnHints`), `TurnHintOntoTaxiwayPenalty` adds a finite penalty to candidates whose onward edge on it doesn't turn the hinted way from the arrival bearing.
@@ -693,7 +693,7 @@ A multi-name junction arc is a turn *off* the taxiway, not a continuation; singl
 
 Otherwise the cost ranking decides as before. The rule holds under every `RoutePreference`, `Shortest` included, and logs `[terminus] twy=<name> first step <from>-><to> follows heading <deg> (cost ranking chose <from>-><to>)`.
 
-**6. Variant resolution** (`TryVariantExtension`, `:1683`). When the destination is a runway and the walked route hasn't already reached a hold-short for it, the expander looks for **numbered variants** of the last named taxiway whose hold-short serves the runway (`B` → `B1`). Exactly one → auto-extend. More than one (e.g. `W1`…`W7` off `W` to rwy 30) → **auto-pick the variant whose hold-short comes first in the full-length lineup order** (below), with the side taken from where the route has reached when it picks. It falls back to `TransitionAmbiguous` only when `NavigationDatabase` cannot resolve the runway.
+**6. Variant resolution** (`TryVariantExtension`). When the destination is a runway and the walked route hasn't already reached a hold-short for it, the expander looks for **numbered variants** of the last named taxiway whose hold-short serves the runway (`B` → `B1`). Exactly one → auto-extend. More than one (e.g. `W1`…`W7` off `W` to rwy 30) → **auto-pick the variant whose hold-short comes first in the full-length lineup order** (below), with the side taken from where the route has reached when it picks. It falls back to `TransitionAmbiguous` only when `NavigationDatabase` cannot resolve the runway.
 
 The step's extension runs at once only when the walk reached the last named taxiway — it traversed an edge of it, or the head stands on a node carrying one.
 
@@ -703,7 +703,7 @@ The step's `DestinationUnreachable` is still raised and still hands over to the 
 
 Zero variants → try same-name hold-shorts, else raise `DestinationUnreachable` blaming the last taxiway — which `Run` answers with the **connector fallback** (`TryRunwayConnectorFallback`: a numbered stub ≤ 600 ft off the last taxiway carrying a bar for the runway, threaded as a final waypoint and re-resolved; see *Runway reached through a short numbered stub* above) before the failure reaches the controller. When threshold is unavailable (no navdata) a failure is raised naming the candidates.
 
-**7. Parking/spot extension** (`ExtendToDestination`, `:2154`). For `@parking`/`$spot`/helipad destinations, runs `AutoRouter` from the named-path terminus to the destination node, confined to the cleared taxiways, ramp taxilanes and RAMP, with the implied lead-in and, failing it, one implied one-way lane as the exceptions (see *The destination extension is confined* above).
+**7. Parking/spot extension** (`SegmentExpander.ExtendToDestination`). For `@parking`/`$spot`/helipad destinations, runs `AutoRouter` from the named-path terminus to the destination node, confined to the cleared taxiways, ramp taxilanes and RAMP, with the implied lead-in and, failing it, one implied one-way lane as the exceptions (see *The destination extension is confined* above).
 
 **8. `RouteMaterialiser.Materialise`**. One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the `TaxiRoute`.
 
@@ -927,7 +927,7 @@ Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cel
 
 ### Auto-route walkthrough (`AutoRouter.Run`)
 
-`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
+`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-path parking tail (`GroundCommandHandler.ExtendExplicitParkingRoute`, which `ResolveParkingRoute` calls to run `FindRoute` from where the resolved path ends when the expander has not already reached the stand), the detour fallback, and node-ref routing.
 
 - Resolves the destination node (runway → `FindFullLengthLineupHoldShort`, the first bar of the full-length lineup order; parking/spot/node → the resolved id).
 - A* with a `PriorityQueue<PartialRoute, double>`, a `(nodeId, arrival-bearing-bucket, arrival-taxiway)`-keyed `bestGScore` map for state-aware duplicate pruning, and the `GeometricAdmissibility` hard gate on every edge. `IncrementalCost` prices each edge. Heuristic = straight-line nm. Cap: **`MaxExpansions = 200_000`** → `SearchExhausted` (SFO cross-field routes legitimately explore 100k+).
