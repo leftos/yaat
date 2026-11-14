@@ -7,7 +7,6 @@
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2221 YAAT Scope step 2: ERAM altitude line, line-3 status slot, line-4 HSF, VCI and dwell · release vNext
     - [ ] YAAT-2269 YAAT Scope step 2b: line-3 status slot, line-4 HSF, VCI and R, column 0 · release vNext
-      - [ ] YAAT-2282 YAAT Scope 2b-iii: ERAM column 0, the VCI mark and R
     - [ ] YAAT-2270 YAAT Scope step 2c: block levels and dwell, Mixed template, altitude-mismatch marker · release vNext
   - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
@@ -42,9 +41,6 @@
 ## Bug reports and feature requests
 
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [ ] YAAT-2291 Guard #1381 with a replay test: no aircraft asks for lower more than six times · release vNext
-- [ ] YAAT-2298 PTAC after a speed assignment keeps the speed inside 5 NM and the aircraft goes around · release vNext
-- [ ] YAAT-2299 CAPP to an aircraft already established flies the approach from its start instead of continuing · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -73,7 +69,6 @@
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
 - [ ] YAAT-2292 Offer CAPP as a quick command to an aircraft given EAPP or established on its expected approach · release vNext
-- [ ] YAAT-2295 A quick-command flyout (Fly Heading, Maintain Altitude) sometimes closes as the cursor moves onto it · release vNext
 
 ## Say again
 
@@ -298,7 +293,7 @@
 - [ ] YAAT-1941 Keep a helicopter's landing phase when LAHSO declines for it
 - [ ] YAAT-1979 After a LAHSO hold, the runway exit drops a TAXI stored on a forced rollout instead of joining it
 
-### 2 Refinements and rulings (3/19 done)
+### 2 Refinements and rulings (3/21 done)
 - [ ] YAAT-1302 Bring a runway exit's tail-clear arrival to one sub-tick of braking before CompleteExit
 - [ ] YAAT-1303 Stop an expedited runway exit at the taxi rate once its tail is clear
 - [ ] YAAT-1345 Let an auto exit take a short crossover when the stored taxi route already crosses the other runway there
@@ -315,6 +310,8 @@
 - [ ] YAAT-1908 Go around a non-forced landing that would touch down with less runway left than a maximum-effort stop
 - [ ] YAAT-1977 Read back TAXI E, CROSS 1L at the LAHSO hold as one clearance, not a hold-short then a crossing
 - [ ] YAAT-1980 Count a leaver on the runway until its tail, not its position point, is past the runway edge
+- [ ] YAAT-2301 Decide the landing stability gate's speed limit: 1.3 × Vref or FSF's Vref + 20
+- [ ] YAAT-2302 Take the landing plan's Vref from the aircraft type, not its category
 
 ### 3 Hygiene and tests (2/10 done)
 - [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
@@ -654,7 +651,7 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (1/27 done)
+### 1 Defects (1/28 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -681,6 +678,7 @@
 - [ ] YAAT-1499 Stop an export's replay engine from silently dropping a starting weather that fails to load
 - [ ] YAAT-1583 Rehydrate a split block that keeps a non-tail command after a snapshot restore
 - [ ] YAAT-2182 Make IssueDerived apply or refuse a RecordedAmendFlightPlan instead of recording it unapplied
+- [ ] YAAT-2308 Restore an approach clearance's procedure and missed-approach fixes from a snapshot
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -865,7 +863,7 @@
 
 ## Approaches and holds
 
-### 1 Defects (2/17 done)
+### 1 Defects (2/20 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
@@ -881,6 +879,9 @@
 - [ ] YAAT-1886 Report the commanded descent rate on a pre-FAF continuous descent (ApproachNavigationPhase snaps VerticalSpeed to 0)
 - [ ] YAAT-1909 Fly a queued hold's standard leg at the altitude its block assigns, as the overlay draws it
 - [ ] YAAT-2178 Keep an ATC-assigned speed over a published approach fix speed in NavigateToCurrentFix
+- [ ] YAAT-2305 Continue the approach in place for a CAPP combined with other commands, and JFAC, CAPP from vectors
+- [ ] YAAT-2306 Final approach started inside its FAS trigger flies the no-wind approach speed
+- [ ] YAAT-2309 Rebuilt approach transition descends below the IAF's at-or-above altitude before the hold-in-lieu
 
 ### 2 Refinements and rulings (0/10 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
@@ -894,11 +895,12 @@
 - [ ] YAAT-1898 Decide how fast a captured aircraft below the glidepath recovers to it
 - [ ] YAAT-1903 Go around when a captured final stays well below the glidepath
 
-### 3 Hygiene and tests (0/4 done)
+### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-147 Give ApproachGateDatabase a scoped override; fix the XRWY refusal wording
 - [ ] YAAT-149 Test a published FAF inside 5 NM in FinalApproachFix.IsInside
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-1904 Split FinalApproachPhase.OnTick: extract the vertical-guidance block
+- [ ] YAAT-2307 Split InterceptCoursePhase.OnTick under the 100-line limit
 
 ## Traffic pattern and airborne FOLLOW
 
@@ -1340,7 +1342,7 @@
 - [ ] YAAT-1967 Keep LM-Kit from raising the client and its UI test host to High priority
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
-### 3 Hygiene and tests (10/64 done)
+### 3 Hygiene and tests (10/65 done)
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
@@ -1395,6 +1397,7 @@
 - [ ] YAAT-2040 Trim the two small sweep costs (T2 path-only GeoJSON check, T3 manifest read)
 - [ ] YAAT-2175 Stop ArgumentSuggesterTaxiwayTests installing a synthetic NavigationDatabase
 - [ ] YAAT-2190 Test TrainingHub.GetTdlsFacilityView
+- [ ] YAAT-2304 Document the routed census regenerate (--env, --bring-tracked), never --local
 
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
