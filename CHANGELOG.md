@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- A quick-command flyout such as Fly heading or Maintain altitude no longer closes as the pointer reaches it after crossing All Commands or Favorite Commands.
 - In solo training, an arrival cleared for an approach it will join from its route, or told what to expect with `EAPP`, no longer asks for an approach assignment.
 - Where MVA charts overlap, the radar's MVA tint, Ctrl readout and menus show its own facility's chart, so KFAT reads Fresno's 1,900 ft.
 - A crosswind or downwind departure (`CTO MRC`, `CTO MRD`) given `CM` on the roll still turns crosswind and flies its queued `DCT`.
