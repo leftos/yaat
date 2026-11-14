@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Rows and VFR Altitude</title>
+<style>
+  /* Page chrome follows the quick-command-strip-categories mock; the app surfaces (.stage and everything in it) copy the
+     client: QuickCommandStrip.cs (40 px cells, 32 px glyphs at stroke 1.9, 9.5 px category labels), AltitudeFlyout.cs
+     (MaintainAltitudePanel rows: 20 px mark column, 13 px mono value, 11.5 px note, 12 px mono command at 0.7, 24 px fill
+     in a 2 px outline), FlyoutPanelParts.cs (verb toggle, chips, brushes) and SpeedFlyout.cs (now fill, outline chip). */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1560px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; letter-spacing: -.01em; }
+  .lede { max-width: 110ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin: 24px 0 28px; }
+  .art-meta { margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; }
+  .art-meta p { margin: 0 0 6px; max-width: 130ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 660px), 1fr)); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); } .tag.s { color: var(--muted); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; overflow: hidden; text-overflow: ellipsis; }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.w { color: var(--warn); }
+  h3.states { font: 600 17px/1.25 var(--f-display); margin: 22px 0 4px; padding-top: 14px; border-top: 1px solid var(--line); }
+  p.states { margin: 0 0 12px; color: var(--muted); font-size: 13px; max-width: 120ch; }
+
+  /* The app's own surfaces stay dark in either page theme (YAAT runs Avalonia Fluent dark). */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 16px 14px 14px 16px; overflow-x: auto; color-scheme: dark;
+    display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-start; }
+  .mbox { flex: none; display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+  .mcol { display: flex; flex-direction: column; gap: 18px; }
+  .mcap { font: 600 11px/1.3 Consolas, "IBM Plex Mono", monospace; letter-spacing: .04em; color: #c9d0d8; }
+  .mcap i { font-style: normal; color: #8a939e; font-weight: 400; }
+
+  .menu { position: relative; width: 290px; background: #2b2b2b; border-radius: 8px; padding: 4px 0; font: 14px "Segoe UI", Inter, system-ui, sans-serif;
+    color: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 10px 28px rgba(0,0,0,.55); user-select: none; overflow: hidden; }
+  .menu.cut { padding-bottom: 0; }
+  .menu.cut::after { content: ""; display: block; height: 26px; background: linear-gradient(#2b2b2b00, #2b2b2b); margin-top: -26px; position: relative; }
+  .mrow { height: 25px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 6px; white-space: nowrap; }
+  .mrow.title { height: 26px; font-weight: 700; color: #7a7a7a; }
+  .mrow.state { height: 21px; font-size: 11.5px; color: #9a9a9a; }
+  .mrow .chev { color: #fff; font-size: 17px; line-height: 1; }
+  .mrow .alias { font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; margin-left: 16px; }
+  .mrow.new { background: rgba(143,193,255,.10); box-shadow: inset 2px 0 0 #8fc1ff; }
+  .msep { height: 1px; background: #7f7f7f; margin: 4px 12px 5px 4px; }
+  .strip { padding: 5px 4px 3px 4px; }
+  .prow { display: flex; margin-top: 7px; }
+  .prow:first-child { margin-top: 0; }
+  .pseg { display: flex; flex-direction: column; min-width: 0; }
+  .pseg.fill { flex: 1 1 auto; }
+  .glab { display: flex; align-items: center; gap: 6px; height: 12px; margin: 0 2px 4px; overflow: hidden; contain: inline-size; }
+  .glab span { font: 600 9.5px/1 "Segoe UI", Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #aeb6bf;
+    white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .glab::before { content: ""; width: 3px; height: 10px; border-radius: 1px; background: #aeb6bf; flex: none; }
+  .glab::after { content: ""; flex: 1 0 0; min-width: 0; height: 1px; background: #4c5158; }
+  .qseg { display: flex; gap: 6px; }
+  .pdiv { width: 6px; flex: none; position: relative; }
+  .pdiv::before { content: ""; position: absolute; left: 2px; top: 1px; bottom: 1px; width: 1px; background: #6a7078; }
+  .qbtn { width: 40px; height: 40px; flex: none; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; background: #1f2226; padding: 0;
+    display: grid; place-items: center; position: relative; }
+  .qbtn .notch { position: absolute; right: 3px; bottom: 3px; }
+  .qbtn.new { box-shadow: 0 0 0 2px #0b0d10, 0 0 0 3px #8fc1ff55; }
+
+  .gsheet { display: grid; grid-template-columns: repeat(3, auto); gap: 10px 16px; align-items: center; font: 12px "Segoe UI", Inter, sans-serif; color: #cfd5dc;
+    background: #2b2b2b; border-radius: 8px; padding: 10px 12px; }
+  .gsheet .gc { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .gsheet .gc small { font: 10.5px "Segoe UI", sans-serif; color: #9aa3ad; text-align: center; }
+  .gsheet .gc.parent .qbtn { opacity: .55; }
+  .gsheet .big { width: 64px; height: 64px; }
+
+  /* Flyout panels (MaintainAltitudePanel and friends). */
+  .fp { width: 344px; background: #2b2b2b; border-radius: 8px; padding: 6px 0 4px; font: 12px "Segoe UI", Inter, system-ui, sans-serif; color: #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 10px 28px rgba(0,0,0,.55); user-select: none; }
+  .fp .ttl { display: flex; justify-content: space-between; align-items: baseline; margin: 2px 11px 0; font-size: 11px; color: #a4adb8; }
+  .fp .ttl .now { font: 11px "JetBrains Mono", Consolas, monospace; }
+  .boxrow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; margin: 4px 11px; }
+  .boxrow svg { margin-right: 8px; }
+  .boxrow .lbl { font-size: 12px; }
+  .boxrow .box { width: 150px; height: 24px; border: 1px solid #8fc1ff; border-radius: 3px; background: #1c1c1c; margin-top: 2px; padding: 0 6px;
+    display: flex; align-items: center; color: #7d838b; font-size: 12px; }
+  .boxrow .box::before { content: ""; width: 1px; height: 14px; background: #fff; margin-right: 2px; }
+  .boxrow .cmd { font: 12px "JetBrains Mono", Consolas, monospace; opacity: .45; margin-left: 16px; }
+  .tstrip { display: inline-flex; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; margin: 4px 11px 2px; }
+  .tstrip span.t { padding: 4px 10px; background: #23272c; color: #fff; font-size: 12px; border-left: 1px solid #3a414b; white-space: nowrap; }
+  .tstrip span.t:first-child { border-left: 0; }
+  .tstrip span.t.on { background: #24406a; }
+  .tstrip span.t code { font: 11px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; margin-left: 5px; }
+  .hint { margin: 3px 11px 2px; font-size: 11px; color: #a4adb8; display: flex; gap: 6px; align-items: center; }
+  .hint .sw { width: 22px; height: 12px; border: 2px solid #8fc1ff; border-radius: 3px; flex: none; }
+  .hint.off { color: #ffc062; }
+  .fsep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .alist { height: 300px; overflow-y: scroll; margin: 0 0 4px; padding: 0 4px 0 6px; }
+  .alist::-webkit-scrollbar { width: 6px; }
+  .alist::-webkit-scrollbar-track { background: transparent; }
+  .alist::-webkit-scrollbar-thumb { background: #6d6d6d; border-radius: 3px; }
+  .arow { border: 2px solid transparent; border-radius: 4px; }
+  .arow.cruise { border-color: #8fc1ff; }
+  .afill { display: grid; grid-template-columns: 20px 1fr auto auto; align-items: center; min-height: 24px; padding: 1px 9px 1px 5px;
+    border-left: 3px solid transparent; border-radius: 4px; }
+  .arow.now .afill { background: #2f4a6e; border-left-color: #5b8def; }
+  .arow.sel .afill { background: rgba(255,255,255,.09); }
+  .ag { font-size: 12px; text-align: center; color: #cccccc; }
+  .ag.up { color: #7fd1b9; } .ag.down { color: #f2b880; }
+  .av { font: 13px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; }
+  .arow.now .av { font-weight: 600; }
+  .an { font-size: 11.5px; color: #a4adb8; margin-left: 12px; }
+  .ac { font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; margin-left: 14px; min-width: 76px; text-align: right; }
+  .nudge { display: inline-flex; gap: 3px; margin-left: 8px; }
+  .chip { height: 20px; padding: 0 6px; display: inline-grid; place-items: center; font: 11px "JetBrains Mono", Consolas, monospace; color: #cfd5dc;
+    background: #23272c; border: 1px solid #33383f; border-radius: 3px; }
+
+  /* B2: the value header and the two columns. */
+  .vhead { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 11px 2px; }
+  .vhead .big { font: 600 20px "JetBrains Mono", Consolas, monospace; color: #fff; }
+  .vhead .vn { font-size: 11.5px; color: #a4adb8; margin-left: 8px; }
+  .vhead .ac { opacity: .85; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 6px 4px; }
+  .colh { font-size: 11px; color: #a4adb8; margin: 0 4px 2px; }
+  .clist { height: 288px; overflow-y: scroll; }
+  .clist::-webkit-scrollbar { width: 6px; }
+  .clist::-webkit-scrollbar-thumb { background: #6d6d6d; border-radius: 3px; }
+  .clist.fit { overflow-y: hidden; height: auto; }
+  .cell .afill { grid-template-columns: 16px 1fr auto; }
+  .cell.on .afill { background: #24406a; }
+  .cell .an { margin-left: 6px; }
+  .cell .pv { font: 11px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 4px 0 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 26px; height: 14px; border-radius: 3px; }
+  .legend i.cr { border: 2px solid #8fc1ff; background: #2b2b2b; }
+  .legend i.nw { background: #2f4a6e; border-left: 3px solid #5b8def; }
+  .legend i.sl { background: #3a3a3a; }
+  .legend i.on { background: #24406a; }
+
+  @media (max-width: 560px) { h1 { font-size: 24px; } .art { padding: 12px; } .stage { padding: 12px 8px 10px 12px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-2237 · YAAT-2240 · aircraft context menu · mock for two owner questions</div>
+  <h1>Handoff and pointout rows, and the VFR altitude picker</h1>
+  <p class="lede">Two questions, each with its options side by side. The app surfaces are drawn from the client's own sizes and brushes
+    (<code>QuickCommandStrip</code>, <code>MaintainAltitudePanel</code>, <code>FlyoutPanelParts</code>, <code>SpeedFlyout</code>); the menu is the radar view's.
+    Pale-blue tint on a menu row or ring round an icon marks <b>what is new</b> in this mock only; the client draws neither.</p>
+
+  <!-- ================================================================ A ================================================================ -->
+  <section class="art" id="qa">
+    <div class="art-meta">
+      <h2>A · YAAT-2237: Accept, Cancel and Acknowledge in the quick list</h2>
+      <p>An IFR arrival (<b>SKW3422 · E75L</b>, 11,000 ft, 250 kt) whose quick list is today's default for the IFR arrival situation: Descend via STAR,
+        Expect approach and Hold under <b>APPROACH</b>, Maintain altitude, Assign speed, Fly heading and Direct to under <b>VECTORS</b>. Each new entry is a
+        Track and coordination entry and shows only in its own state, so the three never appear together: <b>Accept handoff</b> for a handoff
+        <i>to</i> the acting position, <b>Cancel handoff</b> for one <i>from</i> it, <b>Acknowledge pointout</b> for a pointout pending to it.</p>
+      <p>The rows are placed in the list right after Squawk assigned code (the Squawk precedent: first in every list). The first menu of each lane is whole;
+        the other two are cut below the quick commands, since the rest of the menu is the same.</p>
+    </div>
+    <div class="lanes two">
+      <section class="lane">
+        <div class="lane-h"><span class="tag a">A1</span><h3>Text rows, no glyph</h3></div>
+        <div class="stage" id="a1"></div>
+        <dl class="cap">
+          <dt>Shows</dt><dd>A glyphless entry is a text row below the strip, with its alias at the right, as Track's rows read under All Commands today. The strip is unchanged.</dd>
+          <dt>Code</dt><dd><code>EveryDefaultQuickCommand_HasAGlyph</code> fails for a glyphless default entry, so the test is relaxed for these three.</dd>
+        </dl>
+      </section>
+      <section class="lane">
+        <div class="lane-h"><span class="tag b">A2</span><h3>New glyphs, so the entries join the strip</h3></div>
+        <div class="stage" id="a2"></div>
+        <dl class="cap">
+          <dt>Shows</dt><dd>Every glyph-bearing entry is a strip button, so a glyph moves the entry onto the strip under <b>TRACK AND COORDINATION</b>; the name shows on hover in the header's line. With icons off it is a text row as in A1.</dd>
+          <dt>Glyphs</dt><dd>Accept: the receiving bracket closed by a check. Cancel: the Initiate handoff bracket with the arrow turned back. Acknowledge: the Point out hand with a check. Grey scope family, stroke 1.9.</dd>
+          <dt class="w">Note</dt><dd class="w">Placed first, the one-icon Track segment shares the row with APPROACH and its label truncates to "TR…", as the strip trims any long label; placed last it would share VECTORS' row instead.</dd>
+        </dl>
+      </section>
+    </div>
+  </section>
+
+  <!-- ================================================================ B ================================================================ -->
+  <section class="art" id="qb">
+    <div class="art-meta">
+      <h2>B · YAAT-2240: one "Altitude…" quick command for VFR aircraft</h2>
+      <p><b>N302AB · C172</b>, VFR at <b>4,200 ft</b>, magnetic track <b>095°</b>, nearest field elevation <b>600 ft</b>. Eastbound, so the VFR cruising altitudes are odd
+        thousands + 500; only those more than 3,000 ft above the field are highlighted, so <b>3,700 ft and above</b> qualifies: 5,500, 7,500, 9,500 … are highlighted
+        and <b>3,500</b> (2,900 AGL) is not. Every altitude stays selectable to the 100 ft. Modes: Maintain (<code>CM</code>, and <code>DM</code> below the aircraft as
+        today), At or above (<code>CM A</code>), At or below (<code>CM B</code>), sent in full feet as <code>CM A5500</code>.</p>
+    </div>
+    <div class="legend">
+      <span><i class="cr"></i>VFR cruising altitude (the Speed flyout's outlined chip: 2 px #8FC1FF)</span>
+      <span><i class="nw"></i>now (the Maintain list's now row)</span>
+      <span><i class="sl"></i>row under the pointer or keyboard</span>
+      <span><i class="on"></i>chosen column cell (toggle-on fill)</span>
+    </div>
+    <div class="lanes">
+      <section class="lane">
+        <div class="lane-h"><span class="tag a">B1</span><h3>Scroll list in 100 ft steps</h3></div>
+        <div class="stage" id="b1"></div>
+        <dl class="cap">
+          <dt>Shows</dt><dd>Today's Maintain list at 100 ft all the way up, with the mode toggle of Cross fix's Cross at. It opens centred on the now row.</dd>
+          <dt class="w">Cost</dt><dd class="w">Cruising altitudes are 20 rows apart and the list shows about 10, so as it opens no highlight is in view; 5,500 is 13 rows up (second panel).</dd>
+          <dt class="w">Clash</dt><dd class="w">The list already outlines the row nearest the typed box in the same #8FC1FF; one of the two needs another mark.</dd>
+        </dl>
+      </section>
+      <section class="lane">
+        <div class="lane-h"><span class="tag b">B2</span><h3>Thousands + hundreds columns</h3></div>
+        <div class="stage" id="b2"></div>
+        <dl class="cap">
+          <dt>Shows</dt><dd>Pick a thousand, then a hundred; the hundred sends. A thousand is highlighted when its +500 is a cruising altitude, and with it chosen its 500 is too. The header shows the value and command before sending.</dd>
+          <dt>Cost</dt><dd>Two clicks for every altitude; the whole range fits in one short scroll. A new control, not today's list.</dd>
+        </dl>
+      </section>
+      <section class="lane">
+        <div class="lane-h"><span class="tag c">B3</span><h3>500 ft list + fine nudge</h3></div>
+        <div class="stage" id="b3"></div>
+        <dl class="cap">
+          <dt>Shows</dt><dd>Today's 500 ft rows with the now row inserted, the cruising rows highlighted. The row under the pointer or keyboard carries −100 / +100 chips that step its value, its command following; a click on the row sends.</dd>
+          <dt>Cost</dt><dd>One click for a cruising altitude; an odd hundred needs nudges (or the box).</dd>
+        </dl>
+      </section>
+    </div>
+
+    <h3 class="states">Two states, drawn in B1's style</h3>
+    <p class="states">The same rule whatever the option: no highlight where no listed altitude is more than 3,000 ft above the field, and none while the aircraft turns, since its course is not settled.</p>
+    <div class="lanes">
+      <section class="lane">
+        <div class="lane-h"><span class="tag s">S1</span><h3>Below 3,000 ft AGL everywhere (no highlight)</h3></div>
+        <div class="stage" id="s1"></div>
+      </section>
+      <section class="lane">
+        <div class="lane-h"><span class="tag s">S2</span><h3>Turning (highlight suppressed)</h3></div>
+        <div class="stage" id="s2"></div>
+      </section>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const FAM = { F: "#A8CAFF", S: "#DCE2E8" };
+  const svg = (d, color, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  const notch = `<svg class="notch" width="6" height="6" viewBox="0 0 6 6" aria-hidden="true"><path d="M6 0V6H0z" fill="#9AA3AD"/></svg>`;
+
+  /* ---------- Glyphs: the client's paths (QuickCommandGlyphs.ById) and the three new ones ---------- */
+  const G = {
+    dvia: { d: "M3 4h5v5h5v5h5v5 M15 16l3 3 3-3", f: "F", sub: false, name: "Descend via STAR" },
+    expect: { d: "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21", f: "F", sub: true, name: "Expect approach" },
+    hold: { d: "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3", f: "F", sub: true, name: "Hold" },
+    alt: { d: "M3 18l7-7 4 4 7-7 M15 8h6v6", f: "F", sub: true, name: "Maintain altitude" },
+    spd: { d: "M4 17a8 8 0 1 1 16 0 M12 17l4-5", f: "F", sub: true, name: "Assign speed" },
+    hdg: { d: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z", f: "F", sub: true, name: "Fly heading" },
+    dct: { d: "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4", f: "F", sub: true, name: "Direct to" },
+    ho: { d: "M14 4h6v16h-6 M3 12h12 M11 8l4 4-4 4", f: "S", sub: true, name: "Initiate handoff…" },
+    po: { d: "M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10", f: "S", sub: true, name: "Point out…" },
+    accept: { d: "M10 4H4v16h6 M8 12l4 4 8-9", f: "S", sub: false, name: "Accept handoff", alias: "ACCEPT", isNew: true },
+    cancel: { d: "M14 4h6v16h-6 M3 9h8.5a3.5 3.5 0 0 1 0 7H4 M7 13l-3 3 3 3", f: "S", sub: false, name: "Cancel handoff", alias: "CANCEL", isNew: true },
+    ack: { d: "M4.25 15.35c0-1.87 1.53-3.4 3.4-3.4h8.5a1.275 1.275 0 0 1 0 2.55h-4.25a1.4875 1.4875 0 0 1 0 2.975a1.4875 1.4875 0 0 1 0 2.975H7.65c-1.87 0-3.4-1.53-3.4-3.4z M1.7 13.65v8.5 M14.5 6.5l2.5 2.5L22 3.5", f: "S", sub: false, name: "Acknowledge pointout", alias: "OK", isNew: true },
+  };
+  const btn = k => { const g = G[k]; return `<span class="qbtn${g.isNew ? " new" : ""}" title="${esc(g.name)}">${svg(g.d, FAM[g.f], 32)}${g.sub ? notch : ""}</span>`; };
+
+  /* ---------- A: the menu ---------- */
+  const seg = (label, keys, fill) => `<div class="pseg${fill ? " fill" : ""}"><div class="glab"><span>${esc(label)}</span></div><div class="qseg">${keys.map(btn).join("")}</div></div>`;
+  const pdiv = `<span class="pdiv" aria-hidden="true"></span>`;
+  const msep = `<div class="msep"></div>`;
+  const row = (label, right, cls) => `<div class="mrow${cls ? " " + cls : ""}"><span>${esc(label)}</span>${right}</div>`;
+  const BELOW = [["Command…", ""], ["Note…", ""], ["All Commands", "›"], ["Favorite Commands", "›"], null, ["Delete", ""], null, ["Take control", ""], ["Unassign", ""]];
+  function menu(trackKey, glyphs, whole) {
+    const strip = glyphs
+      ? `<div class="prow">${seg("Track and coordination", [trackKey])}${pdiv}${seg("Approach", ["dvia", "expect", "hold"], true)}</div>`
+        + `<div class="prow">${seg("Vectors", ["alt", "spd", "hdg", "dct"], true)}</div>`
+      : `<div class="prow">${seg("Approach", ["dvia", "expect", "hold"], true)}</div><div class="prow">${seg("Vectors", ["alt", "spd", "hdg", "dct"], true)}</div>`;
+    const g = G[trackKey];
+    const text = glyphs ? "" : row(g.name, `<span class="alias">${esc(g.alias)}</span>`, "new");
+    const below = whole ? msep + BELOW.map(r => r ? row(r[0], r[1] ? `<span class="chev">${r[1]}</span>` : "") : msep).join("") : msep + row("Command…", "");
+    return `<div class="menu${whole ? "" : " cut"}">${row("SKW3422 · E75L", "", "title")}${row("11,000 ft · 250 kt", "", "state")}${msep}<div class="strip">${strip}</div>${text}${below}</div>`;
+  }
+  const CASES = [
+    ["accept", "Incoming handoff", "from OAK 3Y to the acting position"],
+    ["cancel", "Outgoing handoff", "from the acting position to NCT"],
+    ["ack", "Incoming pointout", "pending to the acting position"],
+  ];
+  function laneA(glyphs) {
+    const box = (c, whole) => `<div class="mbox"><div class="mcap">${esc(c[1])} <i>· ${esc(c[2])}</i></div>${menu(c[0], glyphs, whole)}</div>`;
+    let html = box(CASES[0], true) + `<div class="mcol">${box(CASES[1], false)}${box(CASES[2], false)}</div>`;
+    if (glyphs) {
+      const cell = (k, cap, parent) => `<div class="gc${parent ? " parent" : ""}">${btn(k)}<small>${esc(cap)}</small></div>`;
+      const big = k => `<div class="gc"><span class="qbtn big">${svg(G[k].d, FAM.S, 52)}</span></div>`;
+      html += `<div class="mbox"><div class="mcap">The new glyphs <i>· at strip size, beside their parents, and at 2×</i></div><div class="gsheet">`
+        + cell("accept", "Accept handoff") + cell("cancel", "Cancel handoff") + cell("ack", "Acknowledge pointout")
+        + cell("ho", "parent: Initiate handoff…", true) + cell("ho", "parent: Initiate handoff…", true) + cell("po", "parent: Point out…", true)
+        + big("accept") + big("cancel") + big("ack") + `</div></div>`;
+    }
+    return html;
+  }
+  document.getElementById("a1").innerHTML = laneA(false);
+  document.getElementById("a2").innerHTML = laneA(true);
+
+  /* ---------- B: the altitude panels ---------- */
+  const FIELD = 600, CEIL = 14000;
+  const fmt = n => n.toLocaleString("en-US");
+  const isCruise = (alt, course) => {
+    if (alt - FIELD <= 3000) return false;
+    if (alt % 1000 !== 500) return false;
+    const thousands = (alt - 500) / 1000;
+    const odd = thousands % 2 === 1;
+    return course < 180 ? odd : !odd;
+  };
+  const MODES = [["Maintain", ""], ["At or above", "A"], ["At or below", "B"]];
+  const toggle = mode => `<div class="tstrip">${MODES.map(([l, c], i) => `<span class="t${i === mode ? " on" : ""}">${l}${c ? `<code>${c}</code>` : ""}</span>`).join("")}</div>`;
+  const command = (alt, now, mode) => mode === 1 ? `CM A${alt}` : mode === 2 ? `CM B${alt}` : (alt === now ? `CM ${alt}` : alt > now ? `CM ${alt}` : `DM ${alt}`);
+  const title = (label, right) => `<div class="ttl"><span>${esc(label)}</span><span class="now">${esc(right)}</span></div>`;
+  const boxRow = mode => `<div class="boxrow">${svg(G.alt.d, FAM.F, 22)}<div><div class="lbl">Altitude</div><div class="box">e.g. 230 or 23000</div></div>`
+    + `<span class="cmd">${["CM", "CM A", "CM B"][mode]} ···</span></div>`;
+  const hint = (course, turning) => turning
+    ? `<div class="hint off">Turning: no cruising altitudes until the course steadies</div>`
+    : `<div class="hint"><span class="sw"></span>VFR cruising, ${String(course).padStart(3, "0")}° ${course < 180 ? "odd" : "even"} + 500, above ${fmt(FIELD + 3000)} (3,000 AGL)</div>`;
+  function altRow(alt, now, mode, opts) {
+    const kind = alt === now ? "now" : alt > now ? "up" : "down";
+    const glyph = kind === "now" ? "●" : kind === "up" ? "↑" : "↓";
+    const cls = ["arow", kind === "now" ? "now" : "", opts.cruise ? "cruise" : "", opts.sel ? "sel" : ""].filter(Boolean).join(" ");
+    const note = kind === "now" ? `<span class="an">now</span>` : (opts.extra || `<span></span>`);
+    return `<div class="${cls}" data-alt="${alt}"><div class="afill"><span class="ag ${kind}">${glyph}</span><span class="av">${fmt(opts.shown || alt)}</span>${note}<span class="ac">${esc(command(opts.shown || alt, now, mode))}</span></div></div>`;
+  }
+  function panel({ label = "Altitude", now, course, mode = 0, turning = false, alts, sel, nudge, top }) {
+    const rows = alts.map(a => altRow(a, now, mode, {
+      cruise: !turning && isCruise(a, course),
+      sel: a === sel,
+      extra: (nudge && a === sel) ? `<span class="nudge"><span class="chip">−100</span><span class="chip">+100</span></span>` : null,
+    })).join("");
+    const right = `now ${fmt(now)} · ${turning ? "turning" : String(course).padStart(3, "0") + "°"}`;
+    return `<div class="fp">${title(label, right)}${boxRow(mode)}${toggle(mode)}${hint(course, turning)}<div class="fsep"></div>`
+      + `<div class="alist" data-top="${top}">${rows}</div></div>`;
+  }
+  const steps100 = now => { const out = []; for (let a = CEIL; a >= Math.ceil(FIELD / 100) * 100; a -= 100) out.push(a); if (!out.includes(now)) out.push(now); return out.sort((x, y) => y - x); };
+  const steps500 = now => { const out = []; for (let a = CEIL; a >= 1000; a -= 500) out.push(a); if (!out.includes(now)) out.push(now); return out.sort((x, y) => y - x); };
+  const mbox = (cap, inner) => `<div class="mbox"><div class="mcap">${cap}</div>${inner}</div>`;
+
+  // B1: as it opens (centred on now), and scrolled up to the first highlight in At or above.
+  document.getElementById("b1").innerHTML =
+    mbox(`As it opens <i>· centred on now</i>`, panel({ now: 4200, course: 95, alts: steps100(4200), top: "centre:4200" }))
+    + mbox(`Scrolled up 13 rows <i>· At or above chosen</i>`, panel({ now: 4200, course: 95, mode: 1, alts: steps100(4200), sel: 5500, top: "row:5800" }));
+
+  // B2: thousands and hundreds.
+  function b2() {
+    const now = 4200, course = 95, mode = 1, pickT = 5, pickH = 500;
+    const ths = []; for (let t = Math.floor(CEIL / 1000); t >= 0; t--) ths.push(t);
+    const tCell = t => {
+      const cruise = isCruise(t * 1000 + 500, course);
+      const isNow = t === Math.floor(now / 1000);
+      const cls = ["arow", "cell", cruise ? "cruise" : "", t === pickT ? "on" : ""].filter(Boolean).join(" ");
+      return `<div class="${cls}" data-alt="${t}"><div class="afill"><span class="ag">${isNow ? "●" : ""}</span><span class="av">${fmt(t * 1000)}</span>${isNow ? `<span class="an">now ${fmt(now)}</span>` : "<span></span>"}</div></div>`;
+    };
+    const hs = []; for (let h = 0; h <= 900; h += 100) hs.push(h);
+    const hCell = h => {
+      const alt = pickT * 1000 + h;
+      const cruise = isCruise(alt, course);
+      const cls = ["arow", "cell", cruise ? "cruise" : "", h === pickH ? "sel" : ""].filter(Boolean).join(" ");
+      return `<div class="${cls}"><div class="afill"><span class="ag"></span><span class="av">${String(h).padStart(3, "0")}</span><span class="pv">${fmt(alt)}</span></div></div>`;
+    };
+    const value = pickT * 1000 + pickH;
+    return `<div class="fp">${title("Altitude", `now ${fmt(now)} · 095°`)}${boxRow(mode)}${toggle(mode)}${hint(course, false)}<div class="fsep"></div>`
+      + `<div class="vhead"><span><span class="big">${fmt(value)}</span><span class="vn">at or above</span></span><span class="ac">${command(value, now, mode)}</span></div>`
+      + `<div class="cols"><div><div class="colh">Thousands</div><div class="clist" data-top="row:11">${ths.map(tCell).join("")}</div></div>`
+      + `<div><div class="colh">Hundreds · sends</div><div class="clist fit">${hs.map(hCell).join("")}</div></div></div></div>`;
+  }
+  document.getElementById("b2").innerHTML = mbox(`5,000 chosen, 500 under the pointer <i>· At or above</i>`, b2());
+
+  // B3: 500 ft rows with nudge chips on the selected row; and the same row after one +100.
+  document.getElementById("b3").innerHTML =
+    mbox(`5,500 under the pointer <i>· Maintain</i>`, panel({ now: 4200, course: 95, alts: steps500(4200), sel: 5500, nudge: true, top: "row:8000" }))
+    + mbox(`The same row after one +100 <i>· no longer a cruising altitude</i>`,
+      `<div class="fp" style="padding:4px 4px 4px 6px">${altRow(5500, 4200, 0, { sel: true, shown: 5600, extra: `<span class="nudge"><span class="chip">−100</span><span class="chip">+100</span></span>` })}</div>`);
+
+  // States.
+  document.getElementById("s1").innerHTML =
+    mbox(`VFR at 2,700 <i>· 095°, field 600: every row in view is ≤ 3,000 AGL</i>`, panel({ now: 2700, course: 95, alts: steps100(2700), top: "row:3500" }));
+  document.getElementById("s2").innerHTML =
+    mbox(`VFR at 5,000, turning <i>· 5,500 not outlined</i>`, panel({ now: 5000, course: 95, turning: true, alts: steps100(5000), top: "centre:5000" }));
+
+  // Scroll each list to its stated position: a row at the top, or a row centred.
+  document.querySelectorAll("[data-top]").forEach(list => {
+    const [how, key] = list.dataset.top.split(":");
+    const target = list.querySelector(`[data-alt="${key}"]`);
+    if (!target) throw new Error(`No row ${key} to scroll to`);
+    const offset = target.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    list.scrollTop = how === "centre" ? offset + target.offsetHeight / 2 - list.clientHeight / 2 : offset;
+  });
+})();
+</script>
+</body>
+</html>
