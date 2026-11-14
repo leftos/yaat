@@ -580,6 +580,434 @@ public class FavoritesPanelInteractionTests
         }
     }
 
+    private static FavoriteSet LoadedSet(MainViewModel vm, string name)
+    {
+        FavoriteSet set = vm.FavoriteStore.CreateNamedSet(name)!;
+        vm.SetFavoriteSetLoaded(set.Id, true);
+        return set;
+    }
+
+    private static FavoriteCommand RealButton(string label) =>
+        new()
+        {
+            Label = label,
+            CommandText = "FH 090",
+            ButtonHeight = 40,
+        };
+
+    private static FavoriteCommand BlankButton(double height) => new() { IsSpacer = true, ButtonHeight = height };
+
+    private static void CloseAndCleanup(Window window, MainViewModel vm, HashSet<string> before, params FavoriteSet[] sets)
+    {
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+        DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+        foreach (FavoriteSet set in sets)
+        {
+            vm.Preferences.RemoveFavoriteSet(set.Id);
+            vm.FavoriteStore.DeleteSet(set.Id);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_CutThenPasteOnABlankInTheSameSet_MovesTheSameButton_AndLeavesABlankOfItsSize()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutA");
+        FavoriteCommand source = AddTo(vm, a.Id, RealButton("FPI-CutSource"));
+        FavoriteCommand target = AddTo(vm, a.Id, BlankButton(56));
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, a.Id);
+            ClickEditFlyoutButton(view, "Cut");
+            Assert.True(vm.HasFavoriteToPaste);
+            Assert.Null(vm.CopiedFavorite);
+
+            OpenEditFlyout(window, view, target.Id, a.Id);
+            Assert.True(EditFlyoutButton(view, "Paste").IsEnabled);
+            ClickEditFlyoutButton(view, "Paste");
+
+            List<string> ids = vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds;
+            Assert.Equal(2, ids.Count);
+            Assert.Equal(source.Id, ids[1]);
+            FavoriteCommand left = vm.FavoriteStore.GetFavorite(ids[0])!;
+            Assert.NotEqual(source.Id, left.Id);
+            Assert.NotEqual(target.Id, left.Id);
+            Assert.True(left.IsSpacer);
+            Assert.Equal(40, left.ButtonHeight);
+            Assert.Equal(FavoriteCommandCategory.Air, left.Category);
+
+            FavoriteCommand moved = vm.FavoriteStore.GetFavorite(source.Id)!;
+            Assert.Equal("FPI-CutSource", moved.Label);
+            Assert.Equal(56, moved.ButtonHeight);
+            Assert.Null(vm.FavoriteStore.GetFavorite(target.Id));
+            Assert.Null(vm.CutFavoriteSource);
+            Assert.False(vm.HasFavoriteToPaste);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_CutASharedButtonThenPasteInAThirdSet_BlanksOnlyTheCutSlot_AndTheOtherSetKeepsIt()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutShareA");
+        FavoriteSet b = LoadedSet(vm, "FPI-CutShareB");
+        FavoriteSet c = LoadedSet(vm, "FPI-CutShareC");
+        FavoriteCommand shared = RealButton("FPI-CutShared");
+        vm.AddFavorite(shared, [a.Id, b.Id]);
+        FavoriteCommand target = AddTo(vm, c.Id, BlankButton(40));
+        List<string> bBefore = [.. vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, shared.Id, a.Id);
+            ClickEditFlyoutButton(view, "Cut");
+            OpenEditFlyout(window, view, target.Id, c.Id);
+            ClickEditFlyoutButton(view, "Paste");
+
+            string leftId = Assert.Single(vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.NotEqual(shared.Id, leftId);
+            Assert.True(vm.FavoriteStore.GetFavorite(leftId)!.IsSpacer);
+            Assert.Equal([shared.Id], vm.FavoriteStore.GetSet(c.Id)!.FavoriteIds);
+            Assert.Equal(bBefore, vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds);
+            Assert.Equal(new HashSet<string> { b.Id, c.Id }, [.. vm.GetFavoriteMembership(shared.Id)]);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a, b, c);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_CutThenPasteIntoASetThatAlreadyHoldsTheButton_ChangesNothing_AndTheCutStaysPending()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutHeldA");
+        FavoriteSet b = LoadedSet(vm, "FPI-CutHeldB");
+        FavoriteCommand shared = RealButton("FPI-CutHeld");
+        vm.AddFavorite(shared, [a.Id, b.Id]);
+        FavoriteCommand target = AddTo(vm, b.Id, BlankButton(40));
+        List<string> aBefore = [.. vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds];
+        List<string> bBefore = [.. vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, shared.Id, a.Id);
+            ClickEditFlyoutButton(view, "Cut");
+            OpenEditFlyout(window, view, target.Id, b.Id);
+            ClickEditFlyoutButton(view, "Paste");
+
+            Assert.Equal(aBefore, vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.Equal(bBefore, vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds);
+            Assert.NotNull(vm.FavoriteStore.GetFavorite(target.Id));
+            Assert.NotNull(vm.CutFavoriteSource);
+            Assert.True(vm.HasFavoriteToPaste);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a, b);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_CutThenCopyAnother_PastesTheCopy_AndLeavesTheCutSourceAlone()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutCopy");
+        FavoriteCommand cut = AddTo(vm, a.Id, RealButton("FPI-CutFirst"));
+        FavoriteCommand copied = AddTo(vm, a.Id, RealButton("FPI-CopySecond"));
+        FavoriteCommand target = AddTo(vm, a.Id, BlankButton(40));
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, cut.Id, a.Id);
+            ClickEditFlyoutButton(view, "Cut");
+            OpenEditFlyout(window, view, copied.Id, a.Id);
+            ClickEditFlyoutButton(view, "Copy");
+            Assert.Null(vm.CutFavoriteSource);
+            OpenEditFlyout(window, view, target.Id, a.Id);
+            ClickEditFlyoutButton(view, "Paste");
+
+            List<string> ids = vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds;
+            Assert.Equal(3, ids.Count);
+            FavoriteCommand pasted = vm.FavoriteStore.GetFavorite(ids[2])!;
+            Assert.Equal([cut.Id, copied.Id, pasted.Id], ids);
+            Assert.DoesNotContain(pasted.Id, new[] { cut.Id, copied.Id, target.Id });
+            Assert.Equal("FPI-CopySecond", pasted.Label);
+            Assert.Equal("FPI-CutFirst", vm.FavoriteStore.GetFavorite(cut.Id)!.Label);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_DeleteSettingsOnASharedButton_BlanksThisSetsSlotOnly()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-ClearA");
+        FavoriteSet b = LoadedSet(vm, "FPI-ClearB");
+        FavoriteCommand shared = RealButton("FPI-ClearShared");
+        vm.AddFavorite(shared, [a.Id, b.Id]);
+        List<string> bBefore = [.. vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, shared.Id, a.Id);
+            ClickEditFlyoutButton(view, "Delete settings");
+
+            string blankId = Assert.Single(vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.NotEqual(shared.Id, blankId);
+            FavoriteCommand blank = vm.FavoriteStore.GetFavorite(blankId)!;
+            Assert.True(blank.IsSpacer);
+            Assert.Equal(40, blank.ButtonHeight);
+            Assert.Equal(FavoriteCommandCategory.Air, blank.Category);
+
+            Assert.Equal(bBefore, vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds);
+            FavoriteCommand kept = vm.FavoriteStore.GetFavorite(shared.Id)!;
+            Assert.Equal("FPI-ClearShared", kept.Label);
+            Assert.Equal("FH 090", kept.CommandText);
+            Assert.Equal([b.Id], vm.GetFavoriteMembership(shared.Id));
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a, b);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_DeleteSettingsOnAButtonInOneSet_ListsItUnderNotInAnySet()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-ClearOnly");
+        FavoriteCommand only = AddTo(vm, a.Id, RealButton("FPI-ClearOnly"));
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, only.Id, a.Id);
+            ClickEditFlyoutButton(view, "Delete settings");
+
+            string blankId = Assert.Single(vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.NotEqual(only.Id, blankId);
+            Assert.True(vm.FavoriteStore.GetFavorite(blankId)!.IsSpacer);
+            Assert.Contains(vm.FavoriteStore.GetOrphanFavorites(), f => f.Id == only.Id);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_AtTheLargestInterfaceFont_TheDeleteSaveRowFits_AndDeleteSettingsHasItsOwnRowAboveIt()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-FooterFit");
+        FavoriteCommand favorite = AddTo(vm, a.Id, RealButton("FPI-FooterFit"));
+        App.ApplyInterfaceFontSize(24);
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, favorite.Id, a.Id);
+            Button save = EditFlyoutButton(view, "Save");
+            Button deleteSettings = EditFlyoutButton(view, "Delete settings");
+            Assert.Equal(24, save.FontSize);
+            var footer = (StackPanel)save.GetLogicalParent()!.GetLogicalParent()!;
+            var saveRow = (Control)save.GetLogicalParent()!;
+            Assert.Same(saveRow, footer.Children[^1]);
+            Assert.Same(deleteSettings, footer.Children[^2]);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(footer.Bounds.Width, deleteSettings.Bounds.Width);
+
+            // Each control's natural width at this font, unconstrained, so a clipped control cannot hide its overflow.
+            double rowWidth = saveRow.GetLogicalChildren().OfType<Control>().Sum(NaturalWidth);
+            Assert.True(rowWidth <= 220, $"the Delete / Save row needs {rowWidth} px of the 220 px footer");
+            Assert.True(NaturalWidth(deleteSettings) <= 220, $"Delete settings needs {NaturalWidth(deleteSettings)} px");
+        }
+        finally
+        {
+            App.ApplyInterfaceFontSize(12);
+            foreach (Flyout flyout in view.OpenEditorFlyouts.ToList())
+            {
+                flyout.Hide();
+            }
+
+            CloseAndCleanup(window, vm, before, a);
+        }
+    }
+
+    private static double NaturalWidth(Control control)
+    {
+        control.Measure(Size.Infinity);
+        return control.DesiredSize.Width;
+    }
+
+    [AvaloniaFact]
+    public void EditSlotFlyout_OnABlank_HasNoCutAndNoDeleteSettings()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-BlankMenu");
+        FavoriteCommand blank = AddTo(vm, a.Id, BlankButton(40));
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, blank.Id, a.Id);
+            List<string> buttons =
+            [
+                .. Assert
+                    .IsAssignableFrom<Control>(Assert.Single(view.OpenEditorFlyouts).Content)
+                    .GetLogicalDescendants()
+                    .OfType<Button>()
+                    .Select(b => b.Content as string ?? ""),
+            ];
+            Assert.Contains("Copy", buttons);
+            Assert.DoesNotContain("Cut", buttons);
+            Assert.DoesNotContain("Delete settings", buttons);
+        }
+        finally
+        {
+            foreach (Flyout flyout in view.OpenEditorFlyouts.ToList())
+            {
+                flyout.Hide();
+            }
+
+            CloseAndCleanup(window, vm, before, a);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_CutThenPasteOnItsOwnSlot_ChangesNothing_AndTheCutStaysPending()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutSelf");
+        FavoriteCommand source = AddTo(vm, a.Id, RealButton("FPI-CutSelf"));
+        AddTo(vm, a.Id, BlankButton(40));
+        List<string> idsBefore = [.. vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds];
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, a.Id);
+            ClickEditFlyoutButton(view, "Cut");
+            OpenEditFlyout(window, view, source.Id, a.Id);
+            ClickEditFlyoutButton(view, "Paste");
+
+            Assert.Equal(idsBefore, vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.Equal(40, vm.FavoriteStore.GetFavorite(source.Id)!.ButtonHeight);
+            Assert.NotNull(vm.CutFavoriteSource);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditFlyout_CutThenPasteOnARealButton_ListsTheReplacedButtonUnderNotInAnySet()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutOverA");
+        FavoriteSet b = LoadedSet(vm, "FPI-CutOverB");
+        FavoriteCommand source = AddTo(vm, a.Id, RealButton("FPI-CutOverSource"));
+        FavoriteCommand replaced = AddTo(vm, b.Id, RealButton("FPI-CutOverReplaced"));
+        (Window window, FavoritesBarView view) = ShowPalette(vm);
+        try
+        {
+            OpenEditFlyout(window, view, source.Id, a.Id);
+            ClickEditFlyoutButton(view, "Cut");
+            OpenEditFlyout(window, view, replaced.Id, b.Id);
+            ClickEditFlyoutButton(view, "Paste");
+
+            Assert.Equal([source.Id], vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds);
+            Assert.NotNull(vm.FavoriteStore.GetFavorite(replaced.Id));
+            Assert.Contains(vm.FavoriteStore.GetOrphanFavorites(), f => f.Id == replaced.Id);
+            Assert.Null(vm.CutFavoriteSource);
+        }
+        finally
+        {
+            CloseAndCleanup(window, vm, before, a, b);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PasteOfACutWhoseSourceSlotIsGone_PastesNothing_AndClearsTheCut()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-CutGoneA");
+        FavoriteSet b = LoadedSet(vm, "FPI-CutGoneB");
+        FavoriteCommand source = AddTo(vm, a.Id, RealButton("FPI-CutGone"));
+        FavoriteCommand target = AddTo(vm, b.Id, BlankButton(40));
+        try
+        {
+            vm.CutFavorite(new FavoriteDisplayEntry(source, a.Id));
+            vm.FavoriteStore.RemoveFromSet(a.Id, source.Id);
+
+            vm.PasteFavoriteOnto(new FavoriteDisplayEntry(target, b.Id));
+
+            Assert.Equal([target.Id], vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds);
+            Assert.Empty(vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.Null(vm.CutFavoriteSource);
+            Assert.False(vm.HasFavoriteToPaste);
+        }
+        finally
+        {
+            DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+            foreach (FavoriteSet set in new[] { a, b })
+            {
+                vm.Preferences.RemoveFavoriteSet(set.Id);
+                vm.FavoriteStore.DeleteSet(set.Id);
+            }
+        }
+    }
+
+    [AvaloniaFact]
+    public void PasteOfACutOntoAnAnchorWhoseSlotIsGone_ChangesNothing_AndTheCutStaysPending()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet a = LoadedSet(vm, "FPI-AnchorGoneA");
+        FavoriteSet b = LoadedSet(vm, "FPI-AnchorGoneB");
+        FavoriteCommand source = AddTo(vm, a.Id, RealButton("FPI-AnchorGone"));
+        FavoriteCommand target = AddTo(vm, b.Id, RealButton("FPI-AnchorGoneTarget"));
+        try
+        {
+            vm.CutFavorite(new FavoriteDisplayEntry(source, a.Id));
+            vm.FavoriteStore.RemoveFromSet(b.Id, target.Id);
+
+            vm.PasteFavoriteOnto(new FavoriteDisplayEntry(target, b.Id));
+
+            Assert.Equal([source.Id], vm.FavoriteStore.GetSet(a.Id)!.FavoriteIds);
+            Assert.Empty(vm.FavoriteStore.GetSet(b.Id)!.FavoriteIds);
+            Assert.NotNull(vm.CutFavoriteSource);
+        }
+        finally
+        {
+            DeleteAll(vm, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id))]);
+            foreach (FavoriteSet set in new[] { a, b })
+            {
+                vm.Preferences.RemoveFavoriteSet(set.Id);
+                vm.FavoriteStore.DeleteSet(set.Id);
+            }
+        }
+    }
+
     [AvaloniaFact]
     public void EditFlyout_PasteOnABlank_DeletesTheBlankNoOtherSetHolds()
     {

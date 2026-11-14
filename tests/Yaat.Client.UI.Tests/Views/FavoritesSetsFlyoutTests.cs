@@ -366,10 +366,8 @@ public class FavoritesSetsFlyoutTests
         }
     }
 
-    [AvaloniaFact]
-    public void BlankButton_WhileGlobalOff_TurnsGlobalOnAndAddsThere()
+    private static (Window Window, FavoritesBarView View) ShowBar(MainViewModel vm)
     {
-        MainViewModel vm = NewVm();
         var view = new FavoritesBarView { IsPaletteMode = true };
         var window = new Window
         {
@@ -378,33 +376,292 @@ public class FavoritesSetsFlyoutTests
             Content = view,
             DataContext = vm,
         };
-        HashSet<string> before = [.. vm.FavoriteStore.GlobalSet.FavoriteIds];
+        window.ShowAndRunLayout();
+        return (window, view);
+    }
+
+    private static void ClickBarButton(FavoritesBarView view, string content)
+    {
+        view.GetVisualDescendants().OfType<Button>().Single(b => (b.Content as string) == content).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static Control OpenFlyoutContent(FavoritesBarView view) =>
+        Assert.IsAssignableFrom<Control>(Assert.Single(view.OpenEditorFlyouts).Content);
+
+    private static Button FlyoutButton(Control content, string text) =>
+        content.GetLogicalDescendants().OfType<Button>().Single(b => (b.Content as string) == text);
+
+    private static CheckBox FlyoutCheckBox(Control content, string label) =>
+        content.GetLogicalDescendants().OfType<CheckBox>().Single(b => (b.Content as string) == label);
+
+    /// <summary>The labels of the In picker's ticked rows, in picker order.</summary>
+    private static List<string> CheckedLabels(Control content) =>
+        [.. content.GetLogicalDescendants().OfType<CheckBox>().Where(b => b.IsChecked == true).Select(b => (string)b.Content!)];
+
+    /// <summary>Deletes every favorite the test added, then the test's sets.</summary>
+    private static void CloseAndCleanup(Window window, FavoritesBarView view, MainViewModel vm, HashSet<string> before)
+    {
+        foreach (Flyout flyout in view.OpenEditorFlyouts.ToList())
+        {
+            flyout.Hide();
+        }
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+        foreach (string id in vm.FavoriteStore.AllFavorites.Select(f => f.Id).Where(id => !before.Contains(id)).ToList())
+        {
+            vm.DeleteFavorite(id);
+        }
+
+        Cleanup(vm);
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WhileGlobalOffAndOneNamedSetLoaded_AddsToThatSetOnly_AndGlobalStaysOff()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet named = vm.FavoriteStore.CreateNamedSet("FSF-BlankTarget")!;
+        vm.SetFavoriteSetLoaded(named.Id, true);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
         try
         {
-            window.ShowAndRunLayout();
             vm.Preferences.SetShowGlobalFavoriteSet(false);
             Dispatcher.UIThread.RunJobs();
 
-            view.GetVisualDescendants()
-                .OfType<Button>()
-                .Single(b => (b.Content as string) == "Blank")
-                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ClickBarButton(view, "Blank");
+
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+            string blankId = Assert.Single(vm.FavoriteStore.GetSet(named.Id)!.FavoriteIds);
+            Assert.True(vm.FavoriteStore.GetFavorite(blankId)!.IsSpacer);
+            Assert.Equal([named.Id], vm.GetFavoriteMembership(blankId));
+            Assert.Empty(view.OpenEditorFlyouts);
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WithTwoVisibleSets_AsksWhichSet_AndAddsToTheTickedSetOnly()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet named = vm.FavoriteStore.CreateNamedSet("FSF-BlankPick")!;
+        vm.SetFavoriteSetLoaded(named.Id, true);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            ClickBarButton(view, "Blank");
+
+            Control content = OpenFlyoutContent(view);
+            Assert.Equal(before, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)]);
+            Assert.Empty(CheckedLabels(content));
+            Assert.False(FlyoutButton(content, "Add").IsEnabled);
+
+            FlyoutCheckBox(content, "FSF-BlankPick").IsChecked = true;
+            Assert.True(FlyoutButton(content, "Add").IsEnabled);
+            FlyoutButton(content, "Add").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
 
+            string blankId = Assert.Single(vm.FavoriteStore.GetSet(named.Id)!.FavoriteIds);
+            Assert.True(vm.FavoriteStore.GetFavorite(blankId)!.IsSpacer);
+            Assert.Equal([named.Id], vm.GetFavoriteMembership(blankId));
+            Assert.Empty(view.OpenEditorFlyouts);
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WithTwoVisibleSets_ThenCancel_AddsNothing()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet named = vm.FavoriteStore.CreateNamedSet("FSF-BlankCancel")!;
+        vm.SetFavoriteSetLoaded(named.Id, true);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            ClickBarButton(view, "Blank");
+            Control content = OpenFlyoutContent(view);
+            FlyoutCheckBox(content, "FSF-BlankCancel").IsChecked = true;
+            FlyoutButton(content, "Cancel").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(view.OpenEditorFlyouts);
+            Assert.Equal(before, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)]);
+            Assert.Empty(vm.FavoriteStore.GetSet(named.Id)!.FavoriteIds);
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WithNothingVisible_AddsToGlobal_AndShowsGlobal()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            vm.Preferences.SetShowGlobalFavoriteSet(false);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Empty(vm.Preferences.LoadedFavoriteSetIds);
+
+            ClickBarButton(view, "Blank");
+
             Assert.True(vm.Preferences.ShowGlobalFavoriteSet);
-            string blankId = vm.FavoriteStore.GlobalSet.FavoriteIds.Single(id => !before.Contains(id));
+            string blankId = Assert.Single(vm.FavoriteStore.AllFavorites, f => !before.Contains(f.Id)).Id;
+            Assert.Equal([vm.FavoriteStore.GlobalSet.Id], vm.GetFavoriteMembership(blankId));
             Assert.Contains(vm.DisplayFavorites, e => (e.Favorite.Id == blankId) && e.Favorite.IsSpacer);
         }
         finally
         {
-            window.Close();
-            Dispatcher.UIThread.RunJobs();
-            foreach (string id in vm.FavoriteStore.GlobalSet.FavoriteIds.Where(id => !before.Contains(id)).ToList())
-            {
-                vm.DeleteFavorite(id);
-            }
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
 
-            Cleanup(vm);
+    [AvaloniaFact]
+    public void AddFlyout_PreChecksTheSoleVisibleSet_AndNothingWhenTwoAreVisible()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet named = vm.FavoriteStore.CreateNamedSet("FSF-AddPick")!;
+        vm.SetFavoriteSetLoaded(named.Id, true);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            vm.Preferences.SetShowGlobalFavoriteSet(false);
+            Dispatcher.UIThread.RunJobs();
+            view.OpenAddFlyoutForCommand("FH 180");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(["FSF-AddPick"], CheckedLabels(OpenFlyoutContent(view)));
+            Assert.Single(view.OpenEditorFlyouts).Hide();
+            Dispatcher.UIThread.RunJobs();
+
+            vm.SetShowGlobalFavoriteSet(true);
+            Dispatcher.UIThread.RunJobs();
+            view.OpenAddFlyoutForCommand("FH 180");
+            Dispatcher.UIThread.RunJobs();
+            Control content = OpenFlyoutContent(view);
+            Assert.Empty(CheckedLabels(content));
+            Assert.False(FlyoutButton(content, "Add").IsEnabled);
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BatchFlyout_PreChecksTheSoleVisibleSet_AndNothingWhenTwoAreVisible()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        FavoriteSet named = vm.FavoriteStore.CreateNamedSet("FSF-BatchPick")!;
+        vm.SetFavoriteSetLoaded(named.Id, true);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            vm.Preferences.SetShowGlobalFavoriteSet(false);
+            Dispatcher.UIThread.RunJobs();
+            ClickBarButton(view, "Batch");
+            Assert.Equal(["FSF-BatchPick"], CheckedLabels(OpenFlyoutContent(view)));
+            Assert.Single(view.OpenEditorFlyouts).Hide();
+            Dispatcher.UIThread.RunJobs();
+
+            vm.SetShowGlobalFavoriteSet(true);
+            Dispatcher.UIThread.RunJobs();
+            ClickBarButton(view, "Batch");
+            Control content = OpenFlyoutContent(view);
+            Assert.Empty(CheckedLabels(content));
+            Assert.False(FlyoutButton(content, "Add Blanks").IsEnabled);
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WithGlobalAndAVisibleAirportSet_AsksWhichSet()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        vm.ActiveScenarioPrimaryAirportId = AirportId;
+        vm.FavoriteStore.GetOrCreateAirportSet(AirportId);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            ClickBarButton(view, "Blank");
+
+            Control content = OpenFlyoutContent(view);
+            Assert.Empty(CheckedLabels(content));
+            Assert.Equal(before, [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)]);
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WithGlobalAndALoadedIdThatIsNotANamedSet_AddsStraightToGlobal()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        // An airport set for an airport that is not active, its id left in the loaded list: not a named set, not visible.
+        FavoriteSet airport = vm.FavoriteStore.GetOrCreateAirportSet(AirportId);
+        vm.Preferences.SetFavoriteSetLoaded(airport.Id, true);
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            Assert.Equal([vm.FavoriteStore.GlobalSet.Id], vm.VisibleFavoriteSetIds());
+
+            ClickBarButton(view, "Blank");
+
+            Assert.Empty(view.OpenEditorFlyouts);
+            string blankId = Assert.Single(vm.FavoriteStore.AllFavorites, f => !before.Contains(f.Id)).Id;
+            Assert.Equal([vm.FavoriteStore.GlobalSet.Id], vm.GetFavoriteMembership(blankId));
+        }
+        finally
+        {
+            vm.Preferences.SetFavoriteSetLoaded(airport.Id, false);
+            CloseAndCleanup(window, view, vm, before);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AddAndBatchFlyouts_WithNothingVisible_PreCheckGlobal()
+    {
+        MainViewModel vm = NewVm();
+        HashSet<string> before = [.. vm.FavoriteStore.AllFavorites.Select(f => f.Id)];
+        (Window window, FavoritesBarView view) = ShowBar(vm);
+        try
+        {
+            vm.Preferences.SetShowGlobalFavoriteSet(false);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Empty(vm.VisibleFavoriteSetIds());
+
+            view.OpenAddFlyoutForCommand("FH 180");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(["Global"], CheckedLabels(OpenFlyoutContent(view)));
+            Assert.Single(view.OpenEditorFlyouts).Hide();
+            Dispatcher.UIThread.RunJobs();
+
+            ClickBarButton(view, "Batch");
+            Assert.Equal(["Global"], CheckedLabels(OpenFlyoutContent(view)));
+        }
+        finally
+        {
+            CloseAndCleanup(window, view, vm, before);
         }
     }
 

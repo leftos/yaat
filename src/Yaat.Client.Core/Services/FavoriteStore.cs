@@ -512,6 +512,24 @@ public sealed class FavoriteStore
         bool showGlobalSet
     )
     {
+        List<FavoriteSet> visible = VisibleSets(activeScenarioId, activeAirportId, setOrder, loadedSetIds, showGlobalSet);
+        return [.. visible.SelectMany(set => GetSetFavorites(set.Id).Select(f => new FavoriteDisplayEntry(f, set.Id)))];
+    }
+
+    /// <summary>
+    /// The sets the bar shows, in the bar order <paramref name="setOrder"/> (normalized by
+    /// <see cref="FavoriteSetOrdering.Normalize"/>): Global unless <paramref name="showGlobalSet"/> is off, the active
+    /// airport's and scenario's sets where their slots sit, and each loaded named set. The one visibility rule for
+    /// <see cref="ComposeDisplay"/> and for choosing where a new button goes.
+    /// </summary>
+    public List<FavoriteSet> VisibleSets(
+        string? activeScenarioId,
+        string? activeAirportId,
+        IReadOnlyList<string> setOrder,
+        IReadOnlyList<string> loadedSetIds,
+        bool showGlobalSet
+    )
+    {
         List<string> namedSetIds = [.. OrderedSets.Where(s => s.Kind == FavoriteSetKind.Named).Select(s => s.Id)];
         var visible = new List<FavoriteSet>();
         foreach (string entry in FavoriteSetOrdering.Normalize(setOrder, loadedSetIds, namedSetIds))
@@ -522,7 +540,7 @@ public sealed class FavoriteStore
             }
         }
 
-        return [.. visible.SelectMany(set => GetSetFavorites(set.Id).Select(f => new FavoriteDisplayEntry(f, set.Id)))];
+        return visible;
     }
 
     /// <summary>The set a normalized order entry shows on the bar, or null when it shows nothing.</summary>

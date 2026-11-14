@@ -201,6 +201,23 @@ public partial class MainViewModel
         RefreshDisplayFavorites();
     }
 
+    /// <summary>
+    /// The ids of the sets the bar shows, in bar order: Global while it is shown, the airport and scenario sets filling
+    /// their slots, and each loaded named set. A new button goes to these when exactly one is visible.
+    /// </summary>
+    public List<string> VisibleFavoriteSetIds() =>
+        [
+            .. _favoriteStore
+                .VisibleSets(
+                    ActiveScenarioId,
+                    ActiveScenarioPrimaryAirportId,
+                    _preferences.FavoriteSetOrder,
+                    _preferences.LoadedFavoriteSetIds,
+                    _preferences.ShowGlobalFavoriteSet
+                )
+                .Select(s => s.Id),
+        ];
+
     private List<string> NormalizedFavoriteSetOrder() =>
         FavoriteSetOrdering.Normalize(_preferences.FavoriteSetOrder, _preferences.LoadedFavoriteSetIds, [.. NamedFavoriteSets.Select(s => s.Id)]);
 
@@ -371,10 +388,178 @@ public partial class MainViewModel
     /// Favorites panel; never saved, so a restart empties it. Null until the first Copy.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFavoriteToPaste))]
     private FavoriteCommand? _copiedFavorite;
 
-    /// <summary>Holds a snapshot of <paramref name="favorite"/> for <see cref="PasteFavoriteOnto"/>.</summary>
-    public void CopyFavorite(FavoriteCommand favorite) => CopiedFavorite = favorite.Clone();
+    /// <summary>
+    /// The button and set the Edit Favorite flyout's Cut marked for Paste to move. Exclusive with
+    /// <see cref="CopiedFavorite"/>: a Cut clears the copy, a Copy clears the cut, and one Paste clears the cut.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFavoriteToPaste))]
+    private FavoriteDisplayEntry? _cutFavoriteSource;
+
+    /// <summary>True while a Copy or a Cut is waiting for Paste.</summary>
+    public bool HasFavoriteToPaste => (CopiedFavorite is not null) || (CutFavoriteSource is not null);
+
+    /// <summary>Holds a snapshot of <paramref name="favorite"/> for <see cref="PasteFavoriteOnto"/>, replacing any pending cut.</summary>
+    public void CopyFavorite(FavoriteCommand favorite)
+    {
+        CutFavoriteSource = null;
+        CopiedFavorite = favorite.Clone();
+    }
+
+    /// <summary>Marks <paramref name="source"/> (this button in this set) for <see cref="PasteFavoriteOnto"/> to move, replacing any copy.</summary>
+    public void CutFavorite(FavoriteDisplayEntry source)
+    {
+        CopiedFavorite = null;
+        CutFavoriteSource = source;
+    }
+
+    /// <summary>
+    /// Empties <paramref name="entry"/>'s slot in its own set: a new blank of the button's tab and height takes its place.
+    /// The button itself is untouched; other sets keep it, and with none left it is listed under "Not in any set".
+    /// </summary>
+    public void DeleteFavoriteSettings(FavoriteDisplayEntry entry)
+    {
+        if (FindFavoriteSlot(nameof(DeleteFavoriteSettings), entry.SetId, entry.Favorite.Id) is not { } slot)
+        {
+            return;
+        }
+
+        FavoriteCommand blank = NewBlankLike(entry.Favorite);
+        _favoriteStore.SaveFavorite(blank);
+        slot.Ids[slot.Index] = blank.Id;
+        _favoriteStore.ReplaceSetFavorites(slot.Set.Id, slot.Ids);
+        RefreshDisplayFavorites();
+    }
+
+    /// <summary>A set, a copy of its id list, and the index of one favorite in it.</summary>
+    private sealed record FavoriteSlot(FavoriteSet Set, List<string> Ids, int Index);
+
+    /// <summary>
+    /// Finds <paramref name="favoriteId"/>'s place in <paramref name="setId"/>; null, with a warning, when the set or
+    /// the slot is gone.
+    /// </summary>
+    private FavoriteSlot? FindFavoriteSlot(string caller, string setId, string favoriteId)
+    {
+        FavoriteSet? set = _favoriteStore.GetSet(setId);
+        if (set is null)
+        {
+            _log.LogWarning("{Caller}: unknown set {SetId}", caller, setId);
+            return null;
+        }
+
+        var ids = set.FavoriteIds.ToList();
+        int index = ids.FindIndex(id => string.Equals(id, favoriteId, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            _log.LogWarning("{Caller}: favorite {FavoriteId} is not in set {SetId}", caller, favoriteId, set.Id);
+            return null;
+        }
+
+        return new FavoriteSlot(set, ids, index);
+    }
+
+    /// <summary>A new blank (new id) of <paramref name="favorite"/>'s tab and height, to hold its place.</summary>
+    private FavoriteCommand NewBlankLike(FavoriteCommand favorite) =>
+        new()
+        {
+            Id = _favoriteStore.NewFavoriteId(),
+            IsSpacer = true,
+            Category = favorite.Category,
+            ButtonHeight = favorite.ButtonHeight,
+        };
+
+    /// <summary>Gives a pasted button the anchor's tab (except onto an All button, where it keeps its own) and height.</summary>
+    private static void FitToSlot(FavoriteCommand pasted, FavoriteCommand anchor)
+    {
+        if ((anchor.IsSpacer) || (anchor.Category != FavoriteCommandCategory.All))
+        {
+            pasted.Category = anchor.Category;
+        }
+        pasted.ButtonHeight = anchor.ButtonHeight;
+    }
+
+    /// <summary>A pasted-over blank no set holds any more is deleted; a pasted-over real button stays in the store.</summary>
+    private void DeleteReplacedBlank(FavoriteCommand replaced)
+    {
+        if (replaced.IsSpacer && (_favoriteStore.GetMembershipSetIds(replaced.Id).Count == 0))
+        {
+            _favoriteStore.DeleteFavorite(replaced.Id);
+        }
+    }
+
+    /// <summary>
+    /// The cut button, its source slot and the anchor's slot, or null when the paste must not happen: the anchor is the
+    /// cut slot itself, a slot is gone, or the anchor's set already holds the button elsewhere. A cut whose source is gone
+    /// is dropped; the other refusals keep it pending.
+    /// </summary>
+    private (FavoriteCommand Moving, FavoriteSlot Source, FavoriteSlot Target)? ResolveCutPaste(FavoriteDisplayEntry cut, FavoriteDisplayEntry anchor)
+    {
+        bool isCutSlot =
+            (string.Equals(cut.SetId, anchor.SetId, StringComparison.OrdinalIgnoreCase))
+            && (string.Equals(cut.Favorite.Id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
+        if (isCutSlot)
+        {
+            return null;
+        }
+
+        FavoriteSlot? source = FindFavoriteSlot(nameof(PasteFavoriteOnto), cut.SetId, cut.Favorite.Id);
+        if ((source is null) || (_favoriteStore.GetFavorite(cut.Favorite.Id) is not { } moving))
+        {
+            CutFavoriteSource = null;
+            return null;
+        }
+
+        if (FindFavoriteSlot(nameof(PasteFavoriteOnto), anchor.SetId, anchor.Favorite.Id) is not { } target)
+        {
+            return null;
+        }
+
+        bool sameSet = string.Equals(source.Set.Id, target.Set.Id, StringComparison.OrdinalIgnoreCase);
+        if ((!sameSet) && (target.Ids.Contains(moving.Id, StringComparer.OrdinalIgnoreCase)))
+        {
+            _log.LogWarning("PasteFavoriteOnto: set {SetId} already holds the cut button {FavoriteId}", target.Set.Id, moving.Id);
+            return null;
+        }
+
+        return (moving, source, target);
+    }
+
+    /// <summary>
+    /// Moves the cut button (same id) onto <paramref name="anchor"/>'s slot, fitted to it as a copy is, and puts a new
+    /// blank of the button's tab and height in the slot it was cut from. Other sets keep linking it. Clears the cut.
+    /// </summary>
+    private void PasteCutFavoriteOnto(FavoriteDisplayEntry cut, FavoriteDisplayEntry anchor)
+    {
+        if (ResolveCutPaste(cut, anchor) is not { } resolved)
+        {
+            return;
+        }
+
+        (FavoriteCommand moving, FavoriteSlot source, FavoriteSlot target) = resolved;
+
+        FavoriteCommand blank = NewBlankLike(moving);
+        FavoriteCommand moved = moving.Clone();
+        FitToSlot(moved, anchor.Favorite);
+        _favoriteStore.SaveFavorite(blank);
+        _favoriteStore.SaveFavorite(moved);
+
+        bool sameSet = string.Equals(source.Set.Id, target.Set.Id, StringComparison.OrdinalIgnoreCase);
+        target.Ids[target.Index] = moved.Id;
+        List<string> sourceIds = sameSet ? target.Ids : source.Ids;
+        sourceIds[source.Index] = blank.Id;
+        _favoriteStore.ReplaceSetFavorites(target.Set.Id, target.Ids);
+        if (!sameSet)
+        {
+            _favoriteStore.ReplaceSetFavorites(source.Set.Id, source.Ids);
+        }
+
+        DeleteReplacedBlank(anchor.Favorite);
+        CutFavoriteSource = null;
+        RefreshDisplayFavorites();
+    }
 
     /// <summary>
     /// Replaces <paramref name="anchor"/> at its position in its own set with an independent copy of the copied button
@@ -383,44 +568,33 @@ public partial class MainViewModel
     /// button's. Only this set changes: a blank the anchor shares with other sets stays blank there. The replaced button
     /// stays in the store, listed under "Not in any set" when no set holds it any more, so it can be got back; a replaced
     /// blank that no other set holds is deleted. No-op while nothing is copied, and when the anchor's set or slot is gone.
+    /// A pending cut moves the cut button instead (see <see cref="PasteCutFavoriteOnto"/>).
     /// </summary>
     public void PasteFavoriteOnto(FavoriteDisplayEntry anchor)
     {
+        if (CutFavoriteSource is { } cut)
+        {
+            PasteCutFavoriteOnto(cut, anchor);
+            return;
+        }
+
         if (CopiedFavorite?.Clone() is not { } copy)
         {
             return;
         }
 
-        FavoriteSet? set = _favoriteStore.GetSet(anchor.SetId);
-        if (set is null)
+        if (FindFavoriteSlot(nameof(PasteFavoriteOnto), anchor.SetId, anchor.Favorite.Id) is not { } slot)
         {
-            _log.LogWarning("PasteFavoriteOnto: unknown set {SetId}", anchor.SetId);
-            return;
-        }
-
-        var ids = set.FavoriteIds.ToList();
-        int anchorIndex = ids.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
-        if (anchorIndex < 0)
-        {
-            _log.LogWarning("PasteFavoriteOnto: anchor {FavoriteId} is not in set {SetId}", anchor.Favorite.Id, set.Id);
             return;
         }
 
         copy.Id = _favoriteStore.NewFavoriteId();
-        if ((anchor.Favorite.IsSpacer) || (anchor.Favorite.Category != FavoriteCommandCategory.All))
-        {
-            copy.Category = anchor.Favorite.Category;
-        }
-        copy.ButtonHeight = anchor.Favorite.ButtonHeight;
-
-        ids[anchorIndex] = copy.Id;
+        FitToSlot(copy, anchor.Favorite);
+        slot.Ids[slot.Index] = copy.Id;
 
         _favoriteStore.SaveFavorite(copy);
-        _favoriteStore.ReplaceSetFavorites(set.Id, ids);
-        if (anchor.Favorite.IsSpacer && (_favoriteStore.GetMembershipSetIds(anchor.Favorite.Id).Count == 0))
-        {
-            _favoriteStore.DeleteFavorite(anchor.Favorite.Id);
-        }
+        _favoriteStore.ReplaceSetFavorites(slot.Set.Id, slot.Ids);
+        DeleteReplacedBlank(anchor.Favorite);
 
         RefreshDisplayFavorites();
     }

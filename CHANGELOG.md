@@ -6,10 +6,12 @@
 
 - The aircraft menu's quick commands offer Accept handoff, Cancel handoff and Acknowledge pointout while one is pending for the position you act as.
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
+- Favorite buttons can be cut and pasted onto another slot, and Delete settings empties a button into a blank of the same place and size.
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.
 
 ### Changed
 
+- New favorite buttons go to the set showing in the bar, asking which when several show, and no longer turn a hidden Global back on.
 - An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows, asks for further clearance and holds over the airport.
 
 ### Fixed

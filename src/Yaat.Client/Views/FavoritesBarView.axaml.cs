@@ -763,14 +763,83 @@ public partial class FavoritesBarView : UserControl
         ShowAddFlyout(btn, string.Empty, GetActiveAddCategory());
     }
 
+    /// <summary>
+    /// Adds a blank to the set the bar shows. With several sets visible it asks which set(s) instead; with none it goes
+    /// to Global, which is then shown.
+    /// </summary>
     private void OnAddBlankClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm)
+        if ((sender is not Button btn) || (DataContext is not MainViewModel vm))
         {
             return;
         }
 
-        vm.AddFavorite(CreateBlankFavorite(GetActiveAddCategory(), FavoriteCommandDefaults.ButtonHeight), [vm.FavoriteStore.GlobalSet.Id]);
+        FavoriteCommand blank = CreateBlankFavorite(GetActiveAddCategory(), FavoriteCommandDefaults.ButtonHeight);
+        List<string> visible = vm.VisibleFavoriteSetIds();
+        if (visible.Count > 1)
+        {
+            ShowBlankSetPickerFlyout(btn, vm, blank);
+            return;
+        }
+
+        vm.AddFavorite(blank, DefaultAddSetIds(vm, visible));
+    }
+
+    /// <summary>
+    /// The sets an add flyout's In list starts ticked: the sole visible set, Global when no set is visible, and none
+    /// when several are visible, so the user picks.
+    /// </summary>
+    private static List<string> DefaultAddSetIds(MainViewModel vm) => DefaultAddSetIds(vm, vm.VisibleFavoriteSetIds());
+
+    /// <summary><see cref="DefaultAddSetIds(MainViewModel)"/> for an already-read <paramref name="visible"/> list.</summary>
+    private static List<string> DefaultAddSetIds(MainViewModel vm, List<string> visible)
+    {
+        return visible.Count switch
+        {
+            0 => [vm.FavoriteStore.GlobalSet.Id],
+            1 => visible,
+            _ => [],
+        };
+    }
+
+    /// <summary>Asks which set(s) a new blank goes to: Add (enabled once a set is ticked) adds it there, Cancel adds nothing.</summary>
+    private void ShowBlankSetPickerFlyout(Button target, MainViewModel vm, FavoriteCommand blank)
+    {
+        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: []);
+        var addBtn = new Button { Content = "Add" };
+        BindSaveToContainers(addBtn, containerPicker);
+        var cancelBtn = new Button { Content = "Cancel" };
+
+        var buttonRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        buttonRow.Children.Add(addBtn);
+        buttonRow.Children.Add(cancelBtn);
+
+        var panel = new StackPanel { Width = 220 };
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = "Add Blank",
+                FontWeight = FontWeight.Bold,
+                Margin = new Thickness(0, 0, 0, 8),
+            }
+        );
+        panel.Children.Add(CreateLabeledControl("In", containerPicker.Control));
+        panel.Children.Add(buttonRow);
+
+        var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
+        addBtn.Click += (_, _) =>
+        {
+            vm.AddFavorite(blank, containerPicker.ResolveSelectedSetIds(vm));
+            flyout.Hide();
+        };
+        cancelBtn.Click += (_, _) => flyout.Hide();
+
+        ShowEditorFlyout(flyout, target);
     }
 
     private void OnBatchClick(object? sender, RoutedEventArgs e)
@@ -953,7 +1022,7 @@ public partial class FavoritesBarView : UserControl
         ColorPicker backgroundPicker = CreateColorPicker(FavoriteCommandDefaults.BackgroundColor);
         ColorPicker textPicker = CreateColorPicker(FavoriteCommandDefaults.TextColor);
         NumericUpDown heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
-        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: [vm.FavoriteStore.GlobalSet.Id]);
+        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: DefaultAddSetIds(vm));
 
         var saveBtn = new Button { Content = "Add", Margin = new Thickness(0, 4, 0, 0) };
         BindSaveToContainers(saveBtn, containerPicker);
@@ -1061,6 +1130,7 @@ public partial class FavoritesBarView : UserControl
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
         AddCopyPasteRow(footer, vm, entry, flyout);
+        AddDeleteSettingsButton(footer, vm, entry, flyout);
 
         saveBtn.Click += (_, _) =>
         {
@@ -1225,7 +1295,7 @@ public partial class FavoritesBarView : UserControl
         countBox.FormatString = "0";
         countBox.Increment = 1;
         NumericUpDown heightBox = CreateDimensionBox(FavoriteCommandDefaults.ButtonHeight, 24, 72);
-        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: [vm.FavoriteStore.GlobalSet.Id]);
+        var containerPicker = new FavoriteContainerPicker(vm, checkedSetIds: DefaultAddSetIds(vm));
         var saveBtn = new Button { Content = "Add Blanks", Margin = new Thickness(0, 4, 0, 0) };
         BindSaveToContainers(saveBtn, containerPicker);
 
@@ -1419,17 +1489,35 @@ public partial class FavoritesBarView : UserControl
     }
 
     /// <summary>
-    /// Adds the Copy / Paste row above an Edit flyout's Delete / Save row. Copy holds this button for Paste; Paste
-    /// replaces this button with an independent copy of the held button, in this button's set, and is disabled while
-    /// nothing is held. Both close the flyout.
+    /// Adds the Cut / Copy / Paste row above an Edit flyout's Delete / Save row. Copy holds this button for Paste; Cut
+    /// (real buttons only) marks it to move; Paste replaces this button, in this button's set, with an independent copy
+    /// of the held button or with the cut button itself, and is disabled while nothing is held. All close the flyout.
     /// </summary>
     private static void AddCopyPasteRow(StackPanel footer, MainViewModel vm, FavoriteDisplayEntry entry, Flyout flyout)
     {
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        if (!entry.Favorite.IsSpacer)
+        {
+            Button cutBtn = CreateSmallActionButton("Cut");
+            ToolTip.SetTip(cutBtn, "Cut this button, to move it onto another button or blank with Paste");
+            cutBtn.Click += (_, _) =>
+            {
+                vm.CutFavorite(entry);
+                flyout.Hide();
+            };
+            row.Children.Add(cutBtn);
+        }
+
         Button copyBtn = CreateSmallActionButton("Copy");
         Button pasteBtn = CreateSmallActionButton("Paste");
-        pasteBtn.IsEnabled = vm.CopiedFavorite is not null;
+        pasteBtn.IsEnabled = vm.HasFavoriteToPaste;
         ToolTip.SetTip(copyBtn, "Copy this button, to paste it over another button or blank");
-        ToolTip.SetTip(pasteBtn, "Replace this button with a copy of the copied button");
+        ToolTip.SetTip(pasteBtn, "Replace this button with a copy of the copied button, or with the cut button");
         copyBtn.Click += (_, _) =>
         {
             vm.CopyFavorite(entry.Favorite);
@@ -1441,16 +1529,34 @@ public partial class FavoritesBarView : UserControl
             flyout.Hide();
         };
 
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
         row.Children.Add(copyBtn);
         row.Children.Add(pasteBtn);
         // CreateEditFooter ends with the Delete / Save row, so the last index puts this row just above it.
         footer.Children.Insert(footer.Children.Count - 1, row);
+    }
+
+    /// <summary>
+    /// Adds "Delete settings", on its own full-width row directly above a real button's Delete / Save row: it empties
+    /// this button's slot in this set (a blank of the same size takes its place) and leaves the button in its other sets.
+    /// </summary>
+    private static void AddDeleteSettingsButton(StackPanel footer, MainViewModel vm, FavoriteDisplayEntry entry, Flyout flyout)
+    {
+        var btn = new Button
+        {
+            Content = "Delete settings",
+            Margin = new Thickness(0, 4, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        ToolTip.SetTip(btn, "Empty this button in this set, keeping its place and size");
+        btn.Click += (_, _) =>
+        {
+            vm.DeleteFavoriteSettings(entry);
+            flyout.Hide();
+        };
+
+        // CreateEditFooter ends with the Delete / Save row, so the last index puts this row just above it.
+        footer.Children.Insert(footer.Children.Count - 1, btn);
     }
 
     private static DockPanel CreateEditButtonRow(Button deleteBtn, Button saveBtn)
