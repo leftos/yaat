@@ -1,6 +1,6 @@
 # YAAT Scope — a STARS × ERAM instructor radar
 
-Design canvas (visual mocks, datablock anatomy, feature matrix, technical design): https://claude.ai/artifact/Kr562HhSk9FKQbAnZVeWDb
+Design canvas (visual mocks, datablock anatomy, feature matrix, technical design): [`canvases/yaat-scope-design/`](../canvases/yaat-scope-design/index.html), published at https://claude.ai/artifact/Kr562HhSk9FKQbAnZVeWDb
 
 Grounded in the CRC manuals `docs/crc/stars.md` and `docs/crc/eram.md`. The terms used here (YAAT Scope, profile, zoom band, dwell, pilot lens, scope entry) are defined in [`CONTEXT.md`](../../CONTEXT.md) § Radar display.
 
