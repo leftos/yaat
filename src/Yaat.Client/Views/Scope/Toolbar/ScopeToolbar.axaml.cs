@@ -66,7 +66,13 @@ public partial class ScopeToolbar : UserControl
             RebuildTray();
         }
 
-        if (e.PropertyName is nameof(ScopeViewModel.OpenMenu) or nameof(ScopeViewModel.TemplateId) or nameof(ScopeViewModel.RangeNm))
+        if (
+            e.PropertyName
+            is nameof(ScopeViewModel.OpenMenu)
+                or nameof(ScopeViewModel.TemplateId)
+                or nameof(ScopeViewModel.RangeNm)
+                or nameof(ScopeViewModel.OpenViews)
+        )
         {
             RefreshButtons();
         }

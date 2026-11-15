@@ -81,6 +81,8 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
             _seedSource = main.Radar;
             _seedSource.PropertyChanged += OnSeedSourcePropertyChanged;
         }
+
+        InitViews();
     }
 
     /// <summary>Whether the scope is still waiting for the radar's first centre and maps. Test seam.</summary>
@@ -137,6 +139,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     {
         Main.PropertyChanged -= OnMainPropertyChanged;
         StopWaitingForSeed();
+        StopViews();
     }
 
     /// <summary>Picks the datablock template (or Mixed) with <paramref name="templateId"/>, as <c>.scope template</c> does.</summary>

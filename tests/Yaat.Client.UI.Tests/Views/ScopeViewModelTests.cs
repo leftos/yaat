@@ -42,7 +42,7 @@ public class ScopeViewModelTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         Assert.Equal((0d, 0d), (main.Radar.CenterLat, main.Radar.CenterLon));
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         Assert.True(scope.IsWaitingForRadarSeed);
         Assert.Empty(scope.VideoMaps);
 
@@ -54,14 +54,13 @@ public class ScopeViewModelTests
         Assert.Same(map, Assert.Single(scope.VideoMaps));
         Assert.Equal("B", scope.BrightnessLookup["101"]);
         Assert.False(scope.IsWaitingForRadarSeed);
-        scope.Dispose();
     }
 
     [AvaloniaFact]
     public void Scope_AfterSeed_DoesNotFollowRadar()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         VideoMapData map = Map("101");
         CentreRadar(main, 37.62, -122.38, map);
 
@@ -74,7 +73,6 @@ public class ScopeViewModelTests
         Assert.Equal((37.62, -122.38), (scope.CenterLat, scope.CenterLon));
         Assert.Equal(60, scope.RangeNm);
         Assert.Same(map, Assert.Single(scope.VideoMaps));
-        scope.Dispose();
     }
 
     [AvaloniaFact]
@@ -84,18 +82,17 @@ public class ScopeViewModelTests
         main.Radar.ShowMvaHints = true;
         CentreRadar(main, 37.62, -122.38, Map("101"));
 
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
 
         Assert.False(scope.IsWaitingForRadarSeed);
         Assert.True(scope.ShowMvaHints);
-        scope.Dispose();
     }
 
     [AvaloniaFact]
     public void Scope_OpenedBeforeRadarCentred_TakesRadarsMvaTintFlagAtTheSeed()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         Assert.True(scope.IsWaitingForRadarSeed);
 
         main.Radar.ShowMvaHints = true;
@@ -103,28 +100,26 @@ public class ScopeViewModelTests
 
         Assert.False(scope.IsWaitingForRadarSeed);
         Assert.True(scope.ShowMvaHints);
-        scope.Dispose();
     }
 
     [AvaloniaFact]
     public void Scope_AfterSeed_DoesNotFollowRadarsMvaTintFlag()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         main.Radar.ShowMvaHints = true;
         CentreRadar(main, 37.62, -122.38, Map("101"));
 
         main.Radar.ShowMvaHints = false;
 
         Assert.True(scope.ShowMvaHints);
-        scope.Dispose();
     }
 
     [AvaloniaFact]
     public void MainSelection_FollowsIntoTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         AircraftModel ac = Aircraft("UAL238");
         main.Aircraft.Add(ac);
 
@@ -133,14 +128,13 @@ public class ScopeViewModelTests
 
         main.SelectedAircraft = null;
         Assert.Null(scope.SelectedAircraft);
-        scope.Dispose();
     }
 
     [AvaloniaFact]
     public void ScopeWindow_Closed_StopsFollowingMainSelection()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Dispatcher.UIThread.RunJobs();

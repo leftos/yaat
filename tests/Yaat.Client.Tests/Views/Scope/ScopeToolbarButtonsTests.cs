@@ -10,10 +10,10 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsTemplateThenRange()
+    public void TheBar_IsTemplateRangeThenViews()
     {
-        Assert.Equal([ScopeButtonId.Template, ScopeButtonId.Range], ScopeToolbarButtons.All.Select(b => b.Id));
-        Assert.Equal(["TEMPLATE", "RANGE"], ScopeToolbarButtons.All.Select(b => b.Label));
+        Assert.Equal([ScopeButtonId.Template, ScopeButtonId.Range, ScopeButtonId.Views], ScopeToolbarButtons.All.Select(b => b.Id));
+        Assert.Equal(["TEMPLATE", "RANGE", "VIEWS"], ScopeToolbarButtons.All.Select(b => b.Label));
     }
 
     [Fact]
@@ -55,5 +55,29 @@ public class ScopeToolbarButtonsTests
 
         Assert.Equal(ScopeButtonKind.Spinner, range.Kind);
         Assert.Empty(range.Children);
+        Assert.Null(range.Command);
+    }
+
+    [Fact]
+    public void Views_IsAMenuOfTheSsaAndConflictToggles()
+    {
+        ScopeButton views = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Views);
+
+        Assert.Equal(ScopeButtonKind.Menu, views.Kind);
+        Assert.Null(views.Command);
+        Assert.Equal([ScopeButtonId.ViewSsa, ScopeButtonId.ViewCa], views.Children.Select(c => c.Id));
+        Assert.Equal(["SSA", "LA/CA/MCI"], views.Children.Select(c => c.Label));
+        Assert.Equal(["ssa", "ca"], views.Children.Select(c => c.Value));
+        Assert.Equal([".view ssa", ".view ca"], views.Children.Select(c => c.Command));
+        Assert.All(views.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
+    }
+
+    [Fact]
+    public void EveryTemplatePick_CarriesItsScopeTemplateCommand()
+    {
+        ScopeButton template = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Template);
+
+        Assert.Null(template.Command);
+        Assert.All(template.Children, c => Assert.Equal($".scope template {c.Value}", c.Command));
     }
 }

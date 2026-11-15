@@ -267,7 +267,8 @@
         { "verb": "JRING", "aliases": [], "description": "J-Ring radius nm 1-30 [bare=clear]" },
         { "verb": "CONE", "aliases": [], "description": "Cone length nm 1-30 [bare=clear]" },
         { "verb": ".scope range", "aliases": [], "args": "<1-256>", "description": "YAAT Scope range in nm (client-local)" },
-        { "verb": ".scope template", "aliases": [], "args": "<stars|eram|mixed|euroscope>", "description": "YAAT Scope datablock template (client-local)" }
+        { "verb": ".scope template", "aliases": [], "args": "<stars|eram|mixed|euroscope>", "description": "YAAT Scope datablock template (client-local)" },
+        { "verb": ".view", "aliases": [], "args": "<ssa|ca> <on|off>", "description": "Open or close a YAAT Scope view: the SSA or the LA/CA/MCI list (client-local)" }
       ],
       "notes": ["JRING/CONE are instructor-only TPA tools drawn on your radar (emulating STARS *J/*P); never shown on the student's CRC."]
     },

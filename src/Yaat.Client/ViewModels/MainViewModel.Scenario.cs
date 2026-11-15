@@ -1055,7 +1055,7 @@ public partial class MainViewModel
         // scenario is seeded from them (SeedAtpaResult / SeedConflictPeer) and would otherwise inherit a
         // pairing from the scenario that just went away.
         _atpaResults = [];
-        _conflictAlerts = [];
+        ReplaceConflictAlerts([]);
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;

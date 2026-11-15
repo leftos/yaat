@@ -347,7 +347,7 @@ The sign on list displays the TCP (Terminal Control Position) that you are curre
 
 *Flight Plan List*
 
-Also known as the "TAB" list, the flight plan list displays tracks that have a flight plan indicating a departure from one of the airports listed in the current facility configuration. The list displays the aircraft ID (callsign) and beacon code. The list is sorted by aircraft ID. Once the flight is acquired on radar, its entry is removed from the list.
+Also known as the "TAB" list, the flight plan list (titled FLIGHT PLAN in CRC) displays proposed departure flight plans, with no associated track, for departures from one of the airports listed in the current facility configuration. The list displays the aircraft ID (callsign) and beacon code. The list is sorted by aircraft ID. Once the flight is acquired on radar, its entry is removed from the list.
 
 ### Tower Lists
 

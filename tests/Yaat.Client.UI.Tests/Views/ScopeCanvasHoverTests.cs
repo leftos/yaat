@@ -128,6 +128,7 @@ public class ScopeCanvasHoverTests
             Height = 600,
             Content = panel,
         };
+        window.Closed += (_, _) => scope.Dispose();
         window.Show();
         for (int i = 0; i < 5; i++)
         {

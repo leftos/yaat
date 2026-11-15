@@ -20,6 +20,15 @@ public enum ScopeButtonId
 
     /// <summary>The range spinner.</summary>
     Range,
+
+    /// <summary>The Views menu.</summary>
+    Views,
+
+    /// <summary>The Views menu's SSA toggle.</summary>
+    ViewSsa,
+
+    /// <summary>The Views menu's LA/CA/MCI toggle.</summary>
+    ViewCa,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -43,10 +52,23 @@ public enum ScopeButtonKind
 /// <param name="Label">The uppercase label the button shows.</param>
 /// <param name="Kind">How the button acts.</param>
 /// <param name="Children">A menu's buttons, in tray order; empty for any other kind.</param>
-/// <param name="Value">The value a command button picks (a template id), or null.</param>
-public sealed record ScopeButton(ScopeButtonId Id, string Label, ScopeButtonKind Kind, IReadOnlyList<ScopeButton> Children, string? Value);
+/// <param name="Value">
+/// The value the button stands for: the template id a template pick picks, the view name a view toggle opens; else null.
+/// </param>
+/// <param name="Command">
+/// A command button's full dot command; a toggle's command stem, to which a press appends <c> on</c> or <c> off</c>; null for
+/// a menu or a spinner.
+/// </param>
+public sealed record ScopeButton(
+    ScopeButtonId Id,
+    string Label,
+    ScopeButtonKind Kind,
+    IReadOnlyList<ScopeButton> Children,
+    string? Value,
+    string? Command
+);
 
-/// <summary>The Scope toolbar's buttons, in bar order, and the <c>.scope</c> commands they run.</summary>
+/// <summary>The Scope toolbar's buttons, in bar order, and the <c>.scope</c> and <c>.view</c> commands they run.</summary>
 public static class ScopeToolbarButtons
 {
     /// <summary>The bar's top-level buttons, left to right. A button is listed only once its behaviour exists.</summary>
@@ -62,10 +84,28 @@ public static class ScopeToolbarButtons
                 TemplatePick(ScopeButtonId.TemplateMixed, "MIXED", ScopeTemplates.MixedId),
                 TemplatePick(ScopeButtonId.TemplateEuroScope, "EUROSCOPE", ScopeTemplates.EuroScopeId),
             ],
+            null,
             null
         ),
-        new(ScopeButtonId.Range, "RANGE", ScopeButtonKind.Spinner, [], null),
+        new(ScopeButtonId.Range, "RANGE", ScopeButtonKind.Spinner, [], null, null),
+        new(
+            ScopeButtonId.Views,
+            "VIEWS",
+            ScopeButtonKind.Menu,
+            [ViewToggle(ScopeButtonId.ViewSsa, "SSA", ViewSsaName), ViewToggle(ScopeButtonId.ViewCa, "LA/CA/MCI", ViewCaName)],
+            null,
+            null
+        ),
     ];
+
+    /// <summary>The SSA's view name, as <c>.view</c> takes it.</summary>
+    public const string ViewSsaName = "ssa";
+
+    /// <summary>The LA/CA/MCI list's view name, as <c>.view</c> takes it.</summary>
+    public const string ViewCaName = "ca";
+
+    /// <summary>The command that opens (<paramref name="open"/>) or closes the view named <paramref name="viewName"/>.</summary>
+    public static string ViewCommand(string viewName, bool open) => $"{ViewCommandStem(viewName)} {(open ? "on" : "off")}";
 
     /// <summary>The command that picks the template (or Mixed) with <paramref name="templateId"/>.</summary>
     public static string TemplateCommand(string templateId) => $".scope template {templateId}";
@@ -74,5 +114,10 @@ public static class ScopeToolbarButtons
     public static string RangeCommand(int rangeNm) => $".scope range {rangeNm}";
 
     private static ScopeButton TemplatePick(ScopeButtonId id, string label, string templateId) =>
-        new(id, label, ScopeButtonKind.Command, [], templateId);
+        new(id, label, ScopeButtonKind.Command, [], templateId, TemplateCommand(templateId));
+
+    private static ScopeButton ViewToggle(ScopeButtonId id, string label, string viewName) =>
+        new(id, label, ScopeButtonKind.Toggle, [], viewName, ViewCommandStem(viewName));
+
+    private static string ViewCommandStem(string viewName) => $".view {viewName}";
 }

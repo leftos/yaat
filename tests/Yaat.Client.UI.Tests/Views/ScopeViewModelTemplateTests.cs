@@ -73,7 +73,7 @@ public class ScopeViewModelTemplateTests
     public void ScopeWindow_TemplateMenu_ClickingMixedSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try
@@ -99,7 +99,7 @@ public class ScopeViewModelTemplateTests
     public void ScopeWindow_TemplateMenu_ClickingEramSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try

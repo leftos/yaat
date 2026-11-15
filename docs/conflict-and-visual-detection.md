@@ -98,7 +98,8 @@ A track must pass all four gates to be considered (`ConflictAlertDetector.cs:116
   identical payload per tick. `TrainingHub`'s `RoomStateDto` seeds the same list so a client joining mid-conflict sees it
   immediately. `TrainingRoom.LastBroadcastConflictSignature` starts at `""` (not null) so a conflict-free room doesn't
   push a pointless empty payload on its first tick. Client-side rendering: see
-  [radar-rendering.md](radar-rendering.md) § Conflict alerts.
+  [radar-rendering.md](radar-rendering.md) § Conflict alerts. The YAAT Scope's LA/CA/MCI list reads the same pair
+  list from `MainViewModel.ConflictAlerts` (CA rows only; no LA or MCI exists on the client).
 - **Only terminal CA reaches the YAAT radar.** `EramConflictDetector`'s separate set (`ESTCA_` ids, 4-minute lookahead,
   5 nm minima) is *not* wired to `ConflictAlertsChanged`. This matters: the client draws a fixed 3 nm ring, which would
   be actively misleading for an en-route pair. Anything that later routes ERAM pairs into that field must revisit the

@@ -25,6 +25,7 @@ public partial class MainViewModel
         ".norbl",
         ".reloadaliases",
         ".scope",
+        ".view",
     };
 
     private readonly CrcAliasStore _crcAliases = new();

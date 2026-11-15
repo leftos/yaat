@@ -13,6 +13,12 @@ public partial class MainViewModel
     /// </summary>
     private List<ConflictAlertDto> _conflictAlerts = [];
 
+    /// <summary>A snapshot of the room's conflict-alert pairs, in broadcast order.</summary>
+    public IReadOnlyList<ConflictAlertDto> ConflictAlerts => [.. _conflictAlerts];
+
+    /// <summary>Raised on the UI thread after <see cref="ApplyConflictAlerts"/> replaces the pairs.</summary>
+    public event Action? ConflictAlertsApplied;
+
     private void OnConflictAlertsChanged(ConflictAlertsChangedDto dto) => Dispatcher.UIThread.Post(() => ApplyConflictAlerts(dto.Conflicts));
 
     /// <summary>
@@ -26,10 +32,9 @@ public partial class MainViewModel
     /// </summary>
     public void ApplyConflictAlerts(List<ConflictAlertDto>? conflicts)
     {
-        _conflictAlerts = conflicts ?? [];
-
+        List<ConflictAlertDto> pairs = conflicts ?? [];
         var peerByCallsign = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (ConflictAlertDto c in _conflictAlerts)
+        foreach (ConflictAlertDto c in pairs)
         {
             peerByCallsign[c.CallsignA] = c.CallsignB;
             peerByCallsign[c.CallsignB] = c.CallsignA;
@@ -39,6 +44,18 @@ public partial class MainViewModel
         {
             ac.ConflictPeerCallsign = peerByCallsign.GetValueOrDefault(ac.Callsign);
         }
+
+        ReplaceConflictAlerts(pairs);
+    }
+
+    /// <summary>
+    /// The one writer of <see cref="_conflictAlerts"/>: replaces the pairs and raises <see cref="ConflictAlertsApplied"/>, so
+    /// every listener (the Scope's LA/CA/MCI list) follows a broadcast and a scenario clear alike.
+    /// </summary>
+    private void ReplaceConflictAlerts(List<ConflictAlertDto> pairs)
+    {
+        _conflictAlerts = pairs;
+        ConflictAlertsApplied?.Invoke();
     }
 
     /// <summary>

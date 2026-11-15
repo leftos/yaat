@@ -135,6 +135,7 @@ public class ScopeCanvasClickTests
             Height = 600,
             Content = view,
         };
+        window.Closed += (_, _) => scope.Dispose();
         window.Show();
         for (int i = 0; i < 5; i++)
         {

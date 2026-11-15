@@ -117,7 +117,8 @@ public class ScopeToolbarTests
             Assert.Equal(bounds, canvas.Bounds);
             Assert.Equal(range, scope.RangeNm);
             Border tray = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "Tray");
-            Point belowTray = tray.TranslatePoint(new Point(tray.Bounds.Width / 2, tray.Bounds.Height + 10), window)!.Value;
+            // Halfway across the scope, left of the views dock.
+            Point belowTray = tray.TranslatePoint(new Point(canvas.Bounds.Width / 2, tray.Bounds.Height + 10), window)!.Value;
             Assert.True(HitsCanvas(window, canvas, belowTray), "a point below the open tray reaches the canvas");
 
             Click(ButtonOf(window, ScopeButtonId.Template));

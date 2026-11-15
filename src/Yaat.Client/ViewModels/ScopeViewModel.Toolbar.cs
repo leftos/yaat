@@ -5,8 +5,8 @@ using Yaat.Client.Views.Scope.Toolbar;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The Scope toolbar's state: which menu's tray is open, and the button actions. Every action runs a <c>.scope</c>
-/// command through <see cref="MainViewModel.RunScopeCommand"/>, the handler the command line uses.
+/// The Scope toolbar's state: which menu's tray is open, and the button actions. Every action runs a dot command through
+/// <see cref="RunCommand"/>, which hands it to the handler the command line uses.
 /// </summary>
 public sealed partial class ScopeViewModel
 {
@@ -14,12 +14,26 @@ public sealed partial class ScopeViewModel
     [ObservableProperty]
     private ScopeButtonId? _openMenu;
 
-    /// <summary>Runs the <c>.scope</c> command <paramref name="text"/>, as the toolbar's buttons do.</summary>
-    public void RunCommand(string text) => Main.RunScopeCommand(text);
+    /// <summary>
+    /// Runs the dot command <paramref name="text"/>, as the toolbar's buttons do: a <c>.view</c> command through
+    /// <see cref="MainViewModel.RunViewCommand"/>, any other through <see cref="MainViewModel.RunScopeCommand"/>.
+    /// </summary>
+    public void RunCommand(string text)
+    {
+        if (text.StartsWith(".view ", StringComparison.OrdinalIgnoreCase))
+        {
+            Main.RunViewCommand(text);
+        }
+        else
+        {
+            Main.RunScopeCommand(text);
+        }
+    }
 
     /// <summary>
     /// Acts on a click of <paramref name="button"/>: a menu opens its tray, or closes it when it is the open one; a
-    /// command button closes the tray and runs its command; a spinner does nothing on a click.
+    /// command button closes the tray and runs its command; a toggle runs its command with the opposite of its state and
+    /// keeps the tray open; a spinner does nothing on a click.
     /// </summary>
     public void Press(ScopeButton button)
     {
@@ -30,6 +44,9 @@ public sealed partial class ScopeViewModel
                 break;
             case ScopeButtonKind.Command:
                 OpenMenu = null;
+                RunButtonCommand(button);
+                break;
+            case ScopeButtonKind.Toggle:
                 RunButtonCommand(button);
                 break;
         }
@@ -48,8 +65,18 @@ public sealed partial class ScopeViewModel
         }
     }
 
-    /// <summary>Whether <paramref name="button"/> draws in the active state: the open menu, or the template pick in use.</summary>
-    public bool IsActive(ScopeButton button) => (OpenMenu == button.Id) || ((button.Value is { } value) && (value == TemplateId));
+    /// <summary>
+    /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while the view
+    /// it names is open, a command button while the template it picks is in use.
+    /// </summary>
+    public bool IsActive(ScopeButton button) =>
+        button.Kind switch
+        {
+            ScopeButtonKind.Menu => OpenMenu == button.Id,
+            ScopeButtonKind.Toggle => (button.Value is { } view) && IsViewOpen(view),
+            ScopeButtonKind.Command => (button.Value is { } value) && (value == TemplateId),
+            _ => false,
+        };
 
     /// <summary>The value a spinner shows after its label, or null for any other button.</summary>
     public string? SpinnerValue(ScopeButton button) =>
@@ -57,9 +84,11 @@ public sealed partial class ScopeViewModel
 
     private void RunButtonCommand(ScopeButton button)
     {
-        if (button.Value is { } templateId)
+        if (button.Command is not { } command)
         {
-            RunCommand(ScopeToolbarButtons.TemplateCommand(templateId));
+            return;
         }
+
+        RunCommand(button.Kind == ScopeButtonKind.Toggle ? $"{command} {(IsActive(button) ? "off" : "on")}" : command);
     }
 }
