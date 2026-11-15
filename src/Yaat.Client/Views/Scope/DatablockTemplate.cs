@@ -67,6 +67,7 @@ public static class DatablockTemplate
     {
         var bySlot = presentation.Fields.ToDictionary(f => f.Slot);
         var rects = new List<FieldRect>();
+        var insertedRows = new List<int>();
         int rows = 0;
         float top = -metrics.Size;
         float maxRight = 0f;
@@ -77,6 +78,10 @@ public static class DatablockTemplate
             if ((present.Count == 0) && !line.AlwaysShown)
             {
                 continue;
+            }
+            if (IsDwellOnly(template, presentation.Level, line))
+            {
+                insertedRows.Add(rows + 1);
             }
 
             LaidLine laid = LayLine(template, metrics, present, top);
@@ -94,18 +99,25 @@ public static class DatablockTemplate
             return new ScopeBlockLayout(bounds, rects, bounds);
         }
 
-        return new ScopeBlockLayout(Widen(bounds, LayColumn0(marks, metrics, bySlot, rects), template.Padding), rects, bounds);
+        SKRect column0 = LayColumn0(marks, metrics, bySlot, rects, insertedRows);
+        return new ScopeBlockLayout(Widen(bounds, column0, template.Padding), rects, bounds);
     }
+
+    // A line only the Dwell lines carry (the other-altitude line): the Full lines hold no such line.
+    private static bool IsDwellOnly(ScopeTemplate template, ScopeBlockLevel level, ScopeTemplateLine line) =>
+        (level == ScopeBlockLevel.Dwell) && (template.DwellLines is not null) && !template.Lines.Contains(line);
 
     /// <summary>
     /// Adds a rect for each column-0 mark with text, right-aligned <see cref="ColumnGap"/> left of the text block on its row,
-    /// and returns the marks' extent; <see cref="SKRect.Empty"/> when no mark shows.
+    /// and returns the marks' extent; <see cref="SKRect.Empty"/> when no mark shows. A mark stays beside the line it belongs
+    /// to: each dwell-only row laid at or above its row (<paramref name="insertedRows"/>, 1-based) moves it down one row.
     /// </summary>
     private static SKRect LayColumn0(
         IReadOnlyList<ScopeColumn0Mark> marks,
         ScopeTextMetrics metrics,
         Dictionary<ScopeFieldSlot, ScopeField> bySlot,
-        List<FieldRect> rects
+        List<FieldRect> rects,
+        IReadOnlyList<int> insertedRows
     )
     {
         SKRect extent = SKRect.Empty;
@@ -118,7 +130,8 @@ public static class DatablockTemplate
 
             float width = metrics.Measure(field.Text);
             float left = -(width + ColumnGap);
-            float top = -metrics.Size + ((mark.Row - 1) * metrics.LineHeight);
+            int row = mark.Row + insertedRows.Count(r => r <= mark.Row);
+            float top = -metrics.Size + ((row - 1) * metrics.LineHeight);
             var rect = new SKRect(left, top, left + width, top + metrics.Size);
             rects.Add(new FieldRect(mark.Slot, rect, field.Text, field.Token, field.Style));
             extent = extent.IsEmpty ? rect : SKRect.Union(extent, rect);

@@ -20,7 +20,7 @@ public class ScopeCanvasHitTestTests
         get
         {
             var data = new TheoryData<string, float>();
-            foreach (string templateId in new[] { ScopeTemplates.StarsId, ScopeTemplates.EramId, ScopeTemplates.EuroScopeId })
+            foreach (string templateId in new[] { ScopeTemplates.StarsId, ScopeTemplates.EramId, ScopeTemplates.EuroScopeId, ScopeTemplates.MixedId })
             {
                 foreach (float size in new[] { 9f, 12f, 14f, 18f })
                 {
@@ -67,7 +67,9 @@ public class ScopeCanvasHitTestTests
         return ac;
     }
 
-    private static ScopeFrame Build(string templateId, float size, params AircraftModel[] aircraft)
+    private static ScopeFrame Build(string templateId, float size, params AircraftModel[] aircraft) => Build(templateId, size, null, aircraft);
+
+    private static ScopeFrame Build(string templateId, float size, string? hoveredCallsign, params AircraftModel[] aircraft)
     {
         using var font = new SKFont { Size = size };
         using var paint = new SKPaint();
@@ -81,7 +83,8 @@ public class ScopeCanvasHitTestTests
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            hoveredCallsign
         );
         return ScopeFrame.Build(input);
     }
@@ -99,14 +102,28 @@ public class ScopeCanvasHitTestTests
         AircraftModel other = ScopeTestAircraft.CreateModel();
         other.Callsign = "DAL55";
         other.Position = new LatLon(37.05, -121.95);
+        foreach (AircraftModel ac in new[] { busy, other })
+        {
+            ac.EramPlanAltitudeFeet = 24000;
+            ac.CruiseAltitude = 35000;
+        }
 
         ScopeFrame frame;
         using (RadarBlinkPin.Phase(true))
         {
-            frame = Build(templateId, fontSize, busy, other);
+            frame = Build(templateId, fontSize, other.Callsign, busy, other);
         }
 
         Assert.Equal(2, frame.Tracks.Count);
+        // The mark draws on ERAM blocks (Mixed draws the unowned DAL55 as ERAM); the dwell line on the hovered STARS or ERAM block.
+        if (templateId is ScopeTemplates.EramId or ScopeTemplates.MixedId)
+        {
+            Assert.Contains(frame.Tracks, t => t.Block.Fields.Any(f => f.Slot == ScopeFieldSlot.AltitudeMismatch));
+        }
+        if (templateId != ScopeTemplates.EuroScopeId)
+        {
+            Assert.Contains(frame.Tracks, t => t.Block.Fields.Any(f => f.Slot == ScopeFieldSlot.OtherAltitude));
+        }
         foreach (ScopeTrack track in frame.Tracks)
         {
             Assert.NotEmpty(track.Block.Fields);

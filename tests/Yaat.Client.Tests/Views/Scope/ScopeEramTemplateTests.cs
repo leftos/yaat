@@ -20,7 +20,14 @@ public class ScopeEramTemplateTests
         ScopeTemplateLine line2 = ScopeTemplates.Eram.Lines[1];
 
         Assert.Equal(
-            [ScopeFieldSlot.EramAltitude, ScopeFieldSlot.GroundSpeed, ScopeFieldSlot.CwtType, ScopeFieldSlot.Atpa, ScopeFieldSlot.Ident],
+            [
+                ScopeFieldSlot.EramAltitude,
+                ScopeFieldSlot.AltitudeMismatch,
+                ScopeFieldSlot.GroundSpeed,
+                ScopeFieldSlot.CwtType,
+                ScopeFieldSlot.Atpa,
+                ScopeFieldSlot.Ident,
+            ],
             line2.Slots.Select(s => s.Slot)
         );
         Assert.Equal(ScopeGapMode.TextSeparator, ScopeTemplates.Eram.GapMode);

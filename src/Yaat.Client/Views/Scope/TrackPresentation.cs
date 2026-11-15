@@ -115,6 +115,9 @@ public enum ScopeFieldStyle
 
     /// <summary>The ERAM VCI mark drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/>.</summary>
     Vci = 32,
+
+    /// <summary>The altitude-mismatch <c>≠</c> drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/>.</summary>
+    AltitudeMismatch = 64,
 }
 
 /// <summary>What clicking a field does. Every step-1 field carries <see cref="None"/>.</summary>

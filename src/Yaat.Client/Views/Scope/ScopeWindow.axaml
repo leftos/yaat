@@ -28,6 +28,14 @@
           CommandParameter="{x:Static scope:ScopeTemplates.EramId}"
         />
         <MenuItem
+          Header="_Mixed"
+          ToggleType="Radio"
+          GroupName="ScopeTemplate"
+          IsChecked="{Binding IsMixedTemplate, Mode=OneWay}"
+          Command="{Binding PickTemplateCommand}"
+          CommandParameter="{x:Static scope:ScopeTemplates.MixedId}"
+        />
+        <MenuItem
           Header="Euro_Scope"
           ToggleType="Radio"
           GroupName="ScopeTemplate"

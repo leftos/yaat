@@ -81,7 +81,7 @@ public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
 /// One scope frame's tracks, each block laid out once on the UI thread. The renderer draws from it and the canvas
 /// hit-tests against it, so the two can never disagree about where a field is.
 /// </summary>
-/// <param name="TemplateId">The datablock template the frame was laid out with.</param>
+/// <param name="TemplateId">The scope's picked template id (a template id, or <see cref="ScopeTemplates.MixedId"/>, resolved per track).</param>
 /// <param name="Tracks">Tracks in draw order: the last one is drawn on top.</param>
 public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tracks)
 {
@@ -132,7 +132,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         bool isSelected = ReferenceEquals(ac, input.Selected);
         var presenterInput = new TrackPresenterInput(
             ac,
-            input.TemplateId,
+            ScopeOwnerKind.Resolve(input.TemplateId, ac),
             Peer(byCallsign, ac.AtpaLeadCallsign),
             Peer(byCallsign, ac.ConflictPeerCallsign),
             flashOn,
@@ -291,6 +291,9 @@ public sealed class ScopeRenderer : IDisposable
 
     /// <summary>The VCI's three arc radii as fractions of the largest.</summary>
     private static readonly float[] VciArcScales = [1f / 3f, 2f / 3f, 1f];
+
+    /// <summary>The ≠ bars' heights above the baseline as fractions of the cap height, the upper first.</summary>
+    private static readonly float[] NotEqualBarHeights = [0.62f, 0.30f];
     private static readonly SKColor BlockColor = SKColors.White;
     private static readonly SKColor SelectedBorderColor = SKColors.White;
     private static readonly SKColor HighlightColor = SKColors.Cyan;
@@ -478,6 +481,11 @@ public sealed class ScopeRenderer : IDisposable
         {
             DrawCellPath(canvas, field, font, color, cell => VciPath(field, font, cell));
         }
+
+        if (field.Style.HasFlag(ScopeFieldStyle.AltitudeMismatch))
+        {
+            DrawCellPath(canvas, field, font, color, cell => NotEqualPath(field, font, cell));
+        }
     }
 
     /// <summary>
@@ -548,6 +556,30 @@ public sealed class ScopeRenderer : IDisposable
         path.MoveTo(x - head, bottom - head);
         path.LineTo(x, bottom);
         path.LineTo(x + head, bottom - head);
+        return path;
+    }
+
+    /// <summary>
+    /// The ≠ path in cell <paramref name="cell"/> of <paramref name="field"/>: two bars across 0.12 to 0.88 of the cell at 0.62
+    /// and 0.30 of the cap height above the baseline, the upper first, then a diagonal from 0.72 of the cell at 0.95 of the cap
+    /// height down to 0.28 of the cell a twentieth of the cap height below the baseline.
+    /// </summary>
+    internal static SKPath NotEqualPath(FieldRect field, SKFont font, int cell)
+    {
+        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        float baseline = field.Rect.Bottom;
+        float barLeft = left + (width * 0.12f);
+        float barRight = left + (width * 0.88f);
+
+        var path = new SKPath();
+        foreach (float height in NotEqualBarHeights)
+        {
+            float y = baseline - (capHeight * height);
+            path.MoveTo(barLeft, y);
+            path.LineTo(barRight, y);
+        }
+        path.MoveTo(left + (width * 0.72f), baseline - (capHeight * 0.95f));
+        path.LineTo(left + (width * 0.28f), baseline + (capHeight * 0.05f));
         return path;
     }
 

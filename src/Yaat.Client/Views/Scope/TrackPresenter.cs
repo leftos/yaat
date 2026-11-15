@@ -92,6 +92,9 @@ public sealed record EramAltitudeInput
     /// <summary>The flight-plan altitude an ERAM viewer is sent, in feet (a block's ceiling); null or 0 when none.</summary>
     public int? PlanAltitudeFeet { get; init; }
 
+    /// <summary>The filed altitude every non-ERAM display is sent, in feet (a block's ceiling); 0 when none.</summary>
+    public int FiledAltitudeFeet { get; init; }
+
     /// <summary>The block floor in feet, or null when the altitude is not a block.</summary>
     public int? BlockFloorFeet { get; init; }
 
@@ -123,6 +126,7 @@ public sealed record EramAltitudeInput
             ControllerEnteredAltitude = ac.EramControllerEnteredAltitude,
             ReachedAssignedAltitude = ac.EramReachedAssignedAltitude,
             PlanAltitudeFeet = ac.EramPlanAltitudeFeet,
+            FiledAltitudeFeet = ac.CruiseAltitude,
             BlockFloorFeet = ac.BlockFloorAltitude,
             IsAbove = ac.IsAbove,
             IsVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase),
@@ -197,6 +201,17 @@ public static class TrackPresenter
         (EramReported? reported, EramPlan plan, EramConformance conformance) = JudgeAltitude(input);
         return FieldB(input, plan, conformance) + FieldC(input, reported, plan, conformance);
     }
+
+    /// <summary>
+    /// Whether the ERAM plan altitude and the filed (STARS) altitude differ: both set (above 0) and unequal, on a plan that is
+    /// neither VFR nor OTP (Field B shows no number there). Block and ABV altitudes compare their ceilings.
+    /// </summary>
+    public static bool EramAltitudeDiffers(EramAltitudeInput input) =>
+        (input.PlanAltitudeFeet is int eram and > 0)
+        && (input.FiledAltitudeFeet > 0)
+        && (eram != input.FiledAltitudeFeet)
+        && !input.IsVfr
+        && !input.IsVfrOnTop;
 
     private static (EramReported? Reported, EramPlan Plan, EramConformance Conformance) JudgeAltitude(EramAltitudeInput input)
     {
@@ -394,6 +409,7 @@ public static class TrackPresenter
             _ => throw new ArgumentException($"Unknown scope template id '{input.TemplateId}'.", nameof(input)),
         };
         fields.AddRange(AlertFields(input));
+        fields.AddRange(OtherAltitudeFields(input));
         if (input.TemplateId == ScopeTemplates.EramId)
         {
             // The ERAM status text carries the beacon mismatch.
@@ -450,12 +466,12 @@ public static class TrackPresenter
             input.Level == ScopeBlockLevel.Limited
                 ? Steady(ScopeFieldSlot.Altitude, LdbAltitude(altitude), ScopeColorToken.Default)
                 : Steady(ScopeFieldSlot.EramAltitude, EramFieldsBAndC(altitude), ScopeColorToken.Default);
-        List<ScopeField> fields =
-        [
-            Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default),
-            line2,
-            Steady(ScopeFieldSlot.StatusLine3, spc, ScopeColorToken.Default),
-        ];
+        List<ScopeField> fields = [Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default), line2];
+        if (input.Level == ScopeBlockLevel.Partial)
+        {
+            fields.Add(MismatchField(altitude));
+        }
+        fields.Add(Steady(ScopeFieldSlot.StatusLine3, spc, ScopeColorToken.Default));
         bool blankPhase = (spc.Length > 0) && !input.FlashOn;
         return blankPhase ? fields.ConvertAll(f => f with { Text = "" }) : fields;
     }
@@ -472,9 +488,43 @@ public static class TrackPresenter
 
     private static string PaddedAltitude(int altitude) => altitude.ToString(altitude < 0 ? "D2" : "D3", CultureInfo.InvariantCulture);
 
-    private static ScopeField EramAltitudeField(AircraftModel ac)
+    // The ≠ cell after the ERAM altitude while the two sides differ; empty (no rect, no width) otherwise.
+    private static ScopeField MismatchField(EramAltitudeInput altitude)
     {
-        EramAltitude eram = EramAltitudeText(EramAltitudeInput.From(ac));
+        bool differs = EramAltitudeDiffers(altitude);
+        return Styled(
+            ScopeFieldSlot.AltitudeMismatch,
+            differs ? EramArrowCell : "",
+            differs ? ScopeFieldStyle.AltitudeMismatch : ScopeFieldStyle.None
+        );
+    }
+
+    /// <summary>
+    /// The Dwell block's listing of the other side's altitude under line 2 while the two differ, in unpadded hundreds:
+    /// <c>STARS {filed}</c> on the ERAM template, <c>ERAM {plan}</c> on the STARS template; nothing at any other level or template.
+    /// </summary>
+    private static IEnumerable<ScopeField> OtherAltitudeFields(TrackPresenterInput input)
+    {
+        if ((input.Level != ScopeBlockLevel.Dwell) || (input.TemplateId is not (ScopeTemplates.EramId or ScopeTemplates.StarsId)))
+        {
+            return [];
+        }
+
+        var altitude = EramAltitudeInput.From(input.Aircraft);
+        if (!EramAltitudeDiffers(altitude) || (altitude.PlanAltitudeFeet is not int plan))
+        {
+            return [];
+        }
+
+        string text = input.TemplateId == ScopeTemplates.EramId ? "STARS " + Hundreds(altitude.FiledAltitudeFeet) : "ERAM " + Hundreds(plan);
+        return [Steady(ScopeFieldSlot.OtherAltitude, text, ScopeColorToken.Default)];
+    }
+
+    private static string Hundreds(int feet) => (feet / 100).ToString(CultureInfo.InvariantCulture);
+
+    private static ScopeField EramAltitudeField(EramAltitudeInput altitude)
+    {
+        EramAltitude eram = EramAltitudeText(altitude);
         return new ScopeField(ScopeFieldSlot.EramAltitude, eram.Text, eram.Text, ScopeColorToken.Default, ScopeFieldAction.None, eram.Style);
     }
 
@@ -565,7 +615,9 @@ public static class TrackPresenter
     {
         List<ScopeField> fields = StarsFields(input);
         int altitude = fields.FindIndex(f => f.Slot == ScopeFieldSlot.Altitude);
-        fields[altitude] = EramAltitudeField(input.Aircraft);
+        var eramAltitude = EramAltitudeInput.From(input.Aircraft);
+        fields[altitude] = EramAltitudeField(eramAltitude);
+        fields.Insert(altitude + 1, MismatchField(eramAltitude));
         fields.RemoveAll(f => f.Slot == ScopeFieldSlot.StatusLine3);
         fields.AddRange(EramLineFields(input));
         fields.AddRange(EramColumn0Fields(input));

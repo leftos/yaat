@@ -59,6 +59,51 @@ public class ScopeViewModelTemplateTests
     }
 
     [AvaloniaFact]
+    public void MixedPick_SwitchesTheTemplate_AndNeverTouchesThePreference()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        bool before = main.Preferences.EuroScopeMode;
+        using var scope = new ScopeViewModel(main);
+
+        scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
+
+        Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
+        Assert.True(scope.IsMixedTemplate);
+        Assert.False(scope.IsStarsTemplate);
+        Assert.False(scope.IsEramTemplate);
+        Assert.Equal(before, main.Preferences.EuroScopeMode);
+        scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
+        Assert.False(scope.IsMixedTemplate);
+    }
+
+    [AvaloniaFact]
+    public void ScopeWindow_TemplateMenu_ClickingMixedSwitchesTheScope()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        var scope = new ScopeViewModel(main);
+        var window = new ScopeWindow(main.Preferences, scope);
+        try
+        {
+            window.Show();
+            MenuItem template = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Template");
+            MenuItem mixed = template.Items.OfType<MenuItem>().Single(m => m.Header is "_Mixed");
+            Assert.Equal(MenuItemToggleType.Radio, mixed.ToggleType);
+
+            mixed.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
+            Assert.True(scope.IsMixedTemplate);
+            Assert.True(mixed.IsChecked);
+            Assert.False(template.Items.OfType<MenuItem>().Single(m => m.Header is "_STARS").IsChecked);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void ScopeWindow_TemplateMenu_ClickingEramSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
@@ -68,7 +113,7 @@ public class ScopeViewModelTemplateTests
         {
             window.Show();
             MenuItem template = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Template");
-            Assert.Equal(["_STARS", "_ERAM", "Euro_Scope"], template.Items.OfType<MenuItem>().Select(m => (string)m.Header!));
+            Assert.Equal(["_STARS", "_ERAM", "_Mixed", "Euro_Scope"], template.Items.OfType<MenuItem>().Select(m => (string)m.Header!));
             MenuItem eram = template.Items.OfType<MenuItem>().Single(m => m.Header is "_ERAM");
             Assert.Equal(MenuItemToggleType.Radio, eram.ToggleType);
 

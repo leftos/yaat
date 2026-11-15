@@ -800,6 +800,9 @@ A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock templat
 A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows, extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
 _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 
+**Altitude-mismatch mark**:
+The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while the ERAM plan altitude and the filed altitude are both set and differ (never on a VFR or OTP plan); YAAT-only, CRC has no such marker. The dwelled block names the other side's altitude on an extra line (`TrackPresenter.EramAltitudeDiffers`).
+
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
 
@@ -812,11 +815,14 @@ One laid-out datablock field in YAAT Scope: its slot, screen rect, text, color t
 **HSF (ERAM)**:
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
+**Mixed (YAAT Scope template)**:
+The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
+
 **Status slot (YAAT Scope)**:
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
 **Template (YAAT Scope)**:
-A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope") and chosen by a profile.
+A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile.
 
 **TrackPresenter**:
 The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.

@@ -55,7 +55,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// preference when the scope opens, then changed only from the scope's Template menu; never written to the preferences.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsStarsTemplate), nameof(IsEramTemplate), nameof(IsEuroScopeTemplate))]
+    [NotifyPropertyChangedFor(nameof(IsStarsTemplate), nameof(IsEramTemplate), nameof(IsEuroScopeTemplate), nameof(IsMixedTemplate))]
     private string _templateId;
 
     /// <summary>
@@ -73,6 +73,9 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     /// <summary>The EuroScope template is in use (the Template menu's radio check).</summary>
     public bool IsEuroScopeTemplate => TemplateId == ScopeTemplates.EuroScopeId;
+
+    /// <summary>The Mixed pick is in use: each track in its owner's display kind (the Template menu's radio check).</summary>
+    public bool IsMixedTemplate => TemplateId == ScopeTemplates.MixedId;
 
     /// <summary>
     /// Seeds the scope from the radar now when the radar has a centre and maps; otherwise waits for the radar's first
@@ -132,10 +135,13 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         StopWaitingForSeed();
     }
 
-    /// <summary>Picks the datablock template with <paramref name="templateId"/>, as the Template menu's items do.</summary>
-    /// <exception cref="ArgumentException">No template has that id.</exception>
+    /// <summary>Picks the datablock template (or Mixed) with <paramref name="templateId"/>, as the Template menu's items do.</summary>
+    /// <exception cref="ArgumentException">The id is no selectable pick (<see cref="ScopeTemplates.IsSelectable"/>).</exception>
     [RelayCommand]
-    private void PickTemplate(string templateId) => TemplateId = ScopeTemplates.Get(templateId).Id;
+    private void PickTemplate(string templateId) =>
+        TemplateId = ScopeTemplates.IsSelectable(templateId)
+            ? templateId
+            : throw new ArgumentException($"Unknown scope template id '{templateId}'.", nameof(templateId));
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {

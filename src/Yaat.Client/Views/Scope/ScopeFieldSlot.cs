@@ -27,6 +27,18 @@ public enum ScopeFieldSlot
     /// <summary>ERAM FDB line 2's altitude: assigned (Field B), its character 4, and the reported altitude (Field C).</summary>
     EramAltitude,
 
+    /// <summary>
+    /// The <c>≠</c> cell right after the ERAM altitude while the ERAM plan altitude and the filed (STARS) altitude differ,
+    /// drawn as a path in its <see cref="TrackPresenter.EramArrowCell"/>.
+    /// </summary>
+    AltitudeMismatch,
+
+    /// <summary>
+    /// The dwell-only line under line 2 listing the other side's altitude while the two differ: <c>STARS 350</c> on the ERAM
+    /// block, <c>ERAM 240</c> on the STARS block.
+    /// </summary>
+    OtherAltitude,
+
     /// <summary>Ground speed in tens of knots.</summary>
     GroundSpeed,
 
