@@ -1524,7 +1524,7 @@ public sealed partial class SimulationEngine
         }
 
         AirportGroundLayout? layout = ac.Ground.Layout;
-        string? airportId = layout?.AirportId ?? ac.Phases?.AssignedRunway?.AirportId ?? ac.AirportId;
+        string airportId = layout?.AirportId ?? ac.Phases?.AssignedRunway?.AirportId ?? ac.AirportId;
         if (!string.IsNullOrEmpty(airportId) && (NavigationDatabase.InstanceOrNull?.AirportSidecars.GetExitCapacity(airportId) is not { Count: > 0 }))
         {
             return;

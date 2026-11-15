@@ -276,7 +276,7 @@ public sealed partial class SimulationEngine
             return ((carried is not null) && IsLayoutOfField(carried, field)) ? carried : ResolveAirportLayout(field);
         }
 
-        string? destination = aircraft.FlightPlan.Destination;
+        string destination = aircraft.FlightPlan.Destination;
         return carried ?? (string.IsNullOrEmpty(destination) ? null : ResolveAirportLayout(destination));
     }
 

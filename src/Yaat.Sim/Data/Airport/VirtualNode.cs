@@ -391,7 +391,7 @@ public static class VirtualNode
 
         foreach (IGroundEdge edge in currentNode.Edges)
         {
-            GroundNode? other = edge.OtherNode(currentNode);
+            GroundNode other = edge.OtherNode(currentNode);
             if (other is null)
             {
                 continue;
@@ -413,7 +413,7 @@ public static class VirtualNode
 
         foreach (IGroundEdge edge in currentNode.Edges)
         {
-            GroundNode? otherNode = edge.OtherNode(currentNode);
+            GroundNode otherNode = edge.OtherNode(currentNode);
             if (otherNode is null)
             {
                 continue;

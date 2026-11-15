@@ -10464,7 +10464,7 @@ public static partial class GroundCommandHandler
 
     private static RunwayInfo? ResolveClosestRunwayEnd(RunwayIdentifier rwyId, double nodeLat, double nodeLon, AircraftState aircraft)
     {
-        string? airportId = aircraft.FlightPlan.Departure;
+        string airportId = aircraft.FlightPlan.Departure;
         if (airportId is null)
         {
             return null;

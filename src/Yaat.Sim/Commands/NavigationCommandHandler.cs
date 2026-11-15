@@ -2109,7 +2109,7 @@ internal static class NavigationCommandHandler
     private static CifpSidProcedure? ResolveActiveSid(AircraftState aircraft)
     {
         string? sidId = aircraft.Procedure.ActiveSidId;
-        string? departure = aircraft.FlightPlan.Departure;
+        string departure = aircraft.FlightPlan.Departure;
         return ((sidId is null) || string.IsNullOrEmpty(departure)) ? null : NavigationDatabase.Instance.GetSid(departure, sidId);
     }
 

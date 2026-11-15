@@ -52,7 +52,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
     public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
     {
-        SimScenarioState? scenario = _engine.Scenario ?? throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
+        SimScenarioState scenario = _engine.Scenario ?? throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
         int currentSeconds = (int)scenario.ElapsedSeconds;
         if (targetSeconds <= currentSeconds)
         {

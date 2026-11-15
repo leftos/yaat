@@ -943,7 +943,7 @@ public static class PilotProactive
     /// </summary>
     private static int? ResolveLevelOffCeiling(AircraftState aircraft, AirspaceVolume volume, DateTime magneticModelDateUtc)
     {
-        NavigationDatabase? navDb = Data.NavigationDatabase.Instance;
+        NavigationDatabase navDb = Data.NavigationDatabase.Instance;
         double surfaceElevation = navDb?.GetAirportElevation(volume.Ident) ?? navDb?.GetAirportElevation(volume.IcaoId) ?? 0;
         double magneticCourse = aircraft.TrueTrack.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position, magneticModelDateUtc)).Degrees;
         return AirspaceAvoidance.LevelOffCeilingFt(volume.LowerFtMsl, magneticCourse, surfaceElevation);

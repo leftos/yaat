@@ -35,7 +35,7 @@ internal static class FlightPlanCommandHandler
         // On the clearance-limit direct, or holding at the limit, when the airport changes: the pilot turns direct to the new airport.
         bool flyingClearanceLimitDirect = (aircraft.Targets.NavigationRoute.Count > 0) && !aircraft.Targets.HasRouteToFly;
         bool inClearanceLimitHold = aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true };
-        string? previous = aircraft.FlightPlan.Destination;
+        string previous = aircraft.FlightPlan.Destination;
         bool newAirport = !string.IsNullOrEmpty(previous) && !previous.Equals(canonical, StringComparison.OrdinalIgnoreCase);
         if (newAirport)
         {

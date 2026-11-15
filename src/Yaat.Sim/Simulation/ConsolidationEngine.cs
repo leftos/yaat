@@ -219,7 +219,7 @@ public static class ConsolidationEngine
         bool autoConsolidate
     )
     {
-        Tcp? current = tcp;
+        Tcp current = tcp;
         bool isStart = true;
         bool reachedViaOverride = false;
         var visited = new HashSet<string>();
