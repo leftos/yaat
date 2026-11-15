@@ -1,6 +1,6 @@
 # YAAT Scope — a STARS × ERAM instructor radar
 
-Design canvas (visual mocks, datablock anatomy, feature matrix, technical design): [`canvases/yaat-scope-design/`](../canvases/yaat-scope-design/index.html), published at https://claude.ai/artifact/Kr562HhSk9FKQbAnZVeWDb
+Design canvas (visual mocks, datablock anatomy, feature matrix, technical design): [`canvases/yaat-scope-design/`](../canvases/yaat-scope-design/index.html), published at https://claude.ai/artifact/Kr562HhSk9FKQbAnZVeWDb. Its six boards are iframes a script fills after load, so a full-page capture shows boards 2 to 6 blank: capture each board's iframe on its own.
 
 Grounded in the CRC manuals `docs/crc/stars.md` and `docs/crc/eram.md`. The terms used here (YAAT Scope, profile, zoom band, dwell, pilot lens, scope entry) are defined in [`CONTEXT.md`](../../CONTEXT.md) § Radar display.
 
@@ -21,7 +21,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
   - Select the track, then type (YAAT today).
   - Middle-click executes (ERAM).
   - Click a datablock field to open a menu. Field menus split scope data from pilot commands.
-- **Toolbar** combines ERAM menus, STARS spinners, tear-offs (any button can be pulled onto the scope) and named pref sets. The views dock holds the status area (SSA) and the lists.
+- **Toolbar** combines ERAM menus, STARS spinners, tear-offs (any button or view can be pulled onto the scope) and named pref sets. The views dock holds the views: the status area (SSA) and the lists.
 - **Tools**: measure (range, bearing, time to fix), minimum separation, speed-to-time, rings (J-ring, cone or halo), CRR groups, and ERAM-style route display.
 
 ## Decisions
@@ -40,6 +40,12 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Rollout.** YAAT Scope is built as a new view beside today's Radar (reached from the View menu). The old Radar view is deleted once the new one reaches parity; no long-lived dual renderer.
 - **EuroScope tag mode** survives as a template on the new engine. Its flyouts become the field menus.
 - **Layout cost.** Each block's layout is cached and re-laid out only when a field changes.
+- **Step 3 views.** The dock ships with the SSA, the Tab list and the Conflict alert list (LA/CA/MCI); the other CRC lists are not part of step 3.
+- **Step 3 toolbar, dock and pref sets** (orchestrator decisions from the canvas's boards 01, 04 and 06 and from CRC, open to the owner):
+  - The toolbar is one full-width row of buttons in one dark navy theme with a cyan active state, for every template. An opened menu is a tray below the bar, and the main row stays visible. A button shows once its behaviour exists; later steps' buttons are absent, never disabled. There is no show/hide hotkey.
+  - The dock is a fixed-width right-hand column that hides when no view is open in it. The SSA is a view, placed by default on the scope at its top-left (torn off), as the canvas draws it.
+  - Tear-offs follow CRC's ERAM tear-offs (copy, move, anchored to the nearest corner, one per button, DELETE TEAROFF) and apply to views too.
+  - A pref set saves range, centre, maps, brightness, the DB settings, the views and the tear-offs. Pref sets are kept per facility, as CRC keeps STARS pref sets. The Scope's current state also saves itself, and a pref set is a named snapshot on top. The instructor's dwell locks are not saved.
 
 ## Architecture
 
@@ -47,13 +53,13 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **`DatablockTemplate` engine** (new): lays the fields out into lines and returns one `FieldRect` list that both drawing and hit-testing use. It carries the STARS, ERAM, Mixed and EuroScope templates, which ends the draw-vs-hit-test duplication described in `docs/radar-rendering.md`.
 - **Render thread**: the render snapshot copies the rects; the render thread reads no StyledProperty. Layers draw back to front, each with its own brightness group: maps A/B, weather, rings, routes/tools, history, vectors, targets, blocks, alerts, pilot lens.
 - **Actions**: a field action produces command text sent through `SendCommandAsync`, so a menu can do nothing the command line can't. Toolbar and view actions are dot commands (`.scope …`, `.view …`) and echo in the feedback line.
-- **Profiles**: STARS, ERAM and Mixed ship as JSON files under `YaatPaths`; a pref set is the same shape holding one user's values.
+- **Profiles**: STARS, ERAM and Mixed ship as JSON files under `YaatPaths`; a pref set is the same shape holding one user's values. The shape carries the toolbar's button ids (`toolbar`) and the open views (`views`).
 
 ## Build order
 
 - [ ] 1. The new YAAT Scope view on the template engine, with the STARS, ERAM, Mixed and EuroScope templates, opened from the View menu beside today's Radar. Progress: the engine and the window (View > Windows > YAAT Scope: video maps, targets, leaders, STARS blocks, ERAM blocks and EuroScope tags, select, menu, pan, zoom) and the Mixed template have landed
 - [ ] 2. ERAM altitude line, line-3 status slot, line-4 HSF, VCI, dwell. Progress: step 2a has landed — the ERAM datablock inputs on the wire, the ERAM template with its Template menu pick, and the altitude line; step 2b-ii has landed — the line-3 status slot, the HSF indicator and line 4; step 2b-iii has landed — column 0, the VCI mark and `R`; step 2c-i has landed — the block levels (Limited, Partial, Full) as a presenter input and the hover dwell with CRC's dwell emphasis; step 2c-iii has landed — the Mixed template, the altitude-mismatch mark and both altitudes on dwell; step 2c-ii has landed — the sector dwell lock with its Field-A toggle and the VCI hover preview, so step 2's 2c is complete
-- [ ] 3. Toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists
+- [ ] 3. Toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists. Split into 3a (toolbar shell, RANGE, the template pick, `.scope` commands), then 3b (BRITE with DWELL, MAPS, DB) and 3e (the views dock), then 3c (tear-offs), then 3d (pref sets).
 - [ ] 4. Profiles and zoom bands (profile picked from the student position); one Vector control; one Rings tool; TDM toggle
 - [ ] 5. Field menus split scope data from pilot commands (click sends, Shift+click stages); middle-click executes; measure, CRR, speed-to-time; CRC-dialect entries in the command line
 - [ ] 6. Pilot lens (off by default): intent path, queued-commands badge, check-in truth, RPO queue view
