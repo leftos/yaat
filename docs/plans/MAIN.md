@@ -1424,9 +1424,8 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (25/73 done)
+### 3 Hygiene and tests (26/74 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
-- [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits · release vNext
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
 - [ ] YAAT-118 Fail the build on unused usings (IDE0005) in both repos and CI · release vNext
 - [/] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
@@ -1473,6 +1472,7 @@
 - [ ] YAAT-2232 Replace stale line anchors in radar-rendering.md and speech-context-decoder.md with symbols
 - [ ] YAAT-2265 Remove the Legacy fillet Phase-D leftovers and line citations from the ground docs
 - [ ] YAAT-2328 Make the architecture-updater agent check yaat-server's File maps too
+- [ ] YAAT-2329 Settle dead null checks on non-null values (PilotProactive navDb fallback, empty Departure in GroundCommandHandler)
 
 ### No milestone
 - [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
