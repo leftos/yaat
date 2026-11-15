@@ -66,6 +66,33 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
+    /// Steps the spinner with <paramref name="id"/> by <paramref name="steps"/> wheel steps, positive for wheel up: RANGE
+    /// zooms in (<see cref="StepRange"/> by <c>-steps</c>); a BRITE spinner moves its group by <c>steps</c> times its step,
+    /// through <c>.scope brite</c>: a step past the group's limit stops at the limit, so a value typed off the step grid
+    /// can be wheeled back, and a step at the limit runs no command.
+    /// </summary>
+    public void StepSpinner(ScopeButtonId id, int steps)
+    {
+        if (id == ScopeButtonId.Range)
+        {
+            StepRange(-steps);
+            return;
+        }
+
+        if (ScopeToolbarButtons.BriteGroupOf(id) is not { } group)
+        {
+            return;
+        }
+
+        int current = group.Get(Brightness);
+        int next = Math.Clamp(current + (steps * group.Step), group.Min, group.Max);
+        if (next != current)
+        {
+            RunCommand(ScopeToolbarButtons.BriteCommand(group.Name, next));
+        }
+    }
+
+    /// <summary>
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while the view
     /// it names is open, a command button while the template it picks is in use.
     /// </summary>
@@ -78,9 +105,16 @@ public sealed partial class ScopeViewModel
             _ => false,
         };
 
-    /// <summary>The value a spinner shows after its label, or null for any other button.</summary>
-    public string? SpinnerValue(ScopeButton button) =>
-        button.Id == ScopeButtonId.Range ? Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture) : null;
+    /// <summary>The value a spinner shows after its label (the range, or a BRITE group's value), or null for any other button.</summary>
+    public string? SpinnerValue(ScopeButton button)
+    {
+        if (button.Id == ScopeButtonId.Range)
+        {
+            return Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture);
+        }
+
+        return ScopeToolbarButtons.BriteGroupOf(button.Id) is { } group ? group.Get(Brightness).ToString(CultureInfo.InvariantCulture) : null;
+    }
 
     private void RunButtonCommand(ScopeButton button)
     {

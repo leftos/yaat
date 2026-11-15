@@ -10,9 +10,11 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    private const string ScopeUsage = "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope>";
+    private const string ScopeUsage = "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>";
 
     private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
+
+    private const string ScopeBriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
 
     /// <summary>The open YAAT Scope's view model, or null when no Scope window is open.</summary>
     public ScopeViewModel? OpenScope { get; set; }
@@ -21,8 +23,8 @@ public partial class MainViewModel
     public void RunScopeCommand(string text) => TryHandleScopeCommand(text);
 
     /// <summary>
-    /// Handles <c>.scope range &lt;1-256&gt;</c> and <c>.scope template &lt;id&gt;</c> against <see cref="OpenScope"/>,
-    /// writing the echo or the error to the status line.
+    /// Handles <c>.scope range &lt;1-256&gt;</c>, <c>.scope template &lt;id&gt;</c> and
+    /// <c>.scope brite &lt;group&gt; &lt;value&gt;</c> against <see cref="OpenScope"/>, writing the echo or the error to the status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeCommand(string text)
@@ -45,8 +47,25 @@ public partial class MainViewModel
         {
             "RANGE" => OpenScope is { } rangeScope ? SetScopeRange(rangeScope, parts) : "No YAAT Scope is open",
             "TEMPLATE" => OpenScope is { } templateScope ? PickScopeTemplate(templateScope, parts) : "No YAAT Scope is open",
+            "BRITE" => OpenScope is { } briteScope ? SetScopeBrightness(briteScope, parts) : "No YAAT Scope is open",
             _ => ScopeUsage,
         };
+    }
+
+    private static string SetScopeBrightness(ScopeViewModel scope, string[] parts)
+    {
+        if (
+            (parts.Length != 4)
+            || (ScopeBrightness.FindGroup(parts[2]) is not { } group)
+            || !int.TryParse(parts[3], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int value)
+            || !group.Contains(value)
+        )
+        {
+            return ScopeBriteUsage;
+        }
+
+        scope.SetBrightness(group.Name, value);
+        return ScopeToolbarButtons.BriteCommand(group.Name, value);
     }
 
     private static string SetScopeRange(ScopeViewModel scope, string[] parts)

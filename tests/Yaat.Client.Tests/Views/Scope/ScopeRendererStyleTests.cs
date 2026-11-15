@@ -78,7 +78,7 @@ public class ScopeRendererStyleTests
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
         using var renderer = new ScopeRenderer();
-        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize, NoTints);
+        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), ScopeBrightness.Default, FontSize, NoTints);
         renderer.Render(canvas, viewport, snapshot);
         canvas.Flush();
         return bitmap;
@@ -404,7 +404,7 @@ public class ScopeRendererStyleTests
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
         using var renderer = new ScopeRenderer();
-        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize, palette);
+        var snapshot = new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), ScopeBrightness.Default, FontSize, palette);
         renderer.Render(canvas, Viewport(), snapshot);
         canvas.Flush();
         return bitmap;

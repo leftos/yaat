@@ -16,7 +16,9 @@ namespace Yaat.Client.Views.Scope.Toolbar;
 public partial class ScopeToolbar : UserControl
 {
     private readonly Dictionary<ScopeButtonId, (Button Button, ScopeButton Model)> _buttons = [];
-    private readonly ScrollStepAccumulator _spinnerScroll = new();
+
+    // One accumulator per spinner, so a part-step on one never carries to the next.
+    private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
     private ScopeViewModel? _viewModel;
 
     public ScopeToolbar()
@@ -72,6 +74,7 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.TemplateId)
                 or nameof(ScopeViewModel.RangeNm)
                 or nameof(ScopeViewModel.OpenViews)
+                or nameof(ScopeViewModel.Brightness)
         )
         {
             RefreshButtons();
@@ -90,7 +93,7 @@ public partial class ScopeToolbar : UserControl
         }
 
         TrayRow.Children.Clear();
-        ScopeButton? menu = ScopeToolbarButtons.All.FirstOrDefault(b => b.Id == _viewModel?.OpenMenu);
+        ScopeButton? menu = _viewModel?.OpenMenu is { } open ? ScopeToolbarButtons.Find(open) : null;
         if (menu is not null)
         {
             foreach (ScopeButton child in menu.Children)
@@ -131,19 +134,28 @@ public partial class ScopeToolbar : UserControl
         button.Classes.Set("active", _viewModel?.IsActive(model) ?? false);
     }
 
-    /// <summary>The wheel over a spinner steps it by whole units: wheel up is the +1 direction, applied as a range decrease.</summary>
+    /// <summary>
+    /// The wheel over a spinner steps the spinner it is over (the sender's <see cref="ScopeButtonId"/> tag) by whole steps,
+    /// wheel up the positive direction (<see cref="ScopeViewModel.StepSpinner"/>).
+    /// </summary>
     private void OnSpinnerWheel(object? sender, PointerWheelEventArgs e)
     {
-        if (_viewModel is null)
+        if ((_viewModel is null) || (sender is not Control { Tag: ScopeButtonId id }))
         {
             return;
         }
 
         int direction = Math.Sign(e.Delta.Y);
-        int steps = _spinnerScroll.Accumulate(direction, _viewModel.Preferences.ScrollSensitivity);
+        if (!_spinnerScroll.TryGetValue(id, out ScrollStepAccumulator? scroll))
+        {
+            scroll = new ScrollStepAccumulator();
+            _spinnerScroll[id] = scroll;
+        }
+
+        int steps = scroll.Accumulate(direction, _viewModel.Preferences.ScrollSensitivity);
         if (steps != 0)
         {
-            _viewModel.StepRange(-steps);
+            _viewModel.StepSpinner(id, steps);
         }
 
         e.Handled = true;

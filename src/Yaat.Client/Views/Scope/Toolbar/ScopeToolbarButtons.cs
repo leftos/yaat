@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Yaat.Client.Views.Scope.Toolbar;
 
 /// <summary>Identity of one Scope toolbar button, top-level or in a menu.</summary>
@@ -29,6 +31,30 @@ public enum ScopeButtonId
 
     /// <summary>The Views menu's LA/CA/MCI toggle.</summary>
     ViewCa,
+
+    /// <summary>The BRITE menu.</summary>
+    Brite,
+
+    /// <summary>The BRITE menu's MAP A spinner.</summary>
+    BriteMapA,
+
+    /// <summary>The BRITE menu's MAP B spinner.</summary>
+    BriteMapB,
+
+    /// <summary>The BRITE menu's TARGETS spinner.</summary>
+    BriteTargets,
+
+    /// <summary>The BRITE menu's FDB spinner.</summary>
+    BriteFdb,
+
+    /// <summary>The BRITE menu's LINE 4 spinner.</summary>
+    BriteLine4,
+
+    /// <summary>The BRITE menu's ALERTS spinner.</summary>
+    BriteAlerts,
+
+    /// <summary>The BRITE menu's DWELL spinner.</summary>
+    BriteDwell,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -53,7 +79,8 @@ public enum ScopeButtonKind
 /// <param name="Kind">How the button acts.</param>
 /// <param name="Children">A menu's buttons, in tray order; empty for any other kind.</param>
 /// <param name="Value">
-/// The value the button stands for: the template id a template pick picks, the view name a view toggle opens; else null.
+/// The value the button stands for: the template id a template pick picks, the view name a view toggle opens, the group name
+/// a BRITE spinner steps; else null.
 /// </param>
 /// <param name="Command">
 /// A command button's full dot command; a toggle's command stem, to which a press appends <c> on</c> or <c> off</c>; null for
@@ -96,6 +123,22 @@ public static class ScopeToolbarButtons
             null,
             null
         ),
+        new(
+            ScopeButtonId.Brite,
+            "BRITE",
+            ScopeButtonKind.Menu,
+            [
+                BriteSpinner(ScopeButtonId.BriteMapA, "MAP A", "mapa"),
+                BriteSpinner(ScopeButtonId.BriteMapB, "MAP B", "mapb"),
+                BriteSpinner(ScopeButtonId.BriteTargets, "TARGETS", "targets"),
+                BriteSpinner(ScopeButtonId.BriteFdb, "FDB", "fdb"),
+                BriteSpinner(ScopeButtonId.BriteLine4, "LINE 4", "line4"),
+                BriteSpinner(ScopeButtonId.BriteAlerts, "ALERTS", "alerts"),
+                BriteSpinner(ScopeButtonId.BriteDwell, "DWELL", "dwell"),
+            ],
+            null,
+            null
+        ),
     ];
 
     /// <summary>The SSA's view name, as <c>.view</c> takes it.</summary>
@@ -112,6 +155,20 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that sets the scope's range to <paramref name="rangeNm"/> NM.</summary>
     public static string RangeCommand(int rangeNm) => $".scope range {rangeNm}";
+
+    /// <summary>The command that sets the BRITE group named <paramref name="group"/> to <paramref name="value"/>.</summary>
+    public static string BriteCommand(string group, int value) =>
+        $".scope brite {group.ToLowerInvariant()} {value.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>The button with <paramref name="id"/>, top-level or in a menu, or null.</summary>
+    public static ScopeButton? Find(ScopeButtonId id) =>
+        All.FirstOrDefault(b => b.Id == id) ?? All.SelectMany(b => b.Children).FirstOrDefault(c => c.Id == id);
+
+    /// <summary>The BRITE group the spinner with <paramref name="id"/> steps, or null when it is no BRITE spinner.</summary>
+    public static ScopeBrightnessGroup? BriteGroupOf(ScopeButtonId id) =>
+        (Find(id) is { Kind: ScopeButtonKind.Spinner, Value: { } group }) ? ScopeBrightness.FindGroup(group) : null;
+
+    private static ScopeButton BriteSpinner(ScopeButtonId id, string label, string group) => new(id, label, ScopeButtonKind.Spinner, [], group, null);
 
     private static ScopeButton TemplatePick(ScopeButtonId id, string label, string templateId) =>
         new(id, label, ScopeButtonKind.Command, [], templateId, TemplateCommand(templateId));

@@ -58,6 +58,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: ScopeViewer.None
     );
 
+    /// <summary>The scope's BRITE groups; a change redraws the frame without rebuilding its layout.</summary>
+    public static readonly StyledProperty<ScopeBrightness> BrightnessProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeBrightness>(
+        nameof(Brightness),
+        defaultValue: ScopeBrightness.Default
+    );
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
 
@@ -105,6 +111,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         set => SetValue(ViewerProperty, value);
     }
 
+    public ScopeBrightness Brightness
+    {
+        get => GetValue(BrightnessProperty);
+        set => SetValue(BrightnessProperty, value);
+    }
+
     public double CenterLat
     {
         get => GetValue(CenterLatProperty);
@@ -137,12 +149,6 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>Brightness category ("A" or "B") by video map id.</summary>
     public IReadOnlyDictionary<string, string> BrightnessLookup { get; set; } = new Dictionary<string, string>();
-
-    /// <summary>Brightness of A maps, 0 to 1.</summary>
-    public float MapBrightnessA { get; set; } = 1.0f;
-
-    /// <summary>Brightness of B maps, 0 to 1.</summary>
-    public float MapBrightnessB { get; set; } = 0.6f;
 
     /// <summary>Fired when an aircraft's symbol or block is left-clicked.</summary>
     public event Action<string>? AircraftLeftClicked;
@@ -191,8 +197,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             VideoMaps,
             // The view model's own copy, never changed after it is set, so the render thread reads it as is.
             BrightnessLookup,
-            MapBrightnessA,
-            MapBrightnessB,
+            Brightness,
             DatablockFontSize(),
             palette
         );
@@ -222,6 +227,11 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         )
         {
             _lastFrame = null;
+            MarkDirty();
+        }
+        else if (change.Property == BrightnessProperty)
+        {
+            // Colours only: the kept frame's layout still holds, so hit-testing keeps it.
             MarkDirty();
         }
         else if ((change.Property == CenterLatProperty) || (change.Property == CenterLonProperty))

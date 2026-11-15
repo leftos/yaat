@@ -294,8 +294,7 @@ public class ScopeAltitudeMismatchTests
             frame,
             [],
             new Dictionary<string, string>(),
-            1f,
-            1f,
+            ScopeBrightness.Default,
             FontSize,
             new ScopePalette(null, null, SKColors.White)
         );

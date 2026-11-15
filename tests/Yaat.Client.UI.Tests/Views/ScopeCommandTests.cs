@@ -12,7 +12,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeCommandTests
 {
-    private const string Usage = "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope>";
+    private const string Usage = "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>";
+
+    private const string BriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
 
     private static async Task<MainViewModel> MainAsync()
     {
@@ -133,10 +135,64 @@ public class ScopeCommandTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Brite_SetsTheGroup_AndEchoesInLowercase()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope brite fdb 85");
+            Assert.Equal(85, scope.Brightness.Fdb);
+            Assert.Equal(".scope brite fdb 85", main.StatusText);
+
+            main.RunScopeCommand(".SCOPE BRITE DWELL 0");
+            Assert.Equal(0, scope.Brightness.Dwell);
+            Assert.Equal(".scope brite dwell 0", main.StatusText);
+
+            main.RunScopeCommand(".scope brite line4 -20");
+            Assert.Equal(-20, scope.Brightness.Line4);
+            Assert.Equal(".scope brite line4 -20", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope brite fdb 101")]
+    [InlineData(".scope brite line4 1")]
+    [InlineData(".scope brite dwell 21")]
+    [InlineData(".scope brite mapa -5")]
+    [InlineData(".scope brite wx 50")]
+    [InlineData(".scope brite fdb")]
+    [InlineData(".scope brite")]
+    [InlineData(".scope brite fdb 8.5")]
+    [InlineData(".scope brite fdb 50 60")]
+    public async Task Brite_OutOfRangeUnknownOrMalformed_GivesTheBriteUsage_AndLeavesTheState(string command)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            ScopeBrightness before = scope.Brightness;
+
+            main.RunScopeCommand(command);
+
+            Assert.Equal(BriteUsage, main.StatusText);
+            Assert.Equal(before, scope.Brightness);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
     [AvaloniaTheory]
     [InlineData(".scope range 25")]
     [InlineData(".scope range abc")]
     [InlineData(".scope template eram")]
+    [InlineData(".scope brite fdb 85")]
+    [InlineData(".scope brite wx 50")]
     public async Task NoOpenScope_SaysSo(string command)
     {
         MainViewModel main = await MainAsync();

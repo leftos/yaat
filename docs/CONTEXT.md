@@ -803,6 +803,9 @@ _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 **Altitude-mismatch mark**:
 The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while the ERAM plan altitude and the filed altitude are both set and differ (never on a VFR or OTP plan); YAAT-only, CRC has no such marker. The dwelled block names the other side's altitude on an extra line (`TrackPresenter.EramAltitudeDiffers`).
 
+**Brightness group (YAAT Scope)**:
+One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Scope window, never saved or sent.
+
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
 

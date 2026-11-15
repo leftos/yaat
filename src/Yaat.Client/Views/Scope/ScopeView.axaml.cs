@@ -52,8 +52,6 @@ public partial class ScopeView : UserControl
         _vm.PropertyChanged += OnViewModelPropertyChanged;
         Canvas.Preferences = _vm.Preferences;
         Canvas.DataBlockState = _vm.DataBlockState;
-        Canvas.MapBrightnessA = _vm.MapBrightnessA;
-        Canvas.MapBrightnessB = _vm.MapBrightnessB;
         PushMaps(_vm);
     }
 

@@ -201,6 +201,162 @@ public class ScopeToolbarTests
         }
     }
 
+    /// <summary>Turns the wheel once over <paramref name="button"/>, up when <paramref name="up"/>.</summary>
+    private static void WheelOnce(Window window, Button button, bool up)
+    {
+        // The wheel is routed by hit testing, which reads the rendered scene: render a freshly built tray first.
+        window.UpdateLayout();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        Point centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+        window.MouseWheel(centre, new Vector(0, up ? 1 : -1));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task BriteMenu_OpensATrayOfTheSevenSpinners_WithTheirValues()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Assert.Equal("BRITE ▸", DrawnText(ButtonOf(window, ScopeButtonId.Brite)));
+
+            Click(ButtonOf(window, ScopeButtonId.Brite));
+
+            string[] expected = ["MAP A 100", "MAP B 60", "TARGETS 100", "FDB 100", "LINE 4 0", "ALERTS 100", "DWELL 20"];
+            Assert.Equal(expected, TrayButtons(window).Select(DrawnText));
+            Assert.Equal(expected, TrayButtons(window).Select(Label));
+            Run value = ((TextBlock)ButtonOf(window, ScopeButtonId.BriteMapB).Content!).Inlines!.OfType<Run>().Last();
+            Assert.Equal("60", value.Text);
+            Assert.Equal(FontWeight.Bold, value.FontWeight);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BriteSpinner_WheelStepsItsGroup_AndRunsTheCommand()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Brite));
+
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteMapB), up: true);
+
+            Assert.Equal(65, scope.Brightness.MapB);
+            Assert.Equal(".scope brite mapb 65", main.StatusText);
+            Assert.Equal("MAP B 65", DrawnText(ButtonOf(window, ScopeButtonId.BriteMapB)));
+
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteDwell), up: false);
+
+            Assert.Equal(19, scope.Brightness.Dwell);
+            Assert.Equal(".scope brite dwell 19", main.StatusText);
+            Assert.Equal("DWELL 19", DrawnText(ButtonOf(window, ScopeButtonId.BriteDwell)));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BriteSpinner_AtItsLimit_RunsNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Brite));
+
+            // The wheel reaches FDB: down a step and back up.
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteFdb), up: false);
+            Assert.Equal(95, scope.Brightness.Fdb);
+            Assert.Equal(".scope brite fdb 95", main.StatusText);
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteFdb), up: true);
+            Assert.Equal(100, scope.Brightness.Fdb);
+            Assert.Equal(".scope brite fdb 100", main.StatusText);
+            main.StatusText = "";
+
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteFdb), up: true);
+
+            Assert.Equal(100, scope.Brightness.Fdb);
+            Assert.Equal("", main.StatusText);
+            Assert.Equal("FDB 100", DrawnText(ButtonOf(window, ScopeButtonId.BriteFdb)));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BriteSpinner_OffTheStepGrid_ClampsToItsLimit()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.RunScopeCommand(".scope brite fdb 97");
+            Click(ButtonOf(window, ScopeButtonId.Brite));
+
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteFdb), up: true);
+
+            Assert.Equal(100, scope.Brightness.Fdb);
+            Assert.Equal(".scope brite fdb 100", main.StatusText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BriteSpinners_EachKeepTheirOwnPartWheelStep()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.Preferences.SetScrollSensitivity(0.5);
+            Click(ButtonOf(window, ScopeButtonId.Brite));
+
+            // Same direction on both, so a shared accumulator would complete the step on TARGETS.
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteMapB), up: false);
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteTargets), up: false);
+
+            Assert.Equal(ScopeBrightness.Default, scope.Brightness);
+
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.BriteTargets), up: false);
+
+            Assert.Equal(ScopeBrightness.Default with { Targets = 95 }, scope.Brightness);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BriteCommand_ReachesTheCanvas_WithoutDroppingItsFrame()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            ScopeCanvas canvas = window.GetVisualDescendants().OfType<ScopeCanvas>().Single();
+            ScopeFrame frame = canvas.CurrentFrame;
+
+            // No RunJobs here: a render builds a fresh frame by design, so only the change handler may touch the kept one.
+            main.RunScopeCommand(".scope brite fdb 50");
+
+            Assert.Equal(50, canvas.Brightness.Fdb);
+            Assert.Same(frame, canvas.CurrentFrame);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact]
     public async Task Range_Click_ChangesNothing()
     {

@@ -321,16 +321,14 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 /// <param name="Frame">The laid-out tracks.</param>
 /// <param name="VideoMaps">Video maps to draw.</param>
 /// <param name="BrightnessLookup">Brightness category ("A" or "B") by map id; a copy the render thread owns.</param>
-/// <param name="MapBrightnessA">Brightness of A maps, 0 to 1.</param>
-/// <param name="MapBrightnessB">Brightness of B maps, 0 to 1.</param>
+/// <param name="Brightness">The scope's BRITE groups: the maps by category, the symbols, the blocks, line 4, the alerts and DWELL.</param>
 /// <param name="FontSize">Datablock font size the frame was measured with.</param>
 /// <param name="Palette">The user's block colours, read from the preferences on the UI thread.</param>
 public sealed record ScopeRenderSnapshot(
     ScopeFrame Frame,
     IReadOnlyList<VideoMapData> VideoMaps,
     IReadOnlyDictionary<string, string> BrightnessLookup,
-    float MapBrightnessA,
-    float MapBrightnessB,
+    ScopeBrightness Brightness,
     float FontSize,
     ScopePalette Palette
 );
@@ -443,14 +441,14 @@ public sealed class ScopeRenderer : IDisposable
     {
         RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
         canvas.Clear(SKColors.Black);
-        _videoMapRenderer.BrightnessA = snapshot.MapBrightnessA;
-        _videoMapRenderer.BrightnessB = snapshot.MapBrightnessB;
+        _videoMapRenderer.BrightnessA = snapshot.Brightness.MapA / 100f;
+        _videoMapRenderer.BrightnessB = snapshot.Brightness.MapB / 100f;
         _videoMapRenderer.Render(canvas, vp, snapshot.VideoMaps, snapshot.BrightnessLookup);
 
         SKFont font = FontFor(snapshot.FontSize);
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
-            DrawTrack(canvas, track, font, snapshot.Palette);
+            DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
         }
     }
 
@@ -477,9 +475,13 @@ public sealed class ScopeRenderer : IDisposable
         return _font;
     }
 
-    private void DrawTrack(SKCanvas canvas, ScopeTrack track, SKFont font, ScopePalette palette)
+    /// <summary>
+    /// Draws <paramref name="track"/>: its symbol at TARGETS, its leader, dwell box and fields at their groups (see
+    /// <see cref="FieldPercent"/>), each lifted by DWELL when the track is dwelled; the selection border never dims.
+    /// </summary>
+    private void DrawTrack(SKCanvas canvas, ScopeTrack track, SKFont font, ScopePalette palette, ScopeBrightness brightness)
     {
-        _symbolPaint.Color = SymbolColorOf(track, palette);
+        _symbolPaint.Color = ScopeBrightness.Apply(SymbolColorOf(track, palette), Lifted(track, brightness.Targets, brightness.Dwell));
         canvas.DrawCircle(track.Symbol.X, track.Symbol.Y, SymbolRadius, _symbolPaint);
 
         if (track.IsSelected)
@@ -487,7 +489,8 @@ public sealed class ScopeRenderer : IDisposable
             canvas.DrawRect(SelectionBorder(track), _selectedBorderPaint);
         }
 
-        SKColor blockColor = BlockColorOf(track, palette);
+        SKColor rawBlockColor = BlockColorOf(track, palette);
+        SKColor blockColor = ScopeBrightness.Apply(rawBlockColor, Lifted(track, brightness.Fdb, brightness.Dwell));
         if (track.IsDwelled)
         {
             _dwellBoxPaint.Color = blockColor;
@@ -504,15 +507,41 @@ public sealed class ScopeRenderer : IDisposable
         {
             if (field.Text.Length > 0)
             {
-                DrawField(canvas, field, font, blockColor);
+                int percent = Lifted(track, FieldPercent(field, brightness), brightness.Dwell);
+                DrawField(canvas, field, font, ScopeBrightness.Apply(ColorFor(field.Token, rawBlockColor), percent));
             }
         }
     }
 
-    /// <summary>Draws <paramref name="field"/>; the squawk-mismatch pulse's off phase dims its tail, dwelled or not.</summary>
-    private void DrawField(SKCanvas canvas, FieldRect field, SKFont font, SKColor blockColor)
+    /// <summary>
+    /// <paramref name="percent"/>, lifted by <paramref name="dwell"/> when <paramref name="track"/> is dwelled.
+    /// </summary>
+    private static int Lifted(ScopeTrack track, int percent, int dwell) => track.IsDwelled ? ScopeBrightness.Lift(percent, dwell) : percent;
+
+    /// <summary>
+    /// The group percent <paramref name="field"/> draws at before the dwell lift: the ERAM line 4 at FDB plus LINE 4, clamped
+    /// to 0 to 100; an alert token at ALERTS; any other field at FDB.
+    /// </summary>
+    internal static int FieldPercent(FieldRect field, ScopeBrightness brightness)
     {
-        SKColor color = ColorFor(field.Token, blockColor);
+        if (field.Slot == ScopeFieldSlot.Line4Notes)
+        {
+            return Math.Clamp(brightness.Fdb + brightness.Line4, 0, 100);
+        }
+
+        return IsAlertToken(field.Token) ? brightness.Alerts : brightness.Fdb;
+    }
+
+    /// <summary>Whether <paramref name="token"/> is one the ALERTS group dims: conflict, no landing clearance, ATPA.</summary>
+    private static bool IsAlertToken(ScopeColorToken token) =>
+        token is ScopeColorToken.ConflictAlert or ScopeColorToken.NoLandingClearance or ScopeColorToken.AtpaWarning or ScopeColorToken.AtpaAlert;
+
+    /// <summary>
+    /// Draws <paramref name="field"/> in <paramref name="color"/>, its token's colour at its brightness; the squawk-mismatch
+    /// pulse's off phase dims its tail, dwelled or not.
+    /// </summary>
+    private void DrawField(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
+    {
         if (field.Style.HasFlag(ScopeFieldStyle.DimTail))
         {
             DrawDimTail(canvas, field, font, color, Dim(color, DimTailBrightness));

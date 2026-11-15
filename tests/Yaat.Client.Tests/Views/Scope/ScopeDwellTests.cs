@@ -65,7 +65,11 @@ public class ScopeDwellTests
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
         using var renderer = new ScopeRenderer();
-        renderer.Render(canvas, Viewport(), new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), 1f, 1f, FontSize, NoTints));
+        renderer.Render(
+            canvas,
+            Viewport(),
+            new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), ScopeBrightness.Default, FontSize, NoTints)
+        );
         canvas.Flush();
         return bitmap;
     }

@@ -10,10 +10,39 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsTemplateRangeThenViews()
+    public void TheBar_IsTemplateRangeViewsThenBrite()
     {
-        Assert.Equal([ScopeButtonId.Template, ScopeButtonId.Range, ScopeButtonId.Views], ScopeToolbarButtons.All.Select(b => b.Id));
-        Assert.Equal(["TEMPLATE", "RANGE", "VIEWS"], ScopeToolbarButtons.All.Select(b => b.Label));
+        Assert.Equal(
+            [ScopeButtonId.Template, ScopeButtonId.Range, ScopeButtonId.Views, ScopeButtonId.Brite],
+            ScopeToolbarButtons.All.Select(b => b.Id)
+        );
+        Assert.Equal(["TEMPLATE", "RANGE", "VIEWS", "BRITE"], ScopeToolbarButtons.All.Select(b => b.Label));
+    }
+
+    [Fact]
+    public void Brite_IsAMenuOfTheSevenGroupSpinners_InOrder()
+    {
+        ScopeButton brite = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Brite);
+
+        Assert.Equal(ScopeButtonKind.Menu, brite.Kind);
+        Assert.Null(brite.Command);
+        Assert.Equal(
+            [
+                ScopeButtonId.BriteMapA,
+                ScopeButtonId.BriteMapB,
+                ScopeButtonId.BriteTargets,
+                ScopeButtonId.BriteFdb,
+                ScopeButtonId.BriteLine4,
+                ScopeButtonId.BriteAlerts,
+                ScopeButtonId.BriteDwell,
+            ],
+            brite.Children.Select(c => c.Id)
+        );
+        Assert.Equal(["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL"], brite.Children.Select(c => c.Label));
+        Assert.Equal(["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell"], brite.Children.Select(c => c.Value));
+        Assert.All(brite.Children, c => Assert.Equal(ScopeButtonKind.Spinner, c.Kind));
+        Assert.All(brite.Children, c => Assert.Null(c.Command));
+        Assert.All(brite.Children, c => Assert.Empty(c.Children));
     }
 
     [Fact]

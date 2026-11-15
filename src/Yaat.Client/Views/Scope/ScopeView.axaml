@@ -17,5 +17,6 @@
     ShowMvaAltitudeTint="{Binding ShowMvaHints}"
     TemplateId="{Binding TemplateId}"
     Viewer="{Binding Viewer}"
+    Brightness="{Binding Brightness}"
   />
 </UserControl>

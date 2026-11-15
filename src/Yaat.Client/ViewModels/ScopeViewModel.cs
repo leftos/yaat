@@ -97,12 +97,6 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>The user's preferences; the scope reads its datablock font size from them and seeds <see cref="TemplateId"/> once.</summary>
     public UserPreferences Preferences => Main.Preferences;
 
-    /// <summary>Brightness of the A-category video maps, 0 to 1.</summary>
-    public float MapBrightnessA => 1.0f;
-
-    /// <summary>Brightness of the B-category video maps, 0 to 1.</summary>
-    public float MapBrightnessB => 0.6f;
-
     /// <summary>The scope's own per-callsign datablock state; the scope places each block from it.</summary>
     public RadarDataBlockViewState DataBlockState { get; } = new();
 
