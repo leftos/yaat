@@ -107,7 +107,12 @@ public partial class MainViewModel : ObservableObject
         SessionAutoArrivalSpacingApplies = positionType is not ("APP" or "CTR");
         OnPropertyChanged(nameof(SessionAutoClearedToLandLabel));
         OnPropertyChanged(nameof(SessionAutoArrivalSpacingLabel));
+        OnPropertyChanged(nameof(StudentPositionType));
+        OnStudentPositionTypeForScopeProfile();
     }
+
+    /// <summary>The room's student position type (<c>GND</c>, <c>TWR</c>, <c>APP</c>, <c>CTR</c>, ...), or null when it is unknown.</summary>
+    internal string? StudentPositionType => _studentPositionType;
 
     /// <summary>The flyout's auto cleared-to-land toggle, naming the student's position type: "Auto cleared-to-land (TWR)".</summary>
     public string SessionAutoClearedToLandLabel => WithStudentPositionSuffix("Auto cleared-to-land");

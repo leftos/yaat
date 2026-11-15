@@ -34,7 +34,7 @@ public class ScopeViewTearoffTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }

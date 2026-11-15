@@ -115,7 +115,7 @@ public class ScopeSavedStateTests : IDisposable
         MainViewModel nctMain = await MainAsync();
         nctMain.SetActivePositionFromServer(Config(NctSector1));
         SeedRadar(nctMain, 40.0, -100.0, "m2");
-        var nctScope = new ScopeViewModel(nctMain, Store());
+        var nctScope = new ScopeViewModel(nctMain, Store(), profileStore: null);
         nctMain.OpenScope = nctScope;
         nctMain.RunScopeCommand(".scope range 80");
         nctScope.Dispose();
@@ -217,7 +217,7 @@ public class ScopeSavedStateTests : IDisposable
 
         MainViewModel main = await MainAsync();
         SeedRadar(main, 30.0, -90.0, "m2");
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         try
         {
@@ -242,7 +242,7 @@ public class ScopeSavedStateTests : IDisposable
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
         SeedRadar(main, 40.0, -100.0, "m2");
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         try
         {
@@ -260,7 +260,7 @@ public class ScopeSavedStateTests : IDisposable
     public async Task NoFacility_SavesAndRestoresNothing()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         try
         {
@@ -303,7 +303,7 @@ public class ScopeSavedStateTests : IDisposable
 
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         try
         {
@@ -419,7 +419,7 @@ public class ScopeSavedStateTests : IDisposable
     /// <summary>Opens a scope on <paramref name="main"/> for its facility and this test's store, as the window's constructor does.</summary>
     private ScopeViewModel Reopen(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         return scope;
     }
@@ -466,7 +466,7 @@ public class ScopeSavedStateTests : IDisposable
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
         SeedRadar(main, 40.0, -100.0, "m2");
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }

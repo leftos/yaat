@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -10,10 +11,11 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsTemplateRangeMapsDbViewsBritePrefThenDelTearoff()
+    public void TheBar_IsProfileTemplateRangeMapsDbViewsBritePrefThenDelTearoff()
     {
         Assert.Equal(
             [
+                ScopeButtonId.Profile,
                 ScopeButtonId.Template,
                 ScopeButtonId.Range,
                 ScopeButtonId.Maps,
@@ -25,7 +27,53 @@ public class ScopeToolbarButtonsTests
             ],
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
-        Assert.Equal(["TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"], ScopeToolbarButtons.All.Select(b => b.Label));
+        Assert.Equal(
+            ["PROFILE", "TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
+            ScopeToolbarButtons.All.Select(b => b.Label)
+        );
+    }
+
+    [Fact]
+    public void Profile_IsAMenuOfTheThreeProfiles_EachRunningItsScopeProfileCommand()
+    {
+        ScopeButton profile = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Profile);
+
+        Assert.Equal(ScopeButtonKind.Menu, profile.Kind);
+        Assert.Null(profile.Command);
+        Assert.Equal([ScopeButtonId.ProfileStars, ScopeButtonId.ProfileEram, ScopeButtonId.ProfileMixed], profile.Children.Select(c => c.Id));
+        Assert.Equal(["STARS", "ERAM", "MIXED"], profile.Children.Select(c => c.Label));
+        Assert.Equal(["stars", "eram", "mixed"], profile.Children.Select(c => c.Value));
+        Assert.Equal([".scope profile stars", ".scope profile eram", ".scope profile mixed"], profile.Children.Select(c => c.Command));
+        Assert.All(profile.Children, c => Assert.Equal(ScopeButtonKind.Command, c.Kind));
+    }
+
+    [Fact]
+    public void ProfileOrder_PutsTheNamedButtonsFirst_ThenTheRestInBarOrder_SkippingAnUnknownName()
+    {
+        List<string> unknown = [];
+
+        IReadOnlyList<ScopeButton> ordered = ScopeProfilePicker.Order(
+            ScopeToolbarButtons.All,
+            ["MAPS", "range", "wx"],
+            b => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(b)),
+            unknown
+        );
+
+        Assert.Equal(
+            [
+                ScopeButtonId.Maps,
+                ScopeButtonId.Range,
+                ScopeButtonId.Profile,
+                ScopeButtonId.Template,
+                ScopeButtonId.Db,
+                ScopeButtonId.Views,
+                ScopeButtonId.Brite,
+                ScopeButtonId.Pref,
+                ScopeButtonId.DeleteTearoff,
+            ],
+            ordered.Select(b => b.Id)
+        );
+        Assert.Equal(["wx"], unknown);
     }
 
     [Fact]

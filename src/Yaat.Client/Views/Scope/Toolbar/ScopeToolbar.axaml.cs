@@ -5,7 +5,7 @@ using Yaat.Client.ViewModels;
 namespace Yaat.Client.Views.Scope.Toolbar;
 
 /// <summary>
-/// The Scope window's toolbar: one row of buttons from <see cref="ScopeToolbarButtons.All"/>, and under it the tray of
+/// The Scope window's toolbar: one row of buttons in the profile's order (<see cref="ScopeViewModel.ToolbarButtons"/>), and under it the tray of
 /// the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>), wrapped onto more rows when they don't
 /// fit. Each button (<see cref="ScopeButtonControl"/>) draws its label, value and active state from its
 /// <see cref="ScopeViewModel"/>.
@@ -19,16 +19,7 @@ public partial class ScopeToolbar : UserControl
     public ScopeToolbar()
     {
         InitializeComponent();
-        for (int i = 0; i < ScopeToolbarButtons.All.Count; i++)
-        {
-            if (i > 0)
-            {
-                MainRow.Children.Add(new Border { Classes = { "scopeSeparator" } });
-            }
-
-            MainRow.Children.Add(BuildButton(ScopeToolbarButtons.All[i]));
-        }
-
+        BuildMainRow(ScopeToolbarButtons.All);
         RefreshButtons();
     }
 
@@ -38,8 +29,25 @@ public partial class ScopeToolbar : UserControl
         _viewModel?.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel = DataContext as ScopeViewModel;
         _viewModel?.PropertyChanged += OnViewModelPropertyChanged;
+        BuildMainRow(_viewModel?.ToolbarButtons ?? ScopeToolbarButtons.All);
         RebuildTray();
         RefreshButtons();
+    }
+
+    /// <summary>Fills the bar with <paramref name="buttons"/>, left to right, a separator between each two.</summary>
+    private void BuildMainRow(IReadOnlyList<ScopeButton> buttons)
+    {
+        _buttons.RemoveAll(MainRow.Children.Contains);
+        MainRow.Children.Clear();
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            if (i > 0)
+            {
+                MainRow.Children.Add(new Border { Classes = { "scopeSeparator" } });
+            }
+
+            MainRow.Children.Add(BuildButton(buttons[i]));
+        }
     }
 
     private ScopeButtonControl BuildButton(ScopeButton model)
@@ -51,6 +59,13 @@ public partial class ScopeToolbar : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if ((e.PropertyName == nameof(ScopeViewModel.ToolbarButtons)) && (_viewModel is { } vm))
+        {
+            BuildMainRow(vm.ToolbarButtons);
+            RefreshButtons();
+            return;
+        }
+
         // A rebuilt tray's new buttons are drawn by the refresh that follows.
         bool trayChanged = TrayContentChanged(e.PropertyName);
         if (trayChanged)
@@ -82,6 +97,7 @@ public partial class ScopeToolbar : UserControl
         propertyName
             is nameof(ScopeViewModel.OpenMenu)
                 or nameof(ScopeViewModel.TemplateId)
+                or nameof(ScopeViewModel.ProfileKind)
                 or nameof(ScopeViewModel.RangeNm)
                 or nameof(ScopeViewModel.OpenViews)
                 or nameof(ScopeViewModel.Brightness)

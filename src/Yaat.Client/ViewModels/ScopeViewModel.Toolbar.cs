@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.ViewModels;
@@ -138,7 +139,8 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
-    /// turns on is on (<see cref="IsToggleOn"/>), a command button while the template it picks is in use, a pref-set
+    /// turns on is on (<see cref="IsToggleOn"/>), a profile pick while its profile is the shown one, a command button while
+    /// the template it picks is in use, a pref-set
     /// button while its set is the active one, DEL TEAROFF while its mode is on.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
@@ -146,6 +148,7 @@ public sealed partial class ScopeViewModel
         {
             ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
+            _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
             _ => IsActiveByKind(button),
         };
 
@@ -163,14 +166,19 @@ public sealed partial class ScopeViewModel
         };
 
     /// <summary>
-    /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), or the active pref
-    /// set's name after PREF's label, or null for any other button.
+    /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), the active pref
+    /// set's name after PREF's label, the shown profile's name after PROFILE's, or null for any other button.
     /// </summary>
     public string? SpinnerValue(ScopeButton button)
     {
         if (button.Id == ScopeButtonId.Pref)
         {
             return ActivePrefSet;
+        }
+
+        if (button.Id == ScopeButtonId.Profile)
+        {
+            return ScopeProfilePicker.NameOf(ProfileKind).ToUpperInvariant();
         }
 
         if (button.Id == ScopeButtonId.Range)

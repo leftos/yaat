@@ -1,11 +1,24 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.Views.Scope.Toolbar;
 
 /// <summary>Identity of one Scope toolbar button, top-level or in a menu.</summary>
 public enum ScopeButtonId
 {
+    /// <summary>The PROFILE menu.</summary>
+    Profile,
+
+    /// <summary>The PROFILE menu's STARS pick.</summary>
+    ProfileStars,
+
+    /// <summary>The PROFILE menu's ERAM pick.</summary>
+    ProfileEram,
+
+    /// <summary>The PROFILE menu's MIXED pick.</summary>
+    ProfileMixed,
+
     /// <summary>The Template menu.</summary>
     Template,
 
@@ -125,7 +138,8 @@ public enum ScopeButtonKind
 /// <param name="Kind">How the button acts.</param>
 /// <param name="Children">A menu's buttons, in tray order; empty for any other kind.</param>
 /// <param name="Value">
-/// The value the button stands for: the template id a template pick picks, the view name a view toggle opens, the group name
+/// The value the button stands for: the profile name a profile pick picks, the template id a template pick picks, the view
+/// name a view toggle opens, the group name
 /// a BRITE spinner steps, the STARS id a map toggle turns on, the set name a PREF set button loads, the item a DB button
 /// sets; else null.
 /// </param>
@@ -145,9 +159,24 @@ public sealed record ScopeButton(
 /// <summary>The Scope toolbar's buttons, in bar order, and the <c>.scope</c> and <c>.view</c> commands they run.</summary>
 public static class ScopeToolbarButtons
 {
-    /// <summary>The bar's top-level buttons, left to right. A button is listed only once its behaviour exists.</summary>
+    /// <summary>
+    /// The bar's top-level buttons, left to right, before a profile orders them (<c>ScopeViewModel.ToolbarButtons</c>).
+    /// A button is listed only once its behaviour exists.
+    /// </summary>
     public static readonly IReadOnlyList<ScopeButton> All =
     [
+        new(
+            ScopeButtonId.Profile,
+            "PROFILE",
+            ScopeButtonKind.Menu,
+            [
+                ProfilePick(ScopeButtonId.ProfileStars, "STARS", ScopeProfileKind.Stars),
+                ProfilePick(ScopeButtonId.ProfileEram, "ERAM", ScopeProfileKind.Eram),
+                ProfilePick(ScopeButtonId.ProfileMixed, "MIXED", ScopeProfileKind.Mixed),
+            ],
+            null,
+            null
+        ),
         new(
             ScopeButtonId.Template,
             "TEMPLATE",
@@ -290,6 +319,12 @@ public static class ScopeToolbarButtons
     /// <summary>The command that returns the view named <paramref name="viewName"/> to the dock.</summary>
     public static string ViewDockCommand(string viewName) => $"{ViewCommandStem(viewName)} dock";
 
+    /// <summary>The command that picks the profile <paramref name="kind"/> by hand.</summary>
+    public static string ProfileCommand(ScopeProfileKind kind) => $".scope profile {ScopeProfilePicker.NameOf(kind)}";
+
+    /// <summary>Whether the button with <paramref name="id"/> is a PROFILE menu pick.</summary>
+    public static bool IsProfilePick(ScopeButtonId id) => id is ScopeButtonId.ProfileStars or ScopeButtonId.ProfileEram or ScopeButtonId.ProfileMixed;
+
     /// <summary>The command that picks the template (or Mixed) with <paramref name="templateId"/>.</summary>
     public static string TemplateCommand(string templateId) => $".scope template {templateId}";
 
@@ -361,6 +396,9 @@ public static class ScopeToolbarButtons
     public static string TearoffDeleteCommand(IEnumerable<ScopeButtonKey> keys) => $".scope tearoff delete {string.Join(' ', keys.Select(NameOf))}";
 
     private static ScopeButton BriteSpinner(ScopeButtonId id, string label, string group) => new(id, label, ScopeButtonKind.Spinner, [], group, null);
+
+    private static ScopeButton ProfilePick(ScopeButtonId id, string label, ScopeProfileKind kind) =>
+        new(id, label, ScopeButtonKind.Command, [], ScopeProfilePicker.NameOf(kind), ProfileCommand(kind));
 
     private static ScopeButton TemplatePick(ScopeButtonId id, string label, string templateId) =>
         new(id, label, ScopeButtonKind.Command, [], templateId, TemplateCommand(templateId));

@@ -1092,6 +1092,45 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    /// <summary>
+    /// The YAAT Scope profile name (<c>stars</c>, <c>eram</c> or <c>mixed</c>) picked by hand for rooms whose student
+    /// position type is <paramref name="positionType"/>, or null when none was picked or the type is unknown.
+    /// </summary>
+    public string? GetScopeProfileOverride(string? positionType) =>
+        ((!string.IsNullOrEmpty(positionType)) && (_data.ScopeProfileByPositionType.TryGetValue(positionType, out string? profile))) ? profile : null;
+
+    /// <summary>
+    /// Saves <paramref name="profile"/> as the hand-picked Scope profile for <paramref name="positionType"/>; a null type
+    /// saves nothing.
+    /// </summary>
+    public void SetScopeProfileOverride(string? positionType, string profile)
+    {
+        if (string.IsNullOrEmpty(positionType))
+        {
+            return;
+        }
+
+        _data.ScopeProfileByPositionType[positionType] = profile;
+        Save();
+    }
+
+    /// <summary>Drops the hand-picked Scope profile for <paramref name="positionType"/>; a null type or one without a pick changes nothing.</summary>
+    public void ClearScopeProfileOverride(string? positionType)
+    {
+        if (string.IsNullOrEmpty(positionType))
+        {
+            return;
+        }
+
+        bool removed = _data.ScopeProfileByPositionType.Remove(positionType);
+        if (!removed)
+        {
+            return;
+        }
+
+        Save();
+    }
+
     public void SetRpoPilotSpeechAudibleAlert(bool enabled)
     {
         _data.RpoPilotSpeechAudibleAlert = enabled;
@@ -2471,6 +2510,7 @@ public sealed partial class UserPreferences
             ScenarioCommandHistory = GetFieldOr<Dictionary<string, List<CommandHistoryEntry>>>(obj, "scenarioCommandHistory", []),
             SoloGoAroundProbabilityPercent = GetFieldOr(obj, "soloGoAroundProbabilityPercent", 0),
             SoloGoAroundProbabilityByScenario = GetFieldOr<Dictionary<string, int>>(obj, "soloGoAroundProbabilityByScenario", []),
+            ScopeProfileByPositionType = GetFieldOr<Dictionary<string, string>>(obj, "scopeProfileByPositionType", []),
             SpeechTelemetryEnabled = GetFieldOr(obj, "speechTelemetryEnabled", false),
             SpeechTelemetryPromptShown = GetFieldOr(obj, "speechTelemetryPromptShown", false),
             QuickCommandLists = (obj["quickCommandLists"] as JsonObject)?.DeepClone().AsObject(),
@@ -2816,6 +2856,9 @@ public sealed partial class UserPreferences
         // (same key used by ScenarioCommandHistory). Missing key falls back to the
         // global default above.
         public Dictionary<string, int> SoloGoAroundProbabilityByScenario { get; set; } = [];
+
+        // The YAAT Scope profile picked by hand, keyed by the room's student position type (GND, TWR, APP, CTR).
+        public Dictionary<string, string> ScopeProfileByPositionType { get; set; } = [];
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
         public bool PilotVoiceEnabled { get; set; }

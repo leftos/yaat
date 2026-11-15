@@ -794,7 +794,7 @@ The planned instructor radar view that mixes STARS and ERAM presentation (docs/p
 _Avoid_: scope alone (the router's **Scope** is a different thing)
 
 **Profile**:
-A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock template, the altitude notation, the zoom bands and the toolbar; a pref set is the same shape with one user's values.
+A YAAT Scope display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mixed}.json`) that sets the datablock template, the zoom bands (stored, not yet applied), the toolbar order and the views order; picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`; a pref set is the same shape with one user's values.
 
 **Layout**:
 A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows, extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
@@ -822,7 +822,7 @@ The heading, speed and free-text notes of an ERAM track, entered with `QS`; whil
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
 **Pref set (YAAT Scope)**:
-A named snapshot of a YAAT Scope's range, centre, template, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
+A named snapshot of a YAAT Scope's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
 
 **SSA (YAAT Scope)**:
 The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).

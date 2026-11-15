@@ -26,6 +26,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 using Yaat.Sim.Data;
@@ -2682,7 +2683,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var prefStore = new ScopePrefSetStore(ScopePrefSetStore.DefaultRootDir, AppLog.CreateLogger<ScopePrefSetStore>());
-        var scope = new ScopeViewModel(vm, prefStore);
+        var profileStore = new ScopeProfileStore(ScopeProfileStore.DefaultRootDir, AppLog.CreateLogger<ScopeProfileStore>());
+        var scope = new ScopeViewModel(vm, prefStore, profileStore);
         vm.OpenScope = scope;
         _scopeWindow = new Scope.ScopeWindow(vm.Preferences, scope);
         _scopeWindow.Closing += OnScopeWindowClosing;

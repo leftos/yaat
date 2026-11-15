@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 
@@ -62,8 +63,9 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Id of the datablock template the scope draws (<see cref="ScopeTemplates"/>): seeded once from the EuroScope-mode
-    /// preference when the scope opens, then changed only by <c>.scope template</c> (the toolbar's TEMPLATE menu runs it)
-    /// and by a pref-set load; never written to the preferences.
+    /// preference when the scope opens, then changed by <c>.scope template</c> (the toolbar's TEMPLATE menu runs it), by a
+    /// pref-set load or saved-state restore, and by a profile applied while the facility has no saved state; never written
+    /// to the preferences.
     /// </summary>
     [ObservableProperty]
     private string _templateId;
@@ -81,10 +83,12 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <param name="main">The main view model.</param>
     /// <param name="prefStore">The pref-set store <c>.scope pref</c> reads and writes, or null when prefs are unavailable.</param>
-    public ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore)
+    /// <param name="profileStore">The profile files the scope reads its profiles from, or null to use the shipped profiles.</param>
+    public ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore)
     {
         Main = main;
         PrefStore = prefStore;
+        ProfileStore = profileStore;
         _selectedAircraft = main.SelectedAircraft;
         _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
         _dbSettings = ScopeDbSettings.FromPreferences(main.Preferences);
@@ -98,6 +102,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
         InitViews();
         SyncStateFacility();
+        InitProfile();
     }
 
     /// <summary>Whether the scope is still waiting for the radar's first centre and maps. Test seam.</summary>
@@ -227,6 +232,9 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
             or nameof(MainViewModel.ActingCallsign)
             or nameof(MainViewModel.ActingTrackFacilityId):
                 Viewer = BuildViewer(Main);
+                break;
+            case nameof(MainViewModel.ScopeProfile):
+                OnMainScopeProfileChanged();
                 break;
         }
     }

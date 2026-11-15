@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Data;
 
@@ -17,7 +18,7 @@ public partial class MainViewModel
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
-        + " | .scope pref <save|saveas|load|rename|delete>";
+        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>";
 
     private const string PrefUsage =
         "Usage: .scope pref save | .scope pref saveas <name> | .scope pref load <name>"
@@ -33,8 +34,100 @@ public partial class MainViewModel
 
     private const string ScopeDbUsage = "Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>";
 
+    private const string ScopeProfileUsage = "Usage: .scope profile <stars|eram|mixed>";
+
+    private ScopeProfileKind? _scopeProfile;
+
+    /// <summary>
+    /// Whether <see cref="ScopeProfile"/> was picked before the student position type was known, so it is picked once more
+    /// when it arrives.
+    /// </summary>
+    private bool _isScopeProfileProvisional;
+
     /// <summary>The open YAAT Scope's view model, or null when no Scope window is open.</summary>
     public ScopeViewModel? OpenScope { get; set; }
+
+    /// <summary>
+    /// The room's Scope profile, which every Scope window follows: picked once, when the first student position arrives, from
+    /// the profile picked by hand for the room's student position type, else by the position's kind
+    /// (<see cref="ScopeProfilePicker.KindFor"/>). A later position change keeps it; <c>.scope profile</c> and a pref-set load
+    /// change it. Null until the first position, and again after an unload or at a new scenario load.
+    /// </summary>
+    public ScopeProfileKind? ScopeProfile
+    {
+        get => _scopeProfile;
+        private set => SetProperty(ref _scopeProfile, value);
+    }
+
+    /// <summary>
+    /// Picks <paramref name="kind"/> by hand, as <c>.scope profile</c> does, saving it for the room's student position type
+    /// when that is known.
+    /// </summary>
+    internal void PickScopeProfileByHand(ScopeProfileKind kind)
+    {
+        _isScopeProfileProvisional = false;
+        if (StudentPositionType is { } type)
+        {
+            Preferences.SetScopeProfileOverride(type, ScopeProfilePicker.NameOf(kind));
+        }
+
+        ScopeProfile = kind;
+    }
+
+    /// <summary>Switches to <paramref name="kind"/> for a pref-set load: as a pick by hand, but saved for no position type.</summary>
+    internal void SetScopeProfileFromPrefSet(ScopeProfileKind kind)
+    {
+        _isScopeProfileProvisional = false;
+        ScopeProfile = kind;
+    }
+
+    /// <summary>Clears the room's profile, so the next student position picks it again.</summary>
+    private void ResetScopeProfile()
+    {
+        _isScopeProfileProvisional = false;
+        ScopeProfile = null;
+    }
+
+    /// <summary>
+    /// After the server set the active position: a cleared position (<paramref name="cleared"/>) clears the profile; the first
+    /// position after a clear picks it, provisionally while the student position type is unknown.
+    /// </summary>
+    private void OnActivePositionForScopeProfile(bool cleared)
+    {
+        if (cleared)
+        {
+            ResetScopeProfile();
+            return;
+        }
+
+        if ((ScopeProfile is not null) || (ActivePosition is null))
+        {
+            return;
+        }
+
+        _isScopeProfileProvisional = StudentPositionType is null;
+        ScopeProfile = AutomaticScopeProfile();
+    }
+
+    /// <summary>
+    /// After the student position type changed: a known type picks a provisional profile once more, now that the type's hand
+    /// pick can be read. An unknown type changes nothing: a scenario without a student position has none, and the server
+    /// may send it after the position.
+    /// </summary>
+    private void OnStudentPositionTypeForScopeProfile()
+    {
+        if ((StudentPositionType is not null) && _isScopeProfileProvisional)
+        {
+            _isScopeProfileProvisional = false;
+            ScopeProfile = AutomaticScopeProfile();
+        }
+    }
+
+    /// <summary>The profile picked by hand for the student position type, else the active position's kind.</summary>
+    private ScopeProfileKind AutomaticScopeProfile() =>
+        ScopeProfilePicker.TryParseKind(Preferences.GetScopeProfileOverride(StudentPositionType), out ScopeProfileKind kind)
+            ? kind
+            : ScopeProfilePicker.KindFor(ActivePosition);
 
     /// <summary>Runs a <c>.scope</c> command from the Scope's toolbar; nothing is added to the command history.</summary>
     public void RunScopeCommand(string text) => TryHandleScopeCommand(text);
@@ -47,7 +140,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
-    /// <c>.scope tearoff</c> and <c>.scope pref</c> against <see cref="OpenScope"/>, writing the echo or the error to the
+    /// <c>.scope tearoff</c>, <c>.scope pref</c> and <c>.scope profile</c> against <see cref="OpenScope"/>, writing the echo or the error to the
     /// status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
@@ -76,6 +169,7 @@ public partial class MainViewModel
             "DB" => SetScopeDb,
             "TEAROFF" => SetScopeTearoff,
             "PREF" => RunScopePref,
+            "PROFILE" => PickScopeProfile,
             _ => null,
         };
         if (handler is null)
@@ -286,6 +380,26 @@ public partial class MainViewModel
         return ScopeToolbarButtons.TemplateCommand(id);
     }
 
+    /// <summary><c>.scope profile stars|eram|mixed</c>: the room's profile, picked by hand and saved for its student position type.</summary>
+    private static string PickScopeProfile(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length != 3)
+        {
+            return ScopeProfileUsage;
+        }
+
+        if (!ScopeProfilePicker.TryParseKind(parts[2], out ScopeProfileKind kind))
+        {
+            return $"Unknown scope profile '{parts[2]}'";
+        }
+
+        scope.Main.PickScopeProfileByHand(kind);
+        return ScopeProfileEcho(kind);
+    }
+
+    /// <summary>The status line's echo of a profile change: <c>Scope profile ERAM</c>.</summary>
+    internal static string ScopeProfileEcho(ScopeProfileKind kind) => $"Scope profile {ScopeProfilePicker.NameOf(kind).ToUpperInvariant()}";
+
     /// <summary>
     /// <c>.scope pref save</c>, <c>saveas &lt;name&gt;</c>, <c>load &lt;name&gt;</c>, <c>rename &lt;old&gt; &lt;new&gt;</c>
     /// or <c>delete &lt;name&gt;</c>: the scope's state as a named set, kept per the viewer's facility.
@@ -388,9 +502,11 @@ public partial class MainViewModel
             return $"Unknown pref set: {typed}";
         }
 
+        // The set's profile goes first, so the set's own template wins over the profile's.
+        string profileNote = scope.ApplyPrefSetProfile(set.Kind);
         int missing = scope.ApplyPrefSet(set);
         scope.ActivePrefSet = name;
-        return $".scope pref load {name}{PrefLoadNote(scope, missing)}";
+        return $".scope pref load {name}{PrefLoadNote(scope, missing)}{profileNote}";
     }
 
     /// <summary>The note a load adds when some of the set's maps did not reach this scope.</summary>

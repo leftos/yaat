@@ -1,0 +1,10 @@
+{
+  "name": "eram",
+  "kind": "eram",
+  "bands": [
+    { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "dri" }
+  ],
+  "template": "eram",
+  "toolbar": ["profile", "template", "range", "maps", "db", "views", "brite", "pref", "deletetearoff"],
+  "views": ["ssa", "ca"]
+}

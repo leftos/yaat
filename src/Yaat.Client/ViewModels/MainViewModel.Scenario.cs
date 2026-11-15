@@ -712,6 +712,7 @@ public partial class MainViewModel
     {
         RelabelRoomTitle(result.ArtccId);
         ResetPilotVoiceWarningSession();
+        ResetScopeProfile();
         SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
         foreach (RadarViewModel radar in AllRadarViews)
@@ -760,6 +761,7 @@ public partial class MainViewModel
             RoomLoadingBy = null;
             RelabelRoomTitle(dto.ArtccId);
             ResetPilotVoiceWarningSession();
+            ResetScopeProfile();
 
             SetStudentPositionType(dto.StudentPositionType);
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);

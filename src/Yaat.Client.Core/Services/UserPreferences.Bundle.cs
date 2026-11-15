@@ -229,6 +229,7 @@ public sealed partial class UserPreferences
         ["favoriteMetarStationsByScenario"] = "per-scenario view state",
         ["groundRotationByAirport"] = "per-airport view state",
         ["soloGoAroundProbabilityByScenario"] = "per-scenario state",
+        ["scopeProfileByPositionType"] = "per position type view state",
         ["scenarioNames"] = "per-scenario state",
         ["scenarioAirports"] = "per-scenario state",
         ["scenarioCommandHistory"] = "command history",

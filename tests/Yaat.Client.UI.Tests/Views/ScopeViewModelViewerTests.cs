@@ -35,7 +35,7 @@ public class ScopeViewModelViewerTests
     public void ServerActivePosition_SetsTheViewer_AndRaisesItsChange()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         Assert.Equal(ScopeViewer.None, scope.Viewer);
         var changed = new List<string?>();
         scope.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
@@ -53,7 +53,7 @@ public class ScopeViewModelViewerTests
     public void ActiveTcpChange_RebuildsTheViewer()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.SetActivePositionFromServer(EramConfig("C44", Sector44));
 
         main.SetActiveTcpFromServer("C14");
@@ -65,7 +65,7 @@ public class ScopeViewModelViewerTests
     public void DropdownPick_ThenTheServersAnswerForTheSameTcp_SetsTheSector()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.SetActivePositionFromServer(EramConfig("C14", Sector44 with { Callsign = "OAK_14_CTR", EramSectorId = "14" }));
 
         // The dropdown pick sets the TCP and drops the old position until the server answers.

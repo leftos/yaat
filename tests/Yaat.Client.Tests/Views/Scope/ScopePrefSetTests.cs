@@ -32,7 +32,7 @@ public class ScopePrefSetTests
         Assert.Equal(set.Toolbar, loaded.Toolbar);
         Assert.Equal(set.Views, loaded.Views);
         Assert.Null(loaded.Bands);
-        Assert.Null(loaded.Kind);
+        Assert.Equal("eram", loaded.Kind);
     }
 
     [Fact]
@@ -132,6 +132,7 @@ public class ScopePrefSetTests
             Tearoffs = [new ScopePrefTearoff("range", "tl", 10, 20), new ScopePrefTearoff("map15", "tr", -30, 40)],
             Toolbar = ["range", "map15", "pref"],
             Views = ["ssa", "ca"],
+            Kind = "eram",
         };
 
     private static ScopePrefSet RoundTrip(ScopePrefSet set) =>

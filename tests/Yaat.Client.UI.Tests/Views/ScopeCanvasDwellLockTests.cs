@@ -239,7 +239,7 @@ public class ScopeCanvasDwellLockTests
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(string templateId)
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null) { TemplateId = templateId };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = templateId };
         var view = new ScopeView { DataContext = scope };
         var window = new Window
         {

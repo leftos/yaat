@@ -21,13 +21,13 @@ public class ScopeViewModelTemplateTests
         // The assembly's [PreferencesFilePerTest] gives this test its own preferences file.
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetEuroScopeMode(false);
-        using (var stars = new ScopeViewModel(main, prefStore: null))
+        using (var stars = new ScopeViewModel(main, prefStore: null, profileStore: null))
         {
             Assert.Equal(ScopeTemplates.StarsId, stars.TemplateId);
         }
 
         main.Preferences.SetEuroScopeMode(true);
-        using var euroScope = new ScopeViewModel(main, prefStore: null);
+        using var euroScope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         Assert.Equal(ScopeTemplates.EuroScopeId, euroScope.TemplateId);
 
         // A later preference change leaves the open scope's template alone.
@@ -40,7 +40,7 @@ public class ScopeViewModelTemplateTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         bool before = main.Preferences.EuroScopeMode;
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
 
         scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
         Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
@@ -59,7 +59,7 @@ public class ScopeViewModelTemplateTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         bool before = main.Preferences.EuroScopeMode;
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
 
         scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
 
@@ -73,7 +73,7 @@ public class ScopeViewModelTemplateTests
     public void ScopeWindow_TemplateMenu_ClickingMixedSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try
@@ -99,7 +99,7 @@ public class ScopeViewModelTemplateTests
     public void ScopeWindow_TemplateMenu_ClickingEramSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try

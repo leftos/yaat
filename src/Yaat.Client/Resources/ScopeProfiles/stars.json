@@ -1,0 +1,12 @@
+{
+  "name": "stars",
+  "kind": "stars",
+  "bands": [
+    { "maxNm": 30, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring" },
+    { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring" },
+    { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring" }
+  ],
+  "template": "stars",
+  "toolbar": ["profile", "template", "range", "maps", "db", "views", "brite", "pref", "deletetearoff"],
+  "views": ["ssa", "ca"]
+}

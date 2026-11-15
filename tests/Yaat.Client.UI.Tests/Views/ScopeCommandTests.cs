@@ -4,6 +4,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -18,7 +19,7 @@ public class ScopeCommandTests
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
-        + " | .scope pref <save|saveas|load|rename|delete>";
+        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
@@ -34,9 +35,48 @@ public class ScopeCommandTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         return (main, scope);
+    }
+
+    [AvaloniaFact]
+    public async Task Profile_SwitchesTheProfileAndItsTemplate_AndEchoes()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope profile eram");
+
+            Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
+            Assert.Equal(ScopeProfileKind.Eram, scope.ProfileKind);
+            Assert.Equal("eram", scope.TemplateId);
+            Assert.Equal("Scope profile ERAM", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope profile wx", "Unknown scope profile 'wx'")]
+    [InlineData(".scope profile", "Usage: .scope profile <stars|eram|mixed>")]
+    public async Task Profile_BadIdOrArity_SaysSo_AndKeepsTheProfile(string command, string expected)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(command);
+
+            Assert.Equal(expected, main.StatusText);
+            Assert.Null(main.ScopeProfile);
+            Assert.Equal(ScopeProfileKind.Mixed, scope.ProfileKind);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
     }
 
     [AvaloniaFact]
@@ -240,7 +280,7 @@ public class ScopeCommandTests
         RadarMapToggles.Add(main.Radar, 2, 10);
         main.Radar.CenterLat = 37.62;
         main.Radar.CenterLon = -122.38;
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }

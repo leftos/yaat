@@ -30,7 +30,7 @@ public class ScopeTearoffLayerTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
@@ -118,7 +118,7 @@ public class ScopeTearoffLayerTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
 
         foreach (
             ScopeButtonId id in Enum.GetValues<ScopeButtonId>().Where(id => (id != ScopeButtonId.MapToggle) && ScopeToolbarButtons.CanTearOff(id))

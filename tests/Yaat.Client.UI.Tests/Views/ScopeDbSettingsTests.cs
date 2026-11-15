@@ -172,7 +172,7 @@ public class ScopeDbSettingsTests
 
     private static (ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

@@ -19,7 +19,7 @@ public class ScopeViewModelDwellLockTests
     public void ToggleDwellLock_AddsThenRemovesTheCallsign_WithNoViewerEramSector()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         Assert.Equal(ScopeViewer.None, scope.Viewer);
         string? status = main.StatusText;
 
@@ -37,7 +37,7 @@ public class ScopeViewModelDwellLockTests
     public void ToggleDwellLock_NotConnected_SendsNothing_AndSetsNoStatus()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         var sector44 = new ActivePositionDto(
             Callsign: "OAK_44_CTR",
             Name: "Sector 44",
@@ -90,7 +90,7 @@ public class ScopeViewModelDwellLockTests
     private static (MainViewModel Main, ScopeViewModel Scope) ScopeWithCrcLockedAircraft()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         var sector44 = new ActivePositionDto(
             Callsign: "OAK_44_CTR",
             Name: "Sector 44",

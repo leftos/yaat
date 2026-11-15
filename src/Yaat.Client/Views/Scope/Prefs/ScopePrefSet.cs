@@ -61,10 +61,13 @@ public sealed record ScopePrefSet
     /// <summary>The profile's views array: the view names.</summary>
     public IReadOnlyList<string> Views { get; init; } = [];
 
-    /// <summary>Reserved for zoom bands; written null and ignored on load.</summary>
+    /// <summary>Reserved; written null and ignored on load, since zoom bands live only in the profile files.</summary>
     public JsonElement? Bands { get; init; }
 
-    /// <summary>Reserved for a state kind; written null and ignored on load.</summary>
+    /// <summary>
+    /// The name of the profile the Scope showed (<c>stars</c>, <c>eram</c> or <c>mixed</c>), or null in a set from an older
+    /// build. <c>.scope pref load</c> switches to it; the saved-state restore leaves the profile alone.
+    /// </summary>
     public string? Kind { get; init; }
 
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>

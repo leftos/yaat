@@ -37,13 +37,13 @@ Beside the Radar layouts, `Views/Scope/` holds the YAAT Scope datablock engine (
 
 The engine is pure; the window around it (`ScopeWindow` → `ScopeView` → `ScopeCanvas` over `ScopeRenderer`, view-model `ScopeViewModel`) opens from View > Windows > YAAT Scope and draws video maps, targets, leaders and STARS blocks, ERAM blocks or EuroScope tags in the radar's line style.
 
-The scope's toolbar (`Views/Scope/Toolbar/`: `ScopeToolbarButtons` is the data-driven button model, state in `ScopeViewModel.Toolbar.cs`) has a TEMPLATE tray (`ScopeViewModel.TemplateId`, `PickTemplateCommand`) that picks among them or Mixed, starts on STARS (EuroScope when the EuroScope-mode preference is on) and is never written back to the preferences.
+The scope's toolbar (`Views/Scope/Toolbar/`: `ScopeToolbarButtons` is the data-driven button model, state in `ScopeViewModel.Toolbar.cs`) has a TEMPLATE tray (`ScopeViewModel.TemplateId`, `PickTemplateCommand`) that picks among them or Mixed, starts on the room's profile's template (STARS, EuroScope when the EuroScope-mode preference is on, until the room has a profile) and is never written back to the preferences.
 
 A RANGE button, which the wheel steps, follows the TEMPLATE tray.
 
 Each toolbar action is also a dot command (`.scope` through `MainViewModel.TryHandleScopeCommand`, `.view` through `TryHandleViewCommand`), carried on the button (`ScopeButton.Command`) and run by `ScopeViewModel.RunCommand`.
 
-The bar reads TEMPLATE, RANGE, MAPS, DB, VIEWS, BRITE, PREF, DEL TEAROFF (see the next two paragraphs for MAPS and DB).
+The bar reads PROFILE (first), TEMPLATE, RANGE, MAPS, DB, VIEWS, BRITE, PREF, DEL TEAROFF (see the next two paragraphs for MAPS and DB).
 
 VIEWS toggles the views dock (`Views/Scope/Dock/`: `ScopeDock` and its `ScopeViewCard`s, state in `ScopeViewModel.Views.cs`), a 360 px column right of the scope that hides while no view is open.
 
@@ -63,9 +63,9 @@ Its groups (`ScopeBrightness.Groups`: name, range, step, getter, setter) are MAP
 
 The selection border is never scaled. The defaults draw today's pixels.
 
-PREF SETS: `ScopePrefSet` (`Views/Scope/Prefs/ScopePrefSet.cs`, with its JSON options) is the saved record: name, range, centre, template, brightness, DB settings, the STARS ids of the maps that are on, the open views and every view's place, and the tear-offs, plus the profile's `toolbar` and `views` arrays and the reserved `bands` and `kind` fields, which are saved and not yet applied.
+PREF SETS: `ScopePrefSet` (`Views/Scope/Prefs/ScopePrefSet.cs`, with its JSON options) is the saved record: name, range, centre, template, brightness, DB settings, the STARS ids of the maps that are on, the open views and every view's place, and the tear-offs, plus the profile's `toolbar` and `views` arrays, `kind` (the profile name; `.scope pref load` applies it, the saved-state restore leaves the profile alone, and null in a set from an older build changes nothing) and `bands`, reserved: written null and ignored on load.
 
-The dwell locks, the MVA tint, the selection and the open menu are not saved. `ScopePrefSetStore` keeps two files per facility under `YaatPaths` `scope/`: `prefsets/<facility>.json` (the named sets) and `current/<facility>.json` (the Scope's own state, the same record). It versions each file, drops a bad entry with a warning, copies a corrupt file to `.bak`, refuses to overwrite a file it could not read, and keeps a newer file's version and unknown fields; neither file is in the settings bundle.
+The dwell locks, the MVA tint, the selection and the open menu are not saved. `ScopePrefSetStore` keeps two files per facility under `YaatPaths` `scope/`: `prefsets/<facility>.json` (the named sets) and `current/<facility>.json` (the Scope's own state, the same record). It versions each file, drops a bad entry with a warning, copies a corrupt file to `.bak`, refuses to overwrite a file it could not read, and keeps a newer file's version; the sets file also keeps its unknown fields on a write, while `SaveCurrent` writes the current file with none of them (the file's version only). Neither file is in the settings bundle.
 
 `ScopeViewModel.PrefSets.cs` holds `CapturePrefSet`, `ApplyPrefSet` (a load replaces the state: views open exactly as saved through `RestoreViewPlace`, tear-offs are replaced, an out-of-range value keeps the current one, maps the scope lacks are skipped and counted) and `ActivePrefSet` and `PrefSetNames`.
 
@@ -74,6 +74,14 @@ A load while the Scope waits for the Radar's maps is held as a pending set and a
 The viewer's facility keys the files: the state is saved when the Scope window closes and, in `SyncStateFacility`, for the old facility when the viewer changes facility, and restored when the Scope opens for a facility or the viewer moves to it, with the active set's name when that set still exists; a facility with no saved state keeps the screen and clears the active set. `ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore)` takes the store, and null means no pref sets.
 
 The PREF button (`ScopeButtonId.Pref`; tray: `PrefSet` per set, then `PrefSave`, `PrefSaveAs`, `PrefRename`, `PrefDelete`) shows `PREF` and the active name, and sits after BRITE. Its clicks run `.scope pref` through `MainViewModel.TryHandleScopeCommand`; SAVE AS and RENAME type the start of the command into the command box instead. `ScopeToolbarButtons.CanTearOff` is false for the set buttons only.
+
+PROFILES (`Views/Scope/Profiles/`): a `ScopeProfile` (name, kind, bands, template, toolbar, views) is a display file for STARS, ERAM or Mixed (`ScopeProfileKind`). `ScopeProfileStore` reads `scope/profiles/{stars,eram,mixed}.json` under `YaatPaths`, writes the shipped copy (`Resources/ScopeProfiles/*.json`) when a file is absent and never overwrites one; a bad field, a band list that does not bind or a null template falls back to the shipped value with a warning, and a file that does not parse (or holds a field of the wrong JSON type) is renamed to `.bak` and the shipped copy written in its place. `bands` (maxNm, othersLevel, vectorMin, history, rings) are stored and drive nothing yet. `toolbar` and `views` order the bar (by `ScopeToolbarButtons.NameOf`) and the views list; entries they do not name follow in the default order and unknown names are skipped with one warning (`ScopeProfilePicker.Order`).
+
+The PROFILE menu (`ScopeButtonId.Profile`; tray `ProfileStars`, `ProfileEram`, `ProfileMixed`) is first on the bar and shows `PROFILE` and the kind. Its picks run `.scope profile stars|eram|mixed` (`MainViewModel.PickScopeProfile`, echo `Scope profile ERAM`; a bad id answers `Unknown scope profile '<id>'`, a missing one `Usage: .scope profile <stars|eram|mixed>`).
+
+The profile belongs to the room, not the window: `MainViewModel.ScopeProfile` is picked once, when the student position first arrives (`OnActivePositionForScopeProfile`): the profile picked by hand for the room's student position type (`UserPreferences.GetScopeProfileOverride`, the `scopeProfileByPositionType` preference keyed GND/TWR/APP/CTR, excluded from the settings bundle), else `ScopeProfilePicker.KindFor` (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed). A later position change keeps it and a cleared position resets it. A hand pick (`PickScopeProfileByHand`) saves the override; a pref-set load switches the profile without saving one.
+
+`ScopeViewModel.Profile.cs` follows `MainViewModel.ScopeProfile`: it orders the bar (`ToolbarButtons`) and the views and picks the profile's template, unless the viewer's facility has a saved state, whose template stands. A Scope opened before the room has a profile shows Mixed's order and keeps its opening template.
 
 TEAR-OFFS: `ScopeViewModel.Tearoffs` (`ScopeViewModel.Tearoffs.cs`) holds one `ScopeTearoff` (a `ScopeButtonKey` and a `ScopePlacement`: corner and dx/dy from it) per torn-off button, where a map toggle is its own key by STARS id; `PlaceTearoff` and `DeleteTearoffs` are what `.scope tearoff` calls, and the bar's last button, DEL TEAROFF, enters the delete mode that marks copies (`ToggleTearoffMark`) and deletes them on its next press.
 

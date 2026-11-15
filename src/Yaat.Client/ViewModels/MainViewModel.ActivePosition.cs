@@ -72,6 +72,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(ActivePosition));
         OnPropertyChanged(nameof(ActingCallsign));
         OnPropertyChanged(nameof(ActingTrackFacilityId));
+        OnActivePositionForScopeProfile(config is null);
     }
 
     /// <summary>

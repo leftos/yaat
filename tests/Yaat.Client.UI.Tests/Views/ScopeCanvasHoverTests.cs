@@ -115,7 +115,7 @@ public class ScopeCanvasHoverTests
     private static (MainViewModel Main, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         var view = new ScopeView { DataContext = scope };
         var side = new Border { Width = SideWidth };
         DockPanel.SetDock(side, Dock.Left);

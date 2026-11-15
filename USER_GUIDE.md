@@ -105,13 +105,19 @@ Close an extra window to remove it; open extras (with their airports) are restor
 
 The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on.
 
-A navy toolbar runs across the top of the window. Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXED** and **EUROSCOPE** (the one in use has a cyan border); clicking a pick or **TEMPLATE** again closes the tray.
+A navy toolbar runs across the top of the window. **PROFILE** is its first button and reads **PROFILE MIXED** (or STARS, ERAM). Its tray holds **STARS**, **ERAM** and **MIXED**; a pick switches the Scope's profile, which sets the datablock template and the order of the toolbar buttons and views.
 
-**MIXED** draws each track in its owner's kind of block (an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, and an unowned track the ERAM block); the Scope starts on STARS (EuroScope with EuroScope mode on) unless a saved state or a pref set brings another.
+The profile is picked once per room, when your student position first arrives: ERAM for an ERAM sector, STARS for a TRACON or tower (ATCT) position, otherwise Mixed. Changing position later (`AS`) keeps it. A profile you pick by hand is remembered for that kind of student position (GND, TWR, APP, CTR) and wins in later rooms of that kind. A facility's saved Scope state keeps its own template.
+
+The profiles are files in `%LOCALAPPDATA%/yaat/scope/profiles/` (`stars.json`, `eram.json`, `mixed.json`), written when absent and never overwritten, so you can edit them. A field that is wrong falls back to the shipped value, and a file that cannot be read is renamed to a `.bak` and replaced with the shipped copy. `toolbar` and `views` list the buttons and views in the order you want them; ones you leave out follow in the default order. `bands` is stored but does nothing yet.
+
+Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXED** and **EUROSCOPE** (the one in use has a cyan border); clicking a pick or **TEMPLATE** again closes the tray.
+
+**MIXED** draws each track in its owner's kind of block (an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, and an unowned track the ERAM block); the Scope starts on its profile's template unless a saved state or a pref set brings another (STARS, or EuroScope with EuroScope mode on, until the room has a profile).
 
 The **RANGE** button shows the range in nautical miles (**RANGE 40**). Roll the mouse wheel over it to change the range by 1 NM per step, wheel up to zoom in, between 1 and 256 NM, at the Radar's scroll sensitivity; a click on it does nothing.
 
-The bar reads **TEMPLATE**, **RANGE**, **MAPS**, **DB**, **VIEWS**, **BRITE**, **PREF** and **DEL TEAROFF**.
+By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **MAPS**, **DB**, **VIEWS**, **BRITE**, **PREF** and **DEL TEAROFF**.
 
 **MAPS** opens a tray with **CLR ALL**, which turns every map off, then one toggle per video map labelled with its STARS id and short name (`10 SFO`), in STARS id order and lit while the map is on. The Scope keeps its own map toggles, copied once from the Radar's when it opens, so the lit ones start as the Radar's active maps; toggling them never changes the Radar. The Scope opens from a centred Radar even when every map is off. When the buttons do not fit the tray wraps onto more rows; it overlays the scope and never resizes it.
 
@@ -141,9 +147,9 @@ Brightness belongs to the Scope window and is never sent to the server. It is ke
 
 **SAVE** saves the active set again from the Scope's current state. **SAVE AS** types `.scope pref saveas ` into the command box and focuses it, for you to add a name. **RENAME** types `.scope pref rename <ACTIVE> ` the same way, with the active set's name. **DELETE** deletes the active set. With no active set, RENAME and DELETE say `No pref set is active: use .scope pref saveas <name>`.
 
-A pref set is a named snapshot of the Scope: range, centre, template, brightness (every BRITE group), the DB settings (4TH LINE, DWELL, ATPA DIST, CHAR), the maps that are on, which views are open and where each one sits, and the tear-offs. It does not hold your dwell locks, the MVA tint, the selection or an open menu. A name is 1 to 16 characters of A-Z, 0-9, `-` and `_`; any letter case, shown in capitals. Windows device names such as CON, NUL and COM1 are refused.
+A pref set is a named snapshot of the Scope: range, centre, template, profile, brightness (every BRITE group), the DB settings (4TH LINE, DWELL, ATPA DIST, CHAR), the maps that are on, which views are open and where each one sits, and the tear-offs. It does not hold your dwell locks, the MVA tint, the selection or an open menu. A name is 1 to 16 characters of A-Z, 0-9, `-` and `_`; any letter case, shown in capitals. Windows device names such as CON, NUL and COM1 are refused.
 
-Loading a set replaces the Scope's state: the views open exactly as saved and the tear-offs are replaced. A saved value that is out of range keeps the current one. A map the Scope does not have is skipped, and the echo names how many (`(2 maps not on this scope)`). A load made while the Scope waits for the Radar applies its maps, range and centre once the Radar's data arrives.
+Loading a set replaces the Scope's state: the profile switches to the set's, the views open exactly as saved and the tear-offs are replaced. A set saved by an older build has no profile and leaves it as it is. A saved value that is out of range keeps the current one. A map the Scope does not have is skipped, and the echo names how many (`(2 maps not on this scope)`). A load made while the Scope waits for the Radar applies its maps, range and centre once the Radar's data arrives.
 
 Sets belong to a facility, the one of your active position's track or listing, and are kept in `%LOCALAPPDATA%/yaat/scope/prefsets/<facility>.json`. Without an active position every PREF action says `No facility: pref sets need an active position`. Pref sets are not part of the settings bundle export.
 
@@ -159,7 +165,7 @@ A view moves the same way: a left press on a view card's title starts the move, 
 
 **DEL TEAROFF** is the last bar button. The first press enters delete mode: the button draws active and the tray closes. A left click on a torn-off button copy marks or unmarks it, and the next press on DEL TEAROFF deletes the marked copies. Esc leaves the mode and deletes nothing. It applies to button copies only, never to views.
 
-Every toolbar action is also a command typed in the command box, and the status line echoes it: `.scope range <1-256>`, `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>` (the group is `mapa`, `mapb`, `targets`, `fdb`, `alerts`, `line4` or `dwell`; `.scope brite fdb 80` echoes `.scope brite fdb 80`), `.scope map <starsId> <on|off>` and `.scope map clear`.
+Every toolbar action is also a command typed in the command box, and the status line echoes it: `.scope range <1-256>`, `.scope profile <stars|eram|mixed>` (echoes `Scope profile ERAM`), `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>` (the group is `mapa`, `mapb`, `targets`, `fdb`, `alerts`, `line4` or `dwell`; `.scope brite fdb 80` echoes `.scope brite fdb 80`), `.scope map <starsId> <on|off>` and `.scope map clear`.
 
 The same goes for `.scope db <4thline|dwell|atpa> <on|off>` and `.scope db char <8-24>` (the DB echo is lowercase), `.view <ssa|ca> <on|off|dock>` (any letter case), `.scope tearoff <button> <tl|tr|bl|br> <dx> <dy>` and `.view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>`.
 
@@ -169,7 +175,7 @@ The pref set verbs are `.scope pref save`, `.scope pref saveas <name>`, `.scope 
 
 `.view <ssa|ca> tear …` opens the view if it is closed and floats it at that place, and `.view <ssa|ca> dock` opens it if closed and docks it; both echo.
 
-A bad value answers `Usage: .scope range <1-256>`, `Unknown scope template: <id>`, `Unknown video map: <id>`, `Usage: .scope map <id> <on|off> | .scope map clear`, `Unknown scope DB item: <item>` (also for an unbuilt item).
+A bad value answers `Usage: .scope range <1-256>`, `Unknown scope template: <id>`, `Unknown scope profile '<id>'`, `Usage: .scope profile <stars|eram|mixed>`, `Unknown video map: <id>`, `Usage: .scope map <id> <on|off> | .scope map clear`, `Unknown scope DB item: <item>` (also for an unbuilt item).
 
 Further bad values answer `Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>`, `Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20`, `Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>`, `Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...`, `Unknown scope button: <typed>` or `No tear-off: <typed>`.
 

@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -11,10 +12,12 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using Yaat.Client.Logging;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -42,7 +45,7 @@ public class ScopeToolbarTests
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         beforeScope(main);
-        var scope = new ScopeViewModel(main, prefStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         if (size is { } s)
@@ -111,6 +114,87 @@ public class ScopeToolbarTests
         finally
         {
             window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ProfileMenu_ShowsTheProfile_AndPickingEramSwitchesAndLightsIt()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Button profile = ButtonOf(window, ScopeButtonId.Profile);
+            Assert.Equal("PROFILE MIXED", Label(profile));
+            Assert.Equal("MIXED", ((TextBlock)profile.Content!).Inlines!.OfType<Run>().Last().Text);
+            Assert.Equal("MIXED", scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.Profile)!));
+
+            Click(profile);
+            Assert.Equal(["STARS", "ERAM", "MIXED"], TrayButtons(window).Select(DrawnText));
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.ProfileMixed).Classes);
+
+            Click(ButtonOf(window, ScopeButtonId.ProfileEram));
+
+            Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
+            Assert.Equal("Scope profile ERAM", main.StatusText);
+            Assert.Empty(TrayButtons(window));
+            Assert.Equal("ERAM", ((TextBlock)ButtonOf(window, ScopeButtonId.Profile).Content!).Inlines!.OfType<Run>().Last().Text);
+            Click(ButtonOf(window, ScopeButtonId.Profile));
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.ProfileEram).Classes);
+            Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.ProfileMixed).Classes);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheBar_FollowsTheProfilesToolbarOrder_WithEveryOtherButtonAfter()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "yaat-scope-toolbar-profile-tests", Guid.NewGuid().ToString("N"));
+        var store = new ScopeProfileStore(root, AppLog.CreateLogger<ScopeProfileStore>());
+        store.Get(ScopeProfileKind.Mixed);
+        string mixedFile = Path.Combine(root, "mixed.json");
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(mixedFile))!.AsObject();
+        edited["toolbar"] = new JsonArray("maps", "range", "wx");
+        File.WriteAllText(mixedFile, edited.ToJsonString());
+        var main = new MainViewModel(new FakeFilePickerService());
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: store);
+        main.OpenScope = scope;
+        var window = new ScopeWindow(main.Preferences, scope);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            ScopeButtonId[] bar =
+            [
+                .. window
+                    .GetVisualDescendants()
+                    .OfType<Button>()
+                    .Where(b => b.IsEffectivelyVisible && (b.Tag is ScopeButtonId))
+                    .Select(b => (ScopeButtonId)b.Tag!),
+            ];
+
+            Assert.Equal(
+                [
+                    ScopeButtonId.Maps,
+                    ScopeButtonId.Range,
+                    ScopeButtonId.Profile,
+                    ScopeButtonId.Template,
+                    ScopeButtonId.Db,
+                    ScopeButtonId.Views,
+                    ScopeButtonId.Brite,
+                    ScopeButtonId.Pref,
+                    ScopeButtonId.DeleteTearoff,
+                ],
+                bar
+            );
+        }
+        finally
+        {
+            window.Close();
+            Directory.Delete(root, recursive: true);
         }
     }
 

@@ -90,6 +90,11 @@
     <AvaloniaResource Include="Resources\icon.png" />
   </ItemGroup>
 
+  <!-- The shipped YAAT Scope profiles, written under scope/profiles when absent (ScopeProfileStore). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\ScopeProfiles\*.json" LogicalName="Yaat.Client.ScopeProfiles.%(Filename).json" />
+  </ItemGroup>
+
   <!-- Ship the generated cheatsheet HTML next to the EXE so Help → Command Cheatsheet
        opens it in the user's default browser without a network round-trip. Source of
        truth is docs/command-cheatsheet.json; tools/build-cheatsheet.mjs renders the HTML

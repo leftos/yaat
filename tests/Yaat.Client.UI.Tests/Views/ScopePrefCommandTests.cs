@@ -157,7 +157,7 @@ public class ScopePrefCommandTests : IDisposable
 
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(EramConfig());
-        using var scope = new ScopeViewModel(main, Store());
+        using var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         Assert.True(scope.IsWaitingForRadarSeed);
 
@@ -178,7 +178,7 @@ public class ScopePrefCommandTests : IDisposable
     public async Task NoStore_SaysPrefSetsAreUnavailable()
     {
         MainViewModel main = await MainAsync();
-        using var scope = new ScopeViewModel(main, prefStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
 
         main.RunScopeCommand(".scope pref saveas SR");
@@ -191,7 +191,7 @@ public class ScopePrefCommandTests : IDisposable
     public async Task NoFacility_SaysPrefSetsNeedAnActivePosition_AndLeavesTheState()
     {
         MainViewModel main = await MainAsync();
-        using var scope = new ScopeViewModel(main, Store());
+        using var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         Assert.Null(scope.Viewer.EramFacilityId);
 
@@ -647,7 +647,7 @@ public class ScopePrefCommandTests : IDisposable
 
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(EramConfig());
-        using var scope = new ScopeViewModel(main, Store());
+        using var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         main.RunScopeCommand(".scope pref load HOLD");
         Assert.Equal(".scope pref load HOLD (its maps apply once the scope's maps load)", main.StatusText);
@@ -780,7 +780,7 @@ public class ScopePrefCommandTests : IDisposable
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(EramConfig());
         SeedRadar(main, 37.62, -122.38, "m2");
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }

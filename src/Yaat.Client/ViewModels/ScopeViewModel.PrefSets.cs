@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.ViewModels;
@@ -64,7 +65,8 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// The scope's display state as a pref set named <paramref name="name"/>: range and centre, template, BRITE, DB, the
-    /// maps that are on, the open views and every view's place, the tear-offs, and the profile's toolbar and views.
+    /// maps that are on, the open views and every view's place, the tear-offs, the bar's and the views' order, and the
+    /// profile's name. Bands live only in the profile's file.
     /// </summary>
     /// <param name="name">The set's uppercase name, or null for the scope's unnamed current state.</param>
     internal ScopePrefSet CapturePrefSet(string? name) =>
@@ -81,15 +83,16 @@ public sealed partial class ScopeViewModel
             OpenViews = [.. OpenViews],
             ViewPlaces = [.. _allViews.Select(CaptureViewPlace)],
             Tearoffs = [.. Tearoffs.Select(CaptureTearoff)],
-            Toolbar = [.. ScopeToolbarButtons.All.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))],
+            Toolbar = [.. ToolbarButtons.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))],
             Views = [.. _allViews.Select(view => view.Name)],
             Bands = null,
-            Kind = null,
+            Kind = ScopeProfilePicker.NameOf(ProfileKind),
         };
 
     /// <summary>
     /// Applies <paramref name="set"/> to the scope, keeping the current value of any field the set holds out of range or
-    /// unknown, and logs a warning for each one.
+    /// unknown, and logs a warning for each one. The set's profile is not applied here: the saved-state restore never
+    /// changes the profile, and <c>.scope pref load</c> applies it first (<see cref="ApplyPrefSetProfile"/>).
     /// </summary>
     /// <returns>The number of the set's maps this scope lacks.</returns>
     internal int ApplyPrefSet(ScopePrefSet set)

@@ -319,7 +319,7 @@ public class ScopePrefMenuTests : IDisposable
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         main.SetActivePositionFromServer(EramConfig());
         SeedRadar(main);
-        var scope = new ScopeViewModel(main, Store());
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
