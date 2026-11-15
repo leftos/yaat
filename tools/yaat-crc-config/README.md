@@ -23,7 +23,7 @@ The full YAAT app (`Tools → Configure CRC Environments`) and the `Setup-CrcEnv
 
 ## Download
 
-Latest binaries are attached to the [crc-config-v\* releases](https://github.com/leftos/yaat/releases?q=crc-config-v) on GitHub:
+Latest binaries are attached to the [crc-config-v\* releases](https://github.com/leftos/yaat/releases/tag/crc-config-v0.1.2) on GitHub:
 
 | Platform | File |
 |----------|------|
