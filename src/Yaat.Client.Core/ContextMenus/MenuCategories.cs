@@ -161,6 +161,7 @@ public static class MenuCategories
             MenuCategory.Approach,
             [
                 .. MenuCatalog.ApproachPickerIds,
+                MenuIds.ApproachClearedExpected,
                 MenuIds.ApproachClearedVisual,
                 MenuIds.ProceduresJoinStar,
                 MenuIds.ProceduresDescendViaStar,

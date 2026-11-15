@@ -559,9 +559,11 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Several of its inputs (track against the destination bearing, distance) are not fingerprinted, so the situation itself is (`TrainingDtoFingerprint.Situation`): a change of situation alone rebroadcasts the aircraft. The client carries it as `AircraftModel.Situation`.
 - `SituationFlags` (`[Flags] Yaat.Sim.Situation.SituationFlags`, a number on the wire, `None = 0`, members append-only) is the stored `AircraftSituationState.Flags`, computed in the same `Situation` step by `SituationFlagCalculator` (`None` until the aircraft's first step).
 
-  Its members are `NearingDepartureHoldLine` = 1, `HoldShortIsDepartureRunway` = 2, `InsideFinalApproachFix` = 4, `RolloutDecelerating` = 8, `HasReportedFieldInSight` = 16, `HasReportedTrafficInSight` = 32, `HasTakeoffClearance` = 64, `PastV1` = 128 and `ApproachClearedForDescent` = 256. `HasTakeoffClearance` means cleared for takeoff; a line-up-and-wait clearance does not count.
+  Its members are `NearingDepartureHoldLine` = 1, `HoldShortIsDepartureRunway` = 2, `InsideFinalApproachFix` = 4, `RolloutDecelerating` = 8, `HasReportedFieldInSight` = 16, `HasReportedTrafficInSight` = 32, `HasTakeoffClearance` = 64, `PastV1` = 128 and `ApproachClearedForDescent` = 256, `ExpectedApproachAdvised` = 512, `EstablishedOnExpectedFinal` = 1024 and `ApproachClearancePending` = 2048. `HasTakeoffClearance` means cleared for takeoff; a line-up-and-wait clearance does not count.
 
   `PastV1` means on the takeoff, airborne or rolling at or above V1, the test `RejectedTakeoff.IsAtOrPastV1` shares with the takeoff-cancel handler. `ApproachClearedForDescent` means an approach clearance with descent on it, not a JFAC/JLOC lateral intercept, and not since ended by a go-around, the missed approach or the hold at its missed-approach fix.
+
+  `ExpectedApproachAdvised` means the aircraft was given an EAPP, `EstablishedOnExpectedFinal` that it is established on the final course of its expected approach by geometry alone (`ExpectedFinalGeometry`, no clearance needed), and `ApproachClearancePending` that a deferred approach clearance is waiting to take effect; they drive Cleared {approach} in the quick lists.
 
   Several of its inputs (the taxi route, phase internals, the layout distances) are not fingerprinted and the reported-in-sight flags latch, so the flags are fingerprinted as one slot (`TrainingDtoFingerprint.SituationFlags`): a change of flags alone rebroadcasts the aircraft.
 

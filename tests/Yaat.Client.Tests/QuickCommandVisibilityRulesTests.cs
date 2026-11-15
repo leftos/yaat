@@ -234,6 +234,53 @@ public class QuickCommandVisibilityRulesTests
         Assert.Equal(shown, Shows(aircraft, MenuIds.ApproachCleared, VfrCommandsForIfr.None));
     }
 
+    /// <summary>
+    /// The one-click Cleared {expected approach} shows to an IFR aircraft expecting an instrument approach once it was given
+    /// an EAPP or is established on that approach's final, and hides once cleared for the approach, while a deferred
+    /// clearance is pending, for a visual expectation, for a VFR aircraft and with no expected approach.
+    /// </summary>
+    [Theory]
+    [InlineData("I28R", "IFR", SituationFlags.ExpectedApproachAdvised, true)]
+    [InlineData("I28R", "IFR", SituationFlags.EstablishedOnExpectedFinal, true)]
+    [InlineData("I28R", "IFR", SituationFlags.None, false)]
+    [InlineData("I28R", "IFR", SituationFlags.ExpectedApproachAdvised | SituationFlags.ApproachClearedForDescent, false)]
+    [InlineData("I28R", "IFR", SituationFlags.EstablishedOnExpectedFinal | SituationFlags.ApproachClearancePending, false)]
+    [InlineData("VIS28R", "IFR", SituationFlags.ExpectedApproachAdvised, false)]
+    [InlineData("I28R", "VFR", SituationFlags.ExpectedApproachAdvised, false)]
+    [InlineData("", "IFR", SituationFlags.ExpectedApproachAdvised, false)]
+    public void ClearedExpectedApproach_ShowsOnlyWhenAdvisedOrEstablishedAndUncleared(string expected, string rules, SituationFlags flags, bool shown)
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.Approach, "InterceptCourse", onGround: false, rules);
+        aircraft.ExpectedApproach = expected;
+        aircraft.SituationFlags = flags;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.ApproachClearedExpected, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>Advised or established but on the ground (the EAPP stamp survives the landing): hidden, as the sim's airborne gate.</summary>
+    [Theory]
+    [InlineData(SituationFlags.ExpectedApproachAdvised)]
+    [InlineData(SituationFlags.EstablishedOnExpectedFinal)]
+    public void ClearedExpectedApproach_OnTheGround_IsHidden(SituationFlags flags)
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.Approach, "InterceptCourse", onGround: true, rules: "IFR");
+        aircraft.ExpectedApproach = "I28R";
+        aircraft.SituationFlags = flags;
+        Assert.False(Shows(aircraft, MenuIds.ApproachClearedExpected, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>After a go-around, Cleared {expected approach} waits for an assigned altitude, as Cleared approach does (§4-8-1).</summary>
+    [Theory]
+    [InlineData(3000.0, true)]
+    [InlineData(null, false)]
+    public void ClearedExpectedApproach_AfterAGoAround_ShowsOnlyWithAnAssignedAltitude(double? altitude, bool shown)
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.GoAround, "GoAround", onGround: false, rules: "IFR");
+        aircraft.ExpectedApproach = "I28R";
+        aircraft.SituationFlags = SituationFlags.ExpectedApproachAdvised;
+        aircraft.AssignedAltitude = altitude;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.ApproachClearedExpected, VfrCommandsForIfr.None));
+    }
+
     [Theory]
     [InlineData(MenuIds.TowerClearedForTakeoff, false, true)]
     [InlineData(MenuIds.TowerClearedForTakeoff, true, false)]

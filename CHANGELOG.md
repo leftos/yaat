@@ -7,6 +7,7 @@
 - An owner in another facility shows the symbol the student's STARS scope draws, as in `3Y(1)`, unless it repeats the owner's first or last character.
 - The aircraft menu's quick commands offer Accept handoff, Cancel handoff and Acknowledge pointout while one is pending for the position you act as.
 - VFR aircraft get an Altitude… quick command: pick thousands and hundreds to send `CM`, `CM A` or `CM B`, with VFR cruising altitudes outlined.
+- IFR aircraft given EAPP, or established on their expected approach's final course, get a one-click Cleared {approach} quick command that sends `CAPP`.
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
 - Favorite buttons can be cut and pasted onto another slot, and Delete settings empties a button into a blank of the same place and size.
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.

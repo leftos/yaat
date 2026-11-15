@@ -631,6 +631,9 @@ The runway an option clearance's pattern modifier names (`COPT MLT 28L` flown on
 **Deferred pattern altitude**:
 The altitude of that modifier (`COPT MLT 28L 20`), or the runway change's clear when it has none, held on `PhaseList.TransitionPatternAltitude` for the armed runway's circuit rather than the one being flown. A later altitude assignment replaces it.
 
+**Established (on the expected final)**:
+An airborne aircraft on the final course of its expected approach by geometry alone, with no clearance (`SituationFlags.EstablishedOnExpectedFinal`, `ExpectedFinalGeometry`, docs/client-context-menus.md, *When a quick command shows*); it offers Cleared {approach}. Distinct from `PhaseList.IsEstablishedOnApproach`, which is true only for an aircraft already cleared for an approach.
+
 **Final gate**:
 The 7110.65 §5-7-1.b.4 limit (`FlightCommandHandler.FinalGateNm`, 5 nm from the landing threshold) inside which an arrival on final takes no ATC speed assignment: `SPD`, a `CFIX` or constrained `DCTF` speed are refused, controller speeds are released and no speed revert is applied. A forced speed (`SPEEDF`/`SPEEDN`) overrides it.
 _Avoid_: 5 nm gate

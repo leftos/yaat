@@ -1163,6 +1163,447 @@ public class SituationFlagCalculatorTests
         Assert.False(Has(ComputeAs(ac, AircraftSituation.Approach), SituationFlags.ApproachClearedForDescent));
     }
 
+    // --- EstablishedOnExpectedFinal / ExpectedApproachAdvised / ApproachClearancePending ---
+
+    /// <summary>Distance (NM) out from the threshold, along the final approach course, the established cases fly at.</summary>
+    private const double EstablishedOutNm = 10.0;
+
+    /// <summary>The KOAK I28R segment fix between an aircraft 10 NM out and the FAF; the established cases fly its altitude.</summary>
+    private const string KoakNextFix = "URZAF";
+
+    /// <summary>KOAK, I28R expected, on its final course 10 NM out, tracking the course at the next fix's altitude: set.</summary>
+    [Fact]
+    public void EstablishedFinal_OnLocalizerOutsideFaf_IsSet()
+    {
+        ExpectedFinal final = Final("OAK", "I28R");
+        double nextFixOutNm = OutNm(final, FixPosition(final, KoakNextFix));
+        Assert.True((nextFixOutNm < EstablishedOutNm) && (nextFixOutNm > FafOutNm(final)), $"{KoakNextFix} is {nextFixOutNm:F1} NM out");
+
+        Assert.True(Established(OnKoakI28R(EstablishedOutNm, 0.0)));
+    }
+
+    [Fact]
+    public void EstablishedFinal_InsideFaf_IsClear()
+    {
+        ExpectedFinal final = Final("OAK", "I28R");
+
+        Assert.False(Established(OnKoakI28R(FafOutNm(final) - 1.0, 0.0)));
+    }
+
+    [Fact]
+    public void EstablishedFinal_PastLateralTolerance_IsClear() => Assert.False(Established(OnKoakI28R(EstablishedOutNm, 0.6)));
+
+    [Fact]
+    public void EstablishedFinal_CrossingTheCourse_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.TrueTrack += 90.0;
+        ac.TrueHeading = ac.TrueTrack;
+
+        Assert.False(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_OutboundOnTheCourse_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.TrueTrack = ac.TrueTrack.ToReciprocal();
+        ac.TrueHeading = ac.TrueTrack;
+
+        Assert.False(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_BeyondEighteenMiles_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(25.0, 0.0);
+        ac.Altitude = 6000;
+
+        Assert.False(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_AboveTheGlideslope_IsSet()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.Altitude += 3000;
+
+        Assert.True(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_BelowTheSegmentAltitude_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.Altitude -= 300;
+
+        Assert.False(Established(ac));
+    }
+
+    /// <summary>
+    /// KOAK I28R codes its IF, GROVE, with a glideslope-intercept altitude. 1.5 NM outside GROVE on the course, GROVE is
+    /// the nearest fix ahead: 300 ft below its altitude reads clear, at it set.
+    /// </summary>
+    [Fact]
+    public void EstablishedFinal_BelowTheGlideSlopeInterceptAltitude_IsClear()
+    {
+        ExpectedFinal final = Final("OAK", "I28R");
+        CifpLeg grove = final.Procedure.CommonLegs.First(l => l.FixIdentifier == "GROVE");
+        CifpAltitudeRestriction gsi = FixRestriction(final, "GROVE");
+        Assert.Equal(CifpAltitudeRestrictionType.GlideSlopeIntercept, gsi.Type);
+        double outNm = OutNm(final, LegPosition(grove)) + 1.5;
+        Assert.True((outNm < ExpectedFinalGeometry.MaxRangeNm) && (outNm > FafOutNm(final)), $"{outNm:F1} NM out");
+        AircraftState ac = Place(final, outNm, 0.0);
+
+        ac.Altitude = gsi.Altitude1Ft - 300;
+        Assert.False(Established(ac));
+
+        ac.Altitude = gsi.Altitude1Ft;
+        Assert.True(Established(ac));
+    }
+
+    /// <summary>
+    /// KSFO, I28R expected, on 28L's extended centerline 10 NM out: within I28R's lateral tolerance (the parallels are 750 ft
+    /// apart), but 28L's is the nearest final, so clear.
+    /// </summary>
+    [Fact]
+    public void EstablishedFinal_OnTheCloseParallel_IsClear()
+    {
+        ExpectedFinal final = Final("SFO", "I28R");
+        RunwayInfo left = NavigationDatabase.Instance.GetRunway("SFO", "28L") ?? throw new InvalidOperationException("SFO 28L missing from NavData");
+        var leftThreshold = new LatLon(left.ThresholdLatitude, left.ThresholdLongitude);
+        LatLon position = GeoMath.ProjectPoint(leftThreshold, left.TrueHeading.ToReciprocal(), EstablishedOutNm);
+        AircraftState ac = Arrival(final, position, left.TrueHeading);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, Anchor(final), final.Fac.Course));
+        Assert.True(crossTrackNm <= AirborneFollowHelper.OnFinalMaxCrossTrackNm, $"{crossTrackNm:F2} NM off I28R's course");
+
+        Assert.False(Established(ac));
+    }
+
+    /// <summary>KCCR, X19R (LDA) expected, on the LDA's published course, not 19R's centerline, 10 NM out: set.</summary>
+    [Fact]
+    public void EstablishedFinal_OffsetLda_UsesThePublishedCourse()
+    {
+        ExpectedFinal final = Final("CCR", "X19R");
+        Assert.True(final.Fac.Course.AbsAngleTo(final.Runway.TrueHeading) > 1.0, "X19R's course is 19R's centerline");
+
+        Assert.True(Established(Place(final, EstablishedOutNm, 0.0)));
+    }
+
+    /// <summary>KAJO, VOR-A expected (circling only, no runway), inbound on its final course outside its FAF: clear.</summary>
+    [Fact]
+    public void EstablishedFinal_CirclingOnly_IsClear()
+    {
+        CifpApproachProcedure procedure =
+            NavigationDatabase.Instance.GetApproach("AJO", "VOR-A") ?? throw new InvalidOperationException("KAJO VOR-A missing");
+        Assert.Null(procedure.Runway);
+        LatLon faf = LegPosition(procedure.CommonLegs.First(l => l.FixRole == CifpFixRole.FAF));
+        LatLon map = LegPosition(procedure.CommonLegs.First(l => l.FixRole == CifpFixRole.MAP));
+        var course = new TrueHeading(GeoMath.BearingTo(faf, map));
+        var ac = new AircraftState
+        {
+            Callsign = "UAL100",
+            AircraftType = "B738",
+            Position = GeoMath.ProjectPoint(faf, course.ToReciprocal(), 3.0),
+            TrueHeading = course,
+            TrueTrack = course,
+            Altitude = 4000,
+            IndicatedAirspeed = 180,
+            IsOnGround = false,
+        };
+        ac.FlightPlan.FlightRules = "IFR";
+        ac.FlightPlan.Destination = "AJO";
+        ac.Approach.Expected = "VOR-A";
+
+        Assert.False(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_VisualExpectation_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.Approach.Expected = "VIS28R";
+
+        Assert.False(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_Vfr_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.FlightPlan.FlightRules = "VFR";
+
+        Assert.False(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_ClearedForDescent_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.Phases = new PhaseList { ActiveApproach = ClearanceFor28R(lateralInterceptOnly: false) };
+
+        SituationFlags flags = ComputeAs(ac, AircraftSituation.Approach);
+        Assert.True(Has(flags, SituationFlags.ApproachClearedForDescent));
+        Assert.False(Has(flags, SituationFlags.EstablishedOnExpectedFinal));
+    }
+
+    /// <summary>A JFAC/JLOC lateral join is not an approach clearance: still uncleared, so set.</summary>
+    [Fact]
+    public void EstablishedFinal_LateralJoinOnly_IsSet()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.Phases = new PhaseList { ActiveApproach = ClearanceFor28R(lateralInterceptOnly: true) };
+
+        Assert.True(Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_PendingClearance_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        Assert.False(Has(ComputeAs(ac, AircraftSituation.Approach), SituationFlags.ApproachClearancePending));
+        ac.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = ClearanceFor28R(lateralInterceptOnly: false),
+            AssignedRunway = Runway("28R"),
+            ConnectingFix = null,
+        };
+
+        SituationFlags flags = ComputeAs(ac, AircraftSituation.Approach);
+        Assert.False(Has(flags, SituationFlags.EstablishedOnExpectedFinal));
+        Assert.True(Has(flags, SituationFlags.ApproachClearancePending));
+    }
+
+    [Fact]
+    public void ExpectedApproachAdvised_FollowsTheStamp()
+    {
+        AircraftState ac = Reporting("IFR");
+        ac.Approach.Expected = "I28R";
+        Assert.False(Has(ComputeAs(ac, AircraftSituation.IfrArrival), SituationFlags.ExpectedApproachAdvised));
+
+        ac.ExpectedApproachAdvisedAtSeconds = 30.0;
+        Assert.True(Has(ComputeAs(ac, AircraftSituation.IfrArrival), SituationFlags.ExpectedApproachAdvised));
+
+        ac.ExpectedApproachAdvisedAtSeconds = null;
+        Assert.False(Has(ComputeAs(ac, AircraftSituation.IfrArrival), SituationFlags.ExpectedApproachAdvised));
+    }
+
+    /// <summary>
+    /// KCCR, S19R expected (a VOR final offset from 19R's centerline), on its published course 1 NM outside FAWNE at FAWNE's
+    /// altitude: set, though a centerline wedge for 19R would not hold it.
+    /// </summary>
+    [Fact]
+    public void EstablishedFinal_OffsetFinalPastTheCenterlineWedge_IsSet()
+    {
+        ExpectedFinal final = Final("CCR", "S19R");
+        double outNm = OutNm(final, FixPosition(final, "FAWNE")) + 1.0;
+        Assert.True(outNm < ExpectedFinalGeometry.MaxRangeNm, $"{outNm:F1} NM out");
+        AircraftState ac = Place(final, outNm, 0.0);
+        ac.Altitude = FixRestriction(final, "FAWNE").Altitude1Ft;
+
+        Assert.True(Established(ac));
+    }
+
+    /// <summary>KCCR, X19R (LDA) expected, on its published course 16 NM out at JOANS's altitude: set.</summary>
+    [Fact]
+    public void EstablishedFinal_OffsetLdaFarOut_IsSet()
+    {
+        ExpectedFinal final = Final("CCR", "X19R");
+        Assert.True(OutNm(final, FixPosition(final, "JOANS")) < 16.0, "JOANS is not ahead of 16 NM out");
+        AircraftState ac = Place(final, 16.0, 0.0);
+        ac.Altitude = FixRestriction(final, "JOANS").Altitude1Ft;
+
+        Assert.True(Established(ac));
+    }
+
+    /// <summary>KSFO, I28R expected, on 28R's own course 10 NM out with 28L's final 750 ft beside it: set.</summary>
+    [Fact]
+    public void EstablishedFinal_OnTheExpectedRunwaysOwnFinalBesideAParallel_IsSet()
+    {
+        ExpectedFinal final = Final("SFO", "I28R");
+        AircraftState ac = Place(final, EstablishedOutNm, 0.0);
+        ac.Altitude = FixRestriction(final, "CEPIN").Altitude1Ft;
+
+        Assert.True(Established(ac));
+    }
+
+    /// <summary>KOAK I28R, at 4,000 ft (above GROVE's glideslope-intercept altitude ahead): set inside 18 NM out, clear past it.</summary>
+    [Theory]
+    [InlineData(17.5, true)]
+    [InlineData(18.5, false)]
+    public void EstablishedFinal_RangeBoundary(double outNm, bool established)
+    {
+        AircraftState ac = OnKoakI28R(outNm, 0.0);
+        ac.Altitude = 4000;
+        (double Lat, double Lon) oak =
+            NavigationDatabase.Instance.GetAirportPosition("OAK") ?? throw new InvalidOperationException("OAK has no position");
+        double fromFieldNm = GeoMath.DistanceNm(ac.Position, new LatLon(oak.Lat, oak.Lon));
+        Assert.True(
+            fromFieldNm < (ExpectedFinalGeometry.MaxRangeNm + ExpectedFinalGeometry.AirportGateMarginNm),
+            $"{fromFieldNm:F1} NM from the field: the destination range gate, not the 18 NM rule, would decide"
+        );
+
+        Assert.Equal(established, Established(ac));
+    }
+
+    /// <summary>KOAK I28R 10 NM out: within the 100 ft margin below the next fix's altitude set, past it clear.</summary>
+    [Theory]
+    [InlineData(-90.0, true)]
+    [InlineData(-110.0, false)]
+    public void EstablishedFinal_SegmentAltitudeMarginBoundary(double belowFt, bool established)
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.Altitude += belowFt;
+
+        Assert.Equal(established, Established(ac));
+    }
+
+    [Fact]
+    public void EstablishedFinal_WithinLateralTolerance_IsSet() => Assert.True(Established(OnKoakI28R(EstablishedOutNm, 0.4)));
+
+    /// <summary>KOAK I28R 10 NM out on the course: tracking 25° off it set, 35° off clear.</summary>
+    [Theory]
+    [InlineData(25.0, true)]
+    [InlineData(35.0, false)]
+    public void EstablishedFinal_TrackBoundary(double offDeg, bool established)
+    {
+        AircraftState ac = OnKoakI28R(EstablishedOutNm, 0.0);
+        ac.TrueTrack += offDeg;
+        ac.TrueHeading = ac.TrueTrack;
+
+        Assert.Equal(established, Established(ac));
+    }
+
+    /// <summary>
+    /// KAPC R19R's common legs turn onto the final: BAAHH, restricted at or above, lies off the final course but projects
+    /// ahead of an aircraft 1 NM outside it on the final. Below BAAHH's altitude but above the on-course FAF's, the off-course
+    /// fix does not set the floor: set.
+    /// </summary>
+    [Fact]
+    public void EstablishedFinal_OffCourseFixAhead_DoesNotSetTheFloor()
+    {
+        ExpectedFinal final = Final("APC", "R19R");
+        LatLon baahh = FixPosition(final, "BAAHH");
+        Assert.True(Math.Abs(CrossTrackNm(final, baahh)) > AirborneFollowHelper.OnFinalMaxCrossTrackNm, "BAAHH is on the final course");
+        LatLon faf = LegPosition(final.Procedure.CommonLegs.First(l => l.FixRole == CifpFixRole.FAF));
+        Assert.True(Math.Abs(CrossTrackNm(final, faf)) <= AirborneFollowHelper.OnFinalMaxCrossTrackNm, "the FAF is off the final course");
+        double outNm = OutNm(final, baahh) + 1.0;
+        Assert.True((outNm > FafOutNm(final)) && (outNm < ExpectedFinalGeometry.MaxRangeNm), $"{outNm:F1} NM out");
+        int fafFt =
+            final.Procedure.CommonLegs.First(l => l.FixRole == CifpFixRole.FAF).Altitude?.Altitude1Ft
+            ?? throw new InvalidOperationException("KAPC R19R FAF carries no altitude");
+        int baahhFt = FixRestriction(final, "BAAHH").Altitude1Ft;
+        Assert.True(baahhFt - fafFt > 400, $"BAAHH {baahhFt} ft, FAF {fafFt} ft");
+        AircraftState ac = Place(final, outNm, 0.0);
+        ac.Altitude = (fafFt + baahhFt) / 2;
+
+        Assert.True(Established(ac));
+    }
+
+    /// <summary>
+    /// 40 NM out on the final with an expected approach: clear. This covers the outcome only; the 18 NM rule and the
+    /// destination range gate both reject it, and the test cannot tell which did.
+    /// </summary>
+    [Fact]
+    public void EstablishedFinal_FarOut_IsClear()
+    {
+        AircraftState ac = OnKoakI28R(40.0, 0.0);
+        ac.Altitude = 6000;
+
+        Assert.False(Established(ac));
+    }
+
+    /// <summary>An expected approach resolved as CAPP resolves it, with its runway and its extracted final approach course.</summary>
+    private sealed record ExpectedFinal(
+        string Airport,
+        string Expected,
+        CifpApproachProcedure Procedure,
+        RunwayInfo Runway,
+        FinalApproachCourseResult Fac
+    );
+
+    private static ExpectedFinal Final(string airport, string expected)
+    {
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string id = navDb.ResolveApproachCandidates(airport, expected).Single();
+        CifpApproachProcedure procedure = navDb.GetApproach(airport, id) ?? throw new InvalidOperationException($"{airport} {id} missing");
+        string runwayId = procedure.Runway ?? throw new InvalidOperationException($"{airport} {id} names no runway");
+        RunwayInfo runway = navDb.GetRunway(airport, runwayId) ?? throw new InvalidOperationException($"{airport} {runwayId} missing");
+        return new ExpectedFinal(airport, expected, procedure, runway, FinalApproachCourseExtractor.Extract(procedure, runway, navDb));
+    }
+
+    private static bool Established(AircraftState ac) => Has(ComputeAs(ac, AircraftSituation.Approach), SituationFlags.EstablishedOnExpectedFinal);
+
+    /// <summary>
+    /// KOAK, I28R expected, <paramref name="outNm"/> out on its course and <paramref name="offNm"/> right of it, at the next
+    /// fix's altitude.
+    /// </summary>
+    private static AircraftState OnKoakI28R(double outNm, double offNm)
+    {
+        ExpectedFinal final = Final("OAK", "I28R");
+        AircraftState ac = Place(final, outNm, offNm);
+        ac.Altitude = FixRestriction(final, KoakNextFix).Altitude1Ft;
+        return ac;
+    }
+
+    /// <summary>The altitude restriction coded on <paramref name="fix"/>'s common leg.</summary>
+    private static CifpAltitudeRestriction FixRestriction(ExpectedFinal final, string fix) =>
+        final.Procedure.CommonLegs.First(l => l.FixIdentifier == fix).Altitude
+        ?? throw new InvalidOperationException($"{final.Procedure.ApproachId} {fix} carries no altitude");
+
+    /// <summary>
+    /// On <paramref name="final"/>'s course <paramref name="outNm"/> from the threshold, <paramref name="offNm"/> right of it,
+    /// tracking it.
+    /// </summary>
+    private static AircraftState Place(ExpectedFinal final, double outNm, double offNm)
+    {
+        LatLon anchor = Anchor(final);
+        TrueHeading course = final.Fac.Course;
+        LatLon onCourse = GeoMath.ProjectPoint(anchor, course.ToReciprocal(), outNm - OutNm(final, anchor));
+        return Arrival(final, GeoMath.ProjectPoint(onCourse, course + 90.0, offNm), course);
+    }
+
+    private static AircraftState Arrival(ExpectedFinal final, LatLon position, TrueHeading track)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "UAL100",
+            AircraftType = "B738",
+            Position = position,
+            TrueHeading = track,
+            TrueTrack = track,
+            Altitude = 3000,
+            IndicatedAirspeed = 180,
+            IsOnGround = false,
+        };
+        ac.FlightPlan.FlightRules = "IFR";
+        ac.FlightPlan.Destination = final.Airport;
+        ac.Approach.Expected = final.Expected;
+        return ac;
+    }
+
+    private static LatLon Threshold(ExpectedFinal final) => new(final.Runway.ThresholdLatitude, final.Runway.ThresholdLongitude);
+
+    private static LatLon Anchor(ExpectedFinal final) =>
+        ((final.Fac.AnchorLat is { } lat) && (final.Fac.AnchorLon is { } lon)) ? new LatLon(lat, lon) : Threshold(final);
+
+    /// <summary>How far <paramref name="point"/> is out from the threshold along the final approach course.</summary>
+    private static double OutNm(ExpectedFinal final, LatLon point) => -GeoMath.AlongTrackDistanceNm(point, Threshold(final), final.Fac.Course);
+
+    /// <summary>How far <paramref name="point"/> is right of the final approach course, measured from its anchor.</summary>
+    private static double CrossTrackNm(ExpectedFinal final, LatLon point) =>
+        GeoMath.SignedCrossTrackDistanceNm(point, Anchor(final), final.Fac.Course);
+
+    private static double FafOutNm(ExpectedFinal final) =>
+        OutNm(final, LegPosition(final.Procedure.CommonLegs.First(l => l.FixRole == CifpFixRole.FAF)));
+
+    private static LatLon FixPosition(ExpectedFinal final, string fix) => LegPosition(final.Procedure.CommonLegs.First(l => l.FixIdentifier == fix));
+
+    private static LatLon LegPosition(CifpLeg leg) =>
+        leg.ResolveFixPosition(NavigationDatabase.Instance) is { } pos
+            ? new LatLon(pos.Lat, pos.Lon)
+            : throw new InvalidOperationException($"{leg.FixIdentifier} unresolved");
+
     // --- Helpers ---
 
     private sealed record EngineAircraft(SimulationEngine Engine, AircraftState Aircraft);

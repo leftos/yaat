@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -16,6 +17,8 @@ namespace Yaat.Sim.Situation;
 /// </summary>
 public static class SituationFlagCalculator
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("SituationFlagCalculator");
+
     /// <summary>A taxiing aircraft is nearing its departure hold line at or inside this along-route distance (enter).</summary>
     public const double NearingDepartureHoldLineFt = 1200.0;
 
@@ -64,7 +67,11 @@ public static class SituationFlagCalculator
         flags |= When(SituationFlags.RolloutDecelerating, IsRolloutDecelerating(ac, Had(previous, SituationFlags.RolloutDecelerating)));
         flags |= When(SituationFlags.HasTakeoffClearance, ac.Phases?.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff });
         flags |= When(SituationFlags.PastV1, IsPastV1(ac));
-        flags |= When(SituationFlags.ApproachClearedForDescent, IsClearedForApproachDescent(ac));
+        bool clearedForDescent = IsClearedForApproachDescent(ac);
+        flags |= When(SituationFlags.ApproachClearedForDescent, clearedForDescent);
+        flags |= When(SituationFlags.ExpectedApproachAdvised, ac.ExpectedApproachAdvisedAtSeconds is not null);
+        flags |= When(SituationFlags.EstablishedOnExpectedFinal, IsEstablishedOnExpectedFinal(ac, clearedForDescent, previous));
+        flags |= When(SituationFlags.ApproachClearancePending, ac.Approach.PendingClearance is not null);
         return flags | ReportedInSight(ac);
     }
 
@@ -114,6 +121,22 @@ public static class SituationFlagCalculator
     /// </summary>
     public static bool IsInstrumentApproachPhase(Phase? phase) =>
         phase is ApproachNavigationPhase { IsMissedApproach: false } or InterceptCoursePhase or ProcedureTurnPhase or FinalApproachPhase;
+
+    /// <summary><see cref="ExpectedFinalGeometry.IsEstablished"/>, logged once on the second the flag turns on.</summary>
+    private static bool IsEstablishedOnExpectedFinal(AircraftState ac, bool clearedForDescent, SituationFlags previous)
+    {
+        bool established = ExpectedFinalGeometry.IsEstablished(ac, clearedForDescent);
+        if (established && (!Had(previous, SituationFlags.EstablishedOnExpectedFinal)))
+        {
+            Log.LogDebug(
+                "[ExpectedFinal] {Callsign} established on the final of its expected approach {Expected}",
+                ac.Callsign,
+                ac.Approach.Expected
+            );
+        }
+
+        return established;
+    }
 
     private static bool Had(SituationFlags previous, SituationFlags flag) => (previous & flag) == flag;
 

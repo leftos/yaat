@@ -766,6 +766,26 @@ public static class AircraftCommandApplicability
         ac is not null && ((ac.Situation != AircraftSituation.GoAround) || ac.AssignedAltitude is not null);
 
     /// <summary>
+    /// Cleared {expected approach} (one click, bare <c>CAPP</c>) shows to an IFR aircraft expecting an instrument approach (a
+    /// visual expectation has Cleared visual approach) once it was given an EAPP
+    /// (<see cref="SituationFlags.ExpectedApproachAdvised"/>) or is established on that approach's final course
+    /// (<see cref="SituationFlags.EstablishedOnExpectedFinal"/>); it hides once cleared with descent
+    /// (<see cref="SituationFlags.ApproachClearedForDescent"/>), while a deferred clearance is pending
+    /// (<see cref="SituationFlags.ApproachClearancePending"/>), and after a go-around until an altitude is assigned. On the
+    /// ground it never shows (the EAPP stamp survives the landing), as the sim's established test is airborne only.
+    /// </summary>
+    public static bool ShowsClearedExpectedApproach(IMenuAircraft? ac) =>
+        IsAirborneIfrExpectingInstrumentApproach(ac)
+        && (ac.SituationFlags.HasFlag(SituationFlags.ExpectedApproachAdvised) || ac.SituationFlags.HasFlag(SituationFlags.EstablishedOnExpectedFinal))
+        && (!ac.SituationFlags.HasFlag(SituationFlags.ApproachClearedForDescent))
+        && (!ac.SituationFlags.HasFlag(SituationFlags.ApproachClearancePending))
+        && ShowsApproachClearanceAfterGoAround(ac);
+
+    /// <summary>An airborne IFR aircraft whose expected approach is an instrument one, not a visual.</summary>
+    private static bool IsAirborneIfrExpectingInstrumentApproach([NotNullWhen(true)] IMenuAircraft? ac) =>
+        (ac is { IsOnGround: false, ExpectedApproach: { Length: > 0 } expected }) && IsIfr(ac) && (!ApproachIds.TryParseVisual(expected, out _));
+
+    /// <summary>
     /// Climb via SID shows only with a SID to climb via: an active one, or one in the filed route the sim would activate
     /// (<c>NavigationCommandHandler.DispatchClimbVia</c>, which refuses <c>CVIA</c> with neither).
     /// </summary>

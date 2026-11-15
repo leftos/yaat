@@ -383,15 +383,15 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | Holding short | Cleared for takeoff, Line up and wait (at the departure runway); Cross {runway}, Air taxi (helicopter), Resume taxi (at any other); Hold short of… (when the route has a stop) |
 | Lined up | Cleared for takeoff, Cancel takeoff clearance, Draw taxi route… |
 | Departing | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Climb via SID (IFR), Direct to…, Assign speed, Land (helicopter) |
-| IFR enroute | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Direct to…, Assign speed, Hold at fix…, Cross fix, Land (helicopter) |
-| IFR arrival | Descend via STAR (IFR), Maintain altitude (IFR), Altitude… (VFR), Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix…, Land (helicopter) |
+| IFR enroute | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Direct to…, Assign speed, Hold at fix…, Cleared {approach} (IFR), Cross fix, Land (helicopter) |
+| IFR arrival | Descend via STAR (IFR), Maintain altitude (IFR), Altitude… (VFR), Assign speed, Fly heading, Direct to…, Expect approach, Cleared {approach} (IFR), Hold at fix…, Land (helicopter) |
 | VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude (IFR), Altitude… (VFR), Direct to…, Expect approach, Land (helicopter) |
-| Approach | Cleared approach, Maintain altitude (IFR), Altitude… (VFR), Assign speed, Report field in sight…, Cleared visual (IFR), Cleared to land, Land (helicopter) |
-| Holding | Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR), Direct to…, Maintain altitude (IFR), Altitude… (VFR); for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
+| Approach | Cleared {approach} (IFR), Cleared approach, Maintain altitude (IFR), Altitude… (VFR), Assign speed, Report field in sight…, Cleared visual (IFR), Cleared to land, Land (helicopter) |
+| Holding | Cleared {approach} (IFR), Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR), Direct to…, Maintain altitude (IFR), Altitude… (VFR); for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
 | Pattern | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Altitude… (VFR), Land (helicopter) |
 | Final | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach (these four VFR only), Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Altitude… (VFR), Land (helicopter) |
 | Rollout / exit | Exit left, Exit right, Air taxi (helicopter, once settled), Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
-| Go-around or missed approach | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
+| Go-around or missed approach | Fly heading, Maintain altitude (IFR), Altitude… (VFR), Cleared {approach} (IFR), Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
 | Live traffic | Assume control, Assume and track |
 | VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, Report when…, Cleared to land, Follow traffic…, Altitude… (VFR), Land (helicopter) |
 | VFR departure | Fly heading, Proceed on course, Maintain altitude (IFR), Altitude… (VFR), Report when…, Make left / right closed traffic, Land (helicopter) |
@@ -456,6 +456,11 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
   Each row shows the command it sends, updating as you type; a row whose heading or fix box is empty or unreadable shows "···", fades and sends nothing, and Enter in a heading or fix box sends that row (fix boxes suggest fixes as the command bar does). Glyphs are pattern purple, turned to the departure runway.
 - **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1. Sent to a taxiing aircraft already too close to stop short of the runway hold line, it answers "unable to hold short … stopping", brakes as hard as it can and rests just past the line, and you get an amber warning with how far past it stopped.
 - **Cleared approach** hides once the aircraft is cleared for an approach; after a go-around or missed approach it comes back once you assign an altitude.
+- **Cleared {approach}** (named for the approach, for example **Cleared ILS 28R**; **Cleared expected approach** in Settings › Quick commands) clears an IFR aircraft for the approach it expects in one click, sending `CAPP`.
+
+  It shows once the aircraft has been given **Expect approach**, or when it is established on that approach's final course without one, and only while the aircraft is airborne and expects an instrument approach (a visual expectation has Cleared visual) that names a single procedure.
+
+  It hides once the aircraft is cleared for the approach with descent, while a deferred clearance is waiting, on the ground, and after a go-around until you assign an altitude. The sim logs `[ExpectedFinal] {callsign} established on the final of its expected approach {approach}` once when the aircraft becomes established.
 - **Report field in sight…** hides for an IFR aircraft once the pilot has reported the field in sight, and comes back if the pilot loses sight of the field, goes around or the approach is reset. It opens a flyout (the strip icon's, and All Commands › Pilot reports) where you give the field advisory, in RPO and in solo training alike; with no destination field for the aircraft the entry is disabled (`· no destination field`) and the strip icon is faded.
 
   The **Field advisory** box takes the clock and miles (`12 5`), with the destination field named under it. The command beside it reads `RFIS ···` until both are in, then `RFIS {clock} {miles}`, and a grey hint says what is next (`next: ‹clock›`, `next: ‹miles›`, `complete · Enter sends`).
