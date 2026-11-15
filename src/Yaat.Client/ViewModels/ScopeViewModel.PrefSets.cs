@@ -27,6 +27,38 @@ public sealed partial class ScopeViewModel
     /// <summary>The store <c>.scope pref</c> reads and writes, or null when pref sets are unavailable.</summary>
     internal ScopePrefSetStore? PrefStore { get; }
 
+    /// <summary>The facility's pref-set names, in file order, read on each call; empty without a store or an active facility.</summary>
+    internal IReadOnlyList<string> PrefSetNames
+    {
+        get
+        {
+            if (PrefStore is not { } store)
+            {
+                return [];
+            }
+
+            string? facility = Viewer.EramFacilityId;
+            if (!ScopePrefSetStore.IsSafeFacility(facility))
+            {
+                return [];
+            }
+
+            List<string> names = [];
+            foreach (ScopePrefSet set in store.LoadSets(facility))
+            {
+                if (set.Name is { } name)
+                {
+                    names.Add(name);
+                }
+            }
+
+            return names;
+        }
+    }
+
+    /// <summary>Tells the Scope's views that the facility's pref sets changed, so an open PREF tray rebuilds.</summary>
+    internal void NotifyPrefSetsChanged() => OnPropertyChanged(nameof(PrefSetNames));
+
     /// <summary>
     /// The scope's display state as a pref set named <paramref name="name"/>: range and centre, template, BRITE, DB, the
     /// maps that are on, the open views and every view's place, the tear-offs, and the profile's toolbar and views.
@@ -71,6 +103,9 @@ public sealed partial class ScopeViewModel
         ApplyTearoffs(set.Tearoffs);
         return ApplyMaps(set);
     }
+
+    /// <summary>The scope's pref sets belong to the viewer's facility, so a new viewer brings a new list.</summary>
+    partial void OnViewerChanged(ScopeViewer value) => OnPropertyChanged(nameof(PrefSetNames));
 
     /// <summary>The maps a set saves: a pending set's, since its own have not been applied, else the on toggles' STARS ids.</summary>
     private IReadOnlyList<int> CaptureMaps() =>

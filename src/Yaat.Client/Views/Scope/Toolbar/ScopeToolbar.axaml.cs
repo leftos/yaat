@@ -51,14 +51,18 @@ public partial class ScopeToolbar : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // A rebuilt tray's new buttons are drawn by the refresh that follows. The map toggles change the MAPS tray's buttons.
+        // A rebuilt tray's new buttons are drawn by the refresh that follows. The map toggles and the pref sets change the
+        // buttons of their own tray.
         bool mapsChanged = (e.PropertyName == nameof(ScopeViewModel.MapToggles)) && (_viewModel?.OpenMenu == ScopeButtonId.Maps);
-        if ((e.PropertyName == nameof(ScopeViewModel.OpenMenu)) || mapsChanged)
+        bool prefSetsChanged =
+            (e.PropertyName is nameof(ScopeViewModel.PrefSetNames) or nameof(ScopeViewModel.ActivePrefSet))
+            && (_viewModel?.OpenMenu == ScopeButtonId.Pref);
+        if ((e.PropertyName == nameof(ScopeViewModel.OpenMenu)) || mapsChanged || prefSetsChanged)
         {
             RebuildTray();
         }
 
-        if (mapsChanged || IsDrawnState(e.PropertyName))
+        if (mapsChanged || prefSetsChanged || IsDrawnState(e.PropertyName))
         {
             RefreshButtons();
         }
@@ -73,6 +77,7 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.OpenViews)
                 or nameof(ScopeViewModel.Brightness)
                 or nameof(ScopeViewModel.DbSettings)
+                or nameof(ScopeViewModel.ActivePrefSet)
                 or nameof(ScopeViewModel.IsDeletingTearoffs);
 
     /// <summary>

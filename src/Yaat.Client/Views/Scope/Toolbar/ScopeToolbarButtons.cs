@@ -81,6 +81,24 @@ public enum ScopeButtonId
     /// <summary>The BRITE menu's DWELL spinner.</summary>
     BriteDwell,
 
+    /// <summary>The PREF menu; its tray holds the facility's pref sets and the pref-set actions.</summary>
+    Pref,
+
+    /// <summary>A PREF menu set button: one id shared by every set, each told apart by its name (the button's value).</summary>
+    PrefSet,
+
+    /// <summary>The PREF menu's SAVE.</summary>
+    PrefSave,
+
+    /// <summary>The PREF menu's SAVE AS, which types a new set's name into the command box.</summary>
+    PrefSaveAs,
+
+    /// <summary>The PREF menu's RENAME, which types the active set's new name into the command box.</summary>
+    PrefRename,
+
+    /// <summary>The PREF menu's DELETE of the active set.</summary>
+    PrefDelete,
+
     /// <summary>DEL TEAROFF: marks tear-offs, then deletes the marked ones.</summary>
     DeleteTearoff,
 }
@@ -108,7 +126,8 @@ public enum ScopeButtonKind
 /// <param name="Children">A menu's buttons, in tray order; empty for any other kind.</param>
 /// <param name="Value">
 /// The value the button stands for: the template id a template pick picks, the view name a view toggle opens, the group name
-/// a BRITE spinner steps, the STARS id a map toggle turns on, the item a DB button sets; else null.
+/// a BRITE spinner steps, the STARS id a map toggle turns on, the set name a PREF set button loads, the item a DB button
+/// sets; else null.
 /// </param>
 /// <param name="Command">
 /// A command button's full dot command; a toggle's command stem, to which a press appends <c> on</c> or <c> off</c>; null for
@@ -182,6 +201,8 @@ public static class ScopeToolbarButtons
             null,
             null
         ),
+        // The PREF tray lists the facility's pref sets: ScopeViewModel.TrayChildren builds this tray.
+        new(ScopeButtonId.Pref, "PREF", ScopeButtonKind.Menu, [], null, null),
         new(ScopeButtonId.DeleteTearoff, "DEL TEAROFF", ScopeButtonKind.Command, [], null, null),
     ];
 
@@ -218,6 +239,37 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that turns the Scope map with <paramref name="starsId"/> on (<paramref name="on"/>) or off.</summary>
     public static string MapCommand(int starsId, bool on) => $".scope map {starsId.ToString(CultureInfo.InvariantCulture)} {(on ? "on" : "off")}";
+
+    /// <summary>The command that saves the active pref set again (the PREF tray's SAVE).</summary>
+    public const string PrefSaveCommand = ".scope pref save";
+
+    /// <summary>The command that loads the pref set named <paramref name="name"/>.</summary>
+    public static string PrefLoadCommand(string name) => $".scope pref load {name}";
+
+    /// <summary>The typed prefix of SAVE AS: the command box takes the new set's name.</summary>
+    public const string PrefSaveAsPrefix = ".scope pref saveas ";
+
+    /// <summary>The typed prefix of the rename of the pref set <paramref name="name"/>: the command box takes its new name.</summary>
+    public static string PrefRenamePrefix(string name) => $".scope pref rename {name} ";
+
+    /// <summary>The command that deletes the pref set named <paramref name="name"/>.</summary>
+    public static string PrefDeleteCommand(string name) => $".scope pref delete {name}";
+
+    /// <summary>The PREF tray's SAVE, which saves the active set again; with none active, its verb says so.</summary>
+    public static readonly ScopeButton PrefSave = new(ScopeButtonId.PrefSave, "SAVE", ScopeButtonKind.Command, [], null, PrefSaveCommand);
+
+    /// <summary>The PREF tray's SAVE AS, which types a new set's name into the command box.</summary>
+    public static readonly ScopeButton PrefSaveAs = new(ScopeButtonId.PrefSaveAs, "SAVE AS", ScopeButtonKind.Command, [], null, null);
+
+    /// <summary>The PREF tray's RENAME, which types the active set's new name into the command box.</summary>
+    public static readonly ScopeButton PrefRename = new(ScopeButtonId.PrefRename, "RENAME", ScopeButtonKind.Command, [], null, null);
+
+    /// <summary>The PREF tray's DELETE, which deletes the active set.</summary>
+    public static readonly ScopeButton PrefDelete = new(ScopeButtonId.PrefDelete, "DELETE", ScopeButtonKind.Command, [], null, null);
+
+    /// <summary>The PREF tray's button for the pref set named <paramref name="name"/>, which loads it.</summary>
+    public static ScopeButton PrefSetButton(string name) =>
+        new(ScopeButtonId.PrefSet, name, ScopeButtonKind.Command, [], name, PrefLoadCommand(name));
 
     /// <summary>The command that turns the DB item <paramref name="item"/> on (<paramref name="on"/>) or off.</summary>
     public static string DbToggleCommand(string item, bool on) => $"{DbCommandStem(item)} {(on ? "on" : "off")}";
@@ -263,8 +315,14 @@ public static class ScopeToolbarButtons
     public static string NameOf(ScopeButtonKey key) => key.Id == ScopeButtonId.MapToggle ? $"map{key.Value}" : key.Id.ToString().ToLowerInvariant();
 
     /// <summary>
+    /// Whether the button with <paramref name="id"/> tears off: every button but DEL TEAROFF and a pref set, which have no
+    /// strip on the bar and no text name.
+    /// </summary>
+    public static bool CanTearOff(ScopeButtonId id) => id is not (ScopeButtonId.DeleteTearoff or ScopeButtonId.PrefSet);
+
+    /// <summary>
     /// Parses a button's text name (<see cref="NameOf"/>), case-insensitive: <c>map</c> and a STARS id, or any id's name
-    /// but <see cref="ScopeButtonId.MapToggle"/> and <see cref="ScopeButtonId.DeleteTearoff"/>, which tear off no copy.
+    /// but <see cref="ScopeButtonId.MapToggle"/> and the ids that never tear off (<see cref="CanTearOff"/>).
     /// </summary>
     /// <returns>False when <paramref name="name"/> names no button that tears off.</returns>
     public static bool TryParseKey(string name, [NotNullWhen(true)] out ScopeButtonKey? key)
@@ -283,13 +341,10 @@ public static class ScopeToolbarButtons
             ? new ScopeButtonKey(ScopeButtonId.MapToggle, starsId.ToString(CultureInfo.InvariantCulture))
             : null;
 
-    /// <summary>The key of the id <paramref name="name"/> names, but no map toggle or DEL TEAROFF; else null.</summary>
+    /// <summary>The key of the id <paramref name="name"/> names, but no map toggle or button that never tears off; else null.</summary>
     private static ScopeButtonKey? IdKeyNamed(string name) =>
         Enum.GetValues<ScopeButtonId>()
-            .Where(id =>
-                (id is not (ScopeButtonId.MapToggle or ScopeButtonId.DeleteTearoff))
-                && string.Equals(id.ToString(), name, StringComparison.OrdinalIgnoreCase)
-            )
+            .Where(id => (id != ScopeButtonId.MapToggle) && CanTearOff(id) && string.Equals(id.ToString(), name, StringComparison.OrdinalIgnoreCase))
             .Select(id => new ScopeButtonKey(id, null))
             .FirstOrDefault();
 

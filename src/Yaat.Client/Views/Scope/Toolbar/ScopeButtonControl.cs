@@ -43,7 +43,7 @@ public sealed class ScopeButtonControl : Grid
         }
 
         Children.Add(Button);
-        if (model.Id != ScopeButtonId.DeleteTearoff)
+        if (ScopeToolbarButtons.CanTearOff(model.Id))
         {
             Strip = new Border { Classes = { "scopeStrip" } };
             Strip.Classes.Set("accent", isTearoff);
@@ -77,7 +77,7 @@ public sealed class ScopeButtonControl : Grid
     /// <summary>The button itself.</summary>
     public Button Button { get; }
 
-    /// <summary>The tear-off pick strip (a copy's accent bar), or null for DEL TEAROFF, which never tears off.</summary>
+    /// <summary>The tear-off pick strip (a copy's accent bar), or null for a button that never tears off (<see cref="ScopeToolbarButtons.CanTearOff"/>).</summary>
     public Border? Strip { get; }
 
     /// <summary>Whether the copy's DEL TEAROFF mark is drawn. Test seam.</summary>

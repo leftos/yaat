@@ -122,8 +122,26 @@ public class ScopeTearoffTests
     }
 
     [Theory]
+    [InlineData(ScopeButtonId.Pref, "pref")]
+    [InlineData(ScopeButtonId.PrefSave, "prefsave")]
+    [InlineData(ScopeButtonId.PrefSaveAs, "prefsaveas")]
+    [InlineData(ScopeButtonId.PrefRename, "prefrename")]
+    [InlineData(ScopeButtonId.PrefDelete, "prefdelete")]
+    public void APrefTrayButton_IsNamedForItsId_AndItsNameRoundTrips(ScopeButtonId id, string name)
+    {
+        var key = new ScopeButtonKey(id, null);
+
+        Assert.Equal(name, ScopeToolbarButtons.NameOf(key));
+        Assert.True(ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? parsed), $"{name} parses");
+        Assert.Equal(key, parsed);
+        Assert.True(ScopeToolbarButtons.TryParseKey(name.ToUpperInvariant(), out ScopeButtonKey? upper), $"{name} parses in uppercase");
+        Assert.Equal(key, upper);
+    }
+
+    [Theory]
     [InlineData("maptoggle")]
     [InlineData("deletetearoff")]
+    [InlineData("prefset")]
     [InlineData("map")]
     [InlineData("mapx")]
     [InlineData("nosuch")]

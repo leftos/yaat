@@ -11,6 +11,9 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public sealed partial class ScopeViewModel
 {
+    /// <summary>The status line's message when a pref-set press needs an active set and there is none.</summary>
+    internal const string NoActivePrefSetMessage = "No pref set is active: use .scope pref saveas <name>";
+
     // One wheel accumulator per spinner id, shared by the bar's spinner and its tear-off and kept across tray rebuilds,
     // so a part-step on one spinner never carries to another.
     private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
@@ -54,13 +57,28 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Acts on a click of <paramref name="button"/>: a menu opens its tray, or closes it when it is the open one; a
     /// command button closes the tray and runs its command; a toggle runs its command with the opposite of its state and
-    /// keeps the tray open; a spinner does nothing on a click.
+    /// keeps the tray open; a spinner does nothing on a click. A PREF set or SAVE button runs its command and closes the
+    /// tray; SAVE AS and RENAME type their command into the command box and close it; DELETE runs the active set's
+    /// delete. RENAME and DELETE with no active set answer in the status line instead.
     /// </summary>
     public void Press(ScopeButton button)
     {
         if (button.Id == ScopeButtonId.DeleteTearoff)
         {
             PressDeleteTearoff();
+            return;
+        }
+
+        if (button.Id is ScopeButtonId.PrefSet or ScopeButtonId.PrefSave)
+        {
+            OpenMenu = null;
+            RunButtonCommand(button);
+            return;
+        }
+
+        if (button.Id is ScopeButtonId.PrefSaveAs or ScopeButtonId.PrefRename or ScopeButtonId.PrefDelete)
+        {
+            PressPrefAction(button.Id);
             return;
         }
 
@@ -128,34 +146,41 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
-    /// turns on is on (<see cref="IsToggleOn"/>), a command button while the template it picks is in use, DEL TEAROFF
-    /// while its mode is on.
+    /// turns on is on (<see cref="IsToggleOn"/>), a command button while the template it picks is in use, a pref-set
+    /// button while its set is the active one, DEL TEAROFF while its mode is on.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
-        button.Kind switch
+        button.Id switch
         {
-            _ when button.Id == ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
-            ScopeButtonKind.Menu => OpenMenu == button.Id,
-            ScopeButtonKind.Toggle => IsToggleOn(button),
-            ScopeButtonKind.Command => (button.Value is { } value) && (value == TemplateId),
-            _ => false,
+            ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
+            ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
+            _ => IsActiveByKind(button),
         };
 
     /// <summary>
     /// The buttons the tray of <paramref name="menu"/> shows: for MAPS, CLR ALL then one toggle per <see cref="MapToggles"/>
-    /// item in its order; for any other menu, its own children.
+    /// item in its order; for PREF, one button per pref set in file order, then SAVE, SAVE AS, RENAME and DELETE; for any
+    /// other menu, its own children.
     /// </summary>
     public IReadOnlyList<ScopeButton> TrayChildren(ScopeButton menu) =>
-        menu.Id == ScopeButtonId.Maps
-            ? [ScopeToolbarButtons.MapClear, .. MapToggles.Select(t => ScopeToolbarButtons.MapToggle(t.StarsId, t.ShortName))]
-            : menu.Children;
+        menu.Id switch
+        {
+            ScopeButtonId.Maps => [ScopeToolbarButtons.MapClear, .. MapToggles.Select(t => ScopeToolbarButtons.MapToggle(t.StarsId, t.ShortName))],
+            ScopeButtonId.Pref => PrefTray(),
+            _ => menu.Children,
+        };
 
     /// <summary>
-    /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), or null for any other
-    /// button.
+    /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), or the active pref
+    /// set's name after PREF's label, or null for any other button.
     /// </summary>
     public string? SpinnerValue(ScopeButton button)
     {
+        if (button.Id == ScopeButtonId.Pref)
+        {
+            return ActivePrefSet;
+        }
+
         if (button.Id == ScopeButtonId.Range)
         {
             return Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture);
@@ -205,5 +230,76 @@ public sealed partial class ScopeViewModel
         }
 
         RunCommand(button.Kind == ScopeButtonKind.Toggle ? $"{command} {(IsActive(button) ? "off" : "on")}" : command);
+    }
+
+    /// <summary>Whether <paramref name="button"/> draws active by its kind, for a button no id rule covers.</summary>
+    private bool IsActiveByKind(ScopeButton button) =>
+        button.Kind switch
+        {
+            ScopeButtonKind.Menu => OpenMenu == button.Id,
+            ScopeButtonKind.Toggle => IsToggleOn(button),
+            ScopeButtonKind.Command => (button.Value is { } value) && (value == TemplateId),
+            _ => false,
+        };
+
+    /// <summary>The PREF tray: one button per set in file order, then SAVE, SAVE AS, RENAME and DELETE.</summary>
+    private IReadOnlyList<ScopeButton> PrefTray() =>
+        [
+            .. PrefSetNames.Select(ScopeToolbarButtons.PrefSetButton),
+            ScopeToolbarButtons.PrefSave,
+            ScopeToolbarButtons.PrefSaveAs,
+            ScopeToolbarButtons.PrefRename,
+            ScopeToolbarButtons.PrefDelete,
+        ];
+
+    /// <summary>The PREF tray's SAVE AS, RENAME and DELETE presses.</summary>
+    private void PressPrefAction(ScopeButtonId id)
+    {
+        switch (id)
+        {
+            case ScopeButtonId.PrefSaveAs:
+                OpenMenu = null;
+                TypePrefCommand(ScopeToolbarButtons.PrefSaveAsPrefix);
+                break;
+            case ScopeButtonId.PrefRename:
+                PressPrefRename();
+                break;
+            default:
+                PressPrefDelete();
+                break;
+        }
+    }
+
+    /// <summary>RENAME: types the active set's rename into the command box, or says what to do when no set is active.</summary>
+    private void PressPrefRename()
+    {
+        if (ActivePrefSet is not { } active)
+        {
+            Main.StatusText = NoActivePrefSetMessage;
+            return;
+        }
+
+        OpenMenu = null;
+        TypePrefCommand(ScopeToolbarButtons.PrefRenamePrefix(active));
+    }
+
+    /// <summary>DELETE: deletes the active set through its verb, or says what to do when no set is active.</summary>
+    private void PressPrefDelete()
+    {
+        if (ActivePrefSet is not { } active)
+        {
+            Main.StatusText = NoActivePrefSetMessage;
+            return;
+        }
+
+        RunCommand(ScopeToolbarButtons.PrefDeleteCommand(active));
+    }
+
+    /// <summary>Puts <paramref name="text"/> in the command box, caret after it, and asks for the box's focus.</summary>
+    private void TypePrefCommand(string text)
+    {
+        Main.CommandText = text;
+        Main.CommandCaretIndex = text.Length;
+        Main.FocusCommandInput();
     }
 }

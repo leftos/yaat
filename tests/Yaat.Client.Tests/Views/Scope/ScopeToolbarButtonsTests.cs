@@ -10,7 +10,7 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsTemplateRangeMapsDbViewsThenBrite()
+    public void TheBar_IsTemplateRangeMapsDbViewsBritePrefThenDelTearoff()
     {
         Assert.Equal(
             [
@@ -20,11 +20,12 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
                 ScopeButtonId.Brite,
+                ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,
             ],
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
-        Assert.Equal(["TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE", "DEL TEAROFF"], ScopeToolbarButtons.All.Select(b => b.Label));
+        Assert.Equal(["TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"], ScopeToolbarButtons.All.Select(b => b.Label));
     }
 
     [Fact]

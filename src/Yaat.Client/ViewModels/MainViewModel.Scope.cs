@@ -341,6 +341,7 @@ public partial class MainViewModel
         return RunStoreWrite(() =>
         {
             store.SaveSet(facility, scope.CapturePrefSet(active));
+            scope.NotifyPrefSetsChanged();
             return ".scope pref save";
         });
     }
@@ -368,6 +369,7 @@ public partial class MainViewModel
         {
             store.SaveSet(facility, scope.CapturePrefSet(name));
             scope.ActivePrefSet = name;
+            scope.NotifyPrefSetsChanged();
             return $".scope pref saveas {name}";
         });
     }
@@ -439,6 +441,7 @@ public partial class MainViewModel
                 scope.ActivePrefSet = name;
             }
 
+            scope.NotifyPrefSetsChanged();
             return $".scope pref rename {found.Name} {name}";
         });
     }
@@ -465,6 +468,7 @@ public partial class MainViewModel
                 scope.ActivePrefSet = null;
             }
 
+            scope.NotifyPrefSetsChanged();
             return $".scope pref delete {found.Name}";
         });
     }
