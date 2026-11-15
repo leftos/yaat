@@ -103,7 +103,11 @@ Close an extra window to remove it; open extras (with their airports) are restor
 
 **View > Windows > YAAT Scope** (just after **New radar window…**) opens a preview of the new instructor radar in a window titled "YAAT Scope"; a second click brings the open window forward. Today's Radar stays the main view and is unchanged.
 
-The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on. The window's **Template** menu switches between STARS, ERAM, Mixed and EuroScope blocks; **Mixed** draws each track in its owner's kind of block (an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, and an unowned track the ERAM block); it starts on STARS (EuroScope with EuroScope mode on) and the choice is not saved.
+The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on. A navy toolbar runs across the top of the window. Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXED** and **EUROSCOPE** (the one in use has a cyan border); clicking a pick or **TEMPLATE** again closes the tray. **MIXED** draws each track in its owner's kind of block (an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, and an unowned track the ERAM block); the Scope starts on STARS (EuroScope with EuroScope mode on) and the choice is not saved.
+
+The **RANGE** button shows the range in nautical miles (**RANGE 40**). Roll the mouse wheel over it to change the range by 1 NM per step, wheel up to zoom in, between 1 and 256 NM, at the Radar's scroll sensitivity; a click on it does nothing.
+
+Every toolbar action is also a command typed in the command box, and the status line echoes it: `.scope range <1-256>` and `.scope template <stars|eram|mixed|euroscope>` (any letter case). A bad value answers `Usage: .scope range <1-256>` or `Unknown scope template: <id>`, a bare `.scope` prints the usage, and with no Scope open you get `No YAAT Scope is open`. Typed `.scope` commands go into the command history; toolbar clicks do not. `.scope` is a YAAT command, so it wins over a CRC alias of the same name; type `CRC .scope` to reach the alias.
 
 The ERAM block keeps the STARS first line and puts the ERAM altitude first on line 2 (assigned altitude, then the reported one, with a climb or descent arrow when the aircraft is changing altitude), followed by the STARS ground speed, type and ident.
 

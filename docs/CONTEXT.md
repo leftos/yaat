@@ -818,17 +818,32 @@ The heading, speed and free-text notes of an ERAM track, entered with `QS`; whil
 **Mixed (YAAT Scope template)**:
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
+**Pref set (YAAT Scope)**:
+A named snapshot of a YAAT Scope's range, centre, maps, brightness, display settings, open views and tear-offs, kept per facility; the Scope's current state also saves itself, and a pref set is a named copy on top (planned, docs/plans/yaat-scope/README.md).
+
+**SSA (YAAT Scope)**:
+The status area, a view in the Scope's views dock that by default sits on the scope at its top-left, torn off.
+
 **Status slot (YAAT Scope)**:
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
+**Tear-off (YAAT Scope)**:
+A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs: a copy, movable, anchored to the nearest corner, one per button, removed with DELETE TEAROFF (planned, docs/plans/yaat-scope/README.md).
+
 **Template (YAAT Scope)**:
-A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile.
+A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile or by the Template button on the Scope's toolbar.
+
+**Toolbar (YAAT Scope)**:
+The full-width navy row of buttons across the top of the Scope window (`Views/Scope/Toolbar/`), one theme for every template with a cyan active state; a menu button opens a tray below the bar while the main row stays visible, and every action is also a `.scope` dot command.
 
 **TrackPresenter**:
 The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
 
 **Viewer (YAAT Scope)**:
 The position the Scope is viewed from: the instructor's active position (the scenario's student position by default, changed with `AS`), whose ERAM sector decides VCI, R and the handoff text (`ScopeViewer`).
+
+**Views dock (YAAT Scope)**:
+The fixed-width right-hand column of the Scope that holds its views (the SSA, the Tab list, the Conflict alert list) and hides when none is open in it (planned, docs/plans/yaat-scope/README.md).
 
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.

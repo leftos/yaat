@@ -1,0 +1,48 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.Scope.Toolbar.ScopeToolbar"
+  FontFamily="{StaticResource MonoFont}"
+  FontSize="12"
+>
+  <UserControl.Styles>
+    <Style Selector="Button.scopeButton">
+      <Setter Property="Height" Value="28" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="Margin" Value="2,0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="#10181e" />
+      <Setter Property="BorderBrush" Value="#22313b" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#c9d4dc" />
+    </Style>
+    <Style Selector="Button.scopeButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#10181e" />
+      <Setter Property="BorderBrush" Value="#22313b" />
+      <Setter Property="Foreground" Value="#c9d4dc" />
+    </Style>
+    <Style Selector="Button.scopeButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#10181e" />
+    </Style>
+    <Style Selector="Button.scopeButton.active /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="#58c4e6" />
+      <Setter Property="Foreground" Value="#e7f6fb" />
+    </Style>
+    <Style Selector="Border.scopeSeparator">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Margin" Value="4,0" />
+      <Setter Property="Background" Value="#22313b" />
+    </Style>
+  </UserControl.Styles>
+  <StackPanel>
+    <Border Height="45" Background="#0a1015" Padding="6,0">
+      <StackPanel x:Name="MainRow" Orientation="Horizontal" VerticalAlignment="Center" />
+    </Border>
+    <Border x:Name="Tray" Height="45" Background="#0a1015" BorderBrush="#22313b" BorderThickness="0,1,0,0" Padding="6,0" IsVisible="False">
+      <StackPanel x:Name="TrayRow" Orientation="Horizontal" VerticalAlignment="Center" />
+    </Border>
+  </StackPanel>
+</UserControl>

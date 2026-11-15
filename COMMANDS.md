@@ -119,7 +119,7 @@ Aliases are fully editable in **Settings › Command verbs**.
 
 Commands beginning with `.` are client-local — they act on your own displays and are never sent to aircraft.
 
-These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a radar-view line between two named points, each a fix, an FRD, or a callsign), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
+These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a radar-view line between two named points, each a fix, an FRD, or a callsign), the YAAT Scope's [toolbar commands](USER_GUIDE.md#yaat-scope-preview) (`.scope range <1-256>`, `.scope template <stars|eram|mixed|euroscope>`), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
 
 ### Fix Arguments
 
@@ -627,6 +627,8 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Leader direction | `LDR 3` | — | — |
 | J-Ring | `JRING 3` (radius nm) / `JRING` (clear) | — | — |
 | Cone | `CONE 5` (length nm) / `CONE` (clear) | — | — |
+| YAAT Scope range | `.scope range 40` (1-256 nm; client-local) | — | — |
+| YAAT Scope template | `.scope template eram` (`stars`, `eram`, `mixed`, `euroscope`; client-local) | — | — |
 
 ### Strip / Data Operations
 

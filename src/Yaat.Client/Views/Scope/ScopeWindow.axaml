@@ -2,49 +2,16 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:scope="using:Yaat.Client.Views.Scope"
+  xmlns:toolbar="using:Yaat.Client.Views.Scope.Toolbar"
   xmlns:vm="using:Yaat.Client.ViewModels"
   x:Class="Yaat.Client.Views.Scope.ScopeWindow"
   x:DataType="vm:ScopeViewModel"
   Icon="avares://Yaat.Client/Resources/icon.png"
   Title="YAAT Scope"
 >
-  <DockPanel>
-    <Menu x:Name="ScopeMenu" DockPanel.Dock="Top">
-      <MenuItem Header="_Template">
-        <MenuItem
-          Header="_STARS"
-          ToggleType="Radio"
-          GroupName="ScopeTemplate"
-          IsChecked="{Binding IsStarsTemplate, Mode=OneWay}"
-          Command="{Binding PickTemplateCommand}"
-          CommandParameter="{x:Static scope:ScopeTemplates.StarsId}"
-        />
-        <MenuItem
-          Header="_ERAM"
-          ToggleType="Radio"
-          GroupName="ScopeTemplate"
-          IsChecked="{Binding IsEramTemplate, Mode=OneWay}"
-          Command="{Binding PickTemplateCommand}"
-          CommandParameter="{x:Static scope:ScopeTemplates.EramId}"
-        />
-        <MenuItem
-          Header="_Mixed"
-          ToggleType="Radio"
-          GroupName="ScopeTemplate"
-          IsChecked="{Binding IsMixedTemplate, Mode=OneWay}"
-          Command="{Binding PickTemplateCommand}"
-          CommandParameter="{x:Static scope:ScopeTemplates.MixedId}"
-        />
-        <MenuItem
-          Header="Euro_Scope"
-          ToggleType="Radio"
-          GroupName="ScopeTemplate"
-          IsChecked="{Binding IsEuroScopeTemplate, Mode=OneWay}"
-          Command="{Binding PickTemplateCommand}"
-          CommandParameter="{x:Static scope:ScopeTemplates.EuroScopeId}"
-        />
-      </MenuItem>
-    </Menu>
-    <scope:ScopeView x:Name="View" />
-  </DockPanel>
+  <!-- The bar takes a fixed 45 px row; an open menu's tray hangs below it over the scope, so it never resizes the scope. -->
+  <Grid RowDefinitions="45,*">
+    <scope:ScopeView x:Name="View" Grid.Row="1" />
+    <toolbar:ScopeToolbar Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Top" ZIndex="1" />
+  </Grid>
 </Window>

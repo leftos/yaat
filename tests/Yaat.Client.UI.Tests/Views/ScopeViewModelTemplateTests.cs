@@ -1,18 +1,17 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Interactivity;
-using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The scope's datablock template: seeded once from the EuroScope-mode preference when the scope opens, then switched only
-/// by the scope window's Template menu (STARS / ERAM / EuroScope radio items), never written back to the preferences.
+/// by a pick (the toolbar's TEMPLATE tray: STARS, ERAM, MIXED, EUROSCOPE), never written back to the preferences.
 /// </summary>
 public class ScopeViewModelTemplateTests
 {
@@ -25,7 +24,6 @@ public class ScopeViewModelTemplateTests
         using (var stars = new ScopeViewModel(main))
         {
             Assert.Equal(ScopeTemplates.StarsId, stars.TemplateId);
-            Assert.True(stars.IsStarsTemplate);
         }
 
         main.Preferences.SetEuroScopeMode(true);
@@ -46,11 +44,9 @@ public class ScopeViewModelTemplateTests
 
         scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
         Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-        Assert.True(scope.IsEramTemplate);
-        Assert.False(scope.IsStarsTemplate);
 
         scope.PickTemplateCommand.Execute(ScopeTemplates.EuroScopeId);
-        Assert.True(scope.IsEuroScopeTemplate);
+        Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
         scope.PickTemplateCommand.Execute(ScopeTemplates.StarsId);
         Assert.Equal(ScopeTemplates.StarsId, scope.TemplateId);
         Assert.Equal(before, main.Preferences.EuroScopeMode);
@@ -68,12 +64,9 @@ public class ScopeViewModelTemplateTests
         scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
 
         Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
-        Assert.True(scope.IsMixedTemplate);
-        Assert.False(scope.IsStarsTemplate);
-        Assert.False(scope.IsEramTemplate);
         Assert.Equal(before, main.Preferences.EuroScopeMode);
         scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
-        Assert.False(scope.IsMixedTemplate);
+        Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
     }
 
     [AvaloniaFact]
@@ -81,21 +74,20 @@ public class ScopeViewModelTemplateTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var scope = new ScopeViewModel(main);
+        main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try
         {
             window.Show();
-            MenuItem template = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Template");
-            MenuItem mixed = template.Items.OfType<MenuItem>().Single(m => m.Header is "_Mixed");
-            Assert.Equal(MenuItemToggleType.Radio, mixed.ToggleType);
-
-            mixed.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             Dispatcher.UIThread.RunJobs();
+            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
+
+            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateMixed));
 
             Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
-            Assert.True(scope.IsMixedTemplate);
-            Assert.True(mixed.IsChecked);
-            Assert.False(template.Items.OfType<MenuItem>().Single(m => m.Header is "_STARS").IsChecked);
+            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
+            Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateMixed).Classes);
+            Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
         }
         finally
         {
@@ -108,21 +100,21 @@ public class ScopeViewModelTemplateTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var scope = new ScopeViewModel(main);
+        main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try
         {
             window.Show();
-            MenuItem template = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Template");
-            Assert.Equal(["_STARS", "_ERAM", "_Mixed", "Euro_Scope"], template.Items.OfType<MenuItem>().Select(m => (string)m.Header!));
-            MenuItem eram = template.Items.OfType<MenuItem>().Single(m => m.Header is "_ERAM");
-            Assert.Equal(MenuItemToggleType.Radio, eram.ToggleType);
-
-            eram.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             Dispatcher.UIThread.RunJobs();
+            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
+            Button eram = ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateEram);
+
+            ScopeToolbarTests.Click(eram);
 
             Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-            Assert.True(eram.IsChecked);
-            Assert.False(template.Items.OfType<MenuItem>().Single(m => m.Header is "_STARS").IsChecked);
+            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
+            Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateEram).Classes);
+            Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
         }
         finally
         {

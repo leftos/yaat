@@ -52,10 +52,10 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Id of the datablock template the scope draws (<see cref="ScopeTemplates"/>): seeded once from the EuroScope-mode
-    /// preference when the scope opens, then changed only from the scope's Template menu; never written to the preferences.
+    /// preference when the scope opens, then changed only by <c>.scope template</c> (the toolbar's TEMPLATE menu runs it);
+    /// never written to the preferences.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsStarsTemplate), nameof(IsEramTemplate), nameof(IsEuroScopeTemplate), nameof(IsMixedTemplate))]
     private string _templateId;
 
     /// <summary>
@@ -64,18 +64,6 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty]
     private ScopeViewer _viewer;
-
-    /// <summary>The STARS template is in use (the Template menu's radio check).</summary>
-    public bool IsStarsTemplate => TemplateId == ScopeTemplates.StarsId;
-
-    /// <summary>The ERAM template is in use (the Template menu's radio check).</summary>
-    public bool IsEramTemplate => TemplateId == ScopeTemplates.EramId;
-
-    /// <summary>The EuroScope template is in use (the Template menu's radio check).</summary>
-    public bool IsEuroScopeTemplate => TemplateId == ScopeTemplates.EuroScopeId;
-
-    /// <summary>The Mixed pick is in use: each track in its owner's display kind (the Template menu's radio check).</summary>
-    public bool IsMixedTemplate => TemplateId == ScopeTemplates.MixedId;
 
     /// <summary>
     /// Seeds the scope from the radar now when the radar has a centre and maps; otherwise waits for the radar's first
@@ -151,7 +139,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         StopWaitingForSeed();
     }
 
-    /// <summary>Picks the datablock template (or Mixed) with <paramref name="templateId"/>, as the Template menu's items do.</summary>
+    /// <summary>Picks the datablock template (or Mixed) with <paramref name="templateId"/>, as <c>.scope template</c> does.</summary>
     /// <exception cref="ArgumentException">The id is no selectable pick (<see cref="ScopeTemplates.IsSelectable"/>).</exception>
     [RelayCommand]
     private void PickTemplate(string templateId) =>

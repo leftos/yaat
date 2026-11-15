@@ -2996,7 +2996,7 @@ public partial class MainViewModel : ObservableObject
         // aliases read from the user's CRC install. Neither ever reaches the server.
         if (forceAlias || text.StartsWith('.') || IsStarTCommand(text))
         {
-            bool handled = (!forceAlias) && (TryHandleScopeMarkerCommand(text) || TryHandleMeasureCommand(text));
+            bool handled = (!forceAlias) && (TryHandleScopeMarkerCommand(text) || TryHandleMeasureCommand(text) || TryHandleScopeCommand(text));
             if (!handled)
             {
                 handled = TryHandleCrcAlias(text);

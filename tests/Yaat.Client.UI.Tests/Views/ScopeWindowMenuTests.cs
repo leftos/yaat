@@ -5,6 +5,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.UI.Tests.Helpers;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 
@@ -55,6 +56,7 @@ public class ScopeWindowMenuTests
             Dispatcher.UIThread.RunJobs();
             ScopeWindow first = Assert.IsType<ScopeWindow>(window.ScopeWindow);
             Assert.True(first.IsVisible);
+            Assert.Same(first.DataContext, ((MainViewModel)window.DataContext!).OpenScope);
 
             item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             Dispatcher.UIThread.RunJobs();
@@ -65,6 +67,7 @@ public class ScopeWindowMenuTests
             first.Close();
             Dispatcher.UIThread.RunJobs();
             Assert.Null(window.ScopeWindow);
+            Assert.Null(((MainViewModel)window.DataContext!).OpenScope);
         }
         finally
         {

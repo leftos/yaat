@@ -2680,7 +2680,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        _scopeWindow = new Scope.ScopeWindow(vm.Preferences, new ScopeViewModel(vm));
+        var scope = new ScopeViewModel(vm);
+        vm.OpenScope = scope;
+        _scopeWindow = new Scope.ScopeWindow(vm.Preferences, scope);
         _scopeWindow.Closing += OnScopeWindowClosing;
         _scopeWindow.Show();
     }
@@ -2690,6 +2692,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (sender is Scope.ScopeWindow window)
         {
             window.Closing -= OnScopeWindowClosing;
+            if ((DataContext is MainViewModel vm) && ReferenceEquals(vm.OpenScope, window.DataContext))
+            {
+                vm.OpenScope = null;
+            }
         }
 
         _scopeWindow = null;
