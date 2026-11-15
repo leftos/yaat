@@ -1026,3 +1026,106 @@ not just instructors/RPOs with a radar/METAR window.
   (targeted at the joining connection, mirroring the strip/TDLS initial-state
   seed) so a client joining mid-scenario sees the METAR immediately. This
   benefits every client kind, not just the strips webapp.
+
+## File map
+
+One entry per file, grouped by project.
+
+### Yaat.Client.Strips — WASM-clean strip layer (`src/Yaat.Client.Strips/`)
+
+Foundation for the flight-strip view. Pure Avalonia + SignalR + CommunityToolkit.Mvvm — no Avalonia.Desktop, no Velopack, no file IO. The browser strips client (`tools/Yaat.VStrips.Web`) consumes only this assembly so its WASM publish closure stays free of Win32-only code. Yaat.Client.Core project-references Strips and exposes the shared types up to Yaat.Client.
+
+```
+Logging/
+  ConsoleLineLoggerProvider.cs  # ILoggerProvider that writes one text line per entry to Console.Out (browser DevTools console). Used by Yaat.VStrips.Web/Program.cs and AppLog.InitializeForBrowser.
+
+Services/
+  StripDtos.cs                  # StripItemType / StripItemDto / StripBayContentsDto / FlightStripsStateDto (ItemIds has one row per rack, so a row index is a rack number; AutoSortedRacks lists the auto-sorted racks per bay) / StripBayConfigDto / FlightStripsConfigDto — wire-format records for the strip surface. FlightStripsConfigDto carries the vNAS enableArrivalStrips / enableSeparateArrDepPrinters flags that drive the printer modal's carousel split.
+  ClientProductTitle.cs         # Shared "(N) {FACILITY} - {product}[ (YAAT)]" tab/window/page title format for vStrips + vTDLS (desktop surfaces skip the YAAT suffix; browser pages include it).
+  StripsTransportDtos.cs        # AccessibleFacilityDto (return of GetAccessibleFacilities / GetAccessibleTdlsFacilities; IsConsolidated marks a vTDLS parent page) + CommandResultDto (return of every strip command) + StripsWeatherDto (narrow WeatherChanged projection — raw METARs) + StripMetarEntry (parsed station + raw, for the METAR bar). Live here because the IStripsTransport surface returns/feeds them.
+  IStripsTransport.cs           # Narrow contract VStripsViewModel depends on. IsConnected + transport-state events + StripsConfigChanged + FlightStripsStateChanged + StripItemsChanged + MetarsChanged (raw METARs for the current-METAR bar) + Get/RequestStrips RPC trio. ServerConnection (Core) and BrowserStripsTransport (here) both implement it.
+  BrowserStripsTransport.cs     # WASM-side IStripsTransport. Owns its own HubConnection, wires JsonHubProtocol against YaatStripsHubJsonContext only, exposes auto-join helpers (FindRoomForMyCidAsync, JoinRoomAsync, SendCommandAsync, ConnectAsync, RoomAvailableForCid event) needed by tools/Yaat.VStrips.Web/MainView. Browser-only DTO subsets (BrowserRoomInfoDto, BrowserJoinRoomResultDto, BrowserScenarioLoadedDto, BrowserScenarioUnloadedDto) downscope the wire format so the WASM bundle ships only the fields the strip view reads.
+  YaatStripsHubJsonContext.cs   # Source-generated JsonSerializerContext for the strip DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext) and BrowserStripsTransport (alone).
+
+ViewModels/
+  VStripsViewModel.cs           # Root vStrips VM; manages strip bays, items, rack state. Ctor takes IStripsTransport + send-command delegate + Func<string>? getUserInitials.
+  StripItemViewModel.cs         # Per-strip observable model: flight data, annotations
+  StripBayViewModel.cs          # Per-bay container: list of strips, visibility state
+  StripRackViewModel.cs         # Rack (visual height) management per bay; IsAutoSorted mirrors the server's RACKSORT flag from each full-state broadcast
+  StripPrinterViewModel.cs      # Auto-print on aircraft departure/arrival
+  VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations (BuildRackSort: RACKSORT facility/bay/rack ON|OFF)
+
+Find/                           # Shared in-view Find (Ctrl+F) — also reused by vTDLS
+  IFindableItem.cs              # Row contract: GetFindText() + IsFindMatch/IsCurrentFindMatch flags. Implemented by StripItemViewModel and TdlsItemViewModel.
+  FindMatcher.cs                # Pure matcher: whitespace-tokenized, case-insensitive AND over GetFindText().
+  FindController.cs             # ObservableObject driving one view's find: query/visibility, match set (tracked by reference), Next/Previous/Close/Refresh + scroll-into-view callback. No Avalonia dep — unit-tested.
+
+Views/Find/
+  FindBarView.axaml(.cs)        # Shared find-bar overlay (query box, match counter, ◀ ▶ ✕). DataContext is a FindController; hosted by VStripsView and VTdlsView.
+
+Views/VStrips/
+  VStripsView.axaml(.cs)        # Embedded vStrips UserControl. Pointer-capture strip drag (no OS DnD): display-rate ghost + animated drop-preview gap with index hysteresis, Esc cancel, wheel scroll + edge autoscroll mid-drag, drop-settle animation. Also hosts the FindBar overlay (Ctrl+F, scoped to the shown bay), sticky-bottom rack scroll, the "Auto-sort this rack" menu item and the pinned top "auto-sort on" rack banner (PinAutoSortBanners).
+  StickyScroll.cs               # Pure decision for the racks ScrollViewer sticky-bottom behavior — re-pin to bottom when content grows while the user was already at the bottom. Unit-tested.
+  FlightStripControl.axaml(.cs) # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring, cyan find-match highlight)
+  InlineTextEditPopup.axaml(.cs) # Shared popup editor for annotations, half-strip lines, separator labels
+
+Resources/Fonts/                # JetBrainsMono-Regular.ttf, JetBrainsMono-Bold.ttf, JetBrainsMono-Italic.ttf, JetBrainsMono-BoldItalic.ttf, OFL.txt — embedded for cross-platform monospace consistency (Inter doesn't column-align); italic variants are needed so annotation cells (FontStyle=Italic + FontWeight=Bold) render real bold on WASM where Segoe Script / Lucida Handwriting aren't available
+
+AppBuilderExtensions.cs         # WithJetBrainsMonoFont() — registers the embedded font collection at avares://Yaat.Client.Strips/Resources/Fonts. Called by tools/Yaat.VStrips.Web/Program.cs.
+```
+
+### Yaat.VStrips.Web — Browser strip client (`tools/Yaat.VStrips.Web/`)
+
+WebAssembly Avalonia client for flight strips. Hosted by yaat-server at `/vstrips/` so users open it in any browser without an install. References only Yaat.Client.Strips (no Avalonia.Desktop, no Velopack, no file IO) so the WASM publish closure stays small. Identity (CID, initials, ARTCC) flows in via URL query — first-time visitors fill a landing form that redirects with the params filled in.
+
+```
+Program.cs                       # Entry point. Wires SimLog to ConsoleLineLoggerProvider (browser DevTools console). Stores window.location.search + window.location.origin on App so MainView can decide live-connect vs. offline spike.
+App.axaml(.cs)                   # XAML app root. Holds LocationSearch/LocationOrigin static strings populated by Program.Main.
+MainView.axaml(.cs)              # Root view. Hosts VStripsView, handles auto-join via BrowserStripsTransport, surfaces the missing-identity landing form.
+wwwroot/index.html               # WASM host page; loaded by yaat-server's static-file middleware at /vstrips/.
+wwwroot/main.js                  # Boot script — passes window.location.search + origin into the WASM Main args.
+wwwroot/app.css                  # Page chrome (status footer, landing form).
+runtimeconfig.template.json      # net10.0-browser runtime config (JsonSerializerIsReflectionEnabledByDefault=true so SignalR JoinRoom works in WASM).
+test/smoke.mjs                   # Headless WASM smoke test (Playwright).
+test/live.mjs                    # Live-server smoke test against a running yaat-server instance.
+```
+
+### Yaat.Sim (`src/Yaat.Sim/`)
+
+Paths are relative to `src/Yaat.Sim/`.
+
+```
+# Simulation/Strips/ — flight-strip state + command/tick logic, engine-owned (SimulationEngine.Strips, SimulationEngine.Strips.cs)
+FlightStripState.cs            # The strips, the bay/rack layout and the two printer queues for one run. A fresh engine starts empty and the
+                               # snapshot's server section carries it across a rewind, a restore or a reconstruction, so every run kind has the
+                               # same strips at the same second. Mutations funnel through StripMutations under the single Gate lock
+                               # (moves touch Items + source rack + dest rack together); Items/Bays are concurrent collections for read-only
+                               # enumeration only. StripItemRecord: one strip (id, aircraft id, type, offset, field values, facility/bay/rack/index).
+                               # Changes (StripChangeTracker) records what StripMutations touched since the host's last drain — transient, not
+                               # snapshotted, cleared by ClearSession alongside the session state. AutoSortedRacks (bay id + 0-based rack): the racks
+                               # kept sorted by RACKSORT — bay layout, so ClearSession keeps it and Reset clears it.
+StripRackSort.cs               # Pure rack order for an auto-sorted rack (StripRackSortEntry, StripRackSort.Sort / IsAirlineShaped): tails then airline
+                               # callsigns A-Z top-down, keyless strips at the segment bottom, separators fixed; shared with the client's optimistic drop
+StripItemType.cs               # What a strip item is: a printed departure/arrival strip, one of the four separator styles, half of a split strip, or a
+                               # blank — the vStrips wire numbering; StripItemRecord.Type stores it as an int so the schema doesn't move when this enum
+                               # gains a member
+StripChangeTracker.cs          # The broadcast seam for FlightStripState: StripChangeSet (ChangedItemIds, FullState — what the host broadcasts from) and
+                               # StripChangeTracker itself (MarkChanged/MarkFullState; Drain takes everything accumulated and resets).
+                               # IStateChangeConsumer.OnStripsChanged (Spine/IStateChangeConsumer.cs) is the interface both IActionHost and IHostConsumers
+                               # share, so the router (after every routed action) and the post-physics StateChanges spine step (for what the tick steps
+                               # produced) each reach it once. Transient — never snapshotted, cleared by FlightStripState.ClearSession.
+StripMutations.cs              # Stateless strip mutation helpers (create/move/annotate/delete/print-queue logic) over FlightStripState, holding Gate for
+                               # every multi-slice update and recording what changed into FlightStripState.Changes; shared by StripCommandHandler, the
+                               # engine's auto-print hooks (SimulationEngine.Strips.cs) and StripRequests. MintStripId draws a manual request's id
+                               # (ARRIVAL_{callsign} fixed; STRIP_{callsign} when free, else a hex-suffixed duplicate); NewScanStripId draws a SCAN copy's
+                               # id; IsSeparatorType is the shared predicate for the four separator styles. SetRackAutoSort / ResortRackIfAuto: the
+                               # RACKSORT flag and the one re-sort every row-writing mutation ends in; MoveStripToBayRack returns the slot it inserted at
+StripCommandHandler.cs         # Single dispatch point for every canonical strip verb (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP,
+                               # SEPD, SEPE, SEPM, RACKSORT, BLANK, BLANKD) against the engine's Strips, on every run kind. StripApplyResult(Result, StripId): the verdict, and
+                               # for a creating verb (SEP/HSC/SCAN/BLANK) the id it minted or reused — the ArmTable strip arm bakes a non-null one onto the
+                               # record so replay creates the item under the same id
+StripRequests.cs               # The manual "Request Strip" body: StripRequestPlan (aircraft/scenario/facility/format/ETA) + ResolveStripRequest (the
+                               # training-hub form vs. a CRC facility's departure request resolve the same plan) + PrintRequestedStrip (the
+                               # RecordedStripRequest applier — an ARRIVAL_ id reprints and requeues, a STRIP_ id prints nothing if the engine already
+                               # holds it) + IsArrivalCandidate + ResolveAirportPosition (ETA reference point)
+```

@@ -390,3 +390,31 @@ path; don't route headings through the distance/cardinal helpers.
 - **Aviation changes need review.** Anything touching what a pilot says is aviation logic — use
   `aviation-sim-expert` (or a direct steer from the domain owner) and cite the AIM/7110.65, don't
   guess. A narrow, explicit instruction from the domain owner doesn't need a separate second opinion.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Pilot/ — solo-training pilot AI (deterministic readbacks). Delivery plumbing: docs/solo-training-pilot-speech.md
+Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → Verbalize() spoken-English / VerbalizeTerminal() compact readback (shared rule, per-token formatter strategy).
+                               # Picks the first-declared rule per CanonicalCommandType by default; a Varied pilot speaks one row of the rule's PilotVariants for its load band (BandRows, PickVariant), chosen by a seeded VariantPick draw.
+Pilot/ClauseVerbalization.cs # Record struct: one readback clause as VerbalizeClause spoke it (Text, null when no rule speaks the command; OfferedQuietRows, whether a Quiet-band pick left Quiet rows beside the canonical, so the readback skips the quiet flavour)
+Pilot/ApproachReadbackName.cs  # Static: an approach's readback name, type and variant before the runway ("ILS runway two eight right", "RNAV Zulu runway 28R"); from a typed id (ForShorthand), a resolved CifpApproachProcedure (ForProcedure), an id's type-and-runway (TypeAndRunway, the on-final check-in) or a circling id (ForCirclingId, "VOR Alpha"; also `PhraseologyVerbalizer.SpellApproach`). Shared by the CAPP/JAPP/PTAC readbacks, EAPP and PilotResponder.SpokenApproachName.
+Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → PilotSpeechText? (compact terminal + spoken TTS) for solo-training mode.
+Pilot/PushReadbackPhrases.cs   # Static: the one sentence builder for PUSH/PUSHM readbacks (PushWords) — the handler's RSP + CommandResult.PilotReadback and the verbalizer's parse-only form for a queued push.
+                               # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
+                               # Adds light seeded Quiet-frequency flavor (ApplyQuietFlavor, picked by VariantPick over the canonical Terminal body, never added to safety-critical wording) to the spoken form only; the Terminal stays canonical.
+                               # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortTaxi (requestFurtherTaxi appends "request further taxi" at a route-incomplete hold, issue #461) / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildApproachingMinimumsNoLandingClearance / BuildUnable / BuildUnablePatternSize / BuildLostSightOf*
+                               # / BuildUnableTo* / BuildUnableHoldShortClause (gated by IsUnmakeableHoldShort on HoldShortPoint.Unable) — the PilotSpeechText builders whose Tts form is voiced in solo and whose TerminalForRpo form is shown by RPO PilotSpeech routing.
+                               # QueueSoloPilotTransmission / QueueSoloPilotReadback put solo pilot speech into PendingPilotTransmissions;
+                               # command RSP lines stay immediate while delayed SAY lines represent what the pilot says on frequency.
+                               # RouteRpoTransmission(aircraft, soloMode, rpoShowPilotSpeech, PilotSpeechText, warningText) — two-way helper (4-arg overload without warningText)
+                               # used by every sim-initiated pilot transmission site to pick the right destination collection; PendingPilotSpeech holds the whole PilotSpeechText.
+Pilot/VariantPick.cs           # Static: Index(callsign, canonicalBody, elapsedSecond, rngSeed, count), the seeded replay-safe choice among a phrase's variants.
+Pilot/SpokenFormDraws.cs       # Static: CanShortenCallsign (N-number, contact acknowledged, still on the student's frequency, no same-last-two callsign) + DrawShortCallsign (terse 80 / normal 50 / chatty 15%) and DrawGroupedContactFrequency (Busy 75 / Normal 15 / Quiet 0%), each a VariantPick draw.
+Pilot/PilotSayBuilder.cs       # Static: pilot-style transmission text for SAY-class verbs (SALT/SHDG/SPOS/SSPD/SMACH/SEAPP).
+                               # AIM-compliant spoken phraseology (digit-by-digit, "thousand"/"hundred"/"flight level", "Mach point X").
+                               # Used by CommandDispatcher for triggered/sequenced SAY blocks AND by yaat-server's SayCommandHandler
+                               # for direct controller queries — same text, different routing layer adds the controller's initials.
+```

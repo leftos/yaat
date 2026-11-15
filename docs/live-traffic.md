@@ -25,16 +25,19 @@ Taken in issue #150, then revised by an adversarial review, whose decisions are 
   `LiveTrafficAssumer.SeedVertical` still falls back to `CruiseFeet` today; an open YAAT issue moves it to the pilot-side field. The same pilot-side cleared-copy pattern supplies the destination for the direct-to-destination leg ([flight-physics.md](flight-physics.md#lateral-navigation--turn-anticipation-updatenavigation)).
 - **Conflict alerts are gated**, never shadow↔shadow (real pairs are separated by things the sim cannot see), shadow↔simulated only for an IFR shadow off the approach corridors, with per-alert STARS `CASUP` (*Shadows as runway and ground participants* below).
 
-## Files
+## File map
 
 | File | Role |
 |---|---|
-| `LiveTraffic/LiveTrafficSample.cs` | `LiveTrafficSample` (one observation: sim-clock time, lat/lon, altitude, GS, true track, optional VS, source, beacon), `LiveTrafficSource` (`Stars` 4.5 s sweep / `Eram` 12 s / `Asdex` 1 s — `Asdex` means on the ground), `LiveTrafficRemovalReason`. |
+| `LiveTraffic/LiveTrafficSample.cs` | `LiveTrafficSample` (one observation: sim-clock time, lat/lon, altitude, GS, true track, optional VS, source, beacon; `Instance` + `ObservedAtUtc` are the feed provenance for bundles), `LiveTrafficSource` (`Stars` 4.5 s sweep / `Eram` 12 s / `Asdex` 1 s — `Asdex` means on the ground), `LiveTrafficRemovalReason`. |
 | `LiveTraffic/AircraftLiveTraffic.cs` | The satellite on `AircraftState.LiveTraffic`: last sample fields, `FloorAltitudeFt` (nearest field elevation within 5 nm at the last sample — the dead-reckoning floor), `SecondsSinceSample` (the dead-reckoning clock `Advance` projects by), `AppliedAtSimSeconds` + per-tick `DeliverySilenceSeconds` (the freshness clock — coast, removal, ghost rules), a bounded `History` of the last 24 samples (vertical-speed derivation, level/hold detection at assume), the feed's latest clearance fields (assigned/interim altitude, cleared heading/speed, clearance text), `IsCoasting`, `ExternalId`. `ToSnapshot`/`FromSnapshot` ↔ `AircraftLiveTrafficDto`. |
-| `LiveTraffic/LiveTrafficKinematics.cs` | `CreateShadow`, `Apply(ac, sample)`, `Advance(ac, dt, weather, simTime)`, coast timing. |
-| `Simulation/Snapshots/AircraftLiveTrafficDto.cs` | Nullable `AircraftSnapshotDto.LiveTraffic`; null for simulated aircraft and for older snapshots (no schema bump). |
+| `LiveTraffic/LiveTrafficKinematics.cs` | `CreateShadow`, `Apply(ac, sample)`, `Resync(simNow)`, `Advance(ac, dt, weather, simTime)`: dead-reckons a shadow from its latest sample and writes the air vector (heading + IAS) so the computed `GroundSpeed` equals the sampled GS under the room wind; coast timing (coasts after two missed sweeps). |
+| `Simulation/Snapshots/AircraftLiveTrafficDto.cs` | Nullable `AircraftSnapshotDto.LiveTraffic`: a shadow aircraft's last sample + dead-reckoning clock; null for simulated aircraft and for older snapshots (no schema bump). |
 | `Simulation/RecordedAction.cs` | `RecordedLiveTrafficSample(Callsign, Sample, SpawnState?)`, `RecordedLiveTrafficRemoval(Callsign, Reason)`. |
-| `LiveTraffic/LiveTrafficAssumer.cs` | `ASSUME`: the in-place hand-off from shadow to simulated aircraft (below). |
+| `LiveTraffic/LiveTrafficAssumer.cs` | `ASSUME`: the in-place hand-off from shadow to simulated aircraft (below): feed clearances first, then level/climb/descent, hold, final/visual, route rejoin (`NextFixAhead`), initial climb, VFR, runway/surface kinds. Never refused. Also run implicitly by `CommandDispatcher.DispatchCompound`'s shadow gate for any non-SAY command to a shadow; stamps `AircraftState.AssumedFromLiveTraffic`, the marker `UNASSUME` (`ActionArms.Unassume`) requires. |
+| `LiveTraffic/ILiveTrafficFeedPort.cs` | The feed port the host implements (BeginSecond → LiveTrafficFeedSecond, ShadowStatus, EndSecond) + LiveTrafficFeedTrack, LiveTrafficShadowStatus, EmptyLiveTrafficFeedPort (always inert; BareHost/ReplayHost) |
+| `LiveTraffic/LiveTrafficFilter.cs` | Shared live-traffic filter model (rules VFR/IFR/both, flight-plan airport list, radius); canonical-string TryParse/Serialize/Describe; carried on SimScenarioState.LiveTrafficFilter |
+| `LiveTraffic/LiveTrafficOwnerResolver.cs` | Real-world ownership on shadows: sample owner/pending fields -> TrackOwner via the scenario's ArtccConfig (TCP/ERAM-sector match, synthetic fallback) + HandoffPeer pending display; feed yields to any ordinary Track.Owner write (OwnerFromLiveFeed). |
 
 ## Contract
 

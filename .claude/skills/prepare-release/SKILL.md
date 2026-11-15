@@ -300,7 +300,7 @@ Skip commits that are pure refactor / test / CI / build / internal plumbing — 
 | Commands (added / renamed / aliased / behavior change / removed) | `COMMANDS.md` **and** `docs/command-cheatsheet.json` **and** `docs/command-cheatsheet.html` |
 | Client feature usage (windows, panels, settings, workflows) | `USER_GUIDE.md` and screenshots under `docs/user-guide/` |
 | Solo training mode behavior | `SOLO_TRAINING.md` |
-| New / renamed / removed projects or top-level files | `docs/architecture.md` |
+| New / renamed / removed projects or top-level files | the owning subsystem doc's `## File map` (`docs/README.md` lists them); `docs/architecture.md` Layers for a project |
 | Discord integration | `docs/discord-integration.md` |
 | Scenario format / validation | `docs/scenario-validation.md` |
 
@@ -462,7 +462,7 @@ Ask the user to review. Apply any requested edits to the highlights or the unrel
 
 Needs the user's approval from Phase 4. Steps 5.1 to 5.3 are one edit set; 5.4 commits it and 5.5 tags it.
 
-**On a hotfix** every edit, commit and tag here lands on `hotfix/v{version}` in each repo, never on `main`. There is no showcase to rename (5.2 item 3) and no `docs/architecture.md` update (5.3).
+**On a hotfix** every edit, commit and tag here lands on `hotfix/v{version}` in each repo, never on `main`. There is no showcase to rename (5.2 item 3) and no File map update (5.3).
 
 ### 5.1 Apply every version bump
 
@@ -474,13 +474,13 @@ Apply **every** version bump decided in 2.6 — `<Version>` in `Directory.Build.
 2. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Phase 4 — these are what the GitHub release will surface.
 3. **Rename the showcase**, when the release has one (2.11): `docs/releases/whats-new-next.md` to `whats-new-<version>.md` (and its image folder references). The release body links that file below the highlights, and the Discord announcement carries the link, so the name must match the version exactly (`whats-new-0.16.0-beta.md` for `v0.16.0-beta`).
 
-### 5.3 Update the architecture doc
+### 5.3 Update the file maps
 
-Update `docs/architecture.md` if any new files were added (and it wasn't already covered by 3.2's doc updates).
+Add each new file to the owning subsystem doc's `## File map` (`docs/README.md` lists them), and update the `docs/architecture.md` Task Index or Layers when a new kind of change or a new project arrived (unless 3.2's doc updates already covered it).
 
 ### 5.4 Stage and commit
 
-Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, the renamed showcase if there is one, `docs/architecture.md` if changed, **every user-facing doc updated in step 3.2** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.), and the screenshots reviewed in 3.3. List them explicitly so the user can audit before commit.
+Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, the renamed showcase if there is one, `docs/architecture.md` and each File-map doc if changed, **every user-facing doc updated in step 3.2** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.), and the screenshots reviewed in 3.3. List them explicitly so the user can audit before commit.
 
 If the release commit is a partial commit of a dirty tree, follow the partial-commit protocol in `changelog-and-commit`'s `reference.md` ("Partial commits under prek") — stash the remainder including untracked files, commit with explicit paths, pop, then `git show --stat HEAD` to confirm nothing extra landed.
 

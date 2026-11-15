@@ -19,17 +19,18 @@ It also performs **one** server-bound mutation: `CallsignArgumentResolver.TryRew
 
 | File | Role |
 |---|---|
-| `CommandInputController.cs` | The parse pass (`ParseCommandInput`), the autocomplete dispatch chain (`UpdateSuggestions`), signature-help entry (`UpdateSignatureHelp`), history nav, accept flow, condition-prefix peel, the inline macro/callsign/verb/condition suggesters. |
-| `CommandInputParseResult.cs` | The 16-field positional record consumed by both autocomplete and signature help. |
-| `ArgumentSuggester.cs` | Registry-driven argument suggestions (overload literals, runway/fix/approach/callsign/pattern-leg by `TypeHint`, compound modifiers). |
-| `AddCommandSuggester.cs` | The `ADD` positional state machine (a hard-coded custom path). |
-| `FixSuggester.cs` | Two-tier fix suggestions (route fixes, then a prefix-gated navdata scan). |
-| `SignatureHelpState.cs` | Overload set, `FindBestOverload` scoring, part rendering, overload cycling. |
+| `CommandInputController.cs` | The parse pass (`ParseCommandInput`, the one parse that drives both the suggestion and signature pipelines), the autocomplete dispatch chain (`UpdateSuggestions`), signature-help entry (`UpdateSignatureHelp`), history nav, accept flow, condition-prefix peel, the inline macro/callsign/verb/condition suggesters, the FixDb binary search. |
+| `CommandInputParseResult.cs` | The immutable 16-field positional record consumed by both autocomplete and signature help. |
+| `ArgumentSuggester.cs` | Registry-driven argument suggestions from `CommandRegistry` metadata (overload literals, runway/fix/approach/callsign/pattern-leg by `TypeHint`, compound modifiers). |
+| `AddCommandSuggester.cs` | The `ADD` positional state machine (a hard-coded custom path): rules/weight/engine options, position (`@spot` parking names, runways, arrival routes), type/airline overrides. |
+| `FixSuggester.cs` | Two-tier fix name suggestions from FixDb (route fixes, then a prefix-gated navdata scan). |
+| `SignatureHelpState.cs` | Observable state for the signature-help tooltip: overload set, `FindBestOverload` scoring, part rendering, overload cycling and navigation, the active parameter, dedup. |
 | `CallsignArgumentResolver.cs` | Send-path partial-callsign rewrite of argument tokens. |
 | `CallsignMatcher.cs` | Shared exact-then-substring matching with ambiguity detection. |
-| `CommandSignature.cs` (Yaat.Client.Services) | `SignaturePart` record (one rendered token of the hint). |
-| `Commands/CommandSignature.cs` (Yaat.Sim) | `CommandSignature` / `CommandSignatureSet` / `CommandParameter`; `CommandSignatureSet.FromDefinition` expands a `CommandDefinition`'s overloads. |
-| `CommandInputView.axaml.cs` | Key handling (Tab/Enter accept, Up/Down select-or-history, Escape, Alt+arrows), popup visibility gating. |
+| `CommandSignature.cs` (Yaat.Client.Services) | `SignaturePart` record (one rendered token of the hint; an AXAML `DataType` dependency). |
+| `Commands/CommandSignature.cs` (Yaat.Sim) | `CommandSignature` / `CommandSignatureSet` / `CommandParameter` records; the `CommandSignatureSet.FromDefinition` factory expands a `CommandDefinition`'s overloads. |
+| `CommandInputView.axaml.cs` | Key handling (Tab/Enter accept, Up/Down select-or-history, Escape, Alt+arrows) for suggestions and history, popup visibility gating. |
+| `SuggestionItem.cs` | Suggestion display model (text, kind, description) |
 
 ## The parse-once contract
 

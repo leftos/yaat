@@ -467,3 +467,59 @@ The behaviors above already have regression coverage — find the right harness 
   The tape's starting weather (`SimScenarioState.InitialWeatherJson`) is not the room's weather at the reload: a scenario load sets it from the room's weather then, and every reload after (rewind, restart, recording load, checkpoint restore) carries the tape's own through `ReloadStart.InitialWeatherJson` (the scenario's, the recording's or the checkpoint's), so exports after any of them start on the original weather.
 
   Without it the room reports loaded weather to clients while the simulation flies calm — the shape of issue #313's session-setting loss. Anything else that rebuilds the engine needs the same call.
+
+## File map
+
+One entry per file, grouped by project.
+
+### Yaat.Client (`src/Yaat.Client/`)
+
+Paths are relative to `src/Yaat.Client/`.
+
+```
+Services/
+  LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
+  GfsGridFetcher.cs             # Fetches the GFS 0.25° wind grid (UGRD/VGRD/TMP, 20 levels) over the ARTCC's boundary box from the NOMADS GRIB filter: newest posted cycle, 6 h step-back on 404 (3 cycles at most), 512 KB cap; the result carries the bytes or a failure reason for the terminal warning
+  SavedWeatherGrid.cs           # Pure JSON helpers for the grid a saved weather file carries: Embed (windGridGrib2 base64 beside windGridHash), Extract (bytes out, JSON never carries them; no usable bytes strips the hash), NamedHash, NamesGrid, WithHash
+  WeatherSaveGrid.cs            # Save Weather's file contents: the JSON unchanged when it names no grid, the held bytes embedded when they match, else the room's grid fetched by hash (size cap, hash and decode checked) and embedded; a failed fetch strips the hash and returns the reason for the "Saved without its GFS grid" line
+  FdRegionMapping.cs            # Static ARTCC → FD region code mapping
+```
+
+### Yaat.Sim (`src/Yaat.Sim/`)
+
+Paths are relative to `src/Yaat.Sim/`.
+
+```
+# Core
+WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load; WindGridHash (serialized name of the GFS grid) and WindGrid ([JsonIgnore], set by WindGridRegistry.Attach)
+                               # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
+WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
+WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPeriods; GetWeatherAt(elapsedSeconds) interpolates wind
+                               # layers during transitions (N/E vector decomposition); METARs/precipitation snap at transition start
+WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile (WindGridRegistry.Attach resolves its grid); ParseTimeline rebuilds only a timeline
+                               # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
+Weather/Grib2Reader.cs         # Static: Read(bytes) decodes NOMADS-style GRIB2 (grid 3.0 lat/lon, product 4.0, simple packing 5.0, bitmap 0/255) into Grib2Message; anything else, a truncated file, a grid over MaxGridPoints, a file over MaxDecodedPoints or a section 7 without a new section 4, a non-finite reference value or value, or a binary/decimal scale outside ±127/±38 throws Grib2FormatException
+Weather/Grib2Message.cs        # Grib2Message (one decoded field, values reordered to a south-west origin, NaN where the bitmap marks missing) + Grib2LatLonGrid (section 3 grid, micro-degrees)
+Weather/Grib2FormatException.cs  # Thrown by Grib2Reader, naming the section and the template or value found
+Weather/GriddedWindField.cs    # UGRD/VGRD/TMP on isobaric levels over a lat/lon grid; SampleColumn(lat, lon) bilinear-interpolates and returns per-level GriddedWindSample (ISA pressure altitude, FROM direction TRUE, kt, °C); FromMessages refuses a wind past ±150 m/s or a temperature outside 160–350 K
+Weather/WindGridRegistry.cs    # Static, thread-safe store of GFS grids keyed by the SHA-256 of their GRIB2 bytes: Register / RegisterAndPin / Pin, TryGetField / TryGetBytes, Attach(profile) from WindGridHash (live weather only); a pinned entry is never evicted, at most MaxUnpinned (8) unpinned kept, LRU first; MaxGridBytes (512 KB) and MaxRoomGrids (16) are the one size and count caps for uploads, recordings and the client fetch, and ReadBrotliWithinLimit decompresses an entry under the size cap
+Weather/WindGridLimitException.cs # A recording refused whole for its wind grids (more than MaxRoomGrids distinct, or an entry past MaxGridBytes decompressed); not an IOException, so per-entry damage handling never turns it into a skip
+Weather/WindGridPins.cs        # One owner's pins on a set of grid hashes (IDisposable); Repin() takes a second, independent set
+Weather/WindGridHashes.cs      # Referenced(initial weather, actions, snapshot weather): the distinct grid hashes a recording's weather names, so a writer bundles each once
+WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360; take sim time + phase),
+                               # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
+WindVariation.cs               # Deterministic time-varying wind perturbation: bounded value-noise gust/direction wander + VRB model,
+                               # per-aircraft callsign-phase decorrelation, AGL taper (pure function of sim time — no RNG)
+WindObservation.cs             # ASOS-style observation of the simulated surface wind (2-min means, 10-min peak/lull, 5-s grid)
+                               # feeding MetarIssuer's reported winds and SPECI time bounds
+GroundFrame.cs                 # Air<->ground frame conversions for IndicatedAirspeed (wheel speed on the ground): rotation gate,
+                               # liftoff/touchdown flips with headwind + density correction
+MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
+DefaultMetar.cs                # Static: builds the no-weather default METAR (calm/10SM/CLR/29.92) shared by the METAR panel, radar/ground overlay, vStrips bar
+MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
+ReportedConditions.cs          # Snapshot of modeled surface weather for one station (true wind, vis, sky/ceiling, altimeter, precip)
+MetarComposer.cs               # Static: reconstructs a reported METAR by patching dynamic groups into a base METAR (AIM 7-1-28)
+SpeciCriteria.cs               # Static: SPECI decision vs last issued (wind shift, vis/ceiling crossings, precip) — AIM TBL 7-1-1
+MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + SPECI on change; freezes conditions at issuance
+WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
+```

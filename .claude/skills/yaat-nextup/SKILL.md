@@ -59,7 +59,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
   A `Yaat.Sim` change is proved by a bare `pwsh tools/test-all.ps1` (both repos; it gates itself, never wrapped in `tools/gate.ps1`) before it lands. `dotnet format style … --include` takes paths relative to the working directory: absolute paths match nothing and the check passes on an empty set.
 
-  **A brief that touches yaat-server names its owning doc(s) first in its read list**, taken from the `docs/architecture.md` Task Index row for the task (`server-rooms-and-hub.md`, `crc-display-state.md`, `live-traffic.md` …). The implementer reads the doc before opening source, instead of rediscovering the file set the doc already names.
+  **A brief that touches yaat-server names its owning doc(s) first in its read list**, such as `server-rooms-and-hub.md`, `crc-display-state.md` or `live-traffic.md`, taken from the task's Task Index row in yaat's `docs/architecture.md`, or in yaat-server's for a server-only change. The implementer reads the doc before opening source, instead of rediscovering the file set the doc already names.
 
   **A brief that changes sim behaviour names its at-risk tests, with a ruling for each.** Sim behaviour is a phase, a pass, a detector, a planner rule or a navdata refresh. At-risk tests are the tests outside the brief's own file list that pin the behaviour being changed: the class or method names it touches, the scenario or recording it affects, the numbers it produces. Find them by searching the base for those names; where the search cannot bound the set, run the affected test project on the base branch.
 
@@ -94,10 +94,10 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 |---|---|
 | Any command added, renamed, aliased or changed | `COMMANDS.md`, `docs/command-cheatsheet.json` → `node tools/build-cheatsheet.mjs` |
 | Anything an instructor or RPO sees or does | `USER_GUIDE.md` (screenshots via yaat-server's `tools/Yaat.GuideCapture`, run separately from the yaat-server checkout); `SOLO_TRAINING.md` for solo mode |
-| A file added, moved or removed; a subsystem's shape | `docs/architecture.md` (the `architecture-updater` agent), the subsystem doc `docs/README.md` "Subsystem docs" lists for it |
+| A file added, moved or removed; a subsystem's shape | the owning subsystem doc's File map (`docs/README.md` "Subsystem docs" lists them; the `architecture-updater` agent checks it); `docs/architecture.md` Task Index for a new kind of change, Layers for a new project |
 | A hub method or `AircraftUpdated` field | `docs/training-hub-contract.md` |
 | A client-driver lesson (the MCP server, the automation pipe, how agents drive the client) | yaat-server `docs/client-driver-mcp.md`, and the rule in yaat-server `docs/DRIVING_CONVENTIONS.md` |
-| A yaat-server file added, moved or removed; a server subsystem's shape | yaat-server `docs/architecture.md` |
+| A yaat-server file added, moved or removed; a server subsystem's shape | the owning subsystem doc's File map (yaat-server `docs/README.md` lists them: `server-file-map.md`, `server-live-traffic-file-map.md`, `server-tools.md`, `client-driver-mcp.md`, `guide-capture-tool.md`); yaat-server `docs/architecture.md` Task Index or Layers when a task or a project changes |
 | A CRC wire DTO or MessagePack layout | yaat-server `docs/crc-wire/` (regenerated per `docs/crc-update.md`), yaat `docs/crc-display-state.md` |
 | A sidecar field or `Data/ARTCCs` category, a GeoJSON property YAAT reads, or a vNAS ARTCC-config/scenario field YAAT reads | `ARTCC_CUSTOMIZATION.md` (synced to Discord), `src/Yaat.Sim/Data/ARTCCs/README.md` for sidecar schemas |
 | Live traffic / SWIM behaviour | yaat-server `docs/plans/live-traffic-swim/` (the subplan the item cites), yaat `docs/live-traffic.md` |

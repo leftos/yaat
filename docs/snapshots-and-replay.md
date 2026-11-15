@@ -650,3 +650,58 @@ Tests: `RoomLogStoreTests`, `FileLoggerRoomScopeTests`, `SessionLogAnonymizerTes
   - *Correct but late* (an exit or arc got longer, a speed profile changed, the event slid past the recorded window): keep the invariant and add a bounded physics-only tail — `ReplayOneSecond` to the window end, then `TickOneSecond` for up to ~60 s, breaking on the awaited state.
   - *Premise change* (an aircraft now legitimately picks a different exit): if the test's subject needs the recorded premise, pin it by injecting a command mid-replay — `Replay(rec, T_before_choice)` → `SendCommand("ER G")` → `ReplayOneSecond` loop. Find T with `python tools/bug_bundle.py history --callsign X`.
   - *Node-id whitelists*: hold-short ids come from the raw graph and are stable; tangent-cut ids are not. Never assert tangent-cut ids — regenerate whitelists from `LayoutInspector --exits`.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Simulation/Replay/
+RecordedActionPump.cs          # The one pump behind a Sim replay, the server's reconstruction and its tape playback: walks an action log with a cursor and
+                               # a pre-tick set — ApplyPreTick(second) lands spawns / live-traffic samples before physics without moving the cursor,
+                               # ApplyThrough(second) applies the rest and advances past all of it, SeekTo repositions after a jump, Reseat adopts a cursor
+                               # kept elsewhere (the room's PlaybackCursor) and forgets the pre-tick bookkeeping when it moved
+ReplayDriver.cs                # Drives a recording forward (range / one second / one sub-tick) by running the spine under a ReplayHost;
+                               # owns the driver's RecordedActionPump. Rebuilds strip bays + TDLS facility configs from the ARTCC
+                               # (SimulationEngine.InitializeFromArtcc — the coordination channels too) once the config and student position are restored, so the mutations
+                               # find what they assume exists. Internal — SimulationEngine.Replay.cs is the public surface over it.
+                               # Takes its own Repin() of the recording's WindGridPins before LoadScenario and hands them to SimScenarioState.ReplaceWindGridPins.
+ReplayHost.cs                  # The bare host plus pre-tick recorded actions and post-second action application through the pump and
+                               # Actions.ApplyRecorded (unless the caller supplies its own applier); as an IActionHost it delegates every member to the bare host
+ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns),
+                               # IGeneratorRuntimeState + GeneratorState / VfrArrivalGeneratorState / OverflightGeneratorState, DelayedHandoff
+HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport's IFR departures + BuildRundown. See docs/hold-for-release.md
+CfrDepartureService.cs         # CFR: sets/clears/reports a departure's alert-only release-time window (AircraftGroundOps.ReleaseWindow*Utc) + echo
+ConsolidationState.cs          # Thread-safe manual consolidation overrides
+
+# Simulation/Snapshots/
+StateSnapshotDto.cs            # Top-level snapshot DTO + TimedSnapshot (elapsed + action index + state)
+LiveCheckpoint.cs              # A live room's compressed checkpoint (ElapsedSeconds, ActionIndex, Brotli JSON of a StateSnapshotDto); Capture / ToTimedSnapshot. Held on SimScenarioState.LiveCheckpoints
+AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, student-frequency eligibility, etc.)
+ControlTargetsDto.cs           # Control targets + NavigationTarget + altitude/speed restriction DTOs
+CommandQueueDto.cs             # CommandBlock/TrackedCommand/BlockTrigger/DeferredDispatch DTOs
+PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for all ~35 Phase subclasses; GroundNavigatorDto.Playback (GroundNavigatorPlaybackDto + PathPrimitiveDto: Straight/Bezier/SlowTurn) carries the navigator's mid-turn state
+                               # FollowingPhaseDto: FollowRoute (TaxiRouteDto) + MergeSegmentIndex + LeadEdgeIntoMerge (TaxiSegmentDto), GivingWay, Unjoinable, ExitingRunways, LeadWaitVerdicts + LeadWaitSecond, LeadDepartureBarNodeId + LeadDepartureRunwayEnd + LeadSeenDeparting,
+                               # ClearingRoute + ClearingBarNodeId + ClearingAttemptedRunways, Navigator (null with neither route); additive, no schema bump
+                               # RunwayInfoDto, ApproachClearanceDto, DepartureClearanceDto, PatternWaypointsDto, etc.
+ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues (DelayedSpawnDto carries a full AircraftSnapshotDto from schema 54), generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
+                               # AtcPositions (AtcPositionDto: the resolved ATC roster — scenario atc record + owner + TCP; null in a pre-feature snapshot leaves the loader's roster);
+                               # AsdexSafetyLogicConfigs (Dictionary<facility id, AsdexSafetyLogicConfigDto + AsdexRunwayConfigDto>, the DTO carrying RunwayConfigurationChosen, omitted while false, and InhibitStartSeconds / SupersededConfigurationIds, omitted while empty, no schema bump (an inhibited position with no start restores as set at the snapshot's second); null-absent when empty — a restore replaces, so null restores as no config);
+                               # LegacyAsdexSafetyLogicConfig (the pre-schema-36 single config, JSON name AsdexSafetyLogicConfig; SnapshotSchemaMigrator files it under the primary airport and nulls it);
+                               # ActiveAsdexAlerts (List<AsdexSafetyAlertDto> with FacilityId and, on a converging alert only, RunwayEnds, ordinal-sorted by facility then id; null-absent — a restore replaces, so null restores as an empty set)
+ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool, position selections, attended CRC
+                               # positions, the flight strips (Strips) + vTDLS session (Tdls), the tower-list dwell entries (TowerLists, schema 23) and the
+                               # ERAM CRR group definitions (CrrGroups; membership rides each aircraft's ERAM state) and conflict-alert settings (EramConflictSettings, one EramConflictSettingsSnapshotDto per non-default facility) and sector messages (EramSectorMessages, one EramSectorMessageSnapshotDto per stored message) — all null-absent in a
+                               # pre-feature snapshot, which restores empty
+FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout (each rack with its AutoSort flag), both printer queues and the blank-id counter
+FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Restore replaces, never merges — the snapshot is the whole strip state
+                               # at its second, so anything the target engine held is cleared first; items and bays are captured in ordinal id order
+TdlsSnapshotDto.cs             # The vTDLS items, the dumped lockout, the active ops configs, the pending auto-WILCOs and the id counter. The
+                               # per-facility TdlsConfig map is deliberately out — a load re-derives it from the ARTCC before the restore runs
+TowerListSnapshotMapper.cs     # TowerListTracker ⇄ TowerListSnapshotDto (lists with entries only, each with its FacilityId; Restore clears the session and re-adds; null → empty;
+                               # a list without a facility id or for a (facility, list) the room does not configure is dropped with one aggregated warning; the list airports are the ARTCC's, never snapshotted)
+TdlsSnapshotMapper.cs          # TdlsState ⇄ TdlsSnapshotDto. Restore replaces the session state and leaves TdlsState.Configs alone — the scenario
+                               # load that runs before a restore has just re-derived it from the ARTCC, and the snapshot never carried it; items and active ops configs are captured in ordinal key order
+TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore; HoldShortPointDto.Unable keeps a moved unmakeable bar where it is, and HoldShortPointDto.StopMoved latches that its stop was already moved; EndsNoDestinationRoute (written only when true) carries the hold that ends a no-destination route; ClearanceTaxiways, additive and not written while null, carries the clearance's named taxiways)
+SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO versioning; SnapshotSchemaException
+```

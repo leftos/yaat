@@ -6,7 +6,9 @@
 
 ## Locating files
 
-→ **[`architecture.md`](./architecture.md)** — the full annotated file tree. Its top section, *"Task Index — I need to change X, which files?"*, maps common tasks straight to the relevant files in order of relevance. **Read this first.**
+→ **[`architecture.md`](./architecture.md)** — the entry point: the *Task Index* ("I need to change X, which files?", tasks mapped straight to the files in order of relevance), the layers, the integration footguns, where tests live, and the deep-docs list. **Read this first.**
+
+Per-file detail lives in each subsystem doc's `## File map` section: to find which doc lists a source file, or where to add a new file's entry, open the doc below that owns its folder. Files no subsystem doc owns are in the file-map docs at the end of the list.
 
 ## Subsystem docs
 
@@ -63,6 +65,8 @@ Open the matching doc **before exploring, searching, or editing** the code it li
 - [`vedst-sign-in.md`](./vedst-sign-in.md) — vEDST sign-in: enabling it on a server, connecting a vEDST checkout
 - [`data-handling.md`](./data-handling.md) — what data YAAT collects, keeps and deletes (privacy)
 - [`installer-release.md`](./installer-release.md) — Velopack packaging, auto-update, `release.yml`, versioning (and [`macos-code-signing.md`](./macos-code-signing.md) for the notarized macOS `.pkg`/`.app`)
+- [`controller-ai.md`](./controller-ai.md) — `src/Yaat.Sim/ControllerAi/` (the controller AI's files; design in [`plans/controller-ai/`](./plans/controller-ai/README.md))
+- File maps for the files no subsystem doc owns: [`repo-files-and-tools.md`](./repo-files-and-tools.md) (repo root scripts, `tools/` scripts, the CLI tools), [`client-file-map.md`](./client-file-map.md) (`Yaat.Client.Core`, `Yaat.Client.InputSynthesis`, `Yaat.Client`), [`sim-core-file-map.md`](./sim-core-file-map.md) (root-level `Yaat.Sim` files), [`simulation-engine-file-map.md`](./simulation-engine-file-map.md) (`src/Yaat.Sim/Simulation/`, `Soak/`, `Testing/`)
 
 ## Reference material
 

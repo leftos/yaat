@@ -44,7 +44,7 @@ Read log files first before speculating about runtime errors:
 
 ## Architecture
 
-> **Full annotated file tree: [`docs/architecture.md`](docs/architecture.md).** Read it when you need to locate files or understand project structure. Keep it up-to-date before each commit (the `architecture-updater` agent checks it).
+> **Architecture entry point: [`docs/architecture.md`](docs/architecture.md)** (Task Index, Layers, Integration Footguns, test locations, Deep docs). Per-file detail lives in each subsystem doc's `## File map`, listed in [`docs/README.md`](docs/README.md). Keep the owning File map, and the Task Index or Layers when a task or a project changes, up to date before each commit (the `architecture-updater` agent checks them).
 >
 > **Exploring the codebase?** Start from the docs map ([`docs/README.md`](docs/README.md) → `architecture.md` Task Index → the matching subsystem doc), not source from scratch. When delegating exploration to a subagent, use the user-level `Explore` agent (it follows this docs-first protocol automatically); otherwise put "read `docs/architecture.md` + the relevant `docs/*.md` first" in the agent's prompt.
 
@@ -54,13 +54,13 @@ Subsystem docs: before exploring or editing a subsystem, open its doc from [docs
 
 - **Yaat.Sim** (`src/Yaat.Sim/`) — Shared simulation library. All aviation logic: flight physics, phases, pattern geometry, performance constants, command dispatch, command queue. No UI deps.
 - **Yaat.Client** (`src/Yaat.Client/`) — Avalonia desktop app: radar/ground rendering, `MainViewModel`, command input, the windows the instructor drives. MVVM (CommunityToolkit.Mvvm), SkiaSharp rendering. **Sole owner of the LM-Kit.NET dependency** (speech) — nothing else in `src/` may reference it.
-- **Yaat.Client.Core** (`src/Yaat.Client.Core/`) — LM-Kit-free client core: `ServerConnection` (SignalR + DTOs), `UserPreferences`, `AppLog`, `ClientVersionGate`, `UpdateService`, CRC alias parsing, `ConnectViewModel`. Split out so the browser/WASM front-ends and the desktop app share it.
+- **Yaat.Client.Core** (`src/Yaat.Client.Core/`) — LM-Kit-free client core: `ServerConnection` (SignalR + DTOs), `UserPreferences`, `AppLog`, `ClientVersionGate`, `UpdateService`, CRC alias parsing, `ConnectViewModel`. A desktop library (it references Avalonia.Desktop and Velopack); the browser/WASM front-ends do not reference it.
 - **Yaat.Client.Strips** (`src/Yaat.Client.Strips/`) — vStrips UI (strip bays, find, printing).
 - **Yaat.Client.Tdls** (`src/Yaat.Client.Tdls/`) — vTDLS UI; references Yaat.Client.Strips.
 - **Yaat.VStrips.Web / Yaat.VTdls.Web** (`tools/`) — Avalonia Browser (WASM) front-ends over Strips/Tdls. **yaat-server builds and hosts these** from its `src/Yaat.Server/Dockerfile` via `extern/yaat/`; they are why `wasm-tools` is a build prerequisite here.
 - **yaat-server** (`..\yaat-server\`) — ASP.NET Core server. SignalR comms, CRC protocol, training rooms, scenario loading. References Yaat.Sim via sibling project ref.
 
-Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Client.Strips`/`Yaat.Client.Tdls` → `Yaat.Sim`. Adding a client type used by both the desktop app and a web front-end means putting it in Core (or Strips/Tdls), not `Yaat.Client`.
+Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Client.Tdls` → `Yaat.Client.Strips` → `Yaat.Sim` (the full list is the Layers section of `docs/architecture.md`). `Yaat.VStrips.Web` references Strips only and `Yaat.VTdls.Web` Tdls and Strips, so a client type used by both the desktop app and a web front-end goes in Strips or Tdls, never Core or `Yaat.Client`.
 
 ### Key Patterns
 

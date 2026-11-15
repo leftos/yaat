@@ -382,3 +382,30 @@ Per-track shared state and pointouts do **not** have their own topic — they ri
   `basic` flag. Only Full performs `TransferTracksForConsolidation`; Basic just records the override and rebroadcasts.
 - **`StarsConsolidation` is full-replacement.** Unlike most CRC topics it does not accumulate deltas — each broadcast supplies the
   complete item list, so a missing item *removes* it from the scope. Don't try to send a partial update.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Track operations
+TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId, OwnerType
+TrackOwnerType.cs              # Enum: Other, Eram, Stars, Caats, Atop
+Tcp.cs                         # Record: Subset, SectorId, Id, ParentTcpId
+StarsPointout.cs / StarsPointoutStatus.cs  # Pointout state
+StarsDatablockClassifier.cs    # Pure: projects a track's STARS view for a TCP (color White/Green/Yellow/Cyan, level LDB/PDB/FDB, leader dir); mirrors CRC DisplayElementTracks. Used by DtoConverter to fill AircraftStateDto.Student* for the instructor radar
+StarsPositionSymbol.cs         # Pure: the position symbol a STARS scope draws after an owner in another facility (`3Y(1)`); mirrors CRC TrackManager.UpdateOwnerPositionSymbol (same facility: the owner's sector letter; another STARS facility: first digit of its entry in the student facility's handoff list, else C; centre: its NAS id letter for a neighbouring centre or the ZOB case, else C; non-NAS: C). Tests: StarsPositionSymbolTests. Used by DtoConverter to fill AircraftStateDto.StudentOwnerSymbol
+TrackCoordinationView.cs       # Pure: ActingPosition (the position a client acts as) and the handoff/pointout identities from AircraftUpdated judged against it (MatchesActing mirrors TrackOwner.MatchesPosition; IsHandoffToActing / IsHandoffFromActing / IsPointoutToActing). Read by the client's quick-list Accept handoff / Cancel handoff / Acknowledge pointout rules
+EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vatsim-server-rs radar_state::PointoutState)
+EramSectorKey.cs               # (Facility, Sector) key for the per-aircraft ERAM FDB-open and point-out-minimize lists
+                               # Round-tripped via the Eram satellite (AircraftEramStateDto.Pointouts/ForcedPointoutsTo), like other serialized ERAM state
+TrackCorrelation.cs            # Static: whether a radar target is correlated with its flight plan (SquawksAssignedCode, IsEramCorrelated); association, not a per-update code match
+
+# Coordination
+CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items
+CoordinationItem.cs            # Single coordination entry: status lifecycle, expiry, origin TCP
+StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→Recalled→Expiry→Void
+TowerListTracker.cs            # The STARS tower P-lists: airports keyed by TowerListKey(facility, listId) from the ARTCC's TowerListConfigurations (ZOA's FAT and NCT both define P1), and per-list dwell
+                               # entries (callsign, EnteredAtSeconds) Update() maintains from the world snapshot each tick; ClearSession / RestoreEntries are the
+                               # snapshot seam (TowerListSnapshotMapper); a duplicate key is rejected at collect time, same-second entries read back in callsign order
+```

@@ -94,3 +94,12 @@ point.
 - **Overlaps resolve to the radar's own facility chart.** Adjacent facilities' charts overlap, and NCT's Castle/Merced chart covers most of Fresno's terminal area, so highest-wins mislabelled it (2,000 ft where FAT charts 1,900). The radar passes `RadarViewModel.MvaFacilityId` (from `FacilityVideoMapsDto.FacilityId`) as the preference to the altitude tint, the Ctrl-hover readout, the point-menu MVA row and the aircraft-menu altitude flyout (`RadarView.CreateMenuHost` hands it to `ClientMenuHost` as `mvaFacilityId`; Ground and DataGrid menus use the docked radar's). Where that chart does not cover the point, or before video maps load, the highest floor across every chart applies. Live-traffic descent floors and the military-route terrain proxy pass a null preference and keep highest-wins. Composite FAA chart ids (`D01_DEN_PUB`, `BOI_BZN`) never match a facility id, so those radars keep highest-wins (YAAT-2297).
 - **Refresh drift.** The FAA charts update on no fixed cycle; re-run `--all` and commit the regenerated
   Brotli file to refresh. The `source`/`generatedAt`/`facilityCount` metadata records provenance.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Data/
+Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above).Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
+```

@@ -115,7 +115,7 @@ Built on System.Text.Json with camelCase names, a `JsonStringEnumConverter` that
 
 ### 8. Docs
 - yaat-server: a section on the JSON path, joined sessions and the `/vnas` endpoints in `docs/crc-display-state.md`, a replacement for its "Wire encoding is MessagePack" statement, and `docs/vatsim-auth.md`.
-- yaat: `docs/architecture.md`, the CHANGELOG line, a glossary entry for "joined session".
+- yaat: the owning subsystem doc's File map, the CHANGELOG line, a glossary entry for "joined session".
 
 ## Decisions and corrections
 

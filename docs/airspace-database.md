@@ -356,3 +356,18 @@ sim and server rooms.
   `-Output`). It rediscovers training primary airports and re-queries the FAA ArcGIS service.
 - **Add a query** — extend `AirspaceDatabase` with a method over `Volumes`; keep the `[lon, lat]` / `(Lat, Lon)`
   convention and remember the skip-if-already-inside semantics differ from plain containment.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Data/
+Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry, under-a-Bravo-shelf test for the 91.117(c) speed cap.
+Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs # Airspace model primitives plus crossing result (point-in-polygon via shared GeoMath.PointInRing + LatLonBounds).
+Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off altitude beneath a shelf floor (round hundred, 91.159-conforming above 3000 AGL) and the turn-away direction.Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
+Data/Artcc/ArtccBoundaryDatabase.cs # Lateral ARTCC boundaries (one polygon per center) from Data/Artcc/*.geojson[.br]; FindById / FindContaining; same bundled-fixture + bbox + PointInRing shape as AirspaceDatabase. Center-room live-traffic scoping.
+Data/Artcc/ArtccBoundary.cs        # One center's rings + bbox: Contains (any ring), DistanceToEdgeNm (the server's 30 nm center-room buffer)
+Data/Artcc/ArtccBoundaries.geojson # 26 US ARTCC/CERAP MultiPolygons from FAA NASR ARB (LOW + HIGH rings; UNLIMITED where that is all there is);
+                                   # built by tools/build-artcc-boundaries.py, re-run per 28-day cycle
+```

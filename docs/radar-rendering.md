@@ -6,11 +6,7 @@
 > draw-vs-hit-test geometry duplication are unenforced invariants — break one and you get a cross-thread race or clicks that
 > miss text, with no compiler signal.
 
-This is the mechanics layer beneath [architecture.md](architecture.md)'s one-line radar file list. It does not re-list the
-files — it explains the pipeline, the projection contract, the datablock geometry, the pointer-handler ladder, and the menu
-conventions. The EuroScope tag mode mirrors the upstream EuroScope behavior documented in
-[euroscope/overview.md](euroscope/overview.md) (and siblings) — those docs are the external design reference; this one is the
-YAAT implementation.
+Its File map below lists the files; the rest of this doc explains the pipeline, the projection contract, the datablock geometry, the pointer-handler ladder, and the menu conventions. The EuroScope tag mode mirrors the upstream EuroScope behavior documented in [euroscope/overview.md](euroscope/overview.md) (and siblings) — those docs are the external design reference; this one is the YAAT implementation.
 
 ## File map
 
@@ -18,18 +14,35 @@ All paths are under `src/Yaat.Client/`.
 
 | File | Role |
 |---|---|
-| `Views/Map/MapCanvasBase.cs` | Abstract base: pan/zoom, the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
-| `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection, rotation, zoom |
-| `Views/Radar/RadarCanvas.cs` | The radar `Control`: styled properties, pointer handlers, hit-testing, Range/Zoom sync, datablock drag |
-| `Views/Radar/RadarRenderer.cs` | Per-frame orchestrator: clears, then draws maps → rings → fixes → paths → targets → overlays |
+| `Views/Map/MapCanvasBase.cs` | Abstract `ICustomDrawOperation` base: pan/zoom input handling, the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
+| `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection shared by the map views: rotation, zoom |
+| `Views/Radar/RadarCanvas.cs` | The radar `Control` (SkiaSharp canvas): styled properties, pointer handlers, hit-testing, Range/Zoom sync and the pan/zoom lock, datablock drag; `MenuCue` (the row's `RadarCue`, resolved into the snapshot) and a repaint on a highlight change |
+| `Views/Radar/RadarRenderer.cs` | Stateless per-frame orchestrator: clears, then draws maps → rings → fixes → paths → targets → overlays; `DrawMenuCue` draws the menu cue's rings and bearing line |
 | `Views/Radar/TargetRenderer.cs` | Aircraft symbols (dashed for live-traffic shadows, half alpha while coasting — [live-traffic.md](live-traffic.md)), leader lines, datablocks, PTLs, history trails, speech bubbles |
-| `Views/Radar/VideoMapRenderer.cs` | Video-map polylines with A/B brightness categories |
-| `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines) |
-| `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc) with per-field rects |
-| `Views/Radar/RadarView.axaml.cs` | Wires canvas events; dispatches EuroScope field clicks to flyouts; DCB/brightness buttons |
-| `Views/Radar/RadarView.ContextMenus.cs` | The radar's right-click menus: the aircraft menu's view section and the map point menu, both through `AircraftMenuBuilder` |
+| `Views/Radar/VideoMapRenderer.cs` | Video-map polylines (A/B brightness categories) and labels |
+| `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines): line/field geometry shared by the renderer and click hit-testing, alongside the EuroScope tag layout |
+| `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc): `TagFieldId` and per-field rects for hit testing and flyout dispatch |
+| `Views/Radar/RadarView.axaml.cs` | The radar view control: wires canvas events; dispatches EuroScope field clicks to flyouts; the DCB (range, map shortcuts, FIX, LOCK) and brightness buttons |
+| `Views/Radar/RadarView.ContextMenus.cs` | Partial: the radar's right-click menus, both through `AircraftMenuBuilder`: the aircraft menu with the radar's view section (Display ▸, Draw route), and the map point menu (`BuildMapPointMenu`: the selected aircraft's point header and items, then FRD (left out when the header shows it), markers, Measure and the dimmed MVA row (`MvaRow`), left out where no MVA sector covers the point) |
 | `Yaat.Client.Core/ContextMenus/QuickCommandResolver.cs` / `QuickCommandDefaults.cs` / `QuickCommandStrip.cs` | Situation → the quick commands (icon strip, then text entries) at the top of the aircraft menu ([client-context-menus.md](client-context-menus.md)) |
 | `Views/Radar/Flyouts/*.cs` | EuroScope interactive-tag pickers (altitude, speed, runway, squawk, scratchpad, handoff) + heading mode |
+| `ViewModels/RadarViewModel.cs` | Radar view; video map loading, toggle items, DCB, persistence |
+| `ViewModels/RadarViewModel.Measure.cs` | Partial: distance measuring tool on the radar (nautical miles) |
+| `ViewModels/RangeBearingViewState.cs` | Observable mirror of the one RangeBearingLineStore behind both map views (shared slot pool, per-view visibility); owns the tool's behaviour |
+| `Views/Map/TextStyle.cs` | Paired (SKFont, SKPaint) for measuring + drawing text; keeps draw and hit-test metrics identical |
+| `Views/Map/DatablockDeconfliction.cs` | Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form) |
+| `Views/Map/RangeBearingLines.cs` | Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — radar/ground each render only their own), label formatting, resolver, readout anchor + viewport clamp (RblLabelPlacement), hit-test |
+| `Views/Map/RblReadoutPlacement.cs` | Places each range/bearing readout at the least-covered of eight spots around its anchor and nudges auto-placed datablocks clear when every spot is covered; shared by radar + ground canvases |
+| `Views/Map/RangeBearingRenderer.cs` | Draws measurement lines + readouts at the rects RblReadoutPlacement chose; shared by radar + ground renderers |
+| `Views/Map/RightClickGesture.cs` | Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise |
+| `Views/Map/RightClickTarget.cs` | One thing a right click hit (aircraft or parking/spot/helipad node) and its picker label |
+| `Views/Map/RightClickPicker.cs` | Small menu listing several right-click targets; choosing one raises that target's own right-click event |
+| `Views/Map/RightClickTargetOrder.cs` | Static HoveredFirst: puts the target the hover label names first in the picker list (moved if listed, else inserted), the rest in order |
+| `Views/Radar/RadarView.Popups.cs` | Partial: the waypoint-condition popup (the menu pickers are Views/MenuPopups.cs) |
+| `Views/Radar/RadarViewWindow.axaml.cs` | Pop-out radar window; takes a geometry key + title and hosts a RadarViewModel via SetViewModel (primary: "RadarView"/vm.Radar; extra instance: RadarView#n/its own VM, exposed as RadarVm for the Ctrl+F8 hotkey); window DataContext stays MainViewModel |
+| `Views/Radar/RadarBlink.cs` | The one on/off phase (half a second each) every blinking radar token follows; Clock is pinned by the screenshot harness |
+| `Views/Radar/Flyouts/FlyoutAppearance.cs` | Shared visual styling for tag flyouts (altitude, speed, runway, scratchpad popups) |
+| `Views/Radar/Flyouts/RadarSpeedFlyout.cs` | The EuroScope tag's assigned-speed picker (80..350 kt in tens, Resume Normal Speed, Final Approach Speed), opened by a click on the speed fields; not the quick-command Assign speed flyout (ContextMenus/SpeedFlyout.cs) |
 
 `Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX — it builds the
 "show nav route" path segments (waypoints + optional vector tail + crossing-restriction labels) that `RadarViewModel` assembles into the

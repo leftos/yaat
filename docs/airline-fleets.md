@@ -192,10 +192,16 @@ uv run tools/parse_airfleets.py <pdf_path> -o .tmp/
 # writes airfleets-parsed.json, airfleets-by-icao.json, airfleets-unmapped-variants.txt
 ```
 
-## Related files
+## File map
 
 - `tools/parse_airfleets.py` — pdfplumber-based parser library (also runnable standalone)
 - `tools/refresh-airline-fleets.py` — production refresh entry point
-- `src/Yaat.Sim/Data/AirlineFleets.cs` — C# loader
-- `src/Yaat.Sim/Data/airline-fleets.json` — generated map (committed)
-- `src/Yaat.Sim/Data/airline-fleets.meta` — provenance sidecar (committed)
+- `src/Yaat.Sim/Data/AirlineFleets.cs` — C# loader: a static map of airline ICAO ↔ ICAO Doc 8643 aircraft type with airframe counts, both directions pre-computed, loaded lazily from `airline-fleets.json`
+- `src/Yaat.Sim/Data/airline-fleets.json` — generated map (committed) from the Airfleets World Fleet Listing, a paid quarterly snapshot
+- `src/Yaat.Sim/Data/airline-fleets.meta` — provenance sidecar (committed): per-PDF SHA-256, parsed counts
+- `src/Yaat.Sim/Data/AirportAirlines.cs` — Static map: airport IATA/ICAO -> served airline ICAO list for arrival-generator callsign selection. See docs/airport-airlines.md. Loaded lazily from airport-airlines.json.br; normalizes K/P-prefixed U.S. ICAOs to local IDs
+- `src/Yaat.Sim/Data/airport-airlines.json.br` — Generated Brotli fixture from BTS T-100 segment data for current generator airports; OpenFlights route backfill is used only for airports missing BTS carrier hits
+- `src/Yaat.Sim/Data/airport-airlines.meta` — Provenance sidecar with source ZIP row counts, target airports, and unmapped BTS carriers
+- `src/Yaat.Sim/Data/AircraftDisplayNames.cs` — Static map: ICAO aircraft type → human-readable display name (e.g. "B738" → "Boeing 737-800"). Loaded lazily from aircraft-display-names.json; used by the Aircraft List Name column and radar/EuroScope/right-click fallbacks when no flight plan is filed.
+- `src/Yaat.Sim/Data/aircraft-display-names.json` — Generated map from tools/refresh-aircraft-display-names.py (one entry per ICAO type in AircraftSpecs.json).
+- `src/Yaat.Sim/Data/aircraft-display-names-source.meta` — Provenance sidecar: model + prompt hash + ICAO type list used at generation time.

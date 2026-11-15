@@ -24,7 +24,7 @@ Do not move or fork those sources casually. When a Claude-only feature has no Co
 - Never pass `-q`, `-v q`, `--nologo`, or extra quieting flags to `dotnet format`.
 - Build after edits (`Directory.Build.props` treats warnings as errors): `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build`.
 - For broad verification, prefer `pwsh tools/test-all.ps1` because it covers both YAAT and `yaat-server`; call it bare, it re-runs itself under one heavy gate.
-- Keep `docs/architecture.md` current before commits.
+- Keep the owning subsystem doc's `## File map` (listed in `docs/README.md`) and the `docs/architecture.md` Task Index and Layers current before commits.
 
 ## Claude Concepts In Codex
 

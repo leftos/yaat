@@ -252,3 +252,15 @@ than the published notation — see the AGL footgun below.
   aircraft is accepted and **voids** MARSA per §9-2-13.e rather than being rejected — a controller
   who watches separation responsibility land back on them learns the rule; one whose keystroke is
   refused learns nothing.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Data/
+Data/MilitaryRoutes/MilitaryRoute.cs / MilitaryRoutePoint.cs / MilitaryRouteAltitude.cs / MilitaryRouteType.cs # DoD AP/1B route model: one-way point sequence, per-segment altitude block, protected widths, and (chapter 5) per-direction variants with an anchor orbit pattern.Data/MilitaryRoutes/MilitaryRouteDatabase.cs # Lazy process-wide Default + 3-tier fixture search + ScopedOverride (read from the NavigationDatabase ctor, so a leaked override poisons every later nav DB).
+Data/MilitaryRoutes/MilitaryRouteExpander.cs # Expands a designator in a filed route, anchoring on the bracketing FRDs AP/1B files rather than on point names; scores the anchor pair to pick which published direction was filed.
+Data/MilitaryRoutes/ap1b-mtr.json.br # Committed AP/1B chapters 2-4: 648 training routes (213 IR / 304 VR / 131 SR), 7,039 points, Brotli, built by tools/build-mtr-data.py.
+Data/MilitaryRoutes/ap1b-ar.json.br # Committed AP/1B chapter 5: 247 aerial refueling entries (156 tracks / 91 anchors), 1,625 points + 385 orbit corners, built by the same tool.
+```

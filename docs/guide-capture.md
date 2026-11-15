@@ -1,6 +1,6 @@
 # Writing a GuideCapture scene
 
-How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the same PNG on every run and is cheap to iterate on. The tool lives in the yaat-server repo (every path below under `tools/Yaat.GuideCapture` is in the yaat-server checkout), and its file map is in yaat-server `docs/architecture.md` ("Yaat.GuideCapture"); the `guide-capture` skill points here.
+How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the same PNG on every run and is cheap to iterate on. The tool lives in the yaat-server repo (every path below under `tools/Yaat.GuideCapture` is in the yaat-server checkout), and its file map is yaat-server `docs/guide-capture-tool.md`; the `guide-capture` skill points here.
 
 ## What a run does
 
