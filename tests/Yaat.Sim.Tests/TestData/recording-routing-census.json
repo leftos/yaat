@@ -2165,5 +2165,21 @@
     "ReactionDelayed": 0,
     "AsPrefixed": 29,
     "Solo": false
+  },
+  {
+    "File": "yaat2340-oak-planless-beacon-recycle-recording.yaat-bug-report-bundle.zip",
+    "Commands": 32,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 13,
+      "GhostTrack": 2,
+      "SetActivePosition": 1,
+      "Strip": 8,
+      "TrackOwnership": 7
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 7,
+    "Solo": false
   }
 ]

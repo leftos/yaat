@@ -740,13 +740,21 @@ public sealed partial class SimulationEngine
     /// discrete code (VFR bank for VFR, IFR bank for IFR). Does not flip <c>Transponder.Code</c> —
     /// the pilot keeps squawking their current code until the controller issues <c>SQ</c>. The
     /// assigner is the acting ERAM sector when the request came from an ERAM position (bare
-    /// <c>QB</c>), else null. Returns the new assigned code, or 0 if the aircraft is unknown.
+    /// <c>QB</c>), else null. Returns the new assigned code, or 0 if the aircraft is unknown or has no
+    /// flight plan (YAAT-2340): a beacon code is assigned with a flight plan, never without one, so a
+    /// planless aircraft keeps its pool code and transponder untouched. Filing the plan
+    /// (<see cref="AmendFlightPlan"/>'s planless branch) draws its code.
     /// </summary>
     public uint RequestNewBeaconCode(string callsign, string? assignedByFacilityId, string? assignedBySectorId)
     {
         AircraftState? ac = FindAircraft(callsign);
         if (ac is null)
         {
+            return 0;
+        }
+        if (!ac.FlightPlan.HasFlightPlan)
+        {
+            _logger.LogDebug("RequestNewBeaconCode for {Callsign} draws no code: no flight plan", callsign);
             return 0;
         }
 

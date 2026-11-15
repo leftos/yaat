@@ -1775,6 +1775,8 @@ The ICAO EQ field takes ICAO flight-plan field-10a equipment codes (e.g., `SDE2E
 
 A cruise speed filed as a Mach number or as classified shows in the SPD box in grey as ERAM writes it (`M078`, `SC`). Leave the box empty to keep it, or type knots to replace it. Edit any field, then click **Amend** to send the changes to the server. The Amend button is only enabled when at least one field differs from the current flight plan.
 
+An aircraft with no flight plan gets no new code from **Recycle beacon**: the editor refuses it with "<callsign> has no flight plan". **Amend** (or **Create**) on such an aircraft files the plan and assigns its code together.
+
 Amending the destination changes the flight plan only, not where the pilot flies: an aircraft whose route runs out still flies direct to the airport it was cleared to. To send the pilot to another airport, use `APT` ([Flight Plan commands](COMMANDS.md#flight-plan)).
 
 If the aircraft the editor shows is deleted while it is open (auto-delete on parking or departure distance, or anyone's `DEL`), the editor stays open instead of closing: every field is cleared, the title shows no aircraft, and **Amend** and **Recycle beacon** are disabled. The boxes stay editable, but nothing can be submitted. Opening the editor on another aircraft rebinds the same window. Deleting any other aircraft leaves the editor and your unsent edits alone.

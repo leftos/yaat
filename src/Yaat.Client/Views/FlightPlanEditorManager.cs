@@ -53,11 +53,17 @@ public static class FlightPlanEditorManager
             {
                 try
                 {
-                    await vm.Connection.RequestNewBeaconCodeAsync(callsign);
+                    CommandResultDto result = await vm.Connection.RequestNewBeaconCodeAsync(callsign);
+                    if (!result.Success)
+                    {
+                        Log.LogWarning("New beacon code refused for {Callsign}: {Message}", callsign, result.Message);
+                    }
+                    return result;
                 }
                 catch (Exception ex)
                 {
                     Log.LogError(ex, "Failed to request new beacon code for {Callsign}", callsign);
+                    return new CommandResultDto(false, ex.Message);
                 }
             }
         );
