@@ -6,7 +6,8 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The Scope's button tear-offs: copies of toolbar buttons placed on the scope, one per button key, each anchored to a
-/// corner. Every change goes through <c>.scope tearoff</c>; DEL TEAROFF marks tear-offs and then deletes the marked ones.
+/// corner. Every change goes through <c>.scope tearoff</c> or a pref-set load; DEL TEAROFF marks tear-offs and then deletes
+/// the marked ones.
 /// </summary>
 public sealed partial class ScopeViewModel
 {

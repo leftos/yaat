@@ -13,8 +13,9 @@ namespace Yaat.Client.Views.Scope.Prefs;
 public sealed record ScopePrefSet
 {
     /// <summary>
-    /// The serializer options every pref-set file is written and read with: camelCase names, indented, enums as text,
-    /// and an explicit null in a non-nullable field rejected so that entry is a bad entry.
+    /// The serializer options every pref-set file is written and read with: camelCase names, indented, enums as text, an
+    /// explicit null in a non-nullable field rejected so that entry is a bad entry, and a positional record entry missing
+    /// one of its constructor fields rejected the same way.
     /// </summary>
     public static JsonSerializerOptions JsonOptions { get; } = CreateJsonOptions();
 
@@ -77,6 +78,7 @@ public sealed record ScopePrefSet
             WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             RespectNullableAnnotations = true,
+            RespectRequiredConstructorParameters = true,
             TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
             Converters = { new JsonStringEnumConverter() },
         };

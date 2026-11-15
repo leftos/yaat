@@ -10,7 +10,8 @@ namespace Yaat.Client.ViewModels;
 /// The Scope's views: the SSA and the LA/CA/MCI list. An open view sits in the views dock, in a fixed order (SSA, then
 /// LA/CA/MCI), or floats on the scope at its place (<see cref="ScopeDockViewModel.Place"/>); the SSA opens floating at the
 /// scope's top-left. Every writer of a view's state (<c>.view</c>, the toolbar's VIEWS toggles, a card's close and dock
-/// buttons, a card's move, a restored preference set) goes through <see cref="SetViewOpen"/> or <see cref="SetViewPlace"/>.
+/// buttons, a card's move, a pref-set load) goes through <see cref="SetViewOpen"/>, <see cref="SetViewPlace"/>,
+/// <see cref="ApplyOpenViews"/> or <see cref="RestoreViewPlace"/>.
 /// </summary>
 public sealed partial class ScopeViewModel
 {
@@ -93,6 +94,17 @@ public sealed partial class ScopeViewModel
         {
             SetViewOpen(view.Name, wanted.Contains(view.Name));
         }
+    }
+
+    /// <summary>
+    /// Gives the view named <paramref name="name"/> <paramref name="place"/> without opening it: a closed view keeps the
+    /// place it floats at when it opens, and a null place docks it.
+    /// </summary>
+    /// <exception cref="ArgumentException">The name is no view (<see cref="IsViewName"/>).</exception>
+    internal void RestoreViewPlace(string name, ScopePlacement? place)
+    {
+        ViewNamed(name).Place = place;
+        SyncViewCollections();
     }
 
     [MemberNotNull(nameof(_ssa), nameof(_allViews))]

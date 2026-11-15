@@ -42,7 +42,7 @@ public class ScopeToolbarTests
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         beforeScope(main);
-        var scope = new ScopeViewModel(main);
+        var scope = new ScopeViewModel(main, prefStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         if (size is { } s)

@@ -65,7 +65,7 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     /// and not a device name.
     /// </summary>
     /// <param name="facility">The facility id to check.</param>
-    public static bool IsSafeFacility(string? facility) => IsSafeToken(facility);
+    public static bool IsSafeFacility([NotNullWhen(true)] string? facility) => IsSafeToken(facility);
 
     /// <summary>
     /// True with <paramref name="normalized"/> set to the uppercase form when <paramref name="name"/> is 1 to 16 letters,
@@ -457,20 +457,14 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
                 log.LogWarning("Scope pref file {Path} has no version this build reads; reading only the fields this build knows", path);
                 return VersionRead.Unknown;
             default:
-                if (version > CurrentVersion)
-                {
-                    log.LogWarning(
-                        "Scope pref file {Path} is version {Version}, newer than this build's {CurrentVersion}; "
-                            + "reading only the fields this build knows",
-                        path,
-                        version,
-                        CurrentVersion
-                    );
-                    return VersionRead.Newer;
-                }
-
-                log.LogWarning("Scope pref file {Path} has no version this build reads; reading only the fields this build knows", path);
-                return VersionRead.Unknown;
+                log.LogWarning(
+                    "Scope pref file {Path} is version {Version}, newer than this build's {CurrentVersion}; "
+                        + "reading only the fields this build knows",
+                    path,
+                    version,
+                    CurrentVersion
+                );
+                return VersionRead.Newer;
         }
     }
 
@@ -597,22 +591,19 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     /// <summary>Copies a corrupt file to <c>.bak</c> and says what reading it produced.</summary>
     private ReadOutcome MarkCorrupt(string path, string reason)
     {
-        log.LogWarning(
-            "Scope pref file {Path} is not valid JSON ({Reason}); starting empty and keeping a copy at {Backup}",
-            path,
-            reason,
-            path + ".bak"
-        );
+        log.LogWarning("Scope pref file {Path} is not valid JSON ({Reason}); starting empty", path, reason);
         try
         {
             File.Copy(path, path + ".bak", overwrite: true);
-            return ReadOutcome.Corrupt;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             log.LogError(ex, "Could not back up corrupt scope pref file {Path}; refusing to write over the only copy", path);
             return ReadOutcome.CorruptUnbacked;
         }
+
+        log.LogWarning("Kept the corrupt scope pref file {Path} at {Backup}", path, path + ".bak");
+        return ReadOutcome.Corrupt;
     }
 
     private IOException RefuseWrite(string path, string why)

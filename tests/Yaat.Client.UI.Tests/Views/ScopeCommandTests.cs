@@ -17,7 +17,8 @@ public class ScopeCommandTests
     private const string Usage =
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
-        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>...";
+        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
+        + " | .scope pref <save|saveas|load|rename|delete>";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
@@ -33,7 +34,7 @@ public class ScopeCommandTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main);
+        var scope = new ScopeViewModel(main, prefStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }
@@ -239,7 +240,7 @@ public class ScopeCommandTests
         RadarMapToggles.Add(main.Radar, 2, 10);
         main.Radar.CenterLat = 37.62;
         main.Radar.CenterLon = -122.38;
-        var scope = new ScopeViewModel(main);
+        var scope = new ScopeViewModel(main, prefStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }

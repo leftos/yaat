@@ -127,7 +127,7 @@ public class ScopeCanvasClickTests
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main);
+        var scope = new ScopeViewModel(main, prefStore: null);
         var view = new ScopeView { DataContext = scope };
         var window = new Window
         {

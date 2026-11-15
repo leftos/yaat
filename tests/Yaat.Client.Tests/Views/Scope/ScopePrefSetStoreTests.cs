@@ -143,7 +143,7 @@ public class ScopePrefSetStoreTests : IDisposable
     }
 
     [Fact]
-    public void CorruptFile_LoadsEmpty_LogsOneWarning_KeepsABackup_AndTheNextSaveWritesAgain()
+    public void CorruptFile_LoadsEmpty_LogsAndKeepsABackup_AndTheNextSaveWritesAgain()
     {
         string path = SetsPath("ZOA");
         byte[] corrupt = "{not json"u8.ToArray();
@@ -152,7 +152,8 @@ public class ScopePrefSetStoreTests : IDisposable
 
         ScopePrefSetStore store = NewStore();
         Assert.Empty(store.LoadSets("ZOA"));
-        Assert.Contains(path, Assert.Single(_log.Warnings));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("not valid JSON"));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("Kept the corrupt"));
         Assert.Equal(corrupt, File.ReadAllBytes(path + ".bak"));
 
         store.SaveSet("ZOA", Set("SR-DAY"));
@@ -171,7 +172,8 @@ public class ScopePrefSetStoreTests : IDisposable
 
         Assert.Null(NewStore().LoadCurrent("ZOA"));
 
-        Assert.Contains(path, Assert.Single(_log.Warnings));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("not valid JSON"));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("Kept the corrupt"));
         Assert.Equal(corrupt, File.ReadAllBytes(path + ".bak"));
     }
 
@@ -184,7 +186,7 @@ public class ScopePrefSetStoreTests : IDisposable
 
         Assert.Empty(NewStore().LoadSets("ZOA"));
 
-        Assert.Single(_log.Warnings);
+        Assert.Contains(_log.Warnings, warning => warning.Contains("not valid JSON"));
         Assert.Equal(notAnObject, File.ReadAllBytes(path + ".bak"));
     }
 
@@ -209,9 +211,9 @@ public class ScopePrefSetStoreTests : IDisposable
             {
               "version": 1,
               "sets": [
-                { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} },
-                { "name": "SR-BAD", "rangeNm": "x", "templateId": "stars", "db": {} },
-                { "name": "SR-NIGHT", "rangeNm": 30, "templateId": "stars", "db": {} }
+                { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} },
+                { "name": "SR-BAD", "rangeNm": "x", "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} },
+                { "name": "SR-NIGHT", "rangeNm": 30, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
               ]
             }
             """
@@ -231,9 +233,15 @@ public class ScopePrefSetStoreTests : IDisposable
             {
               "version": 1,
               "sets": [
-                { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} },
-                { "name": "SR-BAD", "rangeNm": 30, "templateId": "stars", "db": {}, "maps": null },
-                { "name": "SR-NIGHT", "rangeNm": 20, "templateId": "stars", "db": {} }
+                { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} },
+                {
+                  "name": "SR-BAD",
+                  "rangeNm": 30,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "maps": null
+                },
+                { "name": "SR-NIGHT", "rangeNm": 20, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
               ]
             }
             """
@@ -247,7 +255,14 @@ public class ScopePrefSetStoreTests : IDisposable
     public void FileWithoutAVersion_Loads_AndIsRewrittenAtVersion1()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} } ] }""");
+        WriteFile(
+            path,
+            """
+            { "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
 
         Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
 
@@ -260,7 +275,14 @@ public class ScopePrefSetStoreTests : IDisposable
     public void CurrentFileWithoutAVersion_Loads_AndIsRewrittenAtVersion1()
     {
         string path = CurrentPath("ZOA");
-        WriteFile(path, """{ "state": { "name": "SR-DAY", "rangeNm": 22, "templateId": "stars", "db": {} } }""");
+        WriteFile(
+            path,
+            """
+            { "state": {
+                "name": "SR-DAY", "rangeNm": 22, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14}
+            } }
+            """
+        );
 
         ScopePrefSet? loaded = NewStore().LoadCurrent("ZOA");
 
@@ -275,7 +297,14 @@ public class ScopePrefSetStoreTests : IDisposable
     public void NewerVersion_Loads_LogsOneWarning_AndLeavesTheFileAlone()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "version": 9, "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} } ] }""");
+        WriteFile(
+            path,
+            """
+            { "version": 9, "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
         byte[] before = File.ReadAllBytes(path);
 
         Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
@@ -288,7 +317,14 @@ public class ScopePrefSetStoreTests : IDisposable
     public void SaveSet_OnANewerFile_KeepsItsVersion()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "version": 9, "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} } ] }""");
+        WriteFile(
+            path,
+            """
+            { "version": 9, "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
 
         NewStore().SaveSet("ZOA", Set("SR-NIGHT"));
 
@@ -301,7 +337,14 @@ public class ScopePrefSetStoreTests : IDisposable
     public void UnknownVersion_LoadsItsSets_AndASaveThrows()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "version": "x", "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} } ] }""");
+        WriteFile(
+            path,
+            """
+            { "version": "x", "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
 
         ScopePrefSetStore store = NewStore();
         Assert.Equal(["SR-DAY"], store.LoadSets("ZOA").Select(set => set.Name));
@@ -313,7 +356,20 @@ public class ScopePrefSetStoreTests : IDisposable
     public void UnknownSetField_SurvivesSavingAnotherSet()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "version": 1, "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {}, "futureThing": 3 } ] }""");
+        WriteFile(
+            path,
+            """
+            { "version": 1, "sets": [
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "futureThing": 3
+              }
+            ] }
+            """
+        );
 
         NewStore().SaveSet("ZOA", Set("SR-NIGHT"));
 
@@ -327,7 +383,20 @@ public class ScopePrefSetStoreTests : IDisposable
     public void UnknownSetField_SurvivesRenamingTheSetItself()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "version": 1, "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {}, "futureThing": 3 } ] }""");
+        WriteFile(
+            path,
+            """
+            { "version": 1, "sets": [
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "futureThing": 3
+              }
+            ] }
+            """
+        );
 
         Assert.True(NewStore().RenameSet("ZOA", "SR-DAY", "SR-EVENING"));
 
@@ -341,7 +410,14 @@ public class ScopePrefSetStoreTests : IDisposable
     public void UnreadableFile_MakesASaveThrow_AndLeavesTheFileAlone()
     {
         string path = SetsPath("ZOA");
-        WriteFile(path, """{ "version": 1, "sets": [ { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {} } ] }""");
+        WriteFile(
+            path,
+            """
+            { "version": 1, "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
         byte[] before = File.ReadAllBytes(path);
 
         FileStream held = new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
@@ -355,6 +431,128 @@ public class ScopePrefSetStoreTests : IDisposable
         }
 
         Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("Refusing to write"));
+    }
+
+    [Fact]
+    public void SetWithATearoffMissingItsButton_IsDropped_AndTheRestLoad()
+    {
+        string path = SetsPath("ZOA");
+        WriteFile(
+            path,
+            """
+            {
+              "version": 1,
+              "sets": [
+                {
+                  "name": "SR-BAD",
+                  "rangeNm": 40,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "tearoffs": [ { "corner": "tl", "dx": 1, "dy": 2 } ]
+                },
+                { "name": "SR-NIGHT", "rangeNm": 30, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              ]
+            }
+            """
+        );
+
+        Assert.Equal(["SR-NIGHT"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+        Assert.Single(_log.Warnings);
+    }
+
+    [Fact]
+    public void CorruptFileWhoseBackupCannotBeWritten_LoadsEmpty_AndBothSavesThrow()
+    {
+        string setsPath = SetsPath("ZOA");
+        WriteFile(setsPath, "{not json");
+        Directory.CreateDirectory(setsPath + ".bak");
+        string currentPath = CurrentPath("ZOA");
+        WriteFile(currentPath, "{not json");
+        Directory.CreateDirectory(currentPath + ".bak");
+
+        ScopePrefSetStore store = NewStore();
+        Assert.Empty(store.LoadSets("ZOA"));
+        Assert.Null(store.LoadCurrent("ZOA"));
+        Assert.Throws<IOException>(() => store.SaveSet("ZOA", Set("SR-DAY")));
+        Assert.Throws<IOException>(() => store.SaveCurrent("ZOA", Set(null)));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("Could not back up"));
+    }
+
+    /// <summary>
+    /// An unreadable current-state file is not refused the way an unreadable sets file is: the save is attempted. The
+    /// replacing move needs delete sharing on Windows, which the held handle denies, so there it fails with the write's own
+    /// error; elsewhere the state lands.
+    /// </summary>
+    [Fact]
+    public void UnreadableCurrentFile_IsNotRefused_AndTheWriteIsAttempted()
+    {
+        string path = CurrentPath("ZOA");
+        WriteFile(
+            path,
+            """
+            { "version": 1, "state": {
+                "name": "SR-DAY", "rangeNm": 22, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14}
+            } }
+            """
+        );
+
+        Exception? failure;
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            failure = Record.Exception(() => NewStore().SaveCurrent("ZOA", Set("SR-NIGHT", 33)));
+        }
+
+        Assert.True((failure is null) || (failure is IOException) || (failure is UnauthorizedAccessException), failure?.ToString());
+        Assert.Contains(_log.Warnings, warning => warning.Contains("Could not read"));
+        Assert.DoesNotContain(_log.Warnings, warning => warning.Contains("Refusing to write"));
+        if (failure is null)
+        {
+            Assert.Equal("SR-NIGHT", NewStore().LoadCurrent("ZOA")!.Name);
+        }
+    }
+
+    [Fact]
+    public void UnknownVersion_Loads_LogsOneWarning_AndLeavesTheFileAlone()
+    {
+        string path = SetsPath("ZOA");
+        WriteFile(
+            path,
+            """
+            { "version": "x", "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
+        byte[] before = File.ReadAllBytes(path);
+
+        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+
+        Assert.Single(_log.Warnings);
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void Version0FileWhoseRewriteFails_StillLoadsItsSets_WithAWarning()
+    {
+        string path = SetsPath("ZOA");
+        WriteFile(
+            path,
+            """
+            { "sets": [
+              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+            ] }
+            """
+        );
+
+        // The rewrite's temporary file cannot be written, so the load's save-back fails after the sets have been read.
+        Directory.CreateDirectory(path + ".tmp");
+
+        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+
+        Assert.Contains(_log.Warnings, warning => warning.Contains("back at version"));
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.False(document.RootElement.TryGetProperty("version", out _));
     }
 
     [Theory]

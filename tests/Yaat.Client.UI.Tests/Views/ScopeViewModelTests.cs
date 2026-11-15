@@ -43,7 +43,7 @@ public class ScopeViewModelTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         Assert.Equal((0d, 0d), (main.Radar.CenterLat, main.Radar.CenterLon));
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         Assert.True(scope.IsWaitingForRadarSeed);
         Assert.Empty(scope.VideoMaps);
 
@@ -61,7 +61,7 @@ public class ScopeViewModelTests
     public void Scope_AfterSeed_DoesNotFollowRadar()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         VideoMapData map = Map("101");
         CentreRadar(main, 37.62, -122.38, map);
 
@@ -83,7 +83,7 @@ public class ScopeViewModelTests
         main.Radar.ShowMvaHints = true;
         CentreRadar(main, 37.62, -122.38, Map("101"));
 
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
 
         Assert.False(scope.IsWaitingForRadarSeed);
         Assert.True(scope.ShowMvaHints);
@@ -93,7 +93,7 @@ public class ScopeViewModelTests
     public void Scope_OpenedBeforeRadarCentred_TakesRadarsMvaTintFlagAtTheSeed()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         Assert.True(scope.IsWaitingForRadarSeed);
 
         main.Radar.ShowMvaHints = true;
@@ -107,7 +107,7 @@ public class ScopeViewModelTests
     public void Scope_AfterSeed_DoesNotFollowRadarsMvaTintFlag()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         main.Radar.ShowMvaHints = true;
         CentreRadar(main, 37.62, -122.38, Map("101"));
 
@@ -138,7 +138,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         CentreRadarWithToggles(main, Map("m10"));
 
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
 
         Assert.False(scope.IsWaitingForRadarSeed);
         Assert.Equal([2, 10, 31], scope.MapToggles.Select(t => t.StarsId));
@@ -151,7 +151,7 @@ public class ScopeViewModelTests
     public void Scope_SeedsFromACentredRadarWithEveryMapOff()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         Assert.True(scope.IsWaitingForRadarSeed);
 
         CentreRadarWithToggles(main);
@@ -170,7 +170,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         CentreRadarWithToggles(main, Map("m10"));
         IReadOnlyList<VideoMapData>? radarMaps = main.Radar.ActiveVideoMaps;
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
 
         scope.MapToggles[0].IsOn = true;
         scope.MapToggles[1].IsOn = false;
@@ -186,7 +186,7 @@ public class ScopeViewModelTests
         VideoMapData m31 = Map("m31");
         VideoMapData m2 = Map("m2");
         CentreRadarWithToggles(main, m31, m2);
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         Assert.Equal([m31, m2], scope.VideoMaps);
 
         // Map 10 has no data in the cache and was not seeded, so it draws nothing; the seeded two follow toggle order.
@@ -212,7 +212,7 @@ public class ScopeViewModelTests
         CentreRadarWithToggles(main, m31);
         VideoMapData m10 = Map("m10");
         main.CacheVideoMapForTesting(m10);
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
 
         scope.SetMapOn(10, true);
 
@@ -227,7 +227,7 @@ public class ScopeViewModelTests
         CentreRadarWithToggles(main, seeded);
         VideoMapData cached = Map("m2");
         main.CacheVideoMapForTesting(cached);
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         Assert.Same(seeded, Assert.Single(scope.VideoMaps));
 
         scope.SetMapOn(10, true);
@@ -239,7 +239,7 @@ public class ScopeViewModelTests
     public void MainSelection_FollowsIntoTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         AircraftModel ac = Aircraft("UAL238");
         main.Aircraft.Add(ac);
 
@@ -254,7 +254,7 @@ public class ScopeViewModelTests
     public void ScopeWindow_Closed_StopsFollowingMainSelection()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main);
+        using var scope = new ScopeViewModel(main, prefStore: null);
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Dispatcher.UIThread.RunJobs();

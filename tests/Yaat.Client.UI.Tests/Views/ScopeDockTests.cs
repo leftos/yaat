@@ -26,7 +26,7 @@ public class ScopeDockTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main);
+        var scope = new ScopeViewModel(main, prefStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();

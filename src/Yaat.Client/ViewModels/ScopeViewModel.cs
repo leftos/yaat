@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 
@@ -58,8 +59,8 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Id of the datablock template the scope draws (<see cref="ScopeTemplates"/>): seeded once from the EuroScope-mode
-    /// preference when the scope opens, then changed only by <c>.scope template</c> (the toolbar's TEMPLATE menu runs it);
-    /// never written to the preferences.
+    /// preference when the scope opens, then changed only by <c>.scope template</c> (the toolbar's TEMPLATE menu runs it)
+    /// and by a pref-set load; never written to the preferences.
     /// </summary>
     [ObservableProperty]
     private string _templateId;
@@ -75,9 +76,12 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// Seeds the scope from the radar now when the radar has a centre and map toggles or active maps; otherwise waits for
     /// the radar's first centre and toggles or maps, takes them once and stops listening.
     /// </summary>
-    public ScopeViewModel(MainViewModel main)
+    /// <param name="main">The main view model.</param>
+    /// <param name="prefStore">The pref-set store <c>.scope pref</c> reads and writes, or null when prefs are unavailable.</param>
+    public ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore)
     {
         Main = main;
+        PrefStore = prefStore;
         _selectedAircraft = main.SelectedAircraft;
         _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
         _dbSettings = ScopeDbSettings.FromPreferences(main.Preferences);
@@ -178,6 +182,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         RangeNm = radar.RangeNm > 0 ? radar.RangeNm : DefaultRangeNm;
         CenterLat = radar.CenterLat;
         CenterLon = radar.CenterLon;
+        ApplyPendingPrefSet();
         return true;
     }
 

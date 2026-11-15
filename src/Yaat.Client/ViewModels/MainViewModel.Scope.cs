@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Data;
 
@@ -15,7 +16,12 @@ public partial class MainViewModel
     private const string ScopeUsage =
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
-        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>...";
+        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
+        + " | .scope pref <save|saveas|load|rename|delete>";
+
+    private const string PrefUsage =
+        "Usage: .scope pref save | .scope pref saveas <name> | .scope pref load <name>"
+        + " | .scope pref rename <old> <new> | .scope pref delete <name>";
 
     private const string ScopeTearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
@@ -40,8 +46,9 @@ public partial class MainViewModel
     internal void CacheVideoMapForTesting(VideoMapData data) => _videoMapService.CacheForTesting(data);
 
     /// <summary>
-    /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c> and
-    /// <c>.scope tearoff</c> against <see cref="OpenScope"/>, writing the echo or the error to the status line.
+    /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
+    /// <c>.scope tearoff</c> and <c>.scope pref</c> against <see cref="OpenScope"/>, writing the echo or the error to the
+    /// status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeCommand(string text)
@@ -68,6 +75,7 @@ public partial class MainViewModel
             "MAP" => SetScopeMap,
             "DB" => SetScopeDb,
             "TEAROFF" => SetScopeTearoff,
+            "PREF" => RunScopePref,
             _ => null,
         };
         if (handler is null)
@@ -277,4 +285,202 @@ public partial class MainViewModel
         scope.PickTemplateCommand.Execute(id);
         return ScopeToolbarButtons.TemplateCommand(id);
     }
+
+    /// <summary>
+    /// <c>.scope pref save</c>, <c>saveas &lt;name&gt;</c>, <c>load &lt;name&gt;</c>, <c>rename &lt;old&gt; &lt;new&gt;</c>
+    /// or <c>delete &lt;name&gt;</c>: the scope's state as a named set, kept per the viewer's facility.
+    /// </summary>
+    private static string RunScopePref(ScopeViewModel scope, string[] parts)
+    {
+        if (scope.PrefStore is not { } store)
+        {
+            return "Pref sets are not available";
+        }
+
+        if (parts.Length < 3)
+        {
+            return PrefUsage;
+        }
+
+        Func<ScopeViewModel, string, ScopePrefSetStore, string[], string>? handler = parts[2].ToLowerInvariant() switch
+        {
+            "save" => SaveActivePrefSet,
+            "saveas" => SavePrefSetAs,
+            "load" => LoadPrefSet,
+            "rename" => RenamePrefSet,
+            "delete" => DeletePrefSet,
+            _ => null,
+        };
+        if (handler is null)
+        {
+            return PrefUsage;
+        }
+
+        string? facility = scope.Viewer.EramFacilityId;
+        if (!ScopePrefSetStore.IsSafeFacility(facility))
+        {
+            return "No facility: pref sets need an active position";
+        }
+
+        return handler(scope, facility, store, parts);
+    }
+
+    /// <summary><c>.scope pref save</c>: saves the active set again from the scope's current state.</summary>
+    private static string SaveActivePrefSet(ScopeViewModel scope, string facility, ScopePrefSetStore store, string[] parts)
+    {
+        if (parts.Length != 3)
+        {
+            return PrefUsage;
+        }
+
+        if (scope.ActivePrefSet is not { } active)
+        {
+            return "No pref set is active: use .scope pref saveas <name>";
+        }
+
+        return RunStoreWrite(() =>
+        {
+            store.SaveSet(facility, scope.CapturePrefSet(active));
+            return ".scope pref save";
+        });
+    }
+
+    /// <summary><c>.scope pref saveas &lt;name&gt;</c>: saves the scope's state as a new set, which becomes the active one.</summary>
+    private static string SavePrefSetAs(ScopeViewModel scope, string facility, ScopePrefSetStore store, string[] parts)
+    {
+        if (parts.Length != 4)
+        {
+            return PrefUsage;
+        }
+
+        string typed = parts[3];
+        if (!ScopePrefSetStore.TryNormalizeName(typed, out string? name))
+        {
+            return BadPrefSetName(typed);
+        }
+
+        if (store.FindSet(facility, name) is not null)
+        {
+            return $"Pref set exists: {name}";
+        }
+
+        return RunStoreWrite(() =>
+        {
+            store.SaveSet(facility, scope.CapturePrefSet(name));
+            scope.ActivePrefSet = name;
+            return $".scope pref saveas {name}";
+        });
+    }
+
+    /// <summary><c>.scope pref load &lt;name&gt;</c>: applies the set's state and makes it the active one.</summary>
+    private static string LoadPrefSet(ScopeViewModel scope, string facility, ScopePrefSetStore store, string[] parts)
+    {
+        if (parts.Length != 4)
+        {
+            return PrefUsage;
+        }
+
+        string typed = parts[3];
+        if (!ScopePrefSetStore.TryNormalizeName(typed, out string? name) || (store.FindSet(facility, name) is not { } set))
+        {
+            return $"Unknown pref set: {typed}";
+        }
+
+        int missing = scope.ApplyPrefSet(set);
+        scope.ActivePrefSet = name;
+        return $".scope pref load {name}{PrefLoadNote(scope, missing)}";
+    }
+
+    /// <summary>The note a load adds when some of the set's maps did not reach this scope.</summary>
+    private static string PrefLoadNote(ScopeViewModel scope, int missing)
+    {
+        if ((scope.IsWaitingForRadarSeed) && (scope.MapToggles.Count == 0))
+        {
+            return " (its maps apply once the scope's maps load)";
+        }
+
+        return missing switch
+        {
+            0 => "",
+            1 => " (1 map not on this scope)",
+            _ => $" ({missing} maps not on this scope)",
+        };
+    }
+
+    /// <summary><c>.scope pref rename &lt;old&gt; &lt;new&gt;</c>: renames a set, keeping it whenever it is the active one.</summary>
+    private static string RenamePrefSet(ScopeViewModel scope, string facility, ScopePrefSetStore store, string[] parts)
+    {
+        if (parts.Length != 5)
+        {
+            return PrefUsage;
+        }
+
+        string typedOld = parts[3];
+        if (store.FindSet(facility, typedOld) is not { } found)
+        {
+            return $"Unknown pref set: {typedOld}";
+        }
+
+        string typedNew = parts[4];
+        if (!ScopePrefSetStore.TryNormalizeName(typedNew, out string? name))
+        {
+            return BadPrefSetName(typedNew);
+        }
+
+        return RunStoreWrite(() =>
+        {
+            if (!store.RenameSet(facility, found.Name!, name))
+            {
+                return $"Pref set exists: {name}";
+            }
+
+            if (string.Equals(scope.ActivePrefSet, found.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                scope.ActivePrefSet = name;
+            }
+
+            return $".scope pref rename {found.Name} {name}";
+        });
+    }
+
+    /// <summary><c>.scope pref delete &lt;name&gt;</c>: deletes a set, and clears the active name when it was that set.</summary>
+    private static string DeletePrefSet(ScopeViewModel scope, string facility, ScopePrefSetStore store, string[] parts)
+    {
+        if (parts.Length != 4)
+        {
+            return PrefUsage;
+        }
+
+        string typed = parts[3];
+        if (store.FindSet(facility, typed) is not { } found)
+        {
+            return $"Unknown pref set: {typed}";
+        }
+
+        return RunStoreWrite(() =>
+        {
+            store.DeleteSet(facility, found.Name!);
+            if (string.Equals(scope.ActivePrefSet, found.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                scope.ActivePrefSet = null;
+            }
+
+            return $".scope pref delete {found.Name}";
+        });
+    }
+
+    /// <summary>Runs a store write, turning the two failures the store can raise into the status line's message.</summary>
+    private static string RunStoreWrite(Func<string> write)
+    {
+        try
+        {
+            return write();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return $"Could not save pref sets: {ex.Message}";
+        }
+    }
+
+    private static string BadPrefSetName(string typed) => $"Bad pref set name: {typed} (1-16 of A-Z 0-9 - _)";
 }

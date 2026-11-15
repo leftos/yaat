@@ -24,7 +24,7 @@ public class ScopeViewCommandTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main);
+        var scope = new ScopeViewModel(main, prefStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }
