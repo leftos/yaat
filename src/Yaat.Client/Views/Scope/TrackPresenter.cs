@@ -54,6 +54,10 @@ public sealed record ScopeDisplayOptions(
 /// </param>
 /// <param name="IsHighlighted">Whether the track's block is highlighted (middle-click).</param>
 /// <param name="Level">The block level to present, chosen per track by <see cref="ScopeFrame.Build"/>.</param>
+/// <param name="VciPreview">
+/// The pointer is on the track's VCI cell: an ERAM FDB lights its VCI while the viewer has an ERAM sector (CRC
+/// <c>IsVciDwelled</c>). It changes no level.
+/// </param>
 public sealed record TrackPresenterInput(
     AircraftModel Aircraft,
     string TemplateId,
@@ -65,7 +69,8 @@ public sealed record TrackPresenterInput(
     ScopeDisplayOptions Display,
     MvaRelation? Mva,
     bool IsHighlighted,
-    ScopeBlockLevel Level = ScopeBlockLevel.Full
+    ScopeBlockLevel Level = ScopeBlockLevel.Full,
+    bool VciPreview = false
 );
 
 /// <summary>
@@ -625,19 +630,25 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// ERAM column 0: the VCI mark (a placeholder cell the renderer draws in) while the viewer's sector is on frequency, and
-    /// <c>R</c> while the track is not the viewer's; each empty otherwise.
+    /// ERAM column 0: the VCI mark (a placeholder cell the renderer draws in) while the viewer's sector is on frequency or the
+    /// pointer previews it, and <c>R</c> while the track is not the viewer's; each empty otherwise.
     /// </summary>
     private static IEnumerable<ScopeField> EramColumn0Fields(TrackPresenterInput input)
     {
         AircraftModel ac = input.Aircraft;
         ScopeViewer viewer = input.Display.Viewer;
-        bool vci = EramColumn0.VciLit(ac, viewer);
-        return
-        [
-            Styled(ScopeFieldSlot.Vci, vci ? EramArrowCell : "", vci ? ScopeFieldStyle.Vci : ScopeFieldStyle.None),
-            Steady(ScopeFieldSlot.NotYourControl, EramColumn0.ShowsNotYourControl(ac, viewer) ? "R" : "", ScopeColorToken.Default),
-        ];
+        bool onFrequency = EramColumn0.VciLit(ac, viewer);
+        bool vci = onFrequency || (input.VciPreview && EramDwellLock.HasEramSector(viewer));
+        // A VCI lit only by the preview carries no stable text, so it widens no bounds and adds no click target.
+        var vciField = new ScopeField(
+            ScopeFieldSlot.Vci,
+            vci ? EramArrowCell : "",
+            onFrequency ? EramArrowCell : "",
+            ScopeColorToken.Default,
+            ScopeFieldAction.None,
+            vci ? ScopeFieldStyle.Vci : ScopeFieldStyle.None
+        );
+        return [vciField, Steady(ScopeFieldSlot.NotYourControl, EramColumn0.ShowsNotYourControl(ac, viewer) ? "R" : "", ScopeColorToken.Default)];
     }
 
     /// <summary>

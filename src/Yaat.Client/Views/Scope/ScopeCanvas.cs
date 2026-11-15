@@ -66,6 +66,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     private SKFont? _measureFont;
     private ScopeFrame? _lastFrame;
     private string? _hoveredCallsign;
+    private string? _hoveredVciCallsign;
     private INotifyCollectionChanged? _watchedAircraft;
     private bool _isAttached;
 
@@ -150,6 +151,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     public event Action<string, Point>? AircraftRightClicked;
 
     /// <summary>
+    /// Fired, before <see cref="AircraftLeftClicked"/>, when the callsign field (Field A) of a block drawn with the ERAM template
+    /// is left-clicked: the user asks to toggle the block's dwell lock.
+    /// </summary>
+    public event Action<string>? AircraftDwellLockToggleRequested;
+
+    /// <summary>
     /// The frame clicks and hover are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
     /// changed since.
     /// </summary>
@@ -157,6 +164,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>The callsign of the track the pointer dwells on, or null. Test seam.</summary>
     internal string? HoveredCallsign => _hoveredCallsign;
+
+    /// <summary>The callsign of the track whose VCI cell the pointer previews, or null. Test seam.</summary>
+    internal string? HoveredVciCallsign => _hoveredVciCallsign;
 
     /// <summary>How many frames the pointer-move handler has built for its dwell hit-test. Test seam.</summary>
     internal int HoverFramesBuilt { get; private set; }
@@ -297,6 +307,10 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 }
                 else
                 {
+                    if (IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y))
+                    {
+                        AircraftDwellLockToggleRequested?.Invoke(hit.Callsign);
+                    }
                     AircraftLeftClicked?.Invoke(hit.Callsign);
                 }
                 e.Handled = true;
@@ -308,8 +322,17 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Dwells the track under the pointer at once, as CRC does, hit-testing the drawn (dwelled) frame; the frame is rebuilt
-    /// only when the hovered callsign changes. Panning stays with the base canvas.
+    /// Whether the point is on the callsign field (Field A) of <paramref name="selected"/>'s block, drawn with the ERAM template:
+    /// the toggle goes only to the aircraft the click selects, never to a lower block's callsign seen through the top one.
+    /// </summary>
+    private static bool IsEramCallsignOf(ScopeFrame frame, AircraftModel selected, float x, float y) =>
+        (frame.FieldAt(x, y) is { Field.Slot: ScopeFieldSlot.Callsign } field)
+        && ReferenceEquals(field.Aircraft, selected)
+        && (ScopeOwnerKind.Resolve(frame.TemplateId, selected) == ScopeTemplates.EramId);
+
+    /// <summary>
+    /// Dwells the track under the pointer at once, as CRC does, or previews the VCI whose cell it is on, hit-testing the drawn
+    /// frame; the frame is rebuilt only when either hovered callsign changes. Panning stays with the base canvas.
     /// </summary>
     protected override void OnPointerMoved(PointerEventArgs e)
     {
@@ -322,24 +345,29 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
         Point pos = e.GetPosition(this);
         HoverFramesBuilt += _lastFrame is null ? 1 : 0;
-        Hover(CurrentFrame.DwellAt((float)pos.X, (float)pos.Y)?.Callsign);
+        ScopeHoverHit hit = CurrentFrame.HoverAt((float)pos.X, (float)pos.Y);
+        Hover(hit.Dwelled?.Callsign, hit.VciPreviewed?.Callsign);
     }
 
-    /// <summary>Releases the dwell when the pointer leaves the canvas.</summary>
+    /// <summary>Releases the dwell and the VCI preview when the pointer leaves the canvas.</summary>
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
-        Hover(null);
+        Hover(null, null);
     }
 
-    private void Hover(string? callsign)
+    private void Hover(string? callsign, string? vciCallsign)
     {
-        if (string.Equals(callsign, _hoveredCallsign, StringComparison.Ordinal))
+        if (
+            string.Equals(callsign, _hoveredCallsign, StringComparison.Ordinal)
+            && string.Equals(vciCallsign, _hoveredVciCallsign, StringComparison.Ordinal)
+        )
         {
             return;
         }
 
         _hoveredCallsign = callsign;
+        _hoveredVciCallsign = vciCallsign;
         _lastFrame = null;
         MarkDirty();
     }
@@ -365,7 +393,19 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoHighlights;
         return ScopeFrame.Build(
-            new ScopeFrameInput(visible, SelectedAircraft, Viewport, TemplateId, metrics, alerts, display, offsets, highlighted, _hoveredCallsign)
+            new ScopeFrameInput(
+                visible,
+                SelectedAircraft,
+                Viewport,
+                TemplateId,
+                metrics,
+                alerts,
+                display,
+                offsets,
+                highlighted,
+                _hoveredCallsign,
+                VciHoveredCallsign: _hoveredVciCallsign
+            )
         );
     }
 

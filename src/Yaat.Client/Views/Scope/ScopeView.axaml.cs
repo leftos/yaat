@@ -9,7 +9,8 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The YAAT Scope: a scope canvas drawing traffic with the datablock template engine. A left click on a target or block
-/// selects that aircraft; a right click opens the shared aircraft menu. A field click sends no command.
+/// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
+/// also toggles its dwell lock (<see cref="ScopeViewModel.ToggleDwellLockAsync"/>); no other field click sends a command.
 /// </summary>
 public partial class ScopeView : UserControl
 {
@@ -21,6 +22,7 @@ public partial class ScopeView : UserControl
         InitializeComponent();
         Canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         Canvas.AircraftRightClicked += OnAircraftRightClicked;
+        Canvas.AircraftDwellLockToggleRequested += OnAircraftDwellLockToggleRequested;
     }
 
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
@@ -72,6 +74,15 @@ public partial class ScopeView : UserControl
     }
 
     private void OnAircraftLeftClicked(string callsign) => (DataContext as ScopeViewModel)?.SelectAircraft(callsign);
+
+    // The view model catches and reports every failure, so the task is not awaited here.
+    private void OnAircraftDwellLockToggleRequested(string callsign)
+    {
+        if (DataContext is ScopeViewModel vm)
+        {
+            _ = vm.ToggleDwellLockAsync(callsign);
+        }
+    }
 
     private void OnAircraftRightClicked(string callsign, Point _)
     {

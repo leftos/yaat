@@ -20,6 +20,10 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="HighlightedCallsigns">Callsigns whose blocks are highlighted (middle-click).</param>
 /// <param name="HoveredCallsign">The callsign of the track the pointer dwells on (<see cref="ScopeFrame.DwellAt"/>), or null.</param>
 /// <param name="DefaultLevel">The block level of every track that is not dwelled.</param>
+/// <param name="VciHoveredCallsign">
+/// The callsign of the track whose VCI cell the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its VCI lights
+/// without dwelling the block.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -31,7 +35,8 @@ public sealed record ScopeFrameInput(
     IReadOnlyDictionary<string, SKPoint> ManualOffsets,
     IReadOnlySet<string> HighlightedCallsigns,
     string? HoveredCallsign = null,
-    ScopeBlockLevel DefaultLevel = ScopeBlockLevel.Full
+    ScopeBlockLevel DefaultLevel = ScopeBlockLevel.Full,
+    string? VciHoveredCallsign = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -74,6 +79,11 @@ public sealed record ScopeTrack(
     }
 }
 
+/// <summary>What the pointer hovers: the track whose block it dwells, or the track whose VCI it previews; at most one is set.</summary>
+/// <param name="Dwelled">The aircraft whose block the pointer dwells on, or null.</param>
+/// <param name="VciPreviewed">The aircraft whose VCI cell the pointer is on, or null.</param>
+public readonly record struct ScopeHoverHit(AircraftModel? Dwelled, AircraftModel? VciPreviewed);
+
 /// <summary>A field a point landed on, and whose block it is.</summary>
 public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
 
@@ -97,7 +107,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>
     /// Lays every track out for this frame, reading the blink phase from <see cref="RadarBlink"/> once so the whole frame
     /// shares one phase. Each block sits at the default leader offset; dwelled tracks come last, so they draw on top and
-    /// hit-test first.
+    /// hit-test first: the dwell-locked ones, then the hovered one.
     /// </summary>
     public static ScopeFrame Build(ScopeFrameInput input)
     {
@@ -109,30 +119,46 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         }
 
         var tracks = new List<ScopeTrack>(input.Aircraft.Count);
-        var dwelled = new List<ScopeTrack>();
+        var locked = new List<ScopeTrack>();
+        var hovered = new List<ScopeTrack>();
         foreach (AircraftModel ac in input.Aircraft)
         {
             ScopeTrack track = BuildTrack(input, byCallsign, ac, flashOn);
-            (track.IsDwelled ? dwelled : tracks).Add(track);
+            if (!track.IsDwelled)
+            {
+                tracks.Add(track);
+            }
+            else
+            {
+                (IsHovered(ac, input) ? hovered : locked).Add(track);
+            }
         }
 
-        tracks.AddRange(dwelled);
+        tracks.AddRange(locked);
+        tracks.AddRange(hovered);
         return new ScopeFrame(input.TemplateId, tracks);
     }
 
     /// <summary>
-    /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Dwell"/> while the pointer dwells on it (the
-    /// dwell-locked set joins here), else the frame's default.
+    /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Dwell"/> while the pointer dwells on it, or
+    /// while it is dwell-locked for the viewer's ERAM sector and drawn with the ERAM template; else the frame's default.
     /// </summary>
-    private static ScopeBlockLevel LevelFor(AircraftModel ac, ScopeFrameInput input) =>
-        string.Equals(ac.Callsign, input.HoveredCallsign, StringComparison.Ordinal) ? ScopeBlockLevel.Dwell : input.DefaultLevel;
+    private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input)
+    {
+        bool locked = (templateId == ScopeTemplates.EramId) && EramDwellLock.IsDwellLocked(ac, input.Display.Viewer);
+        return (IsHovered(ac, input) || locked) ? ScopeBlockLevel.Dwell : input.DefaultLevel;
+    }
+
+    private static bool IsHovered(AircraftModel ac, ScopeFrameInput input) =>
+        string.Equals(ac.Callsign, input.HoveredCallsign, StringComparison.Ordinal);
 
     private static ScopeTrack BuildTrack(ScopeFrameInput input, Dictionary<string, AircraftModel> byCallsign, AircraftModel ac, bool flashOn)
     {
         bool isSelected = ReferenceEquals(ac, input.Selected);
+        string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
         var presenterInput = new TrackPresenterInput(
             ac,
-            ScopeOwnerKind.Resolve(input.TemplateId, ac),
+            templateId,
             Peer(byCallsign, ac.AtpaLeadCallsign),
             Peer(byCallsign, ac.ConflictPeerCallsign),
             flashOn,
@@ -141,7 +167,8 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             input.Display,
             MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint),
             input.HighlightedCallsigns.Contains(ac.Callsign),
-            LevelFor(ac, input)
+            LevelFor(ac, templateId, input),
+            VciPreview: string.Equals(ac.Callsign, input.VciHoveredCallsign, StringComparison.Ordinal)
         );
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
         ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
@@ -149,6 +176,14 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, false, hasManual, manual, atOrigin.Bounds, null);
         (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         ScopeBlockLayout placed = atOrigin.At(sx + offset.X, sy + offset.Y);
+        if (!EramDwellLock.HasEramSector(input.Display.Viewer))
+        {
+            // With no viewer ERAM sector the VCI can never light, so its cell takes no hover.
+            placed = placed with
+            {
+                VciCell = null,
+            };
+        }
         return new ScopeTrack(
             ac,
             new SKPoint(sx, sy),
@@ -198,20 +233,40 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         return null;
     }
 
+    /// <summary>The aircraft the pointer at (<paramref name="x"/>, <paramref name="y"/>) dwells on, or null (<see cref="HoverAt"/>).</summary>
+    public AircraftModel? DwellAt(float x, float y) => HoverAt(x, y).Dwelled;
+
     /// <summary>
-    /// The aircraft the pointer at (<paramref name="x"/>, <paramref name="y"/>) dwells on, topmost block first, or null: within
-    /// <see cref="DwellSymbolRadiusPx"/> of its symbol, or inside its drawn block's <see cref="ScopeTrack.DwellBox"/> (CRC
-    /// <c>ViewDataBlocks.HandleMouseMove</c>). Separate from the click rule (<see cref="BlockAt"/>, <see cref="TargetAt"/>).
+    /// What the pointer at (<paramref name="x"/>, <paramref name="y"/>) hovers, by CRC's pick precedence, each pass topmost block
+    /// first (<c>ViewDataBlocks.HandleMouseMove</c>): within <see cref="DwellSymbolRadiusPx"/> of a symbol dwells its block;
+    /// else inside a block's VCI cell, inflated as CRC's <c>OnFrequencyIndicatorBounds</c>, previews its VCI; else inside a
+    /// block's <see cref="ScopeTrack.DwellBox"/> dwells it. Separate from the click rule (<see cref="BlockAt"/>,
+    /// <see cref="TargetAt"/>).
     /// </summary>
-    public AircraftModel? DwellAt(float x, float y)
+    public ScopeHoverHit HoverAt(float x, float y)
     {
         var point = new SKPoint(x, y);
+        if (Topmost(t => SKPoint.Distance(t.Symbol, point) <= DwellSymbolRadiusPx) is { } symbol)
+        {
+            return new ScopeHoverHit(symbol, null);
+        }
+        if (Topmost(t => (t.Block.VciCell is { } cell) && VciHoverBox(cell).Contains(x, y)) is { } vci)
+        {
+            return new ScopeHoverHit(null, vci);
+        }
+        return new ScopeHoverHit(Topmost(t => t.DwellBox.Contains(x, y)), null);
+    }
+
+    /// <summary>The VCI cell's hover box: CRC's <c>OnFrequencyIndicatorBounds</c>, 5 px out left and down, 3 px up and right.</summary>
+    private static SKRect VciHoverBox(SKRect cell) => new(cell.Left - 5f, cell.Top - 3f, cell.Right + 3f, cell.Bottom + 5f);
+
+    private AircraftModel? Topmost(Func<ScopeTrack, bool> hit)
+    {
         for (int i = Tracks.Count - 1; i >= 0; i--)
         {
-            ScopeTrack track = Tracks[i];
-            if ((SKPoint.Distance(track.Symbol, point) <= DwellSymbolRadiusPx) || track.DwellBox.Contains(x, y))
+            if (hit(Tracks[i]))
             {
-                return track.Aircraft;
+                return Tracks[i].Aircraft;
             }
         }
         return null;

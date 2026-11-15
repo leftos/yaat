@@ -119,6 +119,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `AmendFlightPlanAsync(callsign, dto)` | `AmendFlightPlan` | `AmendFlightPlan(...)` `:1900` |
 | `RequestNewBeaconCodeAsync(callsign)` | `RequestNewBeaconCode` | `RequestNewBeaconCode(callsign)` `:1922` |
 | `RequestFlightStripForAircraftAsync(callsign)` | `RequestFlightStripForAircraft` | `RequestFlightStripForAircraft(callsign)` `:1942` |
+| `ToggleScopeDwellLockAsync(callsign)` | `ToggleScopeDwellLock` | `ToggleScopeDwellLock(callsign)` |
 | `SetAutoAcceptDelayAsync(seconds)` | `SetAutoAcceptDelay` | `SetAutoAcceptDelay(seconds)` `:1225` |
 | `SetAutoDeleteModeAsync(mode)` | `SetAutoDeleteMode` | `SetAutoDeleteMode(mode)` `:1268` |
 | `SetDepartureAutoDeleteDistanceAsync(distanceNm)` | `SetDepartureAutoDeleteDistance` | `SetDepartureAutoDeleteDistance(distanceNm)` — returns `CommandResultDto`; null turns it off, a value outside 1–500 nm is refused with the reason and no broadcast |
@@ -657,6 +658,10 @@ extend the resolver to depend on a new input, fingerprint that input too.
   `EramHandoffPeerFieldE` is the handoff peer's Field E id token as CRC's `GetFieldESectorId` builds it (`DtoConverter.FieldESectorId`): the sector for the same ARTCC, a neighbour center's letter plus sector, the room's own letter plus sector when the owner is outside it, `UNK` when unknown; `null` without a handoff peer.
   The four `EramRecentHandoff*` members are set only while the 30 s accepted-indicator window is open: the previous owner's sector and facility, whether the accept was forced, and the acceptor's Field E token.
   The client shows the `O` / `K` indicator only to that previous owner's facility and sector.
+- `EramDwellLockedSectors` (after the `EramRecentHandoff*` members: a list of `{facility, sector}` pairs, `EramSectorRefDto` on `AircraftStateDto`, `EramSectorKey` on the client, where `AircraftModel` exposes a never-null list) is the ERAM sectors whose Field-A dwell lock holds the track's data block: the `AircraftEramState.SectorDisplays` entries with `IsDwellLocked`, ordered ordinally by facility then sector.
+  It is raw: the client compares the pairs with its own viewer's ERAM sector. Its `TrainingDtoFingerprint` slot is `EramDwellLockedSectorKey`, since a lock changes nothing else on the aircraft.
+  `ToggleScopeDwellLock` flips the lock for the ERAM position the connection acts as (`AS`, else the student) and records `DWELL {facility} {sector} 1|0` through `ApplyAndRecord`, as CRC's dwell click does; it takes control of a room playing back only when it accepts.
+  With no ERAM position it refuses with `No ERAM sector: select an ERAM position with AS to lock a data block`; an unknown callsign gets `Aircraft '{callsign}' not found`.
   `CrcBroadcastService.ActiveAcceptedIndicatorOwner` is the one judge of the window, shared by the CRC path and `ToTrainingDto`, which takes the sim-elapsed seconds (so does `AircraftChangeTracker.DetectChanges`).
   Each input has its own `TrainingDtoFingerprint` slot, the blink and the window held as their resolved values: a DTO is re-sent when either window closes with nothing else on the aircraft changing.
 

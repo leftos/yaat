@@ -23,7 +23,11 @@ public sealed record ScopeTextMetrics(Func<string, float> Measure, float Size, f
 /// The bounds of the text block without column 0, padding included; the leader attaches to them. Equal to
 /// <paramref name="Bounds"/> when the template has no column 0 or no mark shows.
 /// </param>
-public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fields, SKRect TextBounds)
+/// <param name="VciCell">
+/// The ERAM FDB's VCI cell in column 0, lit or not, for the hover preview; null on a block with no VCI slot. Not part of
+/// <paramref name="Bounds"/> or <paramref name="TextBounds"/>.
+/// </param>
+public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fields, SKRect TextBounds, SKRect? VciCell = null)
 {
     /// <summary>Returns this layout with its text origin moved to (<paramref name="x"/>, <paramref name="y"/>).</summary>
     public ScopeBlockLayout At(float x, float y) =>
@@ -32,6 +36,7 @@ public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fi
             Bounds = Offset(Bounds, x, y),
             TextBounds = Offset(TextBounds, x, y),
             Fields = [.. Fields.Select(f => f.Offset(x, y))],
+            VciCell = VciCell is { } cell ? Offset(cell, x, y) : null,
         };
 
     private static SKRect Offset(SKRect rect, float x, float y) => new(rect.Left + x, rect.Top + y, rect.Right + x, rect.Bottom + y);
@@ -100,7 +105,35 @@ public static class DatablockTemplate
         }
 
         SKRect column0 = LayColumn0(marks, metrics, bySlot, rects, insertedRows);
-        return new ScopeBlockLayout(Widen(bounds, column0, template.Padding), rects, bounds);
+        SKRect? vciCell = VciCellOf(marks, metrics, bySlot, insertedRows);
+        return new ScopeBlockLayout(Widen(bounds, column0, template.Padding), rects, bounds, vciCell);
+    }
+
+    /// <summary>
+    /// The VCI mark's cell, one <see cref="TrackPresenter.EramArrowCell"/> wide where the lit VCI draws, whether or not it is lit;
+    /// null when the presentation carries no VCI slot (the ERAM LDBs, every other template).
+    /// </summary>
+    private static SKRect? VciCellOf(
+        IReadOnlyList<ScopeColumn0Mark> marks,
+        ScopeTextMetrics metrics,
+        Dictionary<ScopeFieldSlot, ScopeField> bySlot,
+        IReadOnlyList<int> insertedRows
+    )
+    {
+        if (!bySlot.ContainsKey(ScopeFieldSlot.Vci) || (marks.FirstOrDefault(m => m.Slot == ScopeFieldSlot.Vci) is not { } mark))
+        {
+            return null;
+        }
+        return Column0Rect(mark, metrics.Measure(TrackPresenter.EramArrowCell), metrics, insertedRows);
+    }
+
+    // A column-0 mark of width `width`, right-aligned ColumnGap left of the text block on its row, below any dwell-only rows.
+    private static SKRect Column0Rect(ScopeColumn0Mark mark, float width, ScopeTextMetrics metrics, IReadOnlyList<int> insertedRows)
+    {
+        float left = -(width + ColumnGap);
+        int row = mark.Row + insertedRows.Count(r => r <= mark.Row);
+        float top = -metrics.Size + ((row - 1) * metrics.LineHeight);
+        return new SKRect(left, top, left + width, top + metrics.Size);
     }
 
     // A line only the Dwell lines carry (the other-altitude line): the Full lines hold no such line.
@@ -109,7 +142,7 @@ public static class DatablockTemplate
 
     /// <summary>
     /// Adds a rect for each column-0 mark with text, right-aligned <see cref="ColumnGap"/> left of the text block on its row,
-    /// and returns the marks' extent; <see cref="SKRect.Empty"/> when no mark shows. A mark stays beside the line it belongs
+    /// and returns the extent of the marks with stable text; <see cref="SKRect.Empty"/> when none shows. A mark stays beside the line it belongs
     /// to: each dwell-only row laid at or above its row (<paramref name="insertedRows"/>, 1-based) moves it down one row.
     /// </summary>
     private static SKRect LayColumn0(
@@ -128,12 +161,13 @@ public static class DatablockTemplate
                 continue;
             }
 
-            float width = metrics.Measure(field.Text);
-            float left = -(width + ColumnGap);
-            int row = mark.Row + insertedRows.Count(r => r <= mark.Row);
-            float top = -metrics.Size + ((row - 1) * metrics.LineHeight);
-            var rect = new SKRect(left, top, left + width, top + metrics.Size);
+            SKRect rect = Column0Rect(mark, metrics.Measure(field.Text), metrics, insertedRows);
             rects.Add(new FieldRect(mark.Slot, rect, field.Text, field.Token, field.Style));
+            if (field.StableText.Length == 0)
+            {
+                // A mark lit only for the moment (the VCI hover preview) is drawn but widens no bounds.
+                continue;
+            }
             extent = extent.IsEmpty ? rect : SKRect.Union(extent, rect);
         }
         return extent;
