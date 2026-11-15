@@ -24,6 +24,9 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     private bool _isSyncingSelection;
 
+    /// <summary>Whether <see cref="Dispose"/> has run; a second call changes nothing and saves nothing.</summary>
+    private bool _disposed;
+
     /// <summary>
     /// The radar the scope takes its first centre, map toggles and maps from, while it still waits for a centre and toggles or
     /// maps; null once seeded.
@@ -94,6 +97,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         }
 
         InitViews();
+        SyncStateFacility();
     }
 
     /// <summary>Whether the scope is still waiting for the radar's first centre and maps. Test seam.</summary>
@@ -142,6 +146,13 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        SaveStateFor(_stateFacility);
         Main.PropertyChanged -= OnMainPropertyChanged;
         StopWaitingForSeed();
         StopViews();

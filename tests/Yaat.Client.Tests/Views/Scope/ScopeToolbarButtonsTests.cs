@@ -153,6 +153,33 @@ public class ScopeToolbarButtonsTests
         Assert.All(views.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
     }
 
+    /// <summary>
+    /// The three judges agree: every id <see cref="ScopeToolbarButtons.CanTearOff"/> allows, named as
+    /// <see cref="ScopeToolbarButtons.TryParseKey"/> parses it, resolves through <see cref="ScopeToolbarButtons.Find"/>;
+    /// the map toggles, which carry a value, are reached by <c>ButtonFor</c> rather than <c>Find</c>.
+    /// </summary>
+    [Fact]
+    public void EveryTearableId_ResolvesThroughFind()
+    {
+        ScopeButtonId[] tearable =
+        [
+            .. Enum.GetValues<ScopeButtonId>().Where(id => (id != ScopeButtonId.MapToggle) && ScopeToolbarButtons.CanTearOff(id)),
+        ];
+
+        Assert.NotEmpty(tearable);
+        foreach (ScopeButtonId id in tearable)
+        {
+            string name = ScopeToolbarButtons.NameOf(new ScopeButtonKey(id, null));
+            Assert.True(ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? key), name);
+            Assert.Equal(id, key.Id);
+
+            ScopeButton? found = ScopeToolbarButtons.Find(key.Id);
+            Assert.NotNull(found);
+            Assert.Equal(id, found.Id);
+            Assert.True(ScopeToolbarButtons.CanTearOff(found.Id), name);
+        }
+    }
+
     [Fact]
     public void EveryTemplatePick_CarriesItsScopeTemplateCommand()
     {

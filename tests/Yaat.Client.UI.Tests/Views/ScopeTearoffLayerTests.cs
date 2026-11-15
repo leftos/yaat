@@ -114,6 +114,70 @@ public class ScopeTearoffLayerTests
     }
 
     [AvaloniaFact]
+    public async Task EveryTearableKey_ResolvesThroughButtonFor()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        using var scope = new ScopeViewModel(main, prefStore: null);
+
+        foreach (
+            ScopeButtonId id in Enum.GetValues<ScopeButtonId>().Where(id => (id != ScopeButtonId.MapToggle) && ScopeToolbarButtons.CanTearOff(id))
+        )
+        {
+            var key = new ScopeButtonKey(id, null);
+            Assert.True(ScopeToolbarButtons.TryParseKey(ScopeToolbarButtons.NameOf(key), out ScopeButtonKey? parsed), key.ToString());
+
+            ScopeButton button = scope.ButtonFor(parsed!);
+
+            Assert.Equal(id, button.Id);
+            Assert.Equal(ScopeToolbarButtons.NameOf(key), ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)));
+        }
+
+        Assert.Equal(ScopeButtonId.MapToggle, scope.ButtonFor(new ScopeButtonKey(ScopeButtonId.MapToggle, "77")).Id);
+    }
+
+    [AvaloniaFact]
+    public async Task EachPrefAction_TearsOff_AndDrawsItsOwnLabel()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope tearoff prefsave tl 1 1");
+            main.RunScopeCommand(".scope tearoff prefsaveas tl 80 1");
+            main.RunScopeCommand(".scope tearoff prefrename tl 160 1");
+            main.RunScopeCommand(".scope tearoff prefdelete tl 240 1");
+            Settle(window);
+
+            Assert.Equal(["SAVE", "SAVE AS", "RENAME", "DELETE"], Copies(window).Select(c => AutomationProperties.GetName(c.Button)));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ATornOffSaveAs_TypesThePrefixAsTheTrayButtonDoes()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenScopeAsync();
+        try
+        {
+            var key = new ScopeButtonKey(ScopeButtonId.PrefSaveAs, null);
+            main.RunScopeCommand(".scope tearoff prefsaveas tl 10 10");
+            Settle(window);
+
+            ClickAt(window, CentreOf(CopyOf(window, key).Button, window));
+
+            Assert.Equal(ScopeToolbarButtons.PrefSaveAsPrefix, main.CommandText);
+            Assert.Equal(main.CommandText.Length, main.CommandCaretIndex);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ATornOffRange_WheelStepsTheRangeAsTheBarsDoes_SharingItsPartStep()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();

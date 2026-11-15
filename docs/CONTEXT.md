@@ -822,7 +822,7 @@ The heading, speed and free-text notes of an ERAM track, entered with `QS`; whil
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
 **Pref set (YAAT Scope)**:
-A named snapshot of a YAAT Scope's range, centre, maps, brightness, display settings, open views and tear-offs, kept per facility; the Scope's current state also saves itself, and a pref set is a named copy on top (planned, docs/plans/yaat-scope/README.md).
+A named snapshot of a YAAT Scope's range, centre, template, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
 
 **SSA (YAAT Scope)**:
 The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).

@@ -77,7 +77,10 @@ public sealed class ScopeButtonControl : Grid
     /// <summary>The button itself.</summary>
     public Button Button { get; }
 
-    /// <summary>The tear-off pick strip (a copy's accent bar), or null for a button that never tears off (<see cref="ScopeToolbarButtons.CanTearOff"/>).</summary>
+    /// <summary>
+    /// The tear-off pick strip (a copy's accent bar), or null for a button that never tears off
+    /// (<see cref="ScopeToolbarButtons.CanTearOff"/>).
+    /// </summary>
     public Border? Strip { get; }
 
     /// <summary>Whether the copy's DEL TEAROFF mark is drawn. Test seam.</summary>

@@ -69,16 +69,8 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        if (button.Id is ScopeButtonId.PrefSet or ScopeButtonId.PrefSave)
+        if (TryPressPref(button))
         {
-            OpenMenu = null;
-            RunButtonCommand(button);
-            return;
-        }
-
-        if (button.Id is ScopeButtonId.PrefSaveAs or ScopeButtonId.PrefRename or ScopeButtonId.PrefDelete)
-        {
-            PressPrefAction(button.Id);
             return;
         }
 
@@ -251,6 +243,28 @@ public sealed partial class ScopeViewModel
             ScopeToolbarButtons.PrefRename,
             ScopeToolbarButtons.PrefDelete,
         ];
+
+    /// <summary>
+    /// Runs the PREF tray's own press for <paramref name="button"/>: a set or SAVE closes the tray and runs its command,
+    /// SAVE AS, RENAME and DELETE act on the active set. False for any other button.
+    /// </summary>
+    private bool TryPressPref(ScopeButton button)
+    {
+        if (button.Id is ScopeButtonId.PrefSet or ScopeButtonId.PrefSave)
+        {
+            OpenMenu = null;
+            RunButtonCommand(button);
+            return true;
+        }
+
+        if (button.Id is ScopeButtonId.PrefSaveAs or ScopeButtonId.PrefRename or ScopeButtonId.PrefDelete)
+        {
+            PressPrefAction(button.Id);
+            return true;
+        }
+
+        return false;
+    }
 
     /// <summary>The PREF tray's SAVE AS, RENAME and DELETE presses.</summary>
     private void PressPrefAction(ScopeButtonId id)

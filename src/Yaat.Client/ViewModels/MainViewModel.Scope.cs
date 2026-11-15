@@ -335,7 +335,7 @@ public partial class MainViewModel
 
         if (scope.ActivePrefSet is not { } active)
         {
-            return "No pref set is active: use .scope pref saveas <name>";
+            return ScopeViewModel.NoActivePrefSetMessage;
         }
 
         return RunStoreWrite(() =>

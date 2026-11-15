@@ -267,7 +267,7 @@ public class ScopePrefMenuTests : IDisposable
     [AvaloniaFact]
     public async Task ASetNamedLikeATemplate_LightsOnlyWhenItIsTheActiveSet()
     {
-        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
             main.RunScopeCommand(".scope template eram");
@@ -278,6 +278,19 @@ public class ScopePrefMenuTests : IDisposable
             Assert.DoesNotContain("active", TrayButton(window, "STARS").Classes);
             Assert.Contains("active", TrayButton(window, "B").Classes);
 
+            // Only the active set's name lights a set button, so a set named after the template in use stays dark.
+            var templateNamedSet = new ScopeButton(
+                ScopeButtonId.PrefSet,
+                ScopeTemplates.EramId,
+                ScopeButtonKind.Command,
+                [],
+                ScopeTemplates.EramId,
+                null
+            );
+            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
+            Assert.Equal("B", scope.ActivePrefSet);
+            Assert.False(scope.IsActive(templateNamedSet));
+
             Click(ButtonOf(window, ScopeButtonId.Template));
 
             Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
@@ -286,6 +299,11 @@ public class ScopePrefMenuTests : IDisposable
             // The set named STARS captures the ERAM template, so making it active leaves the STARS pick unlit.
             main.RunScopeCommand(".scope pref load stars");
 
+            // A template pick lights by the template in use alone: with the ERAM template picked and a set named STARS
+            // active, the STARS pick stays dark.
+            Assert.Equal("STARS", scope.ActivePrefSet);
+            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
+            Assert.False(scope.IsActive(ScopeToolbarButtons.Find(ScopeButtonId.TemplateStars)!));
             Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
             Assert.Contains("active", ButtonOf(window, ScopeButtonId.TemplateEram).Classes);
         }

@@ -103,15 +103,21 @@ Close an extra window to remove it; open extras (with their airports) are restor
 
 **View > Windows > YAAT Scope** (just after **New radar window…**) opens a preview of the new instructor radar in a window titled "YAAT Scope"; a second click brings the open window forward. Today's Radar stays the main view and is unchanged.
 
-The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on. A navy toolbar runs across the top of the window. Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXED** and **EUROSCOPE** (the one in use has a cyan border); clicking a pick or **TEMPLATE** again closes the tray. **MIXED** draws each track in its owner's kind of block (an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, and an unowned track the ERAM block); the Scope starts on STARS (EuroScope with EuroScope mode on) and the choice is not saved.
+The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on.
+
+A navy toolbar runs across the top of the window. Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXED** and **EUROSCOPE** (the one in use has a cyan border); clicking a pick or **TEMPLATE** again closes the tray.
+
+**MIXED** draws each track in its owner's kind of block (an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, and an unowned track the ERAM block); the Scope starts on STARS (EuroScope with EuroScope mode on) unless a saved state or a pref set brings another.
 
 The **RANGE** button shows the range in nautical miles (**RANGE 40**). Roll the mouse wheel over it to change the range by 1 NM per step, wheel up to zoom in, between 1 and 256 NM, at the Radar's scroll sensitivity; a click on it does nothing.
 
-The bar reads **TEMPLATE**, **RANGE**, **MAPS**, **DB**, **VIEWS**, **BRITE** and **DEL TEAROFF**.
+The bar reads **TEMPLATE**, **RANGE**, **MAPS**, **DB**, **VIEWS**, **BRITE**, **PREF** and **DEL TEAROFF**.
 
 **MAPS** opens a tray with **CLR ALL**, which turns every map off, then one toggle per video map labelled with its STARS id and short name (`10 SFO`), in STARS id order and lit while the map is on. The Scope keeps its own map toggles, copied once from the Radar's when it opens, so the lit ones start as the Radar's active maps; toggling them never changes the Radar. The Scope opens from a centred Radar even when every map is off. When the buttons do not fit the tray wraps onto more rows; it overlays the scope and never resizes it.
 
-**DB** opens a tray of datablock settings: the toggles **4TH LINE**, **DWELL** and **ATPA DIST**, then the spinner **CHAR** (`CHAR 14`). **4TH LINE** off removes the ERAM block's line 4 type and destination (HSF notes stay). **DWELL** off stops the hover dwell; a block you locked with a Field-A click still dwells, and the VCI preview still follows the pointer. **ATPA DIST** shows or hides the ATPA field. **CHAR** is the datablock point size, 8 to 24; roll the wheel over it, wheel up for larger, and it stops at the limits. ATPA DIST and CHAR start from your preferences when the Scope opens and never write back, and a later preference change does not reach an open Scope. The other CRC DB items (LDR DIR, LDR, CWT, REQ ALT, PORTAL) are not built.
+**DB** opens a tray of datablock settings: the toggles **4TH LINE**, **DWELL** and **ATPA DIST**, then the spinner **CHAR** (`CHAR 14`). **4TH LINE** off removes the ERAM block's line 4 type and destination (HSF notes stay). **DWELL** off stops the hover dwell; a block you locked with a Field-A click still dwells, and the VCI preview still follows the pointer. **ATPA DIST** shows or hides the ATPA field.
+
+**CHAR** is the datablock point size, 8 to 24; roll the wheel over it, wheel up for larger, and it stops at the limits. ATPA DIST and CHAR start from your preferences when the Scope opens (unless a saved state brings others) and never write back to them, and a later preference change does not reach an open Scope. The other CRC DB items (LDR DIR, LDR, CWT, REQ ALT, PORTAL) are not built.
 
 **VIEWS** is the button after DB. Its tray holds two toggles, **SSA** and **LA/CA/MCI**, each lit while its view is open; a press toggles the view and keeps the tray open. The views sit in a dock, a 360 px column down the right of the window under the bar, which is hidden until a view is docked in it. Opening or closing it keeps the scope's scale, so the RANGE shown follows the scope's width, as when you resize the window.
 
@@ -129,11 +135,25 @@ MAP A and MAP B dim the video maps by their A or B category; TARGETS the positio
 
 DWELL lifts everything drawn for a dwelled block toward full brightness, as CRC does: at DWELL 20 a dwelled block draws at 100 whatever its groups say, and at 0 it keeps their dimming. A brightness scales each colour's red, green and blue by value/100 and leaves its transparency alone. The selection border never dims. The defaults draw the Scope as it looked before BRITE existed.
 
-Brightness belongs to the Scope window: it is not saved and never sent to the server, so a new Scope opens at the defaults.
+Brightness belongs to the Scope window and is never sent to the server. It is kept in the Scope's saved state and in pref sets (see **PREF** below), so a Scope with no saved state opens at the defaults.
+
+**PREF** is the button after BRITE. It reads **PREF SR-DAY** while a set is active, or **PREF** alone. Its tray holds one button per saved pref set, the active one lit, then **SAVE**, **SAVE AS**, **RENAME** and **DELETE**. A click on a set loads it.
+
+**SAVE** saves the active set again from the Scope's current state. **SAVE AS** types `.scope pref saveas ` into the command box and focuses it, for you to add a name. **RENAME** types `.scope pref rename <ACTIVE> ` the same way, with the active set's name. **DELETE** deletes the active set. With no active set, RENAME and DELETE say `No pref set is active: use .scope pref saveas <name>`.
+
+A pref set is a named snapshot of the Scope: range, centre, template, brightness (every BRITE group), the DB settings (4TH LINE, DWELL, ATPA DIST, CHAR), the maps that are on, which views are open and where each one sits, and the tear-offs. It does not hold your dwell locks, the MVA tint, the selection or an open menu. A name is 1 to 16 characters of A-Z, 0-9, `-` and `_`; any letter case, shown in capitals. Windows device names such as CON, NUL and COM1 are refused.
+
+Loading a set replaces the Scope's state: the views open exactly as saved and the tear-offs are replaced. A saved value that is out of range keeps the current one. A map the Scope does not have is skipped, and the echo names how many (`(2 maps not on this scope)`). A load made while the Scope waits for the Radar applies its maps, range and centre once the Radar's data arrives.
+
+Sets belong to a facility, the one of your active position's track or listing, and are kept in `%LOCALAPPDATA%/yaat/scope/prefsets/<facility>.json`. Without an active position every PREF action says `No facility: pref sets need an active position`. Pref sets are not part of the settings bundle export.
+
+The Scope also saves its own state per facility, in `%LOCALAPPDATA%/yaat/scope/current/<facility>.json`, when its window closes and for the old facility when your active position changes facility. The state comes back when the Scope opens for that facility, or when your position moves to it, with the active set's name if that set still exists.
+
+A facility with no saved state keeps the screen as it is and clears the active set. A file that cannot be read is left alone and copied to a `.bak`; a bad entry is dropped with a warning in the client log.
 
 **Tear-offs** put a copy of a button or a view on the scope. Every other bar and tray button has a 5 px strip on its left edge that shows gold under the pointer; a left press on the strip copies the button onto the scope, unless it is already torn off: each button has one tear-off, and each map toggle counts as its own button. The copy follows the pointer, a left click drops it anchored to the nearest scope corner, and Esc cancels.
 
-A copy draws a gold accent bar on its left edge; press the bar to move it again. A copy behaves like its bar button: a spinner's wheel steps it, a toggle toggles, and a torn-off menu button (MAPS, DB, VIEWS, BRITE) opens the bar's tray. Resizing the window keeps each copy's distance from its corner.
+A copy draws a gold accent bar on its left edge; press the bar to move it again. A copy behaves like its bar button: a spinner's wheel steps it, a toggle toggles, and a torn-off menu button (MAPS, DB, VIEWS, BRITE, PREF) opens the bar's tray. PREF and its SAVE, SAVE AS, RENAME and DELETE tear off; the buttons for the sets themselves do not. Resizing the window keeps each copy's distance from its corner.
 
 A view moves the same way: a left press on a view card's title starts the move, a gold outline follows the pointer, a click drops the card at the nearest corner and Esc cancels. A floating card has a dock button **▸** (named "Dock") that sends it back to the dock. A view keeps its floating place when you close it and open it again.
 
@@ -143,13 +163,19 @@ Every toolbar action is also a command typed in the command box, and the status 
 
 The same goes for `.scope db <4thline|dwell|atpa> <on|off>` and `.scope db char <8-24>` (the DB echo is lowercase), `.view <ssa|ca> <on|off|dock>` (any letter case), `.scope tearoff <button> <tl|tr|bl|br> <dx> <dy>` and `.view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>`.
 
-`.scope tearoff` places or moves a button's tear-off, with dx and dy in pixels from that corner (`.scope tearoff range br 70 80` echoes as typed); the button is its id in lowercase (`range`, `maps`, `db`, `views`, `brite`, `britemapa`, `db4thline`, `templatestars`, `mapclear` …) or `map<STARS id>` for a map toggle. `.scope tearoff delete <button>...` deletes tear-offs and echoes `.scope tearoff delete <names>`.
+The pref set verbs are `.scope pref save`, `.scope pref saveas <name>`, `.scope pref load <name>`, `.scope pref rename <old> <new>` and `.scope pref delete <name>`; each echoes its canonical text, with the set's name in capitals.
+
+`.scope tearoff` places or moves a button's tear-off, with dx and dy in pixels from that corner (`.scope tearoff range br 70 80` echoes as typed); the button is its id in lowercase (`range`, `maps`, `db`, `views`, `brite`, `pref`, `prefsave`, `prefsaveas`, `prefrename`, `prefdelete`, `britemapa`, `db4thline`, `templatestars`, `mapclear` …) or `map<STARS id>` for a map toggle. `.scope tearoff delete <button>...` deletes tear-offs and echoes `.scope tearoff delete <names>`.
 
 `.view <ssa|ca> tear …` opens the view if it is closed and floats it at that place, and `.view <ssa|ca> dock` opens it if closed and docks it; both echo.
 
 A bad value answers `Usage: .scope range <1-256>`, `Unknown scope template: <id>`, `Unknown video map: <id>`, `Usage: .scope map <id> <on|off> | .scope map clear`, `Unknown scope DB item: <item>` (also for an unbuilt item).
 
 Further bad values answer `Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>`, `Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20`, `Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>`, `Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...`, `Unknown scope button: <typed>` or `No tear-off: <typed>`.
+
+The pref verbs answer `Usage: .scope pref save | .scope pref saveas <name> | .scope pref load <name> | .scope pref rename <old> <new> | .scope pref delete <name>`, `Pref sets are not available`, `No facility: pref sets need an active position`, `Unknown pref set: <typed>`, `Pref set exists: NAME`, `Bad pref set name: <typed> (1-16 of A-Z 0-9 - _)`, `No pref set is active: use .scope pref saveas <name>` and `Could not save pref sets: <message>`.
+
+A load that skips maps appends ` (N maps not on this scope)`, or ` (its maps apply once the scope's maps load)` while the Scope waits for the Radar.
 
 A bare `.scope` prints the usage, and with no Scope open you get `No YAAT Scope is open`.
 

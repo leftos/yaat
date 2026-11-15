@@ -51,21 +51,30 @@ public partial class ScopeToolbar : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // A rebuilt tray's new buttons are drawn by the refresh that follows. The map toggles and the pref sets change the
-        // buttons of their own tray.
-        bool mapsChanged = (e.PropertyName == nameof(ScopeViewModel.MapToggles)) && (_viewModel?.OpenMenu == ScopeButtonId.Maps);
-        bool prefSetsChanged =
-            (e.PropertyName is nameof(ScopeViewModel.PrefSetNames) or nameof(ScopeViewModel.ActivePrefSet))
-            && (_viewModel?.OpenMenu == ScopeButtonId.Pref);
-        if ((e.PropertyName == nameof(ScopeViewModel.OpenMenu)) || mapsChanged || prefSetsChanged)
+        // A rebuilt tray's new buttons are drawn by the refresh that follows.
+        bool trayChanged = TrayContentChanged(e.PropertyName);
+        if (trayChanged)
         {
             RebuildTray();
         }
 
-        if (mapsChanged || prefSetsChanged || IsDrawnState(e.PropertyName))
+        if (trayChanged || IsDrawnState(e.PropertyName))
         {
             RefreshButtons();
         }
+    }
+
+    /// <summary>
+    /// Whether the view-model property <paramref name="propertyName"/> changes the buttons of the open tray: the menu
+    /// opening or closing, or the map toggles or the pref sets changing while their own tray is the open one.
+    /// </summary>
+    private bool TrayContentChanged(string? propertyName)
+    {
+        bool mapsChanged = (propertyName == nameof(ScopeViewModel.MapToggles)) && (_viewModel?.OpenMenu == ScopeButtonId.Maps);
+        bool prefSetsChanged =
+            (propertyName is nameof(ScopeViewModel.PrefSetNames) or nameof(ScopeViewModel.ActivePrefSet))
+            && (_viewModel?.OpenMenu == ScopeButtonId.Pref);
+        return (propertyName == nameof(ScopeViewModel.OpenMenu)) || mapsChanged || prefSetsChanged;
     }
 
     /// <summary>Whether the view-model property <paramref name="propertyName"/> is one a button draws.</summary>

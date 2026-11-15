@@ -82,9 +82,7 @@ public sealed partial class ScopeViewModel
                 : new ScopeButton(ScopeButtonId.MapToggle, id, ScopeButtonKind.Toggle, [], id, $".scope map {id}");
         }
 
-        return key.Id == ScopeButtonId.MapClear
-            ? ScopeToolbarButtons.MapClear
-            : ScopeToolbarButtons.Find(key.Id) ?? throw new ArgumentException($"No scope button '{key.Id}'.", nameof(key));
+        return ScopeToolbarButtons.Find(key.Id) ?? throw new ArgumentException($"No scope button '{key.Id}'.", nameof(key));
     }
 
     /// <summary>

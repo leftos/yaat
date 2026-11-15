@@ -267,6 +267,9 @@ public static class ScopeToolbarButtons
     /// <summary>The PREF tray's DELETE, which deletes the active set.</summary>
     public static readonly ScopeButton PrefDelete = new(ScopeButtonId.PrefDelete, "DELETE", ScopeButtonKind.Command, [], null, null);
 
+    /// <summary>The buttons that sit in a tray alone, in no bar slot and in no menu's children, so <see cref="Find"/> reaches them here.</summary>
+    private static readonly IReadOnlyList<ScopeButton> TrayOnly = [MapClear, PrefSave, PrefSaveAs, PrefRename, PrefDelete];
+
     /// <summary>The PREF tray's button for the pref set named <paramref name="name"/>, which loads it.</summary>
     public static ScopeButton PrefSetButton(string name) =>
         new(ScopeButtonId.PrefSet, name, ScopeButtonKind.Command, [], name, PrefLoadCommand(name));
@@ -297,9 +300,11 @@ public static class ScopeToolbarButtons
     public static string BriteCommand(string group, int value) =>
         $".scope brite {group.ToLowerInvariant()} {value.ToString(CultureInfo.InvariantCulture)}";
 
-    /// <summary>The button with <paramref name="id"/>, top-level or in a menu, or null.</summary>
+    /// <summary>The button with <paramref name="id"/>, on the bar, in a menu or a tray-only button, or null.</summary>
     public static ScopeButton? Find(ScopeButtonId id) =>
-        All.FirstOrDefault(b => b.Id == id) ?? All.SelectMany(b => b.Children).FirstOrDefault(c => c.Id == id);
+        All.FirstOrDefault(b => b.Id == id)
+        ?? All.SelectMany(b => b.Children).FirstOrDefault(c => c.Id == id)
+        ?? TrayOnly.FirstOrDefault(b => b.Id == id);
 
     /// <summary>The BRITE group the spinner with <paramref name="id"/> steps, or null when it is no BRITE spinner.</summary>
     public static ScopeBrightnessGroup? BriteGroupOf(ScopeButtonId id) =>

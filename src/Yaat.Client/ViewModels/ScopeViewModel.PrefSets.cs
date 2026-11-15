@@ -20,6 +20,9 @@ public sealed partial class ScopeViewModel
     /// <summary>The set loaded before the radar gave the scope its maps, waiting to be applied once it does.</summary>
     private ScopePrefSet? _pendingPrefSet;
 
+    /// <summary>The facility the scope's state was last saved or restored for, or null when it has none.</summary>
+    private string? _stateFacility;
+
     /// <summary>The active set's uppercase name, or null when no set is active.</summary>
     [ObservableProperty]
     private string? _activePrefSet;
@@ -104,8 +107,75 @@ public sealed partial class ScopeViewModel
         return ApplyMaps(set);
     }
 
-    /// <summary>The scope's pref sets belong to the viewer's facility, so a new viewer brings a new list.</summary>
-    partial void OnViewerChanged(ScopeViewer value) => OnPropertyChanged(nameof(PrefSetNames));
+    /// <summary>
+    /// The scope's pref sets belong to the viewer's facility, so a new viewer brings a new list, and a new facility brings
+    /// back the state it was left in, after the state of the facility the scope leaves is saved.
+    /// </summary>
+    partial void OnViewerChanged(ScopeViewer value)
+    {
+        SyncStateFacility();
+        OnPropertyChanged(nameof(PrefSetNames));
+    }
+
+    /// <summary>
+    /// Saves the state of the facility the scope was on and restores the viewer's, when the viewer's facility differs
+    /// from that one. The constructor runs it as its last step, so the saved state overrides the defaults it built.
+    /// </summary>
+    private void SyncStateFacility()
+    {
+        string? facility = SafeFacility(Viewer.EramFacilityId);
+        if (facility == _stateFacility)
+        {
+            return;
+        }
+
+        SaveStateFor(_stateFacility);
+        RestoreStateFor(facility);
+        _stateFacility = facility;
+    }
+
+    /// <summary>Saves the scope's state as <paramref name="facility"/>'s current state, warning when the file cannot be written.</summary>
+    private void SaveStateFor(string? facility)
+    {
+        if ((PrefStore is not { } store) || (!ScopePrefSetStore.IsSafeFacility(facility)))
+        {
+            return;
+        }
+
+        try
+        {
+            store.SaveCurrent(facility, CapturePrefSet(ActivePrefSet));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Could not save the scope's state for {Facility}", facility);
+        }
+    }
+
+    /// <summary>
+    /// Restores <paramref name="facility"/>'s saved current state, applying it and making its named set the active one.
+    /// A facility with no saved state keeps the screen as it is and clears the active set, which named a set of the
+    /// facility the scope left.
+    /// </summary>
+    private void RestoreStateFor(string? facility)
+    {
+        if ((PrefStore is not { } store) || (!ScopePrefSetStore.IsSafeFacility(facility)))
+        {
+            return;
+        }
+
+        if (store.LoadCurrent(facility) is not { } state)
+        {
+            ActivePrefSet = null;
+            return;
+        }
+
+        ApplyPrefSet(state);
+        ActivePrefSet = (state.Name is { } name) && (store.FindSet(facility, name) is not null) ? name : null;
+    }
+
+    /// <summary><paramref name="facility"/> when it can name a facility's files, else null.</summary>
+    private static string? SafeFacility(string? facility) => ScopePrefSetStore.IsSafeFacility(facility) ? facility : null;
 
     /// <summary>The maps a set saves: a pending set's, since its own have not been applied, else the on toggles' STARS ids.</summary>
     private IReadOnlyList<int> CaptureMaps() =>
