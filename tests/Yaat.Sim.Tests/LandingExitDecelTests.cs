@@ -10,10 +10,8 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
-using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 

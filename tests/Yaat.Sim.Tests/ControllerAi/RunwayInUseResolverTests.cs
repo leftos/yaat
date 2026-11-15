@@ -4,7 +4,6 @@ using Yaat.Sim.ControllerAi.Knowledge;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.ControllerAi;
 

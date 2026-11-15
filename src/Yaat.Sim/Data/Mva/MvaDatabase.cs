@@ -9,7 +9,7 @@ namespace Yaat.Sim.Data.Mva;
 /// (built by tools/build-mva-data.py). Mirrors <see cref="Airspace.AirspaceDatabase"/>: a lazy
 /// process-wide <see cref="Default"/> singleton, a 3-tier fixture search, Brotli support, and a
 /// silent no-op (empty database) when no fixture is present. Query <see cref="FindSector"/> for the
-/// controlling MVA sector at a point.
+/// controlling MVA sector at a point, preferring a facility's own chart where charts overlap.
 /// </summary>
 public sealed class MvaDatabase(IReadOnlyList<MvaSector> sectors)
 {
@@ -27,35 +27,57 @@ public sealed class MvaDatabase(IReadOnlyList<MvaSector> sectors)
     public IReadOnlyList<MvaSector> Sectors { get; } = sectors;
 
     /// <summary>
-    /// The controlling MVA sector at a point, or null if no sector covers it. When sectors overlap
-    /// (e.g. a higher-floor obstacle island the surrounding sector's hole did not fully exclude), the
-    /// highest floor wins — the conservative (safest) minimum vectoring altitude.
+    /// The controlling MVA sector at a point, or null if no sector covers it. Where charts overlap, the chart of
+    /// <paramref name="preferredFacility"/> (the radar's own facility; ordinal, case-insensitive) wins, highest floor
+    /// among its sectors there. Where that chart does not cover the point, or the preference is null, the highest
+    /// floor across every chart wins — the conservative (safest) minimum vectoring altitude.
     /// </summary>
-    public MvaSector? FindSector(LatLon position)
+    public MvaSector? FindSector(LatLon position, string? preferredFacility)
     {
         MvaSector? best = null;
+        MvaSector? bestPreferred = null;
         foreach (MvaSector sector in Sectors)
         {
-            if (sector.Contains(position) && (best is null || sector.FloorFtMsl > best.FloorFtMsl))
+            if (!sector.Contains(position))
+            {
+                continue;
+            }
+
+            if (IsHigher(sector, best))
             {
                 best = sector;
             }
+
+            if (IsPreferred(sector, preferredFacility) && IsHigher(sector, bestPreferred))
+            {
+                bestPreferred = sector;
+            }
         }
 
-        return best;
+        return bestPreferred ?? best;
     }
 
-    /// <summary>The controlling MVA floor (ft MSL) at a point, or null if no sector covers it.</summary>
-    public int? GetFloorFtMsl(LatLon position) => FindSector(position)?.FloorFtMsl;
+    /// <summary>True when <paramref name="sector"/>'s floor beats <paramref name="than"/>'s; on a tie the first sector found stays.</summary>
+    private static bool IsHigher(MvaSector sector, MvaSector? than) => (than is null) || (sector.FloorFtMsl > than.FloorFtMsl);
+
+    private static bool IsPreferred(MvaSector sector, string? preferredFacility) =>
+        (preferredFacility is not null) && string.Equals(sector.Facility, preferredFacility, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The controlling MVA floor (ft MSL) at a point, or null if no sector covers it; overlaps resolve as in
+    /// <see cref="FindSector"/>.
+    /// </summary>
+    public int? GetFloorFtMsl(LatLon position, string? preferredFacility) => FindSector(position, preferredFacility)?.FloorFtMsl;
 
     /// <summary>
     /// Classify an altitude against the controlling MVA floor at a position. An altitude within
     /// <paramref name="atBandFt"/> of the floor reads as <see cref="MvaRelation.At"/>. The returned
-    /// sector is null only when no sector covers the position (<see cref="MvaRelation.NoData"/>).
+    /// sector is null only when no sector covers the position (<see cref="MvaRelation.NoData"/>). The floor is
+    /// <see cref="FindSector"/>'s for <paramref name="preferredFacility"/>.
     /// </summary>
-    public (MvaRelation Relation, MvaSector? Sector) Classify(LatLon position, double altitudeFtMsl, int atBandFt)
+    public (MvaRelation Relation, MvaSector? Sector) Classify(LatLon position, double altitudeFtMsl, int atBandFt, string? preferredFacility)
     {
-        MvaSector? sector = FindSector(position);
+        MvaSector? sector = FindSector(position, preferredFacility);
         if (sector is null)
         {
             return (MvaRelation.NoData, null);

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Yaat.Client.Models;
 
 namespace Yaat.Client.ViewModels;

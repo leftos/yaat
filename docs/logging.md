@@ -247,3 +247,15 @@ Other rules for freeze/crash triage:
   mean your scoped `InitializeForTest` factory is bypassed and the line goes to `NullLoggerFactory` instead.
 - **The WASM console format is not the file format.** Despite the `ConsoleLineLoggerProvider` docstring, the DevTools-console output uses UTC and
   three-char tags, while the file uses local time and four-char tags. Don't assume timestamps from the two sinks are comparable.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Client.Core/`.
+
+```
+Logging/
+  AppLog.cs                     # Static logger factory; Initialize(logFileName) called by each desktop app's Program.cs. Wraps SimLog; both Initialize paths also register RecentErrors (AppLog.RecentErrors, the RecentErrorLog). WASM has its own inline init in Program.cs that wires SimLog directly.
+  RecentErrorLog.cs             # ILoggerProvider keeping the last 200 Error/Critical entries (RecentErrorEntry) with ever-growing sequence numbers; Since(sequence, max) reads the newer ones. Registered by AppLog as AppLog.RecentErrors
+  FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log); rotates the previous 3 sessions to .log.1/.2/.3 on launch so a relaunch can't destroy a crash/freeze log (PreviousLogs lists them for bug report bundles); lines are stamped with date, time and UTC offset
+  ClientLogScrubber.cs          # Scrubs a client log's text for a bug report bundle (never the file on disk): participants → the server log's pseudonyms (SessionLogAnonymizer), structural passes (terminal initials slot, (from XX), the who of a [Terminal] [System] room line, RPO pull names, CRC lobby entries, CALLSIGN (Name), a CRC client's bare real name in its event, kick and message lines; a token looking like a pseudonym is kept only when the list issued it) → pseudonym or ??; one-word saved-server hosts only where a host stands, user folder → %USERPROFILE% / {user}, user and machine names, the user's own server hosts (ServerHostsOf: connected + saved, minus official and loopback) → {server}, non-loopback IPv4/IPv6 → {ip}, emails and tokens → placeholders. Scrubbing runs off the UI thread
+```

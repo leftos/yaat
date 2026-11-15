@@ -795,7 +795,19 @@ public static class QuickCommandStrip
         {
             FlyoutBase.SetAttachedFlyout(button, flyout);
             button.Click += (_, _) => Toggle(flyout);
-            flyout.Opened += (_, _) => button.Classes.Add(StickyClass);
+            Control? watched = null;
+            flyout.Opened += (_, _) =>
+            {
+                button.Classes.Add(StickyClass);
+                if ((flyout.Popup.Child is Control root) && !ReferenceEquals(root, watched))
+                {
+                    watched = root;
+                    // A row with a submenu that the pointer leaves the menu from stays selected, and Avalonia opens that
+                    // row's submenu MenuShowDelay later while the pointer is in the flyout; clearing the menu's selection
+                    // as the pointer enters the flyout leaves the delayed open nothing to open.
+                    root.PointerEntered += (_, _) => _menu.SelectedIndex = -1;
+                }
+            };
             bool hadFocus = false;
             flyout.Closing += (_, _) => hadFocus = (!_hiding) && (flyout.Popup.Child?.IsKeyboardFocusWithin == true);
             flyout.Closed += (_, _) =>

@@ -23,17 +23,16 @@ a source GeoJSON are silently dropped (see Footguns). All file references below 
 
 ## Data model
 
-Five small types in `Data/Airspace/`:
+Small types in `Data/Airspace/`, with points as the shared `LatLon` (`Yaat.Sim/LatLon.cs`, `readonly record struct (double Lat, double Lon)` — note **Lat first**):
 
 | Type | File | Shape |
 |---|---|---|
 | `AirspaceVolume` | `AirspaceVolume.cs` | `Id`, `Ident`, `IcaoId`, `Name`, `Class`, `LowerFtMsl`, `UpperFtMsl`, `Rings` (all `required init`). Owns the containment geometry. |
-| `AirspacePoint` | `AirspacePoint.cs` | `readonly record struct (double Lat, double Lon)` — note **Lat first**. `ToLatLon()` / `FromLatLon()`. |
 | `AirspaceClass` | `AirspaceClass.cs` | `enum { Bravo, Charlie }` — **two values only**. |
 | `AirspaceBoundaryCrossing` | `AirspaceBoundaryCrossing.cs` | Result of a projected-entry query: `Volume`, `Intersection`, `DistanceNm`, `LookaheadSeconds`, `TimeToEntrySeconds`, `EntryAltitudeFtMsl`. |
 | `AirspaceDatabase` | `AirspaceDatabase.cs` | `IReadOnlyList<AirspaceVolume> Volumes` + the lazy `Default` singleton + all loading/parsing/query methods. |
 
-`Rings` is `IReadOnlyList<IReadOnlyList<AirspacePoint>>` — one volume can carry several rings (multiple
+`Rings` is `IReadOnlyList<IReadOnlyList<LatLon>>` — one volume can carry several rings (multiple
 disjoint polygons, e.g. the surface area plus the shelf rings of a Class C). All rings are treated as
 **positive** (see the doughnut footgun).
 
@@ -85,7 +84,7 @@ the parser would discard any other class even if the fixture carried it.
 
 `ParseRings` flattens geometry: `Polygon` coordinates go straight to `ParsePolygon`; `MultiPolygon`
 coordinates are iterated polygon-by-polygon into the same flat ring list. `ParsePolygon` reads each
-coordinate pair as **`[lon, lat]`** — it stores `new AirspacePoint(pair[1] /* Lat */, pair[0] /* Lon */)`.
+coordinate pair as **`[lon, lat]`** — it stores `new LatLon(pair[1] /* Lat */, pair[0] /* Lon */)`.
 Rings with fewer than 4 points are discarded. A feature whose rings all drop out yields no volume.
 
 ## Containment geometry
@@ -339,7 +338,7 @@ sim and server rooms.
   singletons it can race in parallel xUnit if a test reads it mid-population (see the static-singleton-races
   note in `CLAUDE.md`).
 - **GeoJSON coordinate order is `[lon, lat]`.** `ParsePolygon` reads `pair[1]` as Lat and `pair[0]` as Lon, and
-  `AirspacePoint` stores `(Lat, Lon)`. Swap them and containment flips silently.
+  `LatLon` stores `(Lat, Lon)`. Swap them and containment flips silently.
 - **`FindFirstProjectedEntry` skips any volume the aircraft is already inside.** It reports only the first
   not-yet-entered boundary, never re-entry or exit. Do not repurpose it for "am I inside" — use `FindContaining`.
 - **`ParseRings` treats every ring as a positive ring.** `ContainsLateral` OR-combines all rings, so a true
@@ -357,3 +356,18 @@ sim and server rooms.
   `-Output`). It rediscovers training primary airports and re-queries the FAA ArcGIS service.
 - **Add a query** — extend `AirspaceDatabase` with a method over `Volumes`; keep the `[lon, lat]` / `(Lat, Lon)`
   convention and remember the skip-if-already-inside semantics differ from plain containment.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Data/
+Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry, under-a-Bravo-shelf test for the 91.117(c) speed cap.
+Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs # Airspace model primitives plus crossing result (point-in-polygon via shared GeoMath.PointInRing + LatLonBounds).
+Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off altitude beneath a shelf floor (round hundred, 91.159-conforming above 3000 AGL) and the turn-away direction.Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
+Data/Artcc/ArtccBoundaryDatabase.cs # Lateral ARTCC boundaries (one polygon per center) from Data/Artcc/*.geojson[.br]; FindById / FindContaining; same bundled-fixture + bbox + PointInRing shape as AirspaceDatabase. Center-room live-traffic scoping.
+Data/Artcc/ArtccBoundary.cs        # One center's rings + bbox: Contains (any ring), DistanceToEdgeNm (the server's 30 nm center-room buffer)
+Data/Artcc/ArtccBoundaries.geojson # 26 US ARTCC/CERAP MultiPolygons from FAA NASR ARB (LOW + HIGH rings; UNLIMITED where that is all there is);
+                                   # built by tools/build-artcc-boundaries.py, re-run per 28-day cycle
+```

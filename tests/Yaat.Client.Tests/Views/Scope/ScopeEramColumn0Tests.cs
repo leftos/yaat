@@ -302,7 +302,8 @@ public class ScopeEramColumn0Tests
                 Viewer = viewer,
             },
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
         return ScopeFrame.Build(input);
     }

@@ -567,3 +567,84 @@ from every vTDLS client. It reads live `Track.Owner` each tick, so it
 catches every ownership source (explicit `TRACK`, handoff accept,
 auto-track), and sets no `Dumped` lockout — the removal is an automatic
 lifecycle event, not a controller dump.
+
+## File map
+
+One entry per file, grouped by project.
+
+### Yaat.Client.Tdls — WASM-clean vTDLS layer (`src/Yaat.Client.Tdls/`)
+
+Sibling of Yaat.Client.Strips for the vTDLS (Pre-Departure Clearance) view. Same constraints: pure Avalonia + SignalR + CommunityToolkit.Mvvm — no Avalonia.Desktop, no Velopack, no file IO. Both the embedded vTDLS tab in Yaat.Client and the browser app at `tools/Yaat.VTdls.Web` consume this assembly. ProjectReferences `Yaat.Sim` + `Yaat.Client.Strips` (the latter just for the shared JetBrains Mono font registration via `WithJetBrainsMonoFont()`).
+
+```
+Services/
+  TdlsDtos.cs                   # Client-side JSON mirrors of the server vTDLS DTOs: TdlsStatus enum, TdlsItemDto, TdlsItemRemovedDto, TdlsStateDto, ClearanceDto, TdlsConfigDto + nested SID/transition/value records, TdlsFacilityViewDto (one config per member facility — a consolidated parent carries its children's — plus the student position's `StudentFrequencyMhz`). Property names match the server one-for-one so System.Text.Json round-trips without converters.
+  ITdlsTransport.cs             # Narrow contract VTdlsViewModel depends on. IsConnected + transport-state events + TdlsItemChanged/Removed/StateChanged broadcasts + GetAccessibleTdlsFacilities/GetTdlsFacilityView/RequestFullTdlsState RPC trio. ServerConnection (Core) and BrowserTdlsTransport (here) both implement it.
+  BrowserTdlsTransport.cs       # WASM-side ITdlsTransport. Owns its own HubConnection, wires JsonHubProtocol against YaatTdlsHubJsonContext only, exposes auto-join helpers (FindRoomForMyCidAsync, JoinRoomAsync, SendCommandAsync, ConnectAsync, RoomAvailableForCid, ScenarioLoaded and ScenarioUnloaded events) needed by tools/Yaat.VTdls.Web/MainView. Browser-only DTO subsets (BrowserTdlsRoomInfoDto, BrowserTdlsJoinRoomResultDto, and the empty BrowserTdlsScenarioChangedDto that binds the dropped scenario-event payloads) downscope the wire format.
+  YaatTdlsHubJsonContext.cs     # Source-generated JsonSerializerContext for the TDLS DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext + YaatStripsHubJsonContext) and BrowserTdlsTransport (alone).
+
+ViewModels/
+  VTdlsViewModel.cs             # Root vTDLS VM; reconciles DCL (Pending) and PDC (Sent+Wilco) lists from broadcast events; surfaces accessible-facility list + Switch/Refresh. `SelectedItem` is the one selection; `SelectedPendingItem` / `SelectedSentItem` are the DCL and PDC lists' own two-way bound mirrors of it (the lists must not share one binding). Ctor takes ITdlsTransport + send-command delegate + Func<string>? getUserInitials. Also holds the keyboard model's state, separate from the selection: `ActiveList` (DCL / CPDLC / PDC) and `HighlightedItem`, moved by `MoveHighlight` / `CycleActiveList` / `OpenHighlighted`. Clear() empties every item, the selection and any open editor (called on connection loss and by the host when the room's session goes away).
+  TdlsItemViewModel.cs          # Per-item observable: AircraftId, Status, Sequence, timestamps, SentPayload. Instance identity preserved across reconciles so Avalonia bindings stay stable.
+  TdlsFlightPlanEditorViewModel.cs # Nine-field editor; wraps a working ClearanceDto, exposes per-field dropdowns from the facility's TdlsConfigDto, applies SID+transition defaults on selection, gates Send button on mandatory-field completion. Every editable dropdown lists a leading "- - - -" that empties its field. A real climb-via value clears Maintain and a real Maintain clears climb-via (Maintain is never disabled), and a climb-via satisfies a mandatory InitialAlt — one altitude instruction per clearance. Takes the view's `TdlsDepFreqChoices` (temp frequencies, override) when opened: Dep Freq lists the facility's frequencies then the temp ones, and the override is selected on open and after each SID or transition change.
+  VTdlsCanonicalBuilder.cs      # Build canonical TDLS commands (TDLSQ / TDLSS Expect|Sid|... | LocalInfo / TDLSW / TDLSDUMP) from UI gestures.
+
+Views/VTdls/
+  VTdlsView.axaml(.cs)          # Embedded vTDLS UserControl. Layout mirrors upstream tdls.virtualnas.net: black header chrome, DCL list on top (full width, WrapPanel Vertical column wrap), PDC + decorative empty CPDLC split 50/50 below, flight-plan editor docks at bottom when a DCL item is selected, footer with CLEARANCE TYPE status + Zulu clock. Hosts the shared FindBar overlay (Ctrl+F, searches the DCL + PDC lists). Facility Menu after Dark Mode: the Temp. Dep Freqs box (committed on Enter, focus loss or menu close), Override Dep Freq and Add current frequency. Key bindings: F4 Dump, F10 close editor, F12 Send, Ctrl+F / F3 / Shift+F3 find, Up/Down/Enter/Tab/backtick for the keyboard highlight and editor field order, Esc for the Facility Menu, Ctrl+Alt+Left/Right for the facility; the active list's header and the highlighted row are styled from the view model. `ApplyTheme` swaps the light/dark brushes (incl. the `VTdlsControl*` ones for the editor's dropdowns and buttons) and pins the view's own theme variant, so it renders alike on the dark desktop host and the light web host.
+```
+
+### Yaat.VTdls.Web — Browser vTDLS client (`tools/Yaat.VTdls.Web/`)
+
+WebAssembly Avalonia client for the vTDLS view. Hosted by yaat-server at `/vtdls/` (mapped in `ServerApp`). Mirrors the VStrips.Web shape: references Yaat.Client.Tdls + Yaat.Client.Strips (for the shared JetBrains Mono font registration), no Avalonia.Desktop / Velopack / file IO. Identity (CID, initials, ARTCC) flows in via URL query — first-time visitors fill a landing form that redirects with the params filled in.
+
+```
+Program.cs                       # Entry point. Wires SimLog to ConsoleLineLoggerProvider. Stores window.location.search + origin on App.
+App.axaml(.cs)                   # XAML app root with the Light theme variant (upstream vTDLS is light-themed) + SubtleTextBrush/MonoFont resources.
+MainView.axaml(.cs)              # Root view. Hosts VTdlsView, handles auto-join via BrowserTdlsTransport, calls RefreshAccessibleFacilities + SwitchFacility on the first facility after JoinRoom.
+wwwroot/index.html               # WASM host page; landing form (DOM-only, no innerHTML); gates the WASM boot on identity params; localStorage key `yaat-vtdls-identity`.
+wwwroot/main.js                  # Boot script.
+wwwroot/app.css                  # Page chrome (status footer + landing form).
+runtimeconfig.template.json      # net10.0-browser runtime config.
+```
+
+### Yaat.Sim (`src/Yaat.Sim/`)
+
+Paths are relative to `src/Yaat.Sim/`.
+
+```
+# Simulation/Tdls/ — vTDLS session state + command/tick logic, engine-owned (SimulationEngine.Tdls, SimulationEngine.Tdls.cs)
+TdlsState.cs                   # The DCL (Pending) and PDC (Sent/Wilco) lists plus a Dumped lockout (keeps a controller-removed entry from being
+                               # re-created) for one run. Engine-owned; a fresh engine starts empty and the snapshot carries the session. Configs
+                               # (per-facility TdlsConfig) is the exception — reloaded from the ARTCC on every scenario load and never snapshotted,
+                               # so ClearSession (not Reset) is what a restore uses and leaves Configs alone; Reset also clears Configs, for
+                               # scenario unload. ResolveActiveOpConfigId / ResolveSids honor the facility's active operational configuration.
+                               # Changes (TdlsChangeTracker) records what TdlsMutations touched since the host's last drain — transient, not
+                               # snapshotted, cleared by ClearSession alongside the session state.
+                               # TdlsItemRecord: one list entry (Pending → Sent → Wilco, removed on Dump/TTL-expiry/activation); TdlsItemStatus
+TdlsChangeTracker.cs           # The broadcast seam for TdlsState: TdlsRemoval (one item that left Items — dumped, or removed by TTL/track-removal),
+                               # TdlsChangeSet (ChangedItemIds, Removed, FullState — what the host broadcasts from) and TdlsChangeTracker itself
+                               # (MarkChanged/MarkRemoved/MarkFullState; Drain takes everything accumulated and resets). IStateChangeConsumer.OnTdlsChanged
+                               # (Spine/IStateChangeConsumer.cs) is the interface both IActionHost and IHostConsumers share, so the router (after every
+                               # routed action) and the post-physics StateChanges spine step (for what the tick steps produced) each reach it once.
+                               # Transient — never snapshotted, cleared by TdlsState.ClearSession — mutated under TdlsState.Gate like the state it describes.
+TdlsMutations.cs               # Stateless mutation helpers for TdlsState (queue/send/mark-Wilco/dump/expire, ResolveFacilityForAirport, FindActiveItem) —
+                               # callers hold Gate externally. Helpers that allocate new ids advance NextItemId; helpers that change status return the
+                               # updated record (or null if the item didn't exist) and record it in TdlsState.Changes for the host to broadcast.
+                               # ClearancePayloadFromFields nulls an FE placeholder as well as an empty field, so a "- - - -" pick never reaches
+                               # SentPayload, the PDC text or the snapshot.
+TdlsCommandHandler.cs          # Static dispatch for TDLSQ / TDLSS / TDLSW / TDLSDUMP against SimulationEngine.Tdls: resolves the aircraft's TDLS facility,
+                               # mutates through TdlsMutations, and builds the ACARS PDC text for a TDLSS send; owns the auto/manual WILCO delay
+                               # (DefaultWilcoDelay). ArmTable's Tdls/TdlsOps rows call it (and SimulationEngine.ApplyTdlsOpConfig) as Sim bodies now,
+                               # not host slots. ValidateMandatoryFields treats a climb-via as satisfying a mandatory InitialAlt — one altitude
+                               # instruction per clearance (7110.65 4-3-2), so requiring both would be a dead end.
+TdlsClearance.cs               # The clearance a PDC carries: the nine canonical TDLSS payload fields, in the order the command describes them.
+                               # The simulation's clearance model — held by TdlsItemRecord and round-tripped by the snapshot; the server projects
+                               # it onto the CRC wire ClearanceDto on its way out. SidName / TransitionName keep the names the ids picked at send
+                               # time (null on a payload stored before names were kept, which falls back to the id lookup)
+TdlsFreqToken.cs               # The $FREQ token in a configured contact-info or local-info value: StudentPrimaryFrequencyMhz (the student position's
+                               # frequency as 0.000 MHz, null with no student position or a 0 frequency) and Apply (replaces the token, else returns the
+                               # value unchanged). A projection only — the shared cached ARTCC config is never written back
+TdlsPlaceholder.cs             # The one predicate for the FE's "no value" entry (blank, or dashes and spaces only — "- - - -" is a real selectable
+                               # list entry at SMF, not just an empty dropdown's display text). Shared by the Sim's PDC text and mandatory-field
+                               # gates and by the client editor's transition matching, climb-via rule and missing-field list.
+```

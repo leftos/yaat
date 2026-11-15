@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;

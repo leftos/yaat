@@ -11,7 +11,6 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation;
 
 namespace Yaat.Sim.Tests;

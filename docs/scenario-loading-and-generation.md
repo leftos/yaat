@@ -884,3 +884,40 @@ reattachment pattern.
    new type/variant and asserts the resulting `AircraftState`; for parse changes, add a `SpawnParser` unit test covering the
    ambiguous tokens. See [test-harness.md](test-harness.md).
 6. **Docs:** update `COMMANDS.md` for any `ADD` grammar change and this doc for the new type/variant.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Scenarios/
+ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
+InitialCallupClassifier.cs     # A spawn's presets + spawn kind → its InitialCallupPlan (who makes the solo first call, and when); the client's pre-load pacing hint reuses ClassifyPresets
+ScenarioResourceManifest.cs    # Scenario JSON → the ARTCC, neighbour ARTCCs and airports a load will fetch (shares the loader's airport chains), and the airports that need a full ground map; for the server's prefetch and its load warnings
+ScenarioExporter.cs            # The loader run backwards: a room's live aircraft (simulated + live-traffic shadows) → Scenario JSON, for the server's
+                               # ExportRoomAsScenario. Each aircraft becomes Parking/OnRunway/OnFinal/Coordinates by the same rules the loader restarts
+                               # them under; anything it cannot reproduce exports as Coordinates and is flagged (ScenarioExportFlag) instead of guessed.
+                               # A bare CVIA whose top is a TDLS EXC MAINT altitude exports as `CVIA nnn`.
+                               # See § Export.
+ArrivalRouteResolver.cs        # Shared STAR-route builder: PopulateNavigationRoute + ApplyAltitudeProfile (descend-via
+                               # overlay). Used by ScenarioLoader (onAltitudeProfile arrivals) + AircraftGenerator (ADD on-STAR)
+ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand,
+                               # IGeneratorConfig + the three generator configs (IFR arrival / VFR arrival / overflight), GeneratorsPayload
+                               # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
+ScenarioIdentity.cs            # Shared scenario ID fallback hashing/normalization for server load and sim replay
+GroundMapCheck.cs              # One airport's vNAS ground map for the scenario validator: NoMap / FetchFailed / ParseFailed / Ok + dropped features (GroundMapCheckResult, GroundMapOutcome); see docs/scenario-validation.md
+ScenarioValidator.cs           # Offline scenario checks (preset parse, SID/STAR versions, transition fixes, physical-vs-filed aircraft type); driven by the yaat-server CLI + Discord workflow, see docs/scenario-validation.md
+                               # ScenarioValidationResult, PresetParseFailure, ProcedureIssue, ProcedureIssueKind records
+                               # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
+AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult; FinalApproachPoint = the on-final position + glide-path altitude InitializeOnFinal and the generator spawn-clear check share
+DepartureSpawnClassifier.cs    # IsHeldSpawnCandidate(loaded) — classifies a departure for hold-for-release spawn-gating
+AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator); CategoryFor(EngineKind) = the category every pool type for an engine kind must categorize as
+GeneratorActivation.cs         # IsActive(config, elapsed) = Enabled ?? time window; the single per-tick activation gate
+HemisphericAltitude.cs         # 14 CFR 91.159(a) VFR cruising altitudes: snap a level overflight to odd/even+500 by course
+VfrSpawnSiting.cs              # VFR spawn gates: clear of Class B/C, clear of standard radar separation; bearing/range rolls
+SpawnRequest.cs                # Spawn descriptor
+ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Student3 etc.) to an ordinal;
+                               # IsRatingSufficient(rating, required) for the scenario gate and
+                               # IsInstructorOrAbove(rating) for the server connection gate. Shared by the
+                               # client picker filter and the server-side gating decision.
+```

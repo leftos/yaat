@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -7,7 +8,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Simulation.Snapshots;
 using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -16,8 +17,10 @@ namespace Yaat.Sim.Tests.Simulation;
 /// A pursuit that left a pattern leg and ends with the follower between its circuit's base turn point and the threshold on
 /// the approach side continues the circuit forward from where the follower is, never reversing it: the final when the
 /// follower passes the final join's gates, else a base from here when it is on the pattern side heading toward the final with
-/// room for the final turn, else the downwind when it flies the downwind's way, else the upwind. A spacing loss behind a lead
-/// on that final never takes the base or final join. Real OAK navdata, C172s on 28R right traffic.
+/// room for the final turn, else the downwind when it flies the downwind's way, else the upwind. Aligned on the final beyond
+/// that window, it joins the final. A spacing loss behind a lead on that final breaks off outward through the turn-out within
+/// the turn-out's range, re-enters by the downwind beyond it, and never takes the base or final join. Real OAK navdata, C172s
+/// on 28R right traffic.
 /// </summary>
 public class FollowReturnEntryTests(ITestOutputHelper output)
 {
@@ -248,6 +251,54 @@ public class FollowReturnEntryTests(ITestOutputHelper output)
         Assert.DoesNotContain(follower.Phases.Phases, phase => phase is DownwindPhase or BasePhase);
     }
 
+    /// <summary>
+    /// Aligned on the final 5 nm out, beyond the forward window (the circuit's base turn point plus
+    /// <see cref="VfrFollowPhase.BaseExtensionLimitNm"/>, about 3 nm here), when the lead despawns: the follower joins the final
+    /// rather than a downwind entry that would turn it back.
+    /// </summary>
+    [Fact]
+    public void AlignedOnTheFinalBeyondTheWindow_LeadDespawns_JoinsTheFinal()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = PursuerWhoseLeadDespawns(engine, 5.0, 0.0, rwy.TrueHeading, 1000);
+
+        engine.TickPhysics(0.25);
+        double edgeNm = ForwardWindowEdgeNm(rwy);
+        output.WriteLine($"forward window edge {edgeNm:F2} nm along the final; follower 5.00 nm out");
+        TraceReturn(follower);
+
+        Assert.True(edgeNm < 5.0, $"the forward window edge {edgeNm:F2} nm is not inside the follower's 5.00 nm");
+        AssertReturnedCleared(follower);
+        Assert.Contains(follower.Phases!.Phases, phase => phase is PatternEntryPhase { Kind: PatternEntryKind.Final });
+        Assert.DoesNotContain(follower.Phases.Phases, phase => phase is DownwindPhase or BasePhase);
+    }
+
+    /// <summary>
+    /// The along-final distance of the return's forward window edge on 28R right traffic: the circuit's base turn point plus
+    /// <see cref="VfrFollowPhase.BaseExtensionLimitNm"/>, from the same geometry the return computes (no authored layout).
+    /// </summary>
+    private static double ForwardWindowEdgeNm(RunwayInfo rwy)
+    {
+        PatternWaypoints wp = PatternGeometry.Compute(
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "C172", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = PatternAltitudeFt(rwy),
+                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
+        double baseTurnAlongNm = GeoMath.AlongTrackDistanceNm(
+            new LatLon(wp.BaseTurnLat, wp.BaseTurnLon),
+            Threshold(rwy),
+            rwy.TrueHeading.ToReciprocal()
+        );
+        return baseTurnAlongNm + VfrFollowPhase.BaseExtensionLimitNm;
+    }
+
     // ─── Upwind ───
 
     /// <summary>
@@ -312,29 +363,284 @@ public class FollowReturnEntryTests(ITestOutputHelper output)
     // ─── Spacing loss ───
 
     /// <summary>
-    /// From base, too close behind a lead on the same final to keep the spacing at the speed floor: the follow breaks off as
-    /// before and never takes a base or final join, which would put the follower back onto the lead's final.
+    /// From base 0.25 nm right of the centerline (inside one turn radius), too close behind a lead on the same final to keep
+    /// the spacing at the speed floor: the follow breaks off through the turn-out, its reversal turned away from the lead and
+    /// the field, at <see cref="VfrFollowPhase.BreakOffBankDegrees"/> of bank. Through the turn-out (up to the sample the lead
+    /// has passed at) it may cross 28R's final but stays at least 0.02 nm short of half the 28L/28R centerline spacing
+    /// (AIM 4-3-3 FIG 4-3-3 key 7) and takes no base or final join; then one base behind the lead. It never closes on the
+    /// lead, and its clearance to land stands.
     /// </summary>
     [Fact]
-    public void SpacingLossBehindALeadOnTheSameFinal_NeverJoinsTheBaseOrFinal()
+    public void SpacingLossBehindALeadOnTheSameFinal_BreaksOffOutwardThroughTheTurnOut()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        double halfSpacingNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(Threshold(Oak("28L")), Threshold(rwy), rwy.TrueHeading)) / 2.0;
+        AircraftState lead = AddFinalLead(engine, 1.6);
+        AircraftState follower = AddPursuerFromBase(engine, 1.8, 0.25, rwy.TrueHeading - 90.0, 700);
+
+        BreakOffTrace trace = FlyTheBreakOff(engine, lead, follower, rwy);
+
+        double bankRate = VfrFollowPhase.BreakOffTurnRateDegPerSec(trace.GroundSpeedAtWarningKt);
+        output.WriteLine(
+            $"30° rate {bankRate:F3} deg/s at {trace.GroundSpeedAtWarningKt:F1} kt; first-10-s overrides "
+                + string.Join(", ", trace.EarlyTurnRateOverrides.Select(r => r?.ToString("F3") ?? "none"))
+        );
+        Assert.NotEmpty(trace.EarlyTurnRateOverrides);
+        Assert.All(trace.EarlyTurnRateOverrides, rate => Assert.True((rate is { } r) && (Math.Abs(r - bankRate) <= 0.01), $"override {rate}"));
+        output.WriteLine(
+            $"28L/28R centerline spacing {2.0 * halfSpacingNm:F3} nm; minimum pattern-side cross-track through the lead passing "
+                + $"{trace.MinSideThroughPassedNm:F3} nm"
+        );
+        Assert.True(
+            trace.MinSideThroughPassedNm >= -halfSpacingNm + 0.02,
+            $"pattern-side cross-track fell to {trace.MinSideThroughPassedNm:F3} nm by the time the lead passed, "
+                + $"within 0.02 nm of half the parallel spacing ({-halfSpacingNm:F3} nm)"
+        );
+    }
+
+    /// <summary>
+    /// The break-off bank and the turn-rate override it replaced survive a snapshot round-trip; an older snapshot has none.
+    /// </summary>
+    [Fact]
+    public void BreakOffBank_SurvivesSnapshotRoundTrip()
     {
         SimulationEngine engine = BuildEngine();
         RunwayInfo rwy = Oak("28R");
         AddFinalLead(engine, 1.6);
         AircraftState follower = AddPursuerFromBase(engine, 1.8, 0.25, rwy.TrueHeading - 90.0, 700);
+        // 3°/s, a turn radius (0.33 nm at 62.6 kt) wider than the follower's 0.246 nm offset, so the break-off bank fires.
+        follower.Targets.TurnRateOverride = 3.0;
+        for (int i = 0; (i < 20 * 4) && !HasSpacingLossWarning(follower); i++)
+        {
+            engine.TickPhysics(0.25);
+        }
 
-        for (int i = 0; (i < 5 * 4) && (follower.Phases?.CurrentPhase is VfrFollowPhase); i++)
+        VfrFollowPhase phase = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        var original = (VfrFollowPhaseDto)phase.ToSnapshot();
+        string json = JsonSerializer.Serialize<PhaseDto>(original, RecordingJsonOptions.Default);
+        VfrFollowPhaseDto dto = Assert.IsType<VfrFollowPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
+        var copy = (VfrFollowPhaseDto)VfrFollowPhase.FromSnapshot(dto).ToSnapshot();
+
+        Assert.True(original.BreakOffBankFlown);
+        Assert.Equal(3.0, original.BreakOffReplacedTurnRateOverride);
+        Assert.True(copy.BreakOffBankFlown);
+        Assert.Equal(3.0, copy.BreakOffReplacedTurnRateOverride);
+        var older = new VfrFollowPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 1.0,
+            TargetCallsign = Leader,
+        };
+        Assert.Null(((VfrFollowPhaseDto)VfrFollowPhase.FromSnapshot(older).ToSnapshot()).BreakOffBankFlown);
+    }
+
+    /// <summary>
+    /// <see cref="SpacingLossBehindALeadOnTheSameFinal_BreaksOffOutwardThroughTheTurnOut"/> from 0.8 nm right of the centerline:
+    /// the turn-out stays on the pattern side until the lead has passed.
+    /// </summary>
+    [Fact]
+    public void SpacingLossFarOnThePatternSide_TurnOutStaysOnThePatternSide()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AircraftState lead = AddFinalLead(engine, 1.6);
+        AircraftState follower = AddPursuerFromBase(engine, 1.8, 0.8, rwy.TrueHeading - 90.0, 700);
+
+        BreakOffTrace trace = FlyTheBreakOff(engine, lead, follower, rwy);
+
+        output.WriteLine($"minimum pattern-side cross-track before the lead passed {trace.MinSideBeforePassedNm:F3} nm");
+        Assert.True(trace.MinSideBeforePassedNm > 0.0, $"the turn-out crossed 28R's final ({trace.MinSideBeforePassedNm:F3} nm)");
+        Assert.DoesNotContain(trace.EarlyTurnRateOverrides, rate => IsBreakOffRate(rate, trace));
+    }
+
+    /// <summary>
+    /// From base 6.0 nm out and 0.25 nm right of the centerline, beyond <see cref="VfrFollowPhase.TurnOutRangeNm"/> of the
+    /// threshold, too close behind a lead 5.8 nm out on the same final: no turn-out; the follow ends into the return's downwind
+    /// entry, with no "no room to turn base" note.
+    /// </summary>
+    [Fact]
+    public void SpacingLossBeyondTheTurnOutRange_ReentersByTheDownwind()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AddFinalLead(engine, 5.8);
+        AircraftState follower = AddPursuerFromBase(engine, 6.0, 0.25, rwy.TrueHeading - 90.0, 1000);
+        Assert.True(GeoMath.DistanceNm(follower.Position, Threshold(rwy)) > VfrFollowPhase.TurnOutRangeNm, "the follower starts within range");
+
+        for (int i = 1; (i <= 20 * 4) && (follower.Phases?.CurrentPhase is VfrFollowPhase); i++)
+        {
+            engine.TickPhysics(0.25);
+            Assert.False(follower.Phases?.CurrentPhase is VfrFollowPhase { TurningOut: true }, $"t={i / 4.0:F2}s turned out beyond the range");
+        }
+
+        TraceReturn(follower);
+        Assert.True(HasSpacingLossWarning(follower), "no \"unable to maintain separation\" warning within 20 s");
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.True(IndexOf<DownwindPhase>(follower) >= 0, "no downwind entry after the spacing loss");
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("no room to turn base", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <see cref="SpacingLossBehindALeadOnTheSameFinal_BreaksOffOutwardThroughTheTurnOut"/>'s break-off with TRATE 5 issued
+    /// during the turn-out: the controller's turn rate survives the turn-out's end.
+    /// </summary>
+    [Fact]
+    public void BreakOff_TrateDuringTurnOut_SurvivesTheTurnOutEnd()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AddFinalLead(engine, 1.6);
+        AircraftState follower = AddPursuerFromBase(engine, 1.8, 0.25, rwy.TrueHeading - 90.0, 700);
+        for (int i = 0; (i < 20 * 4) && !HasSpacingLossWarning(follower); i++)
+        {
+            engine.TickPhysics(0.25);
+        }
+
+        Assert.True(follower.Phases?.CurrentPhase is VfrFollowPhase { TurningOut: true }, "the spacing loss did not turn out");
+        CommandResult result = CommandDispatcher.Dispatch(new SetTurnRateCommand(5.0), follower, TestDispatch.Context(Random.Shared));
+        Assert.True(result.Success, result.Message);
+        for (int i = 0; (i < 90 * 4) && (follower.Phases?.CurrentPhase is VfrFollowPhase { TurningOut: true }); i++)
         {
             engine.TickPhysics(0.25);
         }
 
         TraceReturn(follower);
-        Assert.Contains(follower.PendingWarnings, w => w.Contains("unable to maintain separation", StringComparison.Ordinal));
-        Assert.IsNotType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
-        Assert.IsNotType<BasePhase>(follower.Phases.CurrentPhase);
-        Assert.False(StartsWithBaseOrFinalJoin(follower), "the return joined the base or the final");
-        Assert.True(IndexOf<UpwindPhase>(follower) < 0, "the spacing-loss return took the upwind leg");
-        Assert.True(IndexOf<DownwindPhase>(follower) >= 0, "no downwind entry after the spacing loss");
-        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
+        Assert.False(follower.Phases?.CurrentPhase is VfrFollowPhase { TurningOut: true }, "the turn-out never ended");
+        Assert.Equal(5.0, follower.Targets.TurnRateOverride);
+        Assert.True(follower.Targets.HasExplicitTurnRate, "the controller's turn rate was dropped");
     }
+
+    /// <summary>What <see cref="FlyTheBreakOff"/> measured.</summary>
+    private sealed class BreakOffTrace(double gapAtWarningNm, double groundSpeedAtWarningKt)
+    {
+        public double GapAtWarningNm { get; } = gapAtWarningNm;
+        public double GroundSpeedAtWarningKt { get; } = groundSpeedAtWarningKt;
+        public double GapNm { get; set; } = gapAtWarningNm;
+        public double MinGapNm { get; set; } = gapAtWarningNm;
+
+        /// <summary>The least pattern-side cross-track (nm) through the sample the lead has passed at: the turn-out itself.</summary>
+        public double MinSideThroughPassedNm { get; set; } = double.MaxValue;
+        public double MinSideBeforePassedNm { get; set; } = double.MaxValue;
+        public int? PassedAtSecond { get; set; }
+
+        /// <summary>The follower's turn-rate override at each of the first 10 samples it is turning out.</summary>
+        public List<double?> EarlyTurnRateOverrides { get; } = [];
+    }
+
+    /// <summary>
+    /// Ticks until the spacing-loss warning (failing past 20 s), then samples once a second for 60 s (or until the lead lands
+    /// or despawns) with <see cref="SampleBreakOff"/>, and asserts the gap at the end is larger than at the warning.
+    /// </summary>
+    private BreakOffTrace FlyTheBreakOff(SimulationEngine engine, AircraftState lead, AircraftState follower, RunwayInfo rwy)
+    {
+        for (int i = 0; (i < 20 * 4) && !HasSpacingLossWarning(follower); i++)
+        {
+            engine.TickPhysics(0.25);
+        }
+
+        TraceReturn(follower);
+        Assert.True(HasSpacingLossWarning(follower), "no \"unable to maintain separation\" warning within 20 s");
+        var trace = new BreakOffTrace(GeoMath.DistanceNm(follower.Position, lead.Position), follower.GroundSpeed);
+        output.WriteLine(
+            $"at the warning: gap {trace.GapAtWarningNm:F3} nm, pattern-side cross-track {PatternSideCrossTrackNm(follower, rwy):F3} nm"
+        );
+
+        for (int second = 1; second <= 60; second++)
+        {
+            TickSeconds(engine, 1);
+            if (engine.World.FindAircraft(Leader) is null)
+            {
+                output.WriteLine($"t={second}s lead despawned, sampling stopped");
+                break;
+            }
+
+            SampleBreakOff(trace, second, lead, follower, rwy);
+            if (lead.IsOnGround)
+            {
+                output.WriteLine($"t={second}s lead landed, sampling stopped");
+                break;
+            }
+        }
+
+        output.WriteLine(
+            $"at the end: gap {trace.GapNm:F3} nm (least {trace.MinGapNm:F3} nm); lead passed at {trace.PassedAtSecond?.ToString() ?? "never"} s"
+        );
+        Assert.True(trace.GapNm > trace.GapAtWarningNm, $"gap {trace.GapNm:F3} nm did not open from {trace.GapAtWarningNm:F3} nm");
+        return trace;
+    }
+
+    /// <summary>
+    /// One sample of the break-off: in a turn-out at the first sample; the gap never more than 0.10 nm under the gap at the
+    /// warning (the reversal from a base heading swings through the lead's final direction before it opens); the clearance to
+    /// land kept; no base or final join and no upwind until the turn-out ends (the lead has passed), and then a base behind
+    /// the lead with the gap at or above the gap at the warning and no turn-rate override left at the break-off bank's rate.
+    /// The pattern-side cross-track counts toward <see cref="BreakOffTrace.MinSideThroughPassedNm"/> only up to and including
+    /// the sample the lead has passed at: the turn-out itself, not the base turned behind the lead after it.
+    /// </summary>
+    private void SampleBreakOff(BreakOffTrace trace, int second, AircraftState lead, AircraftState follower, RunwayInfo rwy)
+    {
+        trace.GapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
+        trace.MinGapNm = Math.Min(trace.MinGapNm, trace.GapNm);
+        double sideNm = PatternSideCrossTrackNm(follower, rwy);
+        bool turningOut = follower.Phases?.CurrentPhase is VfrFollowPhase { TurningOut: true };
+        LogBreakOffSample(trace, second, follower, sideNm, turningOut);
+        if (second == 1)
+        {
+            Assert.True(turningOut, "the spacing loss did not turn out");
+        }
+
+        if (turningOut && (second <= 10))
+        {
+            trace.EarlyTurnRateOverrides.Add(follower.Targets.TurnRateOverride);
+        }
+
+        Assert.True(
+            trace.GapNm >= trace.GapAtWarningNm - 0.10,
+            $"t={second}s gap {trace.GapNm:F3} nm closed on the lead from {trace.GapAtWarningNm:F3} nm"
+        );
+        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases!.LandingClearance);
+        if (trace.PassedAtSecond is not null)
+        {
+            return;
+        }
+
+        trace.MinSideThroughPassedNm = Math.Min(trace.MinSideThroughPassedNm, sideNm);
+        if (turningOut)
+        {
+            trace.MinSideBeforePassedNm = Math.Min(trace.MinSideBeforePassedNm, sideNm);
+            Assert.False(StartsWithBaseOrFinalJoin(follower), $"t={second}s the break-off joined the base or the final");
+            Assert.True(IndexOf<UpwindPhase>(follower) < 0, $"t={second}s the break-off took the upwind leg");
+            return;
+        }
+
+        trace.PassedAtSecond = second;
+        Assert.IsType<BasePhase>(follower.Phases.CurrentPhase);
+        Assert.True(trace.GapNm >= trace.GapAtWarningNm, $"t={second}s base turned {trace.GapNm:F3} nm behind the lead");
+        Assert.False(
+            IsBreakOffRate(follower.Targets.TurnRateOverride, trace),
+            $"t={second}s the turn-out ended with the break-off bank's rate left ({follower.Targets.TurnRateOverride:F3} deg/s)"
+        );
+    }
+
+    /// <summary>One <see cref="SampleBreakOff"/> line: phase, turn-out state, gap, cross-track, heading and turn-rate override.</summary>
+    private void LogBreakOffSample(BreakOffTrace trace, int second, AircraftState follower, double sideNm, bool turningOut) =>
+        output.WriteLine(
+            $"t={second}s {follower.Phases?.CurrentPhase?.GetType().Name ?? "none"} turningOut {turningOut} gap {trace.GapNm:F3} "
+                + $"side {sideNm:F3} hdg {follower.TrueHeading.Degrees:F0} trate {follower.Targets.TurnRateOverride?.ToString("F2") ?? "none"}"
+        );
+
+    /// <summary>
+    /// True when <paramref name="rate"/> (deg/s) is within 0.01 of the <see cref="VfrFollowPhase.BreakOffBankDegrees"/> rate at
+    /// the ground speed at the warning.
+    /// </summary>
+    private static bool IsBreakOffRate(double? rate, BreakOffTrace trace) =>
+        (rate is { } r) && (Math.Abs(r - VfrFollowPhase.BreakOffTurnRateDegPerSec(trace.GroundSpeedAtWarningKt)) <= 0.01);
+
+    private static bool HasSpacingLossWarning(AircraftState follower) =>
+        follower.PendingWarnings.Exists(w => w.Contains("unable to maintain separation", StringComparison.Ordinal));
+
+    /// <summary>The follower's cross-track from 28R's extended centerline, positive toward the right-traffic pattern side.</summary>
+    private static double PatternSideCrossTrackNm(AircraftState follower, RunwayInfo rwy) =>
+        GeoMath.SignedCrossTrackDistanceNm(follower.Position, Threshold(rwy), rwy.TrueHeading);
 }

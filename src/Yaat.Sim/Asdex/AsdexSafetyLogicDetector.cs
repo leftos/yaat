@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Asdex;

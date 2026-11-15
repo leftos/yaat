@@ -6,7 +6,7 @@
 
 ## The fillet generator
 
-The fillet generator is a single implementation (`FilletArcGenerator`, namespace `Yaat.Sim.Data.Airport.Fillet`, under `src/Yaat.Sim/Data/Airport/Fillet/`). The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the `FilletArcGeneratorRouter` selector were deleted when it became the only fillet generator.
+The fillet generator is a single implementation (`FilletArcGenerator`, namespace `Yaat.Sim.Data.Airport`, with its helpers in the `Yaat.Sim.Data.Airport.Fillet` namespace under `src/Yaat.Sim/Data/Airport/Fillet/`). The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the `FilletArcGeneratorRouter` selector were deleted when it became the only fillet generator.
 
 `FilletMode` has two values: `None` (raw graph, no-op pass) and `Standard` (the production generator). The other two ground-stack layers — [pathfinder](./pathfinder.md) and [navigator](./navigator.md) — are likewise single-implementation.
 
@@ -29,7 +29,7 @@ The generator produces two things, mutating the layout in place:
 
 ### Selection & invocation
 
-`GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode, FilletMode)` is the entry point (`src/Yaat.Sim/Data/Airport/GeoJsonParser.cs:43`). After it builds nodes/edges and rebuilds adjacency (Step 7), Step 8 runs the fillet pass **only when `filletMode != None`** (`GeoJsonParser.cs:288`):
+`GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode, inputs, FilletMode)` is the entry point (`src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`; `inputs` is the airport's `LayoutInputs`: stand lead-ins, spot-edge chains and the tower-cab videomap). After it builds nodes/edges (including the sidecar spot-edge chains, Step 6c) and rebuilds adjacency (Step 7), Step 8 runs the fillet pass **only when `filletMode != None`**; Step 9 then marks each runway bar as its runway's hold line or a short fallback bar, once every node is in its final place:
 
 ```csharp
 FilletGeneratorFactory.Create(filletMode).Apply(layout);
@@ -40,7 +40,7 @@ FilletGeneratorFactory.Create(filletMode).Apply(layout);
 | `None` | `NullFilletArcGenerator.Instance` | no-op; raw intersection graph (used by `FilletMode.None` tests + comparison baselines) |
 | `Standard` | `new FilletArcGenerator()` | plan-then-execute (this doc) |
 
-`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(...)` / `Parse(..., applyFillets: bool)` map to `Standard` / `None` (`GeoJsonParser.cs:35`, `:40`) — **`Standard` is the parser's default**. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `Standard`) for enumeration harnesses.
+`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(..., inputs)` / `Parse(..., inputs, applyFillets: bool)` map to `Standard` / `None` — **`Standard` is the parser's default**, and `ParseWithDiagnostics` / `ParseMultiple` parse with it too. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `Standard`) for enumeration harnesses.
 
 The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.md)** walks it to build `TaxiRoute`s, and the **[navigator](./navigator.md)** compiles each `GroundArc` into a `PathPrimitiveBezier` and follows its cubic Bézier closed-form.
 
@@ -64,19 +64,19 @@ Because the plan is computed against the **pre-fillet** layout and the executor 
 
 ### Global edge-split connectivity & the no-true-disconnection gate
 
-`FilletEdgeSplitPlanner.Plan` (`Fillet/FilletEdgeSplitPlanner.cs:29`) splits each **original** edge exactly once by the cuts that land on it, drops **only** the stub incident to a removed junction, and keeps every other sub-segment. A removed junction never appears as a surviving endpoint (its endpoints are replaced by cut nodes before any mutation).
+`FilletEdgeSplitPlanner.Plan` (`Fillet/FilletEdgeSplitPlanner.cs`) splits each **original** edge exactly once by the cuts that land on it, drops **only** the stub incident to a removed junction, and keeps every other sub-segment. A removed junction never appears as a surviving endpoint (its endpoints are replaced by cut nodes before any mutation).
 
 The correctness bar is the **no-true-disconnection** gate: structural validity + repair-counter fields all zero + parking→hold-short reachability preserved + **no pre-fillet node left reachable in only one of the pre/post-fillet layouts**.
 
 ### Runway-bearing parity
 
-`CompareRunwayBearings` reports 0 mismatches vs Legacy. This falls out of two design choices rather than a dedicated pass: the edge-split preserves each source edge's `(Nodes[0]→Nodes[1])` orientation on every sub-segment (`FilletEdgeSplitPlanner` carries `IsRunwayCenterline` through `MakeEdge`, `:179`), and `BuildBezier` projects control points **toward** the junction (`FilletGeometry.cs:130`).
+`CompareRunwayBearings` reports 0 mismatches vs Legacy. This falls out of two design choices rather than a dedicated pass: the edge-split preserves each source edge's `(Nodes[0]→Nodes[1])` orientation on every sub-segment (`FilletEdgeSplitPlanner` carries `IsRunwayCenterline` through `MakeEdge`), and `BuildBezier` projects control points **toward** the junction (`FilletGeometry.cs`).
 
 Earlier the bezier projected *away* along the arm, producing S-cusps / near-zero-radius arcs and a reversed `RWY10L/28R` segment; the toward-junction projection fixed both.
 
 ### Corner-radius policy and the radius floor
 
-The requested radius per corner comes from `FilletGeometry.SelectMaxRadius` (`FilletGeometry.cs:29`), keyed off edge type and turn angle:
+The requested radius per corner comes from `FilletGeometry.SelectMaxRadius` (`FilletGeometry.cs`), keyed off edge type and turn angle:
 
 | Corner involves | Turn angle | Requested radius |
 |---|---|---|
@@ -85,9 +85,9 @@ The requested radius per corner comes from `FilletGeometry.SelectMaxRadius` (`Fi
 | a runway centerline | > 45° | `RunwayExitRadiusFt = 100 ft` |
 | neither (taxiway×taxiway) | any | `DefaultRadiusFt = 75 ft` |
 
-The arc the executor actually builds is sized to `min(requested, EffectiveMinRadiusFt(tangent geometry))` (`FilletPlanExecutor.cs:90`) so the stored `MinRadiusOfCurvatureFt` — the value the navigator reads for turn-speed back-propagation — is honest, not an over-bulged requested-radius bezier.
+The arc the executor actually builds is sized to `min(requested, EffectiveMinRadiusFt(tangent geometry))` (`FilletPlanExecutor.cs`) so the stored `MinRadiusOfCurvatureFt` — the value the navigator reads for turn-speed back-propagation — is honest, not an over-bulged requested-radius bezier.
 
-The **radius floor** is `FilletConstants.RadiusFloorFt = 5 ft`: a corner whose effective radius drops below the floor is rejected at plan time (`ArmCutResolver.cs:186`) or, if it slips through to execution, degrades to a chord (below). Corner radii are deliberately capped where two intersections sit close together: cut placement bounds tangent distance to avoid overrunning the adjacent intersection, so a tight junction gets a tighter arc rather than one that overshoots.
+The **radius floor** is `FilletConstants.RadiusFloorFt = 5 ft`: a corner whose effective radius drops below the floor is rejected at plan time (`ArmCutResolver.cs`) or, if it slips through to execution, degrades to a chord (below). Corner radii are deliberately capped where two intersections sit close together: cut placement bounds tangent distance to avoid overrunning the adjacent intersection, so a tight junction gets a tighter arc rather than one that overshoots.
 
 ### Manual-arc detection
 
@@ -97,7 +97,7 @@ Before classifying junctions, `ManualArcDetector.Detect` (`Fillet/ManualArcDetec
 
 A tangent cut is a new node placed a computed distance **along an arm, away from the junction**, where the arc tangents off.
 
-When a cut lands within `CoincidentNodeThresholdFt = 5 ft` of a **pre-existing stable node** — a `TaxiwayIntersection`, `Spot`, `Parking`, `Helipad`, or `RunwayHoldShort` that is not a runway-centerline projection (`FilletPlanCutRedirect.IsStableAnchorTarget`) — the plan **redirects** the cut onto that existing node instead of materializing a duplicate tangent on top of it (`ExtendWithStableAnchors`, `FilletPlanCutRedirect.cs:19`).
+When a cut lands within `CoincidentNodeThresholdFt = 5 ft` of a **pre-existing stable node** — a `TaxiwayIntersection`, `Spot`, `Parking`, `Helipad`, or `RunwayHoldShort` that is not a runway-centerline projection (`FilletPlanCutRedirect.IsStableAnchorTarget`) — the plan **redirects** the cut onto that existing node instead of materializing a duplicate tangent on top of it (`ExtendWithStableAnchors`, `FilletPlanCutRedirect.cs`).
 
 This keeps the graph from sprouting near-coincident node pairs the normalizer would just have to merge. The redirect is the source of a subtle namespace invariant — see Caveats.
 
@@ -130,7 +130,7 @@ The connector itself is a `RWY…:link` edge. It is **not** a runway centerline 
 
 ## Step-by-step pipeline walkthrough — `FilletArcGenerator.Apply`
 
-`FilletArcGenerator.Apply` (`src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs:16`):
+`FilletArcGenerator.Apply` (`src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs`):
 
 **1. Manual-arc detection + ID seeding.** `ManualArcDetector.Detect` collects shape-point node IDs. `maxNodeId` = the largest existing node ID. Two counters are seeded:
    - `idCounter` (new tangent-cut **node** IDs) starts at `maxNodeId + 1`.
@@ -193,7 +193,7 @@ Verify each against current code before relying on it.
 
 ### Cut-ID / node-ID type distinction (and the offset invariant behind it)
 
-Planning **cut IDs** and graph **node IDs** are **type-distinct**, so confusing them is a compile error. `CutId` (a `readonly record struct`, `Fillet/CutId.cs`) keys the cut dictionaries (`Cuts`, `prunedCuts`, `cutNode`); a redirected endpoint is a `FilletEndpoint` — a sealed `Cut(CutId) | Node(int)` union (`Fillet/FilletEndpoint.cs`). The executor resolves by matching the union, not by a bare-int lookup (`FilletPlanExecutor.cs:33`):
+Planning **cut IDs** and graph **node IDs** are **type-distinct**, so confusing them is a compile error. `CutId` (a `readonly record struct`, `Fillet/CutId.cs`) keys the cut dictionaries (`Cuts`, `prunedCuts`, `cutNode`); a redirected endpoint is a `FilletEndpoint` — a sealed `Cut(CutId) | Node(int)` union (`Fillet/FilletEndpoint.cs`). The executor resolves by matching the union, not by a bare-int lookup (`FilletPlanExecutor.cs`):
 
 ```csharp
 GroundNode? ResolveEndpoint(FilletEndpoint ep) => ep switch
@@ -214,7 +214,7 @@ The fix was the disjoint range (cut IDs start at `maxNodeId + 1_000_000`) + havi
 
 ### Corner arcs vs corner-chords
 
-A `corner@...` entry is a real `GroundArc` (smooth Bezier). A `corner-chord@...` entry is a straight `GroundEdge` — the **degenerate fallback** emitted when `bez.MinRadiusFt < FilletConstants.RadiusFloorFt` (`FilletPlanExecutor.cs:103`).
+A `corner@...` entry is a real `GroundArc` (smooth Bezier). A `corner-chord@...` entry is a straight `GroundEdge` — the **degenerate fallback** emitted when `bez.MinRadiusFt < FilletConstants.RadiusFloorFt` (`FilletPlanExecutor.cs`).
 
 The chord keeps the two tangent cuts connected rather than relying on a sub-floor arc the normalizer would delete, so it is load-bearing for connectivity — do not remove it. A chord at a corner means that corner is too tight to round; the aircraft takes it as a sharp vertex.
 
@@ -229,7 +229,7 @@ The principle: **mirror the source; adapt consumers, don't invent adjacency.** T
 
 ### Membership junction arcs ("X - Y") and `MatchesTaxiway`
 
-A corner arc between two **differently-named** taxiways carries both names (`TaxiwayNames` length 2; e.g. `["C1","B"]`) and renders its display name with a `" - "` separator — `C1 - B` (`AirportGroundLayout.cs:310`; the `" - "` separator avoids colliding with `/` in runway IDs like `RWY30/12`). `GroundArc.MatchesTaxiway(name)` returns true if the queried name is **any** of the arc's names (`AirportGroundLayout.cs:312`).
+A corner arc between two **differently-named** taxiways carries both names (`TaxiwayNames` length 2; e.g. `["C1","B"]`) and renders its display name with a `" - "` separator — `C1 - B` (`AirportGroundLayout.cs`; the `" - "` separator avoids colliding with `/` in runway IDs like `RWY30/12`). `GroundArc.MatchesTaxiway(name)` returns true if the queried name is **any** of the arc's names (`AirportGroundLayout.cs`).
 
 Downstream, a bare-taxiway walk for `B` therefore *sees* a `C1 - B` arc as a valid `B` step — the arc is a legitimate turn-connector, not noise. This membership semantics is what makes the pathfinder's "single-name continuation beats membership-only arc" rule necessary; see [`./pathfinder.md`](./pathfinder.md) "Membership junction arcs". Do not strip the second name to make membership stricter — the arc genuinely belongs to both taxiways.
 
@@ -239,12 +239,12 @@ Every generated element stamps an `Origin` string, surfaced in LayoutInspector t
 
 | Origin prefix | Element | Emitted by |
 |---|---|---|
-| `tangent-cut@J<id>/<taxiway>` | tangent-cut node | `FilletPlanExecutor.cs:190` |
-| `edge-split/<taxiway>` | surviving sub-segment | `FilletEdgeSplitPlanner.cs:177` |
-| `edge-split-redirect/<taxiway>` | cutless-arm redirect segment | `FilletEdgeSplitPlanner.cs:177` |
-| `corner@J<id>/<taxiwayA>/<taxiwayB>` | corner **arc** | `FilletPlanExecutor.cs:121` |
-| `corner-chord@J<id>/<taxiway>` | corner **chord** (degenerate fallback) | `FilletPlanExecutor.cs:102` |
-| `straight-connector@J<id>/<taxiway>` | straight connector | `FilletPlanExecutor.cs:136` |
+| `tangent-cut@J<id>/<taxiway>` | tangent-cut node | `FilletPlanExecutor.cs` |
+| `edge-split/<taxiway>` | surviving sub-segment | `FilletEdgeSplitPlanner.cs` |
+| `edge-split-redirect/<taxiway>` | cutless-arm redirect segment | `FilletEdgeSplitPlanner.cs` |
+| `corner@J<id>/<taxiwayA>/<taxiwayB>` | corner **arc** | `FilletPlanExecutor.cs` |
+| `corner-chord@J<id>/<taxiway>` | corner **chord** (degenerate fallback) | `FilletPlanExecutor.cs` |
+| `straight-connector@J<id>/<taxiway>` | straight connector | `FilletPlanExecutor.cs` |
 
 `Origin` is `[JsonIgnore]` (runtime-only; not persisted in snapshots). It is a plain string; the deleted Legacy generator instead stamped `Fillet:`-prefixed strings (`Fillet:phase-c-arc@`, `Fillet:phase-d-shorten@`, etc.) through a typed-discriminator system, which was removed with it.
 

@@ -7,8 +7,6 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
-using Yaat.Sim.Phases.Pattern;
-using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;

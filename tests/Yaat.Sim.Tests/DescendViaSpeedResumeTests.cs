@@ -7,8 +7,6 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Testing;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation;
 using OakesHarness = Yaat.Sim.Tests.Simulation.DescendViaSupersedesEarlierAltitudeTests.Harness;
 

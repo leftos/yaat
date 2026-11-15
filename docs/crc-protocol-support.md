@@ -153,7 +153,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] `DeleteStarsLineNumbers(Topic, List<string>)` — aircraft removal
 - [x] `ReceiveStarsShortTermConflicts(Topic, List<StarsShortTermConflictDto>)` — event-driven; detector is `ConflictAlertDetector` in Yaat.Sim, fan-out at `CrcBroadcastService.BroadcastConflictAlertsAsync`
 - [x] `DeleteStarsShortTermConflicts(Topic, List<string>)` — paired with detector
-- [x] `ReceiveStarsReadoutArea(StarsReadoutAreaDto)` — direct-push helper on `CrcClientState` (`SendStarsReadoutAreaAsync`); no command-handler consumers yet
+- [x] `ReceiveStarsReadoutArea(StarsReadoutAreaDto)` — direct-push helper on `CrcClientState` (`SendStarsReadoutAreaAsync`); the flight-plan and STARS command handlers push their echo lines through it
 - [x] `ReceiveStarsCoordinationLists(Topic, List<StarsCoordinationListDto>)` — coordination channel broadcasts with status/expiry
 - [x] `ReceiveStarsConsolidationItems(Topic, List<StarsConsolidationItemDto>)` — consolidation hierarchy broadcasts
 
@@ -266,9 +266,9 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 ### Bucket D — ERAM milestone MVP (done)
 
 - [x] `Hubs/CrcClientState.Eram.cs` scaffolding + dispatch entries
-- [x] `AircraftState` ERAM fields: `IsDwellLocked`, `IsVci`, `EramLeaderDirection/Length`, `EramInterimAltitude`, `LocalInterimAltitude`, `ProcedureAltitude`, `ControllerEnteredAltitude`
+- [x] `AircraftEramState` (`AircraftState.Eram`) ERAM fields: per-sector `SectorDisplays` (`EramSectorDisplay`: `LeaderDirection`, `LeaderLength`, `IsDwellLocked`), `OnFrequencySectorIds` (the VCI indicator), `InterimAltitude`, `LocalInterimAltitude`, `ProcedureAltitude`, `ControllerEnteredAltitude`
 - [x] `TrainingRoom.EramState` (`EramRoomState`) — sector config, route lines, quicklook sets, RD toggles
-- [x] `CrcVisibilityTracker.IsVisibleOnEram` predicate (currently mirrors STARS; en-route/approach split is a future refinement)
+- [x] `CrcVisibilityTracker.IsVisibleOnEram` predicate (the Sim's coverage hysteresis side, `AircraftEramState.IsVisibleOnEramCoverage`, else the stateless `DisconnectCoastRules.IsVisibleOnEram` floor check; a frozen or QT-coasted track is always visible)
 - [x] `ProcessEramMessage` MVP verbs: QN, QF, QL, RD, QU
 - [x] `SetEramSectorConfiguration` handler + per-sector broadcast
 - [x] `ToggleEramDwellLock` handler

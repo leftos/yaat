@@ -123,6 +123,34 @@ public static class PilotRequestTracker
     }
 
     /// <summary>
+    /// Stamps <see cref="AircraftState.ExpectedApproachAdvisedAtSeconds"/> when the compound tells the pilot what approach to
+    /// expect (EAPP), so the pilot does not request an approach assignment; a later EAPP restamps it. An EAPP followed by a
+    /// destination change (APT) later in the same compound is not advice for the new destination and does not stamp. Called
+    /// for the student's or a controller AI's accepted command (<c>SimulationEngine.AnswerAcceptedCommand</c>); the
+    /// scenario's seeded expected approach and scripted presets never stamp.
+    /// </summary>
+    public static void StampExpectedApproach(AircraftState aircraft, CompoundCommand compound, double nowSeconds)
+    {
+        bool advised = false;
+        foreach (ParsedCommand? command in compound.Blocks.SelectMany(block => block.Commands))
+        {
+            if (command is ExpectApproachCommand)
+            {
+                advised = true;
+            }
+            else if (command is ChangeDestinationCommand)
+            {
+                advised = false;
+            }
+        }
+
+        if (advised)
+        {
+            aircraft.ExpectedApproachAdvisedAtSeconds = nowSeconds;
+        }
+    }
+
+    /// <summary>
     /// Whether <paramref name="command"/> clears the aircraft lower: an altitude command to below
     /// <paramref name="altitudeFt"/>, or one of the descents that answer a request for lower and name no altitude (a descend
     /// via, a constrained direct, an approach clearance).
@@ -295,6 +323,18 @@ public static class PilotRequestTracker
         && (aircraft.FlightPlan.IsVfr || !PilotProactive.IsAwaitingFurtherClearance(aircraft));
 
     /// <summary>
+    /// An approach request is moot once the aircraft holds an approach clearance, or once the controller told it what approach
+    /// to expect after it asked: advice given before the request (an EAPP before a visual the pilot then could not fly) does
+    /// not answer it.
+    /// </summary>
+    private static bool IsApproachMoot(PilotPendingRequest request, AircraftState aircraft) =>
+        (request.Kind == PilotPendingRequestKind.Approach)
+        && (
+            PilotProactive.HasApproachClearance(aircraft)
+            || ((aircraft.ExpectedApproachAdvisedAtSeconds is { } advisedAt) && (advisedAt >= request.FirstRequestedAtSeconds))
+        );
+
+    /// <summary>
     /// Whether an open request no longer needs its follow-up because the aircraft has moved past it, so it is closed
     /// rather than re-announced.
     /// </summary>
@@ -325,6 +365,13 @@ public static class PilotRequestTracker
         // A request for further clearance is moot once a lateral clearance has taken the aircraft off both the direct to
         // its clearance limit and the hold there, or once the flight is VFR (IFR cancelled).
         if (IsFurtherClearanceMoot(request, aircraft))
+        {
+            return true;
+        }
+
+        // An approach request is moot once the aircraft holds an approach clearance, active or deferred (a queued AT fix
+        // CAPP that fired after the request), or the controller has told it what approach to expect.
+        if (IsApproachMoot(request, aircraft))
         {
             return true;
         }
@@ -405,10 +452,11 @@ public static class PilotRequestTracker
                 or MakeRightTrafficCommand => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },
+            // Telling the pilot what approach to expect is the approach assignment the pilot asked for.
             PilotPendingRequestKind.Approach => command switch
             {
-                ExpectApproachCommand => PilotPendingRequestResponseState.Standby,
-                ClearedApproachCommand
+                ExpectApproachCommand
+                or ClearedApproachCommand
                 or ClearedApproachStraightInCommand
                 or ClearedVisualApproachCommand
                 or PositionTurnAltitudeClearanceCommand

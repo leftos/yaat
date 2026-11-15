@@ -7,7 +7,6 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Sim;

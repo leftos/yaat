@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using SharpHook;
 using Xunit;
 using Yaat.Client.Services;

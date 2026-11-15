@@ -2998,6 +2998,7 @@ public static class ApproachCommandHandler
 
         ClearPendingApproach(aircraft);
         aircraft.Approach.Expected = null;
+        aircraft.ExpectedApproachAdvisedAtSeconds = null;
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Procedure.DestinationRunway = null;
         aircraft.Targets.AssignedMagneticHeading = null;

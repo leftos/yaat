@@ -1,10 +1,7 @@
 ﻿using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Speech;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
 

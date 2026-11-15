@@ -10,7 +10,6 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;

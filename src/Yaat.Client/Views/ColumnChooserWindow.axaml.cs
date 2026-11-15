@@ -1,7 +1,5 @@
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -10,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
-using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views;
 

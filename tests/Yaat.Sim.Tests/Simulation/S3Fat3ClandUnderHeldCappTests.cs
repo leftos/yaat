@@ -6,7 +6,6 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Tdls;
 

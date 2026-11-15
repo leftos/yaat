@@ -1,8 +1,6 @@
 using System.ComponentModel;
-using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
-using Yaat.Client.Services;
 
 namespace Yaat.Client.Services.Speech;
 

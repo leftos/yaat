@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
-using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -74,6 +73,12 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// by well under 1°; CIFP/mag-var rounding can push apparent deltas to a few degrees.
     /// </summary>
     private const double MaxParallelHeadingDeltaDeg = 10.0;
+
+    /// <summary>
+    /// The aviation ruling's bank (degrees) for a break-off inside one pattern turn radius of the centerline; a judgement call,
+    /// no FAA figure.
+    /// </summary>
+    public const double BreakOffBankDegrees = 30.0;
 
     /// <summary>Never newly turn a follower onto final closer than this to the threshold.</summary>
     public const double MinFinalJoinDistNm = 0.5;
@@ -189,6 +194,13 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
 
     /// <summary>A base break-off asked this pursuit to start with a turn-out (<see cref="RequestTurnOut"/>).</summary>
     private bool _turnOutRequested;
+
+    /// <summary>
+    /// The spacing-loss break-off's turn-out flies <see cref="BreakOffBankDegrees"/> (<see cref="ApplyBreakOffBank"/>), holding
+    /// the turn-rate override it replaced until the turn-out or the phase ends (<see cref="RestoreBreakOffTurnRate"/>); null when
+    /// it is not flown.
+    /// </summary>
+    private BreakOffBank? _breakOffBank;
 
     /// <summary>
     /// The follow ended because the lead is now landing another runway
@@ -392,6 +404,9 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
     }
 
+    /// <summary>Gives back the break-off bank's turn rate however the phase ends (<see cref="RestoreBreakOffTurnRate"/>).</summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => RestoreBreakOffTurnRate(ctx.Targets);
+
     public override bool OnTick(PhaseContext ctx)
     {
         AircraftState? lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
@@ -402,6 +417,8 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             return TickTurnOut(ctx, lead, turnOut);
         }
 
+        // A turn-out dropped by a new lead (UpdateTarget) gives back the break-off bank's turn rate.
+        RestoreBreakOffTurnRate(ctx.Targets);
         if (LiveLeadOrEnd(ctx, lead) is not { } liveLead)
         {
             return true;
@@ -470,7 +487,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
 
         // A base break-off that asked for a turn-out takes it before any join: joining the lead's circuit from here would
         // put the follower back on the base it just broke off.
-        if (_turnOutRequested && TryStartTurnOut(ctx, lead, stalledHold: false))
+        if (_turnOutRequested && TryStartTurnOut(ctx, lead, stalledHold: false, spacingLoss: false))
         {
             return false;
         }
@@ -486,7 +503,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         }
 
         // Level with or ahead of a lead on base or final (or asked to by a base break-off): turn out to the downwind heading.
-        if (TryStartTurnOut(ctx, lead, stalledHold: false))
+        if (TryStartTurnOut(ctx, lead, stalledHold: false, spacingLoss: false))
         {
             return false;
         }
@@ -665,6 +682,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// </summary>
     private void ReturnToPattern(PhaseContext ctx, FollowPatternReturn? patternReturn, bool forwardJoins)
     {
+        RestoreBreakOffTurnRate(ctx.Targets);
         bool leadChangedRunway = _followEndedByLeadRunwayChange;
         _followEndedByLeadRunwayChange = false;
         if (patternReturn is null)
@@ -805,7 +823,8 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// <summary>
     /// The leg a follow's pattern return enters by. Past <paramref name="circuit"/>'s threshold: the upwind when flying the
     /// runway's way (it continues upwind, crosswind and downwind, AIM 4-3-3, never turning back onto the final), else the
-    /// downwind. On the approach side with <paramref name="forwardJoins"/>, no farther out than the circuit's base turn point
+    /// downwind. On the approach side with <paramref name="forwardJoins"/>, the final at any distance out when the follower
+    /// passes the final join's gates (<see cref="CanSequenceOntoFinal"/>); else, no farther out than the circuit's base turn point
     /// (<see cref="ReturnWaypoints"/>) plus <see cref="BaseExtensionLimitNm"/>, the room a follower extending a leg for
     /// spacing may take past a base turn point: the circuit continued forward from where the follower is
     /// (<see cref="ForwardReturnLeg"/>). Otherwise the downwind.
@@ -825,6 +844,11 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             return PatternEntryLeg.Downwind;
         }
 
+        if (CanSequenceOntoFinal(aircraft, runway))
+        {
+            return PatternEntryLeg.Final;
+        }
+
         PatternWaypoints waypoints = ReturnWaypoints(ctx, circuit);
         double limitNm = AirborneFollowHelper.AlongFinalNm(new LatLon(waypoints.BaseTurnLat, waypoints.BaseTurnLon), runway) + BaseExtensionLimitNm;
         return alongNm <= limitNm ? ForwardReturnLeg(ctx, circuit, waypoints, alongNm) : PatternEntryLeg.Downwind;
@@ -834,7 +858,6 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// The leg that continues <paramref name="circuit"/> forward from a follower <paramref name="alongNm"/> out on the
     /// approach side, never reversing it, in this order:
     /// <list type="number">
-    /// <item><description>the final, when the follower passes the final join's gates (<see cref="CanSequenceOntoFinal"/>);</description></item>
     /// <item><description>on the non-pattern side, the downwind: the pattern entry's wrong-side handling (the midfield
     /// crossing);</description></item>
     /// <item><description>the base, when heading toward the final with room for the final turn
@@ -847,11 +870,6 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     {
         AircraftState aircraft = ctx.Aircraft;
         RunwayInfo runway = circuit.Runway;
-        if (CanSequenceOntoFinal(aircraft, runway))
-        {
-            return PatternEntryLeg.Final;
-        }
-
         if (!IsOnPatternSide(aircraft, runway, circuit.Direction))
         {
             return PatternEntryLeg.Downwind;
@@ -933,6 +951,9 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     /// <summary>A turn-out under way: the circuit it rejoins (runway, direction, and the altitude it levels at) and where it began.</summary>
     private sealed record FollowTurnOut(FollowPatternReturn Circuit, LatLon StartPoint);
 
+    /// <summary>The break-off bank flown in a turn-out: the turn-rate override (deg/s) it replaced, null when there was none.</summary>
+    private sealed record BreakOffBank(double? ReplacedTurnRateOverride);
+
     /// <summary>
     /// The pattern-runway arming a phase list carried before a follow rebuilt it: the armed <see cref="PhaseList.PatternRunway"/>,
     /// the runway being flown (<see cref="PhaseList.AssignedRunway"/>), the clearance the arming rode on and the pattern
@@ -1000,6 +1021,8 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
                 }
                 : null,
             TurnOutRequested = _turnOutRequested ? true : null,
+            BreakOffBankFlown = (_breakOffBank is not null) ? true : null,
+            BreakOffReplacedTurnRateOverride = _breakOffBank?.ReplacedTurnRateOverride,
             ClimbOutGate = ClimbOutGateDto(ClimbOutGate),
             LowApproachAtOrAboveFt = LowApproachAtOrAboveFt,
             StallWindowStartGapNm = _parallelHold?.StartGapNm,
@@ -1017,7 +1040,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
                 : null,
         };
 
-    /// <summary>Restores the turn-out, its request and the parallel-hold window; each is absent in older snapshots.</summary>
+    /// <summary>Restores the turn-out, its request, its break-off bank and the parallel-hold window; each is absent in older snapshots.</summary>
     private void RestoreTurnOutState(VfrFollowPhaseDto dto)
     {
         _turnOut = dto.TurnOut is { } turnOut
@@ -1032,6 +1055,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             )
             : null;
         _turnOutRequested = dto.TurnOutRequested ?? false;
+        _breakOffBank = (dto.BreakOffBankFlown == true) ? new BreakOffBank(dto.BreakOffReplacedTurnRateOverride) : null;
         _parallelHold =
             (dto.StallWindowStartGapNm is { } startGapNm) && (dto.StallWindowSeconds is { } seconds)
                 ? new ParallelHoldWindow(startGapNm, seconds)

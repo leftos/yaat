@@ -7,10 +7,8 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.Threading;
 using Yaat.Sim;
 
 namespace Yaat.Client.ContextMenus;

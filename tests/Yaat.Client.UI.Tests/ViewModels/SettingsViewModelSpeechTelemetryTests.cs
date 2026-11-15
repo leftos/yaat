@@ -1,7 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;

@@ -1,13 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Yaat.Sim;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
 

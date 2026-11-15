@@ -130,6 +130,8 @@ public class MenuCatalogCommandTests
     [
         // Flyouts with nothing to send without an aircraft (disabled with a reason): their own tests pin their sends.
         MenuIds.ApproachClearedVisual,
+        // Cleared {expected approach} builds only for an aircraft expecting an approach; the test below clicks it.
+        MenuIds.ApproachClearedExpected,
         MenuIds.ProceduresJoinStar,
         MenuIds.PatternEnterLeftDownwind,
         MenuIds.PatternEnterRightDownwind,
@@ -281,6 +283,68 @@ public class MenuCatalogCommandTests
     {
         _ = input;
         Assert.Equal([command.Split(' ')[0]], MenuAliases.CanonicalVerbs[id]);
+    }
+
+    /// <summary>
+    /// Cleared {expected approach} sends bare <c>CAPP</c>, which the server resolves to the expected approach, under the
+    /// approach flyout's default-row label for it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedExpectedApproach_Click_SendsBareCappLabelledWithTheExpectedApproach()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = ApproachAirport,
+            ExpectedApproach = ApproachId,
+            FlightRules = "IFR",
+        };
+
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ApproachClearedExpected).Build(aircraft, Context(), host));
+        Assert.Equal("Cleared ILS 28R", item.Header);
+        Click(item);
+
+        Assert.Equal([(Callsign, "CAPP", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// An expectation naming more than one procedure (KSFO <c>R19R</c>: R19RY and R19RZ) builds no Cleared {expected
+    /// approach} item, so its label never names a procedure bare <c>CAPP</c> might not pick.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedExpectedApproach_ExpectationNamingTwoProcedures_BuildsNoItem()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Equal(2, NavigationDatabase.Instance.ResolveApproachCandidates("KSFO", "R19R").Count);
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = "KSFO",
+            ExpectedApproach = "R19R",
+            FlightRules = "IFR",
+        };
+
+        Assert.Null(MenuCatalog.Get(MenuIds.ApproachClearedExpected).Build(aircraft, Context(), new RecordingMenuHost("")));
+    }
+
+    /// <summary>
+    /// With no navigation database (the client runs on when its navdata fails to load), an advised aircraft's Cleared
+    /// {expected approach} has no label, so no item is built, and nothing throws. The process-wide database cannot be
+    /// uninstalled in a test (an empty per-test holder still falls through to the default), so the label is read through
+    /// its navdata seam with none passed.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedExpectedApproach_WithNoNavigationDatabase_BuildsNoItem()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = ApproachAirport,
+            ExpectedApproach = ApproachId,
+            FlightRules = "IFR",
+            SituationFlags = SituationFlags.ExpectedApproachAdvised,
+        };
+
+        Assert.Null(MenuCatalog.ClearedExpectedApproachItemLabel(aircraft, null));
     }
 
     [AvaloniaFact]
@@ -3164,7 +3228,7 @@ public class MenuCatalogCommandTests
         main.Aircraft.Add(ac);
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "12", "28L", "10R", "28R", "10L", "15", "33"] });
-        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border()), Initials);
+        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border(), mvaFacilityId: null), Initials);
 
         MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
 
@@ -3519,7 +3583,7 @@ public class MenuCatalogCommandTests
         Assert.IsType<Separator>(cto.Items[^2]);
 
         AircraftModel ac = OnGround("Taxiing", "IFR", "30");
-        IMenuHost host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border());
+        IMenuHost host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border(), mvaFacilityId: null);
 
         MenuItem? clientCto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(ac, Context(VfrCommandsForIfr.None), host);
 

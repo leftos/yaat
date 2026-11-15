@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;

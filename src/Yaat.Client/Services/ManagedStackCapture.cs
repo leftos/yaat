@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 using Microsoft.Diagnostics.Runtime;
 using Microsoft.Extensions.Logging;

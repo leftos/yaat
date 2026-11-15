@@ -4,8 +4,6 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Speech;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
 

@@ -3,7 +3,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Commands;
 

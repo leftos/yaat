@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Simulation.Snapshots;

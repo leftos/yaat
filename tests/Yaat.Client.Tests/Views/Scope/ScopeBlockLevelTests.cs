@@ -307,7 +307,8 @@ public class ScopeBlockLevelTests
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
 
         var frame = ScopeFrame.Build(input);

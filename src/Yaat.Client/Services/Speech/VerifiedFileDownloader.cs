@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;

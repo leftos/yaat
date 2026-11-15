@@ -46,6 +46,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         nameof(ShowMvaAltitudeTint)
     );
 
+    /// <summary>The facility whose MVA chart wins where charts overlap (the Radar's <c>MvaFacilityId</c>); null for none.</summary>
+    public static readonly StyledProperty<string?> MvaFacilityIdProperty = AvaloniaProperty.Register<ScopeCanvas, string?>(nameof(MvaFacilityId));
+
     /// <summary>Id of the datablock template the scope draws (see <see cref="ScopeTemplates"/>).</summary>
     public static readonly StyledProperty<string> TemplateIdProperty = AvaloniaProperty.Register<ScopeCanvas, string>(
         nameof(TemplateId),
@@ -105,6 +108,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ShowMvaAltitudeTintProperty);
         set => SetValue(ShowMvaAltitudeTintProperty, value);
+    }
+
+    public string? MvaFacilityId
+    {
+        get => GetValue(MvaFacilityIdProperty);
+        set => SetValue(MvaFacilityIdProperty, value);
     }
 
     public string TemplateId
@@ -236,6 +245,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         else if (
             (change.Property == SelectedAircraftProperty)
             || (change.Property == ShowMvaAltitudeTintProperty)
+            || (change.Property == MvaFacilityIdProperty)
             || (change.Property == TemplateIdProperty)
             || (change.Property == ViewerProperty)
         )
@@ -431,6 +441,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 display,
                 offsets,
                 highlighted,
+                MvaFacilityId,
                 _hoveredCallsign,
                 VciHoveredCallsign: _hoveredVciCallsign,
                 LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns

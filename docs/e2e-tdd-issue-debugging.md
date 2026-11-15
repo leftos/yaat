@@ -41,7 +41,7 @@ Recordings use a ZIP archive (`.zip`) with individually Brotli-compressed entrie
 | `actions.json.br` | All recorded actions with timestamps |
 | `weather.json` | Weather profile |
 | `artcc-config.json.br` | ARTCC config used at recording time |
-| `snapshots/{t}.json.br` | State snapshot at time `t` (on-demand loading) |
+| `snapshots/{index}.json.br` | State snapshot, one per entry in the manifest's snapshot timestamps (on-demand loading) |
 | `layouts/{airportId}.json.br` | Ground layouts (deduplicated, shared across aircraft) |
 | `airport-geojson/{airportId}.geojson.br` | Original airport GeoJSON source used to build the layout |
 
@@ -147,15 +147,13 @@ private SimulationEngine? BuildEngine()
     if (navDb is null) return null;
 
     var groundData = new TestAirportGroundData();
-    var loggerFactory = LoggerFactory.Create(builder =>
-        builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-    SimLog.Initialize(loggerFactory);
+    SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
     return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 }
 ```
 
-Both return `null` when data files are missing. Tests that get `null` silently skip — CI stays green on machines without test data.
+`LoadRecording` returns `null` when the recording file is missing, and a test that gets `null` silently skips, so a checkout without the recording stays green. NavData and CIFP are not skippable: `ModuleInit` throws when it cannot resolve them ([test-harness.md](test-harness.md)), so the `navDb is null` branch is only defensive.
 
 ### 5. Find the right replay time
 
@@ -220,11 +218,11 @@ The helper reports each node's ID, type (HS/Twy/Parking), taxiway names, and dis
 
 | Bug type | Log these fields |
 |----------|-----------------|
-| Wrong heading / 180 reversal | `Heading`, `Targets.NavigationRoute[0].Name`, lat/lon |
+| Wrong heading / 180 reversal | `TrueHeading`, `Targets.NavigationRoute[0].Name`, lat/lon |
 | Stays too high / wrong descent | `Altitude`, `VerticalSpeed`, `Targets.TargetAltitude`, next fix |
 | Doesn't follow route | `Targets.NavigationRoute` (all fixes), `Heading`, bearing to next fix |
 | Wrong approach / transition | `Phases.ActiveApproach`, `Phases.Phases` list, nav targets |
-| Ground taxi overshoot | `AssignedTaxiRoute.Segments`, lat/lon, current segment index, **nearest nodes** |
+| Ground taxi overshoot | `Ground.AssignedTaxiRoute.Segments`, lat/lon, current segment index, **nearest nodes** |
 | Runway exit wrong path | Phase name, gs, hdg, **nearest nodes**, exit waypoint IDs |
 
 ### 5b. Full replay from t=0 vs hybrid replay with snapshots
@@ -387,24 +385,24 @@ Replay to just before the aircraft reaches the problematic fix. Tick forward man
 
 ```csharp
 // From Issue58JstarIntermediateFixTests
-double prevHeading = aircraft.Heading;
+double prevHeading = aircraft.TrueHeading.Degrees;
 for (int t = 1; t <= 30; t++)
 {
     engine.TickOneSecond();
     var ac = engine.FindAircraft(callsign);
-    double delta = NormalizeAngleDiff(ac.Heading - prevHeading);
-    prevHeading = ac.Heading;
+    double delta = NormalizeAngleDiff(ac.TrueHeading.Degrees - prevHeading);
+    prevHeading = ac.TrueHeading.Degrees;
 }
-double totalChange = NormalizeAngleDiff(aircraft.Heading - initialHeading);
+double totalChange = NormalizeAngleDiff(aircraft.TrueHeading.Degrees - initialHeading);
 Assert.True(totalChange < 120, "Likely a 180 reversal");
 ```
 
 Also check that the first nav fix is ahead of the aircraft, not behind:
 
 ```csharp
-double bearing = GeoMath.BearingTo(ac.Latitude, ac.Longitude,
-    route[0].Latitude, route[0].Longitude);
-double offNose = NormalizeAngleDiff(bearing - ac.Heading);
+double bearing = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon,
+    route[0].Position.Lat, route[0].Position.Lon);
+double offNose = NormalizeAngleDiff(bearing - ac.TrueHeading.Degrees);
 Assert.True(offNose < 90, $"First fix is {offNose:F0} off nose — behind aircraft");
 ```
 
@@ -433,7 +431,7 @@ For full CAPP E2E, send the command through the engine and inspect the resulting
 engine.Replay(recording, 688);
 var result = engine.SendCommand("UAL238", "CAPP");
 Assert.True(result.Success);
-Assert.Equal("19L", aircraft.Phases.ActiveApproach.RunwayId);
+Assert.Equal("19L", aircraft.Phases?.ActiveApproach?.RunwayId);
 
 // Verify no wrong-transition fixes in nav targets
 var navTargets = aircraft.Targets.NavigationRoute.Select(n => n.Name);
@@ -477,10 +475,10 @@ For ground bugs, the approach is the same — replay and inspect the taxi route 
 ```csharp
 engine.Replay(recording, recording.TotalElapsedSeconds);
 var aircraft = engine.FindAircraft("AAL2839");
-Assert.NotNull(aircraft.AssignedTaxiRoute);
+Assert.NotNull(aircraft.Ground.AssignedTaxiRoute);
 
 // Verify aircraft didn't overshoot into the ramp
-var segments = aircraft.AssignedTaxiRoute.Segments;
+var segments = aircraft.Ground.AssignedTaxiRoute.Segments;
 Assert.DoesNotContain(segments, s => s.TaxiwayName == "M2");
 ```
 
@@ -516,11 +514,18 @@ if (layout is null) return;
 
 var route = TaxiPathfinder.ResolveExplicitPath(
     layout,
-    fromNodeId: parkingNode.Id,
-    taxiwayNames: ["D", "C", "B", "W"],
+    parkingNode.Id,
+    ["D", "C", "B", "W"],
     out string? failReason,
-    destinationRunway: "30",
-    airportId: "OAK");
+    new ExplicitPathOptions
+    {
+        StartPose = null,
+        OccupiedTaxiway = null,
+        ImpliedLeadTaxiway = null,
+        AircraftLengthFt = AircraftLength.ResolveFt("B738"),
+        DestinationRunway = "30",
+    },
+    new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large));
 
 Assert.NotNull(route);
 Assert.Null(failReason);
@@ -529,9 +534,9 @@ Assert.Null(failReason);
 ## Rules
 
 - **Real data only.** Never fabricate navdata, approach procedures, fixes, or STARs. Use the real NavData.dat and FAACIFP18.gz from TestData. Devs can't verify synthetic data against real charts.
-- **Silent skip on missing data.** Return early if recording, NavData, or GeoJSON is absent. No `Assert.Skip`, no exceptions — just `return`. CI stays green.
+- **Silent skip on missing data.** Return early if the recording or GeoJSON is absent. No `Assert.Skip`, no exceptions — just `return`. NavData and CIFP are the exception: `ModuleInit` throws when it cannot resolve them.
 - **One test class per issue.** File name: `Issue{N}{ShortDescription}Tests.cs`. Class doc comment explains the bug, recording, and aircraft.
-- **Wire SimLog to xunit output.** Always initialize `SimLog` with `AddXUnit(output)` so Yaat.Sim's internal logs appear in test results. This is invaluable when diagnosing why a test fails.
+- **Wire SimLog to xunit output.** Initialize it with `SimLogBuilder.CreateForTest(output).InitializeSimLog()` so Yaat.Sim's internal logs appear in test results, and never call `SimLog.Initialize` from a test (it poisons the process-wide static). This is invaluable when diagnosing why a test fails.
 - **Watch out for WAIT presets.** Aircraft with `WAIT` preset commands are sensitive to dispatch timing. If WAIT behavior changes, recordings made before the change will produce different state at any given time `t`. Prefer testing aircraft without WAIT presets, re-record after the fix, or use hybrid replay with a snapshot captured after the WAIT fires (see §5b).
 
 ## Test Data
@@ -623,12 +628,12 @@ dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData
 | `NearestNodeHelper` | `tests/Yaat.Sim.Tests/Helpers/NearestNodeHelper.cs` | Reports 3 closest ground nodes to an aircraft with ID, type, taxiway names, and distance in feet. Use in all ground/exit diagnostic tests. |
 | `RecordingLoader` | `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` | Loads `SessionRecording` from `.json`, `.zip` archive, or `.yaat-bug-report-bundle.zip`. Uses `ToBaseSessionRecording()` (zero snapshots). |
 | `RecordingArchive` | `src/Yaat.Sim/Simulation/RecordingArchive.cs` | On-demand archive reader: `ReadSnapshotAt()`, `FindNearestSnapshotIndex()`, `ToBaseSessionRecording()` |
-| `TestVnasData` | `tests/Yaat.Sim.Tests/TestVnasData.cs` | Thread-safe singleton loader for NavData + CIFP + aircraft specs |
+| `TestVnasData` | `src/Yaat.Sim/Testing/TestVnasData.cs` (`tests/Yaat.Sim.Tests/TestVnasData.cs` forwards to it) | Thread-safe singleton loader for NavData + CIFP + aircraft specs |
 | `TestAirportGroundData` | `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs` | `IAirportGroundData` impl that loads from TestData GeoJSON |
-| `SimLog` | `src/Yaat.Sim/SimLog.cs` | Static logger facade — wire to xunit output via `SimLog.Initialize(loggerFactory)` |
-| `SimulationEngine.Replay()` | `src/Yaat.Sim/Simulation/SimulationEngine.cs` | Loads scenario, applies weather, replays actions to target time; sets up cursor for `ReplayOneSecond()` |
-| `SimulationEngine.ReplayOneSecond()` | same | Continue replay by 1 second — ticks physics AND applies recorded actions. Use after `Replay()` for tick-by-tick inspection |
-| `SimulationEngine.TickOneSecond()` | same | Advance physics only by 1 second (no recording actions). Use for post-replay manual ticking |
-| `SimulationEngine.RestoreFromSnapshot()` | same | Restore exact simulation state from a snapshot. Use with `ReplayRange()` for hybrid replay |
-| `SimulationEngine.FindAircraft()` | same | Look up live aircraft state by callsign |
-| `SimulationEngine.SendCommand()` | same | Dispatch a command string to an aircraft mid-replay |
+| `SimLogBuilder` | `tests/Yaat.Sim.Tests/Helpers/SimLogBuilder.cs` | Wires `SimLog` (`src/Yaat.Sim/SimLog.cs`) to xunit output for one test: `SimLogBuilder.CreateForTest(output).InitializeSimLog()` |
+| `SimulationEngine.Replay()` | `src/Yaat.Sim/Simulation/SimulationEngine.Replay.cs` | Loads scenario, applies weather, replays actions to target time; sets up cursor for `ReplayOneSecond()` |
+| `SimulationEngine.ReplayOneSecond()` | same file | Continue replay by 1 second — ticks physics AND applies recorded actions. Use after `Replay()` for tick-by-tick inspection |
+| `SimulationEngine.TickOneSecond()` | `src/Yaat.Sim/Simulation/SimulationEngine.Tick.cs` | Advance physics only by 1 second (no recording actions). Use for post-replay manual ticking |
+| `SimulationEngine.RestoreFromSnapshot()` | `src/Yaat.Sim/Simulation/SimulationEngine.Snapshots.cs` | Restore exact simulation state from a snapshot. Use with `ReplayRange()` for hybrid replay |
+| `SimulationEngine.FindAircraft()` | `src/Yaat.Sim/Simulation/SimulationEngine.cs` | Look up live aircraft state by callsign |
+| `SimulationEngine.SendCommand()` | `src/Yaat.Sim/Simulation/SimulationEngine.Commands.cs` | Dispatch a command string to an aircraft mid-replay |

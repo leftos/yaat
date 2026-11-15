@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Yaat.Sim.Data.Airport.Fillet;
 
 namespace Yaat.Sim.Data.Airport.Fillet;
 

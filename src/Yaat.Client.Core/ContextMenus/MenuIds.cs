@@ -198,6 +198,9 @@ public static class MenuIds
     /// <summary>Clear the aircraft for an approach (<c>CAPP</c>).</summary>
     public const string ApproachCleared = "approach.cleared";
 
+    /// <summary>Clear the aircraft for its expected approach in one click (bare <c>CAPP</c>), labelled with that approach.</summary>
+    public const string ApproachClearedExpected = "approach.cleared-expected";
+
     /// <summary>Join an approach (<c>JAPP</c>).</summary>
     public const string ApproachJoin = "approach.join";
 

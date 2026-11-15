@@ -133,18 +133,24 @@ Vmo and Mmo come from two sources, an override figure first:
 
 Either figure is then raised to the highest IAS and Mach the type's own profile schedule flies (`ProfileScheduleFloor`), sampled every 100 ft from the ground to the ceiling and at the schedule's band altitudes (10,000 ft, FL150, FL240, cruise altitude, ceiling), so the limit never falls below a speed the profile itself uses. A banded type's Vmo is not raised this way (its profile is held under the bands instead); its Mmo still is. A Mach-final or Mach-initial profile's schedule never exceeds its own Mach (see above), so the floor raises a class Mmo only to a Mach the profile really flies. The result is cached per type and cleared whenever the profiles, the envelope classes, the categorization or the correction adapter is replaced.
 
-## Files
+## File map
 
 | File | Role |
 |------|------|
-| `Data/AircraftProfiles.json` | BADA-derived base profiles (bulk). |
-| `Data/AircraftSpeedEnvelopeClasses.json` | Type → speed envelope class code (Vmo/Mmo source). |
-| `AircraftSpeedEnvelope.cs` | The class figures and `ClassFor` (own entry, else sibling's). |
+| `Data/AircraftProfiles.json` | BADA-derived base profiles (bulk), in ATCTrainer's per-type format: altitude-banded climb/descent, Mach speeds. |
+| `Data/AircraftSpeedEnvelopeClasses.json` | Flat type → speed envelope class code table over the profile types (Vmo/Mmo source); the codes are those of `AircraftSpeedEnvelope`. |
+| `AircraftSpeedEnvelope.cs` | The Vmo/Mmo class figures per category class (pybada dummy OPF figures) and `ClassFor`, the per-type class lookup (own entry, else sibling's). |
 | `Data/AircraftProfileSiblings.json` | Type → nearest-sibling fallback map. |
-| `Data/AircraftProfileOverrides.json` | **Authoritative partial corrections (edit this to fix a type).** |
-| `Data/AircraftProfileOverride.cs` | Override DTO + `ApplyTo` partial-merge. |
-| `Data/AircraftProfileDatabase.cs` | Loads/merges profiles + overrides; `Get`, `IsOverridden`. |
-| `Data/EurocontrolProfileCorrectionAdapter.cs` | Runtime ACD-anchored correction of six fields. |
-| `Data/OverrideAwareProfileCorrectionAdapter.cs` | Wraps the above; overridden fields bypass it. |
-| `AircraftCategory.cs` | `CategoryPerformance` constants + `BaselineProfile(cat)`. |
-| `AircraftPerformance.cs` | The unified lookup used by the simulation. |
+| `Data/AircraftProfileOverrides.json` | **Authoritative partial corrections (edit this to fix a type)**: the contributor corrections layer of per-type field fixes and optional vmo/mmo figures. |
+| `Data/AircraftProfileOverride.cs` | Nullable partial-override DTO + `ApplyTo` partial-merge. |
+| `Data/AircraftProfileDatabase.cs` | Static lookup that loads/merges profiles + overrides: `Initialize(base, overrides)`, `Get` → the merged `AircraftProfile?`, `IsOverridden`. |
+| `Data/EurocontrolProfileCorrectionAdapter.cs` | Runtime ACD-anchored correction of six profile fields (BADA speeds run high). |
+| `Data/OverrideAwareProfileCorrectionAdapter.cs` | Wraps the above; overridden fields bypass it (overrides win). |
+| `AircraftCategory.cs` | The category enum + `AircraftCategorization` (static `Init` from `AircraftSpecs.json`); `CategoryPerformance` fallback constants (taxi, pattern geometry, flare, etc.) + `BaselineProfile(cat)`; `CornerSpeedForAngle`, the piecewise taxi speed curve (0-30° max, 30-90° corner, 90-150° tight corner). |
+| `AircraftPerformance.cs` | The unified lookup used by the simulation: profile-first with category fallback. Altitude-banded climb/descent rates, Mach-aware speeds, 91.117 waiver support; `MaxOperatingIasKts` / `MaxOperatingSpeedKts` / `MaxOperatingMach` / `MinOperatingIasKts` (Vmo/Mmo raised to the profile schedule; the minimum is the FAA approach speed, else a `finalApproachSpeed` override, else a fixed-wing type's profile landing speed, else a helicopter's or vehicle's profile FAS / 1.2). |
+| `Data/AircraftProfile.cs` | Per-type performance profile record (from AircraftProfiles.json). GroundAccelRate is nullable — the bulk BADA-derived data has no such field, so it's set for only a handful of hand-checked types (fighters, P3); null falls back to the category rate (AircraftPerformance.GroundAccelRate) |
+| `Data/Faa/FaaAircraftRecord.cs` | Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, classifications |
+| `Data/Faa/LahsoGroupMinima.cs` | JO 7110.118C Table 1 LAHSO group distance minima by field elevation band; Judge(type, available landing distance, elevation) → LahsoEligibility (declines a helicopter, a type not in the ACD, no group, or over 8,000 ft) |
+| `Data/Faa/FaaAircraftDatabase.cs` | Static lookup: Get(aircraftType) → FaaAircraftRecord?; used for physical dimensions; ApplyOverrides(overrides) applies the `mainGearWidthFt` row corrections from AircraftProfileOverrides.json |
+| `Data/Faa/AircraftLength.cs` | ResolveFt(type): the one aircraft-length resolver — FAA length, else CwtFallbackLengthFt (the CWT-bucket table) for types the database lacks |
+| `Data/Faa/FaaAircraftDataService.cs` | Downloads FAA ACD xlsx, parses all columns, caches per AIRAC cycle |

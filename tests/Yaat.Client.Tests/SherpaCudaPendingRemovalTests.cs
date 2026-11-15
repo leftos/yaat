@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net.Http;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using Yaat.Client.Services.Speech;

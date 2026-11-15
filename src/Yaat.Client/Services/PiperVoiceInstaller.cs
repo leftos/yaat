@@ -1,5 +1,4 @@
 using System.Formats.Tar;
-using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Compressors.BZip2;

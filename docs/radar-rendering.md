@@ -6,11 +6,7 @@
 > draw-vs-hit-test geometry duplication are unenforced invariants — break one and you get a cross-thread race or clicks that
 > miss text, with no compiler signal.
 
-This is the mechanics layer beneath [architecture.md](architecture.md)'s one-line radar file list. It does not re-list the
-files — it explains the pipeline, the projection contract, the datablock geometry, the pointer-handler ladder, and the menu
-conventions. The EuroScope tag mode mirrors the upstream EuroScope behavior documented in
-[euroscope/overview.md](euroscope/overview.md) (and siblings) — those docs are the external design reference; this one is the
-YAAT implementation.
+Its File map below lists the files; the rest of this doc explains the pipeline, the projection contract, the datablock geometry, the pointer-handler ladder, and the menu conventions. The EuroScope tag mode mirrors the upstream EuroScope behavior documented in [euroscope/overview.md](euroscope/overview.md) (and siblings) — those docs are the external design reference; this one is the YAAT implementation.
 
 ## File map
 
@@ -18,18 +14,81 @@ All paths are under `src/Yaat.Client/`.
 
 | File | Role |
 |---|---|
-| `Views/Map/MapCanvasBase.cs` | Abstract base: pan/zoom, the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
-| `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection, rotation, zoom |
-| `Views/Radar/RadarCanvas.cs` | The radar `Control`: styled properties, pointer handlers, hit-testing, Range/Zoom sync, datablock drag |
-| `Views/Radar/RadarRenderer.cs` | Per-frame orchestrator: clears, then draws maps → rings → fixes → paths → targets → overlays |
+| `Views/Map/MapCanvasBase.cs` | Abstract `ICustomDrawOperation` base: pan/zoom input handling, the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
+| `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection shared by the map views: rotation, zoom |
+| `Views/Radar/RadarCanvas.cs` | The radar `Control` (SkiaSharp canvas): styled properties, pointer handlers, hit-testing, Range/Zoom sync and the pan/zoom lock, datablock drag; `MenuCue` (the row's `RadarCue`, resolved into the snapshot) and a repaint on a highlight change |
+| `Views/Radar/RadarRenderer.cs` | Stateless per-frame orchestrator: clears, then draws maps → rings → fixes → paths → targets → overlays; `DrawMenuCue` draws the menu cue's rings and bearing line |
 | `Views/Radar/TargetRenderer.cs` | Aircraft symbols (dashed for live-traffic shadows, half alpha while coasting — [live-traffic.md](live-traffic.md)), leader lines, datablocks, PTLs, history trails, speech bubbles |
-| `Views/Radar/VideoMapRenderer.cs` | Video-map polylines with A/B brightness categories |
-| `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines) |
-| `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc) with per-field rects |
-| `Views/Radar/RadarView.axaml.cs` | Wires canvas events; dispatches EuroScope field clicks to flyouts; DCB/brightness buttons |
-| `Views/Radar/RadarView.ContextMenus.cs` | The radar's right-click menus: the aircraft menu's view section and the map point menu, both through `AircraftMenuBuilder` |
+| `Views/Radar/VideoMapRenderer.cs` | Video-map polylines (A/B brightness categories) and labels |
+| `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines): line/field geometry shared by the renderer and click hit-testing, alongside the EuroScope tag layout |
+| `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc): `TagFieldId` and per-field rects for hit testing and flyout dispatch |
+| `Views/Radar/RadarView.axaml.cs` | The radar view control: wires canvas events; dispatches EuroScope field clicks to flyouts; the DCB (range, map shortcuts, FIX, LOCK) and brightness buttons |
+| `Views/Radar/RadarView.ContextMenus.cs` | Partial: the radar's right-click menus, both through `AircraftMenuBuilder`: the aircraft menu with the radar's view section (Display ▸, Draw route), and the map point menu (`BuildMapPointMenu`: the selected aircraft's point header and items, then FRD (left out when the header shows it), markers, Measure and the dimmed MVA row (`MvaRow`), left out where no MVA sector covers the point) |
 | `Yaat.Client.Core/ContextMenus/QuickCommandResolver.cs` / `QuickCommandDefaults.cs` / `QuickCommandStrip.cs` | Situation → the quick commands (icon strip, then text entries) at the top of the aircraft menu ([client-context-menus.md](client-context-menus.md)) |
 | `Views/Radar/Flyouts/*.cs` | EuroScope interactive-tag pickers (altitude, speed, runway, squawk, scratchpad, handoff) + heading mode |
+| `ViewModels/RadarViewModel.cs` | Radar view; video map loading, toggle items, DCB, persistence |
+| `ViewModels/RadarViewModel.Measure.cs` | Partial: distance measuring tool on the radar (nautical miles) |
+| `ViewModels/RangeBearingViewState.cs` | Observable mirror of the one RangeBearingLineStore behind both map views (shared slot pool, per-view visibility); owns the tool's behaviour |
+| `Views/Map/TextStyle.cs` | Paired (SKFont, SKPaint) for measuring + drawing text; keeps draw and hit-test metrics identical |
+| `Views/Map/DatablockDeconfliction.cs` | Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form) |
+| `Views/Map/RangeBearingLines.cs` | Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — radar/ground each render only their own), label formatting, resolver, readout anchor + viewport clamp (RblLabelPlacement), hit-test |
+| `Views/Map/RblReadoutPlacement.cs` | Places each range/bearing readout at the least-covered of eight spots around its anchor and nudges auto-placed datablocks clear when every spot is covered; shared by radar + ground canvases |
+| `Views/Map/RangeBearingRenderer.cs` | Draws measurement lines + readouts at the rects RblReadoutPlacement chose; shared by radar + ground renderers |
+| `Views/Map/RightClickGesture.cs` | Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise |
+| `Views/Map/RightClickTarget.cs` | One thing a right click hit (aircraft or parking/spot/helipad node) and its picker label |
+| `Views/Map/RightClickPicker.cs` | Small menu listing several right-click targets; choosing one raises that target's own right-click event |
+| `Views/Map/RightClickTargetOrder.cs` | Static HoveredFirst: puts the target the hover label names first in the picker list (moved if listed, else inserted), the rest in order |
+| `Views/Radar/RadarView.Popups.cs` | Partial: the waypoint-condition popup (the menu pickers are Views/MenuPopups.cs) |
+| `Views/Radar/RadarViewWindow.axaml.cs` | Pop-out radar window; takes a geometry key + title and hosts a RadarViewModel via SetViewModel (primary: "RadarView"/vm.Radar; extra instance: RadarView#n/its own VM, exposed as RadarVm for the Ctrl+F8 hotkey); window DataContext stays MainViewModel |
+| `Views/Radar/RadarBlink.cs` | The one on/off phase (half a second each) every blinking radar token follows; Clock is pinned by the screenshot harness |
+| `Views/Radar/Flyouts/FlyoutAppearance.cs` | Shared visual styling for tag flyouts (altitude, speed, runway, scratchpad popups) |
+| `Views/Radar/Flyouts/RadarSpeedFlyout.cs` | The EuroScope tag's assigned-speed picker (80..350 kt in tens, Resume Normal Speed, Final Approach Speed), opened by a click on the speed fields; not the quick-command Assign speed flyout (ContextMenus/SpeedFlyout.cs) |
+| `ViewModels/ScopeViewModel.cs` | The YAAT Scope window's view-model: its own centre, range, video maps, MVA-tint flag (ShowMvaHints) and datablock template pick (TemplateId, PickTemplateCommand; a template id or Mixed; the toolbar state is in ScopeViewModel.Toolbar.cs: tray open, range wheel step, button echo) and the Viewer (a ScopeViewer rebuilt when the active TCP, position or acting callsign/facility changes); adopts Radar's the first time Radar has them when opened before a scenario or ARTCC loads, then stays independent |
+| `ViewModels/ScopeViewModel.Display.cs` | Partial: the Scope's display state — Brightness (a ScopeBrightness, opening at Default; never sent, kept in a pref set) and SetBrightness, which `.scope brite` calls; MapToggles (the Scope's own ScopeMapToggle copies of the Radar's, seeded once) with SetMapOn/ClearMaps for `.scope map`; DbSettings (a ScopeDbSettings record: 4th line, hover dwell, ATPA distance, CHAR size; ATPA and CHAR seeded from the preferences, never written back) with SetDbToggle/SetDbCharSize for `.scope db` |
+| `ViewModels/ScopeMapToggle.cs` | One of the Scope's own video-map toggles (MapId, StarsId, ShortName, Name, BrightnessCategory, Label `{StarsId} {ShortName}`, IsOn); toggling it never touches the Radar's |
+| `ViewModels/ScopeViewModel.Tearoffs.cs` | Partial: the Scope's button tear-offs — Tearoffs (ScopeTearoff copies by ScopeButtonKey), IsTornOff, PlaceTearoff and DeleteTearoffs (what `.scope tearoff` calls), the delete-mode marks (ToggleTearoffMark) and ButtonFor |
+| `ViewModels/ScopeViewModel.Profile.cs` | Partial: follows the room's profile (MainViewModel.ScopeProfile) — ProfileKind, ToolbarButtons (the bar in the profile's order), the views' order and the profile's template (kept when the facility has a saved state); ApplyPrefSetProfile for `.scope pref load` |
+| `ViewModels/ScopeViewModel.PrefSets.cs` | Partial: the Scope's pref sets — ActivePrefSet, PrefSetNames, CapturePrefSet, ApplyPrefSet (views opened as saved through RestoreViewPlace, tear-offs replaced, a set applied once the Scope seeds when it loads before the Radar's maps), and the saved state per facility (written on Dispose and when the viewer changes facility, restored when the Scope opens for or moves to a facility) |
+| `ViewModels/ScopeViewModel.Views.cs` | Partial: the Scope's views dock state — DockViews (open and docked), FloatingViews (open and torn off), OpenViews, HasDockedViews, IsViewOpen, SetViewOpen, SetViewPlace, ApplyOpenViews — and the ScopeDockViewModel base of a card (name, title, Place, DockCommand, StartReading/StopReading while open) |
+| `ViewModels/SsaViewModel.cs` | The SSA card's view-model: refreshes its SsaLines every second while open |
+| `ViewModels/ConflictListViewModel.cs` | The LA/CA/MCI card's view-model: ConflictListRows from MainViewModel.ConflictAlerts, refreshed on ConflictAlertsApplied |
+| `Views/Scope/` | The YAAT Scope (docs/plans/yaat-scope/README.md): the pure engine plus the pop-out window beside today's Radar (View > Windows > YAAT Scope; one instance, geometry key "ScopeView") |
+| `Views/Scope/ScopeWindow.axaml(.cs)` | The "YAAT Scope" pop-out window; MainWindow opens it or brings the open one forward (OnYaatScopeClick) |
+| `Views/Scope/Toolbar/` | The Scope's navy toolbar (replaced the Template menu) |
+| `Views/Scope/Toolbar/ScopeToolbarButtons.cs` | The data-driven button model: ids, labels, kinds (Command, Toggle, Menu, Spinner); PROFILE (its tray: STARS, ERAM, MIXED), TEMPLATE, RANGE, MAPS (CLR ALL, then a toggle per video map; the tray's children come from `ScopeViewModel.TrayChildren`), DB (toggles 4TH LINE, DWELL, ATPA DIST and the CHAR spinner), VIEWS (its tray toggles SSA and LA/CA/MCI), BRITE (its tray holds seven spinners, one per brightness group), PREF (its tray: a button per pref set, then SAVE, SAVE AS, RENAME, DELETE; `CanTearOff` is false for the set buttons) and DEL TEAROFF (last; it enters and runs delete mode) today, in that bar order; a button's accessible name is its label plus value (`RANGE 40`); every button carries its own dot command (`ScopeButton.Command`) |
+| `Views/Scope/Toolbar/ScopeButtonControl.cs` | The reusable toolbar button: the Button plus its 5 px tear-off strip (gold under the pointer); the bar, the trays and a torn-off copy all build it |
+| `Views/Scope/Toolbar/ScopeTearoff.cs` | Pure: ScopeButtonKey (a button, or a map toggle by STARS id), ScopeCorner, ScopePlacement (corner and dx/dy) and ScopeTearoff |
+| `Views/Scope/Toolbar/ScopeToolbarStyles.axaml` | The button styles the bar and the copies share |
+| `Views/Scope/Toolbar/ScopeToolbar.axaml(.cs)` | The 45 px bar and its template, maps, DB and views trays (a toggle keeps the tray open; the MAPS tray wraps onto more rows and overlays the scope); the wheel over RANGE, CHAR or a BRITE spinner steps it (`StepSpinner`); every action routes through the `.scope` / `.view` dot commands (`ScopeViewModel.RunCommand`) |
+| `Views/Scope/Dock/` | The views dock: a 360 px column on the right of the Scope window under the bar, hidden while no open view is docked |
+| `Views/Scope/Dock/ScopeDock.axaml(.cs)` | The dock column: the docked views' cards keyed by view name (SSA, then LA/CA/MCI) |
+| `Views/Scope/Dock/ScopeViewCard.axaml(.cs)` | One view's card, in the dock or floating on the scope: the title (a press starts a move), a close button (`.view {name} off`), the dock button `▸` while floating (`.view {name} dock`), and the SSA and LA/CA/MCI body templates |
+| `Views/Scope/Dock/SsaLines.cs` | Pure: the SSA's two lines in CRC's format (UTC `HHmm/ss`, altimeter, primary airport; `OK/OK/NA FUSED {range}NM` or the red `NA/NA/NA`) |
+| `Views/Scope/Dock/ConflictListRows.cs` | Pure: the LA/CA/MCI rows, one `A*B   CA` per conflict pair with the callsigns sorted (the client holds CA only) |
+| `Views/Scope/Prefs/` | The Scope's saved display state, per facility |
+| `Views/Scope/Prefs/ScopePrefSet.cs` | The saved record (name, range, centre, template, brightness, DB settings, STARS ids of the maps on, open views and their places, tear-offs; the profile's `toolbar` and `views` arrays and `kind`, the profile name `.scope pref load` applies; `bands` is reserved and null) and its JSON options |
+| `Views/Scope/Prefs/ScopePrefSetStore.cs` | The per-facility files under `scope/` (`prefsets/<facility>.json` the named sets, `current/<facility>.json` the Scope's own state): a version per file, a bad entry dropped with a warning, a corrupt file copied to `.bak`, no overwrite of a file it could not read, a newer file's version kept (the sets file also keeps its unknown fields; `SaveCurrent` does not); the name rules (1-16 of A-Z 0-9 `-` `_`, uppercase, Windows device names refused) |
+| `Views/Scope/Profiles/` | The Scope's profiles (STARS, ERAM, Mixed), room-wide |
+| `Views/Scope/Profiles/ScopeProfile.cs` | The profile record (name, kind, bands, template, toolbar, views) and ScopeProfileKind |
+| `Views/Scope/Profiles/ScopeProfilePicker.cs` | Pure: KindFor (the automatic pick from the active position), NameOf / TryParseKind, and Order (the bar and the views by a profile's lists; unnamed entries follow in the default order) |
+| `Views/Scope/Profiles/ScopeProfileStore.cs` | `scope/profiles/{stars,eram,mixed}.json` under YaatPaths: written from the shipped copies when absent and never overwritten, a bad field falls back to the shipped value, a corrupt file copied to `.bak`; `Shipped(kind)` reads `Resources/ScopeProfiles/*.json` |
+| `Views/Scope/ScopeTearoffLayer.cs` | The overlay over the canvas: hosts the button copies and the floating view cards and runs the move and DEL TEAROFF modes; its empty area passes clicks through to the canvas |
+| `Views/Scope/ScopeView.axaml(.cs)` | Hosts ScopeCanvas and the ScopeTearoffLayer; selection, the shared aircraft menu (no Display, Draw route or "Settings for this view…") on right click; a Field-A click on an ERAM block also calls `ScopeViewModel.ToggleDwellLock` (the instructor's client-only lock, `DataBlockViewState.DwellLockedCallsigns`; no hub call) |
+| `Views/Scope/ScopeViewer.cs` | Record ScopeViewer(Acting, EramFacilityId, EramSectorId) + None: the position the Scope is viewed from, bound to ScopeCanvas.Viewer (a change rebuilds the frame) and carried in ScopeDisplayOptions.Viewer |
+| `Views/Scope/ScopeBrightness.cs` | Record ScopeBrightness (the BRITE groups; `Default`, `Apply` scales a colour's channels, `Lift` is the DWELL rule, the `Groups` table `.scope brite` and the spinners read) and ScopeBrightnessGroup (name, range, step) |
+| `Views/Scope/ScopeCanvas.cs` | SkiaSharp canvas (MapCanvasBase): left click selects, right-drag pans, wheel zooms; hit-tests the same FieldRect list the renderer draws; a pointer move dwells the track under the pointer or previews the VCI it is on (`ScopeFrame.HoverAt` → `ScopeHoverHit`), leaving the canvas releases both, panning holds them; a left click on an ERAM block's callsign raises `AircraftDwellLockToggleRequested` before selecting, and a frame carries the local lock in `ScopeFrameInput.LocalDwellLockedCallsigns`; `DbSettingsProperty` carries the Scope's DB settings into `BuildFrame` and the hover |
+| `Views/Scope/ScopeRenderer.cs` | Stateless renderer: video maps, targets, leaders, STARS blocks, ERAM blocks or EuroScope tags in the radar's line style (ERAM altitude arrows drawn as SKPaths); also holds ScopeFrame, ScopeFrameInput (with `HoveredCallsign`, `VciHoveredCallsign`, `DefaultLevel`), ScopeTrack (`Level`, `ShowsLeader`, `IsDwelled`, `DwellBox`), `ScopeFrame.HoverAt` (`DwellAt` is its dwell half), ScopeRenderSnapshot and ScopePalette (the user tint and selected colours the render thread resolves block and symbol colours from) |
+| `Views/Scope/ScopeFieldSlot.cs` | Enum of the fixed named datablock slots a template places and a field fills (incl. `AltitudeMismatch`, `OtherAltitude`) |
+| `Views/Scope/ScopeOwnerKind.cs` | Static: `TemplateIdFor` / `Resolve` map a track's owner sector code (`C…` ERAM, leading digit STARS, none ERAM) to the template a Mixed pick draws it with |
+| `Views/Scope/TrackPresentation.cs` | ScopeField (slot, text, stable text, token, action, style), TrackPresentation (template id, block level, block colour role, tint role, fields) and the ScopeBlockLevel / ScopeBlockColor / ScopeTintRole / ScopeColorToken / ScopeFieldAction enums and the [Flags] ScopeFieldStyle (DimTail, Strikethrough, ArrowUp, ArrowDown, HsfIndicator, Vci, AltitudeMismatch) |
+| `Views/Scope/EramStatusLine.cs` | Internal static: the ERAM line-3 status text (`SpcText`, the special-code label the Limited and Partial blocks also show) by strict priority (special-purpose code, handoff, recently accepted for the viewer, beacon mismatch / NONE, FRZN, CST) and whether it blinks; also the viewer's ERAM sector fallback from a C-prefixed TCP |
+| `Views/Scope/EramColumn0.cs` | Internal static: the ERAM column-0 predicates (the VCI lit when the viewer's ERAM sector is on frequency for the track; `R` when a viewer is known and the track, unowned included, is not its own) |
+| `Views/Scope/EramDwellLock.cs` | Internal static: the student's ERAM dwell lock as the viewer sees it (`IsDwellLocked`: the track's locked-sector list holds the viewer's ERAM facility and sector; `HasEramSector`) |
+| `Views/Scope/EramLine4.cs` | Internal static: the ERAM line-4 text (HSF free text, else heading and speed, else type and suffix, else a short destination) and the HSF-indicator test |
+| `Views/Scope/TrackPresenter.cs` | Pure: an AircraftModel + template id + ATPA lead/conflict peer + flash phase + selection + the MVA relation ScopeFrame.Build computed (TrackPresenterInput, ScopeAlertOptions, ScopeDisplayOptions) -> the TrackPresentation of slotted fields, the field set chosen by block level (`TrackPresenterInput.Level`; `EramFieldsBAndC` for the ERAM Partial block; `EramAltitudeDiffers` for the altitude-mismatch mark) |
+| `Views/Scope/ScopeTemplates.cs` | The C# templates by id ("stars", "eram", "euroscope"; `MixedId` is a routing id that `Get` rejects, resolved per track by `ScopeOwnerKind`): ScopeTemplate lines of ScopeSlotPlacement, with `LimitedLines` / `PartialLines` / `LinesAt(level)` for the collapsed levels and `DwellLines` for the extra dwell line |
+| `Views/Scope/DatablockTemplate.cs` | The engine: lays a TrackPresentation into a template's lines and returns one ScopeBlockLayout (bounds with column 0, text bounds, FieldRect list, `VciCell` the ERAM FDB's VCI cell for the hover preview), the single list drawing and hit-testing will read |
+| `Views/Scope/FieldRect.cs` | One laid-out field: slot, rect, text, color token, style |
 
 ## YAAT Scope engine
 
@@ -280,6 +339,8 @@ Two layout families, selected by the `EuroScopeMode` preference:
 3. Beacon-code mismatch (`SquawkLine`, e.g. `1200 0301`) — the reported code solid, then the assigned code
    dim-pulsing, when they differ (see **Beacon-code mismatch** below). Empty when the codes match / it's suppressed.
 4. Owner + flashing handoff + scratchpads (`.sp1 +sp2`) + `[assignedTo]`.
+   The owner text is `AircraftModel.OwnerDisplay`, which carries the student scope's position symbol after an owner in
+   another facility (`3Y(1)`, during a handoff `3Y(1) >1F`) unless the symbol repeats the owner's first or last letter or digit (a centre sector `C44` stays bare); see [crc-display-state.md](crc-display-state.md#trackowner--how-ownership-broadcasts).
    The `.sp1` slot renders `RadarDatablockLayout.EffectiveScratchpad1(ac)` — the controller-entered `Scratchpad1` when
    set, otherwise the server-resolved `AutoScratchpad1` (the STARS destination fallback). The two render identically,
    deliberately: CRC does not distinguish them, so the instructor mirror shows exactly what the student's scope shows.

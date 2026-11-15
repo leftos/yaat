@@ -1,7 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.LiveTraffic;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.LiveTraffic;
 

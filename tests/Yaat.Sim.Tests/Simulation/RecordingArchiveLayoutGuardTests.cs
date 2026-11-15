@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using Xunit;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

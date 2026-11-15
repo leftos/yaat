@@ -552,6 +552,7 @@
         RadarCenterLon="{Binding CenterLon, Mode=TwoWay}"
         ShowFixes="{Binding ShowFixes}"
         ShowMvaAltitudeTint="{Binding ShowMvaHints}"
+        MvaFacilityId="{Binding MvaFacilityId}"
         Fixes="{Binding Fixes}"
         PinnedMarkers="{Binding PinnedMarkers}"
         RangeRingCenterLat="{Binding RangeRingCenterLat}"

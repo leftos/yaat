@@ -258,7 +258,9 @@ Only the legacy Whisper engine takes a prompt; the rasr engines ignore it.
 
   A `{callsign}` or `{rwy}` capture with no digit is no match for that rule. Multiple clause matches are concatenated with commas. Tie-break rule: **more literal tokens wins at equal consumed count** — so a more-specific rule always beats a shorter one. For two rules of equal pattern length this reduces to "fewer captures wins" (e.g. `squawk vfr → SQVFR` beats `squawk {code} → SQ vfr`).
 
-  The mapper skips the three tokens "i say again" like a connector (the controller repeating itself, 7110.65 PCG), so they emit nothing and the instruction after them still matches. The say-again family in `BroadcastRules` is all `SttOnly` (pilots never speak it): "say again" → `AGAIN`, "say again your call sign" → `AGAIN CS`, "aircraft/station calling [facility…] say again [your call sign]" → `AGAINU` / `AGAINU CS` (the facility is a mid-pattern variadic), and "say again all after/before {rest…}" → `AGAIN` with the tail swallowed by a rest-of-line variadic so it is never issued as a command. A spoken call sign is extracted before matching, so it keeps the line addressed. "repeat" and bare "again" map to nothing.
+  The mapper skips the three tokens "i say again" like a connector (the controller repeating itself, 7110.65 PCG), so they emit nothing and the instruction after them still matches. The say-again family in `BroadcastRules` is all `SttOnly` (pilots never speak it): "say again" → `AGAIN`, "say again your call sign" → `AGAIN CS`, "aircraft/station calling [facility…] say again [your call sign]" → `AGAINU` / `AGAINU CS` (the facility is a mid-pattern variadic), and "say again all after/before {rest…}" → `AGAIN` with the tail swallowed by a rest-of-line variadic so it is never issued as a command.
+
+  The unaddressed "aircraft/station calling [facility…] say again all after/before {rest…}" forms swallow the tail the same way and map to `AGAINU`. A spoken call sign is extracted before matching, so it keeps the line addressed. "repeat" and bare "again" map to nothing.
 
   Returns `null` if no rule matched any part of the transcript. Because the digit and NATO passes run before matching, a spoken literal they rewrite ("three sixty", "bravo") needs an `SttOnly` twin in the rewritten form; the spoken rule stays for `PhraseologyVerbalizer`.
 - `src/Yaat.Sim/Speech/NatoLetterNormalizer.cs` — after callsign +
@@ -278,6 +280,8 @@ Only the legacy Whisper engine takes a prompt; the rasr engines ignore it.
   `south` → `180`, `east` → `090`, `west` → `270`). Intercardinals
   (`northeast` etc.) fail the post-pass, causing the rule to fall
   through so the LLM fallback can handle it.
+
+  The VFR cardinal forms are the exception: "proceed northbound / northeastbound / eastbound / southeastbound / southbound / southwestbound / westbound / northwestbound" are `SttOnly` rules that map to `FH N` … `FH NW`, keeping the direction word rather than a numeric heading.
 - `src/Yaat.Sim/Speech/PhraseologyCommandMapper.cs` — thin
   `ISpeechCommandMapper` adapter (line 10) so the mapper can sit behind
   the same interface as the LLM fallback and the service can hold a
@@ -640,6 +644,7 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - `"runway {rwy}, taxi via bravo charlie"` → `TAXI B C {rwy}`
 - `"taxi via bravo charlie hold short of? runway? {rwy}"` → `TAXI B C HS {rwy}`
 - `"taxi via bravo charlie cross runway {rwy}"` → `TAXI B C CROSS {rwy}`
+- `"amended|new|revised taxi instructions taxi via bravo charlie"` → `RTAXI B C` (a re-route that keeps the aircraft's destination; `SttOnly`)
 
 **Pushback (onto-taxiway + optional facing/tail):**
 
@@ -807,6 +812,159 @@ models).
 
 ## Related Docs
 
-- [`docs/architecture.md`](architecture.md) — full annotated file tree.
+- [`docs/architecture.md`](architecture.md) — the Task Index and layers; this doc's File map below lists the speech files.
 - [`docs/command-aliases/`](command-aliases/) — ATCTrainer and VICE alias data (`atctrainer-commands.json`, `vice-commands.json`, rebuilt by `build.py`).
 - [`COMMANDS.md`](../COMMANDS.md) — user-facing command reference.
+
+## File map
+
+One entry per file, grouped by project.
+
+### Yaat.Client (`src/Yaat.Client/`)
+
+Paths are relative to `src/Yaat.Client/`.
+
+```
+Services/
+  SpeechSampleStore.cs          # Push-to-talk sample store: writes each capture (audio + session.json) locally; a sample taken while telemetry is on gets an empty `upload-pending` marker (Add's queueForUpload). PendingUploadIds/MarkUploaded/ClearPendingUploads manage the markers; WriteBundle zips chosen samples to a stream.
+  SpeechTelemetryUploader.cs    # Uploads pending speech samples, oldest first, one single-sample zip per POST to {server}/telemetry/speech with the session bearer token, only while SpeechTelemetryEnabled; a permanent rejection (400/413) drops the marker, a transient failure stops the pass and leaves the rest pending.
+  Speech/                       # The STT engine seam SpeechRecognitionService transcribes through, and the sherpa-onnx engine
+    ISttEngine.cs               # WarmUpAsync + TranscribeAsync(samples, prompt, ct) → SttHypotheses; prompt is the biasing prompt for an engine that takes one (Whisper)
+    WhisperClientSttEngine.cs   # ISttEngine over WhisperSttEngine (one transcript as a single hypothesis); does not dispose the engine, MainViewModel owns it
+    SherpaClientSttEngine.cs    # ISttEngine over SherpaSttEngine: no hotwords, prompt ignored, decode latency from a Stopwatch; warm-up decodes 0.5 s of silence
+    SherpaSttEngine.cs          # sherpa-onnx recognizer over ISherpaOfflineApi (NeMo transducer, e.g. Parakeet-TDT): greedy or modified_beam_search, per-stream hotword text and n-best, every result read as JSON; NativeProblem refuses beam on a native without the n-best. Thread-safe: load, decode and Dispose share one lock, and no native call follows Dispose
+    ISherpaOfflineApi.cs        # The native seam SherpaSttEngine calls (recognizer create/destroy; stream create, option, waveform, decode, result JSON, destroy); tests pass a fake
+    SherpaOfflineNativeApi.cs   # ISherpaOfflineApi by P/Invoke into sherpa-onnx-c-api (in Yaat.Client, so SherpaNativeLoader's CUDA resolver covers it); Instance is the only one
+    SherpaCudaInstaller.cs      # On-demand CUDA native set (win-x64, linux-x64) into %LOCALAPPDATA%/yaat/backends/sherpa-cuda13/native: our CUDA zip (R2, then natives.mirrors) plus pinned NVIDIA PyPI wheels (cuBLAS, cuDNN; Linux adds cudart, cuRAND), each SHA-256 checked (a header or 60 s body-idle timeout, a wrong length or an oversize body falls through to the next URL), built in .staging-<id>/ while the old set stays in place, then swapped in with the sentinel (one line per download) written last; one writer per root via <root>.lock beside it (TryLockRoot), and on Windows no replace or remove while a process has the set loaded; ScheduleRemovalOnNextStart writes a `remove-pending` marker and ProcessPendingRemoval (called first in Program.ConfigureSherpaNatives) deletes the set and marker at the next start, retrying while it cannot; native/ holds its own .installed copy, and RecoverOrphanedSet (startup, constructor, every install) moves a lone sentinel-carrying .old-* back as native/ when a crash mid-swap left it missing
+    CudaDriverProbe.cs          # GPU check through the CUDA driver API only (ICudaDriverApi, CudaDriverNativeApi loads nvcuda.dll / libcuda.so.1): driver CUDA 13 or newer (R580) and device 0 of compute 7.5 or newer; returns GpuSupport with the Reason sentence the Device row shows; never faults
+    UiThreadMirror.cs           # UI-thread copy of an installer's IsInstalled / IsBusy / Progress / StatusMessage (InstallerState): installer PropertyChanged posts a callback that re-reads it; Of(SttModelInstaller | SherpaCudaInstaller, post)
+    SttSizeText.cs              # Settings > Speech size text in decimal GB, invariant culture: Total ("2.55 GB"), Progress ("1.1 of 2.55 GB"), Ready ("Ready (2.55 GB on disk)")
+    VerifiedFileDownloader.cs   # Internal: one file pinned by size and SHA-256 (VerifiedFile) downloaded from the first of its URLs that serves the pinned bytes (an HTTP error, a header or 60 s body-idle timeout, a wrong length or a hash mismatch falls through to the next); shared by SherpaCudaInstaller and SttModelInstaller
+    SttModelInstaller.cs        # Installs one STT model of stt-downloads.json's models[] (SttModelDownload of SttModelFile; ReadModels/ReadModel parse it) into %LOCALAPPDATA%/yaat/models/stt/<id>/: files built flat in <id>.staging-<random>/ with the .installed sentinel (one "name sha256" line per file) written last, then swapped in while the old folder stays until the new one is complete; one writer per root via models/stt.lock (TryLockRoot), a refused start reads "Another model is downloading; try again when it finishes." (IsRefusal); DeleteAsync also removes staging and .old-* leftovers, and construction restores an orphaned <id>.old-* folder
+    SttDownloads.cs             # The app-lifetime owner of the speech-recognition downloads Settings shows (MainViewModel.SttDownloads): one SttModelInstaller per manifest model (ModelInstaller(id)), the SherpaCudaInstaller (Gpu), the GPU check (GpuSupport) and the n-best check (NbestAvailability), both started once at construction, and IsEngineLoading (TrackEngineLoadAsync); a download keeps running after Settings closes and a reopened Settings shows its progress; ModelInstalled is raised on the installer's thread; Dispose cancels running downloads
+    SttEngineSwapScheduler.cs   # Runs an engine swap under the pipeline's warm-up only while the mic rests (Idle, ModelMissing or Error): a swap requested mid-transmission waits for the next resting status and shares one pending swap, then enters Warming atomically through SpeechRecognitionService.TryBeginWarming and runs WarmAsync; with speech off it swaps in an engine that has not loaded its model (MainViewModel.SwapSttEngineAsync; ChooseBySpeechSetting decides at run time, and a second instance with a no-op swap warms models after Settings Apply). RequestAsync runs on the thread pool
+    SttEngineFactory.cs         # The live client's engine from the preferences' SttEngine and SttMode: Create (no native call; Whisper, or a rasr model greedy in Fast and beam 4 / hotword 1.5 in Accurate), CreateCheckedAsync (probes the beam by decoding on the engine it built, falls back to greedy), IsModelReady (the model's files are on disk)
+    SwappableSttEngine.cs       # ISttEngine whose engine is replaced while the app runs: one gate serializes warm-up, transcribe and swap; SwapAsync warms the new engine first (a failed warm-up keeps the old one), SwapToLatestAsync lets the latest request win, SwapToLatestUnwarmedAsync is the same without the warm-up (the model stays unloaded), WhenSwapsSettledAsync waits for every SwapToLatestAsync in progress, the old engine is disposed off-thread
+    SherpaNativeLoader.cs       # One native set per process: ChooseAtStartup(SttDevice, manifest, root) picks CPU or CUDA with the reason a GPU pick fell back (CpuFallbackReason, for Settings and Speech Debug: also set by a cuda model load that falls back, RecordGpuLoad clears it, CpuFallbackReasonChanged announces it; a CPU pick reads no file); UseCudaSet checks the CUDA provider's file (ONNX Runtime loads the provider itself: its DllMain needs ORT's provider host), registers the DllImport resolvers for Yaat.Client and sherpa-onnx (Piper) through IDllImportResolverRegistrar before loading, preloads the rest of the set by absolute path in dependency order, and publishes the C API handle only after every load succeeded, so a failed load leaves the CPU set; called from Program.ConfigureSherpaNatives under the install root's lock; NbestAvailability says without a model whether the loaded native can run Accurate (false when the C API folder holds sherpa-native-FALLBACK.txt, NuGet's stock native)
+    NativeStderrCapture.cs      # Install (first in Program, before any sherpa native loads) redirects native stderr into the client log as the NativeStderr logger and copies it back to the original stderr (Linux; Windows with a stderr handle; not macOS); parses sherpa's "Failed to enable CUDA: {reason}" line (two stderr lines) into NativeFallbackLine; INativeFallbackSource.Latest and SherpaGpuFallbackProbes are what SherpaSttEngine reads around a cuda recognizer create
+    SherpaResultJson.cs         # sherpa-onnx result JSON to SttHypothesis entries, and whether a native writes the n-best
+    SttDecoderInput.cs          # ToDecoderHypothesis: an SttHypothesis as ContextDecoder takes it (sherpa piece's leading space → ▁ word mark); used by SpeechRecognitionService.MapHypothesesWithTraceAsync (accurate mode) and the sandbox's CorpusSlotRun
+    SttHypotheses.cs            # SttHypothesis / SttHypotheses (alternatives best first, latency, cache flag) and SherpaDecoding / SherpaDecodingMethod (greedy or beam, paths, hotword score)
+    GpuMemoryProbe.cs           # --corpus-wer GPU memory: per-process dedicated bytes from Windows' GPU Process Memory counters (System.Diagnostics.PerformanceCounter); IGpuMemorySampler is the seam the benchmark reads; GpuUseCheck refuses a GPU run that never reached the GPU (its message points at the current log file) and a CPU Whisper run on a GPU backend
+    Bench/                      # The in-app STT benchmark: one row measured in-process or by the `--stt-bench-one` child, and the parent that runs the rows one child at a time (the Speech benchmark window shows it; Settings > Speech > Benchmark this machine… opens that window)
+      SttBenchJob.cs            # One row to measure: SttEngine, SttMode, SttDevice, model folder, clips folder, result path
+      SttBenchResult.cs         # SttBenchResult (Succeeded, one-line Failure, CorpusWerTiming, clip count, the mode the engine loaded) and SttBenchJsonContext, the source-generated JSON for the job, result, clip list and reference file
+      SttBenchRunner.cs         # RunAsync(job, ISttBenchEngineSource, SttBenchMeters, ct): load the engine, check the mode and device it reached, one untimed clip, then every clip timed; CorpusWerLatency.Summarize makes the timing; a failed row carries its reason instead of figures
+      FactorySttBenchEngineSource.cs # The real ISttBenchEngineSource: a rasr model built through SttEngineFactory.CreateForBench from the job's model folder (parent = install root, name = manifest id); Whisper is refused
+      SttBenchChild.cs          # The --stt-bench-one child: TryParseArgs, Run (own log, native stderr capture, the job's native set) and RunJobAsync (read job, measure, write the result atomically; exit 0, 2 or 3)
+      BenchClips.cs             # Load(dir): clips.json (id, expected) plus one <id>.wav each, as BenchClip with 16 kHz mono samples
+      WavReader.cs              # ReadMono16k: 16 kHz mono 16-bit PCM WAV to Float32 samples; anything else is an InvalidDataException
+      SttReference.cs           # SttReference.Load(stt-reference.json): schema-1 reference WER and callsign recall per engine and mode; Find(engine, mode)
+      SttBenchPlan.cs           # SttBenchPlanRow and SttBenchPlan: the rows of a run (each downloaded rasr model, CPU then GPU and on each device Accurate then Fast); a row that cannot run keeps its SkipReason (the public NoGpuRuntimeReason for a GPU row without the runtime); FromDownloadsAsync reads the downloads, the n-best check and the GPU check
+      SttBenchProcess.cs        # SttBenchProcess (ISttBenchRowRunner): one row in a child of this exe under a per-row folder in %LOCALAPPDATA%/yaat/stt-bench/, killed with its tree at a deadline or cancel (one kill, never awaited by the row), a missing result turned into a failed row; SttBenchRowOutcome; SttBenchChildLauncher (the real ISttBenchLauncher)
+      SttBenchService.cs        # SttBenchService (MainViewModel.SttBench): State, Progress, Rows, LastRun, Changed, RunAsync, Cancel; SttBenchFolders; SttEngineSuspender swaps a SttBenchStandInEngine in for the run, waits for engine builds in flight, and after rebuilds the engine and reloads Whisper and the LLM only as far as the suspend took them out
+      SttBenchText.cs           # SttBenchText: the benchmark's figures and lines in invariant culture (load, ms, GB, WER, recall, device, RunCounts, LastRunLine, RunningLine, SettingsSummary for the Settings > Speech line as an SttBenchSummaryLine from an SttBenchSnapshot, CardMeasured for a model card's Measured row); a figure not measured shows a dash
+      SttBenchLastRun.cs        # SttBenchLastRun and SttBenchLastRunStore: the last finished run in %LOCALAPPDATA%/yaat/stt-benchmark.json, outside the preferences and the settings bundle
+    SttMeasurement.cs           # What a --corpus-wer arm records about speed and memory: CorpusWerTiming (load, p50/p90/max latency, working set, GPU bytes, device warning), CorpusWerMemory, CorpusWerLatency (nearest-rank percentiles, Summarize)
+
+ViewModels/
+  SpeechBenchmarkViewModel.cs   # The Speech benchmark window's VM: mirrors MainViewModel.SttBench (Changed marshalled to the UI thread), run count, status and progress, the rows, Run / Cancel / Apply of a picked row, RefreshCurrent moves the `current` badge after a Settings OK; RequestClose returns a CloseDecision (Close, Refuse while models unload or reload, Ask to cancel the run)
+  SpeechBenchmarkRowViewModel.cs # One table row: model, mode, device, load, p50/p90 latency, RAM and VRAM from the run beside the reference WER and callsign recall, or the one line saying why there are no figures; SpeechBenchmarkRowKey
+  SttModelCardViewModel.cs      # One card of the Settings > Speech model picker (SettingsViewModel.SttModelCards): a manifest model with its UiThreadMirror state, size text and download, cancel, delete and licence commands, a MeasuredText line Settings sets from the last benchmark run (`Not measured: run the benchmark` without a row), and a note on the Whisper and int8 cards; the legacy Whisper card downloads nowhere here; Dispose stops mirroring the installer
+
+Views/
+  SpeechBenchmarkWindow.axaml(.cs) # Speech benchmark (geometry key SpeechBenchmark, 900x520): intro, Run / Cancel, progress, the rows table, Apply; closing mid-run asks "Cancel the run?" inline; the owner or app shutdown closes it
+```
+
+### Yaat.Sim (`src/Yaat.Sim/`)
+
+Paths are relative to `src/Yaat.Sim/`.
+
+```
+# Speech/ — STT + phraseology rule engine (Yaat.Sim layer)
+Speech/PhraseologyMapper.cs    # Static: transcript → canonical command (rule-based layer of the hybrid NLU).
+                               # Pipeline: digit normalize → tokenize/strip filler → callsign extract → condition extract → longest-match against PhraseologyRules.All
+Speech/PhraseologyRule.cs      # Single rule record: Pattern (literal / literal? / {capture} tokens) + OutputTemplate + CanonicalType + optional PilotVariants (the pilot's spoken variant rows per load band)
+Speech/PilotVariantSet.cs      # PilotVariantSet (Quiet/Normal/Busy lists of PilotVariant rows; BusyOnly(...); Quiet and Normal also speak the canonical, Busy only its rows), PilotVariant(Template, PilotVariantTags; IsBareWilco, PlacesCallsign) with the busy-only `{alt:group}` / `{spd:group}` capture modifier (GroupFormSuffix), the `{cs}` callsign placeholder and the FlightLevelOnly / GroupFormRange / SlowingOnly / SpeedingOnly / MaintainingOnly tags: a rule's spoken readback wordings per load band; BuilderVariantSet(Name, Pattern, Type, Variants), the same rows for a clause a readback builder renders directly (expedite, altitude restriction, cross-fix restriction; listed in PhraseologyRules.BuilderVariantSets).
+Speech/PhraseologyRules.cs     # Static catalog of all phraseology → canonical rules, organized by command category to mirror CommandRegistry
+Speech/PhraseologyCommandMapper.cs  # ISpeechCommandMapper adapter so the rule engine can sit alongside the LLM fallback in the speech pipeline list
+Speech/ISpeechCommandMapper.cs # Interface + MapContext record (active callsigns, programmed fixes, custom-fix patterns) shared by rule + LLM mappers
+Speech/CanonicalCommandGrammar.cs   # GBNF grammar generated from CommandRegistry.AliasToCanonicType; constrains LLM fallback output to valid canonical commands
+Speech/AtcNumberParser.cs      # Bidirectional spoken-numbers ↔ digit conversion (NormalizeDigits, FlightNumberToWords, AltitudeToWords)
+Speech/CallsignParser.cs       # Spoken callsign ↔ ICAO callsign (TryParseLeading/Trailing for transcripts; IcaoToSpoken for prompt seeding; ShortenedNNumberSpoken = "november" + the last three characters of an N-number)
+Speech/AirlineTelephony.cs     # Static bidirectional airline ICAO ↔ telephony map; data from OpenFlights airlines.dat (ODbL 1.0)
+Speech/AircraftTypeNames.cs    # Static ICAO type designator → spoken manufacturer/family name (e.g. C25C → "Citation"); preprocessed from vNAS AircraftSpecs
+Speech/ScenarioCallsignExtractor.cs # Pulls custom telephony designators from scenario flight-plan remarks for whisper initial_prompt seeding
+Speech/NatoPhoneticAlphabet.cs # Single canonical NATO letter ↔ word map consumed by every other Speech/ class
+Speech/NatoLetterNormalizer.cs # Collapses runs of NATO words ("tango uniform whiskey") into single taxiway tokens; topology-aware via the airport taxiway set
+Speech/TrafficCallsignNormalizer.cs # Collapses a spoken traffic callsign after "follow" / "behind" / "give way to" into one ICAO token (kept only when on frequency), before the NATO collapse; IsPrecededByCue keeps CallsignParser's trailing parse off that tail
+Speech/NatoNearMissResolver.cs # Levenshtein-1 rewrite of Whisper NATO mishears; runs after custom-fix collapse and before callsign extraction
+Speech/PhoneticFixMatcher.cs   # Fuzzy-match transcribed tokens against known fix names (Whisper transcribes fixes phonetically — this restores the canonical id)
+Speech/CustomFixSpeechPattern.cs # Multi-token spoken pattern → custom-fix canonical alias (e.g. "runway 30 numbers" → OAK30NUM); built at NavigationDatabase load
+Speech/WhisperBiasingPrompt.cs # Static initial_prompt assembled from ATC numbers, all PhraseologyRules literals, and the SCRAMBLED NATO alphabet (avoids the alphabetical-extrapolation prior)
+Speech/Context/                # Context-layer decoder (design: docs/speech-context-decoder.md): resolves a transcript's callsign and entities against one transmission's closed set
+Speech/Context/ContextTypes.cs # TransmissionContext (room aircraft + airport entities), ContextEntity with SpokenForms, DecoderInput/Hypothesis (text, token log-probs, acoustic score), DecodeResult; InputSource (Spoken/Typed), MatchMode (Fuzzy/ExactOnly)
+Speech/Context/DecoderSettings.cs # Every decoder threshold and prior in one record; Default holds the design's starting values
+Speech/Context/SpokenTokenizer.cs # One normaliser for transcripts and spoken forms: numbers to one digit token per digit, NATO words canonical, fillers dropped, each token keeping its source-word index
+Speech/Context/SpokenFormScore.cs # The single similarity primitive: WordScore (raw + voicing-folded phonetic Levenshtein, 0..1) and ScoreSpan (name × code × prior); SplitHeard (the one name/code split), IsPrefixedForm
+Speech/Context/ContextDecoder*.cs # Decode(input, context, settings): joint callsign and entity decode of each hypothesis, n-best choice, rewrite; partials for spans, callsign stage (leading candidates, second callsign), entity stage (bare forms, weighted-interval choice), rewrite
+Speech/Context/ContextPhraseWords.cs # Every phraseology word list the decoder keys on: openers, lead-ins, value followers, discriminators
+Speech/Context/ContextEntityFactory.cs # Builds entities with their spoken forms and priors: callsigns (airline telephony + flight number, GA november/type/short/last-three), runway ends, approaches, SIDs/STARs (registered pronunciations, ARTCC-fragment procedures), fixes, taxiways/gates/spots (registered gate and spot pronunciations), landmarks
+Speech/Context/AirportContextBuilder.cs # Build(airport, layout, radiusNm, landmarks, nav, settings): every airport entity (runways, approaches, SIDs/STARs, ground names, fixes within the radius, landmarks, the airport's named places), deduped by (kind, value)
+Speech/Context/RoomContextFactory.cs # Build(cache, RoomContextRequest, nav, settings): a TransmissionContext from live room state — airport entities (10 nm, or 40 nm plus nearby instrument airports for an approach position), each aircraft's callsign entity with its programmed fixes and assigned runway, facility names from position radio names (function words stripped); landmarks from the airport's own <faa>-landmarks.json (NavigationDatabase.CustomFixLandmarks)
+Speech/Context/RoomContextCache.cs # Per-airport cache of the airport entities, keyed by AirportContextKey (airport, approach position, layout by reference); one per client
+Speech/Data/                   # Static reference data: airlines.tsv (OpenFlights), aircraft-types.tsv (ICAO Doc 8643 via vNAS), aircraft-type-aliases.tsv (spoken type names Doc 8643 lacks), source .meta + LICENSE-OPENFLIGHTS.txt
+```
+
+### Yaat.SpeechSandbox — GUI/CLI tool (`tools/Yaat.SpeechSandbox/`)
+
+Interactive sandbox for the speech pipeline (STT) and text-to-speech (TTS) experiments. Loads `UserPreferences` from the standard YAAT config location so the sandbox uses the same models/settings as the live app.
+
+```
+Program.cs                     # Entry: dispatches CLI subcommands (--pipeline, --lmkit-stt, --lmkit-models, --lmkit-gpus, --yaat-catalog, --llm-probe, --ouroboros, --atc-ouroboros, --eval, --synth-corpus, --corpus-wer, --tts-bench; internal --tts-bench-one) or launches the GUI
+App.axaml{,.cs}                # Avalonia app shell; Fluent dark theme + h2/subtle styles
+MainWindow.axaml{,.cs}         # TabControl host with two tabs: STT pipeline (existing) + TTS sandbox (M10.0)
+TtsSandboxView.axaml{,.cs}     # TTS tab: sherpa-onnx + Piper LibriTTS-R + tunable radio FX (band-pass/Q/drive/squelch); auto-detects voice pack at .tmp/voices/, plays through PortAudio
+OuroborosRunner.cs             # --ouroboros: synthetic round-trip harness (canonical → readback → Piper TTS → STT pipeline → compare); PASS/FLAKY/FAIL per case + markdown report
+OuroborosCorpus.cs             # Corpus JSON schema for --ouroboros cases
+AtcOuroborosRunner.cs          # --atc-ouroboros: controller-voice ouroboros — SynthTemplates cases across every PhraseologyRules family, spoken with Piper, scored through EvalRunner, aggregated per family/template and diffed against Corpus/atc-ouroboros-baseline.json (--update-baseline); exit 3 on a per-family or totals regression
+AtcOuroborosResults.cs         # results.json / baseline schema (FamilyResult, TemplateResult, TotalsResult, AtcOuroborosResults, the nested CommandRates) plus the pure aggregation, the rate-based family diff (one-case floor, totals over shared families) and exit-code logic
+CommandScoring.cs              # Per-clause command scoring: recognised / wrong-args / wrong-verb / inserted / rejected, order-insensitive over `,` clauses
+SynthTemplates.cs              # Controller-phraseology template catalog (SynthTemplate per rule family, Compound for multi-clause) and the verify-or-gap planner: renders, verifies through the rule mapper, samples only verified templates, records the rest as TemplateGap
+Corpus/atc-ouroboros-baseline.json # Committed --atc-ouroboros baseline the diff compares against
+CorpusWerRunner.cs             # --corpus-wer: an STT engine's (--stt) word error rate on real ATC audio (UWB-ATCC download or a local wav+txt folder), pooled per role and prompt arm; report.md / results.json / results.jsonl, baseline update and compare (exit 3 on a regression)
+CorpusWerResults.cs            # results.json / baseline schema (CorpusWerBaseline, CorpusWerArm, CorpusWerRoleTotals), CorpusWerJsonContext, CorpusWerBaselineComparer (1.0-point threshold, skip on corpus/fingerprint/seed/subset/model mismatch)
+CorpusSegment.cs               # CorpusSegment (16 kHz samples + reference), CorpusRole and its id-suffix rule (_PI / _AT / PIAT), CorpusSubset (seeded, ordinal), resample to 16 kHz
+UwbAtccCorpus.cs               # UWB-ATCC test split: pinned-revision download into %LOCALAPPDATA%/yaat/cache/atc-corpora/ (size + SHA-256 check), Parquet.Net row classes, load
+LocalCorpus.cs                 # Local <id>.wav + <id>.txt corpus folder (any sample rate) and its content fingerprint
+CorpusWerGroups.cs             # Folder-corpus WER rows beyond role: per provenance (owner, owner+agreed from decisions.json) and per feed (id prefix)
+CorpusSlots.cs                 # A corpus folder's slots.json: each clip's gold entity slots (kind, canonical value, spoken form)
+AirportLayoutFile.cs           # Parses a ground layout from a local GeoJSON file the way AirportLayoutDownloader parses a download (kept out of Yaat.Sim's Data/Airport, whose files key the precompute cache)
+CorpusRooms.cs                 # A corpus folder's rooms.json: per feed the airport, facility (gnd|twr|app) and padding seed, plus telephony and aircraft-type overrides
+RoomContextBuilder.cs          # Expands a feed room and the slot gold into three TransmissionContexts per clip: unpadded (leave-one-out own entities), padded to 35 with seeded distractors, and the clip's oracle
+RoomHotwords.cs                # A room context's hotword phrases (callsigns, own entities, airport entities; noun-only forms dropped, capped) and per-kind form coverage of the gold
+CorpusSlotOptions.cs           # --slots / --resolve / --room-hotwords / --hotword-cap / --two-pass: SlotRoom, TwoPassList, CorpusSlotOptions and their parsing and cross-flag checks
+CorpusSlotRun.cs               # --slots set-up (navdata, rooms, slots, layouts, landmarks) and per clip: the room-hotword bias, the two-pass target and narrow bias, sherpa hypotheses mapped to decoder input, the decode under each room, the per-arm tallies
+CorpusSlotResults.cs           # results.json / jsonl slot records (per room: groups, coverage, resolved WER, gate count; per clip decode lines) and the report.md slot sections
+CorpusSlotScorer.cs            # Context-decoder output against the gold slots: per-kind recall and false insertions, wrong addressee, say-again and no-callsign counts, pooled overall, per provenance and per feed
+WerScorer.cs                   # WerCounts (S/D/I, rate), WerScorer (word Levenshtein alignment), WerTally (pooled rate)
+WerTextNormalizer.cs           # Puts reference and hypothesis in one form for WER: lowercase, no punctuation, accents folded, digits spelled, NATO spelling variants, split compounds and letter runs joined, fillers dropped
+FixedWhisperRuntimeConfig.cs   # IWhisperRuntimeConfig over an explicit model source (--stt whisper:, or the default)
+CorpusSttEngine.cs             # STT engine seam shared by --corpus-wer and --eval: SttKind/SttChoice (--stt <kind>:<source>, CorpusSttEngines.TryParse), ICorpusSttEngine (SttBias in, SttHypotheses out) with Whisper, sherpa offline (over src/Yaat.Client/Services/Speech/SherpaSttEngine, hotwords joined by SherpaHotwords) and sherpa streaming adapters, CorpusSttEngines factory, KindText and RecordedModel (never a machine path)
+EngineFlags.cs                 # --stt / --device / --decoding / --num-paths for --eval and --atc-ouroboros: parse, cross-flag refusals worded as --corpus-wer's, resolved SttChoice (beam = accurate mode)
+SherpaHotwords.cs              # --hotwords-file lines to phrases (casing, refused characters) and the C API's /-joined hotword string
+CloudSttEngine.cs              # --stt gemini:/openai: cloud transcription (API key from the environment, fixed ATC instruction, 429/5xx/transport retries, response cache under %LOCALAPPDATA%/yaat/cache/cloud-stt keyed by audio + request signature); sandbox-only
+SherpaStreamingSttEngine.cs    # sherpa-onnx OnlineRecognizer (streaming NeMo transducer, e.g. Nemotron Speech Streaming) fed in 0.1 s chunks, timing only the finalization after the last sample (StreamingChunks); sandbox-only probe for --corpus-wer --stt sherpa-streaming:
+New-SherpaNativeSandbox.ps1    # builds .tmp/sandbox-native-cpu or -cuda: the Release sandbox with YAAT's own sherpa-onnx native overlaid, every DLL hash-checked against its MANIFEST.txt, plus cuDNN 9 on cuda, for --device gpu sherpa runs
+PiperSynthesizer.cs            # sherpa-onnx Piper synthesis shared by the TTS tab and ouroboros
+EvalRunner.cs                  # --eval: real-audio eval harness; scores the production pipeline against labeled captured WAVs (tests/Yaat.Client.Tests/TestData/speech-corpus/); canonical exact-match + WER + STT latency, LMKIT_TEST_MODEL override, --stt engine choice, scores each case under the context its expected.json carries (runways, taxiways, destinations), auto-stubs expected.json from sample-store session.json (camelCase, deserialized as SpeechSession); in-process core used by --atc-ouroboros
+SynthCorpusGenerator.cs        # --synth-corpus: synthetic controller-phraseology eval cases from SynthTemplates (verified plan → Piper multi-speaker synth → --eval case dirs marked synthetic, with template + context); unverifiable templates reported as GAP lines and left out
+SynthAudioCache.cs             # Content-addressed cache of synthesized case WAVs (%LOCALAPPDATA%/yaat/cache/synth-audio/), keyed by PipelineVersion, voice-pack model hash, length scale, text, speaker, speed, sample rate and padding (first writer wins), so one seed gives the same audio across runs (Piper differs per process); --no-synth-cache bypasses it
+TtsBenchRunner.cs              # --tts-bench: small-TTS benchmark driver — option parsing, the committed readback corpus (Corpus/tts-bench-readbacks.json) rendered through PilotResponder, per-model screen (3 lines, 1 voice, 8/4/2 threads) then full run, report/results/listening-page rewrite after each model; exit 0 / 3 (a model did not run) / 2 (usage, corpus, download)
+TtsBenchModels.cs              # Catalog of benchmarked models (id, runtime, sherpa-onnx release asset, licence, voices): Piper LibriTTS-R fp32/fp16/int8, Kitten 0.8 nano/micro/mini, Matcha, Pocket, ZipVoice, Supertonic, Kitten-TTS 2 (recorded only)
+TtsBenchDownloader.cs          # Downloads and extracts model archives into %LOCALAPPDATA%/yaat/tts-bench/models/ (YaatPaths), a .complete marker per model, Content-Length sizing
+TtsBenchSynthesis.cs           # --tts-bench-one (internal child process: one timed phase of one model, so a native abort costs only that model): load time, first-audio latency, RTF, clips to .tmp/tts-bench/clips/
+TtsBenchResults.cs             # results.json schema, screen verdicts (pass / marginal / screened out / not run), markdown report and listening-page writers
+tts-bench/kitten2_bench.py     # Kitten-TTS 2 half of --tts-bench (KittenML's llama.cpp fork, run through uv; not sherpa-onnx)
+Corpus/tts-bench-readbacks.json # Committed pilot readback cases (callsign + canonical commands) the benchmark speaks
+```

@@ -3,7 +3,6 @@ using Avalonia.Threading;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Settings;
 
 namespace Yaat.Client.UI.Tests.Helpers;
 

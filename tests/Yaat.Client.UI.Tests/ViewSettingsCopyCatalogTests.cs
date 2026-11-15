@@ -1,4 +1,3 @@
-using System.Linq;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;

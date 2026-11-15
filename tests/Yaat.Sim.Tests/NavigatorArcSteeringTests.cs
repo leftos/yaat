@@ -1,6 +1,5 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using static Yaat.Sim.Data.Airport.AirportGroundLayout;
 
 namespace Yaat.Sim.Tests;
 

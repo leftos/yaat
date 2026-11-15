@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;

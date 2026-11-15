@@ -30,6 +30,8 @@ csharp_using_directive_placement = outside_namespace:warning
 dotnet_style_namespace_match_folder = true
 dotnet_diagnostic.IDE0161.severity = warning
 dotnet_diagnostic.IDE0130.severity = warning
+# Unused usings fail the build (needs GenerateDocumentationFile, set in Directory.Build.props)
+dotnet_diagnostic.IDE0005.severity = warning
 
 # Braces are always required, even for single-statement bodies
 csharp_prefer_braces = true:warning
@@ -105,6 +107,50 @@ resharper_access_to_disposed_closure_highlighting = none
 # MVVM Toolkit: field initializers overwritten in constructor (OnXChanged pattern)
 resharper_member_initializer_value_ignored_highlighting = none
 
+# AnalysisLevel latest-recommended raises these rules to warning. Each is held at suggestion until its YAAT-116
+# part clears it and raises it back to warning.
+dotnet_diagnostic.CA1000.severity = suggestion
+dotnet_diagnostic.CA1001.severity = suggestion
+dotnet_diagnostic.CA1036.severity = suggestion
+dotnet_diagnostic.CA1050.severity = suggestion
+dotnet_diagnostic.CA1305.severity = suggestion
+dotnet_diagnostic.CA1310.severity = suggestion
+dotnet_diagnostic.CA1507.severity = suggestion
+dotnet_diagnostic.CA1711.severity = suggestion
+dotnet_diagnostic.CA1716.severity = suggestion
+dotnet_diagnostic.CA1720.severity = suggestion
+dotnet_diagnostic.CA1725.severity = suggestion
+dotnet_diagnostic.CA1805.severity = suggestion
+dotnet_diagnostic.CA1806.severity = suggestion
+dotnet_diagnostic.CA1816.severity = suggestion
+dotnet_diagnostic.CA1822.severity = suggestion
+dotnet_diagnostic.CA1826.severity = suggestion
+dotnet_diagnostic.CA1836.severity = suggestion
+dotnet_diagnostic.CA1844.severity = suggestion
+dotnet_diagnostic.CA1847.severity = suggestion
+dotnet_diagnostic.CA1848.severity = suggestion
+dotnet_diagnostic.CA1852.severity = suggestion
+dotnet_diagnostic.CA1854.severity = suggestion
+dotnet_diagnostic.CA1859.severity = suggestion
+dotnet_diagnostic.CA1861.severity = suggestion
+dotnet_diagnostic.CA1862.severity = suggestion
+dotnet_diagnostic.CA1865.severity = suggestion
+dotnet_diagnostic.CA1866.severity = suggestion
+dotnet_diagnostic.CA1869.severity = suggestion
+dotnet_diagnostic.CA1872.severity = suggestion
+dotnet_diagnostic.CA1873.severity = suggestion
+dotnet_diagnostic.CA1875.severity = suggestion
+dotnet_diagnostic.CA2016.severity = suggestion
+dotnet_diagnostic.CA2101.severity = suggestion
+dotnet_diagnostic.CA2201.severity = suggestion
+dotnet_diagnostic.CA2249.severity = suggestion
+dotnet_diagnostic.CA2263.severity = suggestion
+dotnet_diagnostic.CA5351.severity = suggestion
+
+# Test method names use underscores (Method_Condition_Result).
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+
 [*.axaml]
 # Avalonia XAML DataContext not statically resolvable
 resharper_xaml_binding_with_context_not_resolved_highlighting = none
@@ -124,6 +170,8 @@ dotnet_diagnostic.CS8603.severity = none
 dotnet_diagnostic.CS8604.severity = none
 dotnet_diagnostic.CS8618.severity = none
 # Every rule the [*.cs] section pins individually, since a pinned rule outranks the blanket default above.
+# IDE0005 too: the task compile has no implicit usings, so usings the test compile sees as unused are needed there.
+dotnet_diagnostic.IDE0005.severity = none
 dotnet_diagnostic.IDE0007.severity = none
 dotnet_diagnostic.IDE0008.severity = none
 dotnet_diagnostic.IDE0011.severity = none

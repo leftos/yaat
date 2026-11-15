@@ -4,7 +4,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;

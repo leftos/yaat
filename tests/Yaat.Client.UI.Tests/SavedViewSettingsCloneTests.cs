@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;

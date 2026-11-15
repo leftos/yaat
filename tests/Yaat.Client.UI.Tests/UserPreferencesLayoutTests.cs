@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Helpers;
 
 namespace Yaat.Client.UI.Tests;
 

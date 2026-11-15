@@ -47,6 +47,7 @@ public static class QuickCommandResolver
         [MenuIds.ApproachCleared] = (ac, _) =>
             AircraftCommandApplicability.ShowsApproachClearanceAfterGoAround(ac)
             && AircraftCommandApplicability.ShowsApproachClearanceUntilCleared(ac),
+        [MenuIds.ApproachClearedExpected] = (ac, _) => AircraftCommandApplicability.ShowsClearedExpectedApproach(ac),
         [MenuIds.TowerCancelTakeoff] = (ac, _) => AircraftCommandApplicability.ShowsCancelTakeoff(ac),
         [MenuIds.GroundCrossRunway] = (ac, _) => AircraftCommandApplicability.ShowsCrossAtHoldShort(ac),
         [MenuIds.GroundResumeTaxi] = (ac, _) => AircraftCommandApplicability.ShowsResumeTaxiAtHoldShort(ac),

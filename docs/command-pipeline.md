@@ -11,12 +11,13 @@ The instructor types `UA H180 AT FIX1`. By the end of the tick, `ControlTargets.
 (`src/Yaat.Client/ViewModels/MainViewModel.cs`)
 
 - Input starting with `.` (or the `CRC ` force-alias prefix) never enters this pipeline — it is a client-local dot command: YAAT's scope markers first, then CRC aliases. See [client-mainviewmodel.md](client-mainviewmodel.md) § `SendCommandAsync`.
-- Macro expansion runs first (`MacroExpander.TryExpand`) so `#climb 5` could become `CM 5000`.
+- Macro expansion (`TypedCommandText.TryExpandMacros`, over `MacroExpander`) runs before callsign resolution, so `#climb 5` could become `CM 5000`.
 - The first whitespace-delimited token is the **partial callsign**. `CallsignPrefixResolver.Resolve` matches `"UA"` against `Aircraft.Callsign` (exact, then substring via `CallsignMatcher`); when multiple aircraft match, the status bar shows an ambiguity message listing the candidates and the command is not sent.
 
   A leading token that is a known command verb (e.g. `CM`) is never treated as a partial callsign — only an exact callsign match overrides it — so `CM 020` is a climb/maintain for the selected aircraft even when live callsigns like `CMD2` contain the substring.
 - Optional `**` override prefix bypasses assignment-ownership checks.
 - `CallsignArgumentResolver.TryRewrite` rewrites partial callsigns inside arguments (e.g. `FOLLOW UA` → `FOLLOW UAL123`).
+- Client-side gates run on the canonical text before it is sent: the VFR command gate (`VfrCommandGate`), and the mirrors of the router's two chain refusals, `CompoundPolicy.FindNonCompoundableInChain` and `CompoundPolicy.FindTakeoffPairedWithImmediateTurn` (the same predicates the server uses, so the verdicts cannot drift).
 - Sends via SignalR: `SendCommand(callsign, command, initials)` — three strings, JSON-serialized.
 
 The client **does** canonicalize before sending: `SendCommandAsync` runs `CommandSchemeParser.ParseCompound` and transmits `compound.CanonicalString`, not the raw input.
@@ -38,8 +39,8 @@ Compound syntax:
 | `ATFN`, `ONHO`, `GIVEWAY` … | other deferred triggers (see `BlockTrigger`) |
 
 `H180 AT FIX1` parses to a single `ParsedBlock`:
-- `Trigger = ReachFix("FIX1")`
-- `Commands = [ FlightHeading(180) ]`
+- `Condition = AtFixCondition("FIX1", …)` (queued as a `BlockTrigger` of type `ReachFix`)
+- `Commands = [ FlyHeadingCommand(180) ]`
 
 `ToCanonical()` normalizes aliases (`H` → `FH`, etc.) and produces a stable string used for recording and replay.
 
@@ -63,7 +64,7 @@ SendCommandAsync(connectionId, callsign, command, initials)
   ↓ IssueLive → ActiveSim.Actions.Issue(ActionInput, LiveRoomHost)
   │    (a command typed during tape playback first takes control: the tape is cut at the current second)
   │    ↓ ExtractAsPrefix → strips "AS <tcp>", returns asOverrideTcp
-  │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
+  │    ↓ refuse a chain with a non-compoundable verb, or a takeoff clearance paired with an immediate turn (`CTO, R270`); split a scoped-special compound into units (`RouteUnits`)
   │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
   │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
   │    ↓ ActionArms aviation arm, solo training: a radio instruction from the student (ArmContext.IssuedByStudent) to a pilot tuned elsewhere
@@ -93,8 +94,9 @@ log and the router ignores it from a record.
 
 | Kind | Verbs | Scope | Body | Recorded |
 |---|---|---|---|---|
-| `Compound` | every dispatcher-owned verb or chain (`IsAviationCommand`, ~150 types; also an unparseable multi-verb chain or malformed aircraft verb) | Aircraft | Sim: `CommandDispatcher.DispatchCompound` + `ApplyPostDispatch` | Text |
+| `Compound` | every dispatcher-owned verb or chain (`IsAviationCommand`; also an unparseable multi-verb chain or malformed aircraft verb) | Aircraft | Sim: `CommandDispatcher.DispatchCompound` + `ApplyPostDispatch` | Text |
 | `Say` | `SAY*` | Aircraft | Sim: the aviation arm | Text |
+| `SayAgainUnaddressed` | `AGAINU` | Global | Sim: `ActionArms.SayAgainUnaddressed` | Text |
 | `ShowQueued` | `SHOWAT` / `SHOWCOND` | Aircraft | Sim: `ConditionalList.ToLines` → `OnQueuedCommandsShown` | Never |
 | `FlightPlan` | `FP` / `VP` / `DA` / `REMARKS` | Callsign | Sim: `SimulationEngine.AmendFlightPlan` fresh, recording a `RecordedAmendFlightPlan` that carries the state; from a record only the creator tag (the amendment record replays the plan) | Text |
 | `Delete` | `DEL` | Callsign | Sim: `SimulationEngine.DeleteAircraft` | Text |
@@ -162,13 +164,13 @@ from the recorded connection id, a reconstruction or tape playback (the router's
 
 `DispatchCompound(aircraft, compound, ctx)` is the entry point for non-track, non-coordination, non-strip commands. `Dispatch(command, aircraft, ctx)` is a wrapper that puts one verb in an unconditional block and calls it.
 
-A live-traffic shadow (`aircraft.IsShadow`) is **assumed right here before anything else** — `LiveTrafficAssumer.Assume`, then the same compound falls through to the rest of this list, with `{callsign} assumed — ` prefixed onto the one result message — so even a phase-transparent command takes the aircraft rather than bouncing off it.
+A lone typed `ASSUME` is answered first (`LiveTrafficAssumer.Assume`). Then a live-traffic shadow (`aircraft.IsShadow`) is **assumed right here before anything else** (`TryAssumeShadow`), and the same compound falls through to the rest of this list, with `{callsign} assumed — ` prefixed onto the one result message — so even a phase-transparent command takes the aircraft rather than bouncing off it. A compound the dispatcher then refuses hands the aircraft back (`LiveTrafficAssumer.Rollback`), so the refusal reads plain.
 
-Three things are refused ahead of that gate instead: a flight-plan edit (never dispatched to an aircraft at all), a chain carrying `ASSUME`/`UNASSUME` (`CompoundPolicy.IsNonCompoundable`, the router's wording), and — the one refusal the shadow itself still gives — a compound whose every command is a `SAY*` query, because a read-only question must not take control as a side effect (see [live-traffic.md](live-traffic.md)).
+Two things are refused ahead of that gate: a flight-plan edit (never dispatched to an aircraft at all) and a chain carrying a rejection-set verb such as `ASSUME`/`UNASSUME` (`CompoundPolicy.IsNonCompoundable`, the router's wording). The shadow itself still refuses three cases (`ASSUME {callsign} first — live traffic is not controllable`): a compound whose every command is a `SAY*` query (a read-only question must not take control as a side effect), a scenario-scripted dispatch (`ctx.IsScenarioScripted`: taking a real aircraft is the RPO's decision, never a preset's or an AI controller's), and a shadow on the ground (see [live-traffic.md](live-traffic.md)).
 
 It then checks for a leading `WAIT`/`WAITD`/`BEHIND` and short-circuits to a **deferred dispatch** (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)); otherwise the big moves:
 
-1. **Transparent-block peel.** A `;`-sequenced compound led by an all-transparent block (`SQ; SQNORM; PUSH; …`) peels the head block off, applies it immediately via `ApplyTransparentCompound`, and re-dispatches the remainder fresh — so the phase gate is driven by the first block that actually contains a phase-interactive command, not by a lone squawk that a restrictive phase (AtParkingPhase) would reject (issue #407).
+1. **Transparent-block peel.** A `;`-sequenced compound led by an all-transparent block (`SQ; SQNORM; PUSH; …`) peels the head block off, applies it immediately via `ApplyTransparentCompound`, and re-dispatches the remainder fresh — so the phase gate is driven by the first block that actually contains a phase-interactive command, not by a lone squawk that a restrictive phase (AtParkingPhase) would reject (issue #407). Inside a `,` block only a leading `APT` is peeled the same way (`APT OAK, ELB 28L 4, CLAND`), because the entry behind it resolves its runway at the airport the flight plan names when it runs.
 
    Unlike a `,` block (atomic, gated before anything applies), a sequential head may commit before a later block fails.
 2. **Phase gate.** If `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase`. The phase's `CanAcceptCommand` is consulted (see [phases.md](phases.md)). `Rejected` returns immediately. `ClearsPhase` defers clearing until validation passes.
@@ -180,16 +182,16 @@ It then checks for a leading `WAIT`/`WAITD`/`BEHIND` and short-circuits to a **d
 
    A block's pilot readback is final only once the whole block has run: a `TAXI` in a block with a `CROSS` or `RES` that names only crossings its route readback already reads has that readback rebuilt from the route's final state, and the covered commands add no clause (`BlockTaxiReadback` in `CommandDispatcher.cs`, applied by both the queued-block closure and `ApplyTowerDriverSiblings`; [command-handlers.md](command-handlers.md#handler-built-readbacks)).
 
-   When a **deferred dispatch fires** its payload (`ctx.PreserveConditionals`, set only by `SimulationEngine.ProcessDeferredDispatches`), clearing runs with `preserveTriggeredBlocks: true`: the firing payload still supersedes conflicting *untriggered* work but keeps every triggered conditional — so a WAIT-deferred taxi clearance executing does not wipe the departure's queued `ONHO`/`AT` airborne instructions.
+   When a **deferred dispatch fires** its payload (`ctx.PreserveConditionals`, set by `SimulationEngine.ProcessDeferredDispatches`), clearing runs with `preserveTriggeredBlocks: true`: the firing payload still supersedes conflicting *untriggered* work but keeps every triggered conditional — so a WAIT-deferred taxi clearance executing does not wipe the departure's queued `ONHO`/`AT` airborne instructions.
 6. **Apply or enqueue.** Blocks with no trigger apply immediately via `ApplyCommand`. Blocks with a trigger (LV, AT, …) are wrapped in `CommandBlock` and pushed onto `aircraft.CommandQueue`.
 
 > **The conditional list.** `ConditionalList` (`src/Yaat.Sim/Commands/ConditionalList.cs`) enumerates an aircraft's pending precondition-gated work as one unified list — pending `CommandQueue` trigger blocks **plus** `DeferredDispatch`es (WAIT/WAITD/BEHIND, excluding internal reaction-delay timers) — with shared numbering.
 >
-> It backs `SHOWAT`/`SHOWCOND`, the "Pending Cmds" column (`DtoConverter.BuildPendingCommands`, stable text so the change-tracker fingerprint doesn't churn), and `DELAT`/`DELCOND`/`DC` deletion (`ConditionalList.Delete`, mirrored by `SimulationEngine.ReplayDeleteQueued`).
+> It backs `SHOWAT`/`SHOWCOND`, the "Pending Cmds" column (`DtoConverter.BuildPendingCommands`, stable text so the change-tracker fingerprint doesn't churn), and `DELAT`/`DELCOND`/`DC` deletion (`ConditionalList.Delete`, run by the `DeleteQueued` arm, `ActionArms.DeleteQueued`, on every run kind).
 >
 > Two intentional simplifications (per aviation review, 7110.65 §4-2-5): additive coexistence assumes conditionals are on independent control axes — same-axis stacking won't auto-resolve to last-wins; and a fresh immediate command clears *all* pending conditionals, where strict amended-clearance rules would only amend the matching axis.
 
-`ApplyCommand` is a thin routing switch over command type → `FlightCommandHandler`, `NavigationCommandHandler`, `ApproachCommandHandler`, `DepartureClearanceHandler`, `GroundCommandHandler`, `PatternCommandHandler`, `FlightPlanCommandHandler`, etc. See `Commands/CommandRegistry.cs` for the complete enum.
+`ApplyCommand` is a thin routing switch over command type → `FlightCommandHandler`, `NavigationCommandHandler`, `ApproachCommandHandler`, `DepartureClearanceHandler`, `GroundCommandHandler`, `PatternCommandHandler`, `FlightPlanCommandHandler`, etc. See `Commands/CanonicalCommandType.cs` for the complete enum and `Commands/CommandRegistry.cs` for each verb's registration.
 
 For what happens *inside* the dispatcher and each handler — the two switch surfaces (`ApplyCommand` vs `TryApplyTowerCommand`), the handler read/write contract, and the per-domain effect cheat-sheet — see [command-handlers.md](command-handlers.md).
 
@@ -229,9 +231,9 @@ A block stays queued when the idle phase rejects a non-transparent command that 
 
 Handlers don't move aircraft directly — they write to `ControlTargets` (the autopilot panel):
 
-- `FlightCommandHandler.HandleHeading(180)` → `ac.Targets.TargetTrueHeading = 180`.
-- `FlightCommandHandler.HandleAltitude(...)` → `ac.Targets.TargetAltitude = …`.
-- `NavigationCommandHandler.HandleDirectTo(fix)` → updates `ac.Targets.NavigationRoute`.
+- `FlightCommandHandler.ApplyHeading(cmd, ac)` → `ac.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(ac.Declination)`.
+- `FlightCommandHandler.ApplyClimbMaintain` / `ApplyDescendMaintain` → `ac.Targets.TargetAltitude = …`.
+- `FlightCommandHandler.ApplyDirectTo(cmd, ac, validateDctFixes)` → updates `ac.Targets.NavigationRoute`.
 
 **Navigation route supersession:** When a controller instruction replaces routing context, stale procedure fixes are removed from `NavigationRoute` rather than left appended:
 
@@ -265,10 +267,11 @@ Threaded through `DispatchCompound` and every handler. Holds:
 | `FindAircraft` | callsign → `AircraftState?` lookup for relative commands |
 | `ValidateDctFixes` | strict mode for direct-to off-route fixes |
 | `AutoCrossRunwayMode` | which runway crossings to pre-clear (Off / All / InactiveOnly, the last judged against `ActiveRunways`) |
-| `SoloTrainingMode`, `RpoShowPilotSpeech` | scenario flags |
+| `SoloTrainingMode`, `SoloRpoCommandsAllowed`, `RpoShowPilotSpeech` | scenario flags |
+| `IsScenarioScripted` | the dispatch is a scenario preset, the automated tower or an AI controller, never the student establishing contact (see `DispatchOrigin`) |
 | `TerminalEmitter` | broadcasts SAY-class verbs to the terminal log; **null in dry-run / tests**, otherwise SAYs would fire twice |
 | `SpeechContextFor` | aircraft → `PilotSpeechContext` for the CT/FCA readbacks a handler builds: the engine's `PilotSpeechContextFor` on its sites, `PilotSpeechContext.Canonical` on non-answering paths and in tests |
-| `PreserveConditionals` | true **only** when a deferred dispatch fires its payload (`SimulationEngine.ProcessDeferredDispatches`); makes that payload preserve pending triggered conditionals + sibling deferrals instead of superseding them. Every other call site passes false |
+| `PreserveConditionals` | true when a deferred dispatch fires its payload (`SimulationEngine.ProcessDeferredDispatches`), and on the context a snapshot restore rebuilds queued-block closures with (`CommandDispatcher.RehydrateRestoredBlock`); makes a fired payload preserve pending triggered conditionals + sibling deferrals instead of superseding them. Every other call site passes false |
 
 Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at the call sites in `SimulationEngine` / `RoomEngine`, and read from `ctx`. Don't pass it as a parameter — the bundle exists to avoid signature creep.
 
@@ -314,7 +317,7 @@ The bail-set and non-compoundable scans see only the commands ahead of it, so a 
 
 The scratchpad verbs are deliberately not free text (a STARS scratchpad is 3–4 alphanumerics, so `SP1 ABC, HO 3G` is a chain), nor are `AN` and the half-strip verbs (`AN 1 X; SQVFR` and the `HSA …; AN 3 RV` recording rewrite pin them as chains).
 
-The `ActionRouter` routes each unit in turn (so each records its own `RecordedCommand` and replay stays per-unit); `RoomEngine.SendCommandAsync` does the same by **recursing** into `SendCommandAsync(..., announce: false)` per unit via `DispatchSpecialCompoundAsync`, suppressing the per-unit terminal echo.
+The `ActionRouter` routes each unit in turn through `RouteUnits` (so each records its own `RecordedCommand` and replay stays per-unit), on every run kind; `RoomEngine.SendCommandAsync` issues the whole line once and echoes it once.
 
 One combined `Command` echo + one combined `Response` is emitted, joined with `" ; then "` (across `;` blocks) / `", "` (parallel), matching `CommandDispatcher`. Aviation-only blocks in the compound are kept whole and still flow through the aviation arm → `DispatchCompound`, preserving their triggers.
 
@@ -336,7 +339,7 @@ The sender keeps the item with its text, and CRC draws an Unsent item only at it
 
 Every mutation sets the engine's coordination dirty flag, drained as `IStateChangeConsumer.OnCoordinationChanged()` — the live room re-pushes the whole `StarsCoordination` topic.
 
-CRC's F13 entries (`CrcClientState.CrcCoordinationCommand`) build the verb, fill a list-less sender verb with the sender's single list (`CoordinationCommandHandler.InferSenderListId`), and issue its canonical text through `RoomEngine.RecordAndDispatch`, so every entry is a recorded `AS {tcp} RD…` command a rewind re-applies.
+CRC's F13 entries (`CrcClientState.CrcCoordination` in yaat-server `CrcClientState.Stars.cs`) build the verb, fill a list-less sender verb with the sender's single list (`CoordinationCommandHandler.InferSenderListId`), and issue its canonical text through `RoomEngine.RecordAndDispatch`, so every entry is a recorded `AS {tcp} RD…` command a rewind re-applies.
 
 The canonical forms round-trip through the parser (`CoordinationCanonicalRoundTripTests`): `RDH {list} {text}` carries the held text, and a list-qualified modify is `RDTXT /{list} {text}` — a leading `/token` is the list, a message never starts with a slash.
 
@@ -410,3 +413,180 @@ When the pilot-reaction delay stands in for the dispatch (`SimulationEngine.Defe
 - **Dimension-aware clearing isn't all-or-nothing.** A new heading command clears queued lateral blocks but leaves a queued altitude block alone. If you find yourself adding `aircraft.CommandQueue.Clear()` to a handler, you're probably bypassing this design.
 - **`SimulationWorld.AddAircraft` is replacement-safe.** It drops any same-callsign entry (case-insensitive) before appending and logs a warning. Spawn wins over a pre-existing user-typed VP/DA ghost — don't add per-call-site dedup. A logged replacement is expected when a scenario spawn collides with a ghost; two scenario spawn paths firing for one callsign is a bug.
 - **A deferred re-dispatch must not cancel sibling deferrals.** `DispatchCompound` clears `DeferredDispatches` to supersede pending WAITs on a *new* command, so `ProcessDeferredDispatches` detaches and restores the survivors around a re-dispatch. If you rework deferred dispatch, keep that — otherwise a firing WAIT or command-run delay silently wipes the others. See [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay).
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Commands/
+Commands/CanonicalCommandType.cs    # Enum of every command type
+Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition; includes server-only commands (DEL, PAUSE, ADD, etc.)
+Commands/CommandDefinition.cs       # ArgMode enum, CommandDefinition/CommandOverload/CompoundModifier records; command metadata includes solo-pilot unable eligibility
+Commands/CommandRegistry.cs         # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers, pilot-unable eligibility)
+Commands/CommandScheme.cs           # CanonicalCommandType → CommandPattern (aliases only); Default() from registry
+Commands/CommandSchemeParser.cs     # Parse/ParseCompound (;/, syntax); ExpandSpeedUntil; concatenation fallback; ToCanonical()
+Commands/ConditionalList.cs         # Unified conditional list: pending queue trigger blocks + DeferredDispatches (WAIT/WAITD/BEHIND)
+                                    # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
+Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunwayMode, PreserveConditionals, IsScenarioScripted, SpeechContextFor,
+                                    # TransmissionId (set by the dispatcher and the block's apply action only: a DVIA's crossing-restriction scoping, and the transmission a speed is stamped with),
+                                    # SessionStartUtc (the session clock for pilot speech that names a time of day — SAYEXIT's estimate; never DateTime.UtcNow),
+                                    # AsdexSafetyLogicConfigs (required: the room's live Safety Logic configuration per facility, for RunwaySafetyAdvisor's stand-down)
+Commands/DispatchOrigin.cs          # DispatchOrigin (Human | ControllerAi) + AiConnectionId ("AI:{positionId}" synthetic connection id; origin derived from it live and on replay)
+                                    # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
+Commands/AirwayBracketing.cs        # Static Find / AheadFix: the airway segment a JAWY from a position and heading brackets, read by NavigationCommandHandler and by the client's Join airway flyout
+Commands/VfrCommandPolicy.cs        # VfrCommandsForIfr enum (None/EnterFinalOnly/All) + classification of VFR-only commands
+                                    # (RequiresVfr pattern set, IsVfrOnlyDeparture CTO modifiers, FOLLOW, CM A/B). The dispatcher
+                                    # does NOT gate on flight rules — the desktop client enforces this against the setting (issue #317)
+Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
+                                    # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing; strip family
+                                    # commands are phase-transparent (STRIP/STRIPD/SCAN/etc., half-strip, separators, blanks)
+                                    # InstallsIndefiniteHoldPhase: HP/VFR-hold/FOLLOW installers → dispatch-time chain warning
+Commands/CompoundPolicy.cs          # Shared client+server chained-command policy: IsRadioInstruction (the commands a pilot tuned elsewhere does not hear), IsNonCompoundable rejection set +
+                                    # FindNonCompoundableInChain ("{verb} cannot be part of a chained command"); DEL/DEST excluded (they chain);
+                                    # ASSUME/UNASSUME are in the set (a spaced "ASSUME ; H 180" parses as one UnsupportedCommand and slips this
+                                    # pre-check, so CommandDispatcher carries its own guard with the same message)
+                                    # IsFlightPlanCommand: identifies DA/FP/RMK (flight-plan amend commands that skip replay and bypass dispatch)
+Commands/TrafficAdvisoryCandidate.cs  # TrafficAdvisoryCandidate (the matcher's per-aircraft input: position, heading, track, type, IsManeuvering, AssignedRunwayId, PatternPosition; From/FromAll build it from AircraftState) + PatternPosition (leg, side, distance) — plain data, so a client with the hub DTO can build one too
+Commands/TrafficAdvisoryMatcher.cs  # Public. Shared RTIS/SAFAL target matching over TrafficAdvisoryCandidate: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
+Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
+Commands/CfrWindow.cs               # CFR types: ReleaseWindow, CfrAlertKind, CfrAction/CfrPhase, FAA-fixed −2/+1 window constants (7110.65 §4-3-4.e.5)
+Commands/CfrWindowResolver.cs       # Pure HHMM→absolute-UTC window resolver (nearest-instant) + CfrAlertEvaluator (early/late/expired-grounded)
+Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference tokens used in TAXI clearances; co-located with the parser since the token format is grammar, not routing
+Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
+Commands/RampZeroSegmentRoll.cs     # A ramp-confined `TAXI $spot`/`TAXI @gate` whose start node is the destination while the aircraft stands 50 ft or more from it: `Plan` rolls it onto the destination along the destination's own lane when it faces it (straight leg, or along the fillet arc), else routes it inside the ramp from the destination's nearest neighbour, else null (refused). Called by `GroundCommandHandler.ResolveRampConfinedRoute`
+Commands/DepartureCommandParser.cs  # Departure-specific command parsing; ParsePatternModifierArgs shared by MLT/MRT pattern modifiers and CTO option clearances, resolved through Commands/Arguments/CommandArgumentResolver.cs
+Commands/ParkedStandDeparture.cs    # ParkedStandDeparture.Of: how an aircraft parked at its stand (AtParkingPhase) leaves it, PushBack, TaxiOut or Either — StandDepartures.StandDepartureOf for a parking stand (the layout's answer, overridden by the airport sidecar), TaxiOut for a helipad. Read by GroundCommandHandler (the RPO note on a live PUSH/PUSHM at a taxi-out stand, and on a live TAXI/TAXIAUTO of a jet or turboprop at a push-back stand) and by yaat-server's DtoConverter (AircraftDto.StandDeparture, which the client menus read to hide push entries).
+Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
+                                    # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
+                                    # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
+                                    # Dispatch(parsed, ac, identity, scenario, redirect): top-level switch routing any track ParsedCommand to
+                                    # the right HandleX/ApplyX; ApplyHandoff / ApplyPointOut land an unattended target on its attended consolidation owner
+                                    # through the ConsolidationRedirect (null = nobody answers attendance = no redirect) and ApplyHandoff re-points an
+                                    # inbound handoff its recipient re-addresses. The ActionRouter's TrackOwnership arm (Simulation/Actions/) runs it on
+                                    # every run kind — the live room, a Sim replay, a server reconstruction, the bare test engine (yaat-server has
+                                    # no track handler; its test harness's TrackCommandSeam wraps the leaves). DispatchGlobal(cmd, world, scenario, identity): ACCEPTALL / HOALL;
+                                    # AcknowledgeConflictAlert(ac, conflicts): CAACK on the engine's conflict-alert set; ApplySharedState(ac, tcpId, dto): a position's
+                                    # per-TCP shared display state replaced whole + the dismissed point-out cleared (the RecordedStarsSharedStateChange applier)
+Commands/TrackEngine.Ghost.cs       # The STARS display-object bodies: CreateGhostTrack → GhostTrackOutcome (result + the created phantom; a phantom staggered 0.1 nm/ghost off the runway threshold along the
+                                    # reciprocal, or an overlay on an existing aircraft that never steals another position's track), RepositionToLocation /
+                                    # RepositionMove (park / re-associate an unsupported datablock; ParkedDataBlockId is the "RPOS" wire-id prefix the server's
+                                    # broadcast layer uses). The ActionRouter arms call these on every run kind
+Commands/EramEntryEngine.cs         # The one body for the ERAM keyboard entries that write per-track ERAM state, applied from a RecordedEramEntry on every run kind:
+                                    # TRACK [/OK] (owner guard unless forced; clears the handoff, unfreezes), FREEZE {lat} {lon} (altitude snapshotted at apply),
+                                    # QQ / QQ L / QQ [R|L|P]{alt} (interim tiers, hundreds of feet), QR {ddd} (CERA; 000 clears), QS * | */ | /* | /{speed} | {heading} | `{text}
+                                    # (the HSF fields in CRC's canonical forms — ParseHsfHeading / ParseHsfSpeed; free text 1–8 alphanumerics), LF [{label}]
+                                    # (CRR membership; bare = clear), VCI {sector} (on-frequency toggle), LEADER {facility} {sector} [D{1-9}] [L{0,1,2,3,5}] (that sector's data-block offset), DWELL {facility} {sector} 1|0 (that sector's dwell lock, absolute),
+                                    # HANDOFF {code} [/OK] (sector adapted, then owner only — /OK forces for another sector of the same ARTCC, never a STARS or
+                                    # external owner — and a target that already owns the track is refused; then TrackEngine.ApplyHandoff), PO {fromFac}
+                                    # {fromSec} {toFac} {toSec}… / POACK / POCLEAR (point-outs; the hub decides who may acknowledge or clear, the Sim refuses
+                                    # a repeated or missing point-out), DRI {facility} {sector} [J|T] (that sector's halo; bare = clear), HM / QH {field 21} [{field 310}] (hold annotation, in
+                                    # EramEntryEngine.Hold.cs). Apply takes an EramEntryContext (identity, scenario, consolidation redirect).
+                                    # A refusal's CommandResult.Message is an EramEntryErrors id, optionally a space then the field in error; success messages
+                                    # are free text. The live CRC handler keeps the wire parsing, FLID / scope / FDB validation and feedback and records the
+                                    # entry through RoomEngine.ApplyAndRecord
+Commands/EramEntryEngine.Hold.cs    # The HM / QH hold rules: field-21/310 parsing (ParseHoldFields validates each location against a NavigationDatabase through
+                                    # EramFixResolver.ParseLocation; ParseRecordedHoldFields is the shape-only read replay uses), the merge with the stored AircraftHoldAnnotation,
+                                    # the EFC edit, holding instructions and the present-position fix; RefuseHoldEntry is the validation the handler runs first
+Commands/EramHoldEntry.cs           # The parsed hold entry: EramHoldEntry, EramHoldData, EramHoldingInstructions, EramHoldDataKind, EramEfcEdit
+Commands/EramEntryContext.cs        # What an ERAM entry is applied with: the acting identity, the scenario, and the consolidation redirect a handoff reads
+Commands/EramEntryErrors.cs         # Error ids EramEntryEngine answers a refused entry with (id alone, or id + space + the field in error, e.g. `MsgCofieFormat 12.5X`);
+                                    # each is an id from docs/eram/error-responses.yaml — yaat-server maps the id back to CRC's error-table text (EramErrors), so
+                                    # the Sim carries no display wording. The All list backs yaat-server's EramReferenceConformanceTests, which holds every id
+                                    # to the reference.
+Commands/ConsolidationRedirect.cs   # Where a handoff or point-out addressed to an unattended TCP lands: TryRedirect(target) → the attended position whose
+                                    # airspace absorbed it (GetConsolidationOwner over the facility hierarchy + ConsolidationState), null when the target is
+                                    # attended or has no other owner. Built per dispatch from the scenario, the engine's ConsolidationState and Attendance
+Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override); the one TCP→TrackOwner chain (student TCP →
+                                    # scenario ATC → facility TCP → ERAM code → STARS interfacility handoff code → ERAM-to-STARS prefix → position callsign or callsign@tcp, reading
+                                    # scenario.ArtccConfig); owner→TCP lookup; ResolveIdentity(scenario, selections, connectionId, asOverride) — the one
+                                    # identity resolver (AS override → AI connection's position → selection → student); AsPrefixCode(owner) — the code an
+                                    # "AS {code}" prefix names an owner by (C{sector} / {subset}{sector} / callsign), so a CRC-issued command round-trips its identity
+Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-runway advisories (PendingWarnings → amber terminal; never prefixed with the callsign): landing-family clearance
+                                    # (pavement test = RunwayOccupancy.IsOnPavement for holding-in-position occupants; live-traffic shadows by
+                                    # RunwayOccupancy.Classify geometry; WarnIfTrafficOnFinal = 3-9-4.d shadows within 6 nm on LUAW; WarnIfLandedTrafficBlocksTakeoff = 3-9-6.b arrival not yet clear on CTO;
+                                    # WarnIfAnotherHoldingInPosition = 3-9-4.h second LUAW on the same pavement, not safety-logic gated)
+                                    # (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) with traffic holding in position / taxiing to line up on the runway, and the reverse
+                                    # (LUAW with a landing-family clearance outstanding — only while that arrival is airborne; touchdown ends 3-9-4.c). WarnIfRunwayOccupiedForTakeoff = 3-9-6.a/b: takeoff clearance
+                                    # issued with another aircraft holding in position or a live-traffic shadow on/landing on the runway.
+                                    # WarnIfStoppedTrafficOnRunway = 3-10-3.a.1/3-9-6.a third occupant kind (#411): traffic frozen on the pavement by a
+                                    # HOLDPOSITION/GIVEWAY hold directive (Ground.IsImmobile + IsOnPavement, e.g. a stopped runway crossing); moving crossings stay silent. A GIVEWAY still pending on an arrival's landing rollout or exit (AircraftState.HasGiveWayPendingOnLandingRunway) never stops it, so that arrival counts as landed traffic (WarnIfLandedTrafficBlocksTakeoff), not stopped traffic.
+                                    # Suppressed only when AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive: the airport's facility (ArtccConfigResolver.FindAirportFacility)
+                                    # has an ASDE-X config with runway configurations and the room's live DispatchContext.AsdexSafetyLogicConfigs entry is on one of them
+                                    # (CRC Safety Logic covers the incursion there); LIMITED or no live entry still warns
+Commands/FlightPlanNormalization.cs # Flight-plan input normalization shared by the typed FP/VP/DA verbs (the router's flight-plan arm) and the CRC editor: type/suffix split
+                                    # (default suffix A), FAA→ICAO airport canonicalization (unknown identifiers pass through; the amend variant keeps the clear sentinel),
+                                    # route split (single token = destination), FromCreateCommand / FromCreateAbbreviatedCommand → the FlightPlanAmendment a typed verb files
+Commands/FlightPlanEcho.cs          # The two-line filed-plan readout (callsign type/equipment beacon; departure destination altitude or NO ROUTE) STARS shows and the
+                                    # terminal repeats; HasRoute(command) for the second line. A pure function of the aircraft, rebuilt by the CRC readout after the arm ran
+
+# Commands/Arguments/ — typed positional command arguments (docs/plans/typed-command-arguments.md)
+Commands/Arguments/CommandArgumentType.cs      # Enum of migrated argument slot types (Runway, Altitude); grows as more slots move onto typed arguments (docs/plans/typed-command-arguments.md). Every member needs a validator in CommandArgumentResolver; where two types compete at one overload position the resolver's precedence decides (Runway before Altitude)
+Commands/Arguments/RunwayArgument.cs           # Shape validator: 1-2 digits with an optional L/C/R suffix, normalized through RunwayIdentifier.NormalizeDesignator (shape only — whether the airport has the runway is a dispatch-time check)
+Commands/Arguments/AltitudeArgument.cs         # Shape validator: everything AltitudeResolver reads (2-digit hundreds shorthand, full feet, AGL form). Overlaps RunwayArgument on 2-digit tokens by design — the resolver's precedence, not the validator, makes a 1-2 digit token a runway where both types are candidates
+Commands/Arguments/CommandArgumentResolver.cs  # Resolves a token list against a command's overload shapes like compiler overload resolution: each token is tried against the types the still-viable shapes declare at that position, in precedence order, narrowing the viable set; one survivor binds (CommandArgumentValue(Type, Token, Value) + ValueOf<T>/TokenOf), none is a failure naming what was expected. An altitude-only position takes the full altitude grammar, so MLT 15 15 is runway 15 at 1,500 ft
+
+# Simulation/Actions/ — the action router: a controller action is routed once, in Yaat.Sim (ADR 0007; § one routing table)
+ActionRouter.cs                # SimulationEngine.Actions. Issue(ActionInput, host) for a fresh command, Apply(RecordedCommand, host) for a recorded one,
+                               # ApplyRecorded(RecordedAction, host) for any recorded action (spawn / live-traffic / amendment — reprints the departure strip
+                               # under its baked StripId, then drains what that touched into the host — / weather / setting / generators /
+                               # the derived state records — shared state, clearance, hold annotation via their Sim appliers, an ERAM entry via EramEntryEngine
+                               # with the identity code resolved, a CRR group / safety-logic push via their engine bodies, a strip request via
+                               # StripRequests.PrintRequestedStrip — a refusal is a replay-fidelity warning; ApplyStateRecord drains the strip/TDLS mutations
+                               # into the host after its own body, same as Finish does for a routed command), IssueDerived(record, host)
+                               # for a derived record produced now (same body, appended to the log only when it applied — the server's ApplyAndRecord).
+                               # Stages: strip the AS prefix → refuse a chain with a non-compoundable verb → split a scoped-special compound into units
+                               # → classify → resolve scope (Aircraft: FindAircraft or the identical "Aircraft 'X' not found") and identity → run the
+                               # ArmTable row → record (fresh: through RecordAction, accepted or not) or compare verdicts (recorded: the replay-fidelity
+                               # warning when Accepted disagrees) → drain what the strip/TDLS/coordination mutations touched into the host (DrainStateChangesInto,
+                               # IStateChangeConsumer.OnStripsChanged/OnTdlsChanged/OnCoordinationChanged) before the result returns. LastTrace is the parity test's observable. Overloads without a host use the bare host.
+                               # WouldRecord(command) answers the policy question — whether the arm routing that text fresh would record it — without running
+                               # it: the mirror of the stages above (AS prefix, the two chain refusals, the scoped-special split, the ArmTable row's
+                               # RecordingPolicy), changed with them. Policy, not outcome: a replay-profile engine appends nothing whatever it answers.
+                               # It is what the server gates its implicit take-control on, so pressing play on a rewound timeline replays the tape instead of
+                               # truncating it (RoomEngine.TakeControlIfCommandDiverges); the client asks it before prompting.
+ArmTable.cs (in ActionArm.cs)  # ActionArm (kind, scope, RecordingPolicy, Run) + ArmTable.For(kind) — one row per
+                               # RecordedCommandKind, scope asserted equal to the classifier's at construction; RecordingPolicy.Never = ShowQueued + Bookmark + Transport;
+                               # ArmContext is what a body sees (engine, host, input, remainder, parsed, resolved aircraft/identity) and writes its draws
+                               # (ReactionDelaySeconds, SpawnJitterSeconds, SpawnedAircraft, IssuedAtUtc, StripId — the id a creating strip verb minted) into,
+                               # so the router bakes them onto the record
+ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → TryRefuseNotOnFrequency, a student radio instruction to a pilot tuned elsewhere is not heard → ReactionDelayPolicy → defer or DispatchCompound → ApplyPostDispatch; a landing clearance
+                               # caches the ground layout, a successful APT reprints the departure strip (ReprintDepartureStripAfterAmendment) and bakes the
+                               # id onto the record), ShowQueued (ConditionalList lines to
+                               # OnQueuedCommandsShown, never recorded), FlightPlan (FP/VP/DA/RMK: FlightPlanNormalization → SimulationEngine.AmendFlightPlan →
+                               # ReprintDepartureStripAfterAmendment (its id baked onto RecordedAmendFlightPlan.StripId, so a replay reprints under it instead
+                               # of minting a second copy) + the filing identity as FlightPlan.CreatedByOwner; DA is create-only (DUP NEW ID) and a VFR filing (VP)
+                               # over an existing IFR/OTP plan is DUP NEW ID, never converted — FP, the IFR/OTP spelling, amends anything; from a record only
+                               # the creator tag is applied — the amendment recorded beside it carries the plan), Delete (a shadow → SimulationEngine.HideLiveTraffic),
+                               # Unassume (UNASSUME: an AssumedFromLiveTraffic aircraft leaves as DEL does, minus the suppression and the removal record, so the
+                               # next ShadowTrafficSync re-spawns the shadow), DeleteQueued, Note, SpawnNow/SpawnDelay, SetActivePosition (OnPositionSelected with the typed code), Track
+                               # (TrackEngine.Dispatch; CAACK to TrackEngine.AcknowledgeConflictAlert; the tails on every run kind — TRACK applies the facility's
+                               # scratchpad rules + RemoveCoordinationOnRadarAcquisition, INHCA drops the aircraft's active conflicts, ASDE-X TERM and a recorded CRC terminate → OnAsdexTrackTerminated / OnSaidTrackTerminated, a ghost's
+                               # DROP lifts the overlay (OnGhostOverlayRemoved) or removes the phantom (OnAircraftDeleted)), GlobalTrack (ACCEPTALL/HOALL via
+                               # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
+                               # ActiveRunways (ARWY: replaces, clears or shows the named or primary airport's SimScenarioState.ActiveRunways; a refusal
+                               # changes nothing), Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
+                               # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged),
+                               # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms)
+IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: no Apply* slot is left — every
+                               # recorded state change has an engine body — only the consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState),
+                               # OnPositionSelected(conn, owner, tcpCode), OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnStripsChanged(StripChangeSet) /
+                               # OnTdlsChanged(TdlsChangeSet) / OnCoordinationChanged() (IStateChangeConsumer, shared with IHostConsumers — the router drains all three after every routed
+                               # action; strips, TDLS and coordination themselves crossed whole into Yaat.Sim, so this is only
+                               # the broadcast the host still owes), OnTimersChanged, OnConsolidationChanged, OnHeldDeparturesChanged, OnActiveRunwaysChanged (an ARWY set or clear), OnAsdexSafetyLogicConfigsChanged(facilityIds) (the one channel a changed ASDE-X configuration reaches the displays through), OnWeatherChanged,
+                               # OnQueuedCommandsShown). No defaults: a new consumer fails the build in every host until each has answered. BareHost + ReplayHost
+                               # discard them; yaat-server's RoomHost answers with the room's broadcasts and gives a fresh action the room's tails (spawn hooks and
+                               # broadcasts, display config, CRC broadcasts) that a replaying room skips
+ActionInput.cs                 # ActionInput (callsign, command, connection id, initials, Baked; init-only IssuedByStudent, the host's issue-time verdict) + BakedDraws (reaction delay, spawn jitter, spawned aircraft,
+                               # issued-at clock, strip id, issued-by-student) — the values a live run drew or decided, read back from the record so no other run draws or decides them
+ActionOutcome.cs               # ActionOutcome (result, the record produced, trace) + ActionTrace (kind, scope)
+ActionRefusals.cs              # HostOnly (no arm in the track table for the verb) / NoScenario / AircraftNotFound — the results for an action no body on this run can apply
+ReactionDelayPolicy.cs         # Decide(scenario, world, aircraft, compound, baked): baked wins; else null when no range is active, the compound carries
+                               # an unsupported verb (refused at once by DispatchCompound rather than delayed), explicit leading timing
+                               # (WAIT/WAITD/BEHIND), is purely comm (CON/FCA/ACK/AGAIN), or contains any "Sim Control" instructor verb
+                               # (FHN/CMN/SPDN/WARP/WARPG/TRATE/DEL — WAIT/WAITD skipped); else sample ReactionDelayRng and clamp to the latest
+                               # pending reaction deferral so issue order is preserved
+ActionScope.cs                 # Global / Callsign / Aircraft / Position — what the action router resolves before an arm runs (a property of the RecordedCommandKind)
+PositionSelections.cs          # connection id → the TrackOwner a bare AS selected; one lock-guarded map per engine (the server room owns one instance for
+                               # its lifetime and hands it to every engine it creates); Snapshot()/Restore() back ServerSnapshotDto.PositionSelections
+```

@@ -1,7 +1,5 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;

@@ -226,6 +226,9 @@ CI runs on `ubuntu-latest` (`.github/workflows/ci.yml`). A test can pass on Wind
 - **WSL** (Ubuntu, `dotnet-sdk-10.0` from Ubuntu's archive; install with `wsl -u root apt-get install -y dotnet-sdk-10.0`). The quick one: no image, starts in seconds. It reads the build over `/mnt/x`, which is fine for a filtered run.
 
   `wsl -e bash -c "rm -rf /tmp/yaat-ci && mkdir -p /tmp/yaat-ci && cd /tmp && YAAT_APPDATA_DIR=/tmp/yaat-ci dotnet /mnt/x/<repo path>/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.dll --results-directory /tmp/yaat-ci/r --filter-class '*Name*'"`
+- **The whole CI job** (`ci-local`, the user-level predictive-CI runner, `~/.claude/tools/ci-local/README.md`): runs `.github/workflows/ci.yml`'s `build-and-test` job, yaat-server checkout included, inside WSL in a warm workspace, about twice as fast as the hosted run, through the gate: `pwsh -NoProfile -File $HOME/.claude/tools/gate.ps1 run --log .tmp/ci-local-yaat.log --timeout 3600 --slot heavy -- wsl -d Ubuntu -u runner -- sh -c 'UV_PROJECT_ENVIRONMENT=$HOME/ci-local/venv exec $HOME/.local/bin/uv run --project /mnt/c/Users/lefto/.claude/tools/ci-local ci-local run /mnt/x/dev/yaat --workflow ci.yml --job build-and-test [--commit <sha>] --secret NIGHTLY_REVIEW_TOKEN'`. Without `--commit` it builds HEAD plus the uncommitted changes. Use it to reproduce a Linux-only red of the whole job and to check its fix before pushing.
+
+  No local run gates a push: a push to `main` proceeds with CI pending, recorded by `ci-local pending record` and checked by the next `/nextup`, whether or not a local run came first. A green local run only raises confidence that the hosted run will be green; the hosted run is the verdict.
 - **Docker** (`mcr.microsoft.com/dotnet/sdk:10.0`, the image family CI's runtime comes from). The closer match to CI's runtime patch level; use it to confirm a WSL result, or when WSL and CI disagree.
 
   `docker run --rm -e YAAT_APPDATA_DIR=/tmp/appdata -v <bin dir>:/app:ro mcr.microsoft.com/dotnet/sdk:10.0 dotnet /app/Yaat.Sim.Tests.dll --results-directory /tmp/r --filter-method "*Name*"`
@@ -292,7 +295,7 @@ order- and load-dependent flakes:
   `Dispose → Task.Wait` directly above `DispatchCore → TrySetResult` on one stack. `ConfigureAwaitOptions.ForceYielding` does **not**
   prevent this (it only covers the already-completed-at-await fast path). Hop the continuation off the session thread with
   `.ContinueWith(t => t.GetAwaiter().GetResult(), TaskScheduler.Default)` — a `ContinueWith` without `ExecuteSynchronously` is always
-  queued, never inlined. `tools/Yaat.GuideCapture/Program.cs` is the worked example.
+  queued, never inlined. yaat-server's `tools/Yaat.GuideCapture/Program.cs` is the worked example.
 - **Never race a `DispatcherTimer`-armed change against a poll.** A due `DispatcherTimer` runs ahead of an `InvokeAsync` posted before it when the UI thread is busy, so a test that arms a timer to flip state "during" a `wait_until`/`wait_for` can have the change land before the first poll, so the wait never sees the pre-change state (a `landed` wait, which needs an airborne poll first, then never holds and runs to its timeout).
 
   Script the change inside the polled read instead: the state provider for `wait_until`, a wrapped roots provider for `wait_for`, so the first poll always sees the pre-change state and the test asserts the change ran before the answer (`WaitUntilAcross` in `Automation/AutomationWaitUntilTests.cs` is the pattern). The default isolation is `PerTest`: the dispatcher is recreated for each test.
@@ -664,7 +667,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   Before blaming a host from its dump, check the dump's Process objects' start times against the declaration time: a process that started after the stall was declared is not what hung. Native stacks come from `cdb` against the Microsoft symbol server, since `clrstack -all` shows managed frames only.
 - **A test host that crashes on the Mac builder leaves its evidence in the test-all log.** On macOS, `test-all.ps1` sets the runtime's dump-on-crash variables (Mini dump plus a JSON crash report, in `~/yaat-crashdumps` on the builder), then prints each new dump's path and each crash report's content after the suites, and copies both into the checkout's `.tmp/dumps/`.
 
-  A failed routed run returns that folder to the PC through the gate's `failureOutputs` glob for yaat (`.tmp/dumps/**`, in the PC's gate `remote.json`), so the dump and the report land in the worktree's `.tmp/dumps/`; a run the gate kills (ceiling, stall) returns nothing, and a bare routed `dotnet test` gets none of this.
+  A failed routed run returns that folder to the PC through the gate's `failureOutputs` glob for yaat (`.tmp/dumps/**`, in the PC's gate `remote.json`, under `%LOCALAPPDATA%/gate/`), so the dump and the report land in the worktree's `.tmp/dumps/`; a run the gate kills (ceiling, stall) returns nothing, and a bare routed `dotnet test` gets none of this.
 - **`TaxiBudgetDeriver`/`TaxiBudgetEvaluator` budgets are deliberately generous** (real spins exceed them 5–10×). If a regression slips
   through, tighten the multipliers — do NOT hand-tune per-pair numbers. The arc-aware per-segment time floor and per-segment turn overhead
   are load-bearing; flat formulas under-allow tight-fillet and long clean routes by 2–8×.

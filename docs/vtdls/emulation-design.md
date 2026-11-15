@@ -8,7 +8,7 @@ YAAT already emulates CRC's vStrips end-to-end:
 
 - Shared client lib `src/Yaat.Client.Strips/` hosts a single `VStripsView` UserControl + `VStripsViewWindow` pop-out.
 - WASM web app `tools/Yaat.VStrips.Web/` publishes to `..\yaat-server\src\Yaat.Server\wwwroot\vstrips\` and is served at `/vstrips/`.
-- yaat-server owns the state (`FlightStripState` on `TrainingRoom`), handlers (`StripCommandHandler` + `StripMutations`), broadcaster (`StripBroadcaster`), CRC translator (`StripCommandTranslator`), and snapshot persistence.
+- Yaat.Sim owns the state (`FlightStripState` on `SimulationEngine`) and handlers (`StripCommandHandler` + `StripMutations`, in `src/Yaat.Sim/Simulation/Strips/`); yaat-server owns the broadcaster (`StripBroadcaster`) and CRC translator (`StripCommandTranslator`); snapshots carry the state in `ServerSnapshotDto`.
 - YAAT Client supports multi-facility Strips tabs via `MainViewModel.StripsEntries : ObservableCollection<VStripsDockEntryViewModel>` with per-facility pop-out windows keyed on `"VStripsView:{facilityId}"`.
 
 We want the same shape for vTDLS so the controller-facing experience matches what real vNAS users see, and so the same multi-facility / dock / pop-out / browser-access affordances exist for both tools.
@@ -19,7 +19,7 @@ We want the same shape for vTDLS so the controller-facing experience matches wha
 
 **Scoping decisions** (from interview + Phase 0 review):
 - **v1 message scope**: PDC (Pre-Departure Clearance) only. The DCL ("Departure Clearance") *list* is part of v1 — it's the Pending-status view, not a separate message type. CPDLC is permanently out of scope (upstream confirms VATSIM does not support CPDLC).
-- **State**: New parallel `TdlsState` per `TrainingRoom`. Per-facility flat lists keyed by Status (no bay/rack model — Phase 0 confirmed real vTDLS uses two flat lists, DCL and PDC). The existing `ClearanceDto` on the flight plan stays as the authoritative clearance fact; `TdlsState` is the message envelope (status / facility / sequence / timestamps / last-sent payload). They link by `AircraftId` *and* `Cid` (PDCs can be queued for a pilot before they connect — `Cid` is the durable identifier).
+- **State**: New parallel `TdlsState` per `SimulationEngine` (`SimulationEngine.Tdls`). Per-facility flat lists keyed by Status (no bay/rack model — Phase 0 confirmed real vTDLS uses two flat lists, DCL and PDC). The existing `ClearanceDto` on the flight plan stays as the authoritative clearance fact; `TdlsState` is the message envelope (status / facility / sequence / timestamps / last-sent payload). They link by `AircraftId` *and* `Cid` (PDCs can be queued for a pilot before they connect — `Cid` is the durable identifier).
 - **Pilot flow**: TDLS-silent — no voice readback after WILCO. Pilot state advances internally; no `PendingPilotTransmissions` entry.
 - **TDLS config source**: All TDLS facility configuration (which facilities have TDLS enabled, available SIDs/transitions, per-SID+transition default PDC field values, mandatory fields, dropdown options) is loaded from the vNAS data-api — same pattern as ARTCC config (`data-api.vnas.vatsim.net/api/artccs/{id}`) and airport ground maps (`data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`).
 
@@ -62,24 +62,23 @@ src/Yaat.Client.Strips/Views/VStrips/VStripsView.axaml
 src/Yaat.Client/ViewModels/MainViewModel.Strips.cs
                                     →   src/Yaat.Client/ViewModels/MainViewModel.Tdls.cs
 .../VStripsDockEntryViewModel.cs    →   .../VTdlsDockEntryViewModel.cs
-yaat-server/.../Simulation/FlightStripState.cs
-                                    →   yaat-server/.../Simulation/TdlsState.cs
-yaat-server/.../Simulation/StripCommandHandler.cs
-                                    →   yaat-server/.../Simulation/TdlsCommandHandler.cs
+src/Yaat.Sim/Simulation/Strips/FlightStripState.cs
+                                    →   src/Yaat.Sim/Simulation/Tdls/TdlsState.cs
+src/Yaat.Sim/Simulation/Strips/StripCommandHandler.cs
+                                    →   src/Yaat.Sim/Simulation/Tdls/TdlsCommandHandler.cs
 yaat-server/.../Simulation/StripBroadcaster.cs
                                     →   yaat-server/.../Simulation/TdlsBroadcaster.cs
 yaat-server/.../Simulation/StripCommandTranslator.cs
-                                    →   yaat-server/.../Simulation/TdlsCommandTranslator.cs
-yaat-server/.../Simulation/StripMutations.cs
-                                    →   yaat-server/.../Simulation/TdlsMutations.cs
+                                    →   (none: the CRC inbound path reuses `HandleSendClearance` and `HandleTdlsDump` in `CrcClientState`)
+src/Yaat.Sim/Simulation/Strips/StripMutations.cs
+                                    →   src/Yaat.Sim/Simulation/Tdls/TdlsMutations.cs
 yaat-server/.../Dtos/CrcDtos.Strips.cs
                                     →   yaat-server/.../Dtos/CrcDtos.Tdls.cs
 yaat-server/.../Hubs/CrcClientState.Strips.cs
-                                    →   yaat-server/.../Hubs/CrcClientState.Tdls.cs
+                                    →   (none: `HandleTdlsDump` lives in `CrcClientState.Session.cs`)
 yaat-server/.../wwwroot/vstrips/    →   yaat-server/.../wwwroot/vtdls/
 docs/flight-strips.md               →   docs/vtdls.md
-                                    NEW: src/Yaat.Sim/Data/Vnas/TdlsConfig.cs
-                                    NEW: src/Yaat.Sim/Data/Vnas/TdlsConfigLoader.cs
+                                    NEW: `TdlsConfig` in src/Yaat.Sim/Data/Vnas/ArtccConfig.cs (no separate loader file)
 ```
 
 ## Canonical commands
@@ -101,7 +100,7 @@ All retained verbs are added to `CanonicalCommandType` + `CommandRegistry.All` +
 
 ## Data model (high-level)
 
-`TdlsState` (per `TrainingRoom`):
+`TdlsState` (per `SimulationEngine`):
 
 ```csharp
 public sealed class TdlsState
@@ -173,59 +172,57 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 - Tests: `tests/Yaat.Sim.Tests/Data/ArtccTdlsConfigParseTests.cs` — walks the facility tree, asserts 5 TDLS facilities (OAK/RNO/SFO/SJC/SMF), drills into SFO + OAK shape (mandatory flags, default SID/transition resolution, nullable-default round-trip).
 
 **1.0.3** `add(tdls): wire TdlsConfig into TrainingRoom on scenario load`
-- Modify `src/Yaat.Server/Simulation/SimulationEngine.cs` (or wherever scenario load currently calls `ArtccConfigService.Load…`) — walk the facility tree of the loaded ARTCC and hand every `tdlsConfiguration != null` node to `TdlsState.InitializeFromArtcc`.
-- Tests: integration via existing scenario-load tests + a new `tests/Yaat.Server.Tests/TdlsScenarioLoadTests.cs` asserting that loading a ZOA scenario populates `room.TdlsState.Configs` with the five NCT child facilities (OAK/RNO/SFO/SJC/SMF).
+- `SimulationEngine.InitializeFromArtcc` in `src/Yaat.Sim/Simulation/SimulationEngine.Tdls.cs` walks the facility tree of the loaded ARTCC and hands every `tdlsConfiguration != null` node to `TdlsState.InitializeFromArtcc`; `ScenarioLifecycleService` calls it on scenario load.
+- Tests: integration via existing scenario-load tests + `tests/Yaat.Server.Tests/TdlsStateInitTests.cs` (`InitializeFromArtcc_PopulatesConfigsForEveryTdlsEnabledFacility`) asserting the ZOA config populates `Tdls.Configs` with the five NCT child facilities (OAK/RNO/SFO/SJC/SMF), and `tests/Yaat.Server.Tests/TdlsAutoQueueScenarioLoadTests.cs` for the scenario-load path.
 
 ### Phase 1 — Server data model (no handlers)
 
 **1.1** `add(tdls): TdlsItemRecord, TdlsState, room wiring`
-- Create `src/Yaat.Server/Simulation/TdlsState.cs` per the data-model section above. No bays. `Items: ConcurrentDictionary<string, TdlsItemRecord>` keyed by ItemId; per-facility / per-status views are computed via LINQ on `Items` rather than stored separately. `Dumped: HashSet<(facility, callsign)>` lockout. `NextItemId: int`.
-- Modify `src/Yaat.Server/Simulation/TrainingRoom.cs`: add `public TdlsState TdlsState { get; } = new();` next to `StripState`.
+- Create `src/Yaat.Sim/Simulation/Tdls/TdlsState.cs` per the data-model section above. No bays. `Items: ConcurrentDictionary<string, TdlsItemRecord>` keyed by ItemId; per-facility / per-status views are computed via LINQ on `Items` rather than stored separately. `Dumped: HashSet<(facility, callsign)>` lockout. `NextItemId: int`.
+- `SimulationEngine` (`src/Yaat.Sim/Simulation/SimulationEngine.cs`) holds `public TdlsState Tdls { get; } = new();` next to `Strips`.
 - Tests: `tests/Yaat.Server.Tests/TdlsStateInitTests.cs` — empty after construction; `InitializeFromArtcc` is idempotent; `Reset` clears Items + Dumped + NextItemId.
 
 **1.2** `add(tdls): CRC + SignalR DTOs + enums`
-- Create `src/Yaat.Server/Dtos/CrcDtos.Tdls.cs`:
+- Create `src/Yaat.Server/Dtos/CrcDtos.Tdls.cs` (the server's CRC wire DTOs; the sim's own `TdlsItemRecord` / `TdlsItemStatus` live in `TdlsState.cs`):
   - `TdlsStatus { Pending = 0, Sent = 1, Wilco = 2 }` (no Cancelled).
   - `TdlsItemDto { Id, AircraftId, Cid, FacilityId, Status, Sequence, CreatedUtc, SentUtc?, WilcoUtc?, ExpiresUtc, SentPayload?: ClearanceDto }`. MessagePack `[Key(N)]` indexed.
   - `TdlsStateDto { Items: List<TdlsItemDto>, Dumped: List<DumpEntryDto>, ConfigsByFacility: Dict<string, TdlsConfigDto> }`.
-  - CRC invocation wrappers: `SendTdlsClearanceDto`, `DumpTdlsItemDto`, `RequestFullTdlsStateDto`.
-- Tests: `tests/Yaat.Server.Tests/TdlsDtoSerializationTests.cs` — round-trip MessagePack for each DTO; `Cid` and `SentPayload?` serialize correctly when null.
+  - CRC invocation wrappers: `SendTdlsClearanceCrcDto`, `DumpTdlsItemCrcDto`, `RequestFullTdlsStateCrcDto`.
+- Tests: `tests/Yaat.Server.Tests/CrcWireContractTests.cs` covers the CRC wire shape; `tests/Yaat.Server.Tests/TdlsSentPayloadNamesTests.cs` covers `SentPayload`. A dedicated DTO serialization test file does not exist.
 
 **1.3** `add(tdls): snapshot capture + restore for TdlsState`
-- Modify `src/Yaat.Server/Simulation/Persistence/RoomStateSnapshotDto.cs` — add `TdlsStateSnapshotDto? Tdls` with `Items`, `Dumped`, `NextItemId`. Configs are NOT persisted (re-fetched from data-api on restore).
-- Modify `src/Yaat.Server/Simulation/Persistence/RoomStateSnapshotMapper.cs` — `CaptureTdls(room.TdlsState)`, `RestoreTdls(room.TdlsState, dto.Tdls)`; wire into `Capture` and `Restore`. Restore re-runs `InitializeFromArtcc` to repopulate Configs.
-- Tests: extend `tests/Yaat.Server.Tests/SessionPersistenceTests.cs` with `Roundtrip_PreservesTdlsState` (Pending / Sent / Wilco items + Dumped lockout + sequence) and `Restore_RehydratesConfigsFromDataApi` (Configs are not in the snapshot blob but reappear after restore).
+- `ServerSnapshotDto` (`src/Yaat.Sim/Simulation/Snapshots/ServerSnapshotDto.cs`) carries `TdlsSnapshotDto? Tdls` (`src/Yaat.Sim/Simulation/Snapshots/TdlsSnapshotDto.cs`) with the items, the dumped lockout, the active ops configs and the pending auto-WILCOs. Configs are NOT persisted (re-fetched from data-api on restore).
+- `TdlsSnapshotMapper` (`src/Yaat.Sim/Simulation/Snapshots/TdlsSnapshotMapper.cs`) captures and restores the `TdlsState`; restore leaves the facility configs in place.
+- Tests: `tests/Yaat.Sim.Tests/Simulation/Snapshots/TdlsSnapshotMapperTests.cs` (`RoundTrip_PreservesItemsDumpedLockoutAndOpsConfig`, `Restore_LeavesTheFacilityConfigsInPlace`).
 - Older snapshots have no `Tdls` field → null → restore no-ops → empty `TdlsState`. Additive; no migrator entry needed unless we add a versioned subtree.
 
 ### Phase 2 — Canonical commands, handler, broadcaster
 
 **2.1** `add(tdls): canonical TDLS command types in Yaat.Sim`
-- Create `src/Yaat.Sim/Commands/TdlsCommands.cs` (parsed record types).
+- The parsed record types (`TdlsQueueCommand`, `TdlsSendCommand`, `TdlsOpsConfigCommand`, `TdlsWilcoCommand`, `TdlsDumpCommand`) live in `src/Yaat.Sim/Commands/ParsedCommand.cs`; there is no separate commands file.
 - Modify `src/Yaat.Sim/Commands/CanonicalCommandType.cs` — add `TdlsQueue`, `TdlsSend`, `TdlsWilco`, `TdlsDump`. (No Cancel, no Move, no Delete — Dump *is* the removal.)
 - Modify `CommandRegistry.cs`, `CommandScheme.cs`, `CommandSchemeParser.cs`, `CommandParser.cs`, `CommandDescriber.cs`.
-- Modify `TrackEngine.cs` (or wherever `IsStripCommand` lives) — add `IsTdlsCommand` so `RoomEngine.SendCommandAsync` routes them before the dispatcher (same bypass as strips, phase-transparent).
+- `TrackEngine.IsTdlsCommand` (`src/Yaat.Sim/Commands/TrackEngine.cs`) marks the verbs so they route before the dispatcher (same bypass as strips, phase-transparent).
 - Tests: `tests/Yaat.Sim.Tests/TdlsCommandParserTests.cs`. Existing `CommandSchemeCompletenessTests` auto-covers enum / registry / scheme completeness.
 
 **2.2** `add(tdls): TdlsCommandHandler + TdlsMutations + TdlsBroadcaster + TdlsCommandTranslator`
-- Create `src/Yaat.Server/Simulation/TdlsMutations.cs` — stateless helpers: `NewItemId`, `QueuePending`, `MarkSent(itemId, clearancePayload)`, `MarkWilco(itemId)`, `Dump(itemId)`, `Expire(itemId)`, `BuildFullState`.
-- Create `src/Yaat.Server/Simulation/TdlsCommandHandler.cs` — handlers for Queue / Send / Dump. Each: validate facility config exists, mutate via `TdlsMutations`, broadcast.
+- Create `src/Yaat.Sim/Simulation/Tdls/TdlsMutations.cs` — stateless helpers: `NewItemId`, `QueuePending`, `MarkSent(itemId, clearancePayload)`, `MarkWilco(itemId)`, `Dump(itemId)`, `Expire(itemId)`, `BuildFullState`.
+- Create `src/Yaat.Sim/Simulation/Tdls/TdlsCommandHandler.cs` — handlers for Queue / Send / Dump. Each: validate facility config exists, mutate via `TdlsMutations`, broadcast.
   - **Queue** (TDLSQ): rejects if (facility, callsign) is in Dumped lockout. Idempotent if already Pending for same aircraft+facility.
   - **Send** (TDLSS): requires a Pending entry; snapshot the resolved `ClearanceDto` (validated against `TdlsConfig` — mandatory fields set, values are in the dropdown). On success → Status=Sent, SentUtc=now, SentPayload=clearance, schedule auto-WILCO.
 
     **Also emit a `TerminalBroadcast` to the room summarizing the sent PDC** (callsign + every non-null field of the ClearanceDto) so RPOs see in their terminal log exactly what the student issued. New `TerminalEntryKind` value (or reuse `System` with a `[TDLS]` prefix — decide per existing convention).
   - **Dump** (TDLSDUMP): removes the item from `Items`, adds (facility, callsign) to Dumped. Broadcasts a `TdlsItemRemovedDto`.
   - **WILCO**: see Phase 3.
-- Create `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` — `BroadcastItemsAsync`, `BroadcastFullStateAsync`, `BroadcastRemovalAsync`, `SendInitialStateToClientAsync`. SignalR (`TdlsItemsChanged`, `TdlsStateChanged`, `TdlsItemRemoved`) + CRC topic publish. Topic name in a single constant for easy swap pending Phase 2.3 capture.
-- Create `src/Yaat.Server/Simulation/TdlsCommandTranslator.cs` — CRC MessagePack DTOs → canonical command strings.
+- Create `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` — `BroadcastChanges` (the `TdlsChangeSet` the engine's bodies drained), `BroadcastFullStateAsync`, per-client state sends. SignalR (`TdlsItemChanged`, `TdlsStateChanged`, `TdlsItemRemoved`) + CRC topic publish.
+- No `TdlsCommandTranslator` exists: the CRC inbound path reuses `HandleSendClearance` and `HandleTdlsDump` in `src/Yaat.Server/Hubs/CrcClientState.FlightPlan.cs` and `CrcClientState.Session.cs`.
 - Modify `src/Yaat.Server/ServerApp.cs` — `AddSingleton<TdlsBroadcaster>(); AddSingleton<TdlsCommandHandler>();`.
-- Modify `src/Yaat.Server/Simulation/RoomEngine.cs` — `IsTdlsCommand` branch in `SendCommandAsync` + `RecordAndDispatchTdlsAsync`.
-- Tests: `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs` (Queue/Send/Dump happy paths + rejections), `TdlsCommandTranslatorTests.cs`, `TdlsBroadcasterTests.cs`.
+- `src/Yaat.Server/Simulation/RoomEngine.cs` — `BroadcastTdlsChanges` pushes the change set the engine's TDLS bodies touched.
+- Tests: `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs` (Queue/Send/Dump happy paths + rejections). No translator or broadcaster test file exists.
 
 **2.3** `add(tdls): CRC inbound dispatch for TDLS items` *(conditional — confirm Phase 1.0)*
 - If CRC has a dedicated TDLS surface beyond `SendClearance`/`HandleTdlsDump`:
-  - Create `src/Yaat.Server/Hubs/CrcClientState.Tdls.cs` (partial of `CrcClientState`): `HandleSendTdlsClearance`, `HandleDumpTdlsItem`, `HandleRequestFullTdlsState`.
-  - Modify `src/Yaat.Server/Hubs/CrcClientState.cs` — switch arms.
-  - Tests: `tests/Yaat.Server.Tests/CrcTdlsDispatchTests.cs`.
+  - A TDLS-specific `CrcClientState` partial (`HandleSendTdlsClearance`, `HandleDumpTdlsItem`, `HandleRequestFullTdlsState`) and its dispatch tests do not exist: the `TdlsDump` arm in `src/Yaat.Server/Hubs/CrcClientState.cs` (`HandleTdlsDump`) is the whole CRC TDLS-specific surface.
 - If CRC has no dedicated TDLS topic and works exclusively via the existing flight-plan editor: drop this commit and reuse `HandleSendClearance` + `HandleTdlsDump` as the inbound path. Document the decision in `docs/vtdls.md` Phase 9.1.
 
 ### Phase 3 — Pilot ack pipeline + lifecycle (TTL, re-send on reconnect)
@@ -233,21 +230,21 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 **3.1** `add(tdls): silent auto-WILCO + ClearanceDto application without voice readback`
 - Refactor `AircraftState` to expose `ApplyClearance(ClearanceDto dto, bool viaTdls)`. Existing voice-clearance path passes `viaTdls: false` (unchanged); new TDLS path passes `true`.
 - Audit `src/Yaat.Sim/Pilot/PilotResponder.cs`, `PilotProactive.cs`, `PilotRequestTracker.cs` for any place that enqueues a readback off a clearance event; route through the new `ApplyClearance` so `viaTdls: true` suppresses the `PendingPilotTransmissions.Add(...)` for the clearance readback only. CTO / takeoff readback is unaffected.
-- Create `src/Yaat.Server/Simulation/TdlsWilcoScheduler.cs` — `Dictionary<itemId, scheduledUtc>`. Ticked from `TickProcessor.ProcessPostPhysics`.
-- Modify `src/Yaat.Server/Simulation/TdlsCommandHandler.cs` — `HandleAutoWilcoAsync(room, itemId)`: idempotent; if `Status != Sent` no-op; else set `Status = Wilco`, `WilcoUtc = now`, `ac.Voice.TdlsDumped = true`, broadcast.
+- The scheduler is `TdlsState.ScheduledWilcoAt` (`Dictionary<itemId, scheduledUtc>`), ticked by `SimulationEngine.TickTdlsAutoWilco` in `src/Yaat.Sim/Simulation/SimulationEngine.Tdls.cs`; there is no scheduler class.
+- `TdlsMutations.MarkWilco` (`src/Yaat.Sim/Simulation/Tdls/TdlsMutations.cs`) is the auto-WILCO body: idempotent; if `Status != Sent` no-op; else set `Status = Wilco` and `WilcoUtc`, and the change set carries the item to the broadcast.
 - Modify `src/Yaat.Server/Hubs/CrcClientState.FlightPlan.cs` — split `HandleSendClearance` so the TDLS-sourced send routes through the new path that schedules the silent WILCO.
-- Scenario config: add `SimScenarioState.TdlsWilcoDelaySeconds` (default ~3s — real FMS auto-ack is near-instant; chose 3s so the controller sees a brief transient rather than instant flip).
-- Tests: `tests/Yaat.Server.Tests/TdlsWilcoTests.cs` — TDLSS → Sent; auto-tick advances to Wilco + TdlsDumped + ClearanceDto persisted; `PendingPilotTransmissions` stays empty for the clearance; subsequent CTO still produces a voice readback.
+- The delay is `TdlsCommandHandler.DefaultWilcoDelay` (3s — real FMS auto-ack is near-instant; 3s lets the controller see a brief transient rather than instant flip); no scenario setting exposes it.
+- Tests: `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs` and `tests/Yaat.Server.Tests/TdlsTickProcessorTests.cs` — TDLSS → Sent; auto-tick advances to Wilco + ClearanceDto persisted; `PendingPilotTransmissions` stays empty for the clearance; subsequent CTO still produces a voice readback.
 
 **3.2** `add(tdls): manual TDLSW (controller force-wilco)`
-- Modify `TdlsCommandHandler.cs` — `HandleTdlsWilcoAsync` (manual). Same effects as auto-WILCO; cancels any pending scheduler entry.
+- `TdlsCommandHandler.HandleWilco` (manual). Same effects as auto-WILCO; cancels any pending scheduler entry.
 - Tests: extend `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs`.
 
 **3.3** `add(tdls): 2-hour TTL expiry + reconnect re-send`
-- Modify `src/Yaat.Server/Simulation/TickProcessor.cs` — `ProcessTdlsExpiry(room)`: iterate `room.TdlsState.Items`, remove those with `ExpiresUtc < now`, broadcast removals. Idempotent.
+- `SimulationEngine.TickTdlsExpiry` (`src/Yaat.Sim/Simulation/SimulationEngine.Tdls.cs`) iterates `Tdls.Items`, removes those with `ExpiresUtc <= now` and adds their (facility, callsign) to `TdlsState.Expired`, so the auto-queue does not re-create them. Idempotent.
 - Modify the SignalR `RequestFullTdlsState` handler so a CRC client reconnecting (or a YAAT-client vTDLS tab opening) receives the full current `TdlsStateDto` — including each item's `SentPayload`. That implicitly satisfies upstream's "If a pilot disconnects and then reconnects before departure, a new copy of their PDC is automatically sent to them" without a dedicated re-send mechanism: the YAAT pilot/CRC client repopulates from the state snapshot.
 - For aircraft despawn/respawn within a session: items keyed on `Cid` (not transient ItemId) survive even if the AircraftState is briefly removed. The Dumped lockout also keys on (facility, callsign) so re-spawn cannot bypass it.
-- Tests: `tests/Yaat.Server.Tests/TdlsExpiryTests.cs` (TTL on Pending and Sent), `tests/Yaat.Server.Tests/TdlsReconnectTests.cs` (RequestFullState round-trips a Sent item with payload intact).
+- Tests: `tests/Yaat.Server.Tests/TdlsTickProcessorTests.cs` (`TtlExpiry_RemovesItemsPastExpiry`, `TtlExpiry_PurgesScheduledWilcoEntry`); no reconnect test file exists.
 
 ### Phase 4 — Auto-generation rules
 
@@ -267,9 +264,9 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 
 **5.2** `add(tdls): transport + DTO mirrors + viewmodels`
 - Create `src/Yaat.Client.Tdls/Services/ITdlsTransport.cs`, `BrowserTdlsTransport.cs` (owns its own `HubConnection` to `/hubs/training`), `TdlsDtos.cs` (JSON-side DTO copy — separate from MessagePack server DTOs so the WASM linker stays slim), `YaatTdlsHubJsonContext.cs`.
-- Create `src/Yaat.Client.Tdls/ViewModels/VTdlsViewModel.cs`, `TdlsDclListViewModel.cs`, `TdlsPdcListViewModel.cs`, `TdlsItemViewModel.cs`, `TdlsFlightPlanEditorViewModel.cs`, `VTdlsCanonicalBuilder.cs` (emits `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP`).
+- Create `src/Yaat.Client.Tdls/ViewModels/VTdlsViewModel.cs` (it holds the DCL and PDC lists as `DclItems` / `PdcItems`; there are no per-list view-model files), `TdlsItemViewModel.cs`, `TdlsFlightPlanEditorViewModel.cs`, `VTdlsCanonicalBuilder.cs` (emits `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP`).
 - The `TdlsFlightPlanEditorViewModel` wraps the resolved `ClearanceDto` + the facility's `TdlsConfig` and exposes per-field dropdowns. Validates mandatory fields client-side and gates the Send button.
-- Tests: `tests/Yaat.Client.Tests/VTdlsViewModelTests.cs`, `VTdlsCanonicalBuilderTests.cs`, `TdlsFlightPlanEditorViewModelTests.cs` (mandatory-field gating).
+- Tests: `tests/Yaat.Client.Tests/VTdlsCanonicalBuilderTests.cs`, `VTdlsKeyboardModelTests.cs`, `TdlsFlightPlanEditorViewModelTests.cs` (mandatory-field gating).
 
 **5.3** `add(tdls): VTdlsView + VTdlsViewWindow Avalonia controls`
 - Create `src/Yaat.Client.Tdls/Views/VTdls/VTdlsView.axaml` (UserControl):
@@ -280,7 +277,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
   - **Key commands**: F4 Dump, F10 Cancel-editor (close without send), F12 Send, Ctrl+Alt+→/← cycle facilities, ↑/↓ navigate list, Tab/` swap active list, Enter open-selected.
 - Create `src/Yaat.Client.Core/Views/VTdls/VTdlsViewWindow.axaml` (Window). Window uses `WindowGeometryHelper(this, vm.Preferences, $"VTdlsView:{facilityId}", w, h).Restore()`. First-time per-facility windows inherit global Topmost from `"VTdlsView"`.
 - Reuse `MonoFont`, `SubtleTextBrush`, FluentTheme dark from `src/Yaat.Client/App.axaml`. No DataGrid — two `ItemsControl`s for the lists.
-- Tests: `tests/Yaat.Client.UI.Tests/VTdlsViewTests.cs` — render smoke + key-binding emission (F12 → TDLSS, F4 → TDLSDUMP) + facility cycling.
+- Tests: `tests/Yaat.Client.UI.Tests/Views/VTdlsViewInteractionTests.cs` — render smoke + key-binding emission (F12 → TDLSS, F4 → TDLSDUMP) + facility cycling.
 
 ### Phase 6 — `Yaat.VTdls.Web` WASM browser app
 
@@ -296,13 +293,13 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 - Create `src/Yaat.Client/ViewModels/MainViewModel.Tdls.cs` (mirror `MainViewModel.Strips.cs`). `TdlsEntries : ObservableCollection<VTdlsDockEntryViewModel>`; `OpenTdlsEntryForFacilityAsync`, `CloseTdlsEntry`.
 - Create `src/Yaat.Client/ViewModels/VTdlsDockEntryViewModel.cs` (mirror `VStripsDockEntryViewModel`). `TabTitle = $"vTDLS ({facility})"`.
 - Modify `MainViewModel.cs` — declare collection + subscribe to `CollectionChanged`; bootstrap student-entry next to the existing Strips student-entry path.
-- Tests: `tests/Yaat.Client.Tests/MainViewModelTdlsEntriesTests.cs`.
+- Tests: `tests/Yaat.Client.UI.Tests/LayoutServiceOpenTabsTests.cs` opens vTDLS tabs through `TdlsEntries`.
 
 **7.2** `add(tdls): MainWindow tab + pop-out + View menu submenu`
 - Modify `src/Yaat.Client/Views/MainWindow.axaml.cs` — mirror Strips block: `_tdlsTabItems`, `_tdlsWindows`, `WireTdlsEntryWindows`, `AttachTdlsEntry`, `DetachTdlsEntry`, `OpenTdlsEntryWindow`, `CloseTdlsEntryWindow`, `RebuildTdlsSubmenu`, `OnNewTdlsTabSubmenuOpened`.
 - Modify `src/Yaat.Client/Views/MainWindow.axaml` — add `TdlsSubmenu` MenuItem under View next to `StripsSubmenu`.
 - Geometry key `$"VTdlsView:{facilityId}"` — distinct from `"VStripsView:..."`. Easy to mis-copy.
-- Tests: `tests/Yaat.Client.UI.Tests/MainWindowTdlsTabTests.cs`.
+- Tests: `tests/Yaat.Client.UI.Tests/Views/MainWindowTabOrderTests.cs`.
 
 ### Phase 8 — Server deployment
 
@@ -376,18 +373,18 @@ The second STOP (after Phase 1.0.1) is for human review of the data-api endpoint
 ## Critical files to modify or create
 
 - `docs/vtdls/` ✅ (Phase 0, done)
-- `src/Yaat.Sim/Data/Vnas/TdlsConfig.cs` + `TdlsConfigLoader.cs` (new, Phase 1.0.2)
-- `src/Yaat.Server/Simulation/TdlsState.cs` (new, Phase 1.1)
+- `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` (`TdlsConfig` and its SID classes; no separate loader, Phase 1.0.2)
+- `src/Yaat.Sim/Simulation/Tdls/TdlsState.cs` (new, Phase 1.1)
 - `src/Yaat.Server/Dtos/CrcDtos.Tdls.cs` (new, Phase 1.2)
-- `src/Yaat.Server/Simulation/Persistence/RoomStateSnapshotMapper.cs` (modify, Phase 1.3)
+- `src/Yaat.Sim/Simulation/Snapshots/TdlsSnapshotMapper.cs` (new, Phase 1.3)
 - `src/Yaat.Sim/Commands/CanonicalCommandType.cs` (modify, Phase 2.1)
 - `src/Yaat.Sim/Commands/CommandRegistry.cs` + `CommandScheme.cs` (modify, Phase 2.1)
-- `src/Yaat.Server/Simulation/TdlsCommandHandler.cs` (new, Phase 2.2)
+- `src/Yaat.Sim/Simulation/Tdls/TdlsCommandHandler.cs` (new, Phase 2.2)
 - `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` (new, Phase 2.2)
 - `src/Yaat.Server/Simulation/RoomEngine.cs` (modify, Phase 2.2)
 - `src/Yaat.Server/Hubs/CrcClientState.FlightPlan.cs` (modify — split TDLS-vs-voice clearance handling, Phase 3.1)
 - `src/Yaat.Sim/Pilot/PilotResponder.cs` + `PilotProactive.cs` + `PilotRequestTracker.cs` (audit + guard via `ApplyClearance(viaTdls)`, Phase 3.1)
-- `src/Yaat.Server/Simulation/TickProcessor.cs` (modify — `ProcessTdlsWilcoQueue` + `ProcessTdlsExpiry` + `ProcessAutoPdcGeneration`, Phases 3.1 + 3.3 + 4.1)
+- `src/Yaat.Sim/Simulation/SimulationEngine.Tdls.cs` (new — `TickTdlsAutoWilco` + `TickTdlsExpiry` + `TickAutoTdlsQueue`, Phases 3.1 + 3.3 + 4.1)
 - `src/Yaat.Client.Tdls/` (new project tree, Phases 5.1–5.3)
 - `tools/Yaat.VTdls.Web/` (new project tree, Phase 6.1)
 - `src/Yaat.Client/ViewModels/MainViewModel.Tdls.cs` + `VTdlsDockEntryViewModel.cs` (new, Phase 7.1)
@@ -401,10 +398,9 @@ The second STOP (after Phase 1.0.1) is for human review of the data-api endpoint
 - `WindowGeometryHelper` (already handles per-facility keys; just pass `$"VTdlsView:{facilityId}"`)
 - `MonoFont`, `SubtleTextBrush`, FluentTheme dark — Avalonia resource dictionaries already in `App.axaml`
 - `AirportLayoutDownloader` / `ArtccConfigService` pattern — the TDLS config loader follows the same download + cache-on-disk + conditional-freshness shape
-- `TickProcessor` post-physics chain — TDLS work slots in next to `ProcessAutoArrivalStrips`
+- The engine's tick steps — TDLS work (`SimulationEngine.Tdls.cs`) sits beside the strip auto-print steps
 - `StripBroadcaster`'s CRC + SignalR dual-transport pattern — mirror directly
-- Existing `FlightPlanDto.TdlsDumped` flag — set by the silent-WILCO path; no new flag needed
-- `RoomEngine.RecordAndDispatchStripAsync` pattern — add a sibling `RecordAndDispatchTdlsAsync`
+- Existing `FlightPlanDto.TdlsDumped` flag — set by the CRC `TdlsDump` handler (`HandleTdlsDump`), not by the WILCO path
 
 ## Risks / open questions
 
@@ -427,7 +423,7 @@ End-to-end after Phase 9 lands:
 1. Local: `pwsh tools/test-all.ps1` — green across both repos.
 2. Local server: `dotnet run --project src/Yaat.Server`. From a browser, open `http://localhost:5000/vtdls/` — vTDLS web app loads, auto-joins room for CID.
 3. YAAT Client: `dotnet run --project src/Yaat.Client`. Load a departure-heavy scenario at a TDLS-configured facility (e.g. KBOS). View → vTDLS submenu lists facilities; open a second facility's tab; pop it out; verify per-facility geometry persists across restarts.
-4. File a flight plan for N123AB out of KOAK → DCL list shows a Pending item automatically (OAK is one of five TDLS-configured ATCTs under ZOA's NCT TRACON). Select the item → flight plan editor opens with nine field dropdowns pre-populated from the FE-defined defaults. Press F12 → item moves to PDC list, status Sent, ClearanceDto snapshotted; after ~3s → status Wilco, `Voice.TdlsDumped == true`, no `PendingPilotTransmissions` entry created.
+4. File a flight plan for N123AB out of KOAK → DCL list shows a Pending item automatically (OAK is one of five TDLS-configured ATCTs under ZOA's NCT TRACON). Select the item → flight plan editor opens with nine field dropdowns pre-populated from the FE-defined defaults. Press F12 → item moves to PDC list, status Sent, ClearanceDto snapshotted; after ~3s → status Wilco, no `PendingPilotTransmissions` entry created.
 5. CTO N123AB → voice readback still fires (TDLS does not suppress takeoff).
 6. F4 on the PDC item → item disappears from the list; re-creating the flight plan does NOT re-generate the entry (Dumped lockout).
 7. Wait 2+ hours sim time on a Sent item → item expires and disappears from the PDC list (TTL).

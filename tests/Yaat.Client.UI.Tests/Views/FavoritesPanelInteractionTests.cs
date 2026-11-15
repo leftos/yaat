@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -9,7 +8,6 @@ using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;

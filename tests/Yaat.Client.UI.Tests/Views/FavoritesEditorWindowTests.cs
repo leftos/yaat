@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;

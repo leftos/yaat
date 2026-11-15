@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Speech;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Speech;
 

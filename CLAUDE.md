@@ -22,11 +22,12 @@ A gated command for a worktree runs with `--cd <worktree root>` and paths relati
 dotnet workload restore                                 # Once per clone: installs wasm-tools (the .Web projects need it)
 dotnet build                                            # Build entire solution
 dotnet run --project src/Yaat.Client                    # Run client (needs yaat-server; see the port note below)
-dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
 pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server, self-gated (excludes Nightly + PathfinderGrid sweeps for speed)
 pwsh tools/test-all.ps1 -Full                           # ...including the heavy Nightly + PathfinderGrid sweeps (CI/nightly run these)
 qodana scan --results-dir .tmp/qodana-results           # Static analysis (local only)
 ```
+
+**GuideCapture lives in yaat-server.** Regenerate the `USER_GUIDE.md` screenshots from the yaat-server checkout, with yaat beside it as `../yaat`: `dotnet run --project tools/Yaat.GuideCapture` (`-- --scene <name>`, `--out <dir>`); the PNGs land in this repo's `docs/user-guide/img/`. `yaat.slnx` does not list it, so a yaat build does not compile yaat-server (the `guide-capture` skill has the details).
 
 .NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`). Close Yaat.Client before builds to avoid DLL lock warnings.
 
@@ -43,7 +44,7 @@ Read log files first before speculating about runtime errors:
 
 ## Architecture
 
-> **Full annotated file tree: [`docs/architecture.md`](docs/architecture.md).** Read it when you need to locate files or understand project structure. Keep it up-to-date before each commit (the `architecture-updater` agent checks it).
+> **Architecture entry point: [`docs/architecture.md`](docs/architecture.md)** (Task Index, Layers, Integration Footguns, test locations, Deep docs). Per-file detail lives in each subsystem doc's `## File map`, listed in [`docs/README.md`](docs/README.md). Keep the owning File map, and the Task Index or Layers when a task or a project changes, up to date before each commit (the `architecture-updater` agent checks them).
 >
 > **Exploring the codebase?** Start from the docs map ([`docs/README.md`](docs/README.md) → `architecture.md` Task Index → the matching subsystem doc), not source from scratch. When delegating exploration to a subagent, use the user-level `Explore` agent (it follows this docs-first protocol automatically); otherwise put "read `docs/architecture.md` + the relevant `docs/*.md` first" in the agent's prompt.
 
@@ -53,13 +54,13 @@ Subsystem docs: before exploring or editing a subsystem, open its doc from [docs
 
 - **Yaat.Sim** (`src/Yaat.Sim/`) — Shared simulation library. All aviation logic: flight physics, phases, pattern geometry, performance constants, command dispatch, command queue. No UI deps.
 - **Yaat.Client** (`src/Yaat.Client/`) — Avalonia desktop app: radar/ground rendering, `MainViewModel`, command input, the windows the instructor drives. MVVM (CommunityToolkit.Mvvm), SkiaSharp rendering. **Sole owner of the LM-Kit.NET dependency** (speech) — nothing else in `src/` may reference it.
-- **Yaat.Client.Core** (`src/Yaat.Client.Core/`) — LM-Kit-free client core: `ServerConnection` (SignalR + DTOs), `UserPreferences`, `AppLog`, `ClientVersionGate`, `UpdateService`, CRC alias parsing, `ConnectViewModel`. Split out so the browser/WASM front-ends and the desktop app share it.
+- **Yaat.Client.Core** (`src/Yaat.Client.Core/`) — LM-Kit-free client core: `ServerConnection` (SignalR + DTOs), `UserPreferences`, `AppLog`, `ClientVersionGate`, `UpdateService`, CRC alias parsing, `ConnectViewModel`. A desktop library (it references Avalonia.Desktop and Velopack); the browser/WASM front-ends do not reference it.
 - **Yaat.Client.Strips** (`src/Yaat.Client.Strips/`) — vStrips UI (strip bays, find, printing).
 - **Yaat.Client.Tdls** (`src/Yaat.Client.Tdls/`) — vTDLS UI; references Yaat.Client.Strips.
 - **Yaat.VStrips.Web / Yaat.VTdls.Web** (`tools/`) — Avalonia Browser (WASM) front-ends over Strips/Tdls. **yaat-server builds and hosts these** from its `src/Yaat.Server/Dockerfile` via `extern/yaat/`; they are why `wasm-tools` is a build prerequisite here.
 - **yaat-server** (`..\yaat-server\`) — ASP.NET Core server. SignalR comms, CRC protocol, training rooms, scenario loading. References Yaat.Sim via sibling project ref.
 
-Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Client.Strips`/`Yaat.Client.Tdls` → `Yaat.Sim`. Adding a client type used by both the desktop app and a web front-end means putting it in Core (or Strips/Tdls), not `Yaat.Client`.
+Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Client.Tdls` → `Yaat.Client.Strips` → `Yaat.Sim` (the full list is the Layers section of `docs/architecture.md`). `Yaat.VStrips.Web` references Strips only and `Yaat.VTdls.Web` Tdls and Strips, so a client type used by both the desktop app and a web front-end goes in Strips or Tdls, never Core or `Yaat.Client`.
 
 ### Key Patterns
 
@@ -90,7 +91,7 @@ Aviation constants: validated category values live in docs/flight-physics.md (Ca
 
 ## Project Skills
 
-**Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`, before running any `tools/bug_bundle.py` subcommand), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene).
+**Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`, before running any `tools/bug_bundle.py` subcommand), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene; the tool is in yaat-server).
 
 Landing (cross-repo cherry-pick, hooks exception, push, issue refs): /ship with the yaat-nextup profile.
 
@@ -113,7 +114,7 @@ Tests: writing or debugging one, read tests/CLAUDE.md and docs/test-harness.md f
 
 ### Code Style
 
-- **Style is a build gate**: `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level `.editorconfig` rule breaks the build; CI also fails on info-level style findings and on `dotnet csharpier check .`. CSharpier formats `.cs` and `.axaml`.
+- **Style is a build gate**: `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level `.editorconfig` rule breaks the build; CI also fails on info-level style findings and on `dotnet csharpier check .`. CSharpier formats `.cs` and `.axaml`. IDE0005 (unused using) is a `warning`, so an unused using fails the build; that needs the XML doc file, which every project builds (`GenerateDocumentationFile`), with its doc-comment warnings suppressed in `Directory.Build.props` `NoWarn` until YAAT-2330. The one exception is `build/sherpa/EnsureSherpaNatives.cs`. The pre-push hook `dotnet-format-ide0005` and the CI step "Unused usings (IDE0005)" check it solution-wide. `Directory.Build.props` sets `AnalysisLevel=latest-recommended`, and `.editorconfig` holds every rule that level raises at `suggestion`, in one sorted block, until its YAAT-116 part clears it; CA1707 is off under `[tests/**.cs]`. The pre-push hook `dotnet-format-analyzers` and the CI step "Analyzers" run `dotnet format analyzers` with `--verify-no-changes --severity warn` solution-wide.
 - **Boolean expressions**: Parenthesize to disambiguate — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`
 - **No repurposing DTO fields**: Add new fields with clear names. Remove dead fields entirely.
 - **Per-user paths via `YaatPaths`**: every `%LOCALAPPDATA%/yaat` path routes through `YaatPaths.AppDataRoot` / `YaatPaths.Combine(...)` (in `Yaat.Sim`), never raw `Environment.GetFolderPath`. Test-project consequences are in `tests/CLAUDE.md`.

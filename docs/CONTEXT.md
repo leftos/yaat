@@ -631,6 +631,9 @@ The runway an option clearance's pattern modifier names (`COPT MLT 28L` flown on
 **Deferred pattern altitude**:
 The altitude of that modifier (`COPT MLT 28L 20`), or the runway change's clear when it has none, held on `PhaseList.TransitionPatternAltitude` for the armed runway's circuit rather than the one being flown. A later altitude assignment replaces it.
 
+**Established (on the expected final)**:
+An airborne aircraft on the final course of its expected approach by geometry alone, with no clearance (`SituationFlags.EstablishedOnExpectedFinal`, `ExpectedFinalGeometry`, docs/client-context-menus.md, *When a quick command shows*); it offers Cleared {approach}. Distinct from `PhaseList.IsEstablishedOnApproach`, which is true only for an aircraft already cleared for an approach.
+
 **Final gate**:
 The 7110.65 §5-7-1.b.4 limit (`FlightCommandHandler.FinalGateNm`, 5 nm from the landing threshold) inside which an arrival on final takes no ATC speed assignment: `SPD`, a `CFIX` or constrained `DCTF` speed are refused, controller speeds are released and no speed revert is applied. A forced speed (`SPEEDF`/`SPEEDN`) overrides it.
 _Avoid_: 5 nm gate
@@ -1062,11 +1065,8 @@ A controller holding a VATUSA mentor (MTR), facility engineer (FE), training adm
 
 ## Tooling
 
-**At-risk tests**:
-The tests outside a sim-behaviour brief's file list that pin the behaviour it changes; the brief names each with a ruling (update the expectation, keep it green unedited, or stop and report), as the `yaat-nextup` profile's Brief shape says.
-
-**Precompute cache**:
-Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the reader plans the result live (the client's Push back to… submenu does).
+**Accurate mode**:
+The `SttMode` that weighs several hypotheses (beam search over the n-best, 4 paths) against the room's callsigns, fixes and taxiways; a callsign it is not sure of is never staged ("Say again"). The default; Whisper and a native without n-best support run Fast (`SttMode`, docs/speech-recognition-pipeline.md).
 
 **Airport list**:
 `src/Yaat.Sim/Data/PrecomputeCache/airports.txt`, the airports the precompute cache covers: those a training scenario names as `primaryAirportId` or on an aircraft's `airportId` that have a vNAS ground map. The maintainer tool computes and checks them, and `--refresh-airports` rebuilds the list.
@@ -1077,122 +1077,16 @@ How many airports a precompute tool compute run works on at once, each holding i
 **Algorithm hash**:
 The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a change to the push-target planner alone, or to an airport's sidecars, invalidates only push targets; the tug planner's `Tug*.cs` files are in the push set alone.
 
-**Collection weight**:
-A Sim test collection's measured seconds in `tests/Yaat.Sim.Tests/collection-weights.json`, keyed by the class full name for a default collection and by the name for a `[Collection]` one; `CollectionWeightOrderer` starts collections heaviest first, and a collection missing from the table weighs 0 and runs last.
-
-**Design-group entry**:
-One push-target set per stand per airplane design group (ADG I-VI), planned with the group's envelope; an aircraft reads the entry for its own group.
-
-**Design-group envelope**:
-A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the greatest length, wingspan (capped at the group's ceiling), wheelbase and main gear width over the group's fixed-wing FAA records, each taken separately (`DesignGroupEnvelopes`).
-
-**Evergreen test**:
-A recording test that pins behaviour which must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix). It runs on today's layout (`TestData/<id>.geojson`) through `RecordingGroundData.Evergreen(why)` and is maintained as the layout changes; when a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
-
-**Golden (menu golden)**:
-A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden (the test process pins the magnetic evaluation day to the one the goldens were rendered on, so bearings do not follow the run date), and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
-
-**Layout set**:
-The source files whose hash is a precompute key's layout algorithm hash: `Data/Airport` minus `Precompute/`, the `Tug*.cs` planner files and a few pathfinder/navigator helpers, plus a few files outside it (`PrecomputeLayoutSource` in `Yaat.Sim.csproj`).
-
-**Live check**:
-The re-fly and sweep of a cached push target when an aircraft's Push Back To menu opens: the stored moves are flown again with the aircraft's own outline and turn radius and swept against the parked or held aircraft about it (`PushTargetLiveCheck.Check`). The verdict is Clear, Blocked (by a named neighbour) or Unflyable.
-
-**LPT**:
-Longest-processing-time-first, the greedy schedule that hands the heaviest remaining job to the next free worker; `tools/analyze-test-schedule.py` simulates it over a TRX, and `CollectionWeightOrderer` makes the real run follow it.
-
-**Offline check / online check**:
-The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.
-
-**Push plan store**:
-`PushPlanStore`, the plan of each push-back stand a parked jet or turboprop sits on (`PushTargetEntry` for the stand and its design group), made off the tick and read by AI Ground's push rule. A server room owns one for every engine it builds; a scenario load's prepare and a reload fill it, a spawn adds to it only while AI Ground is active, and a stand it lacks is planned on the tick.
-
-**Push set**:
-The source files whose hash is a precompute key's push-target algorithm hash: all of `Data/Airport` except `Precompute/`, so the tug planner included, plus the push-target `Precompute/` types and a few files outside it (`PrecomputePushTargetSource`); it moves whenever the layout hash does.
-
-**Push-target seed**:
-The shipped precompute entry for an aircraft's stand and design group (`PushTargetSeed`), which first fills the Push back to… submenu, live-checked, before the client's own live plan lands and replaces it in place; a stand with no current entry, and any held aircraft, show `Computing targets…` instead.
-
-**Stay-put target**:
-A push target planned from a held pose that ends within 10 ft and 10° of that pose (`PushTargetPlanner.StayPutDistanceFt`, `StayPutHeadingDeg`), such as a push to the spot the aircraft sits on; it would leave the aircraft where it is, so the held plan drops it.
-
-**Ouroboros** (controller-voice ouroboros):
-The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).
-
-**SttOnly rule**:
-A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never speaks: it covers how speech recognition writes a phrase (a misheard or split word), not how a pilot says it.
-
-**Version-pinned test**:
-A recording test that pins behaviour which only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids). It runs on the archive's bundled layout through `RecordingGroundData.VersionPinned(archivePath, why)`, and its fixture's ids are never remapped.
-
-**Gate**:
-`tools/gate.ps1` (the gate wrapper, which hands every call to the installed `gate.exe` and on a machine without one runs the command directly; called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
-
-**Stall**:
-A gate run whose log has not grown and whose processes (with any MSBuild or compiler server started during the run) have used no CPU for 120 s (`-StallSeconds`); the gate kills it as hung (`gate: STALLED`).
-
-**Stall watchdog**:
-`tools/TestAllWatchdog.ps1`, run by `tools/test-all.ps1`: a test host whose tree (itself plus its descendants) has shown no CPU, descendant change or held thread for 90 s, ahead of the gate's 120 s stall kill, is named, dumped with `dotnet-dump` into `.tmp/dumps/` and killed, and the run fails (`test-all: STALLED <name> pid <pid>`).
-
-**Load-adjusted clock**:
-The clock a gate's ceiling (the `-TimeoutSeconds` of `tools/gate.ps1`) counts on: every few seconds it advances by the share of the machine other work left free, so it keeps wall time on an idle machine and slows while other agents load it.
-
-**Backstop**:
-The gate's last-resort kill at five times the ceiling in wall time (`gate: BACKSTOP`); with a low "machine free" figure the machine was busy, and the run is re-run once alone.
-
-**Self-gating** (of `tools/test-all.ps1`):
-A bare run that is not already inside a gate re-invokes itself once under one heavy `tools/gate.ps1` run (900 s, 2700 s with `-Full`), so the builds, both suites and the stall watchdog route to the builder as one run; a run inside a gate runs directly. Callers never wrap it in the gate themselves.
-
-**Slot**:
-A place machine-wide a gate must hold to run, of the kind its `-Slot` names, from one of two pools that never wait on each other: heavy slots and light slots. A gate that finds every slot of its kind held logs `gate: waiting for a heavy slot` (or `... light slot`) and waits; a gate inside another gate takes none and uses its parent's.
-
-**Heavy slot**:
-One of the `(logical processors - 1) / 4` slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps many threads busy: a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1` (which gates itself). Every yaat gate call is heavy.
-
-**Light slot**:
-One of the `(logical processors - 1) / 2` slots (`light` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps one or two threads busy: a `dotnet test --no-build` filtered to one class, a small script.
-
-**Feature marker**:
-`branch: feat/<name>` on a `docs/plans/MAIN.md` line; every item under that line lands on the `feat/<name>` branch (in yaat and yaat-server) instead of `main` (user-level `nextup`, §3 "Feature branches").
-
-**Feature PR**:
-The draft pull request from a marker's `feat/<name>` into `main`, one per repo, opened with the marker; CI runs on each push to it, and `/ship` Phase 2F merges it with `--rebase` once every line under the marker is done.
+**At-risk tests**:
+The tests outside a sim-behaviour brief's file list that pin the behaviour it changes; the brief names each with a ruling (update the expectation, keep it green unedited, or stop and report), as the `yaat-nextup` profile's Brief shape says.
 
 **Automation mode**:
 The client's mode for being driven by an agent without disturbing the user, on when `YAAT_AUTOMATION=1` (`AutomationMode.IsEnabled`, `AutomationGate.SuppressActivation`).
 
 Every window the client builds shows never-activated and stays in its Normal state; dialogs and message boxes open non-modal through `DialogPresenter` (message boxes through `MessageBoxPresenter`) with their owner disabled, popups draw inside their window, the client never activates itself or sets `Topmost`, and the global push-to-talk key hook and Discord Rich Presence are off (yaat-server `docs/client-driver-mcp.md`).
 
-**Never-activated window**:
-A window shown with `ShowActivated = false` that the client never activates afterwards, so it opens behind the user's foreground window without taking focus; automation mode shows every window this way.
-
-**Cloaked window**:
-A window the client has hidden from the desktop with a DWM cloak (`DWMWA_CLOAK`) while it keeps rendering, so window capture still records it; an automation-mode client cloaks every window before its first show when `YAAT_CLOAK=1` (`launch_yaat` `cloaked`), and the app tool `set_cloaked` toggles it on a running client (yaat-server `docs/client-driver-mcp.md`).
-
-**Pipe host**:
-The client's in-process automation endpoint (`src/Yaat.Client/Automation/AutomationHost.cs`), started on Windows in automation mode: a named pipe `yaat-automation-<pid>` open to the current user only, speaking line-delimited JSON requests `{id, method, params}` and answering a result or a coded error with a recovery hint; derived from Zafiro.Avalonia.Mcp (yaat-server `docs/client-driver-mcp.md`).
-
-**Discovery file**:
-`%TEMP%/yaat-automation/<pid>.json`, written by the pipe host on start and deleted on exit, naming the pid, pipe name, process name, start time and protocol version, so a driver finds every running client's pipe; files whose process is gone, or whose pid now runs another program, are swept on start.
-
-**Injected file picker**:
-The file picker an automation-mode client uses in place of the native dialog (`InjectedFilePickerService`, built by `FilePickerFactory`): each open or save call takes the oldest answer an agent queued with `queue_file_pick` (a path or a cancel), and fails at once on an empty queue, so no dialog ever opens (yaat-server `docs/client-driver-mcp.md`).
-_Avoid_: file dialog (none opens)
-
-**Coaching session**:
-A live session in which the owner trains Claude as a solo student: Claude works a position in an automation-mode client, scans the traffic about every 10 sim seconds, and before each instruction pauses and explains its picture and the instruction it would give, which it sends only after the owner rules. The `atc-coaching` skill runs it; its logs and lessons live in `docs/plans/controller-ai/coaching/`.
-
-**Pause trigger**:
-An event that makes an automation-mode client pause its room's sim on its own, armed with the app tool `arm_pause_triggers` (`PauseTriggerMonitor`): a pilot's call or report (not a readback), a warning or a new conflict, a new aircraft, a taxiing aircraft stopping for 5 sim seconds, or an optional heartbeat. A coaching session's safety net between scans; each firing is logged for `get_pause_events`.
-
-**Push long**:
-A pushback that ends farther than the aircraft's own lead-in line, typically across an alley to the far spot or deeper along the taxiway, so it leaves room for an arrival turning into a neighbouring gate (`docs/plans/controller-ai/coaching/sfo-video-lessons.md` G8).
-
-**West end** (SFO):
-Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
-
-**Accurate mode**:
-The `SttMode` that weighs several hypotheses (beam search over the n-best, 4 paths) against the room's callsigns, fixes and taxiways; a callsign it is not sure of is never staged ("Say again"). The default; Whisper and a native without n-best support run Fast (`SttMode`, docs/speech-recognition-pipeline.md).
+**Backstop**:
+The gate's last-resort kill at five times the ceiling in wall time (`gate: BACKSTOP`); with a low "machine free" figure the machine was busy, and the run is re-run once alone.
 
 **Bench clip**:
 One of the short committed synthetic clips (16 kHz mono PCM16, with the words it says) every benchmark row transcribes, so rows compare on the same audio (`src/Yaat.Client/Speech/BenchClips/`, docs/speech-recognition-pipeline.md).
@@ -1203,20 +1097,108 @@ One model in one mode on one device, measured over the bench clips: load time, l
 **Benchmark run**:
 One whole sweep of benchmark rows: each downloaded model in each mode on each device, run one child process at a time and shown in the Speech benchmark window (`SttBenchService.RunAsync`; its result is the last run, docs/speech-recognition-pipeline.md). Not a **Benchmark row**, which is one measurement of the sweep.
 
+**Cloaked window**:
+A window the client has hidden from the desktop with a DWM cloak (`DWMWA_CLOAK`) while it keeps rendering, so window capture still records it; an automation-mode client cloaks every window before its first show when `YAAT_CLOAK=1` (`launch_yaat` `cloaked`), and the app tool `set_cloaked` toggles it on a running client (yaat-server `docs/client-driver-mcp.md`).
+
+**Coaching session**:
+A live session in which the owner trains Claude as a solo student: Claude works a position in an automation-mode client, scans the traffic about every 10 sim seconds, and before each instruction pauses and explains its picture and the instruction it would give, which it sends only after the owner rules. The `atc-coaching` skill runs it; its logs and lessons live in `docs/plans/controller-ai/coaching/`.
+
+**Collection weight**:
+A Sim test collection's measured seconds in `tests/Yaat.Sim.Tests/collection-weights.json`, keyed by the class full name for a default collection and by the name for a `[Collection]` one; `CollectionWeightOrderer` starts collections heaviest first, and a collection missing from the table weighs 0 and runs last.
+
 **Corpus WER**:
 The word error rate of the STT stage alone over a set of real recordings, pooled over every reference word (total substitutions, deletions and insertions divided by total reference words), not averaged per clip (`--corpus-wer`, docs/speech-recognition-pipeline.md).
+
+**Design-group entry**:
+One push-target set per stand per airplane design group (ADG I-VI), planned with the group's envelope; an aircraft reads the entry for its own group.
+
+**Design-group envelope**:
+A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the greatest length, wingspan (capped at the group's ceiling), wheelbase and main gear width over the group's fixed-wing FAA records, each taken separately (`DesignGroupEnvelopes`).
+
+**Discovery file**:
+`%TEMP%/yaat-automation/<pid>.json`, written by the pipe host on start and deleted on exit, naming the pid, pipe name, process name, start time and protocol version, so a driver finds every running client's pipe; files whose process is gone, or whose pid now runs another program, are swept on start.
+
+**Evergreen test**:
+A recording test that pins behaviour which must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix). It runs on today's layout (`TestData/<id>.geojson`) through `RecordingGroundData.Evergreen(why)` and is maintained as the layout changes; when a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
 
 **Fast mode**:
 The `SttMode` that decodes greedily and takes the best guess only, at the lowest latency (`SttMode`, docs/speech-recognition-pipeline.md).
 
+**Feature marker**:
+`branch: feat/<name>` on a `docs/plans/MAIN.md` line; every item under that line lands on the `feat/<name>` branch (in yaat and yaat-server) instead of `main` (user-level `nextup`, §3 "Feature branches").
+
+**Feature PR**:
+The draft pull request from a marker's `feat/<name>` into `main`, one per repo, opened with the marker; CI runs on each push to it, and `/ship` Phase 2F merges it with `--rebase` once every line under the marker is done.
+
+**File map**:
+The `## File map` section that ends a subsystem doc: one entry per file the doc owns, as a fenced tree or a file table; the place a new, moved or removed file is recorded (`docs/README.md` lists the docs, and `architecture.md`'s Deep docs the file-map docs for files no subsystem doc owns).
+
+**Gate**:
+`tools/gate.ps1` (the gate wrapper, which hands every call to the installed `gate.exe` and on a machine without one runs the command directly; called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
+
+**Golden (menu golden)**:
+A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden (the test process pins the magnetic evaluation day to the one the goldens were rendered on, so bearings do not follow the run date), and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
+
+**Heavy slot**:
+One of the `(logical processors - 1) / 4` slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps many threads busy: a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1` (which gates itself). Every yaat gate call is heavy.
+
+**Injected file picker**:
+The file picker an automation-mode client uses in place of the native dialog (`InjectedFilePickerService`, built by `FilePickerFactory`): each open or save call takes the oldest answer an agent queued with `queue_file_pick` (a path or a cancel), and fails at once on an empty queue, so no dialog ever opens (yaat-server `docs/client-driver-mcp.md`).
+_Avoid_: file dialog (none opens)
+
+**Layout set**:
+The source files whose hash is a precompute key's layout algorithm hash: `Data/Airport` minus `Precompute/`, the `Tug*.cs` planner files and a few pathfinder/navigator helpers, plus a few files outside it (`PrecomputeLayoutSource` in `Yaat.Sim.csproj`).
+
+**Light slot**:
+One of the `(logical processors - 1) / 2` slots (`light` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps one or two threads busy: a `dotnet test --no-build` filtered to one class, a small script.
+
+**Live check**:
+The re-fly and sweep of a cached push target when an aircraft's Push Back To menu opens: the stored moves are flown again with the aircraft's own outline and turn radius and swept against the parked or held aircraft about it (`PushTargetLiveCheck.Check`). The verdict is Clear, Blocked (by a named neighbour) or Unflyable.
+
+**Load-adjusted clock**:
+The clock a gate's ceiling (the `-TimeoutSeconds` of `tools/gate.ps1`) counts on: every few seconds it advances by the share of the machine other work left free, so it keeps wall time on an idle machine and slows while other agents load it.
+
+**LPT**:
+Longest-processing-time-first, the greedy schedule that hands the heaviest remaining job to the next free worker; `tools/analyze-test-schedule.py` simulates it over a TRX, and `CollectionWeightOrderer` makes the real run follow it.
+
 **Native set**:
 The sherpa-onnx native libraries a process loads, CPU or CUDA (`SherpaNativeLoader.LoadedSet`); a process loads one set, so a CPU and a GPU benchmark row run in separate processes, and the figures in `stt-reference.json` name the CI-built native commit they were measured on (docs/speech-recognition-pipeline.md).
+
+**Never-activated window**:
+A window shown with `ShowActivated = false` that the client never activates afterwards, so it opens behind the user's foreground window without taking focus; automation mode shows every window this way.
 
 **Node id**:
 The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
 
+**Offline check / online check**:
+The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.
+
+**Ouroboros** (controller-voice ouroboros):
+The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).
+
 **Ouroboros**:
 A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).
+
+**Pause trigger**:
+An event that makes an automation-mode client pause its room's sim on its own, armed with the app tool `arm_pause_triggers` (`PauseTriggerMonitor`): a pilot's call or report (not a readback), a warning or a new conflict, a new aircraft, a taxiing aircraft stopping for 5 sim seconds, or an optional heartbeat. A coaching session's safety net between scans; each firing is logged for `get_pause_events`.
+
+**Pipe host**:
+The client's in-process automation endpoint (`src/Yaat.Client/Automation/AutomationHost.cs`), started on Windows in automation mode: a named pipe `yaat-automation-<pid>` open to the current user only, speaking line-delimited JSON requests `{id, method, params}` and answering a result or a coded error with a recovery hint; derived from Zafiro.Avalonia.Mcp (yaat-server `docs/client-driver-mcp.md`).
+
+**Precompute cache**:
+Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the reader plans the result live (the client's Push back to… submenu does).
+
+**Push long**:
+A pushback that ends farther than the aircraft's own lead-in line, typically across an alley to the far spot or deeper along the taxiway, so it leaves room for an arrival turning into a neighbouring gate (`docs/plans/controller-ai/coaching/sfo-video-lessons.md` G8).
+
+**Push plan store**:
+`PushPlanStore`, the plan of each push-back stand a parked jet or turboprop sits on (`PushTargetEntry` for the stand and its design group), made off the tick and read by AI Ground's push rule. A server room owns one for every engine it builds; a scenario load's prepare and a reload fill it, a spawn adds to it only while AI Ground is active, and a stand it lacks is planned on the tick.
+
+**Push set**:
+The source files whose hash is a precompute key's push-target algorithm hash: all of `Data/Airport` except `Precompute/`, so the tug planner included, plus the push-target `Precompute/` types and a few files outside it (`PrecomputePushTargetSource`); it moves whenever the layout hash does.
+
+**Push-target seed**:
+The shipped precompute entry for an aircraft's stand and design group (`PushTargetSeed`), which first fills the Push back to… submenu, live-checked, before the client's own live plan lands and replaces it in place; a stand with no current entry, and any held aircraft, show `Computing targets…` instead.
 
 **RTF** (real-time factor):
 A TTS model's synthesis time divided by the duration of the audio it produced; below 1.0 it synthesises faster than the audio plays (`--tts-bench`, docs/speech-recognition-pipeline.md).
@@ -1224,11 +1206,38 @@ A TTS model's synthesis time divided by the duration of the audio it produced; b
 **Screen** (TTS benchmark):
 The cheap first phase of `--tts-bench`: 3 readback lines, 1 voice, at 8, 4 and 2 threads, each count a cold load in its own process. A count passes at p90 first audio of 1.5 s or less and median RTF under 1.0; a model that passes or is marginal goes on to the full run (docs/speech-recognition-pipeline.md).
 
+**Self-gating** (of `tools/test-all.ps1`):
+A bare run that is not already inside a gate re-invokes itself once under one heavy `tools/gate.ps1` run (900 s, 2700 s with `-Full`), so the builds, both suites and the stall watchdog route to the builder as one run; a run inside a gate runs directly. Callers never wrap it in the gate themselves.
+
+**Slot**:
+A place machine-wide a gate must hold to run, of the kind its `-Slot` names, from one of two pools that never wait on each other: heavy slots and light slots. A gate that finds every slot of its kind held logs `gate: waiting for a heavy slot` (or `... light slot`) and waits; a gate inside another gate takes none and uses its parent's.
+
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
 
+**Stall**:
+A gate run whose log has not grown and whose processes (with any MSBuild or compiler server started during the run) have used no CPU for 120 s (`-StallSeconds`); the gate kills it as hung (`gate: STALLED`).
+
+**Stall watchdog**:
+`tools/TestAllWatchdog.ps1`, run by `tools/test-all.ps1`: a test host whose tree (itself plus its descendants) has shown no CPU, descendant change or held thread for 90 s, ahead of the gate's 120 s stall kill, is named, dumped with `dotnet-dump` into `.tmp/dumps/` and killed, and the run fails (`test-all: STALLED <name> pid <pid>`).
+
+**Stay-put target**:
+A push target planned from a held pose that ends within 10 ft and 10° of that pose (`PushTargetPlanner.StayPutDistanceFt`, `StayPutHeadingDeg`), such as a push to the spot the aircraft sits on; it would leave the aircraft where it is, so the held plan drops it.
+
+**SttOnly rule**:
+A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never speaks: it covers how speech recognition writes a phrase (a misheard or split word), not how a pilot says it.
+
+**Task Index**:
+The table at the top of `docs/architecture.md` (and of yaat-server's) that maps a kind of change to the files to read for it, in order; the first stop before searching source.
+
+**Version-pinned test**:
+A recording test that pins behaviour which only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids). It runs on the archive's bundled layout through `RecordingGroundData.VersionPinned(archivePath, why)`, and its fixture's ids are never remapped.
+
 **WER** (word error rate):
 The edits (substituted, deleted and inserted words) a transcript needs to match its reference, divided by the reference's word count, after both pass through `WerTextNormalizer` (`WerScorer`).
+
+**West end** (SFO):
+Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
 
 ## Bug report privacy
 

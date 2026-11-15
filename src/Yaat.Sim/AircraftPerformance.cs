@@ -424,6 +424,21 @@ public static class AircraftPerformance
         return Math.Min(AuthoredGustExcess(surface), MaxWindAdditiveKts);
     }
 
+    /// <summary>
+    /// Vapp, the final approach speed flown: the type's <see cref="ApproachSpeed"/> plus the
+    /// <see cref="WindApproachAdditive"/> (already capped at 20 kt) on the runway's true heading.
+    /// </summary>
+    public static double FinalApproachSpeedKts(
+        string aircraftType,
+        AircraftCategory category,
+        WeatherProfile? weather,
+        double runwayTrueHeadingDeg
+    ) => ApproachSpeed(aircraftType, category) + WindApproachAdditive(weather, runwayTrueHeadingDeg);
+
+    /// <summary>The type's Vref: its <see cref="ApproachSpeed"/> plus the <see cref="GustApproachAdditive"/>.</summary>
+    public static double TypeVrefKts(string aircraftType, AircraftCategory category, WeatherProfile? weather) =>
+        ApproachSpeed(aircraftType, category) + GustApproachAdditive(weather);
+
     private static double AuthoredGustExcess(WindLayer surface) => surface.Gusts is { } gust && gust > surface.Speed ? gust - surface.Speed : 0;
 
     public static double TouchdownSpeed(string aircraftType, AircraftCategory cat)

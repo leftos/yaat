@@ -2,7 +2,8 @@ namespace Yaat.Sim;
 
 public static class GeoMath
 {
-    private const double EarthRadiusNm = 3440.065;
+    /// <summary>The Earth radius (nm) <see cref="DistanceNm(double, double, double, double)"/> measures great circles on.</summary>
+    internal const double EarthRadiusNm = 3440.065;
     private const double DegToRad = Math.PI / 180.0;
     private const double NmPerDegLat = 60.0;
 

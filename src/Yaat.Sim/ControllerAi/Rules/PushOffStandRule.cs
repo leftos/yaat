@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;

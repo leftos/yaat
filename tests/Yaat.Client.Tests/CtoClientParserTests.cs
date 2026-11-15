@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 

@@ -4,7 +4,6 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 

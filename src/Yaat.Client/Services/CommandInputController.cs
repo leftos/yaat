@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 
 namespace Yaat.Client.Services;
 

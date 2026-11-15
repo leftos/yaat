@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;

@@ -146,20 +146,13 @@ the rebased branch:
 git -C "$YAAT" push --force-with-lease origin pr-<PR>:<head-branch>
 ```
 
-**Expect a `CHANGELOG.md` conflict when a release was cut since the pin.** A
-nightly-review PR already carries its own `## Unreleased` block in its single
-commit; once `main` has promoted its `## Unreleased` into a release heading, the
-rebase conflicts on that block every time. Resolve it as `/ship` Phase 2 does:
-keep both sides, placing the bot's `## Unreleased` block above the newest
-release header and leaving `main`'s released sections untouched; confirm with
-`rg -n '^(<<<<<<<|=======|>>>>>>>)' CHANGELOG.md` that no markers remain; then
-`git add --resolved CHANGELOG.md` (a refusal means markers remain: resolve
-them, never fall back to a plain `git add`) and `git rebase --continue`. The
-same rule covers `docs/plans/*.md` and `docs/architecture.md` when both sides only
-added lines — keep `main`'s lines first, then the PR's; a block with a removal or
-a rewritten heading is resolved by hand. The rebase may run from the session
-worktree: `pr-<PR>` is checked out nowhere else, and only `checkout main` is the
-trap (Trap 6).
+**Expect a `CHANGELOG.md` conflict when a release was cut since the pin.** A nightly-review PR already carries its own `## Unreleased` block in its single commit; once `main` has promoted its `## Unreleased` into a release heading, the rebase conflicts on that block every time.
+
+Resolve it as `/ship` Phase 2 does: keep both sides, placing the bot's `## Unreleased` block above the newest release header and leaving `main`'s released sections untouched; confirm with `rg -n '^(<<<<<<<|=======|>>>>>>>)' CHANGELOG.md` that no markers remain; then `git add --resolved CHANGELOG.md` (a refusal means markers remain: resolve them, never fall back to a plain `git add`) and `git rebase --continue`.
+
+The same rule covers `docs/plans/*.md`, `docs/architecture.md` and a subsystem doc's `## File map` section when both sides only added lines — keep `main`'s lines first, then the PR's; a block with a removal or a rewritten heading is resolved by hand.
+
+The rebase may run from the session worktree: `pr-<PR>` is checked out nowhere else, and only `checkout main` is the trap (Trap 6).
 
 ## Step 7: Gate it
 

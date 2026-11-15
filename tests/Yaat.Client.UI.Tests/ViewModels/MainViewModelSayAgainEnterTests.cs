@@ -4,7 +4,6 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Client.UI.Tests.ViewModels;

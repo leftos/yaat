@@ -42,4 +42,19 @@ public enum SituationFlags
     /// clearance to issue (§5-9-4).
     /// </summary>
     ApproachClearedForDescent = 256,
+
+    /// <summary>
+    /// A controller has told the pilot what approach to expect (EAPP): the advice stamp is on the aircraft. The scenario's
+    /// seeded expected approach is not advice.
+    /// </summary>
+    ExpectedApproachAdvised = 512,
+
+    /// <summary>
+    /// An airborne IFR aircraft with no approach clearance (a JFAC/JLOC lateral join counts as none) established on the final
+    /// course of its expected instrument approach, outside the final approach fix (<see cref="ExpectedFinalGeometry"/>).
+    /// </summary>
+    EstablishedOnExpectedFinal = 1024,
+
+    /// <summary>An approach clearance is held until the STAR delivers the aircraft to the approach (a deferred CAPP).</summary>
+    ApproachClearancePending = 2048,
 }

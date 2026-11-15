@@ -4,7 +4,6 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -159,6 +158,13 @@ public static class MenuCatalog
         HoldTurnsEntry(MenuIds.HoldFixLeft, "Left 360s at fix…", HoldTurns.Left),
         HoldTurnsEntry(MenuIds.HoldFixRight, "Right 360s at fix…", HoldTurns.Right),
         .. ApproachPickerIds.Select(ApproachPicker),
+        new(
+            MenuIds.ApproachClearedExpected,
+            ClearedExpectedApproachLabel,
+            MenuFlightRules.IfrOnly,
+            (ac, _) => AircraftCommandApplicability.IsIfr(ac),
+            BuildClearedExpectedApproach
+        ),
         new(
             MenuIds.ApproachClearedVisual,
             ClearedVisualLabel,
@@ -464,6 +470,9 @@ public static class MenuCatalog
     /// <summary>The visual-approach entry's label.</summary>
     private const string ClearedVisualLabel = "Cleared visual approach";
 
+    /// <summary>The one-click Cleared {expected approach} entry's catalog label; its item names the approach instead.</summary>
+    private const string ClearedExpectedApproachLabel = "Cleared expected approach";
+
     /// <summary>The Join STAR entry's label.</summary>
     private const string JoinStarLabel = "Join STAR";
 
@@ -574,6 +583,34 @@ public static class MenuCatalog
 
     private static MenuCatalogEntry Leaf(string id, string label, string command, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
         new(id, label, MenuFlightRules.Both, isApplicable, (_, context, host) => BuildSend(label, command, context, host));
+
+    /// <summary>
+    /// Cleared {expected approach}: bare <c>CAPP</c>, which the server resolves to the expected approach first, labelled as the
+    /// approach flyout's default row names it (<c>Cleared ILS 28R</c>). Null when the expected approach is not among the
+    /// destination's approaches, or when it names more than one procedure (<c>R19R</c> for R19RY and R19RZ), so the label,
+    /// the established flag and the command never name different procedures; null with no navigation database.
+    /// </summary>
+    private static MenuItem? BuildClearedExpectedApproach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        ClearedExpectedApproachItemLabel(aircraft, NavigationDatabase.InstanceOrNull) is { } label ? BuildSend(label, "CAPP", context, host) : null;
+
+    /// <summary>
+    /// The Cleared {expected approach} item's label (<c>Cleared ILS 28R</c>); null when <paramref name="navDb"/> is null (the
+    /// client's navdata failed to load: fails closed), when the expected approach names no procedure or more than one, or when
+    /// it is not among the destination's approaches.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the menu commands.</param>
+    /// <param name="navDb">The navigation database, or null when none is installed.</param>
+    internal static string? ClearedExpectedApproachItemLabel(IMenuAircraft? aircraft, NavigationDatabase? navDb) =>
+        (navDb is not null)
+        && ExpectationNamesOneProcedure(aircraft, navDb)
+        && (ApproachChoices.Expected(aircraft, ApproachChoices.Choices(aircraft)) is { } expected)
+            ? ApproachSpec(MenuIds.ApproachCleared).DefaultLabel(expected.ShortName)
+            : null;
+
+    /// <summary>Whether the aircraft's expected approach resolves to exactly one procedure at its destination, as CAPP resolves it.</summary>
+    private static bool ExpectationNamesOneProcedure(IMenuAircraft? aircraft, NavigationDatabase navDb) =>
+        (aircraft is { Destination.Length: > 0, ExpectedApproach: { Length: > 0 } expected })
+        && (navDb.ResolveApproachCandidates(aircraft.Destination, expected).Count == 1);
 
     /// <summary>A leaf whose text names the aircraft's assigned runway after <paramref name="label"/> when it has one.</summary>
     private static MenuCatalogEntry RunwayLeaf(string id, string label, string command, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>

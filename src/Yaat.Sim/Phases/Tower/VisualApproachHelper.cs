@@ -1,4 +1,3 @@
-using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
 

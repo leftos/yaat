@@ -416,7 +416,7 @@ public class PointMenuTests
         var anchor = new Border();
         var window = new Window { Content = anchor };
         window.ShowAndRunLayout();
-        var client = new ClientMenuHost(main, ac, anchor);
+        var client = new ClientMenuHost(main, ac, anchor, mvaFacilityId: null);
         var host = new SendCapturingHost(client, "AB");
         var point = new MenuPoint(new LatLon(spot.Latitude, spot.Longitude), spot, null, [], null);
 
@@ -456,7 +456,7 @@ public class PointMenuTests
         var anchor = new Border();
         var window = new Window { Content = anchor };
         window.ShowAndRunLayout();
-        var host = new SendCapturingHost(new ClientMenuHost(main, ac, anchor), "AB");
+        var host = new SendCapturingHost(new ClientMenuHost(main, ac, anchor, mvaFacilityId: null), "AB");
         var point = new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, clickedEnd, [], null);
 
         ContextMenu menu = Build(ac, point, host, _ => []);
@@ -1115,7 +1115,7 @@ public class PointMenuTests
         var anchor = new Border();
         var window = new Window { Content = anchor };
         window.ShowAndRunLayout();
-        var client = new ClientMenuHost(main, ac, anchor);
+        var client = new ClientMenuHost(main, ac, anchor, mvaFacilityId: null);
         return new OakHostScope
         {
             Main = main,

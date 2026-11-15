@@ -1455,7 +1455,9 @@ A follower already **on base** that would roll out too close behind the traffic 
 
 When it would roll out level with or ahead of the traffic, or a widen cannot build the spacing, it turns out to the downwind heading, says "turning downwind for spacing behind the traffic, request base turn", and turns base again behind the traffic once it has passed (or holds the downwind heading for your `TB`/`ERB`/`ELB` if it runs out of room; too close to the final turn to turn out, it goes around instead).
 
-A follower flying free behind traffic it has caught up with does the same.
+A follower flying free behind traffic it has caught up with does the same. One that can no longer keep spacing behind traffic on base or final within 5 NM of the runway warns "unable to maintain separation" and breaks off the same way, turning away from the field; farther out it re-enters by the downwind.
+
+When the traffic disappears while the follower is already lined up on the final, it keeps flying the final at any distance instead of entering the downwind.
 
 The callsign argument is **optional**. A bare `FOLLOW` defaults to the most recently reported in-sight traffic (the last callsign acquired via a successful traffic-in-sight command). An explicit callsign always overrides the stored value.
 
@@ -1574,6 +1576,8 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 **Heading intercept (implied PTAC):** When an aircraft is being vectored (has an assigned heading **and no nav route**) and you issue a bare `CAPP` (no AT/DCT fix), the aircraft maintains its present heading and intercepts the final approach course — equivalent to an implied PTAC.
 
 A hold clears the assigned heading when it starts, so an aircraft in a hold has no vector to intercept from. If the aircraft has a nav route (e.g. you previously issued `DCT FIX`), CAPP builds the published procedure instead. AT/DCT fixes always override heading intercept.
+
+**Re-clearing the approach already cleared:** a plain `CAPP` (no `AT`/`DCT`/altitude, not `CAPPF`; bare, it means the active approach unless `EAPP` named a different one or a visual) for the approach the aircraft is already cleared for continues it where it is: on final, intercepting, flying the approach's fixes, or in a hold-in-lieu or procedure turn. It does not restart at the filed transition, fly another circuit or warn "approach cancelled by CAPP". The reply reads `Cleared {id} approach, runway {rwy}` (the spoken form as for any `CAPP`), the speed cancellation above applies again, and the new transmission replaces pending `WAIT`s and conflicting queued blocks as any new transmission does. `JFAC ILS28R, CAPP ILS28R` does the same on final or intercepting, and while the aircraft flies the approach's fixes it joins the final course and is then cleared in place. A different approach, `CAPPF`, an `AT`/`DCT`/altitude form, an ATC hold, a missed approach, a pattern circuit's final and a visual are handled as before.
 
 **Deferred clearance altitudes:** a `CAPP` given while the aircraft is still on a STAR appends the approach's fixes after the STAR fix the approach joins (the connecting fix). The aircraft keeps its last assigned altitude until it is past that fix; after it the approach's published altitudes bind, including floors below the assigned altitude, while a ceiling above it never makes the aircraft climb. The assigned altitude stays shown. A `DCT`/`DCTF` onto the active procedure that skips the connecting fix moves it to the direct's fix (AIM 5-4-7.f), and clearing the same approach again past it keeps the approach altitudes in force. Under `DVIA` the STAR's altitudes drive the descent through the transition.
 

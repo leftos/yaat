@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;

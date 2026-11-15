@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 

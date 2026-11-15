@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Xunit;
 using Yaat.Sim.Data.Airport.Precompute;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 

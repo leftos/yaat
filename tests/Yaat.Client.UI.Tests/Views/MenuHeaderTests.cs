@@ -8,7 +8,6 @@ using Avalonia.Media;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -250,7 +249,7 @@ public class MenuHeaderTests
     {
         (MainViewModel main, GroundView view) = GroundOnMain();
 
-        AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas), view);
+        AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas, mvaFacilityId: null), view);
     }
 
     // --- Each host's two flyout members, over a real main view model -----------------------
@@ -265,7 +264,7 @@ public class MenuHeaderTests
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas), view, main);
+        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas, mvaFacilityId: null), view, main);
     }
 
     /// <summary>
@@ -279,7 +278,7 @@ public class MenuHeaderTests
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        new ClientMenuHost(main, ac, view.Canvas).ShowCommandFlyout(Callsign, Initials);
+        new ClientMenuHost(main, ac, view.Canvas, mvaFacilityId: null).ShowCommandFlyout(Callsign, Initials);
         HeadlessWindowExtensions.PumpDispatcher();
         TextBox textBox = FindTextBox(view);
         textBox.Text = "FH 270";
@@ -296,7 +295,7 @@ public class MenuHeaderTests
         var view = new GroundView { DataContext = main.Ground };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas), view, main);
+        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas, mvaFacilityId: null), view, main);
     }
 
     [AvaloniaFact]
@@ -306,7 +305,7 @@ public class MenuHeaderTests
         var anchor = new Border();
         new Window { Content = anchor }.ShowAndRunLayout();
 
-        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, anchor), anchor, main);
+        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, anchor, mvaFacilityId: null), anchor, main);
     }
 
     [AvaloniaFact]
@@ -316,7 +315,7 @@ public class MenuHeaderTests
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas), view);
+        AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas, mvaFacilityId: null), view);
     }
 
     [AvaloniaFact]
@@ -326,7 +325,7 @@ public class MenuHeaderTests
         var anchor = new Border();
         new Window { Content = anchor }.ShowAndRunLayout();
 
-        AssertNotePopup(new ClientMenuHost(main, Jet(), anchor), anchor);
+        AssertNotePopup(new ClientMenuHost(main, Jet(), anchor, mvaFacilityId: null), anchor);
     }
 
     /// <summary>

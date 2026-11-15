@@ -376,6 +376,21 @@ public sealed class TaxiRoute
         HoldShortSetbackNm(barSegmentIndex, Math.Max(0, CurrentSegmentIndex), holdShort);
 
     /// <summary>
+    /// Every input <see cref="HoldShortSetbackNm(int, int, HoldShortPoint)"/> reads: the two segment indices, the bar's stop and
+    /// the segment count (a crossing appended to the route changes it), so a memo entry never outlives what it was walked from.
+    /// </summary>
+    private readonly record struct SetbackKey(int BarSegmentIndex, int StartSegmentIndex, double Lat, double Lon, int SegmentCount);
+
+    /// <summary>
+    /// The setbacks already walked on this route, created on first use. A memo of a deterministic walk, not route state: not
+    /// snapshotted, and a copy of the route (<see cref="TruncateAt"/>, <see cref="FromSnapshot"/>) starts with none. It relies on
+    /// the route's segments being append-only with their geometry fixed once built, so <see cref="SetbackKey"/> (bar segment,
+    /// start segment, stop position, segment count) covers every input. It assumes one thread per route: rooms may tick on
+    /// different threads, but a route belongs to one room.
+    /// </summary>
+    private Dictionary<SetbackKey, double>? _setbackMemo;
+
+    /// <summary>
     /// <see cref="HoldShortSetbackNm(int, HoldShortPoint)"/> with the walk back toward the aircraft bounded by segment
     /// <paramref name="startSegmentIndex"/> rather than by the route's cursor: the read for an aircraft off its route, whose cursor
     /// stays behind its progress (a crossing aircraft on its onward route). A stop lying behind that segment is on no stretch of
@@ -397,7 +412,23 @@ public sealed class TaxiRoute
             return 0.0;
         }
 
-        var stop = new LatLon(lat, lon);
+        var key = new SetbackKey(barSegmentIndex, startSegmentIndex, lat, lon, Segments.Count);
+        _setbackMemo ??= [];
+        if (_setbackMemo.TryGetValue(key, out double memoNm))
+        {
+            return memoNm;
+        }
+
+        double setbackNm = WalkSetbackNm(barSegmentIndex, startSegmentIndex, new LatLon(lat, lon));
+        _setbackMemo[key] = setbackNm;
+        return setbackNm;
+    }
+
+    /// <summary>
+    /// The walk <see cref="HoldShortSetbackNm(int, int, HoldShortPoint)"/> memoises, for a bar whose stop is <paramref name="stop"/>.
+    /// </summary>
+    private double WalkSetbackNm(int barSegmentIndex, int startSegmentIndex, LatLon stop)
+    {
         int inProgressIndex = Math.Min(barSegmentIndex, Math.Max(0, startSegmentIndex));
         (double? aheadNm, double walkedNm) = WalkBackToStop(stop, barSegmentIndex, inProgressIndex, 0.0);
         return aheadNm

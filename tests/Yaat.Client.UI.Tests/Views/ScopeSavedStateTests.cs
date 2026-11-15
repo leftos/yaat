@@ -5,7 +5,6 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Data;

@@ -34,7 +34,7 @@ public partial class ScopeView : UserControl
     /// </summary>
     internal ContextMenu BuildAircraftMenu(ScopeViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
     {
-        var host = new ClientMenuHost(vm.Main, ac, Canvas);
+        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId);
         return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, _ => []);
     }
 

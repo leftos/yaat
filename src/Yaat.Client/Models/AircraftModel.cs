@@ -1077,6 +1077,14 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
     private string? _ownerSectorCode;
 
+    /// <summary>
+    /// The position symbol the student's STARS scope draws for an owner in another facility, appended to
+    /// <see cref="OwnerDisplay"/> as "3Y(1)" unless it repeats the owner's first or last letter or digit. Null when the student's scope shows the owner's TCP itself.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
+    private string? _studentOwnerSymbol;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HandoffDisplay))]
     private string? _handoffPeer;
@@ -1203,7 +1211,43 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private double _tpaSize;
 
-    public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
+    public string OwnerDisplay
+    {
+        get
+        {
+            string owner = OwnerSectorCode ?? Owner ?? "";
+            string symbol = StudentOwnerSymbol ?? "";
+            bool showsSymbol = (owner.Length > 0) && (symbol.Length > 0) && (!SymbolRepeatsOwner(owner, symbol));
+            return showsSymbol ? $"{owner}({symbol})" : owner;
+        }
+    }
+
+    /// <summary>
+    /// True when <paramref name="symbol"/> repeats the first or last letter-or-digit of
+    /// <paramref name="owner"/>, so the suffix would only repeat what the owner already shows.
+    /// </summary>
+    private static bool SymbolRepeatsOwner(string owner, string symbol)
+    {
+        string? first = null;
+        string? last = null;
+        foreach (char c in owner)
+        {
+            if (!char.IsLetterOrDigit(c))
+            {
+                continue;
+            }
+
+            first ??= c.ToString();
+            last = c.ToString();
+        }
+
+        if (first is null)
+        {
+            return false;
+        }
+
+        return string.Equals(symbol, first, StringComparison.OrdinalIgnoreCase) || string.Equals(symbol, last, StringComparison.OrdinalIgnoreCase);
+    }
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
 
@@ -1573,6 +1617,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             StudentDatablockColor = dto.StudentDatablockColor,
             StudentDatablockLevel = dto.StudentDatablockLevel,
             StudentLeaderDirection = dto.StudentLeaderDirection,
+            StudentOwnerSymbol = dto.StudentOwnerSymbol,
             TpaType = dto.TpaType,
             TpaSize = dto.TpaSize,
             ActiveSidId = dto.ActiveSidId,
@@ -1756,6 +1801,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         StudentDatablockColor = dto.StudentDatablockColor;
         StudentDatablockLevel = dto.StudentDatablockLevel;
         StudentLeaderDirection = dto.StudentLeaderDirection;
+        StudentOwnerSymbol = dto.StudentOwnerSymbol;
         TpaType = dto.TpaType;
         TpaSize = dto.TpaSize;
         ActiveSidId = dto.ActiveSidId;

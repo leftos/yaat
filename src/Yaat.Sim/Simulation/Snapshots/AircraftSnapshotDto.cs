@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -171,6 +170,14 @@ public sealed class AircraftSnapshotDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? DescentClearedAtSeconds { get; init; }
+
+    /// <summary>
+    /// When the controller last told the pilot what approach to expect (EAPP), in scenario-elapsed seconds. Optional and
+    /// left out of the JSON while null: earlier snapshots restore none given, so no SnapshotSchemaMigrator step or
+    /// SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ExpectedApproachAdvisedAtSeconds { get; init; }
 
     /// <summary>
     /// The aircraft's memory of its last capped request for lower (<c>DescentRequestCap</c> as an int: 0 none, 1

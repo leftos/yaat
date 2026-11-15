@@ -146,6 +146,7 @@ public static class QuickCommandGlyphs
             [MenuIds.NavigationAppendDirectTo] = Flight("M3 21L13 11 M8 11h5v5 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M18 14v6 M15 17h6"),
             [MenuIds.HoldPattern] = Flight(RacetrackPath + " M8 18l-2 3"),
             [MenuIds.ApproachCleared] = Flight(ClearedApproachPath),
+            [MenuIds.ApproachClearedExpected] = Flight(ClearedApproachPath),
             [MenuIds.ApproachJoin] = Flight(JoinApproachPath),
             [MenuIds.ApproachClearedStraightIn] = Flight(StraightInPath),
             [MenuIds.ApproachJoinStraightIn] = Flight(StraightInPath),

@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Data.Artcc;
 
 namespace Yaat.Sim.Tests.Artcc;

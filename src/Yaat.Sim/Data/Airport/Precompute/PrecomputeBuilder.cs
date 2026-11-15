@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Faa;
-using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Data.Airport.Precompute;
 

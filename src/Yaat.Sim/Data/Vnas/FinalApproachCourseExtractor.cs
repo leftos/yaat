@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Vnas;

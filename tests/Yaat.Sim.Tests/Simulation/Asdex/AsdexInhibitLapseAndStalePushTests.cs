@@ -6,9 +6,7 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Asdex;
 

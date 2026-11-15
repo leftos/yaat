@@ -260,6 +260,22 @@ public class QuickCommandDefaultsTests
     public void AirTaxi_IsListedInTheFourGroundSituations(AircraftSituation situation, int index) =>
         Assert.Equal(index, Ids(situation).ToList().IndexOf(MenuIds.GroundAirTaxi));
 
+    /// <summary>
+    /// Cleared {expected approach} is listed IFR-only for an aircraft vectored or on a STAR with an EAPP: in the IFR arrival
+    /// list right after Expect approach, in the IFR en-route list right after Hold.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftSituation.IfrArrival, MenuIds.ApproachExpect)]
+    [InlineData(AircraftSituation.IfrEnroute, MenuIds.HoldPattern)]
+    public void ClearedExpectedApproach_IsListedIfrOnlyAfterItsNeighbour(AircraftSituation situation, string neighbour)
+    {
+        List<QuickCommandEntry> entries = [.. QuickCommandDefaults.For(situation)];
+        int after = entries.IndexOf(new CatalogQuickCommandEntry(neighbour, null));
+
+        Assert.True(after >= 0, $"{situation} lists no {neighbour}");
+        Assert.Equal(new CatalogQuickCommandEntry(MenuIds.ApproachClearedExpected, MenuFlightRules.IfrOnly), entries[after + 1]);
+    }
+
     public static TheoryData<AircraftSituation> AirborneSituations() =>
         [
             AircraftSituation.Taxiing,
@@ -409,6 +425,7 @@ public class QuickCommandDefaultsTests
     /// </summary>
     [Theory]
     [InlineData(MenuIds.ApproachCleared, ClearedApproachPath, false)]
+    [InlineData(MenuIds.ApproachClearedExpected, ClearedApproachPath, false)]
     [InlineData(MenuIds.ApproachJoin, JoinApproachPath, false)]
     [InlineData(MenuIds.ApproachClearedStraightIn, StraightInPath, false)]
     [InlineData(MenuIds.ApproachJoinStraightIn, StraightInPath, false)]

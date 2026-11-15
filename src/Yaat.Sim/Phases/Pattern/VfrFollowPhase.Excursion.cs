@@ -9,7 +9,7 @@ public sealed partial class VfrFollowPhase
     /// <summary>
     /// Free pursuit: match the lead's speed with spacing correction, then steer to keep trail behind the lead
     /// (<see cref="AirborneFollowHelper.ComputeFreePursuitHeading"/>). Altitude is deliberately not touched — the
-    /// controller's last assignment stands. True when the phase ends: spacing can no longer be kept, or an extension
+    /// controller's last assignment stands. True when the phase ends: spacing can no longer be kept and no turn-out starts, or an extension
     /// past the lead's base turn point ran out of room.
     /// </summary>
     private bool TickFreePursuit(PhaseContext ctx, AircraftState lead)
@@ -25,10 +25,19 @@ public sealed partial class VfrFollowPhase
         );
         if (adjusted is null)
         {
-            // Helper has already added a one-shot "unable to maintain separation"
-            // warning and cleared Approach.FollowingCallsign. End the phase so the
-            // helper isn't re-entered every tick (which would re-spam the warning). Spacing lost behind the lead never takes
-            // the return's base or final join, which would put the follower back in front of or onto it.
+            // Helper has already added a one-shot "unable to maintain separation" warning and cleared
+            // Approach.FollowingCallsign, so the helper must not be re-entered every tick (which would re-spam the warning).
+            // Spacing lost behind a lead on base or final, within TurnOutRangeNm of the threshold, breaks off outward through
+            // the turn-out, away from the final and the lead; the phase continues in its turn-out state, which never re-enters
+            // this pursuit. With no turn-out circuit (the lead on neither, the follower on the non-pattern side or out of
+            // range), the phase ends into the return's downwind entry, never its base or final join, which would put the
+            // follower back in front of or onto the lead.
+            if (TryStartTurnOut(ctx, lead, stalledHold: false, spacingLoss: true))
+            {
+                ApplyBreakOffBank(ctx);
+                return false;
+            }
+
             ReturnToPattern(ctx, PatternReturn, forwardJoins: false);
             return true;
         }
@@ -40,7 +49,7 @@ public sealed partial class VfrFollowPhase
 
         bool wasWidening = _widen.Active;
         ctx.Targets.TargetTrueHeading = AirborneFollowHelper.ComputeFreePursuitHeading(ctx.Aircraft, lead, spacing, _leadPath, _widen);
-        if (ParallelHoldStalled(ctx, lead, spacing) && TryStartTurnOut(ctx, lead, stalledHold: true))
+        if (ParallelHoldStalled(ctx, lead, spacing) && TryStartTurnOut(ctx, lead, stalledHold: true, spacingLoss: false))
         {
             return false;
         }

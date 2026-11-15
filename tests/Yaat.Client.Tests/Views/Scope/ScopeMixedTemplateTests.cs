@@ -116,7 +116,8 @@ public class ScopeMixedTemplateTests
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
         return ScopeFrame.Build(input);
     }

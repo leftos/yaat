@@ -37,8 +37,7 @@ it does not re-derive the equations.
 ```
 
 `World.Weather` is one `WeatherProfile` at a time. A v2 timeline is collapsed to a profile every tick by `GetWeatherAt`; a v1 profile
-or a live-weather profile is used directly. Selection is wired in `SimulationEngine.cs` (`ApplyWeatherJson`, replay restore paths) and
-in the live server tick (`RoomTickLoopService.cs`); see [Consumption and broadcast](#consumption-and-broadcast).
+or a live-weather profile is used directly. Selection is wired in `SimulationEngine.RecordedAppliers.cs` (`ApplyWeatherJson`), `SimulationEngine.Tick.cs` (`AdvanceWeatherTimeline`), the snapshot restore in `SimulationEngine.Snapshots.cs` and, on the live server, `RoomEngine.LoadWeather` and `RoomHost.OnWeatherAdvanced` (yaat-server `Simulation/`); see [Consumption and broadcast](#consumption-and-broadcast).
 
 ## Data model
 
@@ -48,19 +47,19 @@ in the live server tick (`RoomTickLoopService.cs`); see [Consumption and broadca
 
 | Member | Notes |
 |---|---|
-| `WindLayers` (`List<WindLayer>`) | **Re-sorted ascending by altitude on every set** (`WeatherProfile.cs:43-47`) — never assume insertion order survives. |
+| `WindLayers` (`List<WindLayer>`) | **Re-sorted ascending by altitude on every set** (`WeatherProfile.cs`) — never assume insertion order survives. |
 | `Metars` (`List<string>`) | Raw METAR strings; parsed lazily and cached per airport. |
 | `Precipitation` (`string?`) | Free-form; only compared for change detection, not modeled in physics. |
-| `ParsedMetarOverrides` | **`[JsonIgnore]`** (`WeatherProfile.cs:59`). Pre-computed interpolated METAR values; see [the override handshake](#footguns). |
+| `ParsedMetarOverrides` | **`[JsonIgnore]`** (`WeatherProfile.cs`). Pre-computed interpolated METAR values; see [the override handshake](#footguns). |
 | `WindGridHash` (`string?`) | **Serialized** (`windGridHash`, left out when null). The SHA-256 of the GFS grid's raw GRIB2 bytes, lowercase hex: the name the profile's grid is registered, recorded and restored under. See [Wind grids: hash, registry and pins](#wind-grids-hash-registry-and-pins). |
 | `WindGrid` (`GriddedWindField?`) | **`[JsonIgnore]`**. The GFS grid over the room; where it covers a position, the position-taking `WindInterpolator` overloads take the winds above layer 0 from it. Set only by `WindGridRegistry.Attach` from `WindGridHash`; see [Sampling the grid at a position](#sampling-the-grid-at-a-position). |
-| `GetWeatherForAirport(id)` | Override → exact station → 50 nm IDW (`WeatherProfile.cs:66`). Caches the result in a per-airport dictionary. |
+| `GetWeatherForAirport(id)` | Override → exact station → 50 nm IDW (`WeatherProfile.cs`). Caches the result in a per-airport dictionary. |
 
-`WindLayer` (`WeatherProfile.cs:5`):
+`WindLayer` (`WeatherProfile.cs`):
 
 | Field | Meaning |
 |---|---|
-| `Altitude` | feet **MSL** (`WeatherProfile.cs:10`). |
+| `Altitude` | feet **MSL** (`WeatherProfile.cs`). |
 | `Direction` | wind **FROM** direction in **degrees MAGNETIC** — the authored MEAN; the instantaneous wind physics sees is this plus the `WindVariation` perturbation. |
 | `Speed` | knots (mean). |
 | `Gusts` (`double?`) | peak speed; drives the gust perturbation amplitude, the reported G group, and the approach-speed wind additive. |
@@ -83,17 +82,17 @@ The "v2" shape is a `WeatherTimeline` with a list of `WeatherPeriod`s:
 | `TransitionMinutes` | blend duration into this period; `0` = instant. |
 | `WindLayers` / `Metars` / `Precipitation` | the target weather for this period. |
 
-`WeatherTimeline.GetWeatherAt(elapsedSeconds)` (`WeatherTimeline.cs:23`) is the per-tick collapse: it picks the active period (last
+`WeatherTimeline.GetWeatherAt(elapsedSeconds)` (`WeatherTimeline.cs`) is the per-tick collapse: it picks the active period (last
 period whose `StartMinutes*60 ≤ elapsed`), and — if inside the transition window — blends from the **previous** period. See
 [time interpolation](#c-time-along-the-timeline--weathertimelinegetweatherat).
 
 ### v1 vs v2 JSON and auto-detection (`WeatherTimelineParser.cs`)
 
 `WeatherTimelineParser.Parse(json)` returns a `WeatherParseResult` discriminated union — exactly one of `Timeline`, `Profile`, or
-`Error` is set (`WeatherTimelineParser.cs:8`):
+`Error` is set (`WeatherTimelineParser.cs`):
 
-- **Auto-detect rule** (`WeatherTimelineParser.cs:41`): if the root object has a `"periods"` array → v2 `WeatherTimeline`; otherwise → v1 `WeatherProfile`.
-- **v2 validation** (`ParseV2`): empty `periods` → error; **every period must have ≥1 wind layer** or it errors (`WeatherTimelineParser.cs:73-79`); periods are then **sorted by `StartMinutes`**.
+- **Auto-detect rule** (`WeatherTimelineParser.cs`): if the root object has a `"periods"` array → v2 `WeatherTimeline`; otherwise → v1 `WeatherProfile`.
+- **v2 validation** (`ParseV2`): empty `periods` → error; **every period must have ≥1 wind layer** or it errors (`WeatherTimelineParser.cs`); periods are then **sorted by `StartMinutes`**.
 - **v1** (`ParseV1`): straight `WeatherProfile` deserialize.
 - JSON is parsed case-insensitively (`PropertyNameCaseInsensitive = true`).
 
@@ -101,16 +100,16 @@ period whose `StartMinutes*60 ≤ elapsed`), and — if inside the transition wi
 
 ### `MetarParser` (`MetarParser.cs`)
 
-`MetarParser.Parse(metar)` produces a `ParsedMetar` record (`MetarParser.cs:17`): station id, ceiling (ft AGL), cloud layers,
+`MetarParser.Parse(metar)` produces a `ParsedMetar` record (`MetarParser.cs`): station id, ceiling (ft AGL), cloud layers,
 visibility (statute miles), and optional wind/altimeter.
 
-- **Station id heuristic** (`MetarParser.cs:65-79`): first 4-char token of letters/digits whose first char is a letter (e.g. `KSFO`, `KE16`), explicitly skipping `AUTO`. No id → returns `null`.
+- **Station id heuristic** (`MetarParser.cs`): first 4-char token of letters/digits whose first char is a letter (e.g. `KSFO`, `KE16`), explicitly skipping `AUTO`. No id → returns `null`.
 - **Visibility** (`ParseVisibility`): handles `P6SM` (greater-than → returns the number), `M1/4SM` (less-than → the fraction), mixed `1 1/2SM` → `1.5`, pure fraction `1/2` → `0.5`, and whole `10SM`. The regex requires word boundaries (`(?<!\S)…(?!\S)`).
 - **Cloud layers** (`ParseLayers`): `FEW/SCT/BKN/OVC` + 3-digit **hundreds of feet** (`OVC012` → 1200 ft). `CLR`/`SKC` → no layers, no ceiling. **Ceiling = lowest `BKN` or `OVC` base** (`FEW`/`SCT` never set a ceiling).
-- **`VV` (vertical visibility / indefinite ceiling)** is modeled as a **synthetic `Overcast` layer** (`MetarParser.cs:239-250`) so downstream multi-layer obstruction logic (`VisualDetection`) treats it like a real OVC — it is **not** an OVC token in the source METAR.
+- **`VV` (vertical visibility / indefinite ceiling)** is modeled as a **synthetic `Overcast` layer** (`MetarParser.cs`) so downstream multi-layer obstruction logic (`VisualDetection`) treats it like a real OVC — it is **not** an OVC token in the source METAR.
 - **Wind** (`ParseWind`): `dddssKT` / `dddssGggKT` / `VRBssKT`. `VRB` → null direction + `WindVariable = true`. A `dddVddd` variable-direction group after the wind group parses into `WindVarFromDeg`/`WindVarToDeg` (extremes coded clockwise; `350V030` wraps through north).
 - **Altimeter** (`ParseAltimeter`): `A2992` → `29.92` inHg.
-- **`ToIcao`** (`MetarParser.cs:110`): 3-letter FAA id → prepend `K`; 4-char `K…` assumed already ICAO.
+- **`ToIcao`** (`MetarParser.cs`): 3-letter FAA id → prepend `K`; 4-char `K…` assumed already ICAO.
 
 Two interpolation helpers live here (used by the timeline, not by `Parse`):
 - `CeilingFromLayers(layers)` — lowest `BKN`/`OVC` base from a layer list (re-derives a ceiling from an interpolated layer set instead of lerping the old scalar).
@@ -120,10 +119,10 @@ Two interpolation helpers live here (used by the timeline, not by `Parse`):
 
 Parses the FAA Winds-and-Temperatures-Aloft fixed-width text (`aviationweather.gov /api/data/windtemp`) into `StationWinds`
 (a station id + a list of `WindAtLevel`). `WindAtLevel` carries `DirectionTrue` (degrees **TRUE**, `int`), `SpeedKts`, and
-`IsLightVariable` (`WindsAloftParser.cs:4`).
+`IsLightVariable` (`WindsAloftParser.cs`).
 
 - **Header-driven columns** (`ParseHeaderColumnCenters`): finds the `FT` header line and records the **center character index** of each standard level (`3000 6000 9000 12000 18000 24000 30000 34000 39000`). Data tokens are then assigned to the **nearest column by center distance**, not by fixed offset — this is fragile to header spacing.
-- **`DecodeWind(altitudeFt, code)`** (`WindsAloftParser.cs:164`) decodes the 4-char `DDSS` code:
+- **`DecodeWind(altitudeFt, code)`** (`WindsAloftParser.cs`) decodes the 4-char `DDSS` code:
   - Strips a temperature suffix first (`2714-08` → `2714`, sign at index ≥ 4).
   - `9900` → light-and-variable: direction 0, speed 0, `IsLightVariable = true`.
   - `DD < 50`: direction = `DD × 10`, speed = `SS` kt.
@@ -162,7 +161,7 @@ G group. `SpeciCriteria` wind checks are double-gated: vs the last issued report
 
 Pilots fly the wind too: `AircraftPerformance.WindApproachAdditive` (Vapp = Vref + ½ steady headwind + full gust increment,
 cap 20 kt — Boeing FCTM/Airbus FCOM) feeds `FinalApproachPhase`'s speed targets, and the gust-only part
-(`GustApproachAdditive`) is maintained to touchdown on `LandingPhase.Vref` and the follow-overtake floor. On the ground,
+(`GustApproachAdditive`) is maintained to touchdown on `LandingPhase.Vref` and the follow-overtake floor. `AircraftPerformance.FinalApproachSpeedKts` (Vapp) and `TypeVrefKts` (type approach speed + gust additive) expose the two figures; the landing stabilization gate's speed limit reads them. On the ground,
 `AircraftState.IndicatedAirspeed` carries WHEEL speed; `GroundFrame` owns the liftoff/touchdown conversions (rotation at Vr
 indicated — headwind shortens the roll by the v² law; touchdown wheel speed = TAS − headwind). See
 [flight-physics.md](flight-physics.md).
@@ -187,7 +186,7 @@ decomposition for direction; the **spatial** axis does not interpolate direction
 
 ### (b) Spatial, across stations — `MetarInterpolator.GetWeatherForAirport`
 
-`MetarInterpolator.GetWeatherForAirport(metars, airportId)` (`MetarInterpolator.cs:13`):
+`MetarInterpolator.GetWeatherForAirport(metars, airportId)` (`MetarInterpolator.cs`):
 
 - **Exact station match first** (`MetarParser.FindStation`) — returned verbatim if found.
 - Otherwise resolves the airport position via `NavigationDatabase.Instance.GetFixPosition`, gathers every station within
@@ -199,9 +198,9 @@ decomposition for direction; the **spatial** axis does not interpolate direction
 
 ### (c) Time, along the timeline — `WeatherTimeline.GetWeatherAt`
 
-Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction through the window:
+Inside a transition window (`WeatherTimeline.cs`), with `t` = fraction through the window:
 
-- **Wind layers** (`InterpolateWindLayers`): if the two periods' layer **counts differ, snap to the target list** (`WeatherTimeline.cs:147-151`); otherwise per-layer speed lerp + N/E-vector direction lerp, matching the altitude axis. Gusts lerp only if both have them.
+- **Wind layers** (`InterpolateWindLayers`): if the two periods' layer **counts differ, snap to the target list** (`WeatherTimeline.cs`); otherwise per-layer speed lerp + N/E-vector direction lerp, matching the altitude axis. Gusts lerp only if both have them.
 - **METARs** do not lerp as text — they become `ParsedMetarOverrides` (`InterpolateMetars`): per matching station, interpolate cloud layers (cover step-changes at `t=0.5`), derive a fresh ceiling via `CeilingFromLayers`, and IDW-free linear-lerp visibility and altimeter.
 - The transition window is **truncated** if the next period starts before it ends.
 - Outside any transition (first period, `TransitionMinutes ≤ 0`, or past the window end), `BuildProfile` returns the active period directly with no overrides.
@@ -210,10 +209,10 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 
 `WindInterpolator` carries the ISA standard-atmosphere model used for airspeed conversion:
 
-- **`GetAtmosphere(altitudeFt)`** (`WindInterpolator.cs:264`) returns ISA temperature (K) and pressure ratio δ = P/P₀, splitting at the tropopause (`TropopauseM = 11,000 m`, i.e. ~36,089 ft): troposphere uses the standard lapse rate, stratosphere is isothermal.
+- **`GetAtmosphere(altitudeFt)`** (`WindInterpolator.cs`) returns ISA temperature (K) and pressure ratio δ = P/P₀, splitting at the tropopause (`TropopauseM = 11,000 m`, i.e. ~36,089 ft): troposphere uses the standard lapse rate, stratosphere is isothermal.
 - **`IasToTas` / `TasToIas` / `MachToIas` / `IasToMach`** are full ISA compressible-flow conversions (CAS↔Mach↔TAS via isentropic impact-pressure relations). **The equations, the airspeed-frame model (IAS is the single source of truth, TAS/GS/Mach derive), and the per-category constants are documented in [flight-physics.md](flight-physics.md)** — do not duplicate them here. `SpeedOfSoundKts(altitudeFt)` is the ISA speed of sound for the same model.
 - **`PressureToIsaAltitudeFt(pressureHpa)`** is the inverse of the pressure ratio `GetAtmosphere` gives: the ISA pressure altitude (ft) of a static pressure, standard lapse rate up to the tropopause and isothermal above (500 hPa ≈ 18,289 ft). Zero, negative or NaN pressure throws `ArgumentOutOfRangeException`. `GriddedWindField` uses it to place each isobaric level.
-- **`ComputeWindCorrectionAngle(desiredTrack, tas, windFrom, windSpeed)`** (`WindInterpolator.cs:319`) returns the crab angle (WCA) so the aircraft tracks a straight ground path: positive = crab right. It reverses **wind FROM → blows TOWARD** by `+180°` internally, then projects the cross-track wind component. Returns 0 if TAS or wind speed is zero.
+- **`ComputeWindCorrectionAngle(desiredTrack, tas, windFrom, windSpeed)`** (`WindInterpolator.cs`) returns the crab angle (WCA) so the aircraft tracks a straight ground path: positive = crab right. It reverses **wind FROM → blows TOWARD** by `+180°` internally, then projects the cross-track wind component. Returns 0 if TAS or wind speed is zero.
 
 `GetWindComponents` (`WindInterpolator.GetWindComponents`, with and without a `WindSamplePoint`) is the other consumer-facing helper: it returns the wind as
 `(NorthKts, EastKts)` in the direction the wind **blows toward** (FROM `+180°`), ready to add to the TAS vector.
@@ -282,7 +281,7 @@ Consumers that stay on the no-position layer path: ground samples (`FlightPhysic
 ## Magnetic declination (`MagneticDeclination.cs`)
 
 `MagneticDeclination` is the NOAA **World Magnetic Model (WMM)** — degree-12 spherical-harmonic evaluation via the `Geo` library,
-**globally accurate, not a CONUS longitude approximation** (`MagneticDeclination.cs:6-15`).
+**globally accurate, not a CONUS longitude approximation** (`MagneticDeclination.cs`).
 
 - Sign convention: **positive = east declination**. `true → magnetic = true − declination`; `magnetic → true = magnetic + declination`.
 - API: `GetDeclination(lat, lon)` / `GetDeclination(LatLon)`, `TrueToMagnetic(deg, …)`, `MagneticToTrue(deg, …)`. The convenience overloads forward to the `(lat, lon)` forms.
@@ -318,9 +317,9 @@ See [tick-loop.md](tick-loop.md) for where these steps sit in the 8-step `Flight
 
 ### Selection and broadcast cadence
 
-- **Replay / scenario engine** (`SimulationEngine.cs`): the timeline is collapsed at restore/replay sites (`World.Weather = timeline.GetWeatherAt(t)`), and `ApplyWeatherJson` (`SimulationEngine.cs:2562`) routes a `LoadWeather` JSON through `WeatherTimelineParser` — a timeline is stored on `Scenario.WeatherTimeline` and immediately collapsed; a v1 profile clears the timeline and sets `World.Weather` directly.
+- **Replay / scenario engine** (`SimulationEngine.RecordedAppliers.cs`, `SimulationEngine.Tick.cs`): the timeline is collapsed at restore/replay sites (`World.Weather = timeline.GetWeatherAt(t)`), and `ApplyWeatherJson` routes a `LoadWeather` JSON through `WeatherTimelineParser` — a timeline is stored on `Scenario.WeatherTimeline` and immediately collapsed; a v1 profile clears the timeline and sets `World.Weather` directly.
 
-  Snapshots serialize `World.Weather` as JSON (`SimulationEngine.cs:135`, `:148`) plus `Scenario.WeatherSourceJson`; `RestoreFromSnapshot` rebuilds `Scenario.WeatherTimeline` from that source so v2 evolution survives a snapshot-based rewind (the parsed timeline object itself is not snapshotted).
+  Snapshots serialize `World.Weather` as JSON (`SimulationEngine.Snapshots.cs`, `StateSnapshotDto.WeatherJson`) plus `Scenario.WeatherSourceJson`; `RestoreFromSnapshot` rebuilds `Scenario.WeatherTimeline` from that source so v2 evolution survives a snapshot-based rewind (the parsed timeline object itself is not snapshotted).
 - **Every run kind, every second** (the `WeatherAdvance` spine step, `SimulationEngine.AdvanceWeatherTimeline` — [tick-loop.md](tick-loop.md)): if a timeline is active, `GetWeatherAt(elapsed)` is recomputed into `World.Weather` ungated, to drive physics/visual acquisition; the live host mirrors it onto `Room.Weather`. This does not broadcast. Broadcasts are driven by the reported-METAR issuer (see below), which has its own SPECI criteria.
 
   The continuous advance is the faithful semantic, aviation-reviewed: 7110.65 §2-6-3/-4/-5, §3-1-8, §3-5-1, §3-5-3, §13-1-14 and AIM 7-1 / 4-3 are silent on how a simulated wind field is discretised, because every FAA quantisation is a reporting one and lives in `MetarIssuer` / `SpeciCriteria`. Runway-in-use selection (30° / 5 kt hysteresis) and SPECI (45° / 10 kt) cannot chatter on sub-degree ticks.
@@ -350,15 +349,15 @@ The METAR *string* broadcast to clients (`WeatherChangedDto.Metars`) is reconstr
 `ExtractUnderlyingAirports` **recurses the `facility` / `childFacilities` tree**, collecting
 `starsConfiguration.areas[].underlyingAirports[]` from every STARS facility and deduplicating — a STARS config belongs to a facility
 (each TRACON has its own), never to the document root. IDs are FAA-style (`OAK`); `BuildLiveWeatherAsync` prefixes three-letter IDs
-with `K` before querying (`LiveWeatherService.cs:34`). An empty list short-circuits the command with "No airports found for ARTCC".
+with `K` before querying (`LiveWeatherService.cs`). An empty list short-circuits the command with "No airports found for ARTCC".
 
-`LiveWeatherService.BuildLiveWeatherAsync(artccId, airportIds)` (`LiveWeatherService.cs:25`) fetches from `aviationweather.gov` and
+`LiveWeatherService.BuildLiveWeatherAsync(artccId, airportIds)` (`LiveWeatherService.cs`) fetches from `aviationweather.gov` and
 assembles one `WeatherProfile`:
 
 - METARs (`/api/data/metar`) and FD winds (`/api/data/windtemp`) are fetched in parallel; returns `null` only if **both** fail.
-- **FD wind layers** (`BuildWindLayersFromFd`): for each altitude level, vector-average the non-light-variable station reports, then **convert TRUE → MAGNETIC** via `MagneticDeclination.TrueToMagnetic` using the ARTCC center as a proxy position (`LiveWeatherService.cs:223`).
+- **FD wind layers** (`BuildWindLayersFromFd`): for each altitude level, vector-average the non-light-variable station reports, then **convert TRUE → MAGNETIC** via `MagneticDeclination.TrueToMagnetic` using the ARTCC center as a proxy position (`LiveWeatherService.cs`).
 - **Surface wind from METAR** (`BuildSurfaceWindLayer`): vector-averaged METAR winds inserted as an `Altitude = 0` layer, converted **TRUE → MAGNETIC** via the ARTCC-center declination like the FD layers (METAR text winds are true per AIM 7-1-28; only ATIS/ASOS voice is magnetic). VRB stations contribute speed only (all-VRB → a `Variable` layer); gusts and dddVddd spreads are mined from each station's raw text.
-- `GetArtccCenter(artccId)` (`LiveWeatherService.cs:353`) is a hand-maintained ARTCC → primary-airport table used purely as a declination proxy; unknown ARTCC falls back to mid-CONUS `(39.0, −98.0)`.
+- `GetArtccCenter(artccId)` (`LiveWeatherService.cs`) is a hand-maintained ARTCC → primary-airport table used purely as a declination proxy; unknown ARTCC falls back to mid-CONUS `(39.0, −98.0)`.
 - `FdRegionMapping.GetRegion(artccId)` (`FdRegionMapping.cs`) is a separate hand-maintained ARTCC → FD-region table (`bos`/`mia`/`chi`/`dfw`/`slc`/`sfo`/`alaska`); an unmapped ARTCC disables the FD fetch and the profile has no winds-aloft layers.
 
 ### GFS grid fetch and upload
@@ -401,14 +400,14 @@ The single most error-prone area. Memorize this before touching any wind value.
 
 | Quantity | FROM or TOWARD | True or Magnetic | Altitude ref | Where |
 |---|---|---|---|---|
-| `WindLayer.Direction` | FROM | **Magnetic** | feet **MSL** | `WeatherProfile.cs:14` |
+| `WindLayer.Direction` | FROM | **Magnetic** | feet **MSL** | `WeatherProfile.cs` |
 | `WindAtAltitude.DirectionDeg` (`GetWindAt`) | FROM | Magnetic (inherits layer; a gridded level is turned magnetic per position) | — | `WindInterpolator.GetWindAt` |
 | `GriddedWindSample.DirectionTrueDeg` (`GriddedWindField.SampleColumn`) | FROM | **True** (derived from U/V) | ISA pressure altitude, feet | `Weather/GriddedWindField.cs` |
-| `WindAtLevel.DirectionTrue` (FD parser) | FROM | **True** | feet (level) | `WindsAloftParser.cs:4` |
+| `WindAtLevel.DirectionTrue` (FD parser) | FROM | **True** | feet (level) | `WindsAloftParser.cs` |
 | METAR text wind | FROM | **True** (AIM 7-1-28; converted to magnetic when building the surface layer) | surface | `LiveWeatherService.BuildSurfaceWindLayer` |
-| FD-derived layer (after `BuildWindLayersFromFd`) | FROM | Magnetic (converted via ARTCC-center declination) | feet MSL | `LiveWeatherService.cs:223` |
+| FD-derived layer (after `BuildWindLayersFromFd`) | FROM | Magnetic (converted via ARTCC-center declination) | feet MSL | `LiveWeatherService.cs` |
 | `GetWindComponents` output | **TOWARD** (FROM `+180°`) | matches input | — | `WindInterpolator.GetWindComponents` |
-| Cloud layer base (`CloudLayer.BaseFeetAgl`) | — | — | feet **AGL** (hundreds in METAR) | `MetarParser.cs:15` |
+| Cloud layer base (`CloudLayer.BaseFeetAgl`) | — | — | feet **AGL** (hundreds in METAR) | `MetarParser.cs` |
 
 A profile layer's direction is **magnetic**; a steering `bearing` from `GeoMath.BearingTo` is **true**. `ComputeWindCorrectionAngle`
 is fed the true bearing alongside the magnetic wind direction (`FlightPhysics.UpdateNavigation`) — the WCA it produces therefore carries
@@ -451,15 +450,15 @@ The behaviors above already have regression coverage — find the right harness 
 
   `GetWindComponents`/`ComputeWindCorrectionAngle` reverse FROM→TOWARD by `+180°`. Mixing any two silently yields ~15-20° errors. See the [cheat-sheet](#direction--units-convention-cheat-sheet).
 - **Three interpolation algorithms, three different rules.** Altitude (`GetWindAt`) and time (`InterpolateWindLayers`) use N/E vector lerp; spatial (`MetarInterpolator`) does **not** lerp direction at all (lowest-ceiling layer set + IDW visibility). In the time axis, **cloud cover step-changes discretely at `t=0.5`** and a **layer-count mismatch snaps to the target list** instead of interpolating.
-- **`WindLayers` re-sorts on assignment.** Setting `WeatherProfile.WindLayers` re-orders ascending by altitude (`WeatherProfile.cs:46`); insertion order is not preserved. The `GetWindAt` clamp/scan assumes this sort.
+- **`WindLayers` re-sorts on assignment.** Setting `WeatherProfile.WindLayers` re-orders ascending by altitude (`WeatherProfile.cs`); insertion order is not preserved. The `GetWindAt` clamp/scan assumes this sort.
 - **FD `DecodeWind` overloads the code.** `DD ≥ 50` means direction `(DD−50)×10` and speed `SS+100` (winds ≥ 100 kt); `9900` is light-and-variable; a temperature suffix (`2714-08`) must be stripped first. Column assignment is by **nearest header-center distance**, not fixed offsets — fragile to header spacing.
-- **`VV` is a synthetic OVC layer.** `MetarParser` injects vertical-visibility / indefinite-ceiling as an `Overcast` `CloudLayer` (`MetarParser.cs:245`) so multi-layer obstruction logic treats it uniformly. It is not an OVC token in the raw METAR — don't expect it to round-trip back to `VV`.
+- **`VV` is a synthetic OVC layer.** `MetarParser` injects vertical-visibility / indefinite-ceiling as an `Overcast` `CloudLayer` (`MetarParser.cs`) so multi-layer obstruction logic treats it uniformly. It is not an OVC token in the raw METAR — don't expect it to round-trip back to `VV`.
 - **`DeclinationCachePosition` is snapshotted** (`AircraftSnapshotDto.DeclinationCachePosition`), so a restored aircraft keeps the position its `Declination` was computed at and recomputes where the original did. It is `null` only for an aircraft whose cache was cold, or from a snapshot written before the field existed. Looping `ReplayFromStartTo(t)` — which resets to `t=0` every call — is still wrong for a declination check; use `FastForwardTo(target, …)` to advance from current state.
-- **`ParsedMetarOverrides` is `[JsonIgnore]`** (`WeatherProfile.cs:59`) and only populated by `WeatherTimeline.GetWeatherAt` during a transition window; `GetWeatherForAirport` checks it before its own cache (`WeatherProfile.cs:68`). After a snapshot round-trip mid-transition the overrides are gone and ceilings/visibility revert to parsing the raw METAR text — a subtle replay divergence to watch for if interpolated weather "jumps" on restore.
+- **`ParsedMetarOverrides` is `[JsonIgnore]`** (`WeatherProfile.cs`) and only populated by `WeatherTimeline.GetWeatherAt` during a transition window; `GetWeatherForAirport` checks it before its own cache (`WeatherProfile.cs`). After a snapshot round-trip mid-transition the overrides are gone and ceilings/visibility revert to parsing the raw METAR text — a subtle replay divergence to watch for if interpolated weather "jumps" on restore.
 - **`WindGrid` is `[JsonIgnore]`; the weather text carries `WindGridHash` and `WindGridRegistry.Attach` resolves it.** A hash whose grid is not registered, or on weather that is not live weather, flies the layer path with only a log warning. A saved weather file therefore embeds the grid bytes (`windGridGrib2`) and Load Weather re-uploads them, because a bare hash would load silently on the FD layers on any server that no longer holds the grid; a file with a hash and no usable bytes is stripped client-side and warns. A profile rebuilt from a weather timeline carries no grid.
 - **Position-aware and layer-0 readers must not be mixed up.** Airborne consumers sample at their position; the ground, the exits-ahead touchdown forecast, approach-speed additives, runway-in-use and `WindObservation` read layer 0. A new wind reader picks one deliberately (see the Task Index row "Make a wind consumer position-aware or add a wind reader").
 - **The WMM epoch is fixed on its first read** (`MagneticDeclination.EpochDate`; a test process may pin it first with `PinEvaluationDate`). A long-lived process whose date passes the newest bundled epoch clamps to the last valid day; declination will not track the calendar past that point.
-- **`GetArtccCenter` and `FdRegionMapping` are hand-maintained tables** (`LiveWeatherService.cs:353`, `FdRegionMapping.cs:9`). An ARTCC missing from `FdRegionMapping` silently disables FD winds; one missing from `GetArtccCenter` falls back to mid-CONUS `(39, −98)` for the declination proxy, skewing the TRUE→MAGNETIC conversion of FD winds.
+- **`GetArtccCenter` and `FdRegionMapping` are hand-maintained tables** (`LiveWeatherService.cs`, `FdRegionMapping.cs`). An ARTCC missing from `FdRegionMapping` silently disables FD winds; one missing from `GetArtccCenter` falls back to mid-CONUS `(39, −98)` for the declination proxy, skewing the TRUE→MAGNETIC conversion of FD winds.
 - **The mean/instantaneous split is load-bearing.** `WindLayer.Direction/Speed` stay the authored MEAN; the instantaneous wind exists only at the `GetWindAt` output. Reporting (`MetarIssuer`), SPECI decisions, runway selection, crosswind limits, and any approach-stability gate must read the mean (or the observed 2-minute mean via `WindObservation`) — never the instantaneous value, which wobbles by design.
 - **Weather lives in two places, and a scenario reload only rebuilds one.** `TrainingRoom.Weather` / `TrainingRoom.WeatherSourceJson` are room-scoped and survive anything; `World.Weather`, `SimScenarioState.WeatherTimeline`, and `MetarIssuer` belong to the engine, which a restart or rewind throws away.
 
@@ -468,3 +467,59 @@ The behaviors above already have regression coverage — find the right harness 
   The tape's starting weather (`SimScenarioState.InitialWeatherJson`) is not the room's weather at the reload: a scenario load sets it from the room's weather then, and every reload after (rewind, restart, recording load, checkpoint restore) carries the tape's own through `ReloadStart.InitialWeatherJson` (the scenario's, the recording's or the checkpoint's), so exports after any of them start on the original weather.
 
   Without it the room reports loaded weather to clients while the simulation flies calm — the shape of issue #313's session-setting loss. Anything else that rebuilds the engine needs the same call.
+
+## File map
+
+One entry per file, grouped by project.
+
+### Yaat.Client (`src/Yaat.Client/`)
+
+Paths are relative to `src/Yaat.Client/`.
+
+```
+Services/
+  LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
+  GfsGridFetcher.cs             # Fetches the GFS 0.25° wind grid (UGRD/VGRD/TMP, 20 levels) over the ARTCC's boundary box from the NOMADS GRIB filter: newest posted cycle, 6 h step-back on 404 (3 cycles at most), 512 KB cap; the result carries the bytes or a failure reason for the terminal warning
+  SavedWeatherGrid.cs           # Pure JSON helpers for the grid a saved weather file carries: Embed (windGridGrib2 base64 beside windGridHash), Extract (bytes out, JSON never carries them; no usable bytes strips the hash), NamedHash, NamesGrid, WithHash
+  WeatherSaveGrid.cs            # Save Weather's file contents: the JSON unchanged when it names no grid, the held bytes embedded when they match, else the room's grid fetched by hash (size cap, hash and decode checked) and embedded; a failed fetch strips the hash and returns the reason for the "Saved without its GFS grid" line
+  FdRegionMapping.cs            # Static ARTCC → FD region code mapping
+```
+
+### Yaat.Sim (`src/Yaat.Sim/`)
+
+Paths are relative to `src/Yaat.Sim/`.
+
+```
+# Core
+WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load; WindGridHash (serialized name of the GFS grid) and WindGrid ([JsonIgnore], set by WindGridRegistry.Attach)
+                               # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
+WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
+WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPeriods; GetWeatherAt(elapsedSeconds) interpolates wind
+                               # layers during transitions (N/E vector decomposition); METARs/precipitation snap at transition start
+WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile (WindGridRegistry.Attach resolves its grid); ParseTimeline rebuilds only a timeline
+                               # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
+Weather/Grib2Reader.cs         # Static: Read(bytes) decodes NOMADS-style GRIB2 (grid 3.0 lat/lon, product 4.0, simple packing 5.0, bitmap 0/255) into Grib2Message; anything else, a truncated file, a grid over MaxGridPoints, a file over MaxDecodedPoints or a section 7 without a new section 4, a non-finite reference value or value, or a binary/decimal scale outside ±127/±38 throws Grib2FormatException
+Weather/Grib2Message.cs        # Grib2Message (one decoded field, values reordered to a south-west origin, NaN where the bitmap marks missing) + Grib2LatLonGrid (section 3 grid, micro-degrees)
+Weather/Grib2FormatException.cs  # Thrown by Grib2Reader, naming the section and the template or value found
+Weather/GriddedWindField.cs    # UGRD/VGRD/TMP on isobaric levels over a lat/lon grid; SampleColumn(lat, lon) bilinear-interpolates and returns per-level GriddedWindSample (ISA pressure altitude, FROM direction TRUE, kt, °C); FromMessages refuses a wind past ±150 m/s or a temperature outside 160–350 K
+Weather/WindGridRegistry.cs    # Static, thread-safe store of GFS grids keyed by the SHA-256 of their GRIB2 bytes: Register / RegisterAndPin / Pin, TryGetField / TryGetBytes, Attach(profile) from WindGridHash (live weather only); a pinned entry is never evicted, at most MaxUnpinned (8) unpinned kept, LRU first; MaxGridBytes (512 KB) and MaxRoomGrids (16) are the one size and count caps for uploads, recordings and the client fetch, and ReadBrotliWithinLimit decompresses an entry under the size cap
+Weather/WindGridLimitException.cs # A recording refused whole for its wind grids (more than MaxRoomGrids distinct, or an entry past MaxGridBytes decompressed); not an IOException, so per-entry damage handling never turns it into a skip
+Weather/WindGridPins.cs        # One owner's pins on a set of grid hashes (IDisposable); Repin() takes a second, independent set
+Weather/WindGridHashes.cs      # Referenced(initial weather, actions, snapshot weather): the distinct grid hashes a recording's weather names, so a writer bundles each once
+WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360; take sim time + phase),
+                               # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
+WindVariation.cs               # Deterministic time-varying wind perturbation: bounded value-noise gust/direction wander + VRB model,
+                               # per-aircraft callsign-phase decorrelation, AGL taper (pure function of sim time — no RNG)
+WindObservation.cs             # ASOS-style observation of the simulated surface wind (2-min means, 10-min peak/lull, 5-s grid)
+                               # feeding MetarIssuer's reported winds and SPECI time bounds
+GroundFrame.cs                 # Air<->ground frame conversions for IndicatedAirspeed (wheel speed on the ground): rotation gate,
+                               # liftoff/touchdown flips with headwind + density correction
+MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
+DefaultMetar.cs                # Static: builds the no-weather default METAR (calm/10SM/CLR/29.92) shared by the METAR panel, radar/ground overlay, vStrips bar
+MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
+ReportedConditions.cs          # Snapshot of modeled surface weather for one station (true wind, vis, sky/ceiling, altimeter, precip)
+MetarComposer.cs               # Static: reconstructs a reported METAR by patching dynamic groups into a base METAR (AIM 7-1-28)
+SpeciCriteria.cs               # Static: SPECI decision vs last issued (wind shift, vis/ceiling crossings, precip) — AIM TBL 7-1-1
+MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + SPECI on change; freezes conditions at issuance
+WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
+```

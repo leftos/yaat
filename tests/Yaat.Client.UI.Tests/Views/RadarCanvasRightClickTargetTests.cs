@@ -8,7 +8,6 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 

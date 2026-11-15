@@ -11,6 +11,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
@@ -409,7 +410,7 @@ public class PointMenuViewTests
     {
         (RadarView view, MainViewModel main) = RadarHarness();
         var koak = new LatLon(37.7213, -122.2208);
-        MvaSector sector = MvaDatabase.Default.FindSector(koak)!;
+        MvaSector sector = MvaDatabase.Default.FindSector(koak, preferredFacility: null)!;
         Assert.Equal(2000, sector.FloorFtMsl);
 
         ContextMenu menu = view.BuildMapPointMenu(main.Radar, koak, default);
@@ -421,11 +422,72 @@ public class PointMenuViewTests
     }
 
     [AvaloniaFact]
+    public void Map_MvaRow_PrefersTheLoadedFacilityChart()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        Assert.Null(main.Radar.MvaFacilityId);
+
+        // Video maps for FAT load: the radar's MVA readouts now prefer FAT's chart, so KFAT reads FAT's 1900
+        // (ZOA map 322) rather than NCT's overlapping 2000.
+        main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "FAT", [], [], []));
+        Assert.Equal("FAT", main.Radar.MvaFacilityId);
+        var kfat = new LatLon(36.7762, -119.7181);
+        MvaSector sector = MvaDatabase.Default.FindSector(kfat, preferredFacility: "FAT")!;
+
+        ContextMenu menu = view.BuildMapPointMenu(main.Radar, kfat, default);
+
+        MenuItem row = Assert.IsType<MenuItem>(menu.Items[^1]);
+        Assert.Equal($"MVA 1,900 ft (sector {sector.Sector})", row.Header);
+    }
+
+    [AvaloniaFact]
+    public void MvaFacility_FollowsVideoMapLoadsOntoTheCanvas()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+
+        main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "FAT", [], [], []));
+        Assert.Equal("FAT", view.Canvas.MvaFacilityId);
+
+        main.Radar.ClearVideoMaps();
+        Assert.Null(main.Radar.MvaFacilityId);
+        Assert.Null(view.Canvas.MvaFacilityId);
+
+        main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", FacilityId: " ", [], [], []));
+        Assert.Null(main.Radar.MvaFacilityId);
+    }
+
+    [AvaloniaFact]
+    public void ExtraRadarView_MenuHostMva_UsesThatViewsFacility()
+    {
+        (_, MainViewModel main) = RadarHarness();
+        RadarViewInstance extra = main.OpenExtraRadarView("KFAT");
+        try
+        {
+            // The docked radar loaded NCT's maps; the extra view loaded FAT's. The extra view's aircraft menus
+            // (altitude flyout MVA) read FAT's chart at KFAT, as its canvas and point menu do.
+            main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "NCT", [], [], []));
+            extra.Vm.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "FAT", [], [], []));
+            var extraView = new RadarView { DataContext = extra.Vm };
+            var kfat = new LatLon(36.7762, -119.7181);
+
+            ClientMenuHost host = extraView.CreateMenuHost(extra.Vm, main, null);
+
+            Assert.Equal(1900, host.GetMva(kfat)!.Value.FloorFtMsl);
+            Assert.Equal(2000, new ClientMenuHost(main, null, new Border(), main.Radar.MvaFacilityId).GetMva(kfat)!.Value.FloorFtMsl);
+        }
+        finally
+        {
+            main.CloseExtraRadarView(extra);
+            main.Preferences.SetExtraRadarViews([]);
+        }
+    }
+
+    [AvaloniaFact]
     public void Map_NoMvaData_HasNoMvaRow()
     {
         (RadarView view, MainViewModel main) = RadarHarness();
         var midAtlantic = new LatLon(40.0, -70.0);
-        Assert.Null(MvaDatabase.Default.FindSector(midAtlantic));
+        Assert.Null(MvaDatabase.Default.FindSector(midAtlantic, preferredFacility: null));
 
         ContextMenu menu = view.BuildMapPointMenu(main.Radar, midAtlantic, default);
 

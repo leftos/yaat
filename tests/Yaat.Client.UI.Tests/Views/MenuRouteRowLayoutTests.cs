@@ -8,7 +8,6 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Sim.Data;
 

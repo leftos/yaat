@@ -2,7 +2,6 @@ using System.Collections;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Yaat.Client.Services;
-using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
 

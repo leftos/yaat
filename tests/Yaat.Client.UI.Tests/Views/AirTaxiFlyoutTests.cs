@@ -418,7 +418,7 @@ public class AirTaxiFlyoutTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: false);
         heli.Destination = destination;
-        var host = new SendCapturingHost(new ClientMenuHost(main, heli, new Border()), Initials);
+        var host = new SendCapturingHost(new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null), Initials);
         MenuItem entry = MenuCatalog
             .Get(MenuIds.GroundLandHelicopter)
             .Build(heli, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None), host)!;
@@ -493,7 +493,7 @@ public class AirTaxiFlyoutTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: true);
-        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border()).GetAirTaxiChoices(Callsign);
+        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null).GetAirTaxiChoices(Callsign);
         AirportGroundLayout layout = MenuGoldenFixtures.OakLayoutForSim;
         List<string> tokens =
         [
@@ -548,7 +548,7 @@ public class AirTaxiFlyoutTests
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: true);
         main.Ground.SetLayoutForTesting(withPad);
 
-        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border()).GetAirTaxiChoices(Callsign);
+        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null).GetAirTaxiChoices(Callsign);
 
         Assert.Equal(["@HELI2"], menu.Pads.Select(pad => pad.Token));
         Assert.DoesNotContain(menu.Parking, row => row.Name == "HELI2");
@@ -564,7 +564,7 @@ public class AirTaxiFlyoutTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: true);
-        var host = new ClientMenuHost(main, heli, new Border());
+        var host = new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null);
 
         AirTaxiMenu menu = host.GetAirTaxiChoices(Callsign);
 
@@ -612,7 +612,7 @@ public class AirTaxiFlyoutTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: true);
 
-        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border()).GetAirTaxiChoices(Callsign);
+        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null).GetAirTaxiChoices(Callsign);
 
         AirTaxiDestination r28R = Assert.Single(menu.Runways, row => row.Token == "28R");
         Assert.Equal("B", r28R.BarTaxiway);
@@ -630,7 +630,7 @@ public class AirTaxiFlyoutTests
         (AircraftModel heli, MainViewModel main, GroundNode held) = HoldingShortAt30W3();
         AirportGroundLayout layout = MenuGoldenFixtures.OakLayoutForSim;
 
-        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border()).GetAirTaxiChoices(Callsign);
+        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null).GetAirTaxiChoices(Callsign);
 
         Assert.Contains(menu.Runways, row => row.Token == "30");
         foreach (AirTaxiDestination runway in menu.Runways)
@@ -660,7 +660,7 @@ public class AirTaxiFlyoutTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: false);
 
-        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border()).GetAirTaxiChoices(Callsign);
+        AirTaxiMenu menu = new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null).GetAirTaxiChoices(Callsign);
 
         Assert.Equal("@HELI1", menu.Parking[0].Token);
         Assert.Equal(0, menu.Parking[0].DistanceFt);
@@ -671,7 +671,7 @@ public class AirTaxiFlyoutTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel heli, MainViewModel main) = AtKoakHeli1(onGround: true);
-        var host = new SendCapturingHost(new ClientMenuHost(main, heli, new Border()), Initials);
+        var host = new SendCapturingHost(new ClientMenuHost(main, heli, new Border(), mvaFacilityId: null), Initials);
         MenuItem entry = MenuCatalog
             .Get(MenuIds.GroundAirTaxi)
             .Build(heli, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None), host)!;

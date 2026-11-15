@@ -187,7 +187,9 @@ public static class PilotProactive
             return;
         }
 
-        if (aircraft.Phases?.ActiveApproach is not null)
+        // A held (deferred) approach clearance is an approach too, and a pilot the controller told what approach to expect
+        // has an assignment; the scenario's seeded expected approach is not one (GitHub #1380).
+        if (HasApproachAssignment(aircraft))
         {
             return;
         }
@@ -628,9 +630,22 @@ public static class PilotProactive
         ((aircraft.Targets.AssignedAltitude is { } assigned) && (assigned < aircraft.Altitude - FlightPhysics.AltitudeSnapFt))
         || aircraft.Procedure.StarViaMode
         || aircraft.Targets.NavigationRoute.Exists(t => t.AltitudeRestriction is { Source: CifpAltitudeRestrictionSource.Atc })
-        || (aircraft.Phases?.ActiveApproach is not null)
-        || (aircraft.Approach.PendingClearance is not null)
+        || HasApproachClearance(aircraft)
         || HasQueuedVerticalCommand(aircraft);
+
+    /// <summary>
+    /// Whether the aircraft holds an approach clearance: an active one, or a deferred one held until the STAR delivers it to
+    /// the approach (<see cref="AircraftApproachState.PendingClearance"/>).
+    /// </summary>
+    public static bool HasApproachClearance(AircraftState aircraft) =>
+        (aircraft.Phases?.ActiveApproach is not null) || (aircraft.Approach.PendingClearance is not null);
+
+    /// <summary>
+    /// Whether the aircraft has an approach assignment: an approach clearance, active or held, or a controller's EAPP
+    /// (<see cref="AircraftState.ExpectedApproachAdvisedAtSeconds"/>). The scenario's seeded expected approach is not one.
+    /// </summary>
+    private static bool HasApproachAssignment(AircraftState aircraft) =>
+        HasApproachClearance(aircraft) || (aircraft.ExpectedApproachAdvisedAtSeconds is not null);
 
     /// <summary>
     /// Whether a vertical command waits to be applied: in a queued block not yet applied (an <c>AT</c> condition), or in a
@@ -928,7 +943,7 @@ public static class PilotProactive
     /// </summary>
     private static int? ResolveLevelOffCeiling(AircraftState aircraft, AirspaceVolume volume, DateTime magneticModelDateUtc)
     {
-        NavigationDatabase? navDb = Data.NavigationDatabase.Instance;
+        NavigationDatabase navDb = Data.NavigationDatabase.Instance;
         double surfaceElevation = navDb?.GetAirportElevation(volume.Ident) ?? navDb?.GetAirportElevation(volume.IcaoId) ?? 0;
         double magneticCourse = aircraft.TrueTrack.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position, magneticModelDateUtc)).Degrees;
         return AirspaceAvoidance.LevelOffCeilingFt(volume.LowerFtMsl, magneticCourse, surfaceElevation);

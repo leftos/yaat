@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.ControllerAi;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Weather;
@@ -52,7 +51,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
     public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
     {
-        SimScenarioState? scenario = _engine.Scenario ?? throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
+        SimScenarioState scenario = _engine.Scenario ?? throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
         int currentSeconds = (int)scenario.ElapsedSeconds;
         if (targetSeconds <= currentSeconds)
         {

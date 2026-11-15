@@ -5,7 +5,6 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.ControllerAi;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

@@ -74,7 +74,7 @@ secrets is a one-time task documented in [`macos-code-signing.md`](macos-code-si
 
 The check runs automatically five seconds after startup and stays silent unless an update exists. **Help → Check for Updates…** runs the same check on demand and reports every outcome in a message box, because a user who asks the question expects an answer: it offers the download when an update is found, confirms the build is current when it isn't, points at the releases page when Velopack has no install to update (portable or run from source), and shows the failure reason otherwise.
 
-`UpdateService.CheckForUpdateAsync` returns an `UpdateCheckResult` carrying an `UpdateCheckOutcome` to keep those four cases distinguishable — they used to collapse into a single `null`.
+`UpdateService.CheckForUpdateAsync` returns an `UpdateCheckResult` carrying an `UpdateCheckOutcome` to keep those four cases distinguishable.
 
 ## CRC install-time configuration
 

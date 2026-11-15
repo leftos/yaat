@@ -6,7 +6,6 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 

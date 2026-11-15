@@ -79,7 +79,10 @@ public static class PatternCompression
     private const double BankDegrees = 25.0;
 
     /// <summary>Knots per (deg/s) of the rate-one radius formula.</summary>
-    private const double RadiusDivisor = 62.832;
+    internal const double RadiusDivisor = 62.832;
+
+    /// <summary>The coordinated-turn rate formula's constant: rate (deg/s) = this × tan(bank) / speed (kt).</summary>
+    internal const double BankRateFactor = 1091.0;
 
     /// <summary>The crosswind turn point the clearing test assumes, past the departure end (AIM 4-3-2.c.1).</summary>
     public const double TurnPointPastDepartureEndNm = 0.5;
@@ -98,7 +101,7 @@ public static class PatternCompression
 
     private const double SearchStepNm = 0.005;
 
-    private static readonly double BankRateKnots = 1091.0 * Math.Tan(BankDegrees * Math.PI / 180.0);
+    private static readonly double BankRateKnots = BankRateFactor * Math.Tan(BankDegrees * Math.PI / 180.0);
 
     /// <summary>Turn rate (deg/s) at 25 degrees of bank, never below the category's pattern rate.</summary>
     public static double TurnRateDegPerSec(double speedKt, AircraftCategory category) =>

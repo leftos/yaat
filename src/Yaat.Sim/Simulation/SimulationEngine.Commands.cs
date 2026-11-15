@@ -4,7 +4,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
-using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
@@ -280,6 +279,9 @@ public sealed partial class SimulationEngine
             {
                 PilotRequestTracker.StampDescentClearance(aircraft, compound, elapsedSeconds);
             }
+
+            // An accepted EAPP tells the pilot what approach to expect, so it does not ask for an approach assignment.
+            PilotRequestTracker.StampExpectedApproach(aircraft, compound, elapsedSeconds);
 
             PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
             // The controller has just spoken to this aircraft, so the

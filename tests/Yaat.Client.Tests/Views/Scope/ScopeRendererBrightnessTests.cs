@@ -3,7 +3,6 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Sim.Data;
 
@@ -56,6 +55,7 @@ public class ScopeRendererBrightnessTests
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
+            MvaFacilityId: null,
             hovered
         );
         return ScopeFrame.Build(input);

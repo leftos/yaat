@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Threading;
 using Yaat.Client.Views;
 
 namespace Yaat.Client.Services;

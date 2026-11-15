@@ -6,7 +6,6 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Sim;
-using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Services;
 

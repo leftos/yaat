@@ -592,7 +592,7 @@ public class PointMenuFlyoutTests
         var anchor = new Border();
         var window = new Window { Content = anchor };
         window.ShowAndRunLayout();
-        var client = new ClientMenuHost(main, ac, anchor);
+        var client = new ClientMenuHost(main, ac, anchor, mvaFacilityId: null);
         return new OakHostScope
         {
             Main = main,

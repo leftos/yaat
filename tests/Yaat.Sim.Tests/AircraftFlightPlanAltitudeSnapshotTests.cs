@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;

@@ -1,12 +1,9 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
-using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Data.Airport.Precompute.PrecomputeBuilderFixtures;
 
 namespace Yaat.Sim.Tests.Data.Airport.Precompute;

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Linq;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

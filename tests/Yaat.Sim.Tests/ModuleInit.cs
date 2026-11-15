@@ -4,7 +4,6 @@ using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 

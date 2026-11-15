@@ -83,6 +83,7 @@ public static class MenuAliases
             [MenuIds.HoldFixRight] = ["HFIXR"],
             [MenuIds.HoldPattern] = ["HOLDP"],
             [MenuIds.ApproachCleared] = ["CAPP", "CAPPF", "CVA", "CVAF"],
+            [MenuIds.ApproachClearedExpected] = ["CAPP"],
             [MenuIds.ApproachJoin] = ["JAPP"],
             [MenuIds.ApproachClearedStraightIn] = ["CAPPSI"],
             [MenuIds.ApproachJoinStraightIn] = ["JAPPSI"],

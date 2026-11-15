@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -508,7 +507,7 @@ public class ExitFlyoutTests
         AircraftModel noRunway = OnFinal([]);
         noRunway.AssignedRunway = "";
         (ClientMenuHost oak, _) = OakHost(noRunway);
-        var bare = new ClientMenuHost(MainWith(OnFinal([])), null, new Border());
+        var bare = new ClientMenuHost(MainWith(OnFinal([])), null, new Border(), mvaFacilityId: null);
 
         Assert.Empty(oak.GetRunwayExits(Callsign, ExitSide.Right));
         Assert.Empty(bare.GetRunwayExits(Callsign, ExitSide.Right));
@@ -638,7 +637,7 @@ public class ExitFlyoutTests
     {
         MainViewModel main = MainWith(aircraft);
         main.Ground.SetDomainLayoutForTesting(MenuGoldenFixtures.OakDomainLayout);
-        return (new ClientMenuHost(main, aircraft, new Border()), aircraft);
+        return (new ClientMenuHost(main, aircraft, new Border(), mvaFacilityId: null), aircraft);
     }
 
     /// <summary>One second passes: the flyout's tick fires and the refill it posts runs.</summary>

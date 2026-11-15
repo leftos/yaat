@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using Yaat.Client.Services;

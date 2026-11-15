@@ -18,6 +18,10 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="Display">Instructor display hints the user's preferences allow.</param>
 /// <param name="ManualOffsets">Per-callsign block offsets from the symbol; a callsign absent here takes the default offset.</param>
 /// <param name="HighlightedCallsigns">Callsigns whose blocks are highlighted (middle-click).</param>
+/// <param name="MvaFacilityId">
+/// The facility whose MVA chart wins where charts overlap (the Radar's <c>RadarViewModel.MvaFacilityId</c>, copied on the UI
+/// thread); null for none.
+/// </param>
 /// <param name="HoveredCallsign">The callsign of the track the pointer dwells on (<see cref="ScopeFrame.DwellAt"/>), or null.</param>
 /// <param name="DefaultLevel">The block level of every track that is not dwelled.</param>
 /// <param name="VciHoveredCallsign">
@@ -37,6 +41,7 @@ public sealed record ScopeFrameInput(
     ScopeDisplayOptions Display,
     IReadOnlyDictionary<string, SKPoint> ManualOffsets,
     IReadOnlySet<string> HighlightedCallsigns,
+    string? MvaFacilityId,
     string? HoveredCallsign = null,
     ScopeBlockLevel DefaultLevel = ScopeBlockLevel.Full,
     string? VciHoveredCallsign = null,
@@ -173,7 +178,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             isSelected,
             input.Alerts,
             input.Display,
-            MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint),
+            MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint, input.MvaFacilityId),
             input.HighlightedCallsigns.Contains(ac.Callsign),
             LevelFor(ac, templateId, input),
             VciPreview: string.Equals(ac.Callsign, input.VciHoveredCallsign, StringComparison.Ordinal)
@@ -208,15 +213,16 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>
     /// The altitude's relation to the MVA floor at <paramref name="ac"/>'s position, or null when the tint does not apply:
     /// it is off, the aircraft is on the ground, established on an approach, or VFR (MSAW-inhibited), as today's radar rules.
+    /// Where MVA charts overlap, <paramref name="mvaFacilityId"/>'s chart wins, as on the radar; null for none.
     /// </summary>
-    internal static MvaRelation? MvaRelationFor(AircraftModel ac, bool showTint)
+    internal static MvaRelation? MvaRelationFor(AircraftModel ac, bool showTint, string? mvaFacilityId)
     {
         if (!showTint || ac.IsOnGround || ac.IsEstablishedOnApproach || ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        return MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt).Relation;
+        return MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt, mvaFacilityId).Relation;
     }
 
     /// <summary>

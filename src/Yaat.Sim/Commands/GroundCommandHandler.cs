@@ -7585,6 +7585,8 @@ public static partial class GroundCommandHandler
             {
                 ApproachCommandHandler.ClearPendingApproach(aircraft);
             }
+
+            ClearExpectedApproachAdviceForAnotherRunway(aircraft, runway);
         }
         else
         {
@@ -7597,6 +7599,49 @@ public static partial class GroundCommandHandler
         }
 
         return CommandDispatcher.Ok($"Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}");
+    }
+
+    /// <summary>
+    /// A runway other than the expected approach's leaves the pilot with no approach to expect, so it may ask for one again
+    /// (<see cref="AircraftState.ExpectedApproachAdvisedAtSeconds"/> cleared); the expected approach itself is kept. An
+    /// expected approach whose runway cannot be resolved keeps the advice.
+    /// </summary>
+    private static void ClearExpectedApproachAdviceForAnotherRunway(AircraftState aircraft, RunwayInfo runway)
+    {
+        if ((aircraft.ExpectedApproachAdvisedAtSeconds is null) || (ExpectedApproachRunway(aircraft) is not { } expectedRunway))
+        {
+            return;
+        }
+
+        if (
+            !RunwayIdentifier
+                .NormalizeDesignator(expectedRunway)
+                .Equals(RunwayIdentifier.NormalizeDesignator(runway.Designator), StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            aircraft.ExpectedApproachAdvisedAtSeconds = null;
+        }
+    }
+
+    /// <summary>
+    /// The runway of the aircraft's expected approach (<see cref="AircraftApproachState.Expected"/>): a visual's from its id
+    /// (<c>VIS30</c>), a published approach's as EAPP resolved it. Null with no expected approach or none resolved.
+    /// </summary>
+    private static string? ExpectedApproachRunway(AircraftState aircraft)
+    {
+        string? expected = aircraft.Approach.Expected;
+        if (string.IsNullOrEmpty(expected))
+        {
+            return null;
+        }
+
+        if (ApproachIds.TryParseVisual(expected, out string? visualRunway))
+        {
+            return visualRunway;
+        }
+
+        ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(expected, null, aircraft);
+        return resolved.Success ? resolved.Runway?.Designator : null;
     }
 
     internal static CommandResult TryHoldPosition(AircraftState aircraft, ActiveRunways activeRunways)
@@ -10419,7 +10464,7 @@ public static partial class GroundCommandHandler
 
     private static RunwayInfo? ResolveClosestRunwayEnd(RunwayIdentifier rwyId, double nodeLat, double nodeLon, AircraftState aircraft)
     {
-        string? airportId = aircraft.FlightPlan.Departure;
+        string airportId = aircraft.FlightPlan.Departure;
         if (airportId is null)
         {
             return null;

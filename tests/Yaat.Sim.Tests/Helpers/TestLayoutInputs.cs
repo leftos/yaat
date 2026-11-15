@@ -1,6 +1,5 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Helpers;
 

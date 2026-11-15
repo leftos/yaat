@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -310,7 +309,7 @@ public partial class DataGridView : UserControl
         IReadOnlyList<AircraftModel> selection
     )
     {
-        var host = new ClientMenuHost(vm, ac, flyoutTarget);
+        var host = new ClientMenuHost(vm, ac, flyoutTarget, vm.Radar.MvaFacilityId);
         return AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, previousSelection, null, selection), host, _ => []);
     }
 

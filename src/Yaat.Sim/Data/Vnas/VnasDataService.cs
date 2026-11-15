@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Proto;

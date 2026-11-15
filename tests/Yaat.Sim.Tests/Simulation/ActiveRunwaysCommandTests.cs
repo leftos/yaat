@@ -3,7 +3,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

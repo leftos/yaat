@@ -12,8 +12,6 @@ using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Speech;
-using Yaat.Sim.Testing;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

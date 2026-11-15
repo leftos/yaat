@@ -84,6 +84,7 @@ public class ScopeCanvasHitTestTests
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
+            MvaFacilityId: null,
             hoveredCallsign
         );
         return ScopeFrame.Build(input);
@@ -254,7 +255,8 @@ public class ScopeCanvasHitTestTests
                 Viewer = viewer,
             },
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
         return ScopeFrame.Build(input);
     }

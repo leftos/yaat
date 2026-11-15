@@ -5,10 +5,8 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
-using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -803,9 +801,9 @@ public class DescentRequestTests
             }
 
             // Pinned from a run. Before this change (no re-ask cap), counted the same way: request lower N160TM=1,
-            // N2382V=4; approach N160TM=1, N172YY=1.
+            // N2382V=4; approach N160TM=1, N172YY=1. N160TM's approach request was GitHub #1380: it holds a deferred CAPP.
             Assert.Equal("N160TM=1, N2382V=2", Counts(requestsLower));
-            Assert.Equal("N160TM=1, N172YY=1", Counts(approachRequests));
+            Assert.Equal("N172YY=1", Counts(approachRequests));
         }
     }
 

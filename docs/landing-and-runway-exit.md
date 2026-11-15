@@ -621,22 +621,49 @@ The aircraft flies the published final approach course down to minimums, then tr
 The `SA` (Make Short Approach) compressed pattern has two coupled geometry invariants that must hold together:
 
 - **Base-leg descent targets the rollout point.** `BasePhase`'s SA branch targets glideslope altitude at `(finalDist + turnRadius)`, not at `finalDist` — the 90° base→final turn translates the aircraft one turn radius further along the final, so targeting at `finalDist` would put it at GS-intercept altitude before the turn fires and trip the landing stabilization gate.
+- **The stabilization gate's speed limit is the type's, not the plan's.** `LandingPhase.StabilizedSpeedLimit` is `max(1.3 × type Vref, Vapp + 10 kt)` (`AircraftPerformance.TypeVrefKts`, `FinalApproachSpeedKts`), so an aircraft flying the Vapp `FinalApproachPhase` gave it does not trip the gate; the +10 kt is a judgement call (no local reference states a stabilized speed band). The go-around warning names the governing term, "(1.3·Vref)" or "(Vapp+10)". The landing plan's own Vref (flare, rollout, touchdown, exit forecast) stays category-based (YAAT-2302).
 - **LandingPhase floats over the runway while rolling out.** When heading-error from runway exceeds 5° (`_floatingForRollout`), LandingPhase holds level (target altitude = current, vertical rate = 0) until wings level, then resumes descent → flare → touchdown. This lets a tight turn complete before the bank-stabilization gate engages. The descent target is restored on the first non-rolling-out tick.
 
-## Key Files
+## File map
 
-- `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan, the forced (CLANDF) rollout
-- `src/Yaat.Sim/Phases/NoExitStopPlan.cs` — The stop on the remaining runway when no exit is available: stop point, speed target and braking rate
-- `src/Yaat.Sim/Phases/Tower/ForcedLandingProfile.cs` — CLANDF aim point, descent cap and braking constants
-- `src/Yaat.Sim/Phases/Tower/FinalApproachExitForecast.cs` — The exits-ahead list on the last miles of final: projected touchdown, window, cache
-- `src/Yaat.Sim/ExitAheadDto.cs` — One exit of the list (taxiway, side, distance, planned, turn-off angle)
+- `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Flare → touchdown → rollout: rollout braking, exit candidate resolution, unable-replan, the forced (CLANDF) rollout. LAHSO-aware.
+  - `ListExitsAhead`: every taxiway and side an EL/ER would be accepted for, read-only; the rollout's exits-ahead list
+  - `ListRunwayExits`: a runway's named exits on one side from the threshold, for the flyout's "Exit at" box
+  - continuous exit evaluation: resolve → brake → commit/abandon → relax preference
+  - a named exit is judged by one reach test (`JudgeExitReach`) at command time (`EvaluateAndApplyNamedExitInstruction` → "unable {twy}" / "unable, no {twy} ahead" refusals) and on the tick (`GiveUpUnreachableNamedExit`, `MarkExitUnable`); a refused one is given up for the landing (`PhaseList.GivenUpExitTaxiways`)
+  - CLANDF forced rollout (`TickForcedRollout`): graph exits only at 3–6 kt/s, else a stop 300 ft before the runway end; sets `PhaseList.ForcedRollout` on a completed ground end
+- `src/Yaat.Sim/Phases/NoExitStopPlan.cs` — The stop on the remaining runway when a landing has no exit it can take (taxi graph, not forced; under LAHSO only `RunwayExitPhase` runs it, with the hold-short point as a datum); shared by `LandingPhase` and `RunwayExitPhase`.
+  - `Compute`: speed target, braking rate, stop point, and the final-stop, excursion and at-LAHSO-point flags. The stop point is the last exit's turn-entry point less 50 ft when makeable at firm, else the landing distance less `RunwayEndMarginFt`, never past the LAHSO stop point nor inside a voided crossing runway's keep-out
+  - `LastExitTurnEntryAlongFt`: from a `LastExitQuery` and an optional exit filter
+- `src/Yaat.Sim/Phases/Tower/ForcedLandingProfile.cs` — CLANDF instructor-override constants and guidance: the signed aim point on the runway ahead (6° / threshold + 1,000 ft / aircraft + 500 ft, pulled back for a 6 kt/s stop + 500 ft), the 3,000/1,000 fpm descent cap, 5 kt/s airborne decel to Vref + wind, the flare floor and the rollout braking band
+- `src/Yaat.Sim/Phases/Tower/FinalApproachExitForecast.cs` — The exits-ahead list on the last miles of final (1–5 nm from the threshold, full-stop landing next), read-only: projects the touchdown, runs `LandingPhase.ListExitsAhead` from it, distances from the threshold, cached per input key
+- `src/Yaat.Sim/ExitAheadDto.cs` — One exit of the list: a wire record (`Taxiway` / `Side` / `DistanceFt` rounded to 100 ft / `Planned` / `TurnOffAngleDeg`) for one named exit ahead in the Exit left / Exit right flyouts; `AircraftSituationState.ExitsAhead` carries the list to the client
 - `src/Yaat.Sim/Commands/GroundCommandHandler.RolloutTaxi.cs` — TAXI / TAXIAUTO on the rollout: implied exit, stored route, join rules, starting the route at exit completion
-- `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — Analog rolling, virtual segments, exit search, the stopped-without-exit backstop
-- `src/Yaat.Sim/Data/Airport/ExitCapacityResolver.cs` — Resolves sidecar `exitCapacity` rules into exit capacity segments
+- `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — Analog rolling on the centerline, virtual segments, exit search; builds the `TaxiRoute` from the exit path and hands off to `TaxiingPhase`.
+
+  No taxi graph (no layout, or a runway-only one; `TickStopWithoutTaxiGraph`): no exit graph to search, so it rolls to a stop on the runway (`FlightPhysics.StationaryGroundSpeedKts`) and completes, starting the queued `HoldingAfterExitPhase`.
+
+  The stopped-without-exit backstop (`TickStoppedWithoutExit`): a `ForcedRollout` backtracks to the nearest exit behind (`FindExitBehind`, heading flipped once the route is built); any other aircraft holds, waits for an occupied/full exit ahead, or reports once "unable to exit, request back-taxi to X" (AIM 4-3-21.a; `PhaseList.ReportedNoExitAhead`, shared with `LandingPhase`).
+
+  Rolling with no exit ahead it brakes to a planned stop on the remaining runway (`ApplyNoExitStop`, `NoExitStopPlan`) rather than coasting to a runway-end backstop.
+
+  The turn-off flies at the rate the rollout chose the exit with (`TurnOffDecelRate` → `ApplyExitDecelRate` → `GroundNavigator.SlowdownDecelRateKts`; the route-end stop at the taxi rate, the whole route at max effort under EXP). Its searches skip `PhaseList.GivenUpExitTaxiways` while rolling, not once stopped.
+
+- `src/Yaat.Sim/Data/Airport/ExitCapacityResolver.cs` — Resolves sidecar `exitCapacity` rules against a layout (per-layout cached, like `AdwResolver`) into `ExitCapacitySegments`: the rule's taxiway from the landing runway's exit hold-short to the parallel runway's (`FindParallelRunwayCrossing`).
+
+  A crossovers rule is walked from both runways' sides into one segment shared by both (`ExitBarFor(runway)` gives each runway's bar). A rule that does not resolve to exactly one segment logs an Error and is dropped for that layout.
+
+  `SimulationEngine.Tick` counts each segment's occupants in both directions and marks a full one's exit bar occupied for the arrival's exit choice (`ExitSegmentRefusal`: sidecar ceiling plus free length against the arrival's length, the stop gap and `RunwayTailClearance.MarginFt`).
+
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — Steering, turn anticipation, backward-propagated braking
 - `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — FindExitFromCenterline, FindAdjacentHoldShort, InferPreferredExitSide, exit scoring
 - `src/Yaat.Sim/AircraftCategory.cs` — All category-specific performance constants
-- `src/Yaat.Sim/Phases/Tower/FinalApproachPhase.cs` — FAC tracking and the visual-alignment ramp onto the centerline
+- `src/Yaat.Sim/Phases/Tower/FinalApproachPhase.cs` — FAC tracking and the visual-alignment ramp onto the centerline.
+  - glideslope: captured, it targets the path a fixed lead ahead along the closure toward the threshold, capped below the aircraft, and flies a descent rate; below the path it shallows, never climbs
+  - occupied-runway go-around (`OccupiedRunwayGoAround`); lateral-alignment go-around (`CheckLateralAlignmentGate`: inside 1 nm, >0.08 nm off the live assigned runway's centerline, established track, not realigning by the threshold, 3 s sustain; retarget/join grace); then the no-clearance warning/go-around at DA/MDA when published, otherwise 200 ft AGL
+  - illegal intercept check (§5-9-1)
+  - uncontrolled decel stages: clean → approach flap (`FinalApproachSpeedSchedule`, ~9 nm) → 1.3·Vref (5 nm) → Vref at a per-aircraft distance (`FinalApproachSpeedVariety`); the flap/config latches fire only at the stage's kinematic trigger, not merely from already being at/below the stage speed, so an arrival sped back up after a restore still flies the stage later
+  - `FasReachGateNm` / `MaxConfigTriggerNm` / `ApproachFlapTriggerHeadroomNm` and `ConfigurationReachGateNm` are internal for `SimulationEngine.Generators`' post-ceiling speed-restore gate
 - `src/Yaat.Sim/Data/Vnas/FinalApproachCourseExtractor.cs` — Derives the published FAC from the CIFP MAP leg
 - `src/Yaat.Sim/Phases/Pattern/BasePhase.cs` — Short-approach base-leg descent geometry
 

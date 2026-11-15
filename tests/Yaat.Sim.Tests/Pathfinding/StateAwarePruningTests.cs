@@ -1,8 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
-using Yaat.Sim.Tests.Helpers;
-using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests.Pathfinding;
 

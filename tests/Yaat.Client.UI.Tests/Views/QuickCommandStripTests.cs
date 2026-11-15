@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Platform;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Primitives.PopupPositioning;
@@ -409,6 +410,59 @@ public class QuickCommandStripTests
         Assert.False(flyout.IsOpen);
         Dispatcher.UIThread.RunJobs();
         Assert.False(follow.IsFocused);
+    }
+
+    /// <summary>
+    /// The pointer on its way from a strip icon to its flyout leaves the menu from a row that opens a submenu (All Commands).
+    /// Avalonia opens that row's submenu MenuShowDelay later, the row still being the menu's selection, while the pointer is in
+    /// the flyout; the flyout stays open and no submenu opens over it (YAAT-2295).
+    /// </summary>
+    [AvaloniaFact]
+    public void PointerLeavingTheMenuFromASubmenuRow_IntoTheFlyout_KeepsTheFlyoutOpen()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("ifr-enroute"), Host()));
+        Button heading = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.HeadingFly);
+        heading.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(heading);
+        MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => Equals(m.Header, AircraftMenuBuilder.AllCommandsHeader));
+
+        RaisePointer(allCommands, InputElement.PointerEnteredEvent);
+        RaisePointer(allCommands, InputElement.PointerExitedEvent);
+        RaisePointer(Assert.IsAssignableFrom<Control>(flyout.Popup.Child), InputElement.PointerEnteredEvent);
+        RunPast(DefaultMenuInteractionHandler.MenuShowDelay);
+
+        Assert.True(flyout.IsOpen, "the flyout closed when the row the pointer left the menu from opened its submenu late");
+        Assert.Contains(StickyClass, heading.Classes);
+        Assert.False(allCommands.IsSubMenuOpen, "All Commands opened its submenu over the flyout the pointer is in");
+        Assert.True(menu.IsOpen);
+    }
+
+    /// <summary>
+    /// The pointer crosses the menu's submenu row but leaves it from a plain row, into the flyout: no delayed submenu open
+    /// is pending, and the flyout stays open (YAAT-2295).
+    /// </summary>
+    [AvaloniaFact]
+    public void PointerLeavingTheMenuFromAPlainRow_IntoTheFlyout_KeepsTheFlyoutOpen()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("ifr-enroute"), Host()));
+        Button heading = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.HeadingFly);
+        heading.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(heading);
+        MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => Equals(m.Header, AircraftMenuBuilder.AllCommandsHeader));
+        MenuItem plain = menu.Items.OfType<MenuItem>().First(m => (!QuickCommandStrip.IsStrip(m)) && (m.Items.Count == 0) && m.IsEnabled);
+
+        RaisePointer(allCommands, InputElement.PointerEnteredEvent);
+        RaisePointer(plain, InputElement.PointerEnteredEvent);
+        RaisePointer(plain, InputElement.PointerExitedEvent);
+        RaisePointer(Assert.IsAssignableFrom<Control>(flyout.Popup.Child), InputElement.PointerEnteredEvent);
+        RunPast(DefaultMenuInteractionHandler.MenuShowDelay);
+
+        Assert.True(flyout.IsOpen, "the flyout closed after the pointer crossed the menu into it");
+        Assert.Contains(StickyClass, heading.Classes);
+        Assert.False(allCommands.IsSubMenuOpen, "All Commands opened its submenu over the flyout the pointer is in");
+        Assert.True(menu.IsOpen);
     }
 
     [AvaloniaFact]
@@ -982,6 +1036,28 @@ public class QuickCommandStripTests
 
     /// <summary>The header line under the title the strip writes its label into.</summary>
     private static QuickCommandLabelLine Line(ContextMenu menu) => Assert.IsType<QuickCommandLabelLine>(menu.Items[1]);
+
+    /// <summary>
+    /// Runs the dispatcher until a one-shot timer of <paramref name="delay"/>, armed now, fires: the menu's delayed
+    /// open and close were armed before it with the same delay, so they have run by then, however loaded the machine is.
+    /// </summary>
+    private static void RunPast(TimeSpan delay)
+    {
+        bool fired = false;
+        var frame = new DispatcherFrame();
+        DispatcherTimer.RunOnce(
+            () =>
+            {
+                fired = true;
+                frame.Continue = false;
+            },
+            delay
+        );
+        DispatcherTimer.RunOnce(() => frame.Continue = false, TimeSpan.FromSeconds(60));
+        Dispatcher.UIThread.PushFrame(frame);
+        Assert.True(fired, "the sentinel timer never fired");
+        Dispatcher.UIThread.RunJobs();
+    }
 
     private static void RaisePointer(Control target, RoutedEvent routedEvent) =>
         target.RaiseEvent(

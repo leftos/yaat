@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -12,9 +11,7 @@ using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Soak;
-using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Actions;
 

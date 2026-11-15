@@ -268,7 +268,7 @@ public sealed partial class SimulationEngine
         }
 
         TdlsState tdls = Tdls;
-        string? oldDeparture = aircraft.FlightPlan.Departure;
+        string oldDeparture = aircraft.FlightPlan.Departure;
         bool sameFacility;
         lock (tdls.Gate)
         {

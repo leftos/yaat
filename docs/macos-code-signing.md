@@ -149,9 +149,7 @@ certificates by the same job.
 - **Certificates expire after 5 years.** When the Developer ID certs are
   renewed, re-export the `.p12`s and update the two cert secrets (and the
   identity strings if the team suffix changes).
-- **The custom `Info.plist` mirrors Velopack's generated plist.** If a `vpk`
-  upgrade changes the keys Velopack emits, re-check `build/macos/Info.plist.template`
-  against `Velopack.Packaging.Unix/PlistWriter.cs`.
+- **The custom `Info.plist` mirrors Velopack's generated plist.** If a `vpk` upgrade changes the keys Velopack emits, re-check `build/macos/Info.plist.template` against `PlistWriter.cs` in the Velopack repository (`Velopack.Packaging.Unix`).
 - **Entitlements** live in `build/macos/Yaat.Client.entitlements`. The four
   `cs.*` keys are required for any notarized .NET app; `device.audio-input` is
   for `AudioCaptureService`'s push-to-talk microphone capture.

@@ -1,6 +1,5 @@
 using System.Formats.Tar;
 using System.Globalization;
-using System.Net.Http;
 using SharpCompress.Compressors.BZip2;
 using SharpCompressionMode = SharpCompress.Compressors.CompressionMode;
 

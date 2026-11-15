@@ -21,7 +21,7 @@ public class ScopeFrameMvaTests
 
     private static AircraftModel IfrAt(double altitude)
     {
-        Assert.Equal(2000, MvaDatabase.Default.FindSector(Koak)?.FloorFtMsl);
+        Assert.Equal(2000, MvaDatabase.Default.FindSector(Koak, preferredFacility: null)?.FloorFtMsl);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.Position = Koak;
         ac.Altitude = altitude;
@@ -30,19 +30,20 @@ public class ScopeFrameMvaTests
     }
 
     [Fact]
-    public void Below_MoreThanTheBandUnderTheFloor() => Assert.Equal(MvaRelation.Below, ScopeFrame.MvaRelationFor(IfrAt(1800), true));
+    public void Below_MoreThanTheBandUnderTheFloor() =>
+        Assert.Equal(MvaRelation.Below, ScopeFrame.MvaRelationFor(IfrAt(1800), true, mvaFacilityId: null));
 
     [Fact]
-    public void At_TheBandsLowEdge() => Assert.Equal(MvaRelation.At, ScopeFrame.MvaRelationFor(IfrAt(1900), true));
+    public void At_TheBandsLowEdge() => Assert.Equal(MvaRelation.At, ScopeFrame.MvaRelationFor(IfrAt(1900), true, mvaFacilityId: null));
 
     [Fact]
-    public void At_TheBandsHighEdge() => Assert.Equal(MvaRelation.At, ScopeFrame.MvaRelationFor(IfrAt(2100), true));
+    public void At_TheBandsHighEdge() => Assert.Equal(MvaRelation.At, ScopeFrame.MvaRelationFor(IfrAt(2100), true, mvaFacilityId: null));
 
     [Fact]
-    public void Above_PastTheBandsHighEdge() => Assert.Equal(MvaRelation.Above, ScopeFrame.MvaRelationFor(IfrAt(2101), true));
+    public void Above_PastTheBandsHighEdge() => Assert.Equal(MvaRelation.Above, ScopeFrame.MvaRelationFor(IfrAt(2101), true, mvaFacilityId: null));
 
     [Fact]
-    public void TintOff_IsNull() => Assert.Null(ScopeFrame.MvaRelationFor(IfrAt(1800), false));
+    public void TintOff_IsNull() => Assert.Null(ScopeFrame.MvaRelationFor(IfrAt(1800), false, mvaFacilityId: null));
 
     [Fact]
     public void OnGround_IsNull()
@@ -50,7 +51,7 @@ public class ScopeFrameMvaTests
         AircraftModel ac = IfrAt(1800);
         ac.IsOnGround = true;
 
-        Assert.Null(ScopeFrame.MvaRelationFor(ac, true));
+        Assert.Null(ScopeFrame.MvaRelationFor(ac, true, mvaFacilityId: null));
     }
 
     [Fact]
@@ -59,7 +60,7 @@ public class ScopeFrameMvaTests
         AircraftModel ac = IfrAt(1800);
         ac.IsEstablishedOnApproach = true;
 
-        Assert.Null(ScopeFrame.MvaRelationFor(ac, true));
+        Assert.Null(ScopeFrame.MvaRelationFor(ac, true, mvaFacilityId: null));
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public class ScopeFrameMvaTests
         AircraftModel ac = IfrAt(1800);
         ac.FlightRules = "vfr";
 
-        Assert.Null(ScopeFrame.MvaRelationFor(ac, true));
+        Assert.Null(ScopeFrame.MvaRelationFor(ac, true, mvaFacilityId: null));
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public class ScopeFrameMvaTests
         AircraftModel ac = IfrAt(1800);
         ac.Position = new LatLon(40.0, -70.0);
 
-        Assert.Equal(MvaRelation.NoData, ScopeFrame.MvaRelationFor(ac, true));
+        Assert.Equal(MvaRelation.NoData, ScopeFrame.MvaRelationFor(ac, true, mvaFacilityId: null));
     }
 
     [Fact]
@@ -113,7 +114,8 @@ public class ScopeFrameMvaTests
             ScopeTestAircraft.AllAlerts,
             display,
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
         return ScopeFrame.Build(input);
     }

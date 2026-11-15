@@ -85,11 +85,32 @@ stages = ["pre-commit"]
 # project/solution files, analyzer config, and every extension a csproj `Include`s
 # as content or a resource (embedded JSON/geojson/tsv/ttf/png, Avalonia .axaml,
 # LayoutInspector's html/css/js). Docs-, plan- or recording-only pushes skip it.
-# Warn-level analyzer diagnostics fail this build, so no separate analyzers hook runs.
+# Warn-level analyzer diagnostics fail this build; dotnet-format-analyzers below also verifies them as CI does.
 [[repos.hooks]]
 id = "dotnet-build"
 name = "dotnet build (warnings as errors)"
 entry = "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/prek-dotnet-build.log -TimeoutSeconds 900 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true"
+language = "system"
+files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
+pass_filenames = false
+stages = ["pre-push"]
+
+# Unused usings (IDE0005) across the whole solution, as CI checks them; pre-push because it
+# reads every project, where pre-commit hooks stay scoped to the staged files.
+[[repos.hooks]]
+id = "dotnet-format-ide0005"
+name = "dotnet format style (unused usings, IDE0005)"
+entry = "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/prek-ide0005.log -TimeoutSeconds 900 -Slot heavy -- dotnet format style yaat.slnx --diagnostics IDE0005 --severity warn --verify-no-changes"
+language = "system"
+files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
+pass_filenames = false
+stages = ["pre-push"]
+
+# Warn-level analyzer (CA) diagnostics across the whole solution, as CI checks them; pre-push for the same reason.
+[[repos.hooks]]
+id = "dotnet-format-analyzers"
+name = "dotnet format analyzers (warn)"
+entry = "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/prek-analyzers.log -TimeoutSeconds 900 -Slot heavy -- dotnet format analyzers yaat.slnx --verify-no-changes --severity warn --no-restore"
 language = "system"
 files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
 pass_filenames = false

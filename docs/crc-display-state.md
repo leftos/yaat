@@ -439,6 +439,8 @@ See [flight-strips.md](flight-strips.md) for the full strip architecture.
 
 `TrackOwner` is `(Callsign, FacilityId, Subset, SectorId, OwnerType)` (MessagePack `[Key 0..4]`). It rides along inside `StarsTrackDto.Owner` / `HandoffRedirectedBy` — there is **no separate ownership topic**. Ownership changes coalesce with the next `StarsTracks` update.
 
+CRC draws the owner's position symbol itself (`TrackManager.UpdateOwnerPositionSymbol`), from the owner's facility compared with the viewer's: the same facility shows the owner's sector letter; another STARS facility shows the first digit of that facility's entry in the viewer facility's STARS handoff list, else `C`; a centre owner shows its NAS id letter when it is a neighbouring centre or the ZOB case applies, else `C`; a non-NAS owner shows `C`. The symbol is not on the wire, so YAAT's Radar reproduces it (`StarsPositionSymbol`, sent as `StudentOwnerSymbol`) and shows it after an owner in another facility, as `3Y(1)`, unless it matches the first or last letter or digit of the owner text (case-insensitive; `AircraftModel.OwnerDisplay`, `SymbolRepeatsOwner`): a ZOA centre sector `C44` stays bare, a neighbouring centre `C25` shows `C25(L)`.
+
 ## Adding fields to display state — the contract
 
 A field can differ by **viewer type**, not only by facility or sector: the FlightPlans topic is built per connection (`CrcBroadcastService.BuildClientPayloads` and `BuildInitialData` rebuild from `FlightPlanAircraft` for each subscriber).
@@ -699,3 +701,21 @@ This is a different "four" than the *simulation* spawn queues that [scenario-loa
   Use it to give feedback on tool-window actions whose ack CRC discards — e.g. an FP-editor `AmendFlightPlan` or `RequestNewBeaconCode` rejected for a track another sector owns, surfaced as `ILL TRK` (the STARS-native `RequireOwnership` term); the amend hub method is a void `Task` the client never reads, so a bare nil-ack is indistinguishable from a bug.
 
   Do **not** reach for `BroadcastCrcTerminal` for this — it sends a `TerminalBroadcast` to the *instructor's* YAAT client over the training hub, not the student's CRC scope.
+
+## File map
+
+One entry per file; paths are relative to `src/Yaat.Sim/`.
+
+```
+# Simulation/Eram/ — ERAM CRR-group, conflict-alert-settings and sector-message core types, engine-owned (SimulationEngine.Eram.cs owns the dictionary, the settings + dirty flags)
+EramRoomSettings.cs            # The room's per-facility conflict-alert settings (CA and MCI function, sectors whose CA or MCI display is off). Copy-on-write: every write publishes a
+                               # new immutable FrozenDictionary of EramFacilityConflictSettings records and bumps Version (unique across instances, so an engine swap never reads as
+                               # unchanged), so the CRC broadcast reads without the room gate. TryApply takes a RecordedEramRoomEntry's four absolute shapes (CA {CA|MCI} FUNCTION
+                               # {ON|OFF}, CA {CA|MCI} DISPLAY {sector}… {ON|OFF}); a facility back at the defaults is dropped; ShowsConflict(facility, sector, isMciPair) is the per-sector filter
+EramWeatherReports.cs          # The room's ERAM `WX` weather reports, keyed by ICAO station (last entry wins); expire at the first :53 after entry by sim time (`SimulationEngine.ExpireEramWeatherReports` in the end-of-second weather step); snapshotted, recorded, replayed; never broadcast to clients
+EramSectorMessages.cs          # The room's ERAM sector messages: one EramSectorMessage(FacilityId, SectorId, Text) per facility and sector, copy-on-write like EramRoomSettings (one volatile swap of a
+                               # FrozenDictionary). TryApply takes a RecordedEramRoomEntry's two absolute shapes (SM {sector} {text} stores or overwrites, SMDE {sector} deletes) and refuses anything else;
+                               # TryGet / Messages read, Replace / Clear serve snapshot restore and replay t=0
+EramCrrGroup.cs                # EramCrrGroup(Label, EramCrrColor Color, Latitude, Longitude) + the EramCrrColor enum mirroring the wire CrrColor (parity pinned on
+                               # both sides); the wire EramCrrGroupDto stays server-side behind DtoConverter.ToEramCrrGroupDto
+```

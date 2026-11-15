@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 

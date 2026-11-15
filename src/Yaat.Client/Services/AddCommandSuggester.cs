@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;

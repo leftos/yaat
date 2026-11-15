@@ -519,14 +519,14 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
-        // CAPP on an aircraft already established on a JFAC/JLOC lateral join authorizes the
-        // glideslope descent in place — it does not tear the join down and rebuild it (which
-        // would emit a spurious "… cancelled by CAPP" warning). The aircraft is already tracking
-        // the localizer; CAPP just clears it to descend.
-        CommandResult? lateralUpgrade = TryUpgradeLateralJoinInPlace(compound, aircraft, ctx);
-        if (lateralUpgrade is not null)
+        // A plain CAPP for the approach the aircraft is already on clears it in place — it does not
+        // tear the approach down and rebuild it from the filed transition (which would emit a spurious
+        // "… cancelled by CAPP" warning). On a JFAC/JLOC lateral join it authorizes the descent; on an
+        // approach already cleared it continues from where the aircraft is (YAAT-2299).
+        CommandResult? clearedInPlace = TryClearApproachInPlace(compound, aircraft, ctx);
+        if (clearedInPlace is not null)
         {
-            return lateralUpgrade;
+            return clearedInPlace;
         }
 
         // Capture the active phase before dispatch so post-clear logic (e.g.
@@ -702,13 +702,7 @@ public static class CommandDispatcher
         }
         else
         {
-            CommandDimension incomingDims = CommandDescriber.GetCompoundDimensions(compound);
-            preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out List<CommandBlock>? dropped);
-            EmitQueueClearWarning(aircraft, dropped, [], compound);
-            if (!ctx.PreserveConditionals)
-            {
-                aircraft.DeferredDispatches.Clear();
-            }
+            preserved = SupersedeForTransmission(compound, aircraft, ctx);
         }
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
@@ -939,49 +933,208 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// CAPP issued to an aircraft already established on a JFAC/JLOC lateral join authorizes the
-    /// glideslope descent on the SAME approach in place — flipping <c>LateralInterceptOnly</c> off
-    /// rather than tearing the join down and rebuilding it (which would emit a spurious
-    /// "… cancelled by CAPP" warning). Returns the clearance result when it handled the upgrade,
-    /// or <c>null</c> to fall through to normal CAPP dispatch (forced CAPPF, a different approach,
-    /// AT/DCT/maintain-altitude forms, or any aircraft not on a lateral join).
+    /// A plain CAPP for the approach the aircraft is already on, cleared in place rather than by tearing the approach
+    /// down and rebuilding it (which would emit a spurious "… cancelled by CAPP" warning). On a JFAC/JLOC lateral join
+    /// it authorizes the glideslope descent on the SAME approach, flipping <c>LateralInterceptOnly</c> off. Returns the
+    /// clearance result when it cleared in place, or <c>null</c> for the normal CAPP dispatch: forced CAPPF, a different
+    /// or newer expected approach, a visual, AT/DCT/maintain-altitude forms, a conditional or multi-block transmission,
+    /// a pattern circuit (<see cref="PhaseList.TrafficDirection"/> set), or an aircraft on no approach it is still flying.
+    /// <para>
+    /// The same plain CAPP to an aircraft already fully cleared for that approach (YAAT-2299; AIM 5-4-3.b.1(d),
+    /// 5-4-6.f, 5-4-9.a) continues it where it is — on final, intercepting, flying the approach's fixes, in the
+    /// hold-in-lieu or the procedure turn — rather than restarting it at the filed transition. <c>JFAC, CAPP</c> on
+    /// final or intercepting is that CAPP alone; while flying the approach's fixes it is the join, then upgraded in place.
+    /// </para>
     /// </summary>
-    private static CommandResult? TryUpgradeLateralJoinInPlace(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
+    private static CommandResult? TryClearApproachInPlace(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
-        if (compound.Blocks.Count != 1)
+        if ((compound.Blocks.Count != 1) || (compound.Blocks[0].Condition is not null))
         {
             return null;
         }
 
-        ParsedBlock block = compound.Blocks[0];
-        if (block.Condition is not null || block.Commands.Count != 1 || block.Commands[0] is not ClearedApproachCommand capp)
+        // A pattern circuit's final (a VFR go-around re-entering the pattern) is not the approach being continued.
+        if ((aircraft.Phases?.ActiveApproach is not { } clearance) || (aircraft.Phases.TrafficDirection is not null))
         {
             return null;
         }
 
-        // Only a plain, immediate, non-forced CAPP upgrades in place. Forced (CAPPF), AT/DCT
-        // fixes, and a maintain-until-altitude form rebuild the approach via the full handler.
+        return compound.Blocks[0].Commands switch
+        {
+            [ClearedApproachCommand capp] when ContinuesInPlace(capp, clearance, aircraft) => ClearApproachInPlace(
+                compound,
+                aircraft,
+                clearance,
+                ctx
+            ),
+            [JoinFinalApproachCourseCommand jfac, ClearedApproachCommand capp] when JoinNamesActiveApproach(jfac, clearance, aircraft) =>
+                TryJoinThenClearInPlace(compound, capp, clearance, aircraft, ctx),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// A JFAC that joins <paramref name="clearance"/>'s approach: naming it, or bare while the expected approach is unset
+    /// or is that same approach. A bare JFAC resolves to the expected approach first (<c>DispatchJfac</c>), so a newer
+    /// EAPP, or an expected visual (which JFAC refuses), takes the ordinary dispatch.
+    /// </summary>
+    private static bool JoinNamesActiveApproach(JoinFinalApproachCourseCommand jfac, ApproachClearance clearance, AircraftState aircraft)
+    {
+        if (jfac.ApproachId is not null)
+        {
+            return NamesActiveApproach(jfac.ApproachId, null, clearance, aircraft);
+        }
+
+        return (aircraft.Approach.Expected is not { } expected)
+            || (!ApproachIds.TryParseVisual(expected, out _) && NamesActiveApproach(expected, null, clearance, aircraft));
+    }
+
+    /// <summary>
+    /// A plain CAPP for <paramref name="clearance"/>'s approach that leaves the aircraft's phases in place: a lateral-only
+    /// join is upgraded, and a full clearance still being flown (<see cref="CanContinueEstablishedApproach"/>) continues.
+    /// </summary>
+    private static bool ContinuesInPlace(ClearedApproachCommand capp, ApproachClearance clearance, AircraftState aircraft) =>
+        IsPlainCappForApproach(capp, clearance, aircraft)
+        && (clearance.LateralInterceptOnly || CanContinueEstablishedApproach(capp, clearance, aircraft));
+
+    /// <summary>
+    /// A plain, immediate, non-forced CAPP for <paramref name="clearance"/>'s approach (bare, or naming it). Forced (CAPPF),
+    /// AT/DCT fixes, a maintain-until-altitude form and a different approach rebuild the approach via the full handler.
+    /// </summary>
+    private static bool IsPlainCappForApproach(ClearedApproachCommand capp, ApproachClearance clearance, AircraftState aircraft)
+    {
         if (capp.Force || (capp.AtFix is not null) || (capp.DctFix is not null) || (capp.CrossFixAltitude is not null))
         {
-            return null;
+            return false;
         }
 
-        ApproachClearance? clearance = aircraft.Phases?.ActiveApproach;
-        if (clearance is null || !clearance.LateralInterceptOnly)
+        return NamesActiveApproach(capp.ApproachId, capp.AirportCode, clearance, aircraft);
+    }
+
+    /// <summary>True when <paramref name="approachId"/> is null or resolves to <paramref name="clearance"/>'s approach.</summary>
+    private static bool NamesActiveApproach(string? approachId, string? airportCode, ApproachClearance clearance, AircraftState aircraft)
+    {
+        if (approachId is null)
         {
-            return null;
+            return true;
         }
 
-        // A CAPP naming a different approach than the one being joined must re-clear properly.
-        if (capp.ApproachId is not null)
+        string airport = airportCode ?? ResolveAirport(aircraft);
+        string? resolvedId = NavigationDatabase.Instance.ResolveApproachId(airport, approachId);
+        return (resolvedId is not null) && resolvedId.Equals(clearance.ApproachId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A full instrument clearance the aircraft is still flying (<see cref="IsApproachStillFlown"/>), which a same-approach
+    /// CAPP continues in place. A visual clearance, a bare CAPP while a visual is expected, and a bare CAPP while a newer
+    /// expected approach names a different one fall through: a bare CAPP resolves to the expected approach first, as the
+    /// full handler does, and never turns a visual into an instrument approach here.
+    /// </summary>
+    private static bool CanContinueEstablishedApproach(ClearedApproachCommand capp, ApproachClearance clearance, AircraftState aircraft)
+    {
+        if (ApproachIds.TryParseVisual(clearance.ApproachId, out _))
         {
-            string airport = capp.AirportCode ?? ResolveAirport(aircraft);
-            string? resolvedId = NavigationDatabase.Instance.ResolveApproachId(airport, capp.ApproachId);
-            if (resolvedId is null || !resolvedId.Equals(clearance.ApproachId, StringComparison.OrdinalIgnoreCase))
+            return false;
+        }
+
+        if ((capp.ApproachId is null) && (aircraft.Approach.Expected is { } expected))
+        {
+            if (ApproachIds.TryParseVisual(expected, out _) || !NamesActiveApproach(expected, capp.AirportCode, clearance, aircraft))
             {
-                return null;
+                return false;
             }
         }
+
+        return IsApproachStillFlown(aircraft.Phases?.CurrentPhase);
+    }
+
+    /// <summary>
+    /// The phases of an approach the aircraft is flying: final, the course intercept, the approach's fixes, the
+    /// hold-in-lieu and the procedure turn (AIM 5-4-9.a). A missed approach, its hold and an ATC hold are not.
+    /// </summary>
+    private static bool IsApproachStillFlown(Phase? phase) =>
+        phase
+            is FinalApproachPhase
+                or InterceptCoursePhase
+                or ProcedureTurnPhase
+                or ApproachNavigationPhase { IsMissedApproach: false }
+                or HoldingPatternPhase { IsHoldInLieu: true, IsMissedApproachHold: false };
+
+    /// <summary>
+    /// <c>JFAC, CAPP</c> for the approach the aircraft is cleared for. On final or intercepting the join adds nothing,
+    /// so it is the CAPP in place; flying the approach's fixes it is the join alone (onto that approach's course), then
+    /// the clearance upgraded in place, never restarted at the transition. Null — the ordinary dispatch — for any other
+    /// phase, or a forced or rich CAPP. The JFAC has already been checked to join this approach.
+    /// </summary>
+    private static CommandResult? TryJoinThenClearInPlace(
+        CompoundCommand compound,
+        ClearedApproachCommand capp,
+        ApproachClearance clearance,
+        AircraftState aircraft,
+        DispatchContext ctx
+    )
+    {
+        if (!ContinuesInPlace(capp, clearance, aircraft))
+        {
+            return null;
+        }
+
+        return aircraft.Phases?.CurrentPhase switch
+        {
+            FinalApproachPhase or InterceptCoursePhase => ClearApproachInPlace(compound, aircraft, clearance, ctx),
+            ApproachNavigationPhase { IsMissedApproach: false } => JoinThenClear(compound, clearance, aircraft, ctx),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// The join onto <paramref name="clearance"/>'s course, then the clearance upgraded in place; a refused join is the
+    /// result. The turn-rate, turn-direction and follow overrides of the dropped chain are released first, as clearing a
+    /// chain does, without its "cancelled" warning. The join's own clearance is replaced by <paramref name="clearance"/>,
+    /// the same approach and course, so its missed-approach fixes, missed hold and procedure stay for a go-around.
+    /// </summary>
+    private static CommandResult JoinThenClear(CompoundCommand compound, ApproachClearance clearance, AircraftState aircraft, DispatchContext ctx)
+    {
+        ReleaseChainControlState(aircraft, clearedGoAround: false);
+        CommandResult joined = NavigationCommandHandler.DispatchJfac(new JoinFinalApproachCourseCommand(clearance.ApproachId), aircraft);
+        if (!joined.Success)
+        {
+            Log.LogDebug("[CAPP] {Callsign} JFAC, CAPP in place: join refused ({Message})", aircraft.Callsign, joined.Message);
+            return joined;
+        }
+
+        PhaseList phases =
+            aircraft.Phases
+            ?? throw new InvalidOperationException($"{aircraft.Callsign}: JFAC to {clearance.ApproachId} succeeded but left no phase list");
+        if (phases.ActiveApproach is null)
+        {
+            throw new InvalidOperationException($"{aircraft.Callsign}: JFAC to {clearance.ApproachId} succeeded but left no active approach");
+        }
+
+        phases.ActiveApproach = clearance;
+        return ClearApproachInPlace(compound, aircraft, clearance, ctx);
+    }
+
+    /// <summary>
+    /// Clears <paramref name="clearance"/> — the approach the aircraft is already flying — in place: a lateral-only join is
+    /// authorized to descend, a full clearance continues unchanged, and the approach-clearance speed rules apply again.
+    /// Like any fresh transmission it first supersedes the queued work it conflicts with and cancels pending WAITs.
+    /// </summary>
+    private static CommandResult ClearApproachInPlace(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        ApproachClearance clearance,
+        DispatchContext ctx
+    )
+    {
+        aircraft.Queue.Blocks.AddRange(SupersedeForTransmission(compound, aircraft, ctx));
+        Log.LogDebug(
+            "[CAPP] {Callsign} cleared {Approach} in place (lateralOnly={LateralOnly}, phase={Phase})",
+            aircraft.Callsign,
+            clearance.ApproachId,
+            clearance.LateralInterceptOnly,
+            aircraft.Phases?.CurrentPhase?.Name
+        );
 
         // Authorize the descent on the join already in progress. The glideslope still gates on the
         // aircraft's lateral establishment (5°/0.15nm) — a relaxed join is not a PTACF forced
@@ -1000,6 +1153,25 @@ public static class CommandDispatcher
         NavigationCommandHandler.RestorePublishedSpeedsOfEarlierCrossings(aircraft, ctx.TransmissionId);
 
         return Ok($"Cleared {clearance.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(clearance.RunwayId)}");
+    }
+
+    /// <summary>
+    /// The supersede a fresh, unconditional transmission runs in <see cref="DispatchCompoundCore"/> before it enqueues: queued
+    /// blocks conflicting with <paramref name="compound"/>'s dimensions are dropped (with the queue-clear warning) and the
+    /// non-conflicting ones returned for the caller to put back, and pending WAITs are cancelled unless a firing deferral
+    /// is dispatching.
+    /// </summary>
+    private static List<CommandBlock> SupersedeForTransmission(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
+    {
+        CommandDimension incomingDims = CommandDescriber.GetCompoundDimensions(compound);
+        List<CommandBlock> preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out List<CommandBlock> dropped);
+        EmitQueueClearWarning(aircraft, dropped, [], compound);
+        if (!ctx.PreserveConditionals)
+        {
+            aircraft.DeferredDispatches.Clear();
+        }
+
+        return preserved;
     }
 
     /// <summary>

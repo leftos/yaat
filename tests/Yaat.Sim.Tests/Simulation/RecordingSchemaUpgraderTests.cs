@@ -2,7 +2,6 @@ using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;

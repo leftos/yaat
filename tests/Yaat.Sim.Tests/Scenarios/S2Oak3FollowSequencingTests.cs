@@ -4,7 +4,6 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Scenarios;
 

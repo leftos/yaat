@@ -5,7 +5,6 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.LiveTraffic;
 

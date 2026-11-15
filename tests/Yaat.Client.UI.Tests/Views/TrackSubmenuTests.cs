@@ -3,7 +3,6 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 

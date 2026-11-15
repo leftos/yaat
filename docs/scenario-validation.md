@@ -16,14 +16,16 @@ Three surfaces, all driven by `ScenarioValidator.Validate()` (`src/Yaat.Sim/Scen
 
 | List | Check | Typical cause |
 |------|-------|---------------|
-| `Failures` (`PresetParseFailure`) | Every `presetCommands[].command` parses with `CommandParser.ParseCompound` | A typo in ATCTrainer (`WAI T6`, `CFIXX`, `WAIT10`) or a command YAAT does not implement |
+| `Failures` (`PresetParseFailure`) | Every `presetCommands[].command` parses with `CommandParser.ParseCompound`, given the aircraft's filed route and its departure and destination airports (a fix that is only a CIFP terminal waypoint of those airports resolves) | A typo in ATCTrainer (`WAI T6`, `CFIXX`, `WAIT10`) or a command YAAT does not implement |
 | `ProcedureIssues` (`ProcedureIssue`) | Each SID/STAR named in a navigation path resolves; `VersionChanged` when the navdata has a newer revision (`BDEGA3` → `BDEGA4`), `NotFound` otherwise | Scenario authored against an older AIRAC |
 | `TransitionFixSubstitutions` | After a version upgrade, the scenario's transition fix still exists on the new procedure; suggests the closest valid one | A transition renamed or dropped between revisions |
 | `AircraftTypeMismatches` (`AircraftTypeMismatch`) | The scenario's physical `aircraftType` and its `flightplan.aircraftType` name the same base ICAO type (wake prefix and equipment suffix stripped via `AircraftState.StripTypePrefix`; a blank filed type is not a mismatch) | An editor changed the aircraft (an A388 arriving as a filed B744 — #438). YAAT shows the physical type on the ground view and Tower Cab and the filed type on the radar, strips and flight plan, so the mismatch is visible to students |
 
 ### Ground maps
 
-Per unit (an ARTCC, a file or a folder), the validator collects the airports its scenarios use (`ScenarioAirportCollector.AirportsOf`: each scenario's primary airport and every aircraft's airport, FAA-folded), fetches each airport's vNAS ground map once per run (shared across ARTCCs, four parses at a time) and checks it with `GroundMapCheck.Check` (`src/Yaat.Sim/Scenarios/GroundMapCheck.cs`), which parses it with `GeoJsonParser.ParseWithDiagnostics` as the runtime does. Each airport's `GroundMapCheckResult` has one of four outcomes:
+Per unit (an ARTCC, a file or a folder), the validator collects the airports its scenarios use (`ScenarioAirportCollector.AirportsOf`: each scenario's primary airport and every aircraft's airport, FAA-folded), fetches each airport's vNAS ground map once per run (shared across ARTCCs, four parses at a time) and checks it with `GroundMapCheck.Check` (`src/Yaat.Sim/Scenarios/GroundMapCheck.cs`).
+
+The check parses it with `GeoJsonParser.ParseWithDiagnostics` as the runtime does, with the airport's sidecar stand lead-ins and spot edges. Each airport's `GroundMapCheckResult` has one of four outcomes:
 
 | Outcome | Meaning | Reported as |
 |---------|---------|-------------|

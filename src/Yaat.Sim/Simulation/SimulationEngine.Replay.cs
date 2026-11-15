@@ -1,5 +1,4 @@
 using System.Text;
-using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Replay;
 
 namespace Yaat.Sim.Simulation;

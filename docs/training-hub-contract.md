@@ -529,7 +529,7 @@ rather than restating it.
 6. **Register the type for source-gen** if you introduced a *new* DTO (not just a field on an existing one): add a
    `[JsonSerializable]` entry to the matching context (Core / Strips / Tdls) or the WASM client throws
    `JsonSerializerIsReflectionDisabled` at runtime.
-7. **Docs** — update `COMMANDS.md` / `docs/architecture.md` per `.claude/rules/commands.md` and CLAUDE.md if the field is user-visible.
+7. **Docs** — update `COMMANDS.md` / the owning subsystem doc's File map (and the `docs/architecture.md` Task Index for a new kind of change) per `.claude/rules/commands.md` and CLAUDE.md if the field is user-visible.
 
 **Documented exception to step 4 — `AsdexFix`.** The `AsdexFix` field (the ASDE-style Ground View / Aircraft List
 fix, resolved server-side by `DtoConverter.ResolveGroundFix` from the airport's ASDE-X/SAID config) is deliberately
@@ -559,9 +559,11 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Several of its inputs (track against the destination bearing, distance) are not fingerprinted, so the situation itself is (`TrainingDtoFingerprint.Situation`): a change of situation alone rebroadcasts the aircraft. The client carries it as `AircraftModel.Situation`.
 - `SituationFlags` (`[Flags] Yaat.Sim.Situation.SituationFlags`, a number on the wire, `None = 0`, members append-only) is the stored `AircraftSituationState.Flags`, computed in the same `Situation` step by `SituationFlagCalculator` (`None` until the aircraft's first step).
 
-  Its members are `NearingDepartureHoldLine` = 1, `HoldShortIsDepartureRunway` = 2, `InsideFinalApproachFix` = 4, `RolloutDecelerating` = 8, `HasReportedFieldInSight` = 16, `HasReportedTrafficInSight` = 32, `HasTakeoffClearance` = 64, `PastV1` = 128 and `ApproachClearedForDescent` = 256. `HasTakeoffClearance` means cleared for takeoff; a line-up-and-wait clearance does not count.
+  Its members are `NearingDepartureHoldLine` = 1, `HoldShortIsDepartureRunway` = 2, `InsideFinalApproachFix` = 4, `RolloutDecelerating` = 8, `HasReportedFieldInSight` = 16, `HasReportedTrafficInSight` = 32, `HasTakeoffClearance` = 64, `PastV1` = 128 and `ApproachClearedForDescent` = 256, `ExpectedApproachAdvised` = 512, `EstablishedOnExpectedFinal` = 1024 and `ApproachClearancePending` = 2048. `HasTakeoffClearance` means cleared for takeoff; a line-up-and-wait clearance does not count.
 
   `PastV1` means on the takeoff, airborne or rolling at or above V1, the test `RejectedTakeoff.IsAtOrPastV1` shares with the takeoff-cancel handler. `ApproachClearedForDescent` means an approach clearance with descent on it, not a JFAC/JLOC lateral intercept, and not since ended by a go-around, the missed approach or the hold at its missed-approach fix.
+
+  `ExpectedApproachAdvised` means the aircraft was given an EAPP, `EstablishedOnExpectedFinal` that it is established on the final course of its expected approach by geometry alone (`ExpectedFinalGeometry`, no clearance needed), and `ApproachClearancePending` that a deferred approach clearance is waiting to take effect; they drive Cleared {approach} in the quick lists.
 
   Several of its inputs (the taxi route, phase internals, the layout distances) are not fingerprinted and the reported-in-sight flags latch, so the flags are fingerprinted as one slot (`TrainingDtoFingerprint.SituationFlags`): a change of flags alone rebroadcasts the aircraft.
 
@@ -665,6 +667,8 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Each input has its own `TrainingDtoFingerprint` slot, the blink and the window held as their resolved values: a DTO is re-sent when either window closes with nothing else on the aircraft changing.
 
   The client lands them on `AircraftModel` / `IMenuAircraft`, and `TrackCoordinationView` (Yaat.Sim) judges them against the client's acting position (`ActingPosition`: `ActiveTcp`, the `ActivePositionDto` callsign and `TrackFacilityId`): `IsHandoffToActing`, `IsHandoffFromActing` and `IsPointoutToActing`, with `MatchesActing` re-expressing `TrackOwner.MatchesPosition` over the identity values. The quick list's Accept handoff, Cancel handoff and Acknowledge pointout read them; All Commands does not.
+- `StudentOwnerSymbol` (string or null, JSON `studentOwnerSymbol`, on `AircraftStateDto` / `AircraftDto`) is the position symbol the student's scope draws after an owner in another facility (`1`, `C`, a centre's NAS letter), computed per room by `StarsPositionSymbol` against the scenario's student position.
+  It is null when the student is not on STARS, the owner is in the student's facility, the track is unowned or the owner non-NAS, or no ARTCC config is loaded. Its `TrainingDtoFingerprint` slot is the student's facility, so a change of student position rebroadcasts. The client appends it at `AircraftModel.OwnerDisplay` (`3Y(1)`, during a handoff `3Y(1) >1F`) but hides it when it repeats the owner's first or last letter or digit; the field itself stays the raw symbol. Every ownership comparison stays on the raw owner fields, and the handoff target and the coordination menu's "owned by" header stay bare.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`, the latter the scenario's per-aircraft
   `IsAutoClearedToLandFor`, true under a simulated tower) are broadcast parameters `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.

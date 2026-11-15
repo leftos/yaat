@@ -38,7 +38,7 @@ additive later, no renames.
 
 **Aircraft classes** (`SopAircraftClassifier`, NCT SOP 1-7): a jet or a four-engine turboprop is **J**, another non-jet
 with a profile cruise TAS ≥ 180 kt is **T**, the rest **P** — from the type's performance profile (type-intrinsic,
-never the filed speed), the category baseline when no profile exists. Predicates match on every stated field; an
+never the filed speed; it carries any `AircraftProfileOverrides.json` correction, so a sourced `cruiseSpeed` there can move a type across 180 kt), the category baseline when no profile exists. Predicates match on every stated field; an
 unknown MTOW counts as "over" for a class-T aircraft (the heavier turboprops the rule is after), an unknown engine
 count never matches.
 

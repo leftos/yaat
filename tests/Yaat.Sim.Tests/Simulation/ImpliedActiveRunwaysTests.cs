@@ -4,7 +4,6 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Simulation.RunwayScenarioEdits;
 
 namespace Yaat.Sim.Tests.Simulation;

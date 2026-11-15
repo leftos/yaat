@@ -19,7 +19,7 @@ Cloudflare Worker (JS, no framework) deployed as `yaat-discord-bot`. State in KV
 **Scenario validation** (per-ARTCC channels; no admin gate):
 - Pinned **Run Validation** button (`run_validation`) — dispatches `discord-scenario-validation.yml` on leftos/yaat-server for that ARTCC
 - `/validate` — same trigger (slash commands may be unavailable in read-only channels)
-- Channel IDs: [`tools/discord-bot/validation-channels.json`](tools/discord-bot/validation-channels.json)
+- Channel IDs: [`tools/discord-bot/validation-channels.json`](../tools/discord-bot/validation-channels.json)
 - Bot `wrangler.toml` `[vars]` `VALIDATION_REPO = "leftos/yaat-server"` (issues/comments still use `GITHUB_REPO`)
 - GitHub secret on **yaat-server**: `DISCORD_BOT_TOKEN`
 - GitHub App must be installed on **leftos/yaat-server** with **Actions: Read and write** (same installation as yaat, or a second install — the worker resolves the correct installation per repo). If dispatch returns 404, add yaat-server to the app under GitHub → Settings → Applications → your app → Configure
@@ -141,16 +141,6 @@ dependency:
   `READY`, then sends opcode 1 `{"cmd":"SET_ACTIVITY","args":{"pid":…,"activity":{…}},"nonce":"…"}`. `pid` is the
   client's own process id (Discord keys the activity on it). A ping is answered with a pong carrying the same payload.
 
-**Files** (`src/Yaat.Client/Services/Discord/`):
-
-| File | Role |
-|---|---|
-| `DiscordIpcFrame.cs` | Frame read/write, opcode constants, the payload cap |
-| `DiscordActivity.cs` | The `DiscordActivity` record (`Details`, `State`, `StartUnixSeconds`) and `DiscordRpcJson`, the `Utf8JsonWriter` builders for the handshake and `SET_ACTIVITY` payloads |
-| `IDiscordIpcConnector.cs` / `DiscordIpcConnector.cs` | Finds and opens the endpoint; returns null when Discord is not running |
-| `IRichPresencePublisher.cs` | What `MainViewModel` sees: `Publish(activity)` / `Clear()`, both fire-and-forget |
-| `DiscordRichPresenceService.cs` | The worker that owns the connection |
-
 **Worker behaviour.** `DiscordRichPresenceService` runs one background task. `Publish`/`Clear` only record the wanted
 activity and wake it; the latest value wins, so a change that lands mid-connect replaces the earlier one instead of
 queueing behind it. The worker connects only while an activity is wanted and keeps the connection open to answer
@@ -183,3 +173,36 @@ in-memory duplex stream and drives the handshake timeout and back-off with a man
 - **`ApplyRecordingResult` is a publish point too.** A recording load replaces the scenario without going through
   `ApplyScenarioBootstrap`; without its own `StartRichPresence` call Discord would keep showing the scenario the
   recording replaced.
+
+## File map
+
+One entry per file, grouped by component.
+
+### Desktop client Rich Presence (`src/Yaat.Client/Services/Discord/`)
+
+Discord Rich Presence over Discord's local RPC-over-IPC channel, hand-rolled with no package dependency ("Desktop client Rich Presence" above).
+
+| File | Role |
+|---|---|
+| `DiscordIpcFrame.cs` | Frame read/write (`[int32 opcode LE][int32 length LE][UTF-8 JSON]`), opcode constants (handshake/frame/close/ping/pong), the 64 KiB payload cap |
+| `DiscordActivity.cs` | The `DiscordActivity` record (`Details`, `State`, `StartUnixSeconds`) and `DiscordRpcJson`, the `Utf8JsonWriter` builders for the handshake and `SET_ACTIVITY` payloads, text fields clamped to 128 chars |
+| `IDiscordIpcConnector.cs` / `DiscordIpcConnector.cs` | Finds and opens the IPC endpoint; returns null when Discord is not running. The seam tests script Discord's side through |
+| `IRichPresencePublisher.cs` | What `MainViewModel` sees: `Publish(activity)` / `Clear()`, both fire-and-forget, never throwing |
+| `DiscordRichPresenceService.cs` | The worker that owns the connection, one background worker, latest-wins: connects only while an activity is wanted, handshake (10 s timeout) → `SET_ACTIVITY` → ping/pong; clearing = closing the connection; back-off 5 s doubling to 60 s; `Dispose` bounded to 2 s |
+
+### discord-bot — Cloudflare Worker (`tools/discord-bot/`)
+
+Bridges the Discord server with GitHub (forum threads ↔ issues, scenario-validation buttons) and hosts the Ko-fi-fed server-cost tracker. JS, no framework; state in the `THREAD_ISSUES` KV namespace; tested with vitest (`pnpm test`, also in CI). Operating notes, secrets, and footguns are in "Discord Bot" above.
+
+```
+wrangler.toml                     # Worker name, KV/R2 bindings, cron (*/5), vars (GITHUB_REPO, VALIDATION_REPO, MONTHLY_COST_USD, KOFI_PAGE_URL), secret names
+validation-channels.json          # ARTCC → scenario-validation channel id
+support-config.json               # Server-cost tracker ids written by setup-support (guild, ticker voice channel, #server-costs, pinned embed message, the two supporter roles)
+src/worker.js                     # fetch/scheduled entry points: Discord interactions (slash commands, buttons), POST /github webhook, POST /kofi, POST /sync/N; thread↔issue sync, githubFetch pacing/retry, GitHub App auth
+src/support.js                    # Server-cost tracker: Ko-fi form-body parse + verification_token check, KV ledger (record in list metadata), carry-forward month math, channel-name ticker + embed rendering, change-gated Discord writes, forgetPayment
+src/validation-channels.js        # validation-channels.json → lookup maps
+src/register.js                   # Registers the slash commands (guild or global scope; clears the other)
+scripts/ensure-validation-buttons.js  # Pins a Run Validation button in every ARTCC channel (also run by the yaat-server validation workflow)
+scripts/setup-support.js          # Idempotently creates the supporter roles, the locked ticker voice channel, the read-only #server-costs channel, the pinned embed; writes support-config.json
+src/worker.test.js, src/support.test.js  # vitest: githubFetch retry/pacing, queued issues; Ko-fi webhook, ledger idempotency, carry-forward math, display change gating
+```

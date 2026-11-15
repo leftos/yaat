@@ -3,7 +3,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
-using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 

@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;

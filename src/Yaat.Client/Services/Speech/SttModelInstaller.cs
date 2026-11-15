@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;

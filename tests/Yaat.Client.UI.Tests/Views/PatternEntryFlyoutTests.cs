@@ -13,7 +13,6 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
-using Yaat.Sim.Phases;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Views;

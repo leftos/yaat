@@ -1,21 +1,15 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
-using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -114,7 +108,7 @@ public partial class RadarView
         MainViewModel main =
             FindMainViewModel()
             ?? throw new InvalidOperationException("The radar aircraft menu needs the main view model; the radar view is not hosted by one");
-        var host = new ClientMenuHost(main, ac, Canvas);
+        ClientMenuHost host = CreateMenuHost(vm, main, ac);
         return AircraftMenuBuilder.Build(
             ac,
             new MenuClick(callsign, prevSelected, null, []),
@@ -122,6 +116,12 @@ public partial class RadarView
             context => BuildViewSection(vm, ac, context, host)
         );
     }
+
+    /// <summary>
+    /// The menu host this radar view's aircraft menus use: its MVA readout (<see cref="ClientMenuHost.GetMva"/>) prefers the chart of
+    /// this view's own facility (<paramref name="vm"/>'s <see cref="RadarViewModel.MvaFacilityId"/>), as its canvas and point menu do.
+    /// </summary>
+    internal ClientMenuHost CreateMenuHost(RadarViewModel vm, MainViewModel main, AircraftModel? ac) => new(main, ac, Canvas, vm.MvaFacilityId);
 
     /// <summary>
     /// The radar's view section: its Display submenu (<see cref="BuildCanvasDisplay"/>), then Draw route. A surface
@@ -240,7 +240,7 @@ public partial class RadarView
             return MenuOf(BuildMapPointSection(vm, position, screenPos, withFrdRow: true));
         }
 
-        var host = new ClientMenuHost(main, selected, Canvas);
+        ClientMenuHost host = CreateMenuHost(vm, main, selected);
         var point = new MenuPoint(position, null, null, [], null);
         List<Control> section = BuildMapPointSection(vm, position, screenPos, withFrdRow: !SharedMenuGroups.PointHeaderShowsFrd(point, host));
         var click = new MenuClick(selected.Callsign, null, point, []);
@@ -263,8 +263,8 @@ public partial class RadarView
 
         AddMeasureMenuItems(items, vm, RblEndpoint.AtPoint(position, frdString ?? ""), screenPos);
 
-        // MVA at the clicked point (FAA-charted; only the loaded facility's coverage, null elsewhere).
-        if (MvaDatabase.Default.FindSector(position) is { } mvaSector)
+        // MVA at the clicked point (FAA-charted; the radar's own facility chart wins where charts overlap).
+        if (MvaDatabase.Default.FindSector(position, vm.MvaFacilityId) is { } mvaSector)
         {
             items.Add(SharedMenuGroups.DetailRow(MvaRow(mvaSector)));
         }

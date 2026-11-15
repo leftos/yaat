@@ -8,9 +8,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.ViewModels;
 
@@ -115,6 +113,14 @@ public partial class RadarViewModel(
     /// <summary>The radar cue a pointed or focused menu row shows (<see cref="IMenuHost.SetRadarCue"/>); null for none.</summary>
     [ObservableProperty]
     private RadarCue? _menuCue;
+
+    /// <summary>
+    /// The facility whose video maps the radar loaded (<see cref="FacilityVideoMapsDto.FacilityId"/>): every MVA readout on this
+    /// radar (altitude tint, Ctrl-hover, point menu) prefers that facility's chart where MVA charts overlap
+    /// (<see cref="Yaat.Sim.Data.Mva.MvaDatabase.FindSector"/>). Null until video maps load and after <see cref="ClearVideoMaps"/>.
+    /// </summary>
+    [ObservableProperty]
+    private string? _mvaFacilityId;
 
     [ObservableProperty]
     private double _centerLat;
@@ -713,6 +719,8 @@ public partial class RadarViewModel(
 
     private void ApplyVideoMapsDto(FacilityVideoMapsDto dto)
     {
+        MvaFacilityId = string.IsNullOrWhiteSpace(dto.FacilityId) ? null : dto.FacilityId;
+
         // Build brightness lookup
         BrightnessLookup.Clear();
         foreach (VideoMapInfoDto map in dto.VideoMaps)
@@ -941,6 +949,7 @@ public partial class RadarViewModel(
         _videoMapLoadGeneration++;
         MapToggles.Clear();
         BrightnessLookup.Clear();
+        MvaFacilityId = null;
         ActiveVideoMaps = null;
         _positionMapGroupMapIds = null;
         WeatherAirports = [];

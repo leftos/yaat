@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;

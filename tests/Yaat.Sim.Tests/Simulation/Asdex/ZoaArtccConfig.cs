@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Yaat.Sim.Data.Vnas;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Asdex;
 

@@ -226,10 +226,7 @@ Write-Host ''
 # measuring a build.
 #
 # Build the TEST PROJECT, not yaat.slnx. Every metric except full-gate concerns Yaat.Sim.Tests,
-# which does not reference yaat-server; the solution does (tools/Yaat.GuideCapture -> ServerApp),
-# so a solution build couples these measurements to the state of a sibling checkout that has
-# nothing to do with them. In a worktree whose yaat-server is on a different branch that coupling
-# is a hard build failure and no metric can be collected at all.
+# so building the whole solution would only add compile work that has nothing to do with them.
 Write-Host '=== priming build (untimed) ===' -ForegroundColor Cyan
 Push-Location $yaatDir
 try {

@@ -44,6 +44,7 @@ public class ScopeDwellTests
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
+            MvaFacilityId: null,
             hovered,
             defaultLevel
         );

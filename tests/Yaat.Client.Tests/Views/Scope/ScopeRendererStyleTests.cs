@@ -66,7 +66,8 @@ public class ScopeRendererStyleTests
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
         return ScopeFrame.Build(input);
     }
@@ -348,7 +349,8 @@ public class ScopeRendererStyleTests
             ScopeTestAircraft.AllAlerts,
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
-            new HashSet<string>()
+            new HashSet<string>(),
+            MvaFacilityId: null
         );
         var frame = ScopeFrame.Build(input);
         FieldRect indicator = FieldOf(frame, ScopeFieldSlot.HsfIndicator);
@@ -394,7 +396,8 @@ public class ScopeRendererStyleTests
             ScopeTestAircraft.AllAlerts,
             display,
             new Dictionary<string, SKPoint>(),
-            highlighted
+            highlighted,
+            MvaFacilityId: null
         );
         return ScopeFrame.Build(input);
     }

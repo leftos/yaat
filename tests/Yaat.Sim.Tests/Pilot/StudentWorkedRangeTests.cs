@@ -2,7 +2,6 @@ using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
 

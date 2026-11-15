@@ -2,7 +2,6 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
-using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Tests;

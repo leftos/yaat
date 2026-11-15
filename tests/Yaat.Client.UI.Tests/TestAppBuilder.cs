@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Headless;
 using Velopack;
-using Yaat.Client;
 using Yaat.Client.UI.Tests;
 
 [assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]

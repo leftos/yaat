@@ -59,6 +59,7 @@ public class ScopeDwellLockTests
             },
             offsets ?? [],
             new HashSet<string>(),
+            MvaFacilityId: null,
             HoveredCallsign: hovered,
             VciHoveredCallsign: vciHovered,
             LocalDwellLockedCallsigns: localLocks
