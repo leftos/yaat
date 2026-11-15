@@ -12,7 +12,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeViewCommandTests
 {
-    private const string Usage = "Usage: .view <ssa|ca> <on|off>";
+    private const string Usage = "Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>";
 
     private static async Task<MainViewModel> MainAsync()
     {

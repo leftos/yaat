@@ -228,6 +228,13 @@ public static class ScopeToolbarButtons
     /// <summary>The command that opens (<paramref name="open"/>) or closes the view named <paramref name="viewName"/>.</summary>
     public static string ViewCommand(string viewName, bool open) => $"{ViewCommandStem(viewName)} {(open ? "on" : "off")}";
 
+    /// <summary>The command that floats the view named <paramref name="viewName"/> on the scope at <paramref name="place"/>.</summary>
+    public static string ViewTearCommand(string viewName, ScopePlacement place) =>
+        string.Create(CultureInfo.InvariantCulture, $"{ViewCommandStem(viewName)} tear {ScopePlacement.NameOf(place.Corner)} {place.Dx} {place.Dy}");
+
+    /// <summary>The command that returns the view named <paramref name="viewName"/> to the dock.</summary>
+    public static string ViewDockCommand(string viewName) => $"{ViewCommandStem(viewName)} dock";
+
     /// <summary>The command that picks the template (or Mixed) with <paramref name="templateId"/>.</summary>
     public static string TemplateCommand(string templateId) => $".scope template {templateId}";
 

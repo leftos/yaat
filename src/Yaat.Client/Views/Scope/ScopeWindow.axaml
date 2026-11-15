@@ -11,10 +11,10 @@
   Title="YAAT Scope"
 >
   <!-- The bar takes a fixed 45 px row; an open menu's tray hangs below it over the scope, so it never resizes the scope.
-       The views dock is a 360 px column right of the scope, collapsed while no view is open. -->
+       The views dock is a 360 px column right of the scope, collapsed while no open view is docked. -->
   <Grid RowDefinitions="45,*" ColumnDefinitions="*,Auto">
     <scope:ScopeView x:Name="View" Grid.Row="1" Grid.Column="0" />
-    <dock:ScopeDock Grid.Row="1" Grid.Column="1" Width="360" IsVisible="{Binding HasOpenViews}" />
+    <dock:ScopeDock Grid.Row="1" Grid.Column="1" Width="360" IsVisible="{Binding HasDockedViews}" />
     <toolbar:ScopeToolbar Grid.Row="0" Grid.RowSpan="2" Grid.ColumnSpan="2" VerticalAlignment="Top" ZIndex="1" />
   </Grid>
 </Window>

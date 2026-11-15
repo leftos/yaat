@@ -825,13 +825,13 @@ The Template pick that draws each track in its owner's block: an ERAM sector's o
 A named snapshot of a YAAT Scope's range, centre, maps, brightness, display settings, open views and tear-offs, kept per facility; the Scope's current state also saves itself, and a pref set is a named copy on top (planned, docs/plans/yaat-scope/README.md).
 
 **SSA (YAAT Scope)**:
-The status area, a view in the Scope's views dock, open by default: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).
+The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).
 
 **Status slot (YAAT Scope)**:
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
 **Tear-off (YAAT Scope)**:
-A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs: a copy, movable, anchored to the nearest corner, one per button, removed with DELETE TEAROFF (planned, docs/plans/yaat-scope/README.md).
+A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs. A button copy (left press on the button's 5 px left-edge strip) behaves like its bar button, is one per button and removed with the DEL TEAROFF mode; a view floats as its card (left press on its title to move it, `▸` to dock it again). Either is anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.scope tearoff` or `.view … tear` (`ScopeTearoffLayer`).
 
 **Template (YAAT Scope)**:
 A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile or by the Template button on the Scope's toolbar.
@@ -846,7 +846,7 @@ The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash
 The position the Scope is viewed from: the instructor's active position (the scenario's student position by default, changed with `AS`), whose ERAM sector decides VCI, R and the handoff text (`ScopeViewer`).
 
 **Views dock (YAAT Scope)**:
-The fixed-width right-hand column of the Scope under the toolbar that holds its views and hides when none is open in it: today the SSA and the LA/CA/MCI list, each a card opened and closed by the VIEWS tray or `.view` (`Views/Scope/Dock/`); the Tab list is planned (docs/plans/yaat-scope/README.md).
+The fixed-width right-hand column of the Scope under the toolbar that holds its docked views and hides when none is docked: today the SSA and the LA/CA/MCI list, each a card opened and closed by the VIEWS tray or `.view`, and floating off the dock when torn off (`Views/Scope/Dock/`); the Tab list is planned (docs/plans/yaat-scope/README.md).
 
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.

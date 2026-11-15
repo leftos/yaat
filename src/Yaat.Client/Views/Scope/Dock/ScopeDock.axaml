@@ -5,39 +5,7 @@
   xmlns:vm="using:Yaat.Client.ViewModels"
   x:Class="Yaat.Client.Views.Scope.Dock.ScopeDock"
   x:DataType="vm:ScopeViewModel"
-  FontFamily="{StaticResource MonoFont}"
-  FontSize="12"
 >
-  <UserControl.DataTemplates>
-    <!-- Each view's body, picked by the view model's type inside its card. -->
-    <DataTemplate x:DataType="vm:SsaViewModel">
-      <StackPanel Margin="8,6">
-        <TextBlock Text="{Binding Line1}" Foreground="LimeGreen" />
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="{Binding Status}" Classes="ssaStatus" Classes.alert="{Binding IsStatusAlert}" />
-          <TextBlock Text=" " />
-          <TextBlock Text="{Binding Line2Tail}" Foreground="LimeGreen" />
-        </StackPanel>
-      </StackPanel>
-    </DataTemplate>
-    <DataTemplate x:DataType="vm:ConflictListViewModel">
-      <ItemsControl Margin="8,6" ItemsSource="{Binding Rows}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="x:String">
-            <TextBlock Text="{Binding}" Foreground="LimeGreen" />
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </DataTemplate>
-  </UserControl.DataTemplates>
-  <UserControl.Styles>
-    <Style Selector="TextBlock.ssaStatus">
-      <Setter Property="Foreground" Value="LimeGreen" />
-    </Style>
-    <Style Selector="TextBlock.ssaStatus.alert">
-      <Setter Property="Foreground" Value="#ff4040" />
-    </Style>
-  </UserControl.Styles>
   <Border Background="#070b0f" BorderBrush="#22313b" BorderThickness="1,0,0,0">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
       <ItemsControl ItemsSource="{Binding DockViews}">

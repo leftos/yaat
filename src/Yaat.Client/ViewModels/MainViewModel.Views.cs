@@ -3,19 +3,20 @@ using Yaat.Client.Views.Scope.Toolbar;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The <c>.view</c> dot command: client-only, never sent to the server. It opens or closes a view of the open YAAT Scope;
-/// the Scope's VIEWS toggles and its cards' close buttons run the same command, so every path echoes alike.
+/// The <c>.view</c> dot command: client-only, never sent to the server. It opens or closes a view of the open YAAT Scope,
+/// floats it at a corner of the scope or returns it to the dock; the Scope's VIEWS toggles, its cards' close and dock
+/// buttons and a card's move run the same command, so every path echoes alike.
 /// </summary>
 public partial class MainViewModel
 {
-    private const string ViewUsage = "Usage: .view <ssa|ca> <on|off>";
+    private const string ViewUsage = "Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>";
 
     /// <summary>Runs a <c>.view</c> command from the Scope; nothing is added to the command history.</summary>
     public void RunViewCommand(string text) => TryHandleViewCommand(text);
 
     /// <summary>
-    /// Handles <c>.view &lt;ssa|ca&gt; &lt;on|off&gt;</c> against <see cref="OpenScope"/>, writing the echo or the error to the
-    /// status line.
+    /// Handles <c>.view &lt;ssa|ca&gt; &lt;on|off|dock&gt;</c> and <c>.view &lt;ssa|ca&gt; tear &lt;corner&gt; &lt;dx&gt;
+    /// &lt;dy&gt;</c> against <see cref="OpenScope"/>, writing the echo or the error to the status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.view</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleViewCommand(string text)
@@ -30,7 +31,7 @@ public partial class MainViewModel
         return true;
     }
 
-    /// <summary>Sets the view <paramref name="parts"/> names to the state it names, and returns the status text.</summary>
+    /// <summary>Applies the <c>.view</c> command in <paramref name="parts"/> to its view, and returns the status text.</summary>
     private string RunViewVerb(string[] parts)
     {
         if (OpenScope is not { } scope)
@@ -38,24 +39,48 @@ public partial class MainViewModel
             return "No YAAT Scope is open";
         }
 
+        string name = (parts.Length >= 3) ? parts[1].ToLowerInvariant() : "";
+        return ScopeViewModel.IsViewName(name) ? RunViewAction(scope, name, parts) : ViewUsage;
+    }
+
+    /// <summary>The action <c>parts[2]</c> on the view named <paramref name="name"/>; an error changes nothing.</summary>
+    private static string RunViewAction(ScopeViewModel scope, string name, string[] parts)
+    {
+        string action = parts[2].ToLowerInvariant();
+        if (action == "tear")
+        {
+            return TearView(scope, name, parts);
+        }
+
         if (parts.Length != 3)
         {
             return ViewUsage;
         }
 
-        string name = parts[1].ToLowerInvariant();
-        bool? open = parts[2].ToLowerInvariant() switch
+        switch (action)
         {
-            "on" => true,
-            "off" => false,
-            _ => null,
-        };
-        if (!ScopeViewModel.IsViewName(name) || (open is not { } isOpen))
+            case "on":
+            case "off":
+                bool open = action == "on";
+                scope.SetViewOpen(name, open);
+                return ScopeToolbarButtons.ViewCommand(name, open);
+            case "dock":
+                scope.SetViewPlace(name, null);
+                return ScopeToolbarButtons.ViewDockCommand(name);
+            default:
+                return ViewUsage;
+        }
+    }
+
+    /// <summary><c>.view &lt;name&gt; tear tl|tr|bl|br &lt;dx&gt; &lt;dy&gt;</c>: opens the view if closed and floats it there.</summary>
+    private static string TearView(ScopeViewModel scope, string name, string[] parts)
+    {
+        if (!TryParsePlacement(parts, 3, out ScopePlacement? place))
         {
             return ViewUsage;
         }
 
-        scope.SetViewOpen(name, isOpen);
-        return ScopeToolbarButtons.ViewCommand(name, isOpen);
+        scope.SetViewPlace(name, place);
+        return ScopeToolbarButtons.ViewTearCommand(name, place);
     }
 }

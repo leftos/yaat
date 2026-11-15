@@ -1,0 +1,73 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:dock="using:Yaat.Client.Views.Scope.Dock"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Scope.Dock.ScopeViewCard"
+  x:DataType="vm:ScopeDockViewModel"
+  FontFamily="{StaticResource MonoFont}"
+  FontSize="12"
+>
+  <UserControl.DataTemplates>
+    <!-- Each view's body, picked by the view model's type; the card carries them, so it draws alike in any host. -->
+    <DataTemplate x:DataType="vm:SsaViewModel">
+      <StackPanel Margin="8,6">
+        <TextBlock Text="{Binding Line1}" Foreground="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="{Binding Status}" Classes="ssaStatus" Classes.alert="{Binding IsStatusAlert}" />
+          <TextBlock Text=" " />
+          <TextBlock Text="{Binding Line2Tail}" Foreground="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate x:DataType="vm:ConflictListViewModel">
+      <ItemsControl Margin="8,6" ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <TextBlock Text="{Binding}" Foreground="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+  <UserControl.Styles>
+    <Style Selector="TextBlock.ssaStatus">
+      <Setter Property="Foreground" Value="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.ssaStatus.alert">
+      <Setter Property="Foreground" Value="{x:Static dock:ScopeViewCard.AlertBrush}" />
+    </Style>
+    <Style Selector="Button.cardButton">
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{x:Static dock:ScopeViewCard.TitleBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <Border BorderBrush="{x:Static dock:ScopeViewCard.CardBorderBrush}" BorderThickness="1" Background="{x:Static dock:ScopeViewCard.BodyBrush}">
+    <StackPanel>
+      <Border Background="{x:Static dock:ScopeViewCard.HeaderBrush}" Padding="0,0,2,0">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <!-- The title area is the card's reposition pick area: a left press there moves the card. -->
+          <Border x:Name="PickArea" Background="Transparent" Padding="8,2,0,2">
+            <TextBlock Text="{Binding Title}" Foreground="{x:Static dock:ScopeViewCard.TitleBrush}" VerticalAlignment="Center" />
+          </Border>
+          <Button
+            Grid.Column="1"
+            Classes="cardButton"
+            Content="▸"
+            AutomationProperties.Name="Dock"
+            x:Name="DockButton"
+            IsVisible="False"
+            Command="{Binding DockCommand}"
+          />
+          <Button Grid.Column="2" Classes="cardButton" Content="–" AutomationProperties.Name="Close" Command="{Binding CloseCommand}" />
+        </Grid>
+      </Border>
+      <ContentControl Content="{Binding}" />
+    </StackPanel>
+  </Border>
+</UserControl>

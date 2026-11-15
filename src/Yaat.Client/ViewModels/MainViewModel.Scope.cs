@@ -154,7 +154,7 @@ public partial class MainViewModel
             return DeleteScopeTearoffs(scope, parts);
         }
 
-        if (!TryParsePlacement(parts, out ScopePlacement? place))
+        if (!TryParsePlacement(parts, 3, out ScopePlacement? place))
         {
             return ScopeTearoffUsage;
         }
@@ -174,18 +174,19 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// The placement in <c>.scope tearoff &lt;button&gt; &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c>: six parts, a corner name and
-    /// two non-negative whole offsets.
+    /// The placement that ends a command's <paramref name="parts"/> at <paramref name="index"/>, as in <c>.scope tearoff
+    /// &lt;button&gt; &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c> and <c>.view &lt;name&gt; tear &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c>:
+    /// exactly three last parts, a corner name and two non-negative whole offsets.
     /// </summary>
     /// <returns>False when the parts are no such placement.</returns>
-    private static bool TryParsePlacement(string[] parts, [NotNullWhen(true)] out ScopePlacement? place)
+    private static bool TryParsePlacement(string[] parts, int index, [NotNullWhen(true)] out ScopePlacement? place)
     {
         place =
             (
-                (parts.Length == 6)
-                && ScopePlacement.TryParseCorner(parts[3], out ScopeCorner corner)
-                && int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out int dx)
-                && int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int dy)
+                (parts.Length == (index + 3))
+                && ScopePlacement.TryParseCorner(parts[index], out ScopeCorner corner)
+                && int.TryParse(parts[index + 1], NumberStyles.None, CultureInfo.InvariantCulture, out int dx)
+                && int.TryParse(parts[index + 2], NumberStyles.None, CultureInfo.InvariantCulture, out int dy)
             )
                 ? new ScopePlacement(corner, dx, dy)
                 : null;

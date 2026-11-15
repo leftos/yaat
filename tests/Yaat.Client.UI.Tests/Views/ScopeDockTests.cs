@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -14,8 +16,9 @@ using Yaat.Client.Views.Scope.Toolbar;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Scope window's views dock: a 360 px column right of the scope holding the open views' cards (the SSA, open by
-/// default, then LA/CA/MCI), hidden when no view is open. Each view opens and closes through <c>.view</c>.
+/// The Scope window's views dock: a 360 px column right of the scope holding the docked views' cards (the SSA, then
+/// LA/CA/MCI), hidden when no open view is docked. The SSA opens floating on the scope, so most tests dock it first. Each
+/// view opens, closes and docks through <c>.view</c>.
 /// </summary>
 public class ScopeDockTests
 {
@@ -49,23 +52,19 @@ public class ScopeDockTests
 
     private static double ContentWidth(Window window) => ((Control)window.Content!).Bounds.Width;
 
-    private static string[] Texts(Control control) =>
+    internal static string[] Texts(Control control) =>
         [.. control.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? "")];
 
     [AvaloniaFact]
-    public async Task TheWindow_Opens1360Wide_WithTheSsaInA360Dock()
+    public async Task TheWindow_Opens1360Wide_WithTheDockHidden()
     {
-        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        (_, _, ScopeWindow window) = await OpenAsync();
         try
         {
+            // The SSA floats on the scope by default (ScopeViewTearoffTests), so no view is docked.
             Assert.Equal(1360, window.Width);
-            Assert.Equal([ScopeToolbarButtons.ViewSsaName], scope.OpenViews);
-            ScopeDock dock = DockOf(window);
-            Assert.True(dock.IsEffectivelyVisible);
-            Assert.Equal(360, dock.Bounds.Width);
-            Assert.Equal(ContentWidth(window), CanvasOf(window).Bounds.Width + 360);
-            Assert.Equal([ScopeToolbarButtons.ViewSsaName], Cards(window).Select(c => c.ViewName));
-            Assert.Contains("SSA", Texts(CardOf(window, ScopeToolbarButtons.ViewSsaName)));
+            Assert.False(DockOf(window).IsEffectivelyVisible);
+            Assert.Equal(ContentWidth(window), CanvasOf(window).Bounds.Width);
         }
         finally
         {
@@ -79,6 +78,8 @@ public class ScopeDockTests
         (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
         try
         {
+            main.RunViewCommand(".view ssa dock");
+            Settle(window);
             ScopeCanvas canvas = CanvasOf(window);
             double zoom = canvas.Viewport.Zoom;
 
@@ -108,6 +109,8 @@ public class ScopeDockTests
         (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
         try
         {
+            main.RunViewCommand(".view ssa dock");
+            Settle(window);
             Assert.False(main.Preferences.ShowConflictAlerts);
             main.RunViewCommand(".view ca on");
             Settle(window);
@@ -139,12 +142,18 @@ public class ScopeDockTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
+            main.RunViewCommand(".view ssa dock");
+            Settle(window);
             main.RunViewCommand(".view ca on");
             Settle(window);
 
-            Button close = CardOf(window, ScopeToolbarButtons.ViewCaName).GetVisualDescendants().OfType<Button>().Single();
+            Button close = CardOf(window, ScopeToolbarButtons.ViewCaName).GetVisualDescendants().OfType<Button>().Single(b => b.IsEffectivelyVisible);
             Assert.Equal("–", close.Content);
-            ScopeToolbarTests.Click(close);
+            // A real click: the button runs its bound command, which a raised Click event alone does not.
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Point centre = close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(centre, MouseButton.Left);
+            window.MouseUp(centre, MouseButton.Left);
             Settle(window);
 
             Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
@@ -163,6 +172,8 @@ public class ScopeDockTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
+            main.RunViewCommand(".view ssa dock");
+            Settle(window);
             ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Views));
             Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.ViewSsa).Classes);
             Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.ViewCa).Classes);
@@ -277,6 +288,8 @@ public class ScopeDockTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
+            main.RunViewCommand(".view ssa dock");
+            Settle(window);
             main.RunViewCommand(".view ssa off");
             main.RunViewCommand(".view ca on");
             main.RunViewCommand(".view ssa on");
@@ -304,7 +317,7 @@ public class ScopeDockTests
 
             scope.ApplyOpenViews([]);
 
-            Assert.False(scope.HasOpenViews);
+            Assert.False(scope.HasDockedViews);
         }
         finally
         {
@@ -315,9 +328,11 @@ public class ScopeDockTests
     [AvaloniaFact]
     public async Task TheSsaCard_OutsideARoom_ShowsTheRedNaStatusAndTheRange()
     {
-        (_, _, ScopeWindow window) = await OpenAsync();
+        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
         try
         {
+            main.RunViewCommand(".view ssa dock");
+            Settle(window);
             ScopeViewCard ssa = CardOf(window, ScopeToolbarButtons.ViewSsaName);
 
             string[] texts = Texts(ssa);
