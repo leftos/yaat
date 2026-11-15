@@ -672,6 +672,17 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<CommandResultDto>("RequestFlightStripForAircraft", callsign);
     }
 
+    /// <summary>
+    /// The YAAT Scope's Field-A click: toggles the dwell lock of the ERAM sector this connection acts as (its AS position,
+    /// else the student) on the aircraft. The server refuses with a message when that is no ERAM sector, and takes control
+    /// of a room playing back, as CRC's dwell click does.
+    /// </summary>
+    public async Task<CommandResultDto> ToggleScopeDwellLockAsync(string callsign)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("ToggleScopeDwellLock", callsign);
+    }
+
     public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
     {
         EnsureConnected();
@@ -1525,6 +1536,10 @@ public record AircraftDto
     public string? EramRecentHandoffFromFacilityId { get; init; } = null;
     public bool EramRecentHandoffWasForced { get; init; } = false;
     public string? EramRecentHandoffPeerFieldE { get; init; } = null;
+
+    // The ERAM sectors whose Field-A dwell lock holds this track's data block, ordered ordinally by facility then sector; the
+    // client compares the pairs with its own viewer's ERAM sector. Nullable as the other lists here are.
+    public List<EramSectorKey>? EramDwellLockedSectors { get; init; } = null;
 
     // The identities the client compares with the position it acts as (Yaat.Sim.TrackCoordinationView): the owner's and the
     // handoff peer's facility ids, the position that redirected the handoff, and the pending pointout's recipient and sender

@@ -91,6 +91,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private IReadOnlyList<string> _eramOnFrequencySectorIds = [];
 
+    /// <summary>The ERAM sectors whose Field-A dwell lock holds this track's data block.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<EramSectorKey> _eramDwellLockedSectors = [];
+
     /// <summary>The ERAM target is correlated with its flight plan.</summary>
     [ObservableProperty]
     private bool _eramIsCorrelated;
@@ -1528,6 +1532,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             EramRecentHandoffFromFacilityId = dto.EramRecentHandoffFromFacilityId,
             EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced,
             EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE,
+            EramDwellLockedSectors = [.. dto.EramDwellLockedSectors ?? []],
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
@@ -1705,6 +1710,11 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         EramRecentHandoffFromFacilityId = dto.EramRecentHandoffFromFacilityId;
         EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced;
         EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE;
+        IReadOnlyList<EramSectorKey> dwellLocked = dto.EramDwellLockedSectors ?? [];
+        if (!EramDwellLockedSectors.SequenceEqual(dwellLocked))
+        {
+            EramDwellLockedSectors = [.. dwellLocked];
+        }
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;

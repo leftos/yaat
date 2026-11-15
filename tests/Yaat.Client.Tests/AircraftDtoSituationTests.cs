@@ -202,6 +202,69 @@ public class AircraftDtoSituationTests
         Assert.Contains(nameof(AircraftModel.EramOnFrequencySectorIds), changed);
     }
 
+    [Fact]
+    public void Model_CopiesDwellLockedSectors_OnCreate_AndDefaultsToEmpty()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with { EramDwellLockedSectors = [new("ZLA", "25"), new("ZOA", "44")] };
+
+        Assert.Equal([new EramSectorKey("ZLA", "25"), new EramSectorKey("ZOA", "44")], AircraftModel.FromDto(set).EramDwellLockedSectors);
+        Assert.Empty(AircraftModel.FromDto(Dto(AircraftSituation.Final)).EramDwellLockedSectors);
+    }
+
+    [Fact]
+    public void Json_DwellLockedSectors_RoundTrip_AndMissingDeserializesAsNull()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with { EramDwellLockedSectors = [new("ZOA", "44")] };
+        string json = JsonSerializer.Serialize(set, WireOptions);
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        Assert.Equal([new EramSectorKey("ZOA", "44")], back.EramDwellLockedSectors);
+        Assert.Null(JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\"}", WireOptions)!.EramDwellLockedSectors);
+    }
+
+    [Fact]
+    public void Json_DwellLockedSectors_ReadTheServersWireNames()
+    {
+        const string json = "{\"callsign\":\"UAL1\",\"eramDwellLockedSectors\":[{\"facility\":\"ZOA\",\"sector\":\"44\"}]}";
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        Assert.Equal([new EramSectorKey("ZOA", "44")], back.EramDwellLockedSectors);
+    }
+
+    [Fact]
+    public void ApplyDto_SameDwellLockedSectors_RaisesNoPropertyChanged()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with { EramDwellLockedSectors = [new("ZOA", "44"), new("ZOA", "40")] };
+        var model = AircraftModel.FromDto(set);
+        IReadOnlyList<EramSectorKey> before = model.EramDwellLockedSectors;
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        model.UpdateFromDto(set with { EramDwellLockedSectors = [new("ZOA", "44"), new("ZOA", "40")] });
+
+        Assert.DoesNotContain(nameof(AircraftModel.EramDwellLockedSectors), changed);
+        Assert.Same(before, model.EramDwellLockedSectors);
+    }
+
+    [Fact]
+    public void ApplyDto_ChangedDwellLockedSectors_Updates()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { EramDwellLockedSectors = [new("ZOA", "44")] });
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final) with { EramDwellLockedSectors = [new("ZOA", "40"), new("ZOA", "44")] });
+        Assert.Equal([new EramSectorKey("ZOA", "40"), new EramSectorKey("ZOA", "44")], model.EramDwellLockedSectors);
+        Assert.Contains(nameof(AircraftModel.EramDwellLockedSectors), changed);
+
+        changed.Clear();
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        Assert.Empty(model.EramDwellLockedSectors);
+        Assert.Contains(nameof(AircraftModel.EramDwellLockedSectors), changed);
+    }
+
     private static void AssertEramLine34Inputs(AircraftModel model, AircraftDto dto)
     {
         Assert.Equal(dto.EramAssignedHeading, model.EramAssignedHeading);
