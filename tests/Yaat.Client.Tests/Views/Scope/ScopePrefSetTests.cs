@@ -1,0 +1,139 @@
+using System.Text.Json;
+using Xunit;
+using Yaat.Client.Views.Scope.Prefs;
+
+namespace Yaat.Client.Tests.Views.Scope;
+
+/// <summary>
+/// The pref-set records' JSON: the property names the files carry, the round trip through the store's options, the
+/// passthrough of a field this build does not know, and the empty collections a file without them gives.
+/// </summary>
+public class ScopePrefSetTests
+{
+    [Fact]
+    public void FullSet_RoundTripsWithEveryFieldEqual()
+    {
+        ScopePrefSet set = FullSet();
+
+        ScopePrefSet loaded = RoundTrip(set);
+
+        Assert.Equal(set.Name, loaded.Name);
+        Assert.Equal(set.RangeNm, loaded.RangeNm);
+        Assert.Equal(set.CenterLat, loaded.CenterLat);
+        Assert.Equal(set.CenterLon, loaded.CenterLon);
+        Assert.Equal(set.TemplateId, loaded.TemplateId);
+        Assert.Equal(set.Brightness.Count, loaded.Brightness.Count);
+        Assert.All(set.Brightness, pair => Assert.Equal(pair.Value, loaded.Brightness[pair.Key]));
+        Assert.Equal(set.Db, loaded.Db);
+        Assert.Equal(set.Maps, loaded.Maps);
+        Assert.Equal(set.OpenViews, loaded.OpenViews);
+        Assert.Equal(set.ViewPlaces, loaded.ViewPlaces);
+        Assert.Equal(set.Tearoffs, loaded.Tearoffs);
+        Assert.Equal(set.Toolbar, loaded.Toolbar);
+        Assert.Equal(set.Views, loaded.Views);
+        Assert.Null(loaded.Bands);
+        Assert.Null(loaded.Kind);
+    }
+
+    [Fact]
+    public void SerializedSet_UsesTheFiledPropertyNames()
+    {
+        string json = JsonSerializer.Serialize(FullSet(), ScopePrefSet.JsonOptions);
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(
+            [
+                "name",
+                "rangeNm",
+                "centerLat",
+                "centerLon",
+                "templateId",
+                "brightness",
+                "db",
+                "maps",
+                "openViews",
+                "viewPlaces",
+                "tearoffs",
+                "toolbar",
+                "views",
+                "bands",
+                "kind",
+            ],
+            document.RootElement.EnumerateObject().Select(property => property.Name)
+        );
+    }
+
+    [Fact]
+    public void UnknownField_IsKeptOnResave()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "rangeNm": 37.5,
+              "centerLat": 37.5,
+              "centerLon": -122.5,
+              "templateId": "eram",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "futureThing": 3
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        string resaved = JsonSerializer.Serialize(loaded, ScopePrefSet.JsonOptions);
+        using var document = JsonDocument.Parse(resaved);
+
+        Assert.Equal(3, document.RootElement.GetProperty("futureThing").GetInt32());
+    }
+
+    [Fact]
+    public void MissingCollections_LoadEmpty()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "rangeNm": 37.5,
+              "centerLat": 37.5,
+              "centerLon": -122.5,
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.Empty(loaded.Maps);
+        Assert.Empty(loaded.Tearoffs);
+        Assert.Empty(loaded.Brightness);
+        Assert.Empty(loaded.OpenViews);
+        Assert.Empty(loaded.ViewPlaces);
+        Assert.Empty(loaded.Toolbar);
+        Assert.Empty(loaded.Views);
+    }
+
+    private static ScopePrefSet FullSet() =>
+        new()
+        {
+            Name = "SR-DAY",
+            RangeNm = 37.5,
+            CenterLat = 37.6173,
+            CenterLon = -122.375,
+            TemplateId = "eram",
+            Brightness = new Dictionary<string, int>
+            {
+                ["mapa"] = 100,
+                ["line4"] = -15,
+                ["dwell"] = 20,
+            },
+            Db = new ScopePrefDb(true, false, true, 14),
+            Maps = [3, 15, 40],
+            OpenViews = ["ssa", "ca"],
+            ViewPlaces = [new ScopePrefView("ssa", null, 8, 8), new ScopePrefView("ca", "br", 410, 260)],
+            Tearoffs = [new ScopePrefTearoff("range", "tl", 10, 20), new ScopePrefTearoff("map15", "tr", -30, 40)],
+            Toolbar = ["range", "map15", "pref"],
+            Views = ["ssa", "ca"],
+        };
+
+    private static ScopePrefSet RoundTrip(ScopePrefSet set) =>
+        JsonSerializer.Deserialize<ScopePrefSet>(JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions), ScopePrefSet.JsonOptions)!;
+}
