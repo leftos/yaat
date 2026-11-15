@@ -5,9 +5,6 @@
 ## YAAT Scope (feat/yaat-scope)
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
-  - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
-    - [ ] YAAT-2321 YAAT Scope step 3c: tear-offs for toolbar buttons and views · release vNext
-    - [ ] YAAT-2322 YAAT Scope step 3d: named pref sets and the Scope's saved state · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
@@ -20,6 +17,9 @@
   - [ ] YAAT-2283 YAAT Scope: ERAM Field E handoff text for STARS peers from the neighbour Field E format
   - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
 - [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
+- [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
+- [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
+- [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -1518,6 +1518,7 @@
 - [ ] YAAT-2294 Live traffic descends to the MVA of the chart that governs it, not the highest overlapping chart
 - [ ] YAAT-2296 A reaction-delayed command that later fails still answers pilot requests and stamps clearances
 - [ ] YAAT-2297 Match composite FAA MVA chart ids (D01_DEN_PUB, BOI_BZN) to the radar's facility
+- [ ] YAAT-2327 AtomicFile.WriteAllText leaves its .tmp file behind when the write fails
 
 ## Design files
 
@@ -1545,4 +1546,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2277, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2277, YAAT Scope (feat/yaat-scope)
