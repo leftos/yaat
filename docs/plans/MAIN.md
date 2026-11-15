@@ -6,6 +6,8 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
+    - [ ] YAAT-2321 YAAT Scope step 3c: tear-offs for toolbar buttons and views · release vNext
+    - [ ] YAAT-2322 YAAT Scope step 3d: named pref sets and the Scope's saved state · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
@@ -17,6 +19,7 @@
   - [ ] YAAT-2278 YAAT Scope: bring ScopeCanvas.OnPropertyChanged under the complexity limit
   - [ ] YAAT-2283 YAAT Scope: ERAM Field E handoff text for STARS peers from the neighbour Field E format
   - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
+- [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
