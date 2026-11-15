@@ -5,8 +5,6 @@
 ## YAAT Scope (feat/yaat-scope)
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
-  - [ ] YAAT-2221 YAAT Scope step 2: ERAM altitude line, line-3 status slot, line-4 HSF, VCI and dwell · release vNext
-    - [ ] YAAT-2270 YAAT Scope step 2c: block levels and dwell, Mixed template, altitude-mismatch marker · release vNext
   - [ ] YAAT-2222 YAAT Scope step 3: toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
@@ -67,7 +65,7 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-2292 Offer CAPP as a quick command to an aircraft given EAPP or established on its expected approach · release vNext
+- [ ] YAAT-2315 Build the Cleared visual approach menu entry without throwing when navdata is not loaded
 
 ## Say again
 
@@ -862,7 +860,7 @@
 
 ## Approaches and holds
 
-### 1 Defects (2/20 done)
+### 1 Defects (2/21 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
@@ -881,6 +879,7 @@
 - [ ] YAAT-2305 Continue the approach in place for a CAPP combined with other commands, and JFAC, CAPP from vectors
 - [ ] YAAT-2306 Final approach started inside its FAS trigger flies the no-wind approach speed
 - [ ] YAAT-2309 Rebuilt approach transition descends below the IAF's at-or-above altitude before the hold-in-lieu
+- [ ] YAAT-2311 Check that a bare CAPP to an aircraft vectored onto the final course flies no course reversal
 
 ### 2 Refinements and rulings (0/10 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
@@ -1489,6 +1488,7 @@
 - [ ] YAAT-2271 Convert LoadScenarioResult and RoomStateDto to init properties like AircraftStateDto
 - [ ] YAAT-2272 Fix ERAM doc drift against CRC (HSF line, field-B #, Table 3 V) and link the ERAM open questions
 - [ ] YAAT-2274 Split DtoConverter.ToTrainingDto under the 100-line limit
+- [ ] YAAT-2316 Split AircraftModel.FromDto, UpdateFromDto and CaptureTrainingDto under the 100-line limit
 
 ## Backlog
 
@@ -1542,4 +1542,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2221, YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2270, YAAT-2277, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2222, YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2277, YAAT Scope (feat/yaat-scope)
