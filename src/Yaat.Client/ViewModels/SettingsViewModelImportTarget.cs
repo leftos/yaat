@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim;
-using Yaat.Sim.Commands;
 
 namespace Yaat.Client.ViewModels;
 

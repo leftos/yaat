@@ -105,7 +105,9 @@ dotnet csharpier format .                            # Whitespace and line break
 dotnet build -p:TreatWarningsAsErrors=true           # Verify the build still passes
 ```
 
-What CI checks: `dotnet csharpier check .` and `dotnet format style yaat.slnx --verify-no-changes --severity info`.
+Unused usings (IDE0005) are a `warning`, so they fail the build; the compiler reports them only because every project builds an XML doc file, whose doc-comment warnings are suppressed in `Directory.Build.props`. A pre-push hook (`dotnet-format-ide0005`) runs the same check as CI.
+
+What CI checks: `dotnet csharpier check .`, `dotnet format style yaat.slnx --verify-no-changes --severity info`, and `dotnet format style yaat.slnx --diagnostics IDE0005 --severity warn --verify-no-changes`.
 
 The conventions the rules encode: braces on every control-flow body; file-scoped namespaces that match the folder path;
 `var` only when the right-hand side names the type (`new T()`, a cast) and the explicit type everywhere else; expression

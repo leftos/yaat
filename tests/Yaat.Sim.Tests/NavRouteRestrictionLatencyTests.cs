@@ -2,7 +2,6 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation;
 using OakesHarness = Yaat.Sim.Tests.Simulation.DescendViaSupersedesEarlierAltitudeTests.Harness;
 

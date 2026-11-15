@@ -1,5 +1,4 @@
 using Yaat.Sim.Phases;
-using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Data.Airport;

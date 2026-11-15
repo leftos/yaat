@@ -1,7 +1,5 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Data.Airport.Precompute;
-using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests;
 

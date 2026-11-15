@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using Yaat.Client.Models;
-using Yaat.Client.Services.Speech;
 using Yaat.Client.Services.Speech.Bench;
 
 namespace Yaat.Client.Tests;

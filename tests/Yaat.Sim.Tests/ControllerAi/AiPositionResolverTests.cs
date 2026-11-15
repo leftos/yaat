@@ -1,7 +1,6 @@
 using Xunit;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.ControllerAi;
 

@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 

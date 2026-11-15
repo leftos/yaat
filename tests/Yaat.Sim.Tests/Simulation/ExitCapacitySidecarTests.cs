@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

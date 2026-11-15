@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.ControllerAi.Knowledge;
 

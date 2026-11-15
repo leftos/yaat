@@ -7,7 +7,6 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Settings;
 
 namespace Yaat.Client.UI.Tests.Views;
 

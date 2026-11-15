@@ -4,7 +4,6 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
-using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Phases;
 

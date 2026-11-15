@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
@@ -6,7 +5,6 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 

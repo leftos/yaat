@@ -8,7 +8,6 @@ using Avalonia.Media;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;

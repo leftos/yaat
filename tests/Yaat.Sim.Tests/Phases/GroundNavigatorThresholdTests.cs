@@ -1,9 +1,6 @@
 using Xunit;
-using Yaat.Sim;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Phases;
 

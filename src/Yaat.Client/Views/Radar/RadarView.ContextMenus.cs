@@ -1,21 +1,15 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
-using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Client.Views.Radar;
 

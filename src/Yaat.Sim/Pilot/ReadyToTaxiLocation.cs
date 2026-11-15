@@ -1,5 +1,3 @@
-using Yaat.Sim.Data.Airport;
-
 namespace Yaat.Sim.Pilot;
 
 /// <summary>What a "ready to taxi" call names as the place the pilot calls from.</summary>

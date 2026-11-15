@@ -1,7 +1,6 @@
 using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
-using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Simulation.RejectedTakeoffTestRig;
 
 namespace Yaat.Sim.Tests.Simulation;

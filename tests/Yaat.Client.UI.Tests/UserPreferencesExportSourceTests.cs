@@ -1,6 +1,5 @@
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests;

@@ -1,10 +1,7 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport.Precompute;
-using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests.Training;

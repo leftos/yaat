@@ -2,7 +2,6 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
-using static Yaat.Sim.Data.Airport.AirportGroundLayout;
 
 namespace Yaat.LayoutInspector;
 

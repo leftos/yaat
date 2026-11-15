@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Net.Http;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Microsoft.Extensions.Time.Testing;
@@ -9,7 +8,6 @@ using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
 using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 

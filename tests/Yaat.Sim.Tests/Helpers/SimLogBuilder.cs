@@ -1,4 +1,3 @@
-using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Soak;

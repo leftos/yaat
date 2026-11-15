@@ -6,7 +6,6 @@ using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests;

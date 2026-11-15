@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;

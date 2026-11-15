@@ -3,7 +3,6 @@ using System.Net;
 using System.Text.Json;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Tests;
 

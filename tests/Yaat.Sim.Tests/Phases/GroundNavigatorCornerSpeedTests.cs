@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Tests.Phases;

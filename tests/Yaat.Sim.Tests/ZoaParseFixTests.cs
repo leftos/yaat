@@ -2,7 +2,6 @@ using System.Globalization;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 

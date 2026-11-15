@@ -11,7 +11,6 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Ground;

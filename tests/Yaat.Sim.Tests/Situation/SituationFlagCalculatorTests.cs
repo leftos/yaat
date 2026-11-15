@@ -13,7 +13,6 @@ using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Tests.ControllerAi;
-using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests.Situation;

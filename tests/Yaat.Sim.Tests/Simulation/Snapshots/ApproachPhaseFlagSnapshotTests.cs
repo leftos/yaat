@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;

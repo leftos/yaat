@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Asdex;
 
 namespace Yaat.Sim.Tests.Asdex;

@@ -1,4 +1,3 @@
-using System.Linq;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Models;

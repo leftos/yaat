@@ -14,7 +14,6 @@ using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Commands;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.Asdex;
 using Yaat.Sim.Training;
 

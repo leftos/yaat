@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;

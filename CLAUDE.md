@@ -114,7 +114,7 @@ Tests: writing or debugging one, read tests/CLAUDE.md and docs/test-harness.md f
 
 ### Code Style
 
-- **Style is a build gate**: `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level `.editorconfig` rule breaks the build; CI also fails on info-level style findings and on `dotnet csharpier check .`. CSharpier formats `.cs` and `.axaml`.
+- **Style is a build gate**: `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level `.editorconfig` rule breaks the build; CI also fails on info-level style findings and on `dotnet csharpier check .`. CSharpier formats `.cs` and `.axaml`. IDE0005 (unused using) is a `warning`, so an unused using fails the build; that needs the XML doc file, which every project builds (`GenerateDocumentationFile`), with its doc-comment warnings suppressed in `Directory.Build.props` `NoWarn` until YAAT-2330. The one exception is `build/sherpa/EnsureSherpaNatives.cs`. The pre-push hook `dotnet-format-ide0005` and the CI step "Unused usings (IDE0005)" check it solution-wide.
 - **Boolean expressions**: Parenthesize to disambiguate — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`
 - **No repurposing DTO fields**: Add new fields with clear names. Remove dead fields entirely.
 - **Per-user paths via `YaatPaths`**: every `%LOCALAPPDATA%/yaat` path routes through `YaatPaths.AppDataRoot` / `YaatPaths.Combine(...)` (in `Yaat.Sim`), never raw `Environment.GetFolderPath`. Test-project consequences are in `tests/CLAUDE.md`.

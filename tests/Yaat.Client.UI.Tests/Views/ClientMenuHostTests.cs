@@ -1,8 +1,6 @@
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
-using Avalonia.LogicalTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -11,7 +9,6 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;

@@ -94,3 +94,14 @@ language = "system"
 files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
 pass_filenames = false
 stages = ["pre-push"]
+
+# Unused usings (IDE0005) across the whole solution, as CI checks them; pre-push because it
+# reads every project, where pre-commit hooks stay scoped to the staged files.
+[[repos.hooks]]
+id = "dotnet-format-ide0005"
+name = "dotnet format style (unused usings, IDE0005)"
+entry = "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/prek-ide0005.log -TimeoutSeconds 900 -Slot heavy -- dotnet format style yaat.slnx --diagnostics IDE0005 --severity warn --verify-no-changes"
+language = "system"
+files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
+pass_filenames = false
+stages = ["pre-push"]

@@ -6,7 +6,6 @@ using NAudio.Dsp;
 using PortAudioSharp;
 using SherpaOnnx;
 using Yaat.Client.Logging;
-using Yaat.Sim;
 
 namespace Yaat.Client.Services;
 

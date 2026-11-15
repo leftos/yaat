@@ -1,5 +1,4 @@
 using Yaat.Sim.Commands;
-using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Simulation.Actions;
 

@@ -30,6 +30,8 @@ csharp_using_directive_placement = outside_namespace:warning
 dotnet_style_namespace_match_folder = true
 dotnet_diagnostic.IDE0161.severity = warning
 dotnet_diagnostic.IDE0130.severity = warning
+# Unused usings fail the build (needs GenerateDocumentationFile, set in Directory.Build.props)
+dotnet_diagnostic.IDE0005.severity = warning
 
 # Braces are always required, even for single-statement bodies
 csharp_prefer_braces = true:warning
@@ -124,6 +126,8 @@ dotnet_diagnostic.CS8603.severity = none
 dotnet_diagnostic.CS8604.severity = none
 dotnet_diagnostic.CS8618.severity = none
 # Every rule the [*.cs] section pins individually, since a pinned rule outranks the blanket default above.
+# IDE0005 too: the task compile has no implicit usings, so usings the test compile sees as unused are needed there.
+dotnet_diagnostic.IDE0005.severity = none
 dotnet_diagnostic.IDE0007.severity = none
 dotnet_diagnostic.IDE0008.severity = none
 dotnet_diagnostic.IDE0011.severity = none

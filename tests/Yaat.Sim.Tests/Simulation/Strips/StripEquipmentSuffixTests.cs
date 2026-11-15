@@ -2,7 +2,6 @@ using Xunit;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Strips;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Simulation.Strips;
 

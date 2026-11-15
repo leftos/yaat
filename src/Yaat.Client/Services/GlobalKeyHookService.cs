@@ -1,7 +1,6 @@
 using Avalonia.Input;
 using Microsoft.Extensions.Logging;
 using SharpHook;
-using SharpHook.Data;
 using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;

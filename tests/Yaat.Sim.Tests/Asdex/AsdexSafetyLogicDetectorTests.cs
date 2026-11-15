@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;

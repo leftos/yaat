@@ -1,6 +1,5 @@
 using Xunit;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Tests;

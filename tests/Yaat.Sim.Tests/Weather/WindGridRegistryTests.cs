@@ -3,7 +3,6 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Xunit;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Tests.Weather;

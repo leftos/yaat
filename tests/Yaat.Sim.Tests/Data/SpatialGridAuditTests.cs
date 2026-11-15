@@ -1,10 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Data;
-using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Data;
 

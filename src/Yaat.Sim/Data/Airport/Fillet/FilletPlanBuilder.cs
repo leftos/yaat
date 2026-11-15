@@ -1,5 +1,3 @@
-using Yaat.Sim.Data.Airport.Fillet;
-
 namespace Yaat.Sim.Data.Airport.Fillet;
 
 internal static class FilletPlanBuilder

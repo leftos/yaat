@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Find;
-using Yaat.Client.Services;
 using Yaat.Client.Tdls.Services;
 
 namespace Yaat.Client.Tdls.ViewModels;

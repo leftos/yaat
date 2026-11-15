@@ -1,5 +1,4 @@
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;

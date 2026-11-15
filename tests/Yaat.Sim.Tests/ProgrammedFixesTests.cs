@@ -3,7 +3,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
-using Yaat.Sim.Phases.Approach;
 
 namespace Yaat.Sim.Tests;
 

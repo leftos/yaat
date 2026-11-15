@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using SkiaSharp;
 
 namespace Yaat.Client.Views.Radar;

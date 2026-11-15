@@ -5,8 +5,6 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Spine;
-using Yaat.Sim.Testing;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests.Pilot;

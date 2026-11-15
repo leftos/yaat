@@ -1,9 +1,7 @@
 using Xunit;
-using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
-using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests.Commands;

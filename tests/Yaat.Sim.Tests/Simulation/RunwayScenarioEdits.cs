@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

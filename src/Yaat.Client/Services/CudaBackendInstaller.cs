@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;

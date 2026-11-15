@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
 

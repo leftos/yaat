@@ -6,7 +6,6 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Helpers.FollowTestHelpers;
 
 namespace Yaat.Sim.Tests;

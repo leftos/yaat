@@ -1,24 +1,17 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
-using Avalonia.VisualTree;
 using Xunit;
-using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Ground;
-using Yaat.Sim;
-using Yaat.Sim.Commands;
+
 // Avalonia.Headless has a HeadlessWindowExtensions of its own, so the headless input helpers are named through an alias.
-using Headless = Avalonia.Headless.HeadlessWindowExtensions;
 
 namespace Yaat.Client.UI.Tests.Views;
 

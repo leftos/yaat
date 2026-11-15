@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.IO.Compression;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;

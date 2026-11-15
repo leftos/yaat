@@ -4,7 +4,6 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
-using Yaat.Sim.Phases.Pattern;
 
 namespace Yaat.Sim.Commands;
 

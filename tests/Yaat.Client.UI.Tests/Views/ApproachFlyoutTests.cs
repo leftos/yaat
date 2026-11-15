@@ -11,10 +11,8 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
-using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
 

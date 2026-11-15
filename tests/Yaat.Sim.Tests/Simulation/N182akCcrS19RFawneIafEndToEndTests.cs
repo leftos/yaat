@@ -3,7 +3,6 @@ using Xunit;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 

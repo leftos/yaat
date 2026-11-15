@@ -5,7 +5,6 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 using OakesHarness = Yaat.Sim.Tests.Simulation.DescendViaSupersedesEarlierAltitudeTests.Harness;
 
 namespace Yaat.Sim.Tests;

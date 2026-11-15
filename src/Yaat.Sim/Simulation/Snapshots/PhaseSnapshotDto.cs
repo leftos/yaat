@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Simulation.Snapshots;

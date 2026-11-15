@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;

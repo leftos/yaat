@@ -4,7 +4,6 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Yaat.Sim;
 using Yaat.Sim.Commands;

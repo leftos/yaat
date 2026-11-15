@@ -11,8 +11,6 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar.Flyouts;
-using Yaat.Sim;
-using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views.Radar;
 

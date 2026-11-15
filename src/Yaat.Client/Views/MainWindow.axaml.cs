@@ -1,8 +1,6 @@
 using System.Collections;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -28,7 +26,6 @@ using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 using Yaat.Sim.Data;
-using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Views;
 
