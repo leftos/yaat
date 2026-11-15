@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace Yaat.Client.Views.Scope.Toolbar;
@@ -79,6 +80,9 @@ public enum ScopeButtonId
 
     /// <summary>The BRITE menu's DWELL spinner.</summary>
     BriteDwell,
+
+    /// <summary>DEL TEAROFF: marks tear-offs, then deletes the marked ones.</summary>
+    DeleteTearoff,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -178,6 +182,7 @@ public static class ScopeToolbarButtons
             null,
             null
         ),
+        new(ScopeButtonId.DeleteTearoff, "DEL TEAROFF", ScopeButtonKind.Command, [], null, null),
     ];
 
     /// <summary>The SSA's view name, as <c>.view</c> takes it.</summary>
@@ -240,6 +245,53 @@ public static class ScopeToolbarButtons
     /// <summary>The BRITE group the spinner with <paramref name="id"/> steps, or null when it is no BRITE spinner.</summary>
     public static ScopeBrightnessGroup? BriteGroupOf(ScopeButtonId id) =>
         (Find(id) is { Kind: ScopeButtonKind.Spinner, Value: { } group }) ? ScopeBrightness.FindGroup(group) : null;
+
+    /// <summary>The tear-off key of <paramref name="button"/>: its id, with a map toggle's STARS id as the value.</summary>
+    public static ScopeButtonKey KeyOf(ScopeButton button) => new(button.Id, button.Id == ScopeButtonId.MapToggle ? button.Value : null);
+
+    /// <summary>
+    /// The text name of <paramref name="key"/>, as <c>.scope tearoff</c> takes it: <c>map</c> and the STARS id for a map
+    /// toggle, else the id's name in lowercase.
+    /// </summary>
+    public static string NameOf(ScopeButtonKey key) => key.Id == ScopeButtonId.MapToggle ? $"map{key.Value}" : key.Id.ToString().ToLowerInvariant();
+
+    /// <summary>
+    /// Parses a button's text name (<see cref="NameOf"/>), case-insensitive: <c>map</c> and a STARS id, or any id's name
+    /// but <see cref="ScopeButtonId.MapToggle"/> and <see cref="ScopeButtonId.DeleteTearoff"/>, which tear off no copy.
+    /// </summary>
+    /// <returns>False when <paramref name="name"/> names no button that tears off.</returns>
+    public static bool TryParseKey(string name, [NotNullWhen(true)] out ScopeButtonKey? key)
+    {
+        key = MapKeyNamed(name) ?? IdKeyNamed(name);
+        return key is not null;
+    }
+
+    /// <summary>The map toggle key <paramref name="name"/> names (<c>map</c> and a STARS id), or null.</summary>
+    private static ScopeButtonKey? MapKeyNamed(string name) =>
+        (
+            name.StartsWith("map", StringComparison.OrdinalIgnoreCase)
+            && (name.Length > 3)
+            && int.TryParse(name.AsSpan(3), NumberStyles.None, CultureInfo.InvariantCulture, out int starsId)
+        )
+            ? new ScopeButtonKey(ScopeButtonId.MapToggle, starsId.ToString(CultureInfo.InvariantCulture))
+            : null;
+
+    /// <summary>The key of the id <paramref name="name"/> names, but no map toggle or DEL TEAROFF; else null.</summary>
+    private static ScopeButtonKey? IdKeyNamed(string name) =>
+        Enum.GetValues<ScopeButtonId>()
+            .Where(id =>
+                (id is not (ScopeButtonId.MapToggle or ScopeButtonId.DeleteTearoff))
+                && string.Equals(id.ToString(), name, StringComparison.OrdinalIgnoreCase)
+            )
+            .Select(id => new ScopeButtonKey(id, null))
+            .FirstOrDefault();
+
+    /// <summary>The command that tears <paramref name="key"/> off, or moves its tear-off, to <paramref name="place"/>.</summary>
+    public static string TearoffCommand(ScopeButtonKey key, ScopePlacement place) =>
+        string.Create(CultureInfo.InvariantCulture, $".scope tearoff {NameOf(key)} {ScopePlacement.NameOf(place.Corner)} {place.Dx} {place.Dy}");
+
+    /// <summary>The command that deletes the tear-offs of <paramref name="keys"/>, in the order given.</summary>
+    public static string TearoffDeleteCommand(IEnumerable<ScopeButtonKey> keys) => $".scope tearoff delete {string.Join(' ', keys.Select(NameOf))}";
 
     private static ScopeButton BriteSpinner(ScopeButtonId id, string label, string group) => new(id, label, ScopeButtonKind.Spinner, [], group, null);
 

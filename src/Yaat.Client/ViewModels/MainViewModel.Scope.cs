@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -13,7 +14,10 @@ public partial class MainViewModel
 {
     private const string ScopeUsage =
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
-        + " | .scope map <id> <on|off> | .scope db <item> <value>";
+        + " | .scope map <id> <on|off> | .scope db <item> <value>"
+        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>...";
+
+    private const string ScopeTearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
     private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
 
@@ -36,8 +40,8 @@ public partial class MainViewModel
     internal void CacheVideoMapForTesting(VideoMapData data) => _videoMapService.CacheForTesting(data);
 
     /// <summary>
-    /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c> and <c>.scope db</c>
-    /// against <see cref="OpenScope"/>, writing the echo or the error to the status line.
+    /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c> and
+    /// <c>.scope tearoff</c> against <see cref="OpenScope"/>, writing the echo or the error to the status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeCommand(string text)
@@ -63,6 +67,7 @@ public partial class MainViewModel
             "BRITE" => SetScopeBrightness,
             "MAP" => SetScopeMap,
             "DB" => SetScopeDb,
+            "TEAROFF" => SetScopeTearoff,
             _ => null,
         };
         if (handler is null)
@@ -136,6 +141,83 @@ public partial class MainViewModel
 
         scope.SetDbCharSize(size);
         return ScopeToolbarButtons.DbCharCommand(size);
+    }
+
+    /// <summary>
+    /// <c>.scope tearoff &lt;button&gt; tl|tr|bl|br &lt;dx&gt; &lt;dy&gt;</c> (tear the button off, or move its tear-off) or
+    /// <c>.scope tearoff delete &lt;button&gt;...</c>.
+    /// </summary>
+    private static string SetScopeTearoff(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length >= 3) && string.Equals(parts[2], "delete", StringComparison.OrdinalIgnoreCase))
+        {
+            return DeleteScopeTearoffs(scope, parts);
+        }
+
+        if (!TryParsePlacement(parts, out ScopePlacement? place))
+        {
+            return ScopeTearoffUsage;
+        }
+
+        if (!ScopeToolbarButtons.TryParseKey(parts[2], out ScopeButtonKey? key))
+        {
+            return $"Unknown scope button: {parts[2]}";
+        }
+
+        if ((key.Id == ScopeButtonId.MapToggle) && (scope.FindMapToggle(key.Value ?? "") is null))
+        {
+            return $"Unknown video map: {key.Value}";
+        }
+
+        scope.PlaceTearoff(key, place);
+        return ScopeToolbarButtons.TearoffCommand(key, place);
+    }
+
+    /// <summary>
+    /// The placement in <c>.scope tearoff &lt;button&gt; &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c>: six parts, a corner name and
+    /// two non-negative whole offsets.
+    /// </summary>
+    /// <returns>False when the parts are no such placement.</returns>
+    private static bool TryParsePlacement(string[] parts, [NotNullWhen(true)] out ScopePlacement? place)
+    {
+        place =
+            (
+                (parts.Length == 6)
+                && ScopePlacement.TryParseCorner(parts[3], out ScopeCorner corner)
+                && int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out int dx)
+                && int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int dy)
+            )
+                ? new ScopePlacement(corner, dx, dy)
+                : null;
+        return place is not null;
+    }
+
+    /// <summary><c>.scope tearoff delete &lt;button&gt;...</c>: all or nothing, every name torn off.</summary>
+    private static string DeleteScopeTearoffs(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length < 4)
+        {
+            return ScopeTearoffUsage;
+        }
+
+        List<ScopeButtonKey> keys = [];
+        foreach (string name in parts.Skip(3))
+        {
+            if (!ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? key))
+            {
+                return $"Unknown scope button: {name}";
+            }
+
+            if (!scope.IsTornOff(key))
+            {
+                return $"No tear-off: {name}";
+            }
+
+            keys.Add(key);
+        }
+
+        scope.DeleteTearoffs(keys);
+        return ScopeToolbarButtons.TearoffDeleteCommand(keys);
     }
 
     /// <summary><c>on</c> is true and <c>off</c> false (case-insensitive); any other word is null.</summary>

@@ -13,12 +13,6 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public sealed partial class ScopeViewModel
 {
-    /// <summary>The SSA's view name.</summary>
-    public const string SsaViewName = ScopeToolbarButtons.ViewSsaName;
-
-    /// <summary>The LA/CA/MCI list's view name.</summary>
-    public const string ConflictViewName = ScopeToolbarButtons.ViewCaName;
-
     private SsaViewModel _ssa;
 
     /// <summary>Every view, in dock order.</summary>
@@ -37,7 +31,7 @@ public sealed partial class ScopeViewModel
     internal bool IsClockRunning => _ssa.IsClockRunning;
 
     /// <summary>Whether <paramref name="name"/> names a view (<c>ssa</c> or <c>ca</c>; lowercase).</summary>
-    public static bool IsViewName(string name) => name is SsaViewName or ConflictViewName;
+    public static bool IsViewName(string name) => name is ScopeToolbarButtons.ViewSsaName or ScopeToolbarButtons.ViewCaName;
 
     /// <summary>Whether the view named <paramref name="name"/> is open.</summary>
     public bool IsViewOpen(string name) => DockViews.Any(v => v.Name == name);
@@ -83,7 +77,7 @@ public sealed partial class ScopeViewModel
     {
         _ssa = new SsaViewModel(this);
         _allViews = [_ssa, new ConflictListViewModel(this)];
-        SetViewOpen(SsaViewName, true);
+        SetViewOpen(ScopeToolbarButtons.ViewSsaName, true);
     }
 
     /// <summary>Stops every view's clock and subscriptions, as the Scope closes.</summary>

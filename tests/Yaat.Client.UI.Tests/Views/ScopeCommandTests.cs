@@ -4,6 +4,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -15,7 +16,10 @@ public class ScopeCommandTests
 {
     private const string Usage =
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
-        + " | .scope map <id> <on|off> | .scope db <item> <value>";
+        + " | .scope map <id> <on|off> | .scope db <item> <value>"
+        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>...";
+
+    private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
     private const string BriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
 
@@ -437,6 +441,110 @@ public class ScopeCommandTests
         main.RunScopeCommand(command);
 
         Assert.Equal("No YAAT Scope is open", main.StatusText);
+    }
+
+    private static ScopeTearoff Tearoff(ScopeButtonId id, ScopeCorner corner, int dx, int dy) =>
+        new(new ScopeButtonKey(id, null), new ScopePlacement(corner, dx, dy));
+
+    [AvaloniaFact]
+    public async Task Tearoff_Place_EchoesTheCanonicalText_AndAddsOneEntry()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(".SCOPE TEAROFF Range TR 12 34");
+
+            Assert.Equal(".scope tearoff range tr 12 34", main.StatusText);
+            Assert.Equal([Tearoff(ScopeButtonId.Range, ScopeCorner.TopRight, 12, 34)], scope.Tearoffs);
+
+            main.RunScopeCommand(".scope tearoff MAP10 bl 0 7");
+
+            Assert.Equal(".scope tearoff map10 bl 0 7", main.StatusText);
+            Assert.Equal(
+                new ScopeTearoff(new ScopeButtonKey(ScopeButtonId.MapToggle, "10"), new ScopePlacement(ScopeCorner.BottomLeft, 0, 7)),
+                scope.Tearoffs[1]
+            );
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Tearoff_PlacingATornOffKeyAgain_MovesItInItsSlot()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope tearoff range tl 1 2");
+            main.RunScopeCommand(".scope tearoff brite tr 3 4");
+
+            main.RunScopeCommand(".scope tearoff range br 5 6");
+
+            Assert.Equal(".scope tearoff range br 5 6", main.StatusText);
+            Assert.Equal(
+                [Tearoff(ScopeButtonId.Range, ScopeCorner.BottomRight, 5, 6), Tearoff(ScopeButtonId.Brite, ScopeCorner.TopRight, 3, 4)],
+                scope.Tearoffs
+            );
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope tearoff", TearoffUsage)]
+    [InlineData(".scope tearoff range tr 12", TearoffUsage)]
+    [InlineData(".scope tearoff range tr 1 2 3", TearoffUsage)]
+    [InlineData(".scope tearoff range xx 1 2", TearoffUsage)]
+    [InlineData(".scope tearoff range tr -1 2", TearoffUsage)]
+    [InlineData(".scope tearoff range tr 1 2.5", TearoffUsage)]
+    [InlineData(".scope tearoff delete", TearoffUsage)]
+    [InlineData(".scope tearoff NoSuch tr 1 2", "Unknown scope button: NoSuch")]
+    [InlineData(".scope tearoff deletetearoff tr 1 2", "Unknown scope button: deletetearoff")]
+    [InlineData(".scope tearoff map99 tr 1 2", "Unknown video map: 99")]
+    [InlineData(".scope tearoff delete range Nope", "Unknown scope button: Nope")]
+    [InlineData(".scope tearoff delete range db", "No tear-off: db")]
+    public async Task Tearoff_Errors_SaySo_AndLeaveTheTearoffs(string command, string expected)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(".scope tearoff range tl 1 2");
+            ScopeTearoff[] before = [.. scope.Tearoffs];
+
+            main.RunScopeCommand(command);
+
+            Assert.Equal(expected, main.StatusText);
+            Assert.Equal(before, scope.Tearoffs);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Tearoff_Delete_RemovesOnlyTheNamedKeys_AndEchoesThemCanonically()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(".scope tearoff range tl 1 2");
+            main.RunScopeCommand(".scope tearoff brite tr 3 4");
+            main.RunScopeCommand(".scope tearoff map10 bl 5 6");
+
+            main.RunScopeCommand(".scope tearoff delete MAP10 Range");
+
+            Assert.Equal(".scope tearoff delete map10 range", main.StatusText);
+            Assert.Equal([Tearoff(ScopeButtonId.Brite, ScopeCorner.TopRight, 3, 4)], scope.Tearoffs);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
     }
 
     [AvaloniaFact]

@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Views.Scope.Dock;
+using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.ViewModels;
 
@@ -27,7 +28,7 @@ public sealed partial class SsaViewModel : ScopeDockViewModel
     private string _line2Tail = "";
 
     public SsaViewModel(ScopeViewModel scope)
-        : base(scope, ScopeViewModel.SsaViewName, "SSA")
+        : base(scope, ScopeToolbarButtons.ViewSsaName, "SSA")
     {
         // Not the (interval, priority, handler) overload: that one starts the timer at once.
         _clock = new DispatcherTimer(DispatcherPriority.Background) { Interval = TickInterval };

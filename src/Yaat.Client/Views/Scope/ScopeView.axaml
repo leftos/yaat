@@ -7,17 +7,24 @@
   x:DataType="vm:ScopeViewModel"
   Background="Black"
 >
-  <scope:ScopeCanvas
-    x:Name="Canvas"
-    Aircraft="{Binding Aircraft}"
-    SelectedAircraft="{Binding SelectedAircraft}"
-    CenterLat="{Binding CenterLat, Mode=TwoWay}"
-    CenterLon="{Binding CenterLon, Mode=TwoWay}"
-    RangeNm="{Binding RangeNm, Mode=TwoWay}"
-    ShowMvaAltitudeTint="{Binding ShowMvaHints}"
-    TemplateId="{Binding TemplateId}"
-    Viewer="{Binding Viewer}"
-    Brightness="{Binding Brightness}"
-    DbSettings="{Binding DbSettings}"
-  />
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Yaat.Client/Views/Scope/Toolbar/ScopeToolbarStyles.axaml" />
+  </UserControl.Styles>
+  <Grid>
+    <scope:ScopeCanvas
+      x:Name="Canvas"
+      Aircraft="{Binding Aircraft}"
+      SelectedAircraft="{Binding SelectedAircraft}"
+      CenterLat="{Binding CenterLat, Mode=TwoWay}"
+      CenterLon="{Binding CenterLon, Mode=TwoWay}"
+      RangeNm="{Binding RangeNm, Mode=TwoWay}"
+      ShowMvaAltitudeTint="{Binding ShowMvaHints}"
+      TemplateId="{Binding TemplateId}"
+      Viewer="{Binding Viewer}"
+      Brightness="{Binding Brightness}"
+      DbSettings="{Binding DbSettings}"
+    />
+    <!-- No background: its empty area passes clicks to the canvas; only its tear-offs are hit. -->
+    <scope:ScopeTearoffLayer x:Name="TearoffLayer" TextElement.FontFamily="{StaticResource MonoFont}" TextElement.FontSize="12" />
+  </Grid>
 </UserControl>

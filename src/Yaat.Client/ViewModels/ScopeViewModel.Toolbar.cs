@@ -1,5 +1,6 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.ViewModels;
@@ -10,9 +11,29 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public sealed partial class ScopeViewModel
 {
+    // One wheel accumulator per spinner id, shared by the bar's spinner and its tear-off and kept across tray rebuilds,
+    // so a part-step on one spinner never carries to another.
+    private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
+
     /// <summary>The menu whose tray shows under the bar, or null when no tray is open. One tray at a time.</summary>
     [ObservableProperty]
     private ScopeButtonId? _openMenu;
+
+    /// <summary>The wheel accumulator of the spinner with <paramref name="id"/>, made on first use.</summary>
+    internal ScrollStepAccumulator SpinnerScroll(ScopeButtonId id)
+    {
+        if (!_spinnerScroll.TryGetValue(id, out ScrollStepAccumulator? scroll))
+        {
+            scroll = new ScrollStepAccumulator();
+            _spinnerScroll[id] = scroll;
+        }
+
+        return scroll;
+    }
+
+    /// <summary>The Scope's map toggle for the map with STARS id <paramref name="starsId"/>, or null.</summary>
+    internal ScopeMapToggle? FindMapToggle(string starsId) =>
+        MapToggles.FirstOrDefault(t => t.StarsId.ToString(CultureInfo.InvariantCulture) == starsId);
 
     /// <summary>
     /// Runs the dot command <paramref name="text"/>, as the toolbar's buttons do: a <c>.view</c> command through
@@ -37,6 +58,12 @@ public sealed partial class ScopeViewModel
     /// </summary>
     public void Press(ScopeButton button)
     {
+        if (button.Id == ScopeButtonId.DeleteTearoff)
+        {
+            PressDeleteTearoff();
+            return;
+        }
+
         switch (button.Kind)
         {
             case ScopeButtonKind.Menu:
@@ -101,11 +128,13 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
-    /// turns on is on (<see cref="IsToggleOn"/>), a command button while the template it picks is in use.
+    /// turns on is on (<see cref="IsToggleOn"/>), a command button while the template it picks is in use, DEL TEAROFF
+    /// while its mode is on.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Kind switch
         {
+            _ when button.Id == ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
             ScopeButtonKind.Menu => OpenMenu == button.Id,
             ScopeButtonKind.Toggle => IsToggleOn(button),
             ScopeButtonKind.Command => (button.Value is { } value) && (value == TemplateId),
@@ -147,7 +176,7 @@ public sealed partial class ScopeViewModel
     private bool IsToggleOn(ScopeButton button) =>
         button.Id switch
         {
-            ScopeButtonId.MapToggle => MapToggles.Any(t => t.IsOn && (t.StarsId.ToString(CultureInfo.InvariantCulture) == button.Value)),
+            ScopeButtonId.MapToggle => (button.Value is { } starsId) && (FindMapToggle(starsId) is { IsOn: true }),
             ScopeButtonId.Db4thLine => DbSettings.Line4,
             ScopeButtonId.DbDwell => DbSettings.HoverDwell,
             ScopeButtonId.DbAtpa => DbSettings.Atpa,

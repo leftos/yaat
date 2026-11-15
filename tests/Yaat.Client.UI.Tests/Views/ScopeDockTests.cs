@@ -59,13 +59,13 @@ public class ScopeDockTests
         try
         {
             Assert.Equal(1360, window.Width);
-            Assert.Equal([ScopeViewModel.SsaViewName], scope.OpenViews);
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName], scope.OpenViews);
             ScopeDock dock = DockOf(window);
             Assert.True(dock.IsEffectivelyVisible);
             Assert.Equal(360, dock.Bounds.Width);
             Assert.Equal(ContentWidth(window), CanvasOf(window).Bounds.Width + 360);
-            Assert.Equal([ScopeViewModel.SsaViewName], Cards(window).Select(c => c.ViewName));
-            Assert.Contains("SSA", Texts(CardOf(window, ScopeViewModel.SsaViewName)));
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName], Cards(window).Select(c => c.ViewName));
+            Assert.Contains("SSA", Texts(CardOf(window, ScopeToolbarButtons.ViewSsaName)));
         }
         finally
         {
@@ -112,9 +112,9 @@ public class ScopeDockTests
             main.RunViewCommand(".view ca on");
             Settle(window);
 
-            Assert.Equal([ScopeViewModel.SsaViewName, ScopeViewModel.ConflictViewName], Cards(window).Select(c => c.ViewName));
-            ScopeViewCard ssa = CardOf(window, ScopeViewModel.SsaViewName);
-            ScopeViewCard ca = CardOf(window, ScopeViewModel.ConflictViewName);
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName, ScopeToolbarButtons.ViewCaName], Cards(window).Select(c => c.ViewName));
+            ScopeViewCard ssa = CardOf(window, ScopeToolbarButtons.ViewSsaName);
+            ScopeViewCard ca = CardOf(window, ScopeToolbarButtons.ViewCaName);
             Assert.True(ca.TranslatePoint(new Point(0, 0), window)!.Value.Y >= ssa.TranslatePoint(new Point(0, ssa.Bounds.Height), window)!.Value.Y);
             Assert.Contains("LA/CA/MCI", Texts(ca));
 
@@ -142,14 +142,14 @@ public class ScopeDockTests
             main.RunViewCommand(".view ca on");
             Settle(window);
 
-            Button close = CardOf(window, ScopeViewModel.ConflictViewName).GetVisualDescendants().OfType<Button>().Single();
+            Button close = CardOf(window, ScopeToolbarButtons.ViewCaName).GetVisualDescendants().OfType<Button>().Single();
             Assert.Equal("–", close.Content);
             ScopeToolbarTests.Click(close);
             Settle(window);
 
-            Assert.False(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal(".view ca off", main.StatusText);
-            Assert.Equal([ScopeViewModel.SsaViewName], Cards(window).Select(c => c.ViewName));
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName], Cards(window).Select(c => c.ViewName));
         }
         finally
         {
@@ -169,14 +169,14 @@ public class ScopeDockTests
 
             ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.ViewCa));
 
-            Assert.True(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal(".view ca on", main.StatusText);
             Assert.Equal(ScopeButtonId.Views, scope.OpenMenu);
             Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.ViewCa).Classes);
 
             ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.ViewSsa));
 
-            Assert.False(scope.IsViewOpen(ScopeViewModel.SsaViewName));
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewSsaName));
             Assert.Equal(".view ssa off", main.StatusText);
             Assert.Equal(ScopeButtonId.Views, scope.OpenMenu);
             Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.ViewSsa).Classes);
@@ -223,12 +223,12 @@ public class ScopeDockTests
             main.RunViewCommand(".view ca on");
             main.ApplyConflictAlerts([new ConflictAlertDto("CA_AAL22_UAL1", "UAL1", "AAL22")]);
             Settle(window);
-            Assert.Contains("AAL22*UAL1        CA", Texts(CardOf(window, ScopeViewModel.ConflictViewName)));
+            Assert.Contains("AAL22*UAL1        CA", Texts(CardOf(window, ScopeToolbarButtons.ViewCaName)));
 
             main.ClearScenarioState();
             Settle(window);
 
-            Assert.DoesNotContain("AAL22*UAL1        CA", Texts(CardOf(window, ScopeViewModel.ConflictViewName)));
+            Assert.DoesNotContain("AAL22*UAL1        CA", Texts(CardOf(window, ScopeToolbarButtons.ViewCaName)));
         }
         finally
         {
@@ -282,8 +282,8 @@ public class ScopeDockTests
             main.RunViewCommand(".view ssa on");
             Settle(window);
 
-            Assert.Equal([ScopeViewModel.SsaViewName, ScopeViewModel.ConflictViewName], scope.OpenViews);
-            Assert.Equal([ScopeViewModel.SsaViewName, ScopeViewModel.ConflictViewName], Cards(window).Select(c => c.ViewName));
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName, ScopeToolbarButtons.ViewCaName], scope.OpenViews);
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName, ScopeToolbarButtons.ViewCaName], Cards(window).Select(c => c.ViewName));
         }
         finally
         {
@@ -297,9 +297,9 @@ public class ScopeDockTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
-            scope.ApplyOpenViews([ScopeViewModel.ConflictViewName, "bogus"]);
+            scope.ApplyOpenViews([ScopeToolbarButtons.ViewCaName, "bogus"]);
 
-            Assert.Equal([ScopeViewModel.ConflictViewName], scope.OpenViews);
+            Assert.Equal([ScopeToolbarButtons.ViewCaName], scope.OpenViews);
             Assert.False(scope.IsClockRunning);
 
             scope.ApplyOpenViews([]);
@@ -318,7 +318,7 @@ public class ScopeDockTests
         (_, _, ScopeWindow window) = await OpenAsync();
         try
         {
-            ScopeViewCard ssa = CardOf(window, ScopeViewModel.SsaViewName);
+            ScopeViewCard ssa = CardOf(window, ScopeToolbarButtons.ViewSsaName);
 
             string[] texts = Texts(ssa);
             Assert.Contains("NA/NA/NA", texts);

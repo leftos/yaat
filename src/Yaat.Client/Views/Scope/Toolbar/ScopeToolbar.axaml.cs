@@ -1,10 +1,5 @@
 using System.ComponentModel;
-using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Documents;
-using Avalonia.Input;
-using Avalonia.Media;
-using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.Scope.Toolbar;
@@ -12,15 +7,13 @@ namespace Yaat.Client.Views.Scope.Toolbar;
 /// <summary>
 /// The Scope window's toolbar: one row of buttons from <see cref="ScopeToolbarButtons.All"/>, and under it the tray of
 /// the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>), wrapped onto more rows when they don't
-/// fit. Each button's label, value and active state follow its <see cref="ScopeViewModel"/>.
+/// fit. Each button (<see cref="ScopeButtonControl"/>) draws its label, value and active state from its
+/// <see cref="ScopeViewModel"/>.
 /// </summary>
 public partial class ScopeToolbar : UserControl
 {
     // A list, not a map by id: the MAPS tray's toggles share one id.
-    private readonly List<(Button Button, ScopeButton Model)> _buttons = [];
-
-    // One accumulator per spinner, so a part-step on one never carries to the next.
-    private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
+    private readonly List<ScopeButtonControl> _buttons = [];
     private ScopeViewModel? _viewModel;
 
     public ScopeToolbar()
@@ -49,16 +42,10 @@ public partial class ScopeToolbar : UserControl
         RefreshButtons();
     }
 
-    private Button BuildButton(ScopeButton model)
+    private ScopeButtonControl BuildButton(ScopeButton model)
     {
-        var button = new Button { Tag = model.Id, Classes = { "scopeButton" } };
-        button.Click += (_, _) => _viewModel?.Press(model);
-        if (model.Kind == ScopeButtonKind.Spinner)
-        {
-            button.PointerWheelChanged += OnSpinnerWheel;
-        }
-
-        _buttons.Add((button, model));
+        var button = new ScopeButtonControl(model, isTearoff: false);
+        _buttons.Add(button);
         return button;
     }
 
@@ -71,20 +58,22 @@ public partial class ScopeToolbar : UserControl
             RebuildTray();
         }
 
-        if (
-            mapsChanged
-            || e.PropertyName
-                is nameof(ScopeViewModel.OpenMenu)
-                    or nameof(ScopeViewModel.TemplateId)
-                    or nameof(ScopeViewModel.RangeNm)
-                    or nameof(ScopeViewModel.OpenViews)
-                    or nameof(ScopeViewModel.Brightness)
-                    or nameof(ScopeViewModel.DbSettings)
-        )
+        if (mapsChanged || IsDrawnState(e.PropertyName))
         {
             RefreshButtons();
         }
     }
+
+    /// <summary>Whether the view-model property <paramref name="propertyName"/> is one a button draws.</summary>
+    internal static bool IsDrawnState(string? propertyName) =>
+        propertyName
+            is nameof(ScopeViewModel.OpenMenu)
+                or nameof(ScopeViewModel.TemplateId)
+                or nameof(ScopeViewModel.RangeNm)
+                or nameof(ScopeViewModel.OpenViews)
+                or nameof(ScopeViewModel.Brightness)
+                or nameof(ScopeViewModel.DbSettings)
+                or nameof(ScopeViewModel.IsDeletingTearoffs);
 
     /// <summary>
     /// Fills the tray with the open menu's tray children (<see cref="ScopeViewModel.TrayChildren"/>), or hides it when no
@@ -92,7 +81,7 @@ public partial class ScopeToolbar : UserControl
     /// </summary>
     private void RebuildTray()
     {
-        _buttons.RemoveAll(entry => TrayRow.Children.Contains(entry.Button));
+        _buttons.RemoveAll(TrayRow.Children.Contains);
         TrayRow.Children.Clear();
         ScopeButton? menu = _viewModel?.OpenMenu is { } open ? ScopeToolbarButtons.Find(open) : null;
         if ((menu is not null) && (_viewModel is { } vm))
@@ -108,57 +97,10 @@ public partial class ScopeToolbar : UserControl
 
     private void RefreshButtons()
     {
-        foreach ((Button button, ScopeButton model) in _buttons)
+        foreach (ScopeButtonControl button in _buttons)
         {
-            Refresh(button, model);
+            button.ViewModel = _viewModel;
+            button.Refresh();
         }
-    }
-
-    /// <summary>Draws <paramref name="button"/>: its label, a menu's triangle, a spinner's bold value, and the active state.</summary>
-    private void Refresh(Button button, ScopeButton model)
-    {
-        string? value = _viewModel?.SpinnerValue(model);
-        var inlines = new InlineCollection { new Run(model.Label) };
-        if (model.Kind == ScopeButtonKind.Menu)
-        {
-            inlines.Add(new Run(" ▸") { FontSize = 9 });
-        }
-
-        if (value is not null)
-        {
-            inlines.Add(new Run(" "));
-            inlines.Add(new Run(value) { FontWeight = FontWeight.Bold });
-        }
-
-        button.Content = new TextBlock { Inlines = inlines, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-        AutomationProperties.SetName(button, value is null ? model.Label : $"{model.Label} {value}");
-        button.Classes.Set("active", _viewModel?.IsActive(model) ?? false);
-    }
-
-    /// <summary>
-    /// The wheel over a spinner steps the spinner it is over (the sender's <see cref="ScopeButtonId"/> tag) by whole steps,
-    /// wheel up the positive direction (<see cref="ScopeViewModel.StepSpinner"/>).
-    /// </summary>
-    private void OnSpinnerWheel(object? sender, PointerWheelEventArgs e)
-    {
-        if ((_viewModel is null) || (sender is not Control { Tag: ScopeButtonId id }))
-        {
-            return;
-        }
-
-        int direction = Math.Sign(e.Delta.Y);
-        if (!_spinnerScroll.TryGetValue(id, out ScrollStepAccumulator? scroll))
-        {
-            scroll = new ScrollStepAccumulator();
-            _spinnerScroll[id] = scroll;
-        }
-
-        int steps = scroll.Accumulate(direction, _viewModel.Preferences.ScrollSensitivity);
-        if (steps != 0)
-        {
-            _viewModel.StepSpinner(id, steps);
-        }
-
-        e.Handled = true;
     }
 }

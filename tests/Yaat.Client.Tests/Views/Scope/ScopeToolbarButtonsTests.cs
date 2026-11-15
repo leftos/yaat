@@ -13,10 +13,18 @@ public class ScopeToolbarButtonsTests
     public void TheBar_IsTemplateRangeMapsDbViewsThenBrite()
     {
         Assert.Equal(
-            [ScopeButtonId.Template, ScopeButtonId.Range, ScopeButtonId.Maps, ScopeButtonId.Db, ScopeButtonId.Views, ScopeButtonId.Brite],
+            [
+                ScopeButtonId.Template,
+                ScopeButtonId.Range,
+                ScopeButtonId.Maps,
+                ScopeButtonId.Db,
+                ScopeButtonId.Views,
+                ScopeButtonId.Brite,
+                ScopeButtonId.DeleteTearoff,
+            ],
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
-        Assert.Equal(["TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE"], ScopeToolbarButtons.All.Select(b => b.Label));
+        Assert.Equal(["TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE", "DEL TEAROFF"], ScopeToolbarButtons.All.Select(b => b.Label));
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -34,14 +35,14 @@ public class ScopeViewCommandTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Assert.False(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
 
             main.RunViewCommand(".view ca on");
-            Assert.True(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal(".view ca on", main.StatusText);
 
             main.RunViewCommand(".VIEW CA OFF");
-            Assert.False(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal(".view ca off", main.StatusText);
         }
         finally
@@ -61,9 +62,9 @@ public class ScopeViewCommandTests
 
             main.RunViewCommand(".view ca on");
 
-            Assert.True(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal(".view ca on", main.StatusText);
-            Assert.Equal([ScopeViewModel.SsaViewName, ScopeViewModel.ConflictViewName], scope.OpenViews);
+            Assert.Equal([ScopeToolbarButtons.ViewSsaName, ScopeToolbarButtons.ViewCaName], scope.OpenViews);
         }
         finally
         {
@@ -116,13 +117,13 @@ public class ScopeViewCommandTests
             main.CommandText = ".view ca on";
             await main.SendCommandCommand.ExecuteAsync(null);
 
-            Assert.True(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal(".view ca on", main.StatusText);
 
             // ".views" is no .view command: it leaves the views alone and falls through to the unknown-command line.
             main.CommandText = ".views ca off";
             await main.SendCommandCommand.ExecuteAsync(null);
-            Assert.True(scope.IsViewOpen(ScopeViewModel.ConflictViewName));
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCaName));
             Assert.Equal("Unknown command or alias: .views", main.StatusText);
         }
         finally

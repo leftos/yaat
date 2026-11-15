@@ -1,0 +1,53 @@
+<!-- The Scope toolbar's button look, shared by the bar, its tray and the buttons torn off onto the scope. -->
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style Selector="Button.scopeButton">
+    <Setter Property="Height" Value="28" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="Margin" Value="2,0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="#10181e" />
+    <Setter Property="BorderBrush" Value="#22313b" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="#c9d4dc" />
+  </Style>
+  <Style Selector="Button.scopeButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#10181e" />
+    <Setter Property="BorderBrush" Value="#22313b" />
+    <Setter Property="Foreground" Value="#c9d4dc" />
+  </Style>
+  <Style Selector="Button.scopeButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#10181e" />
+  </Style>
+  <Style Selector="Button.scopeButton.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="#58c4e6" />
+    <Setter Property="Foreground" Value="#e7f6fb" />
+  </Style>
+  <Style Selector="Border.scopeSeparator">
+    <Setter Property="Width" Value="1" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Margin" Value="4,0" />
+    <Setter Property="Background" Value="#22313b" />
+  </Style>
+  <!-- The tear-off pick strip on a button's left edge, in the button's left margin: gold under the pointer. -->
+  <Style Selector="Border.scopeStrip">
+    <Setter Property="Width" Value="5" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Margin" Value="2,0,-2,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.scopeStrip:pointerover">
+    <Setter Property="Background" Value="#E0B84A" />
+  </Style>
+  <!-- A torn-off copy's accent bar, always drawn. -->
+  <Style Selector="Border.scopeStrip.accent">
+    <Setter Property="Background" Value="#E0B84A" />
+  </Style>
+  <!-- A tear-off marked for DEL TEAROFF. -->
+  <Style Selector="Border.scopeMark">
+    <Setter Property="BorderBrush" Value="#E05050" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+</Styles>
