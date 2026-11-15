@@ -64,6 +64,14 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: ScopeBrightness.Default
     );
 
+    /// <summary>
+    /// The scope's DB settings: 4TH LINE, hover DWELL, ATPA DIST and the datablock point size. Null reads ATPA and the size from
+    /// <see cref="Preferences"/> and keeps line 4's fallback and hover dwell on.
+    /// </summary>
+    public static readonly StyledProperty<ScopeDbSettings?> DbSettingsProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeDbSettings?>(
+        nameof(DbSettings)
+    );
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
 
@@ -115,6 +123,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(BrightnessProperty);
         set => SetValue(BrightnessProperty, value);
+    }
+
+    public ScopeDbSettings? DbSettings
+    {
+        get => GetValue(DbSettingsProperty);
+        set => SetValue(DbSettingsProperty, value);
     }
 
     public double CenterLat
@@ -226,6 +240,17 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             || (change.Property == ViewerProperty)
         )
         {
+            _lastFrame = null;
+            MarkDirty();
+        }
+        else if (change.Property == DbSettingsProperty)
+        {
+            if (DbSettings is { HoverDwell: false })
+            {
+                // Hover dwell off releases the hovered block; a locked block holds at Dwell through the frame.
+                _hoveredCallsign = null;
+            }
+
             _lastFrame = null;
             MarkDirty();
         }
@@ -369,8 +394,10 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         Hover(null, null);
     }
 
-    private void Hover(string? callsign, string? vciCallsign)
+    private void Hover(string? hitCallsign, string? vciCallsign)
     {
+        // With hover dwell off the pointer dwells nothing; the VCI preview is no dwell and stays.
+        string? callsign = DbSettings is { HoverDwell: false } ? null : hitCallsign;
         if (
             string.Equals(callsign, _hoveredCallsign, StringComparison.Ordinal)
             && string.Equals(vciCallsign, _hoveredVciCallsign, StringComparison.Ordinal)
@@ -387,21 +414,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     private ScopeFrame BuildFrame(ScopePalette palette)
     {
-        UserPreferences? prefs = Preferences;
         IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, false, false, false, null, DateTime.UtcNow);
-        var alerts = new ScopeAlertOptions(prefs?.ShowAtpa ?? false, prefs?.ShowConflictAlerts ?? false, prefs?.FlashNoLandingClearance ?? true);
-        var display = new ScopeDisplayOptions(
-            prefs?.MarkStudentLimitedDatablocks ?? true,
-            prefs?.ShowTypeMismatchHints ?? true,
-            ShowMvaAltitudeTint,
-            prefs?.SyncStudentDatablockColors ?? true,
-            prefs?.UserInitials,
-            palette.AssignedToMe is not null,
-            palette.AssignedToOther is not null,
-            Viewer,
-            EramLine4Type: true,
-            EramLine4Destination: true
-        );
+        ScopeAlertOptions alerts = BuildAlertOptions();
+        ScopeDisplayOptions display = BuildDisplayOptions(palette);
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoCallsigns;
@@ -420,6 +435,33 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 VciHoveredCallsign: _hoveredVciCallsign,
                 LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns
             )
+        );
+    }
+
+    /// <summary>The alert overlays: ATPA from the DB settings (else the preferences), the others from the preferences.</summary>
+    private ScopeAlertOptions BuildAlertOptions()
+    {
+        UserPreferences? prefs = Preferences;
+        bool atpa = DbSettings?.Atpa ?? prefs?.ShowAtpa ?? false;
+        return new ScopeAlertOptions(atpa, prefs?.ShowConflictAlerts ?? false, prefs?.FlashNoLandingClearance ?? true);
+    }
+
+    /// <summary>The display hints from the preferences; line 4's type and destination fallback from the DB settings' 4TH LINE.</summary>
+    private ScopeDisplayOptions BuildDisplayOptions(ScopePalette palette)
+    {
+        UserPreferences? prefs = Preferences;
+        bool line4 = DbSettings?.Line4 ?? true;
+        return new ScopeDisplayOptions(
+            prefs?.MarkStudentLimitedDatablocks ?? true,
+            prefs?.ShowTypeMismatchHints ?? true,
+            ShowMvaAltitudeTint,
+            prefs?.SyncStudentDatablockColors ?? true,
+            prefs?.UserInitials,
+            palette.AssignedToMe is not null,
+            palette.AssignedToOther is not null,
+            Viewer,
+            EramLine4Type: line4,
+            EramLine4Destination: line4
         );
     }
 
@@ -473,7 +515,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     private void OnAircraftCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => _lastFrame = null;
 
-    private float DatablockFontSize() => Preferences?.RadarDatablockFontSize ?? 12;
+    // The DB settings' CHAR, else the preference; one size for the measure font and the drawn font.
+    private float DatablockFontSize() => DbSettings?.CharSize ?? Preferences?.RadarDatablockFontSize ?? 12;
 
     private SKFont MeasureFont(float size)
     {

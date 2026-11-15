@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 
@@ -12,7 +13,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeCommandTests
 {
-    private const string Usage = "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>";
+    private const string Usage =
+        "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
+        + " | .scope map <id> <on|off> | .scope db <item> <value>";
 
     private const string BriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
 
@@ -219,6 +222,221 @@ public class ScopeCommandTests
         {
             scope.Dispose();
         }
+    }
+
+    private const string MapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
+
+    private const string DbUsage = "Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>";
+
+    /// <summary>A Scope seeded from a centred radar with map toggles 2 and 10, every map off.</summary>
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeWithMapsAsync()
+    {
+        MainViewModel main = await MainAsync();
+        RadarMapToggles.Add(main.Radar, 2, 10);
+        main.Radar.CenterLat = 37.62;
+        main.Radar.CenterLon = -122.38;
+        var scope = new ScopeViewModel(main);
+        main.OpenScope = scope;
+        return (main, scope);
+    }
+
+    [AvaloniaFact]
+    public async Task Map_OnAndOff_SetsTheToggle_AndEchoes()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(".scope map 10 on");
+            Assert.Equal(".scope map 10 on", main.StatusText);
+            Assert.Equal([false, true], scope.MapToggles.Select(t => t.IsOn));
+
+            main.RunScopeCommand(".SCOPE MAP 10 OFF");
+            Assert.Equal(".scope map 10 off", main.StatusText);
+            Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+            Assert.All(main.Radar.MapToggles, t => Assert.False(t.IsEnabled));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Map_UnknownId_SaysSo()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(".scope map 99 on");
+
+            Assert.Equal("Unknown video map: 99", main.StatusText);
+            Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Map_Clear_TurnsEveryToggleOff_AndEchoes()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(".scope map 2 on");
+            main.RunScopeCommand(".scope map 10 on");
+
+            main.RunScopeCommand(".scope map clear");
+
+            Assert.Equal(".scope map clear", main.StatusText);
+            Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope map 10")]
+    [InlineData(".scope map 10 maybe")]
+    [InlineData(".scope map")]
+    [InlineData(".scope map 10 on off")]
+    public async Task Map_WithoutAStateWordOrMalformed_GivesTheMapUsage(string command)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeWithMapsAsync();
+        try
+        {
+            main.RunScopeCommand(command);
+
+            Assert.Equal(MapUsage, main.StatusText);
+            Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope db atpa off", "atpa")]
+    [InlineData(".scope db 4thline off", "4thline")]
+    [InlineData(".SCOPE DB DWELL OFF", "dwell")]
+    public async Task Db_ToggleOff_SetsItsSetting_AndEchoesInLowercase(string command, string item)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            ScopeDbSettings before = scope.DbSettings with { Atpa = true };
+            scope.DbSettings = before;
+
+            main.RunScopeCommand(command);
+
+            Assert.Equal($".scope db {item} off", main.StatusText);
+            ScopeDbSettings expected = item switch
+            {
+                "atpa" => before with { Atpa = false },
+                "4thline" => before with { Line4 = false },
+                _ => before with { HoverDwell = false },
+            };
+            Assert.Equal(expected, scope.DbSettings);
+
+            main.RunScopeCommand($".scope db {item} on");
+            Assert.Equal($".scope db {item} on", main.StatusText);
+            Assert.Equal(before, scope.DbSettings);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Db_Char_SetsTheSize_AndEchoes()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope db char 16");
+
+            Assert.Equal(".scope db char 16", main.StatusText);
+            Assert.Equal(16, scope.DbSettings.CharSize);
+
+            main.RunScopeCommand(".scope db char 8");
+            Assert.Equal(8, scope.DbSettings.CharSize);
+            main.RunScopeCommand(".scope db char 24");
+            Assert.Equal(24, scope.DbSettings.CharSize);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope db char 7")]
+    [InlineData(".scope db char 25")]
+    [InlineData(".scope db char x")]
+    [InlineData(".scope db char")]
+    [InlineData(".scope db atpa maybe")]
+    [InlineData(".scope db atpa")]
+    [InlineData(".scope db")]
+    public async Task Db_BadValueOrArity_GivesTheDbUsage_AndLeavesTheSettings(string command)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            ScopeDbSettings before = scope.DbSettings;
+
+            main.RunScopeCommand(command);
+
+            Assert.Equal(DbUsage, main.StatusText);
+            Assert.Equal(before, scope.DbSettings);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope db ldr 2", "ldr")]
+    [InlineData(".scope db ldrdir 9", "ldrdir")]
+    [InlineData(".scope db cwt on", "cwt")]
+    [InlineData(".scope db reqalt on", "reqalt")]
+    [InlineData(".scope db portal on", "portal")]
+    [InlineData(".scope db wx on", "wx")]
+    public async Task Db_UnbuiltOrUnknownItem_SaysSo(string command, string item)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            ScopeDbSettings before = scope.DbSettings;
+
+            main.RunScopeCommand(command);
+
+            Assert.Equal($"Unknown scope DB item: {item}", main.StatusText);
+            Assert.Equal(before, scope.DbSettings);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope map 10 on")]
+    [InlineData(".scope map clear")]
+    [InlineData(".scope db char 16")]
+    [InlineData(".scope db ldr 2")]
+    public async Task NoOpenScope_MapAndDb_SaySo(string command)
+    {
+        MainViewModel main = await MainAsync();
+
+        main.RunScopeCommand(command);
+
+        Assert.Equal("No YAAT Scope is open", main.StatusText);
     }
 
     [AvaloniaFact]

@@ -32,6 +32,9 @@ public sealed class VideoMapService
     /// </summary>
     public VideoMapData? GetCached(string mapId) => _cache.GetValueOrDefault(mapId)?.Data;
 
+    /// <summary>Puts <paramref name="data"/> in the in-memory cache as a fresh load would, with no download. Test seam.</summary>
+    internal void CacheForTesting(VideoMapData data) => _cache[data.MapId] = new CachedVideoMap(data, DateTime.UtcNow);
+
     /// <summary>
     /// Loads a batch of video maps for an ARTCC. Downloads any
     /// missing maps, parses them, and caches the results.

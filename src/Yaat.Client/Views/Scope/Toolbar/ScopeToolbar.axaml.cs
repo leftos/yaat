@@ -11,11 +11,13 @@ namespace Yaat.Client.Views.Scope.Toolbar;
 
 /// <summary>
 /// The Scope window's toolbar: one row of buttons from <see cref="ScopeToolbarButtons.All"/>, and under it the tray of
-/// the open menu's children. Each button's label, value and active state follow its <see cref="ScopeViewModel"/>.
+/// the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>), wrapped onto more rows when they don't
+/// fit. Each button's label, value and active state follow its <see cref="ScopeViewModel"/>.
 /// </summary>
 public partial class ScopeToolbar : UserControl
 {
-    private readonly Dictionary<ScopeButtonId, (Button Button, ScopeButton Model)> _buttons = [];
+    // A list, not a map by id: the MAPS tray's toggles share one id.
+    private readonly List<(Button Button, ScopeButton Model)> _buttons = [];
 
     // One accumulator per spinner, so a part-step on one never carries to the next.
     private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
@@ -56,47 +58,46 @@ public partial class ScopeToolbar : UserControl
             button.PointerWheelChanged += OnSpinnerWheel;
         }
 
-        _buttons[model.Id] = (button, model);
+        _buttons.Add((button, model));
         return button;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // A rebuilt tray's new buttons are drawn by the refresh that follows.
-        if (e.PropertyName == nameof(ScopeViewModel.OpenMenu))
+        // A rebuilt tray's new buttons are drawn by the refresh that follows. The map toggles change the MAPS tray's buttons.
+        bool mapsChanged = (e.PropertyName == nameof(ScopeViewModel.MapToggles)) && (_viewModel?.OpenMenu == ScopeButtonId.Maps);
+        if ((e.PropertyName == nameof(ScopeViewModel.OpenMenu)) || mapsChanged)
         {
             RebuildTray();
         }
 
         if (
-            e.PropertyName
-            is nameof(ScopeViewModel.OpenMenu)
-                or nameof(ScopeViewModel.TemplateId)
-                or nameof(ScopeViewModel.RangeNm)
-                or nameof(ScopeViewModel.OpenViews)
-                or nameof(ScopeViewModel.Brightness)
+            mapsChanged
+            || e.PropertyName
+                is nameof(ScopeViewModel.OpenMenu)
+                    or nameof(ScopeViewModel.TemplateId)
+                    or nameof(ScopeViewModel.RangeNm)
+                    or nameof(ScopeViewModel.OpenViews)
+                    or nameof(ScopeViewModel.Brightness)
+                    or nameof(ScopeViewModel.DbSettings)
         )
         {
             RefreshButtons();
         }
     }
 
-    /// <summary>Fills the tray with the open menu's children, or hides it when no menu is open.</summary>
+    /// <summary>
+    /// Fills the tray with the open menu's tray children (<see cref="ScopeViewModel.TrayChildren"/>), or hides it when no
+    /// menu is open.
+    /// </summary>
     private void RebuildTray()
     {
-        foreach (Control child in TrayRow.Children)
-        {
-            if (child.Tag is ScopeButtonId id)
-            {
-                _buttons.Remove(id);
-            }
-        }
-
+        _buttons.RemoveAll(entry => TrayRow.Children.Contains(entry.Button));
         TrayRow.Children.Clear();
         ScopeButton? menu = _viewModel?.OpenMenu is { } open ? ScopeToolbarButtons.Find(open) : null;
-        if (menu is not null)
+        if ((menu is not null) && (_viewModel is { } vm))
         {
-            foreach (ScopeButton child in menu.Children)
+            foreach (ScopeButton child in vm.TrayChildren(menu))
             {
                 TrayRow.Children.Add(BuildButton(child));
             }
@@ -107,7 +108,7 @@ public partial class ScopeToolbar : UserControl
 
     private void RefreshButtons()
     {
-        foreach ((Button button, ScopeButton model) in _buttons.Values)
+        foreach ((Button button, ScopeButton model) in _buttons)
         {
             Refresh(button, model);
         }

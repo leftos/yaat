@@ -30,6 +30,9 @@
       <Setter Property="BorderBrush" Value="#58c4e6" />
       <Setter Property="Foreground" Value="#e7f6fb" />
     </Style>
+    <Style Selector="WrapPanel#TrayRow > Button.scopeButton">
+      <Setter Property="Margin" Value="2,4" />
+    </Style>
     <Style Selector="Border.scopeSeparator">
       <Setter Property="Width" Value="1" />
       <Setter Property="Height" Value="28" />
@@ -41,8 +44,9 @@
     <Border Height="45" Background="#0a1015" Padding="6,0">
       <StackPanel x:Name="MainRow" Orientation="Horizontal" VerticalAlignment="Center" />
     </Border>
-    <Border x:Name="Tray" Height="45" Background="#0a1015" BorderBrush="#22313b" BorderThickness="0,1,0,0" Padding="6,0" IsVisible="False">
-      <StackPanel x:Name="TrayRow" Orientation="Horizontal" VerticalAlignment="Center" />
+    <!-- The tray wraps onto more rows when its buttons don't fit; one row keeps the bar's height. -->
+    <Border x:Name="Tray" MinHeight="45" Background="#0a1015" BorderBrush="#22313b" BorderThickness="0,1,0,0" Padding="6,0" IsVisible="False">
+      <WrapPanel x:Name="TrayRow" Orientation="Horizontal" VerticalAlignment="Center" />
     </Border>
   </StackPanel>
 </UserControl>

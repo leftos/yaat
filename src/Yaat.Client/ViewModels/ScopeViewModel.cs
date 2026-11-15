@@ -11,10 +11,10 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The YAAT Scope window's view model. It keeps its own centre, range, map brightness and datablock state; nothing is
-/// shared with <see cref="RadarViewModel"/>. It starts from the radar's centre, range, video maps and MVA-tint flag once,
-/// the first time the radar has a centre and maps, and is independent of the radar after that. The selection is the
-/// app-wide one: a pick here sets <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
+/// The YAAT Scope window's view model. It keeps its own centre, range, map toggles, brightness and datablock state; nothing
+/// is shared with <see cref="RadarViewModel"/>. It starts from the radar's centre, range, map toggles, video maps and
+/// MVA-tint flag once, the first time the radar has a centre and map toggles or active maps, and is independent of the radar
+/// after that. The selection is the app-wide one: a pick here sets <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
 /// </summary>
 public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 {
@@ -23,7 +23,10 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     private bool _isSyncingSelection;
 
-    /// <summary>The radar the scope takes its first centre and maps from, while it still waits for them; null once seeded.</summary>
+    /// <summary>
+    /// The radar the scope takes its first centre, map toggles and maps from, while it still waits for a centre and toggles or
+    /// maps; null once seeded.
+    /// </summary>
     private RadarViewModel? _seedSource;
 
     [ObservableProperty]
@@ -38,7 +41,10 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
 
-    /// <summary>The video maps the scope draws, as the radar had them when it seeded the scope.</summary>
+    /// <summary>
+    /// The video maps the scope draws: the radar's active maps at the seed, then the maps of the scope's own on toggles
+    /// (<see cref="MapToggles"/>), in toggle order.
+    /// </summary>
     [ObservableProperty]
     private IReadOnlyList<VideoMapData> _videoMaps = [];
 
@@ -66,14 +72,15 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     private ScopeViewer _viewer;
 
     /// <summary>
-    /// Seeds the scope from the radar now when the radar has a centre and maps; otherwise waits for the radar's first
-    /// centre and maps, takes them once and stops listening.
+    /// Seeds the scope from the radar now when the radar has a centre and map toggles or active maps; otherwise waits for
+    /// the radar's first centre and toggles or maps, takes them once and stops listening.
     /// </summary>
     public ScopeViewModel(MainViewModel main)
     {
         Main = main;
         _selectedAircraft = main.SelectedAircraft;
         _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
+        _dbSettings = ScopeDbSettings.FromPreferences(main.Preferences);
         _viewer = BuildViewer(main);
         main.PropertyChanged += OnMainPropertyChanged;
         if (!TrySeedFrom(main.Radar))
@@ -94,7 +101,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>The traffic the scope draws.</summary>
     public ObservableCollection<AircraftModel> Aircraft => Main.Aircraft;
 
-    /// <summary>The user's preferences; the scope reads its datablock font size from them and seeds <see cref="TemplateId"/> once.</summary>
+    /// <summary>The user's preferences; the scope seeds <see cref="TemplateId"/> and <see cref="DbSettings"/> from them once.</summary>
     public UserPreferences Preferences => Main.Preferences;
 
     /// <summary>The scope's own per-callsign datablock state; the scope places each block from it.</summary>
@@ -153,19 +160,20 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Copies the radar's centre, range, video maps, their brightness categories and its MVA-tint flag when the radar has
-    /// a centre (both coordinates set) and at least one map.
+    /// Copies the radar's centre, range, map toggles, video maps, their brightness categories and its MVA-tint flag when the
+    /// radar has a centre (both coordinates set) and at least one map toggle or active map.
     /// </summary>
     /// <returns>True when the scope was seeded.</returns>
     private bool TrySeedFrom(RadarViewModel radar)
     {
-        if ((radar.CenterLat == 0) || (radar.CenterLon == 0) || (radar.ActiveVideoMaps is not { Count: > 0 } maps))
+        IReadOnlyList<VideoMapData> maps = radar.ActiveVideoMaps ?? [];
+        if ((radar.CenterLat == 0) || (radar.CenterLon == 0) || ((radar.MapToggles.Count == 0) && (maps.Count == 0)))
         {
             return false;
         }
 
         BrightnessLookup = new Dictionary<string, string>(radar.BrightnessLookup);
-        VideoMaps = [.. maps];
+        SeedMaps(radar.MapToggles, maps);
         ShowMvaHints = radar.ShowMvaHints;
         RangeNm = radar.RangeNm > 0 ? radar.RangeNm : DefaultRangeNm;
         CenterLat = radar.CenterLat;

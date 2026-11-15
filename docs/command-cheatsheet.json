@@ -269,6 +269,8 @@
         { "verb": ".scope range", "aliases": [], "args": "<1-256>", "description": "YAAT Scope range in nm (client-local)" },
         { "verb": ".scope template", "aliases": [], "args": "<stars|eram|mixed|euroscope>", "description": "YAAT Scope datablock template (client-local)" },
         { "verb": ".scope brite", "aliases": [], "args": "<mapa|mapb|targets|fdb|alerts|line4|dwell> <value>", "description": "YAAT Scope brightness: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20 (client-local)" },
+        { "verb": ".scope map", "aliases": [], "args": "<starsId> <on|off> | clear", "description": "Turn one of the YAAT Scope's own video maps on or off by STARS id, or clear them all (client-local)" },
+        { "verb": ".scope db", "aliases": [], "args": "<4thline|dwell|atpa> <on|off> | char <8-24>", "description": "YAAT Scope datablock settings: ERAM 4th line, hover dwell, ATPA distance field, datablock point size (client-local)" },
         { "verb": ".view", "aliases": [], "args": "<ssa|ca> <on|off>", "description": "Open or close a YAAT Scope view: the SSA or the LA/CA/MCI list (client-local)" }
       ],
       "notes": ["JRING/CONE are instructor-only TPA tools drawn on your radar (emulating STARS *J/*P); never shown on the student's CRC."]

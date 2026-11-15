@@ -23,6 +23,30 @@ public enum ScopeButtonId
     /// <summary>The range spinner.</summary>
     Range,
 
+    /// <summary>The MAPS menu; its tray holds CLR ALL and the Scope's map toggles.</summary>
+    Maps,
+
+    /// <summary>The MAPS menu's CLR ALL.</summary>
+    MapClear,
+
+    /// <summary>A MAPS menu map toggle: one id shared by every map toggle, each told apart by its STARS id (the button's value).</summary>
+    MapToggle,
+
+    /// <summary>The DB menu.</summary>
+    Db,
+
+    /// <summary>The DB menu's 4TH LINE toggle.</summary>
+    Db4thLine,
+
+    /// <summary>The DB menu's DWELL toggle.</summary>
+    DbDwell,
+
+    /// <summary>The DB menu's ATPA DIST toggle.</summary>
+    DbAtpa,
+
+    /// <summary>The DB menu's CHAR spinner.</summary>
+    DbChar,
+
     /// <summary>The Views menu.</summary>
     Views,
 
@@ -80,7 +104,7 @@ public enum ScopeButtonKind
 /// <param name="Children">A menu's buttons, in tray order; empty for any other kind.</param>
 /// <param name="Value">
 /// The value the button stands for: the template id a template pick picks, the view name a view toggle opens, the group name
-/// a BRITE spinner steps; else null.
+/// a BRITE spinner steps, the STARS id a map toggle turns on, the item a DB button sets; else null.
 /// </param>
 /// <param name="Command">
 /// A command button's full dot command; a toggle's command stem, to which a press appends <c> on</c> or <c> off</c>; null for
@@ -115,6 +139,21 @@ public static class ScopeToolbarButtons
             null
         ),
         new(ScopeButtonId.Range, "RANGE", ScopeButtonKind.Spinner, [], null, null),
+        // The Scope's map toggles are facility data: ScopeViewModel.TrayChildren builds this tray.
+        new(ScopeButtonId.Maps, "MAPS", ScopeButtonKind.Menu, [], null, null),
+        new(
+            ScopeButtonId.Db,
+            "DB",
+            ScopeButtonKind.Menu,
+            [
+                DbToggle(ScopeButtonId.Db4thLine, "4TH LINE", DbLine4Item),
+                DbToggle(ScopeButtonId.DbDwell, "DWELL", DbDwellItem),
+                DbToggle(ScopeButtonId.DbAtpa, "ATPA DIST", DbAtpaItem),
+                new(ScopeButtonId.DbChar, "CHAR", ScopeButtonKind.Spinner, [], DbCharItem, null),
+            ],
+            null,
+            null
+        ),
         new(
             ScopeButtonId.Views,
             "VIEWS",
@@ -147,6 +186,40 @@ public static class ScopeToolbarButtons
     /// <summary>The LA/CA/MCI list's view name, as <c>.view</c> takes it.</summary>
     public const string ViewCaName = "ca";
 
+    /// <summary>The DB 4TH LINE item, as <c>.scope db</c> takes it.</summary>
+    public const string DbLine4Item = "4thline";
+
+    /// <summary>The DB DWELL item, as <c>.scope db</c> takes it.</summary>
+    public const string DbDwellItem = "dwell";
+
+    /// <summary>The DB ATPA DIST item, as <c>.scope db</c> takes it.</summary>
+    public const string DbAtpaItem = "atpa";
+
+    /// <summary>The DB CHAR item, as <c>.scope db</c> takes it.</summary>
+    public const string DbCharItem = "char";
+
+    /// <summary>The command that turns every Scope map off (the MAPS tray's CLR ALL).</summary>
+    public const string MapClearCommand = ".scope map clear";
+
+    /// <summary>The MAPS tray's first button, CLR ALL.</summary>
+    public static readonly ScopeButton MapClear = new(ScopeButtonId.MapClear, "CLR ALL", ScopeButtonKind.Command, [], null, MapClearCommand);
+
+    /// <summary>The MAPS tray's toggle for the map with <paramref name="starsId"/>, labelled <c>{starsId} {shortName}</c>.</summary>
+    public static ScopeButton MapToggle(int starsId, string shortName)
+    {
+        string id = starsId.ToString(CultureInfo.InvariantCulture);
+        return new(ScopeButtonId.MapToggle, $"{id} {shortName}", ScopeButtonKind.Toggle, [], id, $".scope map {id}");
+    }
+
+    /// <summary>The command that turns the Scope map with <paramref name="starsId"/> on (<paramref name="on"/>) or off.</summary>
+    public static string MapCommand(int starsId, bool on) => $".scope map {starsId.ToString(CultureInfo.InvariantCulture)} {(on ? "on" : "off")}";
+
+    /// <summary>The command that turns the DB item <paramref name="item"/> on (<paramref name="on"/>) or off.</summary>
+    public static string DbToggleCommand(string item, bool on) => $"{DbCommandStem(item)} {(on ? "on" : "off")}";
+
+    /// <summary>The command that sets the datablock point size to <paramref name="size"/>.</summary>
+    public static string DbCharCommand(int size) => $"{DbCommandStem(DbCharItem)} {size.ToString(CultureInfo.InvariantCulture)}";
+
     /// <summary>The command that opens (<paramref name="open"/>) or closes the view named <paramref name="viewName"/>.</summary>
     public static string ViewCommand(string viewName, bool open) => $"{ViewCommandStem(viewName)} {(open ? "on" : "off")}";
 
@@ -177,4 +250,9 @@ public static class ScopeToolbarButtons
         new(id, label, ScopeButtonKind.Toggle, [], viewName, ViewCommandStem(viewName));
 
     private static string ViewCommandStem(string viewName) => $".view {viewName}";
+
+    private static ScopeButton DbToggle(ScopeButtonId id, string label, string item) =>
+        new(id, label, ScopeButtonKind.Toggle, [], item, DbCommandStem(item));
+
+    private static string DbCommandStem(string item) => $".scope db {item}";
 }

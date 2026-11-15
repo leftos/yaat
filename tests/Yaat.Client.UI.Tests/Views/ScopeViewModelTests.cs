@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Sim;
@@ -113,6 +114,125 @@ public class ScopeViewModelTests
         main.Radar.ShowMvaHints = false;
 
         Assert.True(scope.ShowMvaHints);
+    }
+
+    /// <summary>A centred radar with toggles 31, 2 and 10 (in that list order); <paramref name="active"/> are its maps that are on.</summary>
+    private static void CentreRadarWithToggles(MainViewModel main, params VideoMapData[] active)
+    {
+        RadarMapToggles.Add(main.Radar, 31, 2, 10);
+        foreach (VideoMapToggleItem toggle in main.Radar.MapToggles)
+        {
+            toggle.IsEnabled = active.Any(m => m.MapId == toggle.MapId);
+        }
+
+        // The centre comes last: a waiting scope seeds the moment the radar has a centre and toggles.
+        main.Radar.RangeNm = 60;
+        main.Radar.ActiveVideoMaps = active;
+        main.Radar.CenterLat = 37.62;
+        main.Radar.CenterLon = -122.38;
+    }
+
+    [AvaloniaFact]
+    public void Scope_SeedsItsMapToggles_FromTheRadarsTogglesAndActiveMaps_InStarsIdOrder()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        CentreRadarWithToggles(main, Map("m10"));
+
+        using var scope = new ScopeViewModel(main);
+
+        Assert.False(scope.IsWaitingForRadarSeed);
+        Assert.Equal([2, 10, 31], scope.MapToggles.Select(t => t.StarsId));
+        Assert.Equal([false, true, false], scope.MapToggles.Select(t => t.IsOn));
+        ScopeMapToggle ten = scope.MapToggles[1];
+        Assert.Equal(("m10", "Map 10", "A"), (ten.MapId, ten.Name, ten.BrightnessCategory));
+    }
+
+    [AvaloniaFact]
+    public void Scope_SeedsFromACentredRadarWithEveryMapOff()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        using var scope = new ScopeViewModel(main);
+        Assert.True(scope.IsWaitingForRadarSeed);
+
+        CentreRadarWithToggles(main);
+
+        Assert.False(scope.IsWaitingForRadarSeed);
+        Assert.Equal((37.62, -122.38), (scope.CenterLat, scope.CenterLon));
+        Assert.Equal(60, scope.RangeNm);
+        Assert.Equal(3, scope.MapToggles.Count);
+        Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+        Assert.Empty(scope.VideoMaps);
+    }
+
+    [AvaloniaFact]
+    public void ScopeMapToggle_LeavesTheRadarsTogglesAndMapsAlone()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        CentreRadarWithToggles(main, Map("m10"));
+        IReadOnlyList<VideoMapData>? radarMaps = main.Radar.ActiveVideoMaps;
+        using var scope = new ScopeViewModel(main);
+
+        scope.MapToggles[0].IsOn = true;
+        scope.MapToggles[1].IsOn = false;
+
+        Assert.Equal([false, false, true], main.Radar.MapToggles.Select(t => t.IsEnabled));
+        Assert.Same(radarMaps, main.Radar.ActiveVideoMaps);
+    }
+
+    [AvaloniaFact]
+    public void ScopeVideoMaps_FollowTheOnToggles_InToggleOrder_AndClearAllEmptiesThem()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        VideoMapData m31 = Map("m31");
+        VideoMapData m2 = Map("m2");
+        CentreRadarWithToggles(main, m31, m2);
+        using var scope = new ScopeViewModel(main);
+        Assert.Equal([m31, m2], scope.VideoMaps);
+
+        // Map 10 has no data in the cache and was not seeded, so it draws nothing; the seeded two follow toggle order.
+        scope.MapToggles[1].IsOn = true;
+        Assert.Equal([m2, m31], scope.VideoMaps);
+
+        scope.MapToggles[0].IsOn = false;
+        Assert.Equal([m31], scope.VideoMaps);
+
+        scope.ClearMaps();
+        Assert.Empty(scope.VideoMaps);
+        Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+
+        scope.MapToggles[0].IsOn = true;
+        Assert.Equal([m2], scope.VideoMaps);
+    }
+
+    [AvaloniaFact]
+    public void ScopeMapTurnedOn_ThatWasNotSeeded_DrawsFromTheVideoMapCache()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        VideoMapData m31 = Map("m31");
+        CentreRadarWithToggles(main, m31);
+        VideoMapData m10 = Map("m10");
+        main.CacheVideoMapForTesting(m10);
+        using var scope = new ScopeViewModel(main);
+
+        scope.SetMapOn(10, true);
+
+        Assert.Equal([m10, m31], scope.VideoMaps);
+    }
+
+    [AvaloniaFact]
+    public void ScopeMap_CachedCopy_WinsOverTheSeededOne()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        VideoMapData seeded = Map("m2");
+        CentreRadarWithToggles(main, seeded);
+        VideoMapData cached = Map("m2");
+        main.CacheVideoMapForTesting(cached);
+        using var scope = new ScopeViewModel(main);
+        Assert.Same(seeded, Assert.Single(scope.VideoMaps));
+
+        scope.SetMapOn(10, true);
+
+        Assert.Same(cached, Assert.Single(scope.VideoMaps));
     }
 
     [AvaloniaFact]

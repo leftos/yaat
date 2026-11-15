@@ -119,7 +119,7 @@ Aliases are fully editable in **Settings › Command verbs**.
 
 Commands beginning with `.` are client-local — they act on your own displays and are never sent to aircraft.
 
-These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a radar-view line between two named points, each a fix, an FRD, or a callsign), the YAAT Scope's [toolbar commands](USER_GUIDE.md#yaat-scope-preview) (`.scope range <1-256>`, `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>`, `.view <ssa|ca> <on|off>`), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
+These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a radar-view line between two named points, each a fix, an FRD, or a callsign), the YAAT Scope's [toolbar commands](USER_GUIDE.md#yaat-scope-preview) (`.scope range <1-256>`, `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>`, `.scope map <id> <on|off>`, `.scope db <item> <value>`, `.view <ssa|ca> <on|off>`), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
 
 ### Fix Arguments
 
@@ -630,6 +630,8 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | YAAT Scope range | `.scope range 40` (1-256 nm; client-local) | — | — |
 | YAAT Scope template | `.scope template eram` (`stars`, `eram`, `mixed`, `euroscope`; client-local) | — | — |
 | YAAT Scope brightness | `.scope brite fdb 80` (`mapa`, `mapb`, `targets`, `fdb`, `alerts` 0-100; `line4` -20-0; `dwell` 0-20; any letter case; client-local) | — | — |
+| YAAT Scope video map | `.scope map 10 on` / `.scope map clear` (a map's STARS id, then `on` or `off`; `clear` turns every map off; the Scope's own toggles, never the Radar's; client-local) | — | An unknown id answers `Unknown video map: <id>` |
+| YAAT Scope datablock settings | `.scope db 4thline off` / `.scope db char 14` (`4thline`, `dwell`, `atpa` then `on` or `off`; `char` 8-24; the Scope's own, never saved; client-local) | — | An unknown or unbuilt item answers `Unknown scope DB item: <item>` |
 | YAAT Scope view | `.view ssa on` / `.view ca off` (`ssa` or `ca`, then `on` or `off`; client-local) | — | Opens or closes the SSA or the LA/CA/MCI list in the Scope's views dock |
 
 ### Strip / Data Operations

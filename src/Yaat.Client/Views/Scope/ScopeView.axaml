@@ -18,5 +18,6 @@
     TemplateId="{Binding TemplateId}"
     Viewer="{Binding Viewer}"
     Brightness="{Binding Brightness}"
+    DbSettings="{Binding DbSettings}"
   />
 </UserControl>

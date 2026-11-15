@@ -10,13 +10,13 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsTemplateRangeViewsThenBrite()
+    public void TheBar_IsTemplateRangeMapsDbViewsThenBrite()
     {
         Assert.Equal(
-            [ScopeButtonId.Template, ScopeButtonId.Range, ScopeButtonId.Views, ScopeButtonId.Brite],
+            [ScopeButtonId.Template, ScopeButtonId.Range, ScopeButtonId.Maps, ScopeButtonId.Db, ScopeButtonId.Views, ScopeButtonId.Brite],
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
-        Assert.Equal(["TEMPLATE", "RANGE", "VIEWS", "BRITE"], ScopeToolbarButtons.All.Select(b => b.Label));
+        Assert.Equal(["TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE"], ScopeToolbarButtons.All.Select(b => b.Label));
     }
 
     [Fact]
@@ -43,6 +43,49 @@ public class ScopeToolbarButtonsTests
         Assert.All(brite.Children, c => Assert.Equal(ScopeButtonKind.Spinner, c.Kind));
         Assert.All(brite.Children, c => Assert.Null(c.Command));
         Assert.All(brite.Children, c => Assert.Empty(c.Children));
+    }
+
+    [Fact]
+    public void Db_IsAMenuOfItsThreeToggles_ThenTheCharSpinner()
+    {
+        ScopeButton db = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Db);
+
+        Assert.Equal(ScopeButtonKind.Menu, db.Kind);
+        Assert.Null(db.Command);
+        Assert.Equal([ScopeButtonId.Db4thLine, ScopeButtonId.DbDwell, ScopeButtonId.DbAtpa, ScopeButtonId.DbChar], db.Children.Select(c => c.Id));
+        Assert.Equal(["4TH LINE", "DWELL", "ATPA DIST", "CHAR"], db.Children.Select(c => c.Label));
+        Assert.Equal(
+            [ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Spinner],
+            db.Children.Select(c => c.Kind)
+        );
+        Assert.Equal([".scope db 4thline", ".scope db dwell", ".scope db atpa", null], db.Children.Select(c => c.Command));
+        Assert.Equal(".scope db char 16", ScopeToolbarButtons.DbCharCommand(16));
+        Assert.All(db.Children, c => Assert.Empty(c.Children));
+    }
+
+    [Fact]
+    public void Maps_IsAMenu_WithNoStaticChildren()
+    {
+        ScopeButton maps = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Maps);
+
+        Assert.Equal(ScopeButtonKind.Menu, maps.Kind);
+        Assert.Null(maps.Command);
+        Assert.Empty(maps.Children);
+    }
+
+    [Fact]
+    public void MapButtons_ClearAllThenOneTogglePerMap_KeyedByStarsId()
+    {
+        ScopeButton clear = ScopeToolbarButtons.MapClear;
+        Assert.Equal((ScopeButtonId.MapClear, "CLR ALL", ScopeButtonKind.Command), (clear.Id, clear.Label, clear.Kind));
+        Assert.Null(clear.Value);
+        Assert.Equal(".scope map clear", clear.Command);
+        ScopeButton toggle = ScopeToolbarButtons.MapToggle(10, "SFO");
+        Assert.Equal((ScopeButtonId.MapToggle, "10 SFO", ScopeButtonKind.Toggle), (toggle.Id, toggle.Label, toggle.Kind));
+        Assert.Equal(("10", ".scope map 10"), (toggle.Value, toggle.Command));
+        Assert.Empty(toggle.Children);
+        Assert.Equal(".scope map 10 on", ScopeToolbarButtons.MapCommand(10, true));
+        Assert.Equal(".scope map 10 off", ScopeToolbarButtons.MapCommand(10, false));
     }
 
     [Fact]

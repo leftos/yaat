@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -24,10 +25,23 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeToolbarTests
 {
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenAsync(Size? size = null)
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenAsync(Size? size = null) =>
+        OpenScopeAsync(size, _ => { });
+
+    /// <summary>Opens the Scope at <paramref name="size"/> after <paramref name="beforeScope"/> has set the radar up.</summary>
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenWithRadarAsync(
+        Size size,
+        Action<MainViewModel> beforeScope
+    ) => OpenScopeAsync(size, beforeScope);
+
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenScopeAsync(
+        Size? size,
+        Action<MainViewModel> beforeScope
+    )
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        beforeScope(main);
         var scope = new ScopeViewModel(main);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
@@ -350,6 +364,160 @@ public class ScopeToolbarTests
 
             Assert.Equal(50, canvas.Brightness.Fdb);
             Assert.Same(frame, canvas.CurrentFrame);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>Gives the radar a centre and one map toggle per STARS id, in the order given, every map off.</summary>
+    private static Action<MainViewModel> RadarWithToggles(params int[] starsIds) =>
+        main =>
+        {
+            RadarMapToggles.Add(main.Radar, starsIds);
+            main.Radar.CenterLat = 37.62;
+            main.Radar.CenterLon = -122.38;
+        };
+
+    /// <summary>The shown tray button labelled <paramref name="label"/>; map toggles share one id, so they are found by label.</summary>
+    private static Button TrayButton(Window window, string label) => TrayButtons(window).Single(b => Label(b) == label);
+
+    [AvaloniaFact]
+    public async Task MapsTray_ShowsClearAllThenTheToggles_AndAToggleClickTurnsItsMapOn()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWithRadarAsync(new Size(900, 600), RadarWithToggles(31, 2, 10));
+        try
+        {
+            Assert.Equal("MAPS ▸", DrawnText(ButtonOf(window, ScopeButtonId.Maps)));
+
+            Click(ButtonOf(window, ScopeButtonId.Maps));
+
+            Assert.Equal(["CLR ALL", "2 MAP2", "10 MAP10", "31 MAP31"], TrayButtons(window).Select(DrawnText));
+            Assert.DoesNotContain(TrayButtons(window), b => b.Classes.Contains("active"));
+
+            Click(TrayButton(window, "10 MAP10"));
+
+            Assert.Equal(".scope map 10 on", main.StatusText);
+            Assert.True(scope.MapToggles.Single(t => t.StarsId == 10).IsOn);
+            Assert.Contains("active", TrayButton(window, "10 MAP10").Classes);
+            Assert.DoesNotContain("active", TrayButton(window, "2 MAP2").Classes);
+            Assert.Equal(ScopeButtonId.Maps, scope.OpenMenu);
+
+            Click(TrayButton(window, "10 MAP10"));
+            Assert.Equal(".scope map 10 off", main.StatusText);
+            Assert.False(scope.MapToggles.Single(t => t.StarsId == 10).IsOn);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task MapsTray_ClearAll_TurnsEveryMapOff()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWithRadarAsync(new Size(900, 600), RadarWithToggles(2, 10));
+        try
+        {
+            main.RunScopeCommand(".scope map 2 on");
+            main.RunScopeCommand(".scope map 10 on");
+            Click(ButtonOf(window, ScopeButtonId.Maps));
+
+            Click(ButtonOf(window, ScopeButtonId.MapClear));
+
+            Assert.Equal(".scope map clear", main.StatusText);
+            Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task DbTray_ShowsItsTogglesActive_AndTheCharSize()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Assert.Equal("DB ▸", DrawnText(ButtonOf(window, ScopeButtonId.Db)));
+
+            Click(ButtonOf(window, ScopeButtonId.Db));
+
+            string charLabel = $"CHAR {main.Preferences.RadarDatablockFontSize}";
+            Assert.Equal(["4TH LINE", "DWELL", "ATPA DIST", charLabel], TrayButtons(window).Select(DrawnText));
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.Db4thLine).Classes);
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.DbDwell).Classes);
+            Assert.Equal(main.Preferences.ShowAtpa, ButtonOf(window, ScopeButtonId.DbAtpa).Classes.Contains("active"));
+
+            Click(ButtonOf(window, ScopeButtonId.Db4thLine));
+
+            Assert.Equal(".scope db 4thline off", main.StatusText);
+            Assert.False(scope.DbSettings.Line4);
+            Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.Db4thLine).Classes);
+            Assert.Equal(ScopeButtonId.Db, scope.OpenMenu);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task DbChar_WheelStepsByOne_AndClampsAtItsLimits()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.RunScopeCommand(".scope db char 23");
+            Click(ButtonOf(window, ScopeButtonId.Db));
+
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.DbChar), up: true);
+            Assert.Equal(24, scope.DbSettings.CharSize);
+            Assert.Equal(".scope db char 24", main.StatusText);
+            Assert.Equal("CHAR 24", DrawnText(ButtonOf(window, ScopeButtonId.DbChar)));
+
+            main.StatusText = "";
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.DbChar), up: true);
+            Assert.Equal(24, scope.DbSettings.CharSize);
+            Assert.Equal("", main.StatusText);
+
+            main.RunScopeCommand(".scope db char 8");
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.DbChar), up: false);
+            Assert.Equal(8, scope.DbSettings.CharSize);
+            WheelOnce(window, ButtonOf(window, ScopeButtonId.DbChar), up: true);
+            Assert.Equal(9, scope.DbSettings.CharSize);
+            Assert.Equal(".scope db char 9", main.StatusText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ATrayWiderThanTheWindow_WrapsOntoMoreRows_AndNeverResizesTheScope()
+    {
+        int[] ids = [.. Enumerable.Range(1, 30)];
+        (_, _, ScopeWindow window) = await OpenWithRadarAsync(new Size(600, 800), RadarWithToggles(ids));
+        try
+        {
+            ScopeCanvas canvas = window.GetVisualDescendants().OfType<ScopeCanvas>().Single();
+            Rect bounds = canvas.Bounds;
+
+            Click(ButtonOf(window, ScopeButtonId.Maps));
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Border tray = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "Tray");
+            Button[] buttons = TrayButtons(window);
+            Assert.Equal(31, buttons.Length);
+            double[] rows = [.. buttons.Select(b => b.TranslatePoint(default, window)!.Value.Y).Distinct()];
+            Assert.True(rows.Length > 1, "the tray's buttons wrap onto a second row");
+            Assert.All(buttons, b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), tray)!.Value.X <= tray.Bounds.Width));
+            Assert.True(tray.Bounds.Height > 45, "the tray grows to hold its rows");
+            Assert.Equal(bounds, canvas.Bounds);
         }
         finally
         {

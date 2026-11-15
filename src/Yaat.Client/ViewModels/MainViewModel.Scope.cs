@@ -1,6 +1,7 @@
 using System.Globalization;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
 
@@ -10,11 +11,17 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    private const string ScopeUsage = "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>";
+    private const string ScopeUsage =
+        "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
+        + " | .scope map <id> <on|off> | .scope db <item> <value>";
 
     private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
 
     private const string ScopeBriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
+
+    private const string ScopeMapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
+
+    private const string ScopeDbUsage = "Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>";
 
     /// <summary>The open YAAT Scope's view model, or null when no Scope window is open.</summary>
     public ScopeViewModel? OpenScope { get; set; }
@@ -22,9 +29,15 @@ public partial class MainViewModel
     /// <summary>Runs a <c>.scope</c> command from the Scope's toolbar; nothing is added to the command history.</summary>
     public void RunScopeCommand(string text) => TryHandleScopeCommand(text);
 
+    /// <summary>The parsed data of the video map with <paramref name="mapId"/> from the video-map cache, or null when it is not loaded.</summary>
+    public VideoMapData? GetCachedVideoMap(string mapId) => _videoMapService.GetCached(mapId);
+
+    /// <summary>Puts <paramref name="data"/> in the video-map cache, as a facility's map load would. Test seam.</summary>
+    internal void CacheVideoMapForTesting(VideoMapData data) => _videoMapService.CacheForTesting(data);
+
     /// <summary>
-    /// Handles <c>.scope range &lt;1-256&gt;</c>, <c>.scope template &lt;id&gt;</c> and
-    /// <c>.scope brite &lt;group&gt; &lt;value&gt;</c> against <see cref="OpenScope"/>, writing the echo or the error to the status line.
+    /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c> and <c>.scope db</c>
+    /// against <see cref="OpenScope"/>, writing the echo or the error to the status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeCommand(string text)
@@ -43,14 +56,96 @@ public partial class MainViewModel
     private string RunScopeVerb(string[] parts)
     {
         string verb = parts.Length > 1 ? parts[1].ToUpperInvariant() : "";
-        return verb switch
+        Func<ScopeViewModel, string[], string>? handler = verb switch
         {
-            "RANGE" => OpenScope is { } rangeScope ? SetScopeRange(rangeScope, parts) : "No YAAT Scope is open",
-            "TEMPLATE" => OpenScope is { } templateScope ? PickScopeTemplate(templateScope, parts) : "No YAAT Scope is open",
-            "BRITE" => OpenScope is { } briteScope ? SetScopeBrightness(briteScope, parts) : "No YAAT Scope is open",
-            _ => ScopeUsage,
+            "RANGE" => SetScopeRange,
+            "TEMPLATE" => PickScopeTemplate,
+            "BRITE" => SetScopeBrightness,
+            "MAP" => SetScopeMap,
+            "DB" => SetScopeDb,
+            _ => null,
         };
+        if (handler is null)
+        {
+            return ScopeUsage;
+        }
+
+        return OpenScope is { } scope ? handler(scope, parts) : "No YAAT Scope is open";
     }
+
+    /// <summary><c>.scope map &lt;starsId&gt; on|off</c> or <c>.scope map clear</c>.</summary>
+    private static string SetScopeMap(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length == 3) && string.Equals(parts[2], "clear", StringComparison.OrdinalIgnoreCase))
+        {
+            scope.ClearMaps();
+            return ScopeToolbarButtons.MapClearCommand;
+        }
+
+        if ((parts.Length != 4) || (ParseOnOff(parts[3]) is not { } on))
+        {
+            return ScopeMapUsage;
+        }
+
+        if (!int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int starsId) || !scope.SetMapOn(starsId, on))
+        {
+            return $"Unknown video map: {parts[2]}";
+        }
+
+        return ScopeToolbarButtons.MapCommand(starsId, on);
+    }
+
+    /// <summary><c>.scope db 4thline|dwell|atpa on|off</c> or <c>.scope db char &lt;8-24&gt;</c>.</summary>
+    private static string SetScopeDb(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length < 3)
+        {
+            return ScopeDbUsage;
+        }
+
+        string item = parts[2].ToLowerInvariant();
+        if (item == ScopeToolbarButtons.DbCharItem)
+        {
+            return SetScopeDbChar(scope, parts);
+        }
+
+        if (!ScopeViewModel.IsDbToggleItem(item))
+        {
+            return $"Unknown scope DB item: {parts[2]}";
+        }
+
+        if ((parts.Length != 4) || (ParseOnOff(parts[3]) is not { } on))
+        {
+            return ScopeDbUsage;
+        }
+
+        scope.SetDbToggle(item, on);
+        return ScopeToolbarButtons.DbToggleCommand(item, on);
+    }
+
+    private static string SetScopeDbChar(ScopeViewModel scope, string[] parts)
+    {
+        if (
+            (parts.Length != 4)
+            || !int.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out int size)
+            || !ScopeDbSettings.IsCharSize(size)
+        )
+        {
+            return ScopeDbUsage;
+        }
+
+        scope.SetDbCharSize(size);
+        return ScopeToolbarButtons.DbCharCommand(size);
+    }
+
+    /// <summary><c>on</c> is true and <c>off</c> false (case-insensitive); any other word is null.</summary>
+    private static bool? ParseOnOff(string word) =>
+        word.ToLowerInvariant() switch
+        {
+            "on" => true,
+            "off" => false,
+            _ => null,
+        };
 
     private static string SetScopeBrightness(ScopeViewModel scope, string[] parts)
     {

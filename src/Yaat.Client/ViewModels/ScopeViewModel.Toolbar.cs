@@ -67,15 +67,22 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Steps the spinner with <paramref name="id"/> by <paramref name="steps"/> wheel steps, positive for wheel up: RANGE
-    /// zooms in (<see cref="StepRange"/> by <c>-steps</c>); a BRITE spinner moves its group by <c>steps</c> times its step,
-    /// through <c>.scope brite</c>: a step past the group's limit stops at the limit, so a value typed off the step grid
-    /// can be wheeled back, and a step at the limit runs no command.
+    /// zooms in (<see cref="StepRange"/> by <c>-steps</c>); CHAR grows by one point a step (<see cref="StepCharSize"/>); a
+    /// BRITE spinner moves its group by <c>steps</c> times its step, through <c>.scope brite</c>: a step past the group's
+    /// limit stops at the limit, so a value typed off the step grid can be wheeled back, and a step at the limit runs no
+    /// command.
     /// </summary>
     public void StepSpinner(ScopeButtonId id, int steps)
     {
         if (id == ScopeButtonId.Range)
         {
             StepRange(-steps);
+            return;
+        }
+
+        if (id == ScopeButtonId.DbChar)
+        {
+            StepCharSize(steps);
             return;
         }
 
@@ -93,19 +100,31 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while the view
-    /// it names is open, a command button while the template it picks is in use.
+    /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
+    /// turns on is on (<see cref="IsToggleOn"/>), a command button while the template it picks is in use.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Kind switch
         {
             ScopeButtonKind.Menu => OpenMenu == button.Id,
-            ScopeButtonKind.Toggle => (button.Value is { } view) && IsViewOpen(view),
+            ScopeButtonKind.Toggle => IsToggleOn(button),
             ScopeButtonKind.Command => (button.Value is { } value) && (value == TemplateId),
             _ => false,
         };
 
-    /// <summary>The value a spinner shows after its label (the range, or a BRITE group's value), or null for any other button.</summary>
+    /// <summary>
+    /// The buttons the tray of <paramref name="menu"/> shows: for MAPS, CLR ALL then one toggle per <see cref="MapToggles"/>
+    /// item in its order; for any other menu, its own children.
+    /// </summary>
+    public IReadOnlyList<ScopeButton> TrayChildren(ScopeButton menu) =>
+        menu.Id == ScopeButtonId.Maps
+            ? [ScopeToolbarButtons.MapClear, .. MapToggles.Select(t => ScopeToolbarButtons.MapToggle(t.StarsId, t.ShortName))]
+            : menu.Children;
+
+    /// <summary>
+    /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), or null for any other
+    /// button.
+    /// </summary>
     public string? SpinnerValue(ScopeButton button)
     {
         if (button.Id == ScopeButtonId.Range)
@@ -113,7 +132,40 @@ public sealed partial class ScopeViewModel
             return Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture);
         }
 
+        if (button.Id == ScopeButtonId.DbChar)
+        {
+            return DbSettings.CharSize.ToString(CultureInfo.InvariantCulture);
+        }
+
         return ScopeToolbarButtons.BriteGroupOf(button.Id) is { } group ? group.Get(Brightness).ToString(CultureInfo.InvariantCulture) : null;
+    }
+
+    /// <summary>
+    /// Whether a toggle's setting is on: a map toggle while the map with its STARS id is on, a DB toggle while its setting
+    /// is on, a view toggle while the view it names is open.
+    /// </summary>
+    private bool IsToggleOn(ScopeButton button) =>
+        button.Id switch
+        {
+            ScopeButtonId.MapToggle => MapToggles.Any(t => t.IsOn && (t.StarsId.ToString(CultureInfo.InvariantCulture) == button.Value)),
+            ScopeButtonId.Db4thLine => DbSettings.Line4,
+            ScopeButtonId.DbDwell => DbSettings.HoverDwell,
+            ScopeButtonId.DbAtpa => DbSettings.Atpa,
+            _ => (button.Value is { } view) && IsViewOpen(view),
+        };
+
+    /// <summary>
+    /// Steps the CHAR size by <paramref name="steps"/> points through <c>.scope db char</c>; a step past a limit stops at it,
+    /// and a step at the limit runs no command.
+    /// </summary>
+    private void StepCharSize(int steps)
+    {
+        int current = DbSettings.CharSize;
+        int next = Math.Clamp(current + steps, ScopeDbSettings.MinCharSize, ScopeDbSettings.MaxCharSize);
+        if (next != current)
+        {
+            RunCommand(ScopeToolbarButtons.DbCharCommand(next));
+        }
     }
 
     private void RunButtonCommand(ScopeButton button)
