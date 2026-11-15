@@ -40,11 +40,12 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Rollout.** YAAT Scope is built as a new view beside today's Radar (reached from the View menu). The old Radar view is deleted once the new one reaches parity; no long-lived dual renderer.
 - **EuroScope tag mode** survives as a template on the new engine. Its flyouts become the field menus.
 - **Layout cost.** Each block's layout is cached and re-laid out only when a field changes.
-- **Step 3 views.** The dock ships with the SSA, the Tab list and the Conflict alert list (LA/CA/MCI); the other CRC lists are not part of step 3.
+- **Step 3 views.** The dock ships with the SSA and the Conflict alert list (LA/CA/MCI); the Tab list (CRC's FLIGHT PLAN list) and the other CRC lists are not part of step 3.
 - **Step 3 toolbar, dock and pref sets** (orchestrator decisions from the canvas's boards 01, 04 and 06 and from CRC, open to the owner):
   - The toolbar is one full-width row of buttons in one dark navy theme with a cyan active state, for every template. An opened menu is a tray below the bar, and the main row stays visible. A button shows once its behaviour exists; later steps' buttons are absent, never disabled. There is no show/hide hotkey.
   - The dock is a fixed-width right-hand column that hides when no view is open in it. The SSA is a view, placed by default on the scope at its top-left (torn off), as the canvas draws it.
   - Tear-offs follow CRC's ERAM tear-offs (copy, move, anchored to the nearest corner, one per button, DELETE TEAROFF) and apply to views too.
+  - BRITE ships a group per layer the Scope draws (MAP A, MAP B, TARGETS, FDB, LINE 4, ALERTS, DWELL), scaling colour by value/100 as CRC does; defaults keep today's look (100, MAP B 60, LINE 4 0, DWELL 20), and DWELL lifts a dwelled track toward full brightness by CRC's rule. The SSA draws CRC's UTC time, the primary airport's altimeter, the tracking status and the range; fields whose data YAAT lacks are left out.
   - A pref set saves range, centre, maps, brightness, the DB settings, the views and the tear-offs. Pref sets are kept per facility, as CRC keeps STARS pref sets. The Scope's current state also saves itself, and a pref set is a named snapshot on top. The instructor's dwell locks are not saved.
 
 ## Architecture
