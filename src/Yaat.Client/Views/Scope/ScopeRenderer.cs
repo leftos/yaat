@@ -24,6 +24,9 @@ namespace Yaat.Client.Views.Scope;
 /// The callsign of the track whose VCI cell the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its VCI lights
 /// without dwelling the block.
 /// </param>
+/// <param name="LocalDwellLockedCallsigns">
+/// Callsigns the instructor dwell-locked on this scope (DataBlockViewState.DwellLockedCallsigns); null is none.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -36,7 +39,8 @@ public sealed record ScopeFrameInput(
     IReadOnlySet<string> HighlightedCallsigns,
     string? HoveredCallsign = null,
     ScopeBlockLevel DefaultLevel = ScopeBlockLevel.Full,
-    string? VciHoveredCallsign = null
+    string? VciHoveredCallsign = null,
+    IReadOnlySet<string>? LocalDwellLockedCallsigns = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -141,11 +145,15 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 
     /// <summary>
     /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Dwell"/> while the pointer dwells on it, or
-    /// while it is dwell-locked for the viewer's ERAM sector and drawn with the ERAM template; else the frame's default.
+    /// while it is drawn with the ERAM template and dwell-locked, by the instructor on this scope
+    /// (<see cref="ScopeFrameInput.LocalDwellLockedCallsigns"/>) or by the student's CRC for the viewer's ERAM sector; else
+    /// the frame's default.
     /// </summary>
     private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input)
     {
-        bool locked = (templateId == ScopeTemplates.EramId) && EramDwellLock.IsDwellLocked(ac, input.Display.Viewer);
+        bool locked =
+            (templateId == ScopeTemplates.EramId)
+            && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, input.Display.Viewer));
         return (IsHovered(ac, input) || locked) ? ScopeBlockLevel.Dwell : input.DefaultLevel;
     }
 

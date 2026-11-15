@@ -9,8 +9,9 @@ using Yaat.Sim;
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// The ERAM sector dwell lock and the VCI hover preview: a track locked for the viewer's ERAM sector draws at Dwell on an ERAM
-/// block only, after every other track but a hovered one; hovering the VCI cell (inflated as CRC's
+/// The ERAM dwell locks and the VCI hover preview: a track the student's CRC locked for the viewer's ERAM sector, or one the
+/// instructor locked on this scope (with or without a viewer sector), draws at Dwell on an ERAM block only, after every other
+/// track but a hovered one; hovering the VCI cell (inflated as CRC's
 /// <c>OnFrequencyIndicatorBounds</c>) lights the VCI without dwelling the block, and the 8 px symbol zone wins over it.
 /// </summary>
 [Collection(RadarBlinkClockCollection.Name)]
@@ -41,7 +42,8 @@ public class ScopeDwellLockTests
         AircraftModel[] aircraft,
         string? hovered = null,
         string? vciHovered = null,
-        Dictionary<string, SKPoint>? offsets = null
+        Dictionary<string, SKPoint>? offsets = null,
+        HashSet<string>? localLocks = null
     )
     {
         var input = new ScopeFrameInput(
@@ -58,7 +60,8 @@ public class ScopeDwellLockTests
             offsets ?? [],
             new HashSet<string>(),
             HoveredCallsign: hovered,
-            VciHoveredCallsign: vciHovered
+            VciHoveredCallsign: vciHovered,
+            LocalDwellLockedCallsigns: localLocks
         );
         return ScopeFrame.Build(input);
     }
@@ -147,6 +150,62 @@ public class ScopeDwellLockTests
 
         Assert.Equal(ScopeBlockLevel.Dwell, TrackOf(frame, "UAL238").Level);
         Assert.Equal(ScopeBlockLevel.Full, TrackOf(frame, "DAL55").Level);
+    }
+
+    [Fact]
+    public void Build_LocalLock_EramTrack_IsAtDwell_WithNoViewerEramSector()
+    {
+        AircraftModel ac = Named("UAL238", -122.0);
+
+        ScopeFrame frame = Build(ScopeTemplates.EramId, ScopeViewer.None, [ac], localLocks: ["UAL238"]);
+
+        Assert.Equal(ScopeBlockLevel.Dwell, Assert.Single(frame.Tracks).Level);
+    }
+
+    [Fact]
+    public void Build_LocalLock_MixedEramKindTrack_IsAtDwell()
+    {
+        AircraftModel unowned = Named("UAL238", -122.0);
+
+        ScopeFrame frame = Build(ScopeTemplates.MixedId, ScopeViewer.None, [unowned], localLocks: ["UAL238"]);
+
+        Assert.Equal(ScopeBlockLevel.Dwell, TrackOf(frame, "UAL238").Level);
+    }
+
+    [Fact]
+    public void Build_LocalLock_StarsTrack_StaysAtFull()
+    {
+        AircraftModel ac = Named("UAL238", -122.0);
+
+        ScopeFrame frame = Build(ScopeTemplates.StarsId, Viewer44, [ac], localLocks: ["UAL238"]);
+
+        Assert.Equal(ScopeBlockLevel.Full, Assert.Single(frame.Tracks).Level);
+    }
+
+    [Fact]
+    public void Build_LocalLock_MixedStarsOwnedTrack_StaysAtFull()
+    {
+        AircraftModel starsOwned = Named("DAL55", -122.0);
+        starsOwned.Owner = "NCT_A";
+        starsOwned.OwnerSectorCode = "1A";
+
+        ScopeFrame frame = Build(ScopeTemplates.MixedId, Viewer44, [starsOwned], localLocks: ["DAL55"]);
+
+        Assert.Equal(ScopeBlockLevel.Full, Assert.Single(frame.Tracks).Level);
+    }
+
+    [Fact]
+    public void Build_LocalAndCrcLock_OnDifferentTracks_BothAtDwell_DrawnAfterOthers_AndBeforeTheHoveredTrack()
+    {
+        AircraftModel crcLocked = Named("UAL238", -122.05, new EramSectorKey("ZOA", "44"));
+        AircraftModel localLocked = Named("AAL12", -122.1);
+        AircraftModel plain = Named("DAL55", -122.0);
+        AircraftModel hovered = Named("SWA1", -121.95);
+
+        ScopeFrame frame = Build(ScopeTemplates.EramId, Viewer44, [hovered, crcLocked, plain, localLocked], hovered: "SWA1", localLocks: ["AAL12"]);
+
+        Assert.Equal(["DAL55", "UAL238", "AAL12", "SWA1"], frame.Tracks.Select(t => t.Aircraft.Callsign));
+        Assert.Equal([ScopeBlockLevel.Full, ScopeBlockLevel.Dwell, ScopeBlockLevel.Dwell, ScopeBlockLevel.Dwell], frame.Tracks.Select(t => t.Level));
     }
 
     [Theory]

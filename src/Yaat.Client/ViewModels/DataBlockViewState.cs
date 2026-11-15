@@ -44,6 +44,12 @@ public class DataBlockViewState
     /// <summary>Callsigns whose datablocks are highlighted (middle-click toggle).</summary>
     public HashSet<string> HighlightedCallsigns { get; } = [];
 
+    /// <summary>
+    /// Callsigns whose ERAM blocks the instructor holds at Dwell (a Field-A click on the YAAT Scope); display state only, never
+    /// sent to the server.
+    /// </summary>
+    public HashSet<string> DwellLockedCallsigns { get; } = [];
+
     /// <summary>Datablock draw order (callsign → z-index); higher draws on top.</summary>
     public Dictionary<string, int> DataBlockZOrder { get; } = [];
 
@@ -56,6 +62,15 @@ public class DataBlockViewState
         if (!HighlightedCallsigns.Remove(callsign))
         {
             HighlightedCallsigns.Add(callsign);
+        }
+    }
+
+    /// <summary>Toggles the instructor's local dwell lock of the callsign's ERAM block (<see cref="DwellLockedCallsigns"/>).</summary>
+    public void ToggleDwellLock(string callsign)
+    {
+        if (!DwellLockedCallsigns.Remove(callsign))
+        {
+            DwellLockedCallsigns.Add(callsign);
         }
     }
 
@@ -96,6 +111,7 @@ public class DataBlockViewState
         ManualOffsets.Clear();
         HighlightedCallsigns.Clear();
         _menuHighlight = null;
+        DwellLockedCallsigns.Clear();
         DataBlockZOrder.Clear();
         _nextZOrder = 1;
     }

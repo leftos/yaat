@@ -59,7 +59,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     );
 
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
-    private static readonly HashSet<string> NoHighlights = [];
+    private static readonly HashSet<string> NoCallsigns = [];
 
     private readonly ScopeRenderer _renderer = new();
     private readonly SKPaint _measurePaint = new();
@@ -152,7 +152,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>
     /// Fired, before <see cref="AircraftLeftClicked"/>, when the callsign field (Field A) of a block drawn with the ERAM template
-    /// is left-clicked: the user asks to toggle the block's dwell lock.
+    /// is left-clicked: the user asks to toggle the instructor's local dwell lock of the block, on this scope only.
     /// </summary>
     public event Action<string>? AircraftDwellLockToggleRequested;
 
@@ -310,6 +310,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                     if (IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y))
                     {
                         AircraftDwellLockToggleRequested?.Invoke(hit.Callsign);
+                        // The lock is drawn from the frame, so the next one reads the toggled state.
+                        _lastFrame = null;
+                        MarkDirty();
                     }
                     AircraftLeftClicked?.Invoke(hit.Callsign);
                 }
@@ -391,7 +394,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         );
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
-        IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoHighlights;
+        IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoCallsigns;
         return ScopeFrame.Build(
             new ScopeFrameInput(
                 visible,
@@ -404,7 +407,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 offsets,
                 highlighted,
                 _hoveredCallsign,
-                VciHoveredCallsign: _hoveredVciCallsign
+                VciHoveredCallsign: _hoveredVciCallsign,
+                LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns
             )
         );
     }

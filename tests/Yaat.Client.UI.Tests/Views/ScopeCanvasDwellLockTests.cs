@@ -47,8 +47,59 @@ public class ScopeCanvasDwellLockTests
             Assert.Equal(["UAL238"], toggled);
             Assert.Same(ac, main.SelectedAircraft);
             Assert.Same(ac, scope.SelectedAircraft);
-            // The scope forwarded the request; with no viewer ERAM sector the view model refuses it.
-            Assert.Equal(ScopeViewModel.NoEramSectorStatus, main.StatusText);
+            // The scope forwarded the request; the view model holds the block locally, with no viewer ERAM sector.
+            Assert.Contains("UAL238", scope.DataBlockState.DwellLockedCallsigns);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void ScopeCanvas_SecondClickOnAnEramCallsign_ReleasesTheLocalLock()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(ScopeTemplates.EramId);
+        try
+        {
+            AircraftModel ac = AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            Point callsign = Centre(view.Canvas, ScopeFieldSlot.Callsign);
+
+            Click(window, view.Canvas, callsign);
+
+            Assert.Null(view.Canvas.HoveredCallsign);
+            Assert.Equal(ScopeBlockLevel.Dwell, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
+
+            Click(window, view.Canvas, callsign);
+
+            Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
+            Assert.Same(ac, main.SelectedAircraft);
+            // The aircraft was already selected, so only the click itself can have dropped the frame that drew the lock.
+            Assert.Null(view.Canvas.HoveredCallsign);
+            Assert.Equal(ScopeBlockLevel.Full, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void ScopeCanvas_LocallyLockedTrack_IsAtDwellInTheNextFrame()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = ShowScope(ScopeTemplates.EramId);
+        try
+        {
+            AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            Assert.Equal(ScopeBlockLevel.Full, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
+
+            Click(window, view.Canvas, Centre(view.Canvas, ScopeFieldSlot.Callsign));
+            Move(window, view.Canvas, new Point(600, 500));
+
+            Assert.Null(view.Canvas.HoveredCallsign);
+            Assert.Equal(ScopeBlockLevel.Dwell, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
         }
         finally
         {

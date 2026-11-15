@@ -840,7 +840,7 @@ An aircraft's ERAM position as of its last 12 s sweep (`EramSweptPosition` in ya
 ERAM's hover emphasis on a data block; in YAAT Scope, hovering a track (within 8 px of its symbol, or on its block) shows the block's Full content drawn on top, undimmed and boxed, and moving off releases it.
 
 **Dwell lock**:
-A per-ERAM-sector hold of a data block at Dwell, toggled by left-clicking its callsign (Field A) in CRC and in YAAT Scope; the server keeps it per aircraft and sector, so the Scope shows it only to its viewer's ERAM sector, and a click with no ERAM sector is refused.
+A hold of an ERAM data block at Dwell, toggled by left-clicking its callsign (Field A). Two locks exist: the student's per-sector lock set in CRC (the server keeps it per aircraft and sector, and the Scope shows it only for its viewer's ERAM sector), and the instructor's local Scope lock, which lives on that scope only, needs no ERAM position and is never sent to CRC.
 
 **Pilot lens**:
 YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path, queued pilot commands, actual check-in state. Off by default.

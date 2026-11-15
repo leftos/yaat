@@ -2,8 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
-using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
@@ -22,11 +20,6 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 {
     /// <summary>The range the scope opens at until the radar gives it one.</summary>
     public const double DefaultRangeNm = 40;
-
-    /// <summary>The status a dwell-lock click shows when the viewer has no ERAM sector.</summary>
-    public const string NoEramSectorStatus = "No ERAM sector: select an ERAM position with AS to lock a data block";
-
-    private static readonly ILogger Log = AppLog.CreateLogger<ScopeViewModel>();
 
     private bool _isSyncingSelection;
 
@@ -134,31 +127,19 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Toggles the dwell lock of the aircraft with <paramref name="callsign"/> for the viewer's ERAM sector, as a click on its
-    /// ERAM block's Field A does. With no viewer ERAM sector it shows <see cref="NoEramSectorStatus"/> and sends nothing; a
-    /// refusal or a failure shows in <see cref="MainViewModel.StatusText"/>. The lock shows when the server's next update lands.
+    /// Toggles the instructor's local dwell lock of the aircraft with <paramref name="callsign"/>, as a click on its ERAM block's
+    /// Field A does: the block holds at Dwell on this scope only, and nothing is sent to the server. A block the student's CRC
+    /// already locks for the viewer's ERAM sector gains no local lock, since it is at Dwell already; a local lock is always
+    /// released.
     /// </summary>
-    public async Task ToggleDwellLockAsync(string callsign)
+    public void ToggleDwellLock(string callsign)
     {
-        if (!EramDwellLock.HasEramSector(Viewer))
+        if (!DataBlockState.DwellLockedCallsigns.Contains(callsign) && (FindAircraft(callsign) is { } ac) && EramDwellLock.IsDwellLocked(ac, Viewer))
         {
-            Main.StatusText = NoEramSectorStatus;
             return;
         }
 
-        try
-        {
-            CommandResultDto result = await Main.Connection.ToggleScopeDwellLockAsync(callsign);
-            if (!result.Success)
-            {
-                Main.StatusText = result.Message ?? $"Dwell lock for {callsign} refused";
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.LogError(ex, "Dwell lock toggle for {Callsign} failed", callsign);
-            Main.StatusText = $"Dwell lock error: {ex.Message}";
-        }
+        DataBlockState.ToggleDwellLock(callsign);
     }
 
     /// <summary>The aircraft with <paramref name="callsign"/>, or null.</summary>

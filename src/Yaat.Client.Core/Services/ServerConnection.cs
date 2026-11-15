@@ -672,17 +672,6 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<CommandResultDto>("RequestFlightStripForAircraft", callsign);
     }
 
-    /// <summary>
-    /// The YAAT Scope's Field-A click: toggles the dwell lock of the ERAM sector this connection acts as (its AS position,
-    /// else the student) on the aircraft. The server refuses with a message when that is no ERAM sector, and takes control
-    /// of a room playing back, as CRC's dwell click does.
-    /// </summary>
-    public async Task<CommandResultDto> ToggleScopeDwellLockAsync(string callsign)
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<CommandResultDto>("ToggleScopeDwellLock", callsign);
-    }
-
     public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
     {
         EnsureConnected();
