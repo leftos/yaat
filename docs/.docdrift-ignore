@@ -1,0 +1,41 @@
+# Tokens the docs name on purpose that are not files of this repo or its sibling.
+# Runtime state written under the user's app-data folder or a run's output folder.
+auth-sessions.json
+appsettings.Local.json
+bookmarks.json
+decisions.json
+job.json
+manifest.json
+meta.json
+preferences.json
+remote.json
+result.json
+room-state.json
+rooms.json
+server.json
+session.json
+slots.json
+weather.json
+*.yaat-quickcommands.json
+bin/xunit.runner.json
+# Velopack release outputs and machine-local Visual Studio settings.
+releases.osx-arm64.json
+releases.osx.json
+assets.osx.json
+DevEnvironments.json
+# Files in the vSTARS web front end the vEDST sign-in doc describes.
+package-lock.json
+vite.config.ts
+# Files in CRC's decompiled source and the vNAS repositories.
+Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs
+TrackOwnerExtensions.cs
+openapi/connect.yaml
+data/Facilities/Tdls*.cs
+data/Facilities/Tdls/OpConfig.cs
+PlistWriter.cs
+# Throwaway scripts that were never committed.
+scratchpad/speedscope_agg.py
+scratchpad/loop_audit2.py
+# Globs into the sibling repo that the glob matcher does not span.
+docs/tick-oracle/*.baseline.json
+tests/Yaat.Server.Tests/Resources/*.json

@@ -54,7 +54,7 @@ Decisions:
 
 ### B. Profile the tick loop under replay, fix hot spots
 - [x] `dotnet-trace` CPU + gc-verbose on `Issue172Ual2164TerminusTests` (20.8s in-suite). Method + aggregation scripts:
-      `scratchpad/speedscope_agg.py` (CPU per thread from speedscope JSON), `.tmp/alloc-aggregator.Program.cs` (TraceEvent
+      `scratchpad/speedscope_agg.py` (a throwaway script, not committed: CPU per thread from speedscope JSON), `.tmp/alloc-aggregator.Program.cs` (TraceEvent
       AllocationTick → type + nearest Yaat frame). Findings for that test (9.3s CPU on the test thread, 4.4 GB sampled allocations):
       - 29% `RecordingArchive.LoadSnapshotAircraftForSpawnSynthesis` — every snapshot fully decoded (Brotli → `string` → JSON) to
         find first-seen callsigns; snapshot 0 decoded three times. 43% of all allocations.
@@ -71,7 +71,7 @@ Decisions:
 - [x] Guard: targeted replay/archive classes (102 tests) + `tools/test-all.ps1`
 
 ### C. Budget-bounded loop audit
-- [x] 161 fixed-budget tick loops with no early exit, in 94 files (`scratchpad/loop_audit2.py`), ranked by class duration
+- [x] 161 fixed-budget tick loops with no early exit, in 94 files (a throwaway `scratchpad/loop_audit2.py`, not committed), ranked by class duration
 - [x] Verdict: every costly one is a **window invariant** (min-distance over 300s, spawn counts over an hour, max-altitude over a
       climb window, stall counting) — breaking early would change what's proven; `PatternDirectionResetTests` already breaks.
       The cost in the slow classes is the `Replay(recording, N)` seek, not the loop. **No conversions made.**
