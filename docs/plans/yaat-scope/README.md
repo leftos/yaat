@@ -26,7 +26,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 
 ## Decisions
 
-- **Scope entries are shared.** Scope data the instructor enters writes the same `AircraftStarsState` / `AircraftEramState` that CRC reads, so the student sees it.
+- **Aircraft state is shared, display state is not.** A Scope entry that changes the aircraft's state (a scratchpad, an assigned or interim altitude, a handoff) writes the same `AircraftStarsState` / `AircraftEramState` that CRC reads, so the student sees it. The instructor's display state (the dwell lock, leader directions, block offsets, VCI and every other per-scope display setting) stays on the instructor's scope and never changes the student's CRC display. CRC display state syncs into YAAT one way only, for the instructor to observe.
 - **ERAM vs STARS altitudes.** When ERAM and STARS viewers are sent different flight-plan altitudes, the scope shows the profile's value and marks it when the other side differs. The dwell view lists both.
 
   The mark is a `≠` cell in the block colour right after the ERAM altitude. The STARS template carries no mark (its line 2 is the Mode C altitude, never the filed one), and its dwell view lists the ERAM altitude. Mock: [`canvases/scope-2c-iii/`](../canvases/scope-2c-iii/index.html).
