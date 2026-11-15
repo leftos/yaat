@@ -3,6 +3,7 @@
     <Version>0.18.4-beta</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
     <!--
       The compiler reports IDE0005 (unused usings) in a build only when it generates the XML
       documentation file. The doc-comment warnings that file brings are suppressed: this repo

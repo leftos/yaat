@@ -76,6 +76,9 @@ jobs:
       - name: Unused usings (IDE0005)
         run: dotnet format style yaat.slnx --diagnostics IDE0005 --severity warn --verify-no-changes --no-restore
 
+      - name: Analyzers
+        run: dotnet format analyzers yaat.slnx --verify-no-changes --severity warn --no-restore
+
       - name: Build
         run: dotnet build --no-restore --configuration Release /warnaserror
 
