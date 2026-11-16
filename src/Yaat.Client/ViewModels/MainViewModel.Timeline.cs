@@ -180,6 +180,7 @@ public partial class MainViewModel
     /// </summary>
     public void ApplyRewindResult(RewindResultDto result, double targetSeconds, string status)
     {
+        OpenScope?.ClearTrackState();
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {

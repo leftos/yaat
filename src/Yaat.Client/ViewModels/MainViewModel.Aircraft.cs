@@ -437,8 +437,9 @@ public partial class MainViewModel
     /// <summary>
     /// Another room member rewound the timeline. Same additive-stream problem the restart has — the
     /// reload is broadcast-suppressed, so aircraft that do not exist at the target time are never
-    /// deleted on our side. The client that issued the rewind is excluded from this broadcast; it
-    /// applies the same manifest from the RPC result instead.
+    /// deleted on our side. The client that issued the rewind is excluded from this
+    /// broadcast; it applies the rewound aircraft from the RPC result instead
+    /// (<see cref="ApplyRewindResult"/>).
     /// </summary>
     internal void OnScenarioRewound(List<AircraftDto> manifest) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRewind(manifest));
 
@@ -474,8 +475,8 @@ public partial class MainViewModel
             ground.DataBlockState.Clear();
         }
 
-        // A rewind re-adds the same callsigns: the Scope's rings belong to the timeline that just went away.
-        OpenScope?.ClearRings();
+        // A rewind re-adds the same callsigns: the Scope's per-track state belongs to the timeline that just went away.
+        OpenScope?.ClearTrackState();
         Aircraft.Clear();
 
         int delayed = 0;
