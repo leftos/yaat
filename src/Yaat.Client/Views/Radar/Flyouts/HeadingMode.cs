@@ -12,15 +12,17 @@ namespace Yaat.Client.Views.Radar.Flyouts;
 /// the live preview (turn arc + line + label).
 ///
 /// Two confirm paths coexist:
-///   - Drag-style: mouse-down on AHDG, drag past <see cref="DragThresholdPxSq"/> while held,
-///     release confirms. <see cref="DraggedPastThreshold"/> tracks the threshold crossing.
-///   - Click-style: mouse-down on AHDG, release without dragging (sets <see cref="ButtonHeld"/>
+///   - Drag-style: mouse-down on AHDG, drag past <see cref="DragThresholdPxSq"/> while held, and release
+///     more than that distance from <see cref="DragOrigin"/>. <see cref="DraggedPastThreshold"/> tracks
+///     the threshold crossing. A click that slips a few pixels never confirms, and neither does a drag
+///     that wanders back onto the press point.
+///   - Click-style: mouse-down on AHDG, release without a deliberate drag (sets <see cref="ButtonHeld"/>
 ///     to false). Subsequent left-click on the map confirms.
 /// </summary>
 public sealed class HeadingModeState
 {
-    /// <summary>Pixel² movement before a button-held interaction becomes a drag.</summary>
-    public const double DragThresholdPxSq = 16;
+    /// <summary>Pixel² movement (10 px) that separates a deliberate drag from a click that slipped.</summary>
+    public const double DragThresholdPxSq = 100;
 
     public required string Callsign { get; init; }
 

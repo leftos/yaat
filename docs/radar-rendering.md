@@ -42,6 +42,7 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Radar/RadarViewWindow.axaml.cs` | Pop-out radar window; takes a geometry key + title and hosts a RadarViewModel via SetViewModel (primary: "RadarView"/vm.Radar; extra instance: RadarView#n/its own VM, exposed as RadarVm for the Ctrl+F8 hotkey); window DataContext stays MainViewModel |
 | `Views/Radar/RadarBlink.cs` | The one on/off phase (half a second each) every blinking radar token follows; Clock is pinned by the screenshot harness |
 | `Views/Radar/Flyouts/FlyoutAppearance.cs` | Shared visual styling for tag flyouts (altitude, speed, runway, scratchpad popups) |
+| `Views/Radar/Flyouts/HeadingMode.cs` | `HeadingModeState`: the EuroScope AHDG heading-select state and its 10 px drag-confirm vs click-confirm threshold; covered by `RadarHeadingModeTests` |
 | `Views/Radar/Flyouts/RadarSpeedFlyout.cs` | The EuroScope tag's assigned-speed picker (80..350 kt in tens, Resume Normal Speed, Final Approach Speed), opened by a click on the speed fields; not the quick-command Assign speed flyout (ContextMenus/SpeedFlyout.cs) |
 
 `Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX — it builds the
@@ -473,8 +474,8 @@ the wrong rung silently steals clicks from a lower one. The order, top to bottom
 12. **Base pan/zoom** — `base.OnPointerPressed` starts a right-button pan (`:1079`).
 
 Two drag thresholds disambiguate clicks from drags: a `25 px²` right-button threshold decides quick-right-click (open
-map menu) vs right-drag (pan), and a `16 px²` datablock-drag threshold (`:1090`) decides select vs reposition. The same
-`16 px²` value (`HeadingModeState.DragThresholdPxSq`) decides drag-confirm vs click-confirm in heading mode.
+map menu) vs right-drag (pan), and a `16 px²` datablock-drag threshold (`:1090`) decides select vs reposition. Heading mode has its own,
+larger `100 px²` (10 px) threshold (`HeadingModeState.DragThresholdPxSq`), not shared with the datablock one, deciding drag-confirm vs click-confirm.
 
 The right-button click-vs-drag decision lives in `Views/Map/RightClickGesture`, shared with `GroundCanvas`: press
 records the position and lets panning start, movement past the threshold latches the press as a drag, and `Release()`
@@ -500,8 +501,8 @@ When `EuroScopeMode` is on, clicking a tag field opens a contextual editor inste
 | `Handoff` | `HandoffFlyout` text popup |
 
 **Heading mode has two confirm paths** (`Flyouts/HeadingMode.cs:14-18`, driven from `RadarCanvas`): drag-style — mouse-down
-on `AHDG`, drag past `DragThresholdPxSq` (16 px²) while held, release confirms; click-style — mouse-down then release
-without dragging leaves the mode armed (`ButtonHeld = false`) and a subsequent left-click on the map confirms. Both call
+on `AHDG`, drag past `DragThresholdPxSq` (100 px², 10 px) while held, release more than 10 px from the press confirms; click-style — mouse-down then release
+within 10 px of the press (a slip, or a drag that returns) leaves the mode armed (`ButtonHeld = false`) and a subsequent left-click on the map confirms. Both call
 `ConfirmHeadingAt`, which computes the true bearing to the clicked point, converts true→magnetic via `TrueToMagnetic`, then
 snaps to the nearest 5°, and raises
 `HeadingModeConfirmed(callsign, magneticHeading)` → `RadarVm.FlyHeadingAsync` (`RadarView.axaml.cs:200-208`). Escape exits

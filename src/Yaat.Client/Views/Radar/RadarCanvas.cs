@@ -718,7 +718,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>
     /// Enter EuroScope-style heading mode for the named aircraft. Cursor moves drive the preview.
     /// Two confirm paths exist: drag past <see cref="Flyouts.HeadingModeState.DragThresholdPxSq"/>
-    /// then release, or release-without-drag and then left-click the map.
+    /// and release away from the press, or release-without-drag and then left-click the map.
     /// </summary>
     public void EnterHeadingMode(string callsign, Point dragOrigin)
     {
@@ -1787,14 +1787,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        // Heading mode: if we entered via mouse-down and the user dragged past the threshold,
-        // a release confirms the heading (drag-style EuroScope flow). If they released without
-        // dragging, transition to click-to-confirm (button up but mode still active).
+        // Heading mode: a release confirms the heading (drag-style EuroScope flow) only when the user both
+        // dragged past the threshold and let go away from the press point. A click that slips a few pixels,
+        // or a drag that wanders back onto the AHDG field, transitions to click-to-confirm instead of
+        // sending a heading the controller never picked.
         if (_renderer.HeadingPreview is { } headingState && headingState.ButtonHeld && e.InitialPressMouseButton == MouseButton.Left)
         {
-            if (headingState.DraggedPastThreshold)
+            Point releasePos = e.GetPosition(this);
+            double dx = releasePos.X - headingState.DragOrigin.X;
+            double dy = releasePos.Y - headingState.DragOrigin.Y;
+            bool releasedAwayFromPress = ((dx * dx) + (dy * dy)) > Flyouts.HeadingModeState.DragThresholdPxSq;
+            if (headingState.DraggedPastThreshold && releasedAwayFromPress)
             {
-                ConfirmHeadingAt(e.GetPosition(this));
+                ConfirmHeadingAt(releasePos);
                 ExitHeadingMode();
             }
             else
