@@ -6,8 +6,8 @@ variants:
     multiple_flids: false
     handler: LE.RouteFixSpeedAdjustment
     note: |
-      yaat measures along the remaining route to the fix and answers LC's <gs>KT <+/-delta>, against the wall clock like
-      LC. A fix not on the remaining route falls back to LC's straight-line distance (a yaat ruling; the SRS is silent).
+      yaat measures along the remaining route to the fix and answers LC's <gs>KT <+/-delta>, against the sim session clock like
+      LC. With no scenario loaded it answers SESSION NOT ACTIVE as DM does. A fix not on the remaining route falls back to LC's straight-line distance (a yaat ruling; the SRS is silent).
     fields:
       - field: 02 Flight Identification
         rule: |

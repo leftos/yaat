@@ -531,6 +531,8 @@ The `LC` command is used to display the speed adjustment necessary to position a
 
 > ℹ️ `LC <fix>/<time> <track>`
 
+In yaat the time is session time: "now" is the sim session clock (session start plus elapsed sim seconds), not the wall clock, and the command answers SESSION NOT ACTIVE when no scenario is loaded.
+
 ## Data Blocks
 
 ### Limited Data Blocks

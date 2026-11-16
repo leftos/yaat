@@ -5,6 +5,12 @@ variants:
     format: LC 68 65
     multiple_flids: null
     handler: LC.FixTime
+    note: |
+      yaat measures "now" from the sim session clock (session start plus elapsed sim seconds), not the wall clock: a typed HHMM is
+      session time, so the 3-minute to 8-hour window and the midnight roll are against it. With no scenario loaded it answers
+      SESSION NOT ACTIVE as DM does. The distance is the straight line to the fix (SRS "Determine Direct Speed Adjustment"), and the
+      speed change is shown raw, with no clamp. The readout format "<required>KT <+/-delta>" is a yaat ruling; the SRS gives no LC
+      readout format.
     fields:
       - field: 68 Fix or Fix Radial Distance with Intended Arrival Time
         rule: |
