@@ -25,7 +25,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// Typing on the Scope: with the canvas focused, the entry shows in the Scope's own area under its kind label, Enter runs it
 /// through the send path and shows the response there, Esc clears it before it disarms the Rings tool, and the main command
 /// line's text and status stay as they were. STARS draws one area under the SSA; ERAM and Mixed draw the MCA and the Response
-/// Area at the bottom left.
+/// Area at the bottom left. F3, F4, F5, F7 and F11 on STARS each start their function's entry.
 /// </summary>
 public class ScopeEntryTests
 {
@@ -659,13 +659,118 @@ public class ScopeEntryTests
             var handled = new List<bool>();
             view.AddHandler(InputElement.KeyDownEvent, (_, e) => handled.Add(e.Handled), RoutingStrategies.Bubble, handledEventsToo: true);
 
-            // Tab last: it may move the focus off the canvas.
-            window.DispatchKey(Key.F5);
+            // Tab last: it may move the focus off the canvas. F8 is a function key the Scope leaves alone on STARS.
+            window.DispatchKey(Key.F8);
             window.DispatchKey(Key.K, ActionModifier);
             window.DispatchKey(Key.Tab);
 
             Assert.Equal("FH", scope.EntryText);
             Assert.Equal([false, false, false], handled);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(Key.F3, "INIT ")]
+    [InlineData(Key.F4, "TERM ")]
+    [InlineData(Key.F5, "HND ")]
+    [InlineData(Key.F7, "MF ")]
+    [InlineData(Key.F11, "CA ")]
+    public async Task AStarsFunctionKey_StartsItsFunctionEntry(Key key, string word)
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            FocusCanvas(window, view);
+
+            window.DispatchKey(key);
+
+            Assert.Equal(word, scope.EntryText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task F3_ReplacesTheEntryItFinds()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            FocusCanvas(window, view);
+            Type(window, "+1");
+
+            window.DispatchKey(Key.F3);
+
+            Assert.Equal("INIT ", scope.EntryText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task F3ThenTheCallsignAndEnter_SendsTheTrackCommand()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            FocusCanvas(window, view);
+            window.DispatchKey(Key.F3);
+            Type(window, "UAL238");
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal("UAL238 TRACK", scope.LastSentEntryText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task F3_OnEram_IsNotHandled()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
+        try
+        {
+            FocusCanvas(window, view);
+            var handled = new List<bool>();
+            view.AddHandler(InputElement.KeyDownEvent, (_, e) => handled.Add(e.Handled), RoutingStrategies.Bubble, handledEventsToo: true);
+
+            window.DispatchKey(Key.F3);
+
+            Assert.Equal("", scope.EntryText);
+            Assert.Equal([false], handled);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ShiftF3_OnStars_LeavesTheEntryAlone()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            FocusCanvas(window, view);
+            Type(window, "FH");
+            var handled = new List<bool>();
+            view.AddHandler(InputElement.KeyDownEvent, (_, e) => handled.Add(e.Handled), RoutingStrategies.Bubble, handledEventsToo: true);
+
+            window.DispatchKey(Key.F3, RawInputModifiers.Shift);
+
+            Assert.Equal("FH", scope.EntryText);
+            Assert.Equal([false], handled);
         }
         finally
         {

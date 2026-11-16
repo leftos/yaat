@@ -148,8 +148,15 @@ public partial class ScopeView : UserControl
         }
     }
 
-    // The entry's editing keys; a chord with Ctrl, Alt or Meta other than the recall passes on.
-    private static bool RunEntryKey(ScopeViewModel vm, KeyEventArgs e)
+    // An unmodified F3, F4, F5, F7 or F11 on STARS starts its function's entry; the same keys with a modifier pass on.
+    private static bool RunStarsFunctionKey(ScopeViewModel vm, KeyEventArgs e) =>
+        (e.KeyModifiers == KeyModifiers.None) && vm.StartStarsFunctionEntry(e.Key);
+
+    // The entry's keys: a STARS function key, then the editing keys, where a chord with Ctrl, Alt or Meta other than the recall
+    // passes on.
+    private static bool RunEntryKey(ScopeViewModel vm, KeyEventArgs e) => RunStarsFunctionKey(vm, e) || RunEditingKey(vm, e);
+
+    private static bool RunEditingKey(ScopeViewModel vm, KeyEventArgs e)
     {
         if ((e.Key == Key.R) && (e.KeyModifiers == ActionModifier))
         {

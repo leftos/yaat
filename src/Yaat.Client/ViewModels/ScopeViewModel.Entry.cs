@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
@@ -119,6 +120,33 @@ public sealed partial class ScopeViewModel
         _entryHistoryIndex = -1;
         return true;
     }
+
+    /// <summary>F3, F4, F5, F7 and F11 on STARS: the key starts its function's entry in place of what the preview held.</summary>
+    /// <returns>False on ERAM or Mixed, and for any other key.</returns>
+    internal bool StartStarsFunctionEntry(Key key)
+    {
+        if ((ProfileKind != ScopeProfileKind.Stars) || (StarsFunctionWord(key) is not { } word))
+        {
+            return false;
+        }
+
+        ClearEntry();
+        SetEntry(word);
+        _entryHistoryIndex = -1;
+        return true;
+    }
+
+    // The key table's entry word for a STARS function key.
+    private static string? StarsFunctionWord(Key key) =>
+        key switch
+        {
+            Key.F3 => "INIT ",
+            Key.F4 => "TERM ",
+            Key.F5 => "HND ",
+            Key.F7 => "MF ",
+            Key.F11 => "CA ",
+            _ => null,
+        };
 
     /// <summary>Takes the last character off the entry.</summary>
     /// <returns>False when the entry is empty.</returns>
