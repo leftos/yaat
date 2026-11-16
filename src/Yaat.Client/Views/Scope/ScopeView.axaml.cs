@@ -17,7 +17,9 @@ namespace Yaat.Client.Views.Scope;
 /// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>). A left click on a field
 /// with an action (<see cref="ScopeFieldAction"/>) selects the aircraft and opens that field's pick menu at the pointer
-/// (<see cref="FieldMenus.ScopeFieldMenus"/>), the note box, or takes control (the EuroScope owner); a row of the menu sends.
+/// (<see cref="FieldMenus.ScopeFieldMenus"/>), the note box, or takes control (the EuroScope owner); a row of the menu sends,
+/// or, picked with Shift held, stages <c>PILOT {callsign} {command}</c> in the entry (<see cref="ScopeViewModel.StageEntry"/>)
+/// and gives the canvas the focus, so Enter runs it.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
 /// nothing, opening no menu and toggling no lock. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through <c>.scope tdm</c>,
 /// as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
@@ -32,6 +34,9 @@ public partial class ScopeView : UserControl
     private ContextMenu? _activeContextMenu;
     private ScopeViewModel? _vm;
     private TopLevel? _topLevel;
+
+    // Whether Shift was held at the last pointer press, release or key press inside the open field menu.
+    private bool _fieldMenuShift;
 
     public ScopeView()
     {
@@ -226,15 +231,38 @@ public partial class ScopeView : UserControl
             return;
         }
 
-        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId);
         if (action == ScopeFieldAction.OpenNoteBox)
         {
-            ScopeFieldMenus.ShowNoteBox(ac, host);
+            ScopeFieldMenus.ShowNoteBox(ac, new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId));
         }
-        else if (ScopeFieldMenus.Build(action, ac, host) is { } menu)
+        else
         {
+            OpenFieldMenu(vm, ac, action);
+        }
+    }
+
+    // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them.
+    private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        _fieldMenuShift = false;
+        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId)
+        {
+            Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command),
+        };
+        if (ScopeFieldMenus.Build(action, ac, host) is { } menu)
+        {
+            ScopeFieldMenus.RecordShift(menu, shift => _fieldMenuShift = shift);
             ShowContextMenu(menu);
         }
+    }
+
+    // Stages the row's command in the entry, closes the menu and gives the canvas the focus, so Enter runs the entry.
+    private bool StageEntry(ScopeViewModel vm, string callsign, string command)
+    {
+        vm.StageEntry(callsign, command);
+        _activeContextMenu?.Close();
+        Canvas.Focus();
+        return true;
     }
 
     private void OnAircraftDwellLockToggleRequested(string callsign)

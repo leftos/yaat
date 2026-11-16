@@ -818,6 +818,9 @@ The typed-entry grammar of the Scope's profile as CRC's own scope reads it (STAR
 **Feedback area (YAAT Scope)**:
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
+**Field menu (YAAT Scope)**:
+The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held.
+
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
 
@@ -1006,6 +1009,9 @@ What a pointed or focused Give way to… / Follow… row draws on the ground vie
 
 **Staffed position**:
 A position in the room's controller list that has a controller signed on (a live CRC client or a scenario auto-connect position, `OnlineControllerDto.IsActive`), as against a standby one. The Initiate handoff… and Point out… flyouts list only staffed positions.
+
+**Stage (a menu pick)**:
+To put a Scope field menu row's command in the Scope's Preview area as `PILOT {callsign} {command}` instead of sending it, so Enter runs it; done by Shift+click on the row (`ClientMenuHost.Stage`, `ScopeEntryStaging`). Not the spine's "step".
 
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.

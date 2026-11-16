@@ -60,10 +60,20 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// </summary>
     public int ScratchpadMaxLength => (main.ScratchpadMaxLength > 0) ? main.ScratchpadMaxLength : ScratchpadRuleEngine.MaxScratchpadLength(null);
 
-    public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
+    /// <summary>
+    /// Asked with the callsign and the command before each send (<see cref="SendAsync"/>, <see cref="SendGatedAsync"/>,
+    /// <see cref="SendForResultAsync"/>); true when it staged the command instead, which then is not sent. Null, as on every
+    /// host but a Scope field menu's, sends every command.
+    /// </summary>
+    public Func<string, string, bool>? Stage { get; init; }
+
+    public Task SendAsync(string callsign, string command, string initials) =>
+        Staged(callsign, command) ? Task.CompletedTask : main.SendCommandForViewAsync(callsign, command, initials);
 
     public Task SendGatedAsync(string callsign, string command, string initials) =>
-        main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials);
+        Staged(callsign, command) ? Task.CompletedTask : main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials);
+
+    private bool Staged(string callsign, string command) => Stage?.Invoke(callsign, command) == true;
 
     public void ShowInputPopup(string placeholder, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
         MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, onSubmit);
@@ -319,8 +329,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>The primary ground view model's tug planner check (<see cref="GroundViewModel.CanPushRouteTo"/>).</summary>
     public bool CanTugReach(string callsign, GroundNodeDto node) => (FindAircraft(callsign) is { } ac) && main.Ground.CanPushRouteTo(ac, node.Id);
 
+    /// <summary>The server's result, or, for a staged command (<see cref="Stage"/>), a success with no message.</summary>
     public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials) =>
-        main.SendCommandForViewCoreAsync(callsign, command, initials);
+        Staged(callsign, command)
+            ? Task.FromResult<CommandResultDto?>(new CommandResultDto(true, null))
+            : main.SendCommandForViewCoreAsync(callsign, command, initials);
 
     /// <summary>
     /// Every aircraft in the main view model's list but the delayed spawns, as matcher candidates: the sim matches against its

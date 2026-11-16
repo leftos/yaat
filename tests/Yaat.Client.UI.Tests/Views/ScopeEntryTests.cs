@@ -134,6 +134,36 @@ public class ScopeEntryTests
         }
     }
 
+    /// <summary>A staged entry on STARS takes the place of the response in its one area, as a typed one does.</summary>
+    [AvaloniaFact]
+    public async Task StageEntry_OnStars_ClearsTheShownResponse()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.ProfileKind = ScopeProfileKind.Stars;
+        Add(main, "UAL238");
+        await RunEntryAsync(scope, "UAL238 FH 270");
+        Assert.NotNull(scope.EntryResponse);
+
+        scope.StageEntry("UAL238", "SPD 250");
+
+        Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+        Assert.Null(scope.EntryResponse);
+    }
+
+    /// <summary>A stage leaves the history walk, so Down has no recalled line to step from.</summary>
+    [AvaloniaFact]
+    public async Task StageEntry_AfterARecall_ResetsTheHistoryIndex()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        Add(main, "UAL238");
+        await RunEntryAsync(scope, "UAL238 FH 270");
+        Assert.True(scope.WalkEntryHistory(older: true));
+
+        scope.StageEntry("UAL238", "SPD 250");
+
+        Assert.False(scope.WalkEntryHistory(older: false));
+    }
+
     [AvaloniaFact]
     public async Task Enter_RunsTheEntry_AndShowsTheResponse()
     {

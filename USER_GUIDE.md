@@ -239,6 +239,15 @@ Moving the pointer within 8 px of a track's symbol, or onto its block, dwells th
 
 On an ERAM block, left-clicking the callsign (Field A) of the block you are selecting also holds it at the dwelled view, and clicking it again releases the hold; STARS and EuroScope blocks have no lock. The hold is yours alone: it shows on your Scope only, never on the student's CRC display, and it works without an ERAM position picked with `AS`. A block the student locked in CRC also shows dwelled for the sector you act as, and your click cannot release that one. Resting the pointer on the VCI cell left of a Full or dwelled ERAM block lights the VCI glyph without dwelling the block, again only with an ERAM position.
 
+**Field menus.** A left click on a datablock field selects the track and opens that field's pick menu, with its submenu or flyout already open. A row click sends the command for the clicked aircraft and the status line reports it. **Shift+click** a row (or Shift+Enter on it) stages `PILOT {callsign} {command}` in the Scope's preview instead of sending, and the menu closes; Enter runs it. When the preview already holds a PILOT entry for that aircraft, the command is added after it as `, {command}`. The right-click aircraft menu and the Radar, Ground and strips menus always send.
+
+- **STARS**: altitude opens Maintain altitude, ground speed Assign speed, squawk and ident Squawk…, line 3 Scratchpad…, and the instructor note opens the note box. The callsign and other fields only select.
+- **ERAM**: altitude opens Maintain altitude, ground speed Assign speed, ident Squawk…, and line 3 the handoff entry. Field A still toggles the hold and opens no menu.
+- **EuroScope**: the owner takes control; altitude and assigned altitude open Maintain altitude; assigned speed opens Assign speed; assigned heading opens Fly heading with the rose; assigned runway opens a Runway menu (the current runway, clear, and the airport's runways); the scratchpads open Scratchpad…; handoff opens the handoff entry; squawk and ident open Squawk….
+- **Mixed** follows each track's own kind. Ground targets only select.
+
+The handoff entry is Accept handoff for a handoff to the position you act as, Cancel handoff for one from it, and Initiate handoff… on an owned track with none; otherwise the click only selects. A field whose entry does not apply opens no menu. With the Rings tool armed, a click places a ring instead.
+
 If you open it before a scenario or ARTCC is loaded, it takes the Radar's centre, range and video maps the first time the Radar has them, then stays independent. Its window position is remembered.
 
 **Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.

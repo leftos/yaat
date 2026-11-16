@@ -37,7 +37,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Ground.** The Ground view stays as it is. Top-down mode (TDM) is a Ctrl+Shift+T toggle on the scope (Ctrl+T stays Take Control), never a zoom band.
 - **Conflict alerts.** The scope mirrors the student's system rule: STARS 3 NM with a 5 s look-ahead, or ERAM's 4-minute probe that honours the datablock altitude.
 - **Typing on the Scope.** While the Scope has focus, typed text goes into a preview area drawn on the Scope, as in CRC's STARS and ERAM scopes: Enter executes, and the response shows in a feedback area on the Scope. It accepts scope entries in the profile's CRC dialect alongside YAAT pilot commands, and the preview names which kind it read before you send. YAAT's main command line keeps its own input.
-- **Field-menu pilot picks.** A plain click sends; Shift+click puts the command in the command line for editing.
+- **Field-menu pilot picks.** A plain click sends; Shift+click puts the command in the Scope preview (as `PILOT {callsign} {command}`) for Enter to run.
 - **Pilot lens.** All pilot-lens overlays are off by default: the queued-commands badge, the intent path, check-in truth and the RPO queue view.
 - **Rollout.** YAAT Scope is built as a new view beside today's Radar (reached from the View menu). The old Radar view is deleted once the new one reaches parity; no long-lived dual renderer.
 - **EuroScope tag mode** survives as a template on the new engine. Its flyouts become the field menus.

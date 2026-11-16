@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -32,6 +34,33 @@ internal static class ScopeFieldMenus
         var menu = new ContextMenu { Items = { entry } };
         menu.Opened += (_, _) => entry.IsSubMenuOpen = true;
         return menu;
+    }
+
+    /// <summary>
+    /// Calls <paramref name="record"/> with whether Shift is held at each pointer press, pointer release and key press inside
+    /// <paramref name="menu"/>, its submenu popups included, whose input routes through their parent menu. The handlers tunnel,
+    /// so the record is made before the row under the pointer or the focus runs its action.
+    /// </summary>
+    public static void RecordShift(ContextMenu menu, Action<bool> record)
+    {
+        menu.AddHandler(
+            InputElement.PointerPressedEvent,
+            (_, e) => record(e.KeyModifiers.HasFlag(KeyModifiers.Shift)),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true
+        );
+        menu.AddHandler(
+            InputElement.PointerReleasedEvent,
+            (_, e) => record(e.KeyModifiers.HasFlag(KeyModifiers.Shift)),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true
+        );
+        menu.AddHandler(
+            InputElement.KeyDownEvent,
+            (_, e) => record(e.KeyModifiers.HasFlag(KeyModifiers.Shift)),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true
+        );
     }
 
     /// <summary>Opens the instructor note box for <paramref name="aircraft"/>, as the catalog's Note… row does.</summary>

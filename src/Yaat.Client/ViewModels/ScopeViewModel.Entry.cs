@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Entries;
+using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
@@ -147,6 +148,16 @@ public sealed partial class ScopeViewModel
             Key.F11 => "CA ",
             _ => null,
         };
+
+    /// <summary>
+    /// Stages <paramref name="command"/> for <paramref name="callsign"/> in the entry (<see cref="ScopeEntryStaging.Text"/>): appended
+    /// to a pilot entry for the same aircraft, else in place of the entry.
+    /// </summary>
+    internal void StageEntry(string callsign, string command)
+    {
+        SetEntry(ScopeEntryStaging.Text(EntryText, callsign, command));
+        _entryHistoryIndex = -1;
+    }
 
     /// <summary>Takes the last character off the entry.</summary>
     /// <returns>False when the entry is empty.</returns>

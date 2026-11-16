@@ -10,6 +10,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.FieldMenus;
@@ -421,6 +422,284 @@ public class ScopeFieldMenuTests
         {
             menu.Close();
             CloseWindow(window);
+        }
+    }
+
+    // What an offline send leaves on the status line, so a send shows there and a stage does not.
+    private const string NotConnected = "Command error: Not connected.";
+
+    // A jet's speed, so the speed flyout offers the 250-knot chip.
+    private static void Speedy(AircraftModel ac) => ac.IndicatedAirspeed = 280;
+
+    private static Button SpeedChip(ScopeView view, int knots)
+    {
+        MenuItem entry = OpenEntry(view);
+        Assert.Equal(MenuCatalog.Get(MenuIds.SpeedAssign).Label, entry.Header);
+        SpeedFlyoutHost flyout = Assert.IsType<SpeedFlyoutHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header);
+        return Assert.IsType<SpeedFlyoutPanel>(flyout.Child).KnotChip(knots);
+    }
+
+    // A click at the centre of a control inside a popup, through the popup's own top level, as a mouse gives it.
+    private static void ClickInPopup(Control control, RawInputModifiers modifiers)
+    {
+        TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(control));
+        Point? at = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), top);
+        Assert.NotNull(at);
+        top.MouseDown(at.Value, MouseButton.Left, modifiers);
+        top.MouseUp(at.Value, MouseButton.Left, modifiers);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window, AircraftModel Aircraft)> OpenSpeedMenuAsync(
+        Action<ScopeViewModel> beforeClick
+    ) => ClickFieldAsync(ScopeTemplates.StarsId, ScopeFieldSlot.GroundSpeed, Speedy, beforeClick);
+
+    /// <summary>Shift held on a row inside the speed flyout, a submenu popup: the row stages its command and sends nothing.</summary>
+    [AvaloniaFact]
+    public async Task ShiftClickOnASpeedChip_StagesThePilotEntry_AndSendsNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            string statusBefore = main.StatusText;
+
+            ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
+
+            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Equal(statusBefore, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PlainClickOnASpeedChip_Sends_AndStagesNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            ClickInPopup(SpeedChip(view, 250), RawInputModifiers.None);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ShiftEnterOnAFocusedSpeedChip_StagesThePilotEntry()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            string statusBefore = main.StatusText;
+            Button chip = SpeedChip(view, 250);
+            Assert.True(chip.Focus());
+            TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(chip));
+
+            top.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.Shift);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Equal(statusBefore, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    /// <summary>After a stage the menu is closed and the canvas has the focus, so Enter runs the entry without its PILOT word.</summary>
+    [AvaloniaFact]
+    public async Task AfterAStage_TheCanvasHasTheFocus_AndEnterRunsTheStagedEntry()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
+
+            Assert.Null(view.ActiveContextMenu);
+            Assert.True(view.Canvas.IsFocused, "the canvas does not have the focus");
+            window.DispatchKey(Key.Enter);
+            await scope.LastEntryRun;
+            Assert.Equal("UAL238 SPD 250", scope.LastSentEntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ShiftClick_IntoAPilotEntryForTheSameAircraft_Appends()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(s => s.TypeEntryText("PILOT UAL238 CM 80"));
+        try
+        {
+            ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
+
+            Assert.Equal("PILOT UAL238 CM 80, SPD 250", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    /// <summary>A menu-item row (not a flyout button) picked with Shift: the EuroScope runway field's 28L row stages.</summary>
+    [AvaloniaFact]
+    public async Task EuroScopeRunwayRow_ShiftClick_StagesTheRunway_AndSendsNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.EuroScopeId,
+            ScopeFieldSlot.AssignedRunway,
+            ac =>
+            {
+                ac.Destination = "KSFO";
+                ac.AssignedRunway = "28R";
+            },
+            _ => { }
+        );
+        try
+        {
+            string statusBefore = main.StatusText;
+            MenuItem row = Assert.Single(OpenEntry(view).Items.OfType<MenuItem>(), i => (i.Header as string) == "28L");
+
+            ClickInPopup(row, RawInputModifiers.Shift);
+
+            Assert.Equal("PILOT UAL238 RWY 28L", scope.EntryText);
+            Assert.Equal(statusBefore, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    /// <summary>A top-menu leaf picked with Shift: the handoff field's Accept handoff entry on an inbound handoff stages.</summary>
+    [AvaloniaFact]
+    public async Task HandoffAcceptEntry_ShiftClick_StagesTheAccept()
+    {
+        (MainViewModel main, ScopeView view, Window window, _) = await ClickEramLine3Async("OAK_40_CTR", Acting);
+        try
+        {
+            string statusBefore = main.StatusText;
+            ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
+            MenuItem entry = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
+
+            ClickInPopup(entry, RawInputModifiers.Shift);
+
+            Assert.Equal("PILOT UAL238 ACCEPT", Assert.IsType<ScopeViewModel>(view.DataContext).EntryText);
+            Assert.Equal(statusBefore, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    /// <summary>Shift pressed and released in the open menu with no row hit does not stick: the next plain click sends.</summary>
+    [AvaloniaFact]
+    public async Task ShiftPressedAndReleasedWithNoRowHit_ThenAPlainClick_Sends()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            Button chip = SpeedChip(view, 250);
+            TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(chip));
+            top.KeyPressQwerty(PhysicalKey.ShiftLeft, RawInputModifiers.Shift);
+            top.KeyReleaseQwerty(PhysicalKey.ShiftLeft, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            ClickInPopup(chip, RawInputModifiers.None);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    /// <summary>A stage does not carry over to the next field menu: reopened, a plain click sends.</summary>
+    [AvaloniaFact]
+    public async Task AfterAStage_TheReopenedMenu_SendsOnAPlainClick()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
+            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Null(view.ActiveContextMenu);
+
+            ClickAt(window, view.Canvas, Centre(view.Canvas, ScopeFieldSlot.GroundSpeed));
+            ClickInPopup(SpeedChip(view, 250), RawInputModifiers.None);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The submenus down to the first enabled row that sends a command (other than a delete), that row last; null when none.
+    private static List<MenuItem>? PathToSendingRow(ItemCollection items)
+    {
+        foreach (MenuItem item in items.OfType<MenuItem>().Where(i => i.IsEnabled))
+        {
+            if ((item.ItemCount == 0) && (MenuCommandText.GetCommand(item) is { } command) && !command.StartsWith("DEL", StringComparison.Ordinal))
+            {
+                return [item];
+            }
+
+            if ((item.ItemCount > 0) && (PathToSendingRow(item.Items) is { } path))
+            {
+                path.Insert(0, item);
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The right-click aircraft menu's host stages nothing, so a row picked with Shift held still sends.</summary>
+    [AvaloniaFact]
+    public async Task RightClickMenu_ShiftClickOnARow_StillSends()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(ScopeTemplates.StarsId);
+        try
+        {
+            await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+            AddAt(main, view.Canvas, Speedy);
+            Point? target = view.Canvas.TranslatePoint(new Point(300, 300), window);
+            Assert.NotNull(target);
+            window.MouseDown(target.Value, MouseButton.Right);
+            window.MouseUp(target.Value, MouseButton.Right);
+            Dispatcher.UIThread.RunJobs();
+            ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
+            List<MenuItem> path = Assert.IsType<List<MenuItem>>(PathToSendingRow(menu.Items));
+            foreach (MenuItem parent in path[..^1])
+            {
+                parent.IsSubMenuOpen = true;
+                Dispatcher.UIThread.RunJobs();
+            }
+
+            ClickInPopup(path[^1], RawInputModifiers.Shift);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
         }
     }
 
