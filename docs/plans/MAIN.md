@@ -11,10 +11,7 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
-    - [ ] YAAT-2333 YAAT Scope step 4c: VECTOR and HIST controls with their drawn layers · release vNext
-    - [ ] YAAT-2334 YAAT Scope step 4d: the TOOLS tray with the Scope-local Rings tool (J-ring, cone, DRI, ATPA cones) · release vNext
     - [ ] YAAT-2335 YAAT Scope step 4e: the TDM toggle (Ctrl+T) for ground targets · release vNext
-    - [ ] YAAT-2359 Cover the Scope zoom-band wiring: canvas binding, Mixed per-track level, range never pins · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
@@ -31,6 +28,7 @@
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
 - [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
+- [ ] YAAT-2366 YAAT Scope keeps dwell locks and block offsets across scenario unload and rewind
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -51,13 +49,9 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-2351 Report flyout: Reaching… and Leaving… entries with an altitude, and their armed state · release vNext
 - [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext+1
-- [ ] YAAT-2339 DEPART to a fix already on the route flies direct instead of following the route to it · release vNext
-- [ ] YAAT-2338 Aircraft on the BRIXX star go direct the field instead of flying vector legs · release vNext
-- [ ] YAAT-2337 Add a notes pad to the client for writing training notes to copy out · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [/] YAAT-2350 Add a "report reaching {altitude}" instruction: the pilot calls when the aircraft reaches the altitude in its climb or descent · release vNext
-  - [ ] YAAT-2351 Report flyout: Reaching… and Leaving… entries with an altitude, and their armed state · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -753,7 +747,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (19/53 done)
+### 1 Defects (19/54 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -788,6 +782,7 @@
 - [ ] YAAT-1916 Give pistons no Mmo and TP2M turboprops sourced per-type Mmo instead of class figures below their own descent speed
 - [ ] YAAT-1917 Correct the C680 performance profile and source per-type Mmo for business jets on the BZJT class figure
 - [ ] YAAT-1918 Apply a speed revert that holds only RevertAssignedSpeed when its fix is sequenced
+- [ ] YAAT-2365 DEPART drops route fixes without applying their pending speed reverts
 
 ### 2 Refinements and rulings (6/24 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
@@ -829,7 +824,7 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (29/49 done)
+### 1 Defects (29/50 done)
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
 - [ ] YAAT-1654 Match the CTO's SID initial altitude across SID versions (filed NUEVO8, TDLS NUEVO9)
@@ -850,6 +845,7 @@
 - [ ] YAAT-1869 Cancel a controller crossing when a later maintain omits it
 - [ ] YAAT-1870 Hold a SID departure under an ATC ceiling below its altitude instead of climbing on
 - [ ] YAAT-1871 Apply a coded-leg CFIX's altitude revert when the departure procedure is abandoned
+- [ ] YAAT-2361 STAR spawn route drops the published fly-over flag on its fixes
 
 ### 2 Refinements and rulings (1/19 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
@@ -871,12 +867,14 @@
 - [ ] YAAT-1922 State a TDLS maintain in the pilot's vertical-state wording when no SID is active
 - [ ] YAAT-2147 Let a PDC sent after LUAW or after a ground CM govern the departure climb
 
-### 3 Hygiene and tests (0/5 done)
+### 3 Hygiene and tests (0/7 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 - [ ] YAAT-1395 Tidy YAAT-1356 follow-ups: overlay stale stamps, the airspace hold's saved stamps, the speed target after an approach clearance
 - [ ] YAAT-1862 Pin PTAC PA's climb-via arm with an assigned altitude present
 - [ ] YAAT-1875 Bring NavigationCommandHandler.BoundMetByCleared to cyclomatic complexity 8 or less
+- [ ] YAAT-2363 Bring ArrivalRouteResolver.AppendStarRunwayTransition under complexity 8
+- [ ] YAAT-2364 DEPART off a STAR: pin the altitude, speed and fly-over held after the turn at the fix
 
 ### No milestone
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
@@ -905,9 +903,8 @@
 - [ ] YAAT-2309 Rebuilt approach transition descends below the IAF's at-or-above altitude before the hold-in-lieu
 - [ ] YAAT-2311 Check that a bare CAPP to an aircraft vectored onto the final course flies no course reversal
 
-### 2 Refinements and rulings (0/10 done)
+### 2 Refinements and rulings (1/10 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
-- [ ] YAAT-915 Keep the route to the fix for HOLDP and DEPART instead of going direct · release vNext
 - [ ] YAAT-913 Read charted enroute holds from CIFP
 - [ ] YAAT-329 Add EFC and exit-hold commands, then their Holding quick-list entries
 - [ ] YAAT-839 Treat a part-time tower as closed for visual approach clearances
@@ -923,6 +920,9 @@
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-1904 Split FinalApproachPhase.OnTick: extract the vertical-guidance block
 - [ ] YAAT-2307 Split InterceptCoursePhase.OnTick under the 100-line limit
+
+### No milestone
+- [ ] YAAT-2362 HOLDP to a fix on the route: keep the route and compute the entry at the fix
 
 ## Traffic pattern and airborne FOLLOW
 
@@ -1210,7 +1210,7 @@
 
 ## Client UI: views, menus and windows
 
-### 1 Defects (2/29 done)
+### 1 Defects (2/30 done)
 - [ ] YAAT-100 Fix scenario-activation leftovers: Save-As JSON paths, dead assignment
 - [ ] YAAT-159 Keep the last flight-rules situation as the classifier hysteresis input
 - [ ] YAAT-165 Async load client leftovers: early Unload refusal, stale LoadId
@@ -1221,6 +1221,7 @@
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 - [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
+- [ ] YAAT-2360 Radar PTL: project along the ground track, not the heading
 - [ ] YAAT-263 Solo toggle: a failed SetSoloTrainingMode send is silent
 - [ ] YAAT-341 Take control and quick bookmark keys work from pop-out windows
 - [ ] YAAT-369 Scenario load: status bar can end on 'Load by AB ended' instead of the load result (RoomLoadingChanged arrival-order race)
@@ -1239,7 +1240,7 @@
 - [ ] YAAT-1736 Overlapping CRC alias reloads corrupt the alias table (903 of 15341 aliases until the next reload)
 - [ ] YAAT-1887 Filter the speed picker by the flown type for an aircraft with no flight plan (150-350 kt list today)
 
-### 2 Refinements and rulings (6/17 done)
+### 2 Refinements and rulings (7/18 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
 - [ ] YAAT-102 Inspect Discord's SET_ACTIVITY response and add an AppLog capture seam
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
