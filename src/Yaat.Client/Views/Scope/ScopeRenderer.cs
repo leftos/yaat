@@ -45,6 +45,10 @@ namespace Yaat.Client.Views.Scope;
 /// Whether top-down mode is on (the canvas's <c>ShowTopDown</c>, copied on the UI thread): an aircraft on the ground then
 /// takes the ground-target block on the STARS and ERAM templates.
 /// </param>
+/// <param name="LocalPtlCallsigns">
+/// The callsigns with a PTL on this scope (<c>ScopeViewModel.LocalPtlCallsigns</c>), copied on the UI thread; null is none.
+/// Their tracks draw a vector whatever the VECTOR ownership says.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -64,7 +68,8 @@ public sealed record ScopeFrameInput(
     string? HoveredCallsign = null,
     string? VciHoveredCallsign = null,
     IReadOnlySet<string>? LocalDwellLockedCallsigns = null,
-    bool ShowTopDown = false
+    bool ShowTopDown = false,
+    IReadOnlySet<string>? LocalPtlCallsigns = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -231,9 +236,15 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>Whether <paramref name="ac"/> counts as the viewer's own: every track does with no viewer.</summary>
     private static bool IsOwnTrack(AircraftModel ac, ScopeViewer viewer) => !EramColumn0.HasViewer(viewer) || EramColumn0.IsViewersTrack(ac, viewer);
 
-    /// <summary>The track's vector end, when its ownership draws one (<see cref="ScopeTrackLayers.ShowsVector"/>); else null.</summary>
+    /// <summary>
+    /// The track's vector end, when its ownership draws one (<see cref="ScopeTrackLayers.ShowsVector"/>) or it carries a
+    /// PTL (<see cref="ScopeFrameInput.LocalPtlCallsigns"/>); else null.
+    /// </summary>
     private static SKPoint? VectorEndFor(AircraftModel ac, ScopeFrameInput input) =>
-        ScopeTrackLayers.ShowsVector(input.VectorOwnership, IsOwnTrack(ac, input.Display.Viewer))
+        (
+            ScopeTrackLayers.ShowsVector(input.VectorOwnership, IsOwnTrack(ac, input.Display.Viewer))
+            || (input.LocalPtlCallsigns?.Contains(ac.Callsign) == true)
+        )
             ? ScopeTrackLayers.VectorEnd(ac, input.VectorMinutes, input.Viewport)
             : null;
 

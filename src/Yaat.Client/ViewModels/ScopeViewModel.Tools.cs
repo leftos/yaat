@@ -8,7 +8,7 @@ namespace Yaat.Client.ViewModels;
 /// <summary>
 /// The TOOLS tray's Rings tool: the kind it is armed with, the SIZE it places, and the rings placed per track. Rings are
 /// this Scope's own overlay, keyed by callsign: never saved, never sent to the server, and cleared when their aircraft
-/// leaves and on a scenario unload, restart or rewind.
+/// leaves and on a scenario unload, restart or rewind. The per-track PTLs live beside them (<c>ScopeViewModel.Ptl.cs</c>).
 /// </summary>
 public sealed partial class ScopeViewModel
 {
@@ -93,12 +93,13 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Drops every piece of per-track state the scope holds, its data-block state (dwell locks, block offsets, highlights,
-    /// z-order) and its rings, for a scenario unload, restart or rewind.
+    /// z-order), its rings and its PTLs, for a scenario unload, restart or rewind.
     /// </summary>
     public void ClearTrackState()
     {
         DataBlockState.Clear();
         ClearRings();
+        ClearPtl();
     }
 
     /// <summary>Removes every ring on every track.</summary>

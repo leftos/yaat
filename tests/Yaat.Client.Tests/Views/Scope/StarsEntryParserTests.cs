@@ -56,6 +56,8 @@ public class StarsEntryParserTests
     [InlineData("MF L 7", "LDR 7", "MF", "leader direction")]
     [InlineData("MF L 7 UAL238", "UAL238 LDR 7", "MF", "leader direction")]
     [InlineData("MF L7 UAL238", "UAL238 LDR 7", "MF", "leader direction")]
+    [InlineData("MF R UAL238", ".scope ptl UAL238", "MF", "scope ptl")]
+    [InlineData("mf r ual238", ".scope ptl UAL238", "MF", "scope ptl")]
     [InlineData("CA K", "CAINH", "CA", "inhibit conflict alert")]
     [InlineData("CA K UAL238", "UAL238 CAINH", "CA", "inhibit conflict alert")]
     [InlineData("RANGE 40", ".scope range 40", "RANGE", "scope range")]
@@ -98,6 +100,18 @@ public class StarsEntryParserTests
         Assert.Equal(ring, read.Ring);
     }
 
+    [Fact]
+    public void BareMfR_NeedsTheSelectedTrack()
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead("MF R"));
+
+        Assert.True(read.Supported);
+        Assert.Equal(".scope ptl", read.Translation);
+        Assert.Equal("scope ptl", read.Gloss);
+        Assert.Equal(StarsEntryNeed.SelectedTrack, read.Need);
+        Assert.Null(read.Callsign);
+    }
+
     [Theory]
     [InlineData("TERM ALL", "TERM")]
     [InlineData("**ALL", "**ALL")]
@@ -113,8 +127,9 @@ public class StarsEntryParserTests
     [InlineData("MF E", "MF")]
     [InlineData("MF P", "MF")]
     [InlineData("MF I*", "MF")]
-    [InlineData("MF R", "MF")]
-    [InlineData("MF R UAL238", "MF")]
+    [InlineData("MF R UAL238 X", "MF")]
+    [InlineData("MF R 123", "MF")]
+    [InlineData("MF RX", "MF")]
     [InlineData("MF N", "MF")]
     [InlineData("MF", "MF")]
     [InlineData("CA X", "CA")]

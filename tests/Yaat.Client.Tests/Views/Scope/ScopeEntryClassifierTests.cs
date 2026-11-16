@@ -98,6 +98,19 @@ public class ScopeEntryClassifierTests
         Assert.NotEqual(ScopeEntryKind.Stars, Read("+100", profile).Kind);
 
     [Fact]
+    public void MfR_OnStars_ReadsAsAStarsEntryThatSends() =>
+        Assert.Equal(
+            new ScopeEntryReading(ScopeEntryKind.Stars, "STARS MF scope ptl", ".scope ptl UAL238", true),
+            Read("MF R UAL238", ScopeProfileKind.Stars)
+        );
+
+    [Theory]
+    [InlineData(ScopeProfileKind.Eram)]
+    [InlineData(ScopeProfileKind.Mixed)]
+    public void MfR_OnEramOrMixed_IsNoStarsEntry(ScopeProfileKind profile) =>
+        Assert.NotEqual(ScopeEntryKind.Stars, Read("MF R UAL238", profile).Kind);
+
+    [Fact]
     public void PilotUn_ReadsAsUnpause_AndUnOnStars_ReadsAsStars()
     {
         AssertReads(Read("PILOT UN", ScopeProfileKind.Stars), ScopeEntryKind.Pilot, "PILOT UN");

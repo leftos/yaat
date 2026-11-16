@@ -25,9 +25,11 @@ public partial class MainViewModel
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
         + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
-        + " | .scope tdm <on|off>";
+        + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]";
 
     private const string ScopeTdmUsage = "Usage: .scope tdm <on|off>";
+
+    private const string ScopePtlUsage = "Usage: .scope ptl <callsign> | .scope ptl clear [callsign]";
 
     private const string ScopeRingsUsage =
         "Usage: .scope rings <jring|cone> <1.0-9.9|10-30> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
@@ -165,8 +167,8 @@ public partial class MainViewModel
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
     /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
-    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c> and <c>.scope tdm</c> against <see cref="OpenScope"/>, reporting
-    /// the echo or the error to <paramref name="sink"/>.
+    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c>, <c>.scope tdm</c> and <c>.scope ptl</c> against
+    /// <see cref="OpenScope"/>, reporting the echo or the error to <paramref name="sink"/>.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeCommand(string text, ICommandTextSink sink)
@@ -201,6 +203,7 @@ public partial class MainViewModel
             "HIST" => PinScopeHist,
             "RINGS" => RunScopeRings,
             "TDM" => SetScopeTdm,
+            "PTL" => RunScopePtl,
             _ => null,
         };
         if (handler is null)
@@ -595,6 +598,51 @@ public partial class MainViewModel
         scope.ClearRings(ac.Callsign);
         return $"Scope rings cleared {ac.Callsign}";
     }
+
+    /// <summary>
+    /// <c>.scope ptl &lt;callsign&gt;</c> toggles the track's PTL and <c>.scope ptl clear [callsign]</c> removes one track's
+    /// or every PTL: the Scope-local per-track vector, never sent to the server.
+    /// </summary>
+    private static string RunScopePtl(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length is 3 or 4) && string.Equals(parts[2], "clear", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClearScopePtl(scope, parts);
+        }
+
+        if (parts.Length != 3)
+        {
+            return ScopePtlUsage;
+        }
+
+        if (FindTypedAircraft(scope, parts[2]) is not { } ac)
+        {
+            return $"Unknown aircraft: {parts[2]}";
+        }
+
+        return ScopePtlEcho(ac.Callsign, scope.TogglePtl(ac.Callsign));
+    }
+
+    /// <summary><c>.scope ptl clear</c> removes every PTL; <c>.scope ptl clear &lt;callsign&gt;</c> one track's.</summary>
+    private static string ClearScopePtl(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length == 3)
+        {
+            scope.ClearPtl();
+            return "Scope PTL cleared";
+        }
+
+        if (FindTypedAircraft(scope, parts[3]) is not { } ac)
+        {
+            return $"Unknown aircraft: {parts[3]}";
+        }
+
+        scope.ClearPtl(ac.Callsign);
+        return $"Scope PTL cleared {ac.Callsign}";
+    }
+
+    /// <summary>The status line's echo of a PTL change: <c>Scope PTL N123AB</c>, with <c> removed</c> on a removal.</summary>
+    internal static string ScopePtlEcho(string callsign, bool on) => $"Scope PTL {callsign}{(on ? "" : " removed")}";
 
     /// <summary>The status line's echo of a ring change: <c>Scope J-ring 3.0 NM N123AB</c>, with <c> removed</c> on a removal.</summary>
     internal static string ScopeRingEcho(ScopeRingTool tool, double sizeNm, string callsign, bool placed)

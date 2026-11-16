@@ -555,6 +555,7 @@ public partial class MainViewModel
         // line frozen at the last known position (CRC drops RBLs on a dropped track the same way).
         Measure.PruneMissing(FindAircraft);
         OpenScope?.ClearRings(ac.Callsign);
+        OpenScope?.ClearPtl(ac.Callsign);
     }
 
     private void OnAircraftSpawned(AircraftDto dto)

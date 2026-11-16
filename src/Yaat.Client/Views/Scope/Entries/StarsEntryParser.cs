@@ -18,6 +18,9 @@ internal enum StarsEntryNeed
 
     /// <summary>Bare <c>*J</c>/<c>*P</c>: the selected aircraft's ring of that kind, at its current size, is removed.</summary>
     RingRemoval,
+
+    /// <summary>Bare <c>MF R</c>: the selected aircraft's callsign goes after the translation.</summary>
+    SelectedTrack,
 }
 
 /// <summary>A STARS entry's reading: its first word, the YAAT command it translates to (null when not supported) and its gloss.</summary>
@@ -41,10 +44,10 @@ internal sealed record StarsEntryRead(string FirstWord, string? Translation, str
 
 /// <summary>
 /// Reads an entry typed on a STARS-profile Scope as a STARS entry: the glued shapes (<c>+AB1</c>, <c>++100</c>, <c>4</c>,
-/// <c>1D*</c>, <c>**2B</c>, <c>*J5</c>, ...) and the key words standing for the function keys (<c>INIT</c>, <c>TERM</c>,
-/// <c>HND</c>, <c>MF</c>, <c>CA</c>, <c>RANGE</c>). An entry with a YAAT command translates to it; a STARS entry with none
-/// reads as not supported; anything else is no STARS entry (null). Pure: the rows that need state say so in
-/// <see cref="StarsEntryRead.Need"/>.
+/// <c>1D*</c>, <c>**2B</c>, <c>*J5</c>, ...), the key words standing for the function keys (<c>INIT</c>, <c>TERM</c>,
+/// <c>HND</c>, <c>MF</c>, <c>CA</c>, <c>RANGE</c>) and the per-track PTL of a <c>MF R</c> entry. An entry with a YAAT
+/// command translates to it; a STARS entry with none reads as not supported; anything else is no STARS entry (null). Pure:
+/// the rows that need state say so in <see cref="StarsEntryRead.Need"/>.
 /// </summary>
 internal static partial class StarsEntryParser
 {
@@ -236,7 +239,8 @@ internal static partial class StarsEntryParser
     private static bool IsHandoffWithId(string[] words) =>
         (words.Length is 2 or 3) && TcpShape().IsMatch(words[1]) && ((words.Length == 2) || IsCallsign(words[2]));
 
-    // MF Y: scratchpad 1 or pilot-reported altitude; MF L: leader direction; every other letter is not supported.
+    // MF Y: scratchpad 1 or pilot-reported altitude; MF L: leader direction; MF R: the track's PTL; every other letter is not
+    // supported.
     private static StarsEntryRead ReadMultiFunc(string[] words)
     {
         if (words.Length < 2)
@@ -254,10 +258,28 @@ internal static partial class StarsEntryParser
             return ReadLeader(words[0], words.ElementAtOrDefault(2) ?? "", [.. words.Skip(3)]);
         }
 
+        if (words[1] == "R")
+        {
+            return ReadPtl(words);
+        }
+
         return (GluedLeader().Match(words[1]) is { Success: true } glued)
             ? ReadLeader(words[0], glued.Groups[1].Value, words[2..])
             : Unsupported(words[0]);
     }
+
+    // MF R [callsign]: toggles the Scope-local PTL on the typed callsign's track, or on the selected track when none is typed.
+    // The gloss is hand-written, as the range row's is: the PTL is no YAAT command, so the registry has no label for it.
+    private static StarsEntryRead ReadPtl(string[] words) =>
+        words switch
+        {
+            [string first, _] => new StarsEntryRead(first, ".scope ptl", "scope ptl") { Need = StarsEntryNeed.SelectedTrack },
+            [string first, _, string callsign] when IsCallsign(callsign) => new StarsEntryRead(first, $".scope ptl {callsign}", "scope ptl")
+            {
+                Callsign = callsign,
+            },
+            _ => Unsupported(words[0]),
+        };
 
     // MF Y in CRC's order: [callsign] then the text, the altitude or a +text for scratchpad 2. One callsign-shaped token of five
     // or more characters is a callsign whose scratchpad 1 is cleared; a shorter token is the text.

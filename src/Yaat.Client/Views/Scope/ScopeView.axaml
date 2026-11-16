@@ -29,6 +29,7 @@
       VectorOwnership="{Binding VectorOwnership}"
       HistoryCount="{Binding EffectiveBand.History}"
       LocalRings="{Binding LocalRings}"
+      LocalPtlCallsigns="{Binding LocalPtlCallsigns}"
       ShowTopDown="{Binding IsTdm}"
       TdmOnlyMapIds="{Binding TdmOnlyMapIds}"
       IsMeasuring="{Binding Measure.IsMeasuring}"

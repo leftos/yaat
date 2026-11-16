@@ -356,7 +356,8 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// The text a supported STARS entry sends, once the rows that need the Scope's state have it: bare <c>HND</c> becomes
     /// <c>CANCEL</c> for a handoff outbound from the acting position (else it stays <c>ACCEPT</c>, which the pilot path refuses
-    /// when there is no handoff to take), and <c>*J</c>/<c>*P</c> act on the selected aircraft's Scope rings.
+    /// when there is no handoff to take), <c>*J</c>/<c>*P</c> act on the selected aircraft's Scope rings, and bare <c>MF R</c>
+    /// toggles the selected track's PTL.
     /// </summary>
     /// <returns>The text to send, or null and the refusal to answer with.</returns>
     private (string? Text, string? Refusal) ResolveStarsEntry(string entry, string translation)
@@ -369,7 +370,7 @@ public sealed partial class ScopeViewModel
         return read.Need switch
         {
             StarsEntryNeed.HandoffAcceptOrCancel => (ResolveHandoff(read, translation), null),
-            StarsEntryNeed.RingPlacement => (Main.SelectedAircraft is { } ac)
+            StarsEntryNeed.RingPlacement or StarsEntryNeed.SelectedTrack => (Main.SelectedAircraft is { } ac)
                 ? ($"{translation} {ac.Callsign}", null)
                 : (null, MainViewModel.NoAircraftMatchedMessage),
             StarsEntryNeed.RingRemoval => ResolveRingRemoval(read.Ring),

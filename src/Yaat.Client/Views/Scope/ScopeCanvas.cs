@@ -107,6 +107,15 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     >(nameof(LocalRings), defaultValue: ScopeViewModel.NoRings);
 
     /// <summary>
+    /// The callsigns with a PTL on this scope (an immutable snapshot); read in <see cref="BuildFrame"/>, never on the render
+    /// thread.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlySet<string>> LocalPtlCallsignsProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        IReadOnlySet<string>
+    >(nameof(LocalPtlCallsigns), defaultValue: ScopeViewModel.NoPtl);
+
+    /// <summary>
     /// Whether top-down mode is on, drawing ground targets (with their ground-target block), airborne ones below the display
     /// floor and the TDM-only maps (<see cref="TdmOnlyMapIds"/>); read on the UI thread, never on the render thread.
     /// </summary>
@@ -253,6 +262,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(LocalRingsProperty);
         set => SetValue(LocalRingsProperty, value);
+    }
+
+    public IReadOnlySet<string> LocalPtlCallsigns
+    {
+        get => GetValue(LocalPtlCallsignsProperty);
+        set => SetValue(LocalPtlCallsignsProperty, value);
     }
 
     public bool ShowTopDown
@@ -566,14 +581,15 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Whether <paramref name="property"/> sets the vector, history, ring or top-down layer (its TDM-only maps among them),
-    /// which the frame lays out.
+    /// Whether <paramref name="property"/> sets the vector, history, ring, PTL or top-down layer (its TDM-only maps among
+    /// them), which the frame lays out.
     /// </summary>
     private static bool IsLayerProperty(AvaloniaProperty property) =>
         (property == VectorMinutesProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
         || (property == LocalRingsProperty)
+        || (property == LocalPtlCallsignsProperty)
         || (property == ShowTopDownProperty)
         || (property == TdmOnlyMapIdsProperty);
 
@@ -848,7 +864,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 _hoveredCallsign,
                 VciHoveredCallsign: _hoveredVciCallsign,
                 LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns,
-                ShowTopDown: ShowTopDown
+                ShowTopDown: ShowTopDown,
+                LocalPtlCallsigns: LocalPtlCallsigns
             )
         );
     }
