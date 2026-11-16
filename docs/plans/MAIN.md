@@ -10,9 +10,16 @@
 ## YAAT Scope (feat/yaat-scope)
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
-  - [ ] YAAT-2223 YAAT Scope step 4: profiles and zoom bands, one Vector control, one Rings tool, TDM toggle · release vNext
-    - [ ] YAAT-2335 YAAT Scope step 4e: the TDM toggle (Ctrl+T) for ground targets · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
+    - [/] YAAT-2373 YAAT Scope step 5a: type on the Scope: a preview area, Enter executes, a feedback area (pilot and dot commands) · release vNext
+    - [ ] YAAT-2374 YAAT Scope step 5b: field menus: a field click opens a pick menu; a row click sends, Shift+click stages · release vNext
+    - [ ] YAAT-2375 YAAT Scope step 5c: middle-click executes; a left-click on a track or point fills the preview · release vNext
+    - [ ] YAAT-2376 YAAT Scope step 5d: measure on the Scope (Alt-drag, Ctrl+M, .rbl) · release vNext
+    - [ ] YAAT-2377 YAAT Scope step 5e: speed-to-time (LC) readout · release vNext
+    - [ ] YAAT-2378 YAAT Scope step 5f: CRR groups on the Scope · release vNext
+    - [ ] YAAT-2379 YAAT Scope step 5g: STARS-dialect scope entries in the preview, which names the kind it read · release vNext
+    - [ ] YAAT-2380 YAAT Scope step 5h: ERAM-dialect scope entries in the preview · release vNext
+    - [ ] YAAT-2381 YAAT Scope step 5i: the scope-data column of the field menus · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
@@ -22,13 +29,14 @@
   - [ ] YAAT-2278 YAAT Scope: bring ScopeCanvas.OnPropertyChanged under the complexity limit
   - [ ] YAAT-2283 YAAT Scope: ERAM Field E handoff text for STARS peers from the neighbour Field E format
   - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
-  - [ ] YAAT-2336 YAAT Scope: TDM-only map elements and the ground-target data block · release vNext
-  - [ ] YAAT-2357 YAAT Scope toolbar overflows a narrow window: buttons past the edge are unreachable · release vNext
+  - [ ] YAAT-2370 Share one OpenScopeAsync test fixture across the Scope test classes · release vNext
+  - [ ] YAAT-2382 YAAT Scope: the min-sep readout from the design canvas · release vNext
+  - [ ] YAAT-2383 YAAT Scope bar jumps under the pointer when a part-hidden button is pressed · release vNext
+  - [ ] YAAT-2390 YAAT Scope bar: CRC STARS-style DCB tiles (value buttons full height, the rest in half-height pairs) · release vNext
 - [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
 - [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
-- [ ] YAAT-2366 YAAT Scope keeps dwell locks and block offsets across scenario unload and rewind
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -49,7 +57,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2351 Report flyout: Reaching… and Leaving… entries with an altitude, and their armed state · release vNext
 - [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext+1
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
@@ -662,7 +669,7 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (1/29 done)
+### 1 Defects (1/31 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -691,6 +698,8 @@
 - [ ] YAAT-1583 Rehydrate a split block that keeps a non-tail command after a snapshot restore
 - [ ] YAAT-2182 Make IssueDerived apply or refuse a RecordedAmendFlightPlan instead of recording it unapplied
 - [ ] YAAT-2308 Restore an approach clearance's procedure and missed-approach fixes from a snapshot
+- [ ] YAAT-2368 Clear Radar and Ground per-track view state on the instructor's own rewind, as a rewind from another client does
+- [ ] YAAT-2369 Clear every view's per-track state when a recording loads, as an unload or restart does
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -744,6 +753,7 @@
 - [ ] YAAT-1945 Judge a queued tower block's non-tower siblings at the phase gate, as a live block does
 - [ ] YAAT-2354 Add REPORT OFF REACHING and REPORT OFF LEAVING; stop parsing them as fix cancels
 - [ ] YAAT-2356 Carry PilotReadback and ReRouteAppliedAs through ApplyTransparentCompound
+- [ ] YAAT-2384 Make GIVE without initials answer its usage line (the branch is unreachable)
 
 ## Speed control and performance limits
 
@@ -882,7 +892,7 @@
 
 ## Approaches and holds
 
-### 1 Defects (2/21 done)
+### 1 Defects (2/24 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
@@ -902,6 +912,9 @@
 - [ ] YAAT-2306 Final approach started inside its FAS trigger flies the no-wind approach speed
 - [ ] YAAT-2309 Rebuilt approach transition descends below the IAF's at-or-above altitude before the hold-in-lieu
 - [ ] YAAT-2311 Check that a bare CAPP to an aircraft vectored onto the final course flies no course reversal
+- [ ] YAAT-2385 CAPP on a vector drops the crossing restriction at the route fix (CFIX KLIDE 40 then CAPP descends at once)
+- [ ] YAAT-2386 JAPP after a crossing restriction at an IAF starts the approach past that IAF (KLIDE skipped, enters at ZULUP)
+- [ ] YAAT-2388 CAPP on a vector with a mid-transition route fix flies back to the transition's first fix
 
 ### 2 Refinements and rulings (1/10 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
@@ -914,12 +927,13 @@
 - [ ] YAAT-1898 Decide how fast a captured aircraft below the glidepath recovers to it
 - [ ] YAAT-1903 Go around when a captured final stays well below the glidepath
 
-### 3 Hygiene and tests (0/5 done)
+### 3 Hygiene and tests (0/6 done)
 - [ ] YAAT-147 Give ApproachGateDatabase a scoped override; fix the XRWY refusal wording
 - [ ] YAAT-149 Test a published FAF inside 5 NM in FinalApproachFix.IsInside
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-1904 Split FinalApproachPhase.OnTick: extract the vertical-guidance block
 - [ ] YAAT-2307 Split InterceptCoursePhase.OnTick under the 100-line limit
+- [ ] YAAT-2389 Split ApproachCommandHandler.SelectBestTransition under the 100-line limit
 
 ### No milestone
 - [ ] YAAT-2362 HOLDP to a fix on the route: keep the route and compute the entry at the fix
@@ -1572,4 +1586,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2223, YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2277, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2277, YAAT-2382, YAAT Scope (feat/yaat-scope)
