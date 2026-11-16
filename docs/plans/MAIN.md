@@ -11,14 +11,14 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
-    - [ ] YAAT-2374 YAAT Scope step 5b: field menus: a field click opens a pick menu; a row click sends, Shift+click stages · release vNext
+    - [/] YAAT-2374 YAAT Scope step 5b: field menus: a field click opens a pick menu; a row click sends, Shift+click stages · release vNext
     - [ ] YAAT-2375 YAAT Scope step 5c: middle-click executes; a left-click on a track or point fills the preview · release vNext
-    - [ ] YAAT-2376 YAAT Scope step 5d: measure on the Scope (Alt-drag, Ctrl+M, .rbl) · release vNext
+    - [/] YAAT-2376 YAAT Scope step 5d: measure on the Scope (Alt-drag, Ctrl+M, .rbl) · release vNext
     - [ ] YAAT-2377 YAAT Scope step 5e: speed-to-time (LC) readout · release vNext
     - [ ] YAAT-2378 YAAT Scope step 5f: CRR groups on the Scope · release vNext
-    - [ ] YAAT-2379 YAAT Scope step 5g: STARS-dialect scope entries in the preview, which names the kind it read · release vNext
     - [ ] YAAT-2380 YAAT Scope step 5h: ERAM-dialect scope entries in the preview · release vNext
     - [ ] YAAT-2381 YAAT Scope step 5i: the scope-data column of the field menus · release vNext
+    - [ ] YAAT-2397 YAAT Scope step 5j: per-track PTL toggle on the Scope (STARS MF R) · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
@@ -28,11 +28,11 @@
   - [ ] YAAT-2278 YAAT Scope: bring ScopeCanvas.OnPropertyChanged under the complexity limit
   - [ ] YAAT-2283 YAAT Scope: ERAM Field E handoff text for STARS peers from the neighbour Field E format
   - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
-  - [ ] YAAT-2370 Share one OpenScopeAsync test fixture across the Scope test classes · release vNext
   - [ ] YAAT-2382 YAAT Scope: the min-sep readout from the design canvas · release vNext
   - [ ] YAAT-2391 YAAT Scope bar pans under a touch or pen drag during a tear-off
   - [ ] YAAT-2392 YAAT Scope shows a .scope or .view usage error as plain text, not red
   - [ ] YAAT-2395 YAAT Scope entry: Up, Backspace, Up, Down brings back the older half-typed text, not the edit
+  - [ ] YAAT-2399 YAAT Scope: close an open aircraft or field menu when the view detaches or its aircraft goes away
 - [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
@@ -716,7 +716,7 @@
 
 ## Command parser and queue
 
-### 1 Defects (5/22 done)
+### 1 Defects (5/23 done)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
@@ -734,6 +734,7 @@
 - [ ] YAAT-1450 Complete a ; block whose only speed effect is a Mach hold
 - [ ] YAAT-1889 Dry-run a queued or conditional block as a unit when it fires, so a refused altitude does not leave its speed half-applied
 - [ ] YAAT-2244 Keep FH 360 / TL 360 / TR 360 as 360 in canonical text (today FH 000, which does not re-parse)
+- [ ] YAAT-2398 PRA 0 is refused as an invalid altitude instead of clearing the pilot-reported altitude
 
 ### 2 Refinements and rulings (1/6 done)
 - [ ] YAAT-88 Give the command queue a per-dispatch frontier for independent chains
@@ -1474,7 +1475,7 @@
   - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext
   - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext
   - [ ] YAAT-2346 Clear CA1859 and CA1822 (concrete types, static members) and raise both to warning · release vNext
-  - [ ] YAAT-2347 Clear the fixer-backed rules (SYSLIB1045, SYSLIB1054, CA1861, CA1826, CA1507) and raise them to warning · release vNext
+  - [/] YAAT-2347 Clear the fixer-backed rules (SYSLIB1045, SYSLIB1054, CA1861, CA1826, CA1507) and raise them to warning · release vNext
   - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext
 - [/] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine · release vNext
