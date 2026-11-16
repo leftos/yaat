@@ -220,6 +220,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         MenuItem? favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
         favoritesPanelItem?.Click += OnFavoritesPanelClick;
 
+        // Never disabled: the notes open, and keep their text, with no scenario loaded.
+        this.FindControl<MenuItem>("NotesMenuItem")?.Click += OnNotesClick;
+
         MenuItem? crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         crcItem?.Click += OnConfigureCrcClick;
 
@@ -394,12 +397,43 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private SettingsWindow? _settingsDialog;
     private SessionReportWindow? _sessionReportWindow;
 
+    // One notes view model for the app's life, made on the first open: a reopened window shows the same text and pending save.
+    private NotesViewModel? _notesViewModel;
+
     private void OnFavoritesPanelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is MainViewModel vm)
         {
             FavoritesPanelWindow.ShowOrActivate(vm);
         }
+    }
+
+    private void OnNotesClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_notesViewModel is null)
+        {
+            var notes = new NotesViewModel(
+                new NotesStore(NotesStore.DefaultPath, AppLog.CreateLogger<NotesStore>()),
+                TimeProvider.System,
+                () => vm.HasScenario ? vm.ElapsedTimeDisplay : null,
+                () => vm.SelectedAircraft?.Callsign
+            );
+            vm.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(MainViewModel.ActiveScenarioId) or nameof(MainViewModel.HasScenario))
+                {
+                    notes.RefreshCanStamp();
+                }
+            };
+            _notesViewModel = notes;
+        }
+
+        NotesWindow.ShowOrActivate(vm.Preferences, _notesViewModel);
     }
 
     private void OnShowSpeechDebugClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

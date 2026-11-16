@@ -43,9 +43,13 @@ internal static class WindowHotkeys
     private const string DcbChord = "Ctrl+F8";
     private const string MeasureChord = "Ctrl+M";
 
+    /// <summary>The Notes window's own key for the stamp, handled by that window alone.</summary>
+    internal const string NotesStampChord = "Ctrl+Shift+N";
+
     /// <summary>
-    /// The chords bound in code rather than in Settings (here, and Find in the Strips and vTDLS views and the ground
-    /// view's debug overlay), by the action name Settings shows when a configured key would take one of them.
+    /// The chords bound in code rather than in Settings (here, and Find in the Strips and vTDLS views, the ground view's
+    /// debug overlay and the Notes window's stamp), by the action name Settings shows when a configured key would take one
+    /// of them.
     /// </summary>
     internal static readonly IReadOnlyList<(string Name, string Chord)> FixedChords =
     [
@@ -53,6 +57,7 @@ internal static class WindowHotkeys
         ("Measure tool", MeasureChord),
         ("Strips and vTDLS find", "Ctrl+F"),
         ("Ground view debug overlay", "Ctrl+D"),
+        ("Notes stamp", NotesStampChord),
     ];
 
     // Each configurable key scoped to YAAT working windows and what it does to the main view model: the panel keys flip the

@@ -83,7 +83,7 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-The **View** menu has three submenus: **Windows** (the pop-outs, new Radar and Ground windows, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
+The **View** menu has three submenus: **Windows** (the pop-outs, new Radar and Ground windows, Strips and vTDLS), **Bars** (the favorites bar and panel, the Notes window, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
 
 Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Radar view / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** radar, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item).
 
@@ -205,7 +205,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
-Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F8 DCB, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
+Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F8 DCB, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay, Ctrl+Shift+N the Notes window's stamp) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
 
 Window hotkeys need Ctrl or Alt (or an F-key), so they never fire while you type; **Esc** while capturing one cancels the capture.
 
@@ -232,6 +232,7 @@ To the left of the command box, the **active-position selector** shows the [TCP]
 | Ctrl+B | Drop a quick timeline bookmark *(default)* |
 | Ctrl+Shift+L / G / R / E / C / M | Pop out or dock the aircraft list / ground view / radar view / terminal / controllers / METAR *(default)* |
 | Ctrl+Shift+F | Show or hide the favorites bar *(default)* |
+| Ctrl+Shift+N | Stamp the sim time and selected aircraft into the Notes window (only while it is focused; fixed) |
 | Ctrl+, | Open Settings *(default)* |
 | Right Ctrl | Push-to-talk for speech recognition *(default)* |
 
@@ -2929,6 +2930,12 @@ Favorites are shared with the **Import** and **Export** buttons in the pop-out *
   Replace deletes every favorite and set you have and imports, loading exactly the sets the library had loaded (or the imported set, for a set export) and restoring the library's bar order. Merge keeps your current bar order and puts new sets last.
 
   Merge goes by the favorite's id: a favorite you already have is updated in place and new ones are added. A named set with the same name as one of yours, or with the id of one of yours under another name, is listed with **Skip**, **Overwrite** or **Rename**. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately, turning Global back on if it was off; a Merge that adds buttons to Global turns it on too. A Replace import of a full favorites export also restores whether Global was on.
+
+### Notes
+
+**View > Bars > Notes…** opens a scratch pad for your own notes: one multi-line text box (a second click on the menu item brings the window forward). **Stamp**, or **Ctrl+Shift+N** while the window is focused, inserts the sim time and the selected aircraft at the cursor, such as `[75:05 N123AB] `, or `[75:05] ` when no aircraft is selected; with no scenario loaded **Stamp** is disabled. **Copy all** copies the text and **Clear** empties the box at once.
+
+The text is saved to `%LOCALAPPDATA%/yaat/notes.txt` a second after you stop typing and when the window closes. It survives a restart and loading another scenario, and it is not part of your settings or the Import / Export bundle. The window's position and size are remembered. If a key you set in **Settings › Keys** is already **Ctrl+Shift+N**, Settings names it "Notes stamp".
 
 ### Command History
 
