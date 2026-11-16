@@ -100,8 +100,15 @@ public sealed partial class ScopeViewModel
     /// </summary>
     private string? SelectedOwnerTemplateId => (SelectedAircraft is { } ac) ? ScopeOwnerKind.TemplateIdFor(ac) : null;
 
-    /// <summary>The entry and its caret, wrapped, the last <see cref="PreviewLineCap"/> lines; empty while nothing is typed.</summary>
-    internal IReadOnlyList<string> EntryPreviewLines => EntryText.Length == 0 ? [] : [.. Wrap(EntryText + Caret).TakeLast(PreviewLineCap)];
+    /// <summary>
+    /// The entry and its caret, wrapped, the last <see cref="PreviewLineCap"/> lines; empty while nothing is typed. An entry
+    /// that reads as ERAM shows ERAM's own characters as its marks.
+    /// </summary>
+    internal IReadOnlyList<string> EntryPreviewLines => EntryText.Length == 0 ? [] : [.. Wrap(PreviewText).TakeLast(PreviewLineCap)];
+
+    // The entry as the preview shows it: an ERAM entry through ERAM's keyboard and marks, any other entry as typed.
+    private string PreviewText =>
+        (EntryReading.Kind == ScopeEntryKind.Eram) ? ScopeEramKeys.ToDisplay(ScopeEramKeys.MapTyped(EntryText + Caret)) : (EntryText + Caret);
 
     /// <summary>The response's message, its detail lines, then its echo, wrapped, the first <see cref="FeedbackLineCap"/> lines.</summary>
     internal IReadOnlyList<ScopeResponseLine> EntryResponseLines =>
@@ -111,9 +118,10 @@ public sealed partial class ScopeViewModel
             [
                 .. new[] { response.Message }
                     .Concat(response.Detail)
+                    .Select(ScopeEramKeys.ToDisplay)
                     .SelectMany(Wrap)
                     .Select(line => new ScopeResponseLine(line, true))
-                    .Concat(Wrap(response.Echo).Select(line => new ScopeResponseLine(line, false)))
+                    .Concat(Wrap(ScopeEramKeys.ToDisplay(response.Echo)).Select(line => new ScopeResponseLine(line, false)))
                     .Take(FeedbackLineCap),
             ];
 
@@ -396,14 +404,15 @@ public sealed partial class ScopeViewModel
         EntryResponse = sink.ResponseTo(entry);
     }
 
-    // An ERAM entry: in the history whatever happens, then to the server's ERAM dispatch, whose answer is the response.
+    // An ERAM entry: in the history as typed, then to the server's ERAM dispatch with ERAM's own characters where its keys
+    // typed them, its answer the response. Only this path maps: a pilot command typed on an ERAM Scope sends as typed.
     private async Task RunEramEntryAsync(string entry)
     {
         Main.AddHistory("", entry);
         Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>> send = EramEntrySender ?? Main.SendScopeEramEntryAsync;
         try
         {
-            ScopeEramEntryResultDto result = await send(ScopeEramEntryBuilder.Build(entry));
+            ScopeEramEntryResultDto result = await send(ScopeEramEntryBuilder.Build(ScopeEramKeys.MapTyped(entry)));
             EntryResponse = ScopeEramEntryBuilder.ResponseTo(result, entry);
         }
         catch (Exception ex)

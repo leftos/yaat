@@ -480,6 +480,118 @@ public class ScopeEntryTests
         }
     }
 
+    /// <summary>
+    /// CRC's ERAM keyboard maps backtick to its clear-weather character as the ERAM entry is sent, which is where the server
+    /// reads a message's text from; the entry itself stays ASCII and the preview draws the key's mark.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheClearWeatherKey_OnEram_TypesItsCharacter_WhenSent()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
+        try
+        {
+            var sent = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                sent.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+            FocusCanvas(window, view);
+            Type(window, "SM 26 ");
+            Type(window, "`");
+            Type(window, "HELLO");
+
+            Assert.Equal("SM 26 `HELLO", scope.EntryText);
+            Assert.Equal("SM 26 ○HELLO_", Lines(view.EntryLayer.EramPreview)[^1]);
+
+            await EnterAsync(window, scope);
+
+            Assert.Contains("\u0087HELLO", Assert.Single(sent).Tokens);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// A pilot command typed on an ERAM Scope sends as typed: only an ERAM entry takes ERAM's characters, so the push free
+    /// point's tilde reaches the command parser as a tilde.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task APilotPushFreePoint_OnEram_SendsAsTyped()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
+        try
+        {
+            FocusCanvas(window, view);
+            Type(window, "PILOT UAL238 PUSH ~37.61523/-122.38604/090");
+
+            Assert.Contains("~", string.Concat(scope.EntryPreviewLines));
+
+            await EnterAsync(window, scope);
+
+            Assert.Contains("~37.61523", Assert.IsType<string>(scope.LastSentEntryText));
+            Assert.DoesNotContain('\u0088', scope.LastSentEntryText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>A response's echo shows ERAM's characters as the marks CRC draws, where a server echo carries them.</summary>
+    [AvaloniaFact]
+    public async Task TheResponseEcho_ShowsEramsCharactersAsTheirMarks()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Eram;
+            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Text, "ACCEPT", "SM 26 \u0087HELLO", []);
+
+            Assert.Equal("SM 26 ○HELLO", scope.EntryResponseLines[^1].Text);
+        }
+    }
+
+    /// <summary>STARS has no such mapping: the key types as itself.</summary>
+    [AvaloniaFact]
+    public async Task TheWeatherSymbolKeys_OnStars_TypeThemselves()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            FocusCanvas(window, view);
+            Type(window, "`");
+
+            Assert.Equal("`", scope.EntryText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>A control character still types nothing, on either layout.</summary>
+    [AvaloniaTheory]
+    [InlineData(ScopeProfileKind.Stars)]
+    [InlineData(ScopeProfileKind.Eram)]
+    public async Task ABell_StillTypesNothing(ScopeProfileKind profile)
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(profile);
+        try
+        {
+            FocusCanvas(window, view);
+            Type(window, "\u0007");
+
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact]
     public async Task AnEramRefusal_ShowsTheErrorLine()
     {
