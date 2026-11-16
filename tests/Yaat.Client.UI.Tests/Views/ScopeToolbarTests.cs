@@ -627,7 +627,7 @@ public class ScopeToolbarTests
         try
         {
             Click(ButtonOf(window, ScopeButtonId.Lens));
-            Assert.Equal(["ON", "PATH"], TrayButtons(window).Select(DrawnText));
+            Assert.Equal(["ON", "PATH", "QUEUE"], TrayButtons(window).Select(DrawnText));
 
             Click(ButtonOf(window, ScopeButtonId.LensOn));
             Assert.Equal("Scope lens ON", main.StatusText);
@@ -651,6 +651,29 @@ public class ScopeToolbarTests
             Click(ButtonOf(window, ScopeButtonId.LensOn));
             Assert.Equal("Scope lens OFF", main.StatusText);
             Assert.False(scope.Lens.Enabled);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task LensTray_QueueTogglesTheLensQueue()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Lens));
+
+            Click(ButtonOf(window, ScopeButtonId.LensQueue));
+            Assert.Equal("Scope lens queue ON", main.StatusText);
+            Assert.True(scope.Lens.Queue);
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.LensQueue).Classes);
+
+            Click(ButtonOf(window, ScopeButtonId.LensQueue));
+            Assert.Equal("Scope lens queue OFF", main.StatusText);
+            Assert.False(scope.Lens.Queue);
         }
         finally
         {

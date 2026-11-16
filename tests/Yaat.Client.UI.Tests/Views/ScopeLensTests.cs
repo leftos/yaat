@@ -21,7 +21,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeLensTests
 {
-    private const string LensUsage = "Usage: .scope lens <on|off> | .scope lens path <on|off> | .scope lens path <callsign>";
+    private const string LensUsage = "Usage: .scope lens <on|off> | .scope lens <path|queue> <on|off> | .scope lens path <callsign>";
+
+    private const string PendingTwo = "[Active] FH 270\n[1] AT BRIXX DM 040\n[2] WAIT 30 SPD 210";
 
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
     {
@@ -71,7 +73,7 @@ public class ScopeLensTests
         {
             Assert.Equal(ScopeLensSettings.Off, scope.Lens);
             Assert.Empty(scope.LensPathCallsigns);
-            Assert.Equal(new ScopePrefLens(false, false), scope.CapturePrefSet(null).Lens);
+            Assert.Equal(new ScopePrefLens(false, false, false), scope.CapturePrefSet(null).Lens);
         }
         finally
         {
@@ -260,7 +262,7 @@ public class ScopeLensTests
 
             scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
 
-            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: true), scope.Lens);
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: true, Queue: false), scope.Lens);
         }
         finally
         {
@@ -284,6 +286,127 @@ public class ScopeLensTests
             scope.ApplyPrefSet(old);
 
             Assert.Equal(ScopeLensSettings.Off, scope.Lens);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    private static string[] WithQueueBadge(ScopeCanvas canvas)
+    {
+        Dispatcher.UIThread.RunJobs();
+        return [.. canvas.CurrentFrame.Tracks.Where(t => t.QueueBadge is not null).Select(t => t.Aircraft.Callsign).Order(StringComparer.Ordinal)];
+    }
+
+    [AvaloniaFact]
+    public void LensAndQueueOn_DrawABadge_ForAnAircraftWithPendingLines()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            AddRouted(main, view.Canvas, "N123AB", 300, 300).PendingCommands = PendingTwo;
+            AddRouted(main, view.Canvas, "UAL1", 500, 400);
+            main.RunScopeCommand(".scope lens on");
+            Assert.Empty(WithQueueBadge(view.Canvas));
+
+            main.RunScopeCommand(".scope lens queue on");
+
+            Assert.Equal("Scope lens queue ON", main.StatusText);
+            Assert.Equal(["N123AB"], WithQueueBadge(view.Canvas));
+            ScopeTrack track = view.Canvas.CurrentFrame.Tracks.Single(t => t.Aircraft.Callsign == "N123AB");
+            Assert.Equal(2, track.QueueBadge?.Count);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope lens off")]
+    [InlineData(".scope lens queue off")]
+    public void EitherSwitchOff_DrawsNoBadge(string command)
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            AddRouted(main, view.Canvas, "N123AB", 300, 300).PendingCommands = PendingTwo;
+            main.RunScopeCommand(".scope lens on");
+            main.RunScopeCommand(".scope lens queue on");
+            Assert.Equal(["N123AB"], WithQueueBadge(view.Canvas));
+
+            main.RunScopeCommand(command);
+
+            Assert.Empty(WithQueueBadge(view.Canvas));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PrefSet_KeepsTheQueueSwitch()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope lens on");
+            main.RunScopeCommand(".scope lens queue on");
+            string json = JsonSerializer.Serialize(scope.CapturePrefSet("QUEUE"), ScopePrefSet.JsonOptions);
+            main.RunScopeCommand(".scope lens off");
+            main.RunScopeCommand(".scope lens queue off");
+
+            scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
+
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: true), scope.Lens);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OldPrefSet_WithNoQueueInItsLens_TurnsTheQueueOff()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope lens on");
+            main.RunScopeCommand(".scope lens queue on");
+            string json = JsonSerializer.Serialize(scope.CapturePrefSet("OLD"), ScopePrefSet.JsonOptions);
+            JsonObject document = Assert.IsType<JsonObject>(JsonNode.Parse(json));
+            JsonObject lens = Assert.IsType<JsonObject>(document["lens"]);
+            Assert.True(lens.Remove("queue"), "the captured lens has no queue key to drop");
+            ScopePrefSet old = Assert.IsType<ScopePrefSet>(document.Deserialize<ScopePrefSet>(ScopePrefSet.JsonOptions));
+
+            scope.ApplyPrefSet(old);
+
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false), scope.Lens);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task QueueWithACallsign_AnswersTheUsageLine()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            AddAircraft(main, "KSFO", 5000);
+
+            main.RunScopeCommand(".scope lens queue KSFO");
+
+            Assert.Equal(LensUsage, main.StatusText);
+            Assert.Equal(ScopeLensSettings.Off, scope.Lens);
+            Assert.Empty(scope.LensPathCallsigns);
         }
         finally
         {

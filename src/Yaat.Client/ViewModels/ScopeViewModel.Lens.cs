@@ -27,7 +27,7 @@ public sealed partial class ScopeViewModel
     private IReadOnlySet<string> _lensPathCallsigns = NoLensPaths;
 
     /// <summary>Whether <paramref name="item"/> names a lens overlay <c>.scope lens</c> takes, case-sensitive lowercase.</summary>
-    internal static bool IsLensOverlay(string item) => item == ScopeToolbarButtons.LensPathItem;
+    internal static bool IsLensOverlay(string item) => item is ScopeToolbarButtons.LensPathItem or ScopeToolbarButtons.LensQueueItem;
 
     /// <summary>Turns the lens's master switch on (<paramref name="on"/>) or off.</summary>
     public void SetLensEnabled(bool on) => Lens = Lens with { Enabled = on };
@@ -38,6 +38,10 @@ public sealed partial class ScopeViewModel
         if (item == ScopeToolbarButtons.LensPathItem)
         {
             Lens = Lens with { Path = on };
+        }
+        else if (item == ScopeToolbarButtons.LensQueueItem)
+        {
+            Lens = Lens with { Queue = on };
         }
     }
 
@@ -73,12 +77,16 @@ public sealed partial class ScopeViewModel
         }
     }
 
-    /// <summary>Whether the lens toggle <paramref name="id"/> is on: ON while the lens is, PATH while its path is; else false.</summary>
+    /// <summary>
+    /// Whether the lens toggle <paramref name="id"/> is on: ON while the lens is, PATH while its path is, QUEUE while its queue
+    /// is; else false.
+    /// </summary>
     private bool IsLensToggleOn(ScopeButtonId id) =>
         id switch
         {
             ScopeButtonId.LensOn => Lens.Enabled,
             ScopeButtonId.LensPath => Lens.Path,
+            ScopeButtonId.LensQueue => Lens.Queue,
             _ => false,
         };
 
@@ -88,11 +96,15 @@ public sealed partial class ScopeViewModel
 /// <summary>The pilot lens's switches. Each overlay draws only while <see cref="Enabled"/> and its own switch are both on.</summary>
 /// <param name="Enabled">PILOT LENS: the master switch.</param>
 /// <param name="Path">PATH: the intent path, drawn for the selected aircraft and every toggled track.</param>
-public sealed record ScopeLensSettings(bool Enabled, bool Path)
+/// <param name="Queue">QUEUE: the queued-commands badge, drawn on every track with a pending command.</param>
+public sealed record ScopeLensSettings(bool Enabled, bool Path, bool Queue)
 {
     /// <summary>Every switch off: what a fresh scope and a pref set with no lens hold.</summary>
-    public static ScopeLensSettings Off { get; } = new(false, false);
+    public static ScopeLensSettings Off { get; } = new(false, false, false);
 
     /// <summary>Whether the intent path draws: the lens and its path both on.</summary>
     public bool DrawsPath => Enabled && Path;
+
+    /// <summary>Whether the queued-commands badge draws: the lens and its queue both on.</summary>
+    public bool DrawsQueue => Enabled && Queue;
 }

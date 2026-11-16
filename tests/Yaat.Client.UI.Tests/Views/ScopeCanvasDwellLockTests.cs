@@ -299,6 +299,39 @@ public class ScopeCanvasDwellLockTests
         }
     }
 
+    [AvaloniaFact]
+    public void ScopeCanvas_HoverOnAQueueBadge_ShowsItsLines_WithoutDwelling_AndMovingOffReleasesIt()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(ScopeTemplates.StarsId);
+        try
+        {
+            AircraftModel ac = AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            ac.PendingCommands = "[Active] FH 270\n[1] AT BRIXX DM 040";
+            scope.SetLensEnabled(true);
+            scope.SetLensOverlay("queue", true);
+            Dispatcher.UIThread.RunJobs();
+            SKRect badge = Assert.IsType<ScopeQueueBadgeView>(Assert.Single(view.Canvas.CurrentFrame.Tracks).QueueBadge).Rect;
+
+            Move(window, view.Canvas, new Point(badge.MidX, badge.MidY));
+
+            Assert.Equal("UAL238", view.Canvas.HoveredQueueCallsign);
+            Assert.Null(view.Canvas.HoveredCallsign);
+            ScopeTrack hovered = Assert.Single(view.Canvas.CurrentFrame.Tracks);
+            Assert.False(hovered.IsDwelled);
+            Assert.True(hovered.QueueBadge?.Hovered);
+
+            Move(window, view.Canvas, new Point(600, 500));
+
+            Assert.Null(view.Canvas.HoveredQueueCallsign);
+            Assert.False(Assert.Single(view.Canvas.CurrentFrame.Tracks).QueueBadge?.Hovered);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(string templateId)
     {
         var main = new MainViewModel(new FakeFilePickerService());

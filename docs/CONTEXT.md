@@ -910,7 +910,7 @@ ERAM's hover emphasis on a data block; in YAAT Scope, hovering a track (within 8
 A hold of an ERAM data block at Dwell, toggled by left-clicking its callsign (Field A). Two locks exist: the student's per-sector lock set in CRC (the server keeps it per aircraft and sector, and the Scope shows it only for its viewer's ERAM sector), and the instructor's local Scope lock, which lives on that scope only, needs no ERAM position and is never sent to CRC.
 
 **Pilot lens**:
-YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path, queued pilot commands, actual check-in state, the RPO queue view. Off by default; the PILOT LENS menu (`.scope lens`) switches it.
+YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path (PATH), queued pilot commands (QUEUE, a count badge with the pending lines on hover), actual check-in state, the RPO queue view. Off by default; the PILOT LENS menu (`.scope lens`) switches it.
 
 **Scope entry**:
 Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.

@@ -65,7 +65,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - [x] 3. Toolbar with menus, tear-offs and pref sets; views dock with the SSA and lists. Split into 3a (toolbar shell, RANGE, the template pick, `.scope` commands), then 3b (BRITE with DWELL, MAPS, DB) and 3e (the views dock), then 3c (tear-offs), then 3d (pref sets); all five parts have landed.
 - [x] 4. Profiles and zoom bands (profile picked from the student position); one Vector control; one Rings tool; TDM toggle. Follow-up: TDM-only maps and the ground-target block landed (YAAT-2336).
 - [ ] 5. Field menus split scope data from pilot commands (click sends, Shift+click stages); middle-click executes; measure, CRR, speed-to-time; CRC-dialect entries in the Scope's own preview area. Split into YAAT-2373 to YAAT-2381; design notes in [step-5-map.md](step-5-map.md)
-- [ ] 6. Pilot lens (off by default): intent path, queued-commands badge, check-in truth, RPO queue view. Progress: step 6a has landed — the PILOT LENS menu and `.scope lens`, the LENS brightness group, and the intent path
+- [ ] 6. Pilot lens (off by default): intent path, queued-commands badge, check-in truth, RPO queue view. Progress: step 6a has landed — the PILOT LENS menu and `.scope lens`, the LENS brightness group, and the intent path; step 6b has landed — the QUEUE toggle and the queued-commands badge
 - [ ] 7. Parity check against today's Radar, then delete the old view, `RadarDatablockLayout`, and the pieces the engine replaced
 
 ## Tests that matter
@@ -75,7 +75,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - Geometry: for every drawn field, the hit-test returns the same rect.
 - Zoom bands: a manual change stays pinned until AUTO.
 - The ERAM/STARS altitude mismatch marker.
-- Pilot lens: off draws nothing, the intent path draws only with the lens and PATH on, and LENS 0 draws nothing (`ScopeIntentPathTests`, `ScopeLensTests`).
+- Pilot lens: off draws nothing, the intent path draws only with the lens and PATH on, and LENS 0 draws nothing (`ScopeIntentPathTests`, `ScopeLensTests`); the queued-commands badge draws only with the lens and QUEUE on and counts only non-`[Active]` lines (`ScopeQueueBadgeTests`).
 
 ## Reviews owed
 

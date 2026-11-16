@@ -195,9 +195,9 @@ public class ScopeToolbarButtonsTests
 
         Assert.Equal(("PILOT LENS", ScopeButtonKind.Menu), (lens.Label, lens.Kind));
         Assert.Null(lens.Command);
-        Assert.Equal([ScopeButtonId.LensOn, ScopeButtonId.LensPath], lens.Children.Select(c => c.Id));
-        Assert.Equal(["ON", "PATH"], lens.Children.Select(c => c.Label));
-        Assert.Equal([".scope lens", ".scope lens path"], lens.Children.Select(c => c.Command));
+        Assert.Equal([ScopeButtonId.LensOn, ScopeButtonId.LensPath, ScopeButtonId.LensQueue], lens.Children.Select(c => c.Id));
+        Assert.Equal(["ON", "PATH", "QUEUE"], lens.Children.Select(c => c.Label));
+        Assert.Equal([".scope lens", ".scope lens path", ".scope lens queue"], lens.Children.Select(c => c.Command));
         Assert.All(lens.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
         Assert.All(lens.Children, c => Assert.Empty(c.Children));
     }

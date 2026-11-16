@@ -94,7 +94,7 @@ public sealed partial class ScopeViewModel
             PinRings = Pins.Rings,
             VectorOwnership = ScopeVectorOwnerships.NameOf(VectorOwnership),
             Tdm = IsTdm,
-            Lens = new ScopePrefLens(Lens.Enabled, Lens.Path),
+            Lens = new ScopePrefLens(Lens.Enabled, Lens.Path, Lens.Queue),
         };
 
     /// <summary>
@@ -112,7 +112,7 @@ public sealed partial class ScopeViewModel
         ApplyPins(set);
         ApplyVectorOwnership(set.VectorOwnership);
         IsTdm = set.Tdm;
-        Lens = (set.Lens is { } lens) ? new ScopeLensSettings(lens.Enabled, lens.Path) : ScopeLensSettings.Off;
+        Lens = (set.Lens is { } lens) ? new ScopeLensSettings(lens.Enabled, lens.Path, lens.Queue) : ScopeLensSettings.Off;
         ApplyRange(set.RangeNm);
         ApplyCentre(set.CenterLat, set.CenterLon);
         WarnUnknownOpenViews(set.OpenViews);

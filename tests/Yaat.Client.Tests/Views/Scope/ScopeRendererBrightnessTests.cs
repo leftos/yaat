@@ -42,8 +42,11 @@ public class ScopeRendererBrightnessTests
             CenterLon = -122.0,
         };
 
-    /// <summary>The vector minutes and history dots a frame draws; <see cref="None"/> draws neither.</summary>
-    private sealed record Layers(double VectorMinutes, int HistoryCount)
+    /// <summary>
+    /// The vector minutes and history dots a frame draws, and whether the lens queue draws with the first track's badge
+    /// hovered; <see cref="None"/> draws none of them.
+    /// </summary>
+    private sealed record Layers(double VectorMinutes, int HistoryCount, bool QueueHovered = false)
     {
         public static Layers None { get; } = new(0, 0);
     }
@@ -72,7 +75,9 @@ public class ScopeRendererBrightnessTests
             layers.HistoryCount,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
             IntentPaths: new ScopeIntentPathCache(),
-            hovered
+            hovered,
+            LensQueue: layers.QueueHovered,
+            QueueHoveredCallsign: layers.QueueHovered ? aircraft[0].Callsign : null
         );
         return ScopeFrame.Build(input);
     }
@@ -406,6 +411,35 @@ public class ScopeRendererBrightnessTests
 
         Assert.All(HistoryDotAreas(track), area => Assert.True(AnyLit(full, area), "a history dot drew nothing at HIST 100"));
         Assert.All(HistoryDotAreas(track), area => Assert.False(AnyLit(off, area), "a history dot drew at HIST 0"));
+    }
+
+    // A pixel in the lens's magenta: red and blue lit, green dark.
+    private static bool AnyLensPixel(SKBitmap bitmap, SKRectI area) =>
+        Pixels(bitmap, area).Any(c => (c.Red > 150) && (c.Blue > 150) && (c.Green < 80));
+
+    [Fact]
+    public void Lens0_DrawsNoQueueBadgeNorItsLines_WhileLens100Does()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = SouthboundWithHistory();
+        ac.PendingCommands = "[Active] FH 270\n[1] AT BRIXX DM 040\n[2] WAIT 30 SPD 210";
+        ScopeTrack track = Assert.Single(Frame(ScopeTemplates.StarsId, null, null, new Layers(1, 0, QueueHovered: true), [ac]).Tracks);
+        ScopeQueueBadgeView badge = Assert.IsType<ScopeQueueBadgeView>(track.QueueBadge);
+        Assert.True(badge.Hovered);
+        var badgeArea = SKRectI.Round(badge.Rect);
+        // The white vector runs straight down through the lines' box, which darkens it where it covers it.
+        int x = (int)MathF.Round(track.Symbol.X);
+        int y = (int)MathF.Round(track.Symbol.Y);
+        var underBox = new SKRectI(x - 1, y + 24, x + 2, y + 38);
+        ScopeFrame frame = new(ScopeTemplates.StarsId, [track]);
+
+        using SKBitmap full = Render(frame, ScopeBrightness.Default with { Lens = 100, Vector = 100 });
+        using SKBitmap off = Render(frame, ScopeBrightness.Default with { Lens = 0, Vector = 100 });
+
+        Assert.True(AnyLensPixel(full, badgeArea), "no lens-colour badge pixel at LENS 100");
+        Assert.True(Pixels(full, underBox).Max(c => c.Green) < 120, "the lines' box did not cover the vector at LENS 100");
+        Assert.False(AnyLensPixel(off, badgeArea), "a lens-colour badge pixel at LENS 0");
+        Assert.True(Pixels(off, underBox).Max(c => c.Green) > 200, "the lines' box covered the vector at LENS 0");
     }
 
     [Fact]

@@ -26,9 +26,9 @@ public partial class MainViewModel
         + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
-        + " | .scope lens <on|off> | .scope lens path <on|off|callsign>";
+        + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens queue <on|off>";
 
-    private const string ScopeLensUsage = "Usage: .scope lens <on|off> | .scope lens path <on|off> | .scope lens path <callsign>";
+    private const string ScopeLensUsage = "Usage: .scope lens <on|off> | .scope lens <path|queue> <on|off> | .scope lens path <callsign>";
 
     private const string ScopeTdmUsage = "Usage: .scope tdm <on|off>";
 
@@ -674,8 +674,8 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// <c>.scope lens &lt;item&gt; on|off</c> turns the overlay <paramref name="item"/> on or off; any other last word is a
-    /// callsign whose intent path toggles.
+    /// <c>.scope lens &lt;item&gt; on|off</c> turns the overlay <paramref name="item"/> on or off; for <c>path</c> any other
+    /// last word is a callsign whose intent path toggles, and for any other overlay it answers the usage line.
     /// </summary>
     private static string RunScopeLensOverlay(ScopeViewModel scope, string item, string word)
     {
@@ -683,6 +683,11 @@ public partial class MainViewModel
         {
             scope.SetLensOverlay(item, on);
             return $"Scope lens {item} {(on ? "ON" : "OFF")}";
+        }
+
+        if (item != ScopeToolbarButtons.LensPathItem)
+        {
+            return ScopeLensUsage;
         }
 
         if (FindTypedAircraft(scope, word) is not { } ac)

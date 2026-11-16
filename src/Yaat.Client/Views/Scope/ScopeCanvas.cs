@@ -182,6 +182,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     private ScopeFrame? _lastFrame;
     private string? _hoveredCallsign;
     private string? _hoveredVciCallsign;
+    private string? _hoveredQueueCallsign;
     private INotifyCollectionChanged? _watchedAircraft;
     private bool _isAttached;
 
@@ -442,6 +443,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>The callsign of the track whose VCI cell the pointer previews, or null. Test seam.</summary>
     internal string? HoveredVciCallsign => _hoveredVciCallsign;
+
+    /// <summary>The callsign of the track whose queued-commands badge the pointer is on, or null. Test seam.</summary>
+    internal string? HoveredQueueCallsign => _hoveredQueueCallsign;
 
     /// <summary>How many frames the pointer-move handler has built for its dwell hit-test. Test seam.</summary>
     internal int HoverFramesBuilt { get; private set; }
@@ -960,9 +964,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         && (ScopeOwnerKind.Resolve(frame.TemplateId, selected) == ScopeTemplates.EramId);
 
     /// <summary>
-    /// Dwells the track under the pointer at once, as CRC does, or previews the VCI whose cell it is on, hit-testing the drawn
-    /// frame; the frame is rebuilt only when either hovered callsign changes. Panning stays with the base canvas. Every move
-    /// records the cursor a half-placed measurement runs to.
+    /// Dwells the track under the pointer at once, as CRC does, previews the VCI whose cell it is on, or shows the pending lines
+    /// of the queued-commands badge it is on, hit-testing the drawn frame; the frame is rebuilt only when a hovered callsign
+    /// changes. Panning stays with the base canvas. Every move records the cursor a half-placed measurement runs to.
     /// </summary>
     protected override void OnPointerMoved(PointerEventArgs e)
     {
@@ -977,23 +981,24 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
         HoverFramesBuilt += _lastFrame is null ? 1 : 0;
         ScopeHoverHit hit = CurrentFrame.HoverAt((float)pos.X, (float)pos.Y);
-        Hover(hit.Dwelled?.Callsign, hit.VciPreviewed?.Callsign);
+        Hover(hit.Dwelled?.Callsign, hit.VciPreviewed?.Callsign, hit.QueueHovered?.Callsign);
     }
 
-    /// <summary>Releases the dwell and the VCI preview when the pointer leaves the canvas.</summary>
+    /// <summary>Releases the dwell, the VCI preview and the queued-commands lines when the pointer leaves the canvas.</summary>
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
-        Hover(null, null);
+        Hover(null, null, null);
     }
 
-    private void Hover(string? hitCallsign, string? vciCallsign)
+    private void Hover(string? hitCallsign, string? vciCallsign, string? queueCallsign)
     {
-        // With hover dwell off the pointer dwells nothing; the VCI preview is no dwell and stays.
+        // With hover dwell off the pointer dwells nothing; the VCI preview and the queued-commands lines are no dwell and stay.
         string? callsign = DbSettings is { HoverDwell: false } ? null : hitCallsign;
         if (
             string.Equals(callsign, _hoveredCallsign, StringComparison.Ordinal)
             && string.Equals(vciCallsign, _hoveredVciCallsign, StringComparison.Ordinal)
+            && string.Equals(queueCallsign, _hoveredQueueCallsign, StringComparison.Ordinal)
         )
         {
             return;
@@ -1001,6 +1006,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
         _hoveredCallsign = callsign;
         _hoveredVciCallsign = vciCallsign;
+        _hoveredQueueCallsign = queueCallsign;
         _lastFrame = null;
         MarkDirty();
     }
@@ -1039,7 +1045,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 LensPath: Lens.DrawsPath,
                 LensPathCallsigns: LensPathCallsigns,
                 // Only while the lens draws a path, and null until the navigation data loads, as the Radar's nav route waits for it.
-                NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null
+                NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null,
+                LensQueue: Lens.DrawsQueue,
+                QueueHoveredCallsign: _hoveredQueueCallsign
             )
         );
     }

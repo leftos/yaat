@@ -1,3 +1,4 @@
+using System.Globalization;
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -65,6 +66,14 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="IntentPaths">
 /// The canvas's cache of each drawn track's intent-path routes, so only the projection runs per frame.
 /// </param>
+/// <param name="LensQueue">
+/// Whether the pilot lens's queued-commands badge draws (the lens and its QUEUE both on), copied on the UI thread; it draws
+/// for every drawn track with a pending command.
+/// </param>
+/// <param name="QueueHoveredCallsign">
+/// The callsign of the track whose queued-commands badge the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its
+/// pending lines show without dwelling the block.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -89,7 +98,9 @@ public sealed record ScopeFrameInput(
     IReadOnlySet<string>? LocalPtlCallsigns = null,
     bool LensPath = false,
     IReadOnlySet<string>? LensPathCallsigns = null,
-    NavigationDatabase? NavDb = null
+    NavigationDatabase? NavDb = null,
+    bool LensQueue = false,
+    string? QueueHoveredCallsign = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -110,6 +121,9 @@ public sealed record ScopeFrameInput(
 /// level then, so this carries its dwell.
 /// </param>
 /// <param name="IntentPath">The track's pilot-lens intent path in screen points, or null when it draws none.</param>
+/// <param name="QueueBadge">
+/// The track's pilot-lens queued-commands badge, or null when the overlay is off or the aircraft has no pending command.
+/// </param>
 public sealed record ScopeTrack(
     AircraftModel Aircraft,
     SKPoint Symbol,
@@ -124,7 +138,8 @@ public sealed record ScopeTrack(
     ScopeBlockLevel Level,
     bool ShowsLeader,
     bool Dwelled,
-    ScopeIntentPath? IntentPath
+    ScopeIntentPath? IntentPath,
+    ScopeQueueBadgeView? QueueBadge
 )
 {
     /// <summary>How far the dwell box sits outside the text bounds (CRC <c>FdbRenderObject</c>: the fields rect inflated 2 px).</summary>
@@ -148,10 +163,14 @@ public sealed record ScopeTrack(
     }
 }
 
-/// <summary>What the pointer hovers: the track whose block it dwells, or the track whose VCI it previews; at most one is set.</summary>
+/// <summary>
+/// What the pointer hovers: the track whose block it dwells, the track whose VCI it previews, or the track whose queued-commands
+/// badge it is on; at most one is set.
+/// </summary>
 /// <param name="Dwelled">The aircraft whose block the pointer dwells on, or null.</param>
 /// <param name="VciPreviewed">The aircraft whose VCI cell the pointer is on, or null.</param>
-public readonly record struct ScopeHoverHit(AircraftModel? Dwelled, AircraftModel? VciPreviewed);
+/// <param name="QueueHovered">The aircraft whose queued-commands badge the pointer is on, or null.</param>
+public readonly record struct ScopeHoverHit(AircraftModel? Dwelled, AircraftModel? VciPreviewed, AircraftModel? QueueHovered);
 
 /// <summary>A field a point landed on, and whose block it is.</summary>
 public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
@@ -169,6 +188,9 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 
     /// <summary>How near a symbol the pointer must be to dwell its track (CRC <c>ViewDataBlocks.GetDataBlockByPosition</c>).</summary>
     public const float DwellSymbolRadiusPx = 8f;
+
+    /// <summary>How far a queued-commands badge's hover box sits outside its text box, on every side.</summary>
+    private const float QueueBadgeHoverInflatePx = 3f;
 
     /// <summary>How near the MVA floor an altitude reads as at it, as today's radar uses.</summary>
     private const int MvaAtBandFt = 100;
@@ -342,8 +364,35 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             presentation.Level,
             presentation.ShowsLeader,
             dwelled,
-            IntentPathFor(ac, input, isSelected)
+            IntentPathFor(ac, input, isSelected),
+            QueueBadgeFor(ac, input, sx, sy)
         );
+    }
+
+    /// <summary>
+    /// The queued-commands badge of <paramref name="ac"/> while the lens queue draws (<see cref="ScopeFrameInput.LensQueue"/>)
+    /// and the aircraft has a pending line (<see cref="ScopeQueueBadge.PendingLines"/>); else null. Its text box sits below-left
+    /// of the symbol at (<paramref name="sx"/>, <paramref name="sy"/>), measured with the frame's metrics.
+    /// </summary>
+    private static ScopeQueueBadgeView? QueueBadgeFor(AircraftModel ac, ScopeFrameInput input, float sx, float sy)
+    {
+        if (!input.LensQueue)
+        {
+            return null;
+        }
+
+        IReadOnlyList<string> lines = ScopeQueueBadge.PendingLines(ac.PendingCommands);
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        string text = lines.Count.ToString(CultureInfo.InvariantCulture);
+        float right = sx - ScopeQueueBadge.SymbolGapPx;
+        float top = sy + ScopeQueueBadge.SymbolGapPx;
+        var rect = new SKRect(right - input.Metrics.Measure(text), top, right, top + input.Metrics.Size);
+        bool hovered = string.Equals(ac.Callsign, input.QueueHoveredCallsign, StringComparison.Ordinal);
+        return new ScopeQueueBadgeView(lines.Count, lines, rect, hovered);
     }
 
     /// <summary>
@@ -410,6 +459,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>
     /// What the pointer at (<paramref name="x"/>, <paramref name="y"/>) hovers, by CRC's pick precedence, each pass topmost block
     /// first (<c>ViewDataBlocks.HandleMouseMove</c>): within <see cref="DwellSymbolRadiusPx"/> of a symbol dwells its block;
+    /// else inside a track's queued-commands badge, inflated <see cref="QueueBadgeHoverInflatePx"/>, shows its pending lines;
     /// else inside a block's VCI cell, inflated as CRC's <c>OnFrequencyIndicatorBounds</c>, previews its VCI; else inside a
     /// block's <see cref="ScopeTrack.DwellBox"/> dwells it. Separate from the click rule (<see cref="BlockAt"/>,
     /// <see cref="TargetAt"/>).
@@ -419,14 +469,26 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         var point = new SKPoint(x, y);
         if (Topmost(t => SKPoint.Distance(t.Symbol, point) <= DwellSymbolRadiusPx) is { } symbol)
         {
-            return new ScopeHoverHit(symbol, null);
+            return new ScopeHoverHit(symbol, null, null);
+        }
+        if (Topmost(t => (t.QueueBadge is { } badge) && QueueHoverBox(badge.Rect).Contains(x, y)) is { } queued)
+        {
+            return new ScopeHoverHit(null, null, queued);
         }
         if (Topmost(t => (t.Block.VciCell is { } cell) && VciHoverBox(cell).Contains(x, y)) is { } vci)
         {
-            return new ScopeHoverHit(null, vci);
+            return new ScopeHoverHit(null, vci, null);
         }
-        return new ScopeHoverHit(Topmost(t => t.DwellBox.Contains(x, y)), null);
+        return new ScopeHoverHit(Topmost(t => t.DwellBox.Contains(x, y)), null, null);
     }
+
+    private static SKRect QueueHoverBox(SKRect rect) =>
+        new(
+            rect.Left - QueueBadgeHoverInflatePx,
+            rect.Top - QueueBadgeHoverInflatePx,
+            rect.Right + QueueBadgeHoverInflatePx,
+            rect.Bottom + QueueBadgeHoverInflatePx
+        );
 
     /// <summary>The VCI cell's hover box: CRC's <c>OnFrequencyIndicatorBounds</c>, 5 px out left and down, 3 px up and right.</summary>
     private static SKRect VciHoverBox(SKRect cell) => new(cell.Left - 5f, cell.Top - 3f, cell.Right + 3f, cell.Bottom + 5f);
@@ -511,9 +573,9 @@ public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOthe
 /// <summary>
 /// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's rings (J-ring, DRI halo,
 /// cone, then ATPA cone), every track's history dots, every track's vector line, then each track's symbol, leader and
-/// block, then the pilot lens (each track's intent path), then the measure lines and their readouts. Every block field is
-/// drawn from its <see cref="FieldRect"/>; the presenter has already blanked a flashing field's off-phase text, so nothing
-/// here flashes.
+/// block, then the pilot lens (each track's intent path and queued-commands badge, then a hovered badge's lines), then the
+/// measure lines and their readouts. Every block field is drawn from its <see cref="FieldRect"/>; the presenter has already
+/// blanked a flashing field's off-phase text, so nothing here flashes.
 /// </summary>
 public sealed class ScopeRenderer : IDisposable
 {
@@ -532,6 +594,10 @@ public sealed class ScopeRenderer : IDisposable
     // The half-size of an intent path's fix diamond, and its label lines' spacing, as the Radar's nav route draws them.
     private const float IntentDiamondSize = 5f;
     private const float IntentLabelLineHeight = 11f;
+
+    // A hovered queued-commands badge's line box: its gap below the badge and its padding around the lines.
+    private const float QueueDetailGapPx = 2f;
+    private const float QueueDetailPadPx = 3f;
 
     // The size labels' font size, as the Radar's TPA labels.
     private const float RingLabelSize = 11f;
@@ -664,6 +730,9 @@ public sealed class ScopeRenderer : IDisposable
 
     private readonly SKPaint _lensTextPaint = new() { IsAntialias = true };
 
+    // The box a hovered queued-commands badge's lines draw on.
+    private readonly SKPaint _lensBackingPaint = new() { Color = new SKColor(0, 0, 0, 180), Style = SKPaintStyle.Fill };
+
     private readonly SKFont _lensLabelFont = PlatformHelper.MonospaceFont(12);
 
     private readonly SKFont _lensRestrictionFont = PlatformHelper.MonospaceFont(10);
@@ -725,10 +794,16 @@ public sealed class ScopeRenderer : IDisposable
             DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
         }
 
-        // The pilot lens draws over targets and blocks, under the measure layer.
+        // The pilot lens draws over targets and blocks, under the measure layer; a hovered badge's lines over every badge.
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
             DrawIntentPath(canvas, track, snapshot.Brightness.Lens);
+            DrawQueueBadge(canvas, track, font, snapshot.Brightness.Lens);
+        }
+
+        foreach (ScopeTrack track in snapshot.Frame.Tracks)
+        {
+            DrawQueueDetail(canvas, track, font, snapshot.Brightness.Lens);
         }
 
         // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE, as on the Radar.
@@ -869,6 +944,7 @@ public sealed class ScopeRenderer : IDisposable
         _lensDashPaint.Dispose();
         _lensFillPaint.Dispose();
         _lensTextPaint.Dispose();
+        _lensBackingPaint.Dispose();
         _lensLabelFont.Dispose();
         _lensRestrictionFont.Dispose();
         _lensPath.Dispose();
@@ -900,6 +976,51 @@ public sealed class ScopeRenderer : IDisposable
         foreach (ScopeIntentShape shape in path.Shapes)
         {
             DrawIntentShape(canvas, shape, color);
+        }
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s queued-commands badge at LENS: its count in the track font, bottom-aligned in its text
+    /// box. DWELL never lifts it; LENS 0 draws nothing.
+    /// </summary>
+    private void DrawQueueBadge(SKCanvas canvas, ScopeTrack track, SKFont font, int percent)
+    {
+        if ((track.QueueBadge is not { } badge) || (percent <= 0))
+        {
+            return;
+        }
+
+        _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
+        string text = badge.Count.ToString(CultureInfo.InvariantCulture);
+        canvas.DrawText(text, badge.Rect.Left, badge.Rect.Bottom, SKTextAlign.Left, font, _lensTextPaint);
+    }
+
+    /// <summary>
+    /// Draws the pending lines of <paramref name="track"/>'s hovered queued-commands badge at LENS, one per line in the track
+    /// font, on a dark box whose top-left sits just below the badge's bottom-left. LENS 0 draws nothing.
+    /// </summary>
+    private void DrawQueueDetail(SKCanvas canvas, ScopeTrack track, SKFont font, int percent)
+    {
+        if ((track.QueueBadge is not { Hovered: true } badge) || (percent <= 0))
+        {
+            return;
+        }
+
+        float width = 0f;
+        foreach (string line in badge.Lines)
+        {
+            width = Math.Max(width, font.MeasureText(line));
+        }
+
+        float left = badge.Rect.Left;
+        float top = badge.Rect.Bottom + QueueDetailGapPx;
+        float height = (badge.Lines.Count * font.Spacing) + (2f * QueueDetailPadPx);
+        canvas.DrawRect(left, top, width + (2f * QueueDetailPadPx), height, _lensBackingPaint);
+        _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
+        for (int i = 0; i < badge.Lines.Count; i++)
+        {
+            float baseline = top + QueueDetailPadPx + font.Size + (i * font.Spacing);
+            canvas.DrawText(badge.Lines[i], left + QueueDetailPadPx, baseline, SKTextAlign.Left, font, _lensTextPaint);
         }
     }
 

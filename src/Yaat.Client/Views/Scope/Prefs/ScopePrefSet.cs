@@ -127,7 +127,8 @@ public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, int Cha
 /// <summary>The pilot lens's switches.</summary>
 /// <param name="Enabled">Whether the lens is on.</param>
 /// <param name="Path">Whether its intent path overlay is on.</param>
-public sealed record ScopePrefLens(bool Enabled, bool Path);
+/// <param name="Queue">Whether its queued-commands badge overlay is on; off in a set from a build without it.</param>
+public sealed record ScopePrefLens(bool Enabled, bool Path, bool Queue = false);
 
 /// <summary>One view's place: docked, or torn off to a corner with a pixel offset.</summary>
 /// <param name="Name">The view name, such as <c>ssa</c> or <c>ca</c>.</param>
