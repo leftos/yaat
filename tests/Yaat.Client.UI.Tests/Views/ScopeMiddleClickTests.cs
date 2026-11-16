@@ -145,7 +145,9 @@ public class ScopeMiddleClickTests
             ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Middle, "UAL238");
             await scope.LastEntryRun;
 
-            Assert.Equal(["QQ", "250", "UAL238"], Assert.Single(eramSends).Tokens);
+            ScopeEramEntryDto sent = Assert.Single(eramSends);
+            Assert.Equal(["QQ", "250", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent.Picks);
             Assert.Null(scope.LastSentEntryText);
         }
         finally
@@ -175,7 +177,9 @@ public class ScopeMiddleClickTests
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");
             await scope.LastEntryRun;
 
-            Assert.Equal(["QF", "UAL238"], Assert.Single(eramSends).Tokens);
+            ScopeEramEntryDto sent = Assert.Single(eramSends);
+            Assert.Equal(["QF", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "UAL238")], sent.Picks);
         }
         finally
         {
@@ -253,6 +257,210 @@ public class ScopeMiddleClickTests
             Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
             Assert.Null(view.ActiveContextMenu);
             Assert.Same(other, scope.Main.SelectedAircraft);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // Keeps each ERAM entry the Scope sends, each answered ACCEPT.
+    private static List<ScopeEramEntryDto> CaptureEramSends(ScopeViewModel scope)
+    {
+        var sent = new List<ScopeEramEntryDto>();
+        scope.EramEntrySender = dto =>
+        {
+            sent.Add(dto);
+            return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+        };
+        return sent;
+    }
+
+    private static RawInputModifiers ActionModifier => PlatformHelper.IsMacOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
+
+    private static void Press(Window window, Key key, RawInputModifiers modifiers = RawInputModifiers.None)
+    {
+        window.DispatchKey(key, modifiers);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static async Task EnterAsync(Window window, ScopeViewModel scope)
+    {
+        Press(window, Key.Enter);
+        await scope.LastEntryRun;
+    }
+
+    private static void TypeKeys(Window window, string text)
+    {
+        window.KeyTextInput(text);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    // A track a left click fills into an ERAM entry goes to the server as a pick of that aircraft, its text kept, until the
+    // entry leaves the preview: an edit of its callsign, Esc, a sent entry or a recalled line drop the pick, and the Up/Down
+    // round trip back to the half-typed entry keeps it.
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_InAnEramEntry_IsSentAsAPick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QQ 250");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            Assert.Equal("QQ 250 UAL238", scope.EntryText);
+
+            await EnterAsync(window, scope);
+
+            ScopeEramEntryDto dto = Assert.Single(sent);
+            Assert.Equal(["QQ", "250", "UAL238"], dto.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], dto.Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_EditedBeforeEnter_IsSentTyped_WithNoPick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QQ 250");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            Press(window, Key.Back);
+            Assert.Equal("QQ 250 UAL23", scope.EntryText);
+
+            await EnterAsync(window, scope);
+
+            ScopeEramEntryDto dto = Assert.Single(sent);
+            Assert.Equal(["QQ", "250", "UAL23"], dto.Tokens);
+            Assert.Null(dto.Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_IsNotPickedAgain_WhenTheNextEntryTypesItsCallsign()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QQ 250");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            await EnterAsync(window, scope);
+            TypeKeys(window, "QQ 250 UAL238");
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal(2, sent.Count);
+            Assert.Equal(["QQ", "250", "UAL238"], sent[1].Tokens);
+            Assert.Null(sent[1].Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_ClearedByEsc_IsNotPicked_WhenRetyped()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QQ 250");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            Press(window, Key.Escape);
+            Assert.Equal("", scope.EntryText);
+            TypeKeys(window, "QQ 250 UAL238");
+
+            await EnterAsync(window, scope);
+
+            Assert.Null(Assert.Single(sent).Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_KeepsItsPick_ThroughUpAndBackDown()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QT UAL238");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+            scope.TypeEntryText("QQ 250");
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            Press(window, Key.Up);
+            Assert.Equal("QT UAL238", scope.EntryText);
+            Press(window, Key.Down);
+            Assert.Equal("QQ 250 UAL238", scope.EntryText);
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal(2, sent.Count);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent[1].Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_IsNotPicked_InAnOlderLineUpRecalls()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QT UAL238");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+            scope.TypeEntryText("QQ 250");
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            Press(window, Key.Up);
+            Assert.Equal("QT UAL238", scope.EntryText);
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal(2, sent.Count);
+            Assert.Equal(["QT", "UAL238"], sent[1].Tokens);
+            Assert.Null(sent[1].Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftClickedTrack_IsNotPicked_InALineCtrlRRecalls()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "QT UAL238");
+        try
+        {
+            List<ScopeEramEntryDto> sent = CaptureEramSends(scope);
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+            scope.TypeEntryText("QQ 250");
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
+            Press(window, Key.R, ActionModifier);
+            Assert.Equal("QT UAL238", scope.EntryText);
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal(2, sent.Count);
+            Assert.Null(sent[1].Picks);
         }
         finally
         {

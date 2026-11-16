@@ -1625,7 +1625,16 @@ public record RunwayUseCountsDto(int Departures, int Arrivals, List<string> Gene
 /// <summary>An ERAM entry typed on the Scope (<c>SendScopeEramEntry</c>). Kept name-for-name in sync with the server's.</summary>
 /// <param name="Tokens">The typed entry, one token per whitespace run, as CRC's keyboard sends it.</param>
 /// <param name="InvertNumericKeypad">CRC's numeric-keypad inversion for leader directions; false on the Scope.</param>
-public record ScopeEramEntryDto(List<string> Tokens, bool InvertNumericKeypad);
+/// <param name="Picks">The tokens that came from a clicked track, each sent as a pick of that aircraft; null for none.</param>
+public record ScopeEramEntryDto(List<string> Tokens, bool InvertNumericKeypad, List<ScopeEramPickDto>? Picks);
+
+/// <summary>
+/// A token of a Scope ERAM entry that came from a clicked track, sent to the server as a pick of that aircraft rather than as
+/// typed text. Kept name-for-name in sync with the server's.
+/// </summary>
+/// <param name="TokenIndex">The index in <see cref="ScopeEramEntryDto.Tokens"/> of the token the pick stands for.</param>
+/// <param name="Callsign">The clicked aircraft's callsign.</param>
+public record ScopeEramPickDto(int TokenIndex, string Callsign);
 
 /// <summary>The server's answer to a Scope ERAM entry, as CRC's ERAM shows it. Kept name-for-name in sync with the server's.</summary>
 /// <param name="Ok">Whether the entry was accepted.</param>

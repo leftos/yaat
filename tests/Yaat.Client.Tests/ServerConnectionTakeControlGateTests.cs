@@ -53,7 +53,7 @@ public class ServerConnectionTakeControlGateTests
     {
         var connection = new ServerConnection { IsPlaybackMode = true };
 
-        Assert.True(connection.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+        Assert.True(connection.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false, null)));
     }
 
     [Theory]
@@ -65,7 +65,7 @@ public class ServerConnectionTakeControlGateTests
     {
         var connection = new ServerConnection { IsPlaybackMode = true };
 
-        Assert.False(connection.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+        Assert.False(connection.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false, null)));
     }
 
     [Theory]
@@ -75,13 +75,13 @@ public class ServerConnectionTakeControlGateTests
     [InlineData("SM")]
     [InlineData("RK")]
     public void InPlayback_AnOtherReadout_TakesNoControl(params string[] tokens) =>
-        Assert.False(new ServerConnection { IsPlaybackMode = true }.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+        Assert.False(new ServerConnection { IsPlaybackMode = true }.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false, null)));
 
     [Theory]
     [InlineData("SM", "44", "HELLO")]
     [InlineData("RK", "44", "ON")]
     public void InPlayback_SmOrRkWithOperands_TakesControl(params string[] tokens) =>
-        Assert.True(new ServerConnection { IsPlaybackMode = true }.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+        Assert.True(new ServerConnection { IsPlaybackMode = true }.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false, null)));
 
     [Fact]
     public async Task AServerWithoutTheMethod_AnswersNotSupportedByServer()
@@ -108,5 +108,5 @@ public class ServerConnectionTakeControlGateTests
 
     [Fact]
     public void OffPlayback_NoScopeEramEntryTakesControl() =>
-        Assert.False(new ServerConnection { IsPlaybackMode = false }.WouldTakeControl(new ScopeEramEntryDto(["QQ", "110", "UAL238"], false)));
+        Assert.False(new ServerConnection { IsPlaybackMode = false }.WouldTakeControl(new ScopeEramEntryDto(["QQ", "110", "UAL238"], false, null)));
 }

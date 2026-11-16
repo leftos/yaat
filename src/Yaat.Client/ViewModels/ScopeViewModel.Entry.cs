@@ -74,6 +74,13 @@ public sealed partial class ScopeViewModel
     // The half-typed entry the first Up left, which Down past the newest line puts back.
     private string _savedEntry = "";
 
+    // The callsign of the track a click last filled into the entry (or a Field A middle click's QF named), sent as a pick of
+    // that aircraft while its token is still in the entry; null when the entry holds no clicked track.
+    private string? _pickedCallsign;
+
+    // The pick of the half-typed entry the first Up left (_savedEntry), which Down past the newest line puts back with it.
+    private string? _savedPickedCallsign;
+
     /// <summary>The entry being typed on the Scope.</summary>
     [ObservableProperty]
     private string _entryText = "";
@@ -190,6 +197,7 @@ public sealed partial class ScopeViewModel
     internal void FillTrack(string callsign)
     {
         SetEntry(ScopeEntryFill.Track(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign));
+        _pickedCallsign = callsign;
         _entryHistoryIndex = -1;
     }
 
@@ -223,6 +231,7 @@ public sealed partial class ScopeViewModel
     internal void RunQuickFlight(string callsign)
     {
         SetEntry($"QF {callsign}");
+        _pickedCallsign = callsign;
         _entryHistoryIndex = -1;
         RunEntry(OwnerTemplateIdOf(callsign));
     }
@@ -269,7 +278,10 @@ public sealed partial class ScopeViewModel
             if (_entryHistoryIndex < 0)
             {
                 _savedEntry = EntryText;
+                _savedPickedCallsign = _pickedCallsign;
             }
+
+            _pickedCallsign = null;
 
             _entryHistoryIndex = (_entryHistoryIndex < 0) ? (_entryHistory.Count - 1) : Math.Max(0, _entryHistoryIndex - 1);
             SetEntry(_entryHistory[_entryHistoryIndex]);
@@ -281,6 +293,7 @@ public sealed partial class ScopeViewModel
             return false;
         }
 
+        _pickedCallsign = null;
         _entryHistoryIndex++;
         if (_entryHistoryIndex < _entryHistory.Count)
         {
@@ -290,7 +303,9 @@ public sealed partial class ScopeViewModel
 
         _entryHistoryIndex = -1;
         SetEntry(_savedEntry);
+        _pickedCallsign = _savedPickedCallsign;
         _savedEntry = "";
+        _savedPickedCallsign = null;
         return true;
     }
 
@@ -304,6 +319,7 @@ public sealed partial class ScopeViewModel
         }
 
         SetEntry(_entryHistory[^1]);
+        _pickedCallsign = null;
         _entryHistoryIndex = -1;
         return true;
     }
@@ -319,6 +335,7 @@ public sealed partial class ScopeViewModel
 
         EntryText = "";
         EntryResponse = null;
+        _pickedCallsign = null;
         _entryHistoryIndex = -1;
         return true;
     }
@@ -360,11 +377,14 @@ public sealed partial class ScopeViewModel
 
         _entryHistoryIndex = -1;
         _savedEntry = "";
+        _savedPickedCallsign = null;
+        string? pickedCallsign = _pickedCallsign;
+        _pickedCallsign = null;
         EntryText = "";
 
         if (reading.Kind == ScopeEntryKind.Eram)
         {
-            await RunEramEntryAsync(entry);
+            await RunEramEntryAsync(entry, pickedCallsign);
             return;
         }
 
@@ -405,14 +425,15 @@ public sealed partial class ScopeViewModel
     }
 
     // An ERAM entry: in the history as typed, then to the server's ERAM dispatch with ERAM's own characters where its keys
-    // typed them, its answer the response. Only this path maps: a pilot command typed on an ERAM Scope sends as typed.
-    private async Task RunEramEntryAsync(string entry)
+    // typed them, its answer the response. Only this path maps: a pilot command typed on an ERAM Scope sends as typed. The
+    // clicked track's callsign, when still in the entry, goes as a pick of that aircraft.
+    private async Task RunEramEntryAsync(string entry, string? pickedCallsign)
     {
         Main.AddHistory("", entry);
         Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>> send = EramEntrySender ?? Main.SendScopeEramEntryAsync;
         try
         {
-            ScopeEramEntryResultDto result = await send(ScopeEramEntryBuilder.Build(ScopeEramKeys.MapTyped(entry)));
+            ScopeEramEntryResultDto result = await send(ScopeEramEntryBuilder.Build(ScopeEramKeys.MapTyped(entry), pickedCallsign));
             EntryResponse = ScopeEramEntryBuilder.ResponseTo(result, entry);
         }
         catch (Exception ex)
