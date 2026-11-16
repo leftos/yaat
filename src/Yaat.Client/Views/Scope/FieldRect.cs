@@ -10,7 +10,15 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="Text">Text to draw this frame (empty while a reserved field flashes off).</param>
 /// <param name="Token">Colour role of the field.</param>
 /// <param name="Style">How the text draws beyond its colour.</param>
-public readonly record struct FieldRect(ScopeFieldSlot Slot, SKRect Rect, string Text, ScopeColorToken Token, ScopeFieldStyle Style)
+/// <param name="Action">What a left click on the field does, as the presenter set it.</param>
+public readonly record struct FieldRect(
+    ScopeFieldSlot Slot,
+    SKRect Rect,
+    string Text,
+    ScopeColorToken Token,
+    ScopeFieldStyle Style,
+    ScopeFieldAction Action
+)
 {
     /// <summary>Returns this field moved by (<paramref name="dx"/>, <paramref name="dy"/>).</summary>
     public FieldRect Offset(float dx, float dy) => this with { Rect = new SKRect(Rect.Left + dx, Rect.Top + dy, Rect.Right + dx, Rect.Bottom + dy) };

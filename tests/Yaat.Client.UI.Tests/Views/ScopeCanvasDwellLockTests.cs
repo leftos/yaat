@@ -140,6 +140,62 @@ public class ScopeCanvasDwellLockTests
         }
     }
 
+    /// <summary>
+    /// A gap of the top block over a lower block's Altitude field: the lower field's menu does not open; the top aircraft is selected.
+    /// </summary>
+    [AvaloniaFact]
+    public void ScopeCanvas_LeftClickOnALowerAltitudeInsideTheTopBlock_SelectsTheTopAircraft_AndOpensNoMenu()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = ShowScope(ScopeTemplates.StarsId);
+        try
+        {
+            AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            IReadOnlyList<FieldRect> lower = Assert.Single(view.Canvas.CurrentFrame.Tracks).Block.Fields;
+            FieldRect altitude = lower.First(f => f.Slot == ScopeFieldSlot.Altitude);
+            float lineHeight = altitude.Rect.Top - lower.First(f => f.Slot == ScopeFieldSlot.Callsign).Rect.Top;
+            float cell = altitude.Rect.Width / 3;
+            // One line down and seven cells left: the top block's callsign line, shorter than its line 2, ends left of the lower
+            // block's altitude, which lies in the top block's bounds right of that callsign.
+            AircraftModel top = AddAircraft(main, view.Canvas, "DAL5501", 300 - (7 * cell), 300 + lineHeight);
+            ScopeFrame frame = view.Canvas.CurrentFrame;
+            ScopeTrack topTrack = frame.Tracks[^1];
+            Assert.Same(top, topTrack.Aircraft);
+            Point gap = GapOverLowerField(frame, topTrack, "UAL238", ScopeFieldSlot.Altitude);
+            Assert.Equal(ScopeFieldAction.OpenAltitudeMenu, frame.FieldAt((float)gap.X, (float)gap.Y)?.Field.Action);
+
+            Click(window, view.Canvas, gap);
+
+            Assert.Null(view.ActiveContextMenu);
+            Assert.Same(top, main.SelectedAircraft);
+        }
+        finally
+        {
+            view.ActiveContextMenu?.Close();
+            Dispatcher.UIThread.RunJobs();
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // A point on the lower block's slot field that lies inside the top block's bounds but on none of its fields.
+    private static Point GapOverLowerField(ScopeFrame frame, ScopeTrack topTrack, string lowerCallsign, ScopeFieldSlot slot)
+    {
+        FieldRect field = frame.Tracks.First(t => t.Aircraft.Callsign == lowerCallsign).Block.Fields.First(f => f.Slot == slot);
+        for (float y = field.Rect.Top + 0.5f; y < field.Rect.Bottom; y += 0.5f)
+        {
+            for (float x = field.Rect.Left + 0.5f; x < field.Rect.Right; x += 0.5f)
+            {
+                bool inTop = topTrack.Block.Bounds.Contains(x, y) && !topTrack.Block.Fields.Any(f => f.Rect.Contains(x, y));
+                if (inTop && (frame.FieldAt(x, y) is { } hit) && (hit.Aircraft.Callsign == lowerCallsign) && (hit.Field.Slot == slot))
+                {
+                    return new Point(x, y);
+                }
+            }
+        }
+        Assert.Fail($"No gap in the top block lies over the lower block's {slot}.");
+        return default;
+    }
+
     // A point on the lower block's callsign that lies inside the top block's bounds but on none of its fields.
     private static Point GapOverLowerCallsign(ScopeFrame frame, ScopeTrack topTrack, string lowerCallsign)
     {
@@ -168,7 +224,11 @@ public class ScopeCanvasDwellLockTests
             var toggled = new List<string>();
             view.Canvas.AircraftDwellLockToggleRequested += toggled.Add;
 
-            Click(window, view.Canvas, Centre(view.Canvas, ScopeFieldSlot.EramAltitude));
+            // A drawn field other than Field A whose click opens no menu, so the click only selects.
+            FieldRect inert = Assert
+                .Single(view.Canvas.CurrentFrame.Tracks)
+                .Block.Fields.First(f => (f.Action == ScopeFieldAction.None) && (f.Slot != ScopeFieldSlot.Callsign));
+            Click(window, view.Canvas, new Point(inert.Rect.MidX, inert.Rect.MidY));
 
             Assert.Empty(toggled);
             Assert.Same(ac, main.SelectedAircraft);

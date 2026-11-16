@@ -245,6 +245,38 @@ public class ScopeCanvasHitTestTests
         Assert.Equal(ScopeFieldSlot.StatusLine3, frame.FieldAt(sx, sy)?.Field.Slot);
     }
 
+    /// <summary>Two blocks drawn over each other: a point on both altitude fields hits the top block's field.</summary>
+    [Fact]
+    public void HitTest_TopBlocksField_WinsOverALowerBlocksField()
+    {
+        AircraftModel lower = ScopeTestAircraft.CreateModel();
+        AircraftModel upper = ScopeTestAircraft.CreateModel();
+        upper.Callsign = "DAL55";
+        ScopeFrame frame = Build(ScopeTemplates.StarsId, 12f, lower, upper);
+
+        Assert.Same(upper, frame.Tracks[^1].Aircraft);
+        FieldRect upperAltitude = Assert.Single(frame.Tracks[^1].Block.Fields, f => f.Slot == ScopeFieldSlot.Altitude);
+        FieldRect lowerAltitude = Assert.Single(frame.Tracks[0].Block.Fields, f => f.Slot == ScopeFieldSlot.Altitude);
+        Assert.Equal(lowerAltitude.Rect, upperAltitude.Rect);
+
+        (float x, float y) = Centre(upperAltitude);
+        ScopeFieldHit? hit = frame.FieldAt(x, y);
+        Assert.Same(upper, hit?.Aircraft);
+        Assert.Equal(ScopeFieldAction.OpenAltitudeMenu, hit!.Field.Action);
+    }
+
+    /// <summary>A field with no text gets no rect, so an absent note or ident is no click target.</summary>
+    [Fact]
+    public void HitTest_EmptyField_IsNotATarget()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ScopeFrame frame = Build(ScopeTemplates.StarsId, 12f, ac);
+
+        IReadOnlyList<FieldRect> fields = Assert.Single(frame.Tracks).Block.Fields;
+        Assert.DoesNotContain(fields, f => f.Slot is ScopeFieldSlot.InstructorNote or ScopeFieldSlot.Ident);
+        Assert.All(fields, f => Assert.NotEqual("", f.Text));
+    }
+
     private static ScopeFrame BuildViewedFrom(ScopeViewer viewer, AircraftModel aircraft)
     {
         using var font = new SKFont { Size = 12f };

@@ -331,7 +331,8 @@ public class ScopeRendererStyleTests
             new SKRect(left, 20f, left + cellWidth, 20f + FontSize),
             TrackPresenter.EramArrowCell,
             ScopeColorToken.Default,
-            ScopeFieldStyle.HsfIndicator
+            ScopeFieldStyle.HsfIndicator,
+            ScopeFieldAction.None
         );
 
         using SKPath path = ScopeRenderer.HsfPath(field, font, 0);

@@ -263,7 +263,7 @@ public class ScopeRendererBrightnessTests
     }
 
     private static FieldRect FieldIn(ScopeFieldSlot slot, ScopeColorToken token) =>
-        new(slot, new SKRect(0, 0, 10, 10), "X", token, ScopeFieldStyle.None);
+        new(slot, new SKRect(0, 0, 10, 10), "X", token, ScopeFieldStyle.None, ScopeFieldAction.None);
 
     [Theory]
     [InlineData(0, -20, 0)]

@@ -162,7 +162,7 @@ public static class DatablockTemplate
             }
 
             SKRect rect = Column0Rect(mark, metrics.Measure(field.Text), metrics, insertedRows);
-            rects.Add(new FieldRect(mark.Slot, rect, field.Text, field.Token, field.Style));
+            rects.Add(new FieldRect(mark.Slot, rect, field.Text, field.Token, field.Style, field.Action));
             if (field.StableText.Length == 0)
             {
                 // A mark lit only for the moment (the VCI hover preview) is drawn but widens no bounds.
@@ -213,7 +213,7 @@ public static class DatablockTemplate
             float left = lead.Length > 0 ? runStart + metrics.Measure(lead) : runStart;
             right = runStart + metrics.Measure(lead + placed.MeasuredText);
             var rect = new SKRect(left, top, right, top + metrics.Size);
-            rects.Add(new FieldRect(placed.Placement.Slot, rect, placed.Field.Text, placed.Field.Token, placed.Field.Style));
+            rects.Add(new FieldRect(placed.Placement.Slot, rect, placed.Field.Text, placed.Field.Token, placed.Field.Style, placed.Field.Action));
 
             if (template.GapMode == ScopeGapMode.PixelGap)
             {

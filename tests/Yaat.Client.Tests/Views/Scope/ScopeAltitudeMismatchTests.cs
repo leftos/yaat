@@ -210,7 +210,8 @@ public class ScopeAltitudeMismatchTests
             new SKRect(left, 20f, left + cellWidth, 20f + FontSize),
             TrackPresenter.EramArrowCell,
             ScopeColorToken.Default,
-            ScopeFieldStyle.AltitudeMismatch
+            ScopeFieldStyle.AltitudeMismatch,
+            ScopeFieldAction.None
         );
 
         using SKPath path = ScopeRenderer.NotEqualPath(field, font, 0);

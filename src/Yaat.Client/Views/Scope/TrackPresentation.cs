@@ -126,11 +126,41 @@ public enum ScopeFieldStyle
     AltitudeMismatch = 64,
 }
 
-/// <summary>What clicking a field does. Every step-1 field carries <see cref="None"/>.</summary>
+/// <summary>
+/// What a left click on a field does besides selecting its track: the presenter sets it per template and slot
+/// (<see cref="TrackPresenter.ActionFor"/>). The ERAM Field A dwell-lock click is not one: the canvas decides it.
+/// </summary>
 public enum ScopeFieldAction
 {
-    /// <summary>The field is inert.</summary>
+    /// <summary>The click only selects the track.</summary>
     None,
+
+    /// <summary>Opens the altitude pick menu.</summary>
+    OpenAltitudeMenu,
+
+    /// <summary>Opens the speed pick menu.</summary>
+    OpenSpeedMenu,
+
+    /// <summary>Opens the heading rose.</summary>
+    OpenHeadingMenu,
+
+    /// <summary>Opens the squawk pick menu.</summary>
+    OpenSquawkMenu,
+
+    /// <summary>Opens the runway pick menu.</summary>
+    OpenRunwayMenu,
+
+    /// <summary>Opens the scratchpad pick menu.</summary>
+    OpenScratchpadMenu,
+
+    /// <summary>Opens the handoff menu, or the accept for a handoff inbound.</summary>
+    OpenHandoffMenu,
+
+    /// <summary>Opens the instructor note box.</summary>
+    OpenNoteBox,
+
+    /// <summary>Takes control of the track.</summary>
+    TakeControl,
 }
 
 /// <summary>

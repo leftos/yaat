@@ -318,6 +318,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Action<string>? AircraftDwellLockToggleRequested;
 
+    /// <summary>
+    /// Fired in place of <see cref="AircraftLeftClicked"/> when the left click lands on a field of the clicked aircraft's own
+    /// block whose action is not <see cref="ScopeFieldAction.None"/>, with the callsign, the action and the click point.
+    /// </summary>
+    public event Action<string, ScopeFieldAction, Point>? FieldClicked;
+
     /// <summary>Fired for text typed while the canvas has the focus; a handler that takes it marks it handled.</summary>
     public event EventHandler<TextInputEventArgs>? EntryTextInput;
 
@@ -622,14 +628,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 }
                 else
                 {
-                    if (IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y))
-                    {
-                        AircraftDwellLockToggleRequested?.Invoke(hit.Callsign);
-                        // The lock is drawn from the frame, so the next one reads the toggled state.
-                        _lastFrame = null;
-                        MarkDirty();
-                    }
-                    AircraftLeftClicked?.Invoke(hit.Callsign);
+                    OnLeftPressed(frame, hit, pos);
                 }
                 e.Handled = true;
                 return;
@@ -638,6 +637,36 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
         base.OnPointerPressed(e);
     }
+
+    // A left press on an aircraft: an ERAM Field A asks for the dwell-lock toggle first; then a field with an action fires
+    // FieldClicked, anything else AircraftLeftClicked.
+    private void OnLeftPressed(ScopeFrame frame, AircraftModel hit, Point pos)
+    {
+        if (IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y))
+        {
+            AircraftDwellLockToggleRequested?.Invoke(hit.Callsign);
+            // The lock is drawn from the frame, so the next one reads the toggled state.
+            _lastFrame = null;
+            MarkDirty();
+        }
+
+        ScopeFieldAction action = FieldActionOf(frame, hit, (float)pos.X, (float)pos.Y);
+        if (action != ScopeFieldAction.None)
+        {
+            FieldClicked?.Invoke(hit.Callsign, action, pos);
+        }
+        else
+        {
+            AircraftLeftClicked?.Invoke(hit.Callsign);
+        }
+    }
+
+    /// <summary>
+    /// The action of the field under the point when it is on <paramref name="selected"/>'s block, else
+    /// <see cref="ScopeFieldAction.None"/>: a lower block's field seen through the top one opens nothing.
+    /// </summary>
+    private static ScopeFieldAction FieldActionOf(ScopeFrame frame, AircraftModel selected, float x, float y) =>
+        ((frame.FieldAt(x, y) is { } field) && ReferenceEquals(field.Aircraft, selected)) ? field.Field.Action : ScopeFieldAction.None;
 
     /// <summary>
     /// Whether the point is on the callsign field (Field A) of <paramref name="selected"/>'s block, drawn with the ERAM template:

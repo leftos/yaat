@@ -7,6 +7,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.Views.Scope;
@@ -14,9 +15,11 @@ namespace Yaat.Client.Views.Scope;
 /// <summary>
 /// The YAAT Scope: a scope canvas drawing traffic with the datablock template engine. A left click on a target or block
 /// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
-/// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>); no field click sends a command.
+/// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>). A left click on a field
+/// with an action (<see cref="ScopeFieldAction"/>) selects the aircraft and opens that field's pick menu at the pointer
+/// (<see cref="FieldMenus.ScopeFieldMenus"/>), the note box, or takes control (the EuroScope owner); a row of the menu sends.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
-/// nothing and toggling no lock. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through <c>.scope tdm</c>,
+/// nothing, opening no menu and toggling no lock. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through <c>.scope tdm</c>,
 /// as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
 /// which any press on it gives: printable text adds to the entry, Backspace edits it, Up and Down walk its history, Ctrl+R
 /// (Cmd+R on macOS) recalls the last entry on ERAM and Mixed, and Enter runs it; other chords, Tab and function keys pass on.
@@ -36,6 +39,7 @@ public partial class ScopeView : UserControl
         Canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         Canvas.AircraftRightClicked += OnAircraftRightClicked;
         Canvas.AircraftDwellLockToggleRequested += OnAircraftDwellLockToggleRequested;
+        Canvas.FieldClicked += OnFieldClicked;
         Canvas.EntryTextInput += OnCanvasTextInput;
         Canvas.EntryKeyDown += OnCanvasKeyDown;
         Canvas.GotFocus += OnCanvasGotFocus;
@@ -192,6 +196,44 @@ public partial class ScopeView : UserControl
         else
         {
             vm.SelectAircraft(callsign);
+        }
+    }
+
+    // A field with an action: the armed Rings tool places a ring as on any click; else the track is selected and the field's
+    // action runs, its menu sending through the same host as the right-click menu.
+    private void OnFieldClicked(string callsign, ScopeFieldAction action, Point __)
+    {
+        if (DataContext is not ScopeViewModel vm)
+        {
+            return;
+        }
+
+        if (vm.IsRingToolArmed)
+        {
+            vm.PlaceRing(callsign);
+            return;
+        }
+
+        vm.SelectAircraft(callsign);
+        if (action == ScopeFieldAction.TakeControl)
+        {
+            _ = vm.Main.TakeControlAsync(callsign);
+            return;
+        }
+
+        if (vm.FindAircraft(callsign) is not { } ac)
+        {
+            return;
+        }
+
+        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId);
+        if (action == ScopeFieldAction.OpenNoteBox)
+        {
+            ScopeFieldMenus.ShowNoteBox(ac, host);
+        }
+        else if (ScopeFieldMenus.Build(action, ac, host) is { } menu)
+        {
+            ShowContextMenu(menu);
         }
     }
 

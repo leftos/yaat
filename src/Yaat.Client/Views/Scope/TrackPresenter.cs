@@ -388,12 +388,65 @@ public static class TrackPresenter
     /// <exception cref="ArgumentException">The template id is unknown.</exception>
     public static TrackPresentation Present(TrackPresenterInput input)
     {
-        List<ScopeField> fields = FieldsAt(input);
+        List<ScopeField> fields = WithActions(FieldsAt(input), input);
         ScopeTintRole tint = TintFor(input);
         // CRC's ERAM LDBs draw no leader.
         bool leader = !((input.TemplateId == ScopeTemplates.EramId) && (input.Level is ScopeBlockLevel.Limited or ScopeBlockLevel.Partial));
         return new TrackPresentation(input.TemplateId, input.Level, BlockColorFor(input, tint), tint, fields, leader);
     }
+
+    /// <summary>
+    /// What a left click on <paramref name="slot"/> does on a block drawn with <paramref name="templateId"/> (a resolved template:
+    /// a Mixed track is presented for its owner's kind). A ground target's fields stay inert whatever this answers.
+    /// </summary>
+    internal static ScopeFieldAction ActionFor(string templateId, ScopeFieldSlot slot) =>
+        templateId switch
+        {
+            ScopeTemplates.StarsId => StarsActionFor(slot),
+            ScopeTemplates.EramId => EramActionFor(slot),
+            ScopeTemplates.EuroScopeId => EuroScopeActionFor(slot),
+            _ => ScopeFieldAction.None,
+        };
+
+    private static ScopeFieldAction StarsActionFor(ScopeFieldSlot slot) =>
+        slot switch
+        {
+            ScopeFieldSlot.Altitude => ScopeFieldAction.OpenAltitudeMenu,
+            ScopeFieldSlot.GroundSpeed => ScopeFieldAction.OpenSpeedMenu,
+            ScopeFieldSlot.Squawk or ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
+            ScopeFieldSlot.StatusLine3 => ScopeFieldAction.OpenScratchpadMenu,
+            ScopeFieldSlot.InstructorNote => ScopeFieldAction.OpenNoteBox,
+            _ => ScopeFieldAction.None,
+        };
+
+    // Field A keeps the canvas's dwell-lock click; the scope-data column of these menus is a later step's.
+    private static ScopeFieldAction EramActionFor(ScopeFieldSlot slot) =>
+        slot switch
+        {
+            ScopeFieldSlot.EramAltitude => ScopeFieldAction.OpenAltitudeMenu,
+            ScopeFieldSlot.GroundSpeed => ScopeFieldAction.OpenSpeedMenu,
+            ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
+            ScopeFieldSlot.StatusLine3 => ScopeFieldAction.OpenHandoffMenu,
+            _ => ScopeFieldAction.None,
+        };
+
+    private static ScopeFieldAction EuroScopeActionFor(ScopeFieldSlot slot) =>
+        slot switch
+        {
+            ScopeFieldSlot.Owner => ScopeFieldAction.TakeControl,
+            ScopeFieldSlot.Altitude or ScopeFieldSlot.AssignedAltitude => ScopeFieldAction.OpenAltitudeMenu,
+            ScopeFieldSlot.AssignedSpeed => ScopeFieldAction.OpenSpeedMenu,
+            ScopeFieldSlot.AssignedHeading => ScopeFieldAction.OpenHeadingMenu,
+            ScopeFieldSlot.AssignedRunway => ScopeFieldAction.OpenRunwayMenu,
+            ScopeFieldSlot.Scratchpad1 or ScopeFieldSlot.Scratchpad2 => ScopeFieldAction.OpenScratchpadMenu,
+            ScopeFieldSlot.Handoff => ScopeFieldAction.OpenHandoffMenu,
+            ScopeFieldSlot.Squawk or ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
+            _ => ScopeFieldAction.None,
+        };
+
+    // Every field takes its slot's action; a ground target's stay inert.
+    private static List<ScopeField> WithActions(List<ScopeField> fields, TrackPresenterInput input) =>
+        input.Level == ScopeBlockLevel.Ground ? fields : fields.ConvertAll(f => f with { Action = ActionFor(input.TemplateId, f.Slot) });
 
     private static List<ScopeField> FieldsAt(TrackPresenterInput input) =>
         (input.TemplateId, input.Level) switch

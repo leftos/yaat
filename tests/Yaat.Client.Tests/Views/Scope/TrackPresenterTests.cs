@@ -116,7 +116,7 @@ public class TrackPresenterTests
     }
 
     [Fact]
-    public void Presentation_IsFullLevel_WithNoActions_AndSelectionLeavesTheBlockColor()
+    public void Presentation_IsFullLevel_WithEachSlotsAction_AndSelectionLeavesTheBlockColor()
     {
         AircraftModel ac = ScopeTestAircraft.CreateModel();
 
@@ -126,7 +126,8 @@ public class TrackPresenterTests
         Assert.Equal(ScopeBlockLevel.Full, idle.Level);
         Assert.Equal(ScopeBlockColor.Default, idle.BlockColor);
         Assert.Equal(ScopeBlockColor.Default, selected.BlockColor);
-        Assert.All(idle.Fields, f => Assert.Equal(ScopeFieldAction.None, f.Action));
+        Assert.All(idle.Fields, f => Assert.Equal(TrackPresenter.ActionFor(ScopeTemplates.EuroScopeId, f.Slot), f.Action));
+        Assert.Contains(idle.Fields, f => f.Action != ScopeFieldAction.None);
     }
 
     // The block-colour precedence, mirroring today's TargetRenderer.ResolveTargetColors and its tint logic:

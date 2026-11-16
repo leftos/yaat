@@ -354,7 +354,8 @@ public class ScopeEramColumn0Tests
             new SKRect(left, 20f, left + cellWidth, 32f),
             TrackPresenter.EramArrowCell,
             ScopeColorToken.Default,
-            ScopeFieldStyle.Vci
+            ScopeFieldStyle.Vci,
+            ScopeFieldAction.None
         );
 
         using SKPath path = ScopeRenderer.VciPath(field, font, 0);
