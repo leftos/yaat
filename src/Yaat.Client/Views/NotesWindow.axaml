@@ -23,7 +23,7 @@
         ToolTip.Tip="Insert [sim time callsign] at the cursor (Ctrl+Shift+N)"
       />
       <Button x:Name="CopyAllButton" Content="Copy all" Focusable="False" />
-      <Button x:Name="ClearButton" Content="Clear" Focusable="False" Command="{Binding ClearCommand}" />
+      <Button x:Name="ClearButton" Content="Clear" Focusable="False" />
     </StackPanel>
     <TextBox
       x:Name="NotesTextBox"

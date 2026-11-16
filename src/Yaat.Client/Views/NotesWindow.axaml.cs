@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Microsoft.Extensions.Logging;
+using MsBox.Avalonia.Enums;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -51,6 +52,7 @@ public partial class NotesWindow : Window, IAlwaysOnTopToggle
 
         _textBox = this.FindControl<TextBox>("NotesTextBox")!;
         this.FindControl<Button>("CopyAllButton")!.Click += OnCopyAllClick;
+        this.FindControl<Button>("ClearButton")!.Click += OnClearClick;
         viewModel.StampRequested += OnStampRequested;
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         Closed += OnClosed;
@@ -110,6 +112,26 @@ public partial class NotesWindow : Window, IAlwaysOnTopToggle
         _textBox.SelectionStart = caret;
         _textBox.SelectionEnd = caret;
         _textBox.CaretIndex = caret;
+    }
+
+    // Clearing notes that hold text asks first, and only Yes clears and saves; No, or closing the box, changes nothing.
+    private async void OnClearClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.Text.Length > 0)
+        {
+            ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+                this,
+                "Clear notes?",
+                "Clear all notes? This cannot be undone.",
+                ButtonEnum.YesNo
+            );
+            if (result != ButtonResult.Yes)
+            {
+                return;
+            }
+        }
+
+        _viewModel.ClearCommand.Execute(null);
     }
 
     private async void OnCopyAllClick(object? sender, RoutedEventArgs e)

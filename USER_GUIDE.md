@@ -2933,7 +2933,7 @@ Favorites are shared with the **Import** and **Export** buttons in the pop-out *
 
 ### Notes
 
-**View > Bars > Notes…** opens a scratch pad for your own notes: one multi-line text box (a second click on the menu item brings the window forward). **Stamp**, or **Ctrl+Shift+N** while the window is focused, inserts the sim time and the selected aircraft at the cursor, such as `[75:05 N123AB] `, or `[75:05] ` when no aircraft is selected; with no scenario loaded **Stamp** is disabled. **Copy all** copies the text and **Clear** empties the box at once.
+**View > Bars > Notes…** opens a scratch pad for your own notes: one multi-line text box (a second click on the menu item brings the window forward). **Stamp**, or **Ctrl+Shift+N** while the window is focused, inserts the sim time and the selected aircraft at the cursor, such as `[75:05 N123AB] `, or `[75:05] ` when no aircraft is selected; with no scenario loaded **Stamp** is disabled. **Copy all** copies the text; **Clear** asks first, then empties the box (there is no undo).
 
 The text is saved to `%LOCALAPPDATA%/yaat/notes.txt` a second after you stop typing and when the window closes. It survives a restart and loading another scenario, and it is not part of your settings or the Import / Export bundle. The window's position and size are remembered. If a key you set in **Settings › Keys** is already **Ctrl+Shift+N**, Settings names it "Notes stamp".
 
