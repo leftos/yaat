@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -5,6 +6,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -499,5 +501,280 @@ public class NavRouteOverlayProjectorTests
         };
 
         Assert.Empty(NavRouteOverlayProjector.BuildShapes(InPhase(levelOff, OrbitPoint)));
+    }
+
+    // ---- Route-end course and heading vector: what the sim flies past the route, from the sim's own state ----
+
+    /// <summary>The model date the declination of these fixtures is taken at.</summary>
+    private static readonly DateTime DeclinationDate = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>OAKES3 RW12 as the bundled CIFP resolves it, ending at HIRMO with its FM course.</summary>
+    private static List<NavigationTarget> Oakes3Rw12Targets()
+    {
+        TestVnasData.EnsureInitialized();
+        CifpStarProcedure star = Assert.IsType<CifpStarProcedure>(NavigationDatabase.Instance.GetStar("KOAK", "OAKES3"));
+        Assert.True(star.RunwayTransitions.TryGetValue("RW12", out CifpTransition? rw12));
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets([.. star.CommonLegs, .. rw12.Legs]);
+        Assert.Equal("HIRMO", targets[^1].Name);
+        Assert.NotNull(targets[^1].TerminalCourseMagnetic);
+        return targets;
+    }
+
+    private static LatLon KoakPosition()
+    {
+        (double lat, double lon) = NavigationDatabase.Instance.GetAirportPosition("KOAK") ?? throw new InvalidOperationException("KOAK missing");
+        return new LatLon(lat, lon);
+    }
+
+    /// <summary>An airborne aircraft at the last of <paramref name="route"/>, flying it, cleared to KOAK.</summary>
+    private static AircraftState Routed(IEnumerable<NavigationTarget> route, string flightRules = "IFR")
+    {
+        TestVnasData.EnsureInitialized();
+        List<NavigationTarget> targets = [.. route];
+        var ac = new AircraftState
+        {
+            Callsign = "SWA22",
+            AircraftType = "B738",
+            Position = targets[^1].Position,
+            TrueHeading = new TrueHeading(90),
+            Altitude = 11000,
+            IndicatedAirspeed = 250,
+            IsOnGround = false,
+            Declination = MagneticDeclination.GetDeclination(targets[^1].Position, DeclinationDate),
+            FlightPlan = new AircraftFlightPlan
+            {
+                HasFlightPlan = true,
+                Departure = "KSLC",
+                Destination = "KOAK",
+                Route = "OAKES3",
+                Altitude = flightRules == "IFR" ? PlannedAltitude.Ifr(35000) : PlannedAltitude.Vfr(9500),
+                FlightRules = flightRules,
+            },
+            ClearedDestination = "KOAK",
+        };
+        ac.Targets.TargetAltitude = 9000;
+        ac.Targets.AssignedAltitude = 9000;
+        ac.Targets.NavigationRoute.AddRange(targets);
+        return ac;
+    }
+
+    private static LatLon PointOf(double[] point) => new(point[0], point[1]);
+
+    /// <summary>A two-point shape from <paramref name="origin"/> along <paramref name="trueCourse"/> for 5 nm.</summary>
+    private static void AssertVectorFrom(LatLon origin, TrueHeading trueCourse, NavRouteShapeDto shape)
+    {
+        Assert.Equal(2, shape.Points.Count);
+        LatLon start = PointOf(shape.Points[0]);
+        LatLon end = PointOf(shape.Points[1]);
+        Assert.Equal(origin.Lat, start.Lat, 9);
+        Assert.Equal(origin.Lon, start.Lon, 9);
+        var bearing = new TrueHeading(GeoMath.BearingTo(start, end));
+        Assert.True(bearing.AbsAngleTo(trueCourse) < 0.5, $"bearing {bearing.Degrees:F1} should be {trueCourse.Degrees:F1}");
+        Assert.InRange(GeoMath.DistanceNm(start, end), 4.95, 5.05);
+        Assert.Null(shape.Labels);
+    }
+
+    /// <summary>
+    /// CURLO6's runway 31L transition carries a VM course on a fix with more of the SID after it: the course sits mid-route,
+    /// the route end flies none of it, so no route-end course is drawn.
+    /// </summary>
+    [Fact]
+    public void Sid_VmCourseFollowedByMoreFixes_DrawsNoRouteEndCourse()
+    {
+        TestVnasData.EnsureInitialized();
+        CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KDAL", "CURLO6"));
+        Assert.True(sid.RunwayTransitions.TryGetValue("RW31L", out CifpTransition? rw31L));
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets([.. rw31L.Legs, .. sid.CommonLegs]);
+        Assert.Contains(targets.Take(targets.Count - 1), t => t.TerminalCourseMagnetic is not null);
+        Assert.Null(targets[^1].TerminalCourseMagnetic);
+
+        AircraftState ac = Routed(targets);
+        ac.Position = targets[0].Position;
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+    }
+
+    [Fact]
+    public void Sid_FmTerminatorAtTheLastFix_DrawsTheRouteEndCourseFromThatFix()
+    {
+        List<NavigationTarget> targets = Oakes3Rw12Targets();
+        NavigationTarget hirmo = targets[^1];
+        AircraftState ac = Routed([hirmo]);
+
+        NavRouteShapeDto shape = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+
+        AssertVectorFrom(hirmo.Position, new MagneticHeading(hirmo.TerminalCourseMagnetic!.Value).ToTrue(ac.Declination), shape);
+    }
+
+    /// <summary>A pending approach clearance activates at route end instead of the terminal course, so none is drawn.</summary>
+    [Fact]
+    public void PendingApproachClearance_DrawsNoRouteEndCourse()
+    {
+        AircraftState ac = Routed([Oakes3Rw12Targets()[^1]]);
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("KOAK", "30"));
+        ac.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                TransitionName = null,
+                ApproachId = "I30",
+                AirportCode = "KOAK",
+                RunwayId = "30",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+            AssignedRunway = runway,
+            ConnectingFix = null,
+        };
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+    }
+
+    /// <summary>
+    /// A takeoff clearance's heading, flown by the initial climb as the phase itself sets it once past its turn gate: the
+    /// vector is drawn along that heading, so a phase that set an assigned heading instead would draw none.
+    /// </summary>
+    [Fact]
+    public void HeadingOnlyDeparture_DrawsAHeadingVectorFromTheAircraft()
+    {
+        TestVnasData.EnsureInitialized();
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("KOAK", "30"));
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, 0.5);
+        var ac = new AircraftState
+        {
+            Callsign = "SWA22",
+            AircraftType = "B738",
+            Position = pastDer,
+            TrueHeading = runway.TrueHeading,
+            Altitude = runway.AirportElevationFt + 1500,
+            IsOnGround = false,
+            Declination = MagneticDeclination.GetDeclination(pastDer, DeclinationDate),
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        var climb = new InitialClimbPhase { Departure = new FlyHeadingDeparture(new MagneticHeading(270), null) };
+        ac.Phases.Add(climb);
+        var ctx = new PhaseContext
+        {
+            ActiveRunways = ActiveRunways.Empty,
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.AirportElevationFt,
+            Logger = NullLogger.Instance,
+        };
+
+        climb.OnStart(ctx);
+        climb.OnTick(ctx);
+
+        Assert.Same(climb, ac.Phases.CurrentPhase);
+        TrueHeading flown = Assert.NotNull(ac.Targets.TargetTrueHeading);
+        NavRouteShapeDto shape = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac));
+        Assert.Equal(NavRouteShapeKind.HeadingVector, shape.Kind);
+        AssertVectorFrom(ac.Position, flown, shape);
+    }
+
+    /// <summary>The route-end key carries the true course to a tenth of a degree: a declination refresh does not re-send it.</summary>
+    [Fact]
+    public void RouteEndCourseKey_IgnoresADeclinationRefreshButNotATenthOfADegree()
+    {
+        NavigationTarget hirmo = Oakes3Rw12Targets()[^1];
+        string KeyAt(double declination)
+        {
+            var ac = new AircraftState
+            {
+                Callsign = "SWA22",
+                AircraftType = "B738",
+                Declination = declination,
+            };
+            ac.Targets.NavigationRoute.Add(hirmo);
+            return NavRouteOverlayProjector.BuildPendingShapeKey(ac);
+        }
+
+        string key = KeyAt(13.40);
+
+        Assert.Contains("|EHIRMO:", key);
+        Assert.Equal(key, KeyAt(13.41));
+        Assert.NotEqual(key, KeyAt(13.60));
+    }
+
+    /// <summary>An FH heading is drawn by the client's own vector tail, which follows the interpolated symbol.</summary>
+    [Fact]
+    public void FhHeading_DrawsNoServerHeadingVector()
+    {
+        AircraftState ac = AircraftAt(5000);
+        ac.IsOnGround = false;
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        ac.Targets.TargetTrueHeading = new MagneticHeading(270).ToTrue(ac.Declination);
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.HeadingVector);
+    }
+
+    /// <summary>
+    /// The projector's judge of the route end is the one the sim flies: each branch the classifier names is the branch
+    /// <see cref="FlightPhysics.Update"/> takes when the aircraft sequences that last fix.
+    /// </summary>
+    [Theory]
+    [InlineData("ClearanceLimitHold")]
+    [InlineData("TerminalCourse")]
+    [InlineData("AirportHold")]
+    [InlineData("DirectToDestination")]
+    [InlineData("Straight")]
+    public void ClassifyRouteEnd_MatchesApplyRouteEndLateral(string branch)
+    {
+        FlightPhysics.RouteEndLateral expected = Enum.Parse<FlightPhysics.RouteEndLateral>(branch);
+        AircraftState ac = RouteEndFixture(expected);
+        NavigationTarget last = ac.Targets.NavigationRoute[^1];
+
+        Assert.Equal(expected, FlightPhysics.ClassifyRouteEnd(ac, last));
+
+        FlightPhysics.Update(ac, 1.0);
+        AssertFlew(expected, ac, last);
+    }
+
+    private static AircraftState RouteEndFixture(FlightPhysics.RouteEndLateral branch)
+    {
+        NavigationTarget hirmo = Oakes3Rw12Targets()[^1];
+        var plainHirmo = new NavigationTarget { Name = "HIRMO", Position = hirmo.Position };
+        return branch switch
+        {
+            FlightPhysics.RouteEndLateral.ClearanceLimitHold => Routed([
+                new NavigationTarget
+                {
+                    Name = "KOAK",
+                    Position = KoakPosition(),
+                    IsClearanceLimitDirect = true,
+                },
+            ]),
+            FlightPhysics.RouteEndLateral.TerminalCourse => Routed([hirmo]),
+            FlightPhysics.RouteEndLateral.AirportHold => Routed([new NavigationTarget { Name = "KOAK", Position = KoakPosition() }]),
+            FlightPhysics.RouteEndLateral.DirectToDestination => Routed([plainHirmo]),
+            _ => Routed([plainHirmo], "VFR"),
+        };
+    }
+
+    private static void AssertFlew(FlightPhysics.RouteEndLateral branch, AircraftState ac, NavigationTarget last)
+    {
+        switch (branch)
+        {
+            case FlightPhysics.RouteEndLateral.ClearanceLimitHold:
+            case FlightPhysics.RouteEndLateral.AirportHold:
+                Assert.True(Assert.IsType<HoldingPatternPhase>(ac.Phases?.CurrentPhase).IsClearanceLimitHold);
+                break;
+            case FlightPhysics.RouteEndLateral.TerminalCourse:
+                Assert.Empty(ac.Targets.NavigationRoute);
+                TrueHeading course = new MagneticHeading(last.TerminalCourseMagnetic!.Value).ToTrue(ac.Declination);
+                Assert.True(Assert.NotNull(ac.Targets.TargetTrueHeading).AbsAngleTo(course) < 1.0);
+                break;
+            case FlightPhysics.RouteEndLateral.DirectToDestination:
+                NavigationTarget direct = Assert.Single(ac.Targets.NavigationRoute);
+                Assert.True(direct.IsClearanceLimitDirect);
+                Assert.Equal("KOAK", direct.Name);
+                break;
+            default:
+                Assert.Empty(ac.Targets.NavigationRoute);
+                Assert.Null(ac.Targets.TargetTrueHeading);
+                break;
+        }
     }
 }

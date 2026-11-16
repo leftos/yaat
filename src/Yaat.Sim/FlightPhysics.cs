@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
@@ -2368,30 +2369,68 @@ public static class FlightPhysics
     /// </summary>
     private static void ApplyRouteEndLateral(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
     {
-        if (sequenced.IsClearanceLimitDirect && !aircraft.FlightPlan.IsVfr)
+        switch (ClassifyRouteEnd(aircraft, sequenced))
         {
-            StartClearanceLimitHold(aircraft, sequenced);
-            return;
+            case RouteEndLateral.ClearanceLimitHold:
+            case RouteEndLateral.AirportHold:
+                StartClearanceLimitHold(aircraft, sequenced);
+                break;
+            case RouteEndLateral.TerminalCourse:
+                // The classifier returns TerminalCourse only when the fix carries one.
+                aircraft.Targets.TargetTrueHeading = new MagneticHeading(sequenced.TerminalCourseMagnetic!.Value).ToTrue(aircraft.Declination);
+                break;
+            case RouteEndLateral.DirectToDestination:
+            case RouteEndLateral.Straight:
+                if (DirectToClearedDestination(aircraft, sequenced) is { } direct)
+                {
+                    // Turn toward the airport now; the steering on the next tick corrects the heading for wind.
+                    route.Add(direct);
+                    aircraft.Targets.TargetTrueHeading = new TrueHeading(GeoMath.BearingTo(aircraft.Position, direct.Position));
+                }
+                else
+                {
+                    aircraft.Targets.TargetTrueHeading = null;
+                }
+
+                break;
+            default:
+                throw new UnreachableException($"route-end branch {ClassifyRouteEnd(aircraft, sequenced)} has no handling");
+        }
+    }
+
+    /// <summary>What an aircraft flies laterally once its last route fix is sequenced, in ApplyRouteEndLateral's order.</summary>
+    internal enum RouteEndLateral
+    {
+        ClearanceLimitHold,
+        TerminalCourse,
+        AirportHold,
+        DirectToDestination,
+        Straight,
+    }
+
+    /// <summary>
+    /// The branch <see cref="ApplyRouteEndLateral"/> takes when <paramref name="last"/> is sequenced as the route's last
+    /// target: the clearance-limit hold for an IFR clearance-limit direct, then its terminal course, then the hold at the
+    /// destination airport, then the direct to the cleared destination, else straight on. No side effects.
+    /// </summary>
+    internal static RouteEndLateral ClassifyRouteEnd(AircraftState aircraft, NavigationTarget last)
+    {
+        if (last.IsClearanceLimitDirect && !aircraft.FlightPlan.IsVfr)
+        {
+            return RouteEndLateral.ClearanceLimitHold;
         }
 
-        if (sequenced.TerminalCourseMagnetic is { } fmCourse)
+        if (last.TerminalCourseMagnetic is not null)
         {
-            aircraft.Targets.TargetTrueHeading = new MagneticHeading(fmCourse).ToTrue(aircraft.Declination);
+            return RouteEndLateral.TerminalCourse;
         }
-        else if (HoldsAtRouteEndAirport(aircraft, sequenced))
+
+        if (HoldsAtRouteEndAirport(aircraft, last))
         {
-            StartClearanceLimitHold(aircraft, sequenced);
+            return RouteEndLateral.AirportHold;
         }
-        else if (DirectToClearedDestination(aircraft, sequenced) is { } direct)
-        {
-            // Turn toward the airport now; the steering on the next tick corrects the heading for wind.
-            route.Add(direct);
-            aircraft.Targets.TargetTrueHeading = new TrueHeading(GeoMath.BearingTo(aircraft.Position, direct.Position));
-        }
-        else
-        {
-            aircraft.Targets.TargetTrueHeading = null;
-        }
+
+        return ResolveDirectToClearedDestination(aircraft, last).Direct is not null ? RouteEndLateral.DirectToDestination : RouteEndLateral.Straight;
     }
 
     /// <summary>
@@ -2541,11 +2580,8 @@ public static class FlightPhysics
     /// </summary>
     private static NavigationTarget? DirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced)
     {
-        string dest = aircraft.ClearedDestination;
-        string? refusal = aircraft.FlightPlan.IsVfr
-            ? "VFR"
-            : (RouteEndDirectRefusalByState(aircraft) ?? RouteEndDirectRefusalByClearance(aircraft, sequenced));
-        if ((refusal is null) && (ClearanceLimitDirectTo(dest, aircraft.Position) is { } direct))
+        (NavigationTarget? direct, string? refusal) = ResolveDirectToClearedDestination(aircraft, sequenced);
+        if (direct is not null)
         {
             return direct;
         }
@@ -2554,10 +2590,22 @@ public static class FlightPhysics
             "{Callsign}: route ended at {Fix}, no direct to cleared destination '{Destination}': {Reason}",
             aircraft.Callsign,
             sequenced.Name,
-            dest,
+            aircraft.ClearedDestination,
             refusal ?? "no airport position"
         );
         return null;
+    }
+
+    /// <summary>
+    /// <see cref="DirectToClearedDestination"/> without its log line: the direct, or null with the refusal reason (null
+    /// when the destination has no airport position). No side effects.
+    /// </summary>
+    private static (NavigationTarget? Direct, string? Refusal) ResolveDirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced)
+    {
+        string? refusal = aircraft.FlightPlan.IsVfr
+            ? "VFR"
+            : (RouteEndDirectRefusalByState(aircraft) ?? RouteEndDirectRefusalByClearance(aircraft, sequenced));
+        return refusal is null ? (ClearanceLimitDirectTo(aircraft.ClearedDestination, aircraft.Position), null) : (null, refusal);
     }
 
     /// <summary>

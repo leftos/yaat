@@ -13,8 +13,9 @@ namespace Yaat.Sim;
 /// Projects an aircraft's active procedure phase and its queued holds into drawable <see cref="NavRouteShapeDto"/> shapes
 /// for the radar "Show nav route" overlay. Covers the geometry the flat <see cref="NavRouteFixDto"/> route can't express: a
 /// holding pattern's racetrack, a procedure turn's course reversal, the open-ended coded legs (CA/VA/CD/VD/CR/VR) of a SID,
-/// a military route's corridor, the dashed racetrack of each hold queued at a fix ahead, and the dashed circle of a VFR
-/// (HFIX) or airspace-boundary orbit. Pure geometry — no side effects.
+/// a military route's corridor, the dashed racetrack of each hold queued at a fix ahead, the dashed circle of a VFR
+/// (HFIX) or airspace-boundary orbit, the terminal course flown past the route's last fix, and the heading vector of a
+/// heading-only departure or of a heading flown after the route ended. Pure geometry — no side effects.
 /// </summary>
 public static class NavRouteOverlayProjector
 {
@@ -31,12 +32,25 @@ public static class NavRouteOverlayProjector
     /// climb-out direction. The real leg ends on a condition (altitude/distance/radial), not a point.</summary>
     private const double CodedLegNominalNm = 4.0;
 
+    /// <summary>Length of a route-end course or heading vector (nm), the client vector tail's length.</summary>
+    private const double RouteEndTailNm = 5.0;
+
     /// <summary>
-    /// The current phase's shapes, then one dashed racetrack per hold queued at a fix ahead, in queue order.
+    /// The current phase's shapes, then the route-end course or the heading vector, then one dashed racetrack per hold
+    /// queued at a fix ahead, in queue order.
     /// </summary>
     public static List<NavRouteShapeDto> BuildShapes(AircraftState aircraft)
     {
         List<NavRouteShapeDto> shapes = BuildCurrentPhaseShapes(aircraft);
+        if (RouteEndCourse(aircraft) is { } routeEnd)
+        {
+            shapes.Add(BuildVector(NavRouteShapeKind.RouteEndCourse, routeEnd.Last.Position, routeEnd.TrueCourse));
+        }
+        else if (HeadingVectorHeading(aircraft) is { } heading)
+        {
+            shapes.Add(BuildVector(NavRouteShapeKind.HeadingVector, aircraft.Position, heading));
+        }
+
         foreach ((HoldingPatternCommand hold, double holdAltitudeFt) in QueuedHolds(aircraft))
         {
             shapes.Add(BuildPendingHoldRacetrack(aircraft, hold, holdAltitudeFt));
@@ -54,6 +68,59 @@ public static class NavRouteOverlayProjector
             Phases.MilitaryRoutePhase route => BuildMilitaryRouteCorridor(route),
             _ => CurrentOrbit(aircraft) is { } orbit ? [BuildOrbitCircle(aircraft, orbit.Centre, orbit.Direction)] : [],
         };
+
+    /// <summary>
+    /// The last route target and the true course the sim will fly past it (<see cref="FlightPhysics.ClassifyRouteEnd"/>
+    /// judges it a terminal course, converted as the route end converts it), or null: no route, a pending approach
+    /// clearance (activated at route end instead), or any other route-end branch.
+    /// </summary>
+    private static (NavigationTarget Last, TrueHeading TrueCourse)? RouteEndCourse(AircraftState aircraft)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        if ((route.Count == 0) || (aircraft.Approach.PendingClearance is not null))
+        {
+            return null;
+        }
+
+        NavigationTarget last = route[^1];
+        if (
+            (last.TerminalCourseMagnetic is not { } course)
+            || (FlightPhysics.ClassifyRouteEnd(aircraft, last) != FlightPhysics.RouteEndLateral.TerminalCourse)
+        )
+        {
+            return null;
+        }
+
+        return (last, new MagneticHeading(course).ToTrue(aircraft.Declination));
+    }
+
+    /// <summary>
+    /// The heading an airborne aircraft flies with no route and no assigned heading (an assigned one is drawn by the
+    /// client's own vector tail) while in the departure climb or in no phase: a heading-only departure, or the heading
+    /// flown after the route ended. Null otherwise.
+    /// </summary>
+    private static TrueHeading? HeadingVectorHeading(AircraftState aircraft)
+    {
+        ControlTargets targets = aircraft.Targets;
+        bool headingOnly = (targets.NavigationRoute.Count == 0) && !aircraft.IsOnGround && (targets.AssignedMagneticHeading is null);
+        return headingOnly && (aircraft.Phases?.CurrentPhase is null or InitialClimbPhase) ? targets.TargetTrueHeading : null;
+    }
+
+    /// <summary>A two-point line from <paramref name="origin"/> along <paramref name="trueCourse"/> for <see cref="RouteEndTailNm"/>.</summary>
+    private static NavRouteShapeDto BuildVector(NavRouteShapeKind kind, LatLon origin, TrueHeading trueCourse)
+    {
+        LatLon end = GeoMath.ProjectPoint(origin, trueCourse, RouteEndTailNm);
+        return new NavRouteShapeDto(
+            kind,
+            [
+                [origin.Lat, origin.Lon],
+                [end.Lat, end.Lon],
+            ],
+            null,
+            null,
+            null
+        );
+    }
 
     /// <summary>
     /// The orbit the current phase flies, if any: a VFR hold's fix (HFIX), also while still proceeding to it, or an
@@ -107,8 +174,10 @@ public static class NavRouteOverlayProjector
 
     /// <summary>
     /// A key covering every input of the queued-hold racetracks and the orbit circle that the aircraft's position does not
-    /// already cover: each queued hold's fix, course, leg, direction and hold altitude, and the orbit's centre and direction.
-    /// Empty when there are none, so it leaves an existing fingerprint unchanged.
+    /// already cover: each queued hold's fix, course, leg, direction and hold altitude, the orbit's centre and direction, and
+    /// the route-end course's fix and true course. Empty when there are none, so it leaves an existing fingerprint unchanged.
+    /// The heading vector adds nothing: its origin is the aircraft's position and its heading the target heading, both in
+    /// the training fingerprint already.
     /// </summary>
     internal static string BuildPendingShapeKey(AircraftState aircraft)
     {
@@ -125,6 +194,14 @@ public static class NavRouteOverlayProjector
         {
             sb ??= new StringBuilder();
             sb.Append(CultureInfo.InvariantCulture, $"|O{orbit.Centre.Lat:R}:{orbit.Centre.Lon:R}:{orbit.Direction}");
+        }
+
+        if (RouteEndCourse(aircraft) is { } routeEnd)
+        {
+            sb ??= new StringBuilder();
+            // To a tenth of a degree: the cached declination refreshes every few hundredths of a degree as the aircraft
+            // moves, which must not re-send a course the scope cannot draw differently.
+            sb.Append(CultureInfo.InvariantCulture, $"|E{routeEnd.Last.Name}:{routeEnd.TrueCourse.Degrees:F1}");
         }
 
         return sb?.ToString() ?? "";
