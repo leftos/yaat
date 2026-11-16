@@ -66,7 +66,7 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// The scope's display state as a pref set named <paramref name="name"/>: range and centre, template, BRITE, DB, the
     /// maps that are on, the open views and every view's place, the tear-offs, the bar's and the views' order, the
-    /// profile's name, the pinned band values and the vector lines' OWN or ALL. Bands, and the values that follow them, live
+    /// profile's name, the pinned band values, the vector lines' OWN or ALL and top-down mode. Bands, and the values that follow them, live
     /// only in the profile's file.
     /// </summary>
     /// <param name="name">The set's uppercase name, or null for the scope's unnamed current state.</param>
@@ -93,6 +93,7 @@ public sealed partial class ScopeViewModel
             PinHistory = Pins.History,
             PinRings = Pins.Rings,
             VectorOwnership = ScopeVectorOwnerships.NameOf(VectorOwnership),
+            Tdm = IsTdm,
         };
 
     /// <summary>
@@ -109,6 +110,7 @@ public sealed partial class ScopeViewModel
         ApplyDb(set.Db);
         ApplyPins(set);
         ApplyVectorOwnership(set.VectorOwnership);
+        IsTdm = set.Tdm;
         ApplyRange(set.RangeNm);
         ApplyCentre(set.CenterLat, set.CenterLon);
         WarnUnknownOpenViews(set.OpenViews);

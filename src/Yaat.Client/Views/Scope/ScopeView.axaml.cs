@@ -5,7 +5,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -14,8 +16,9 @@ namespace Yaat.Client.Views.Scope;
 /// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>); no field click sends a command.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
-/// nothing and toggling no lock, and Esc disarms it: the window-level handler runs in the tunnel, so it disarms the tool
-/// before any control inside the window sees Esc.
+/// nothing and toggling no lock, and Esc disarms it. Ctrl+T (Cmd+T on macOS) turns top-down mode on or off through
+/// <c>.scope tdm</c>, as the TDM button does. Both keys are taken by a window-level handler that runs in the tunnel, so it
+/// acts before any control inside the window sees the key.
 /// </summary>
 public partial class ScopeView : UserControl
 {
@@ -91,11 +94,21 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc disarms an armed Rings tool; any other key, or Esc with the tool disarmed, passes on.
+    // Esc disarms an armed Rings tool and Ctrl+T flips top-down mode; any other key, or Esc with the tool disarmed, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
-        if ((e.Key == Key.Escape) && (DataContext is ScopeViewModel vm) && vm.DisarmRingTool())
+        if (DataContext is not ScopeViewModel vm)
         {
+            return;
+        }
+
+        if ((e.Key == Key.Escape) && vm.DisarmRingTool())
+        {
+            e.Handled = true;
+        }
+        else if ((e.Key == Key.T) && (e.KeyModifiers == (PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control)))
+        {
+            vm.RunCommand(ScopeToolbarButtons.TdmCommand(!vm.IsTdm));
             e.Handled = true;
         }
     }

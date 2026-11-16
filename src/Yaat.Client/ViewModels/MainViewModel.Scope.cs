@@ -24,7 +24,10 @@ public partial class MainViewModel
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
         + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}"
-        + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
+        + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
+        + " | .scope tdm <on|off>";
+
+    private const string ScopeTdmUsage = "Usage: .scope tdm <on|off>";
 
     private const string ScopeRingsUsage =
         "Usage: .scope rings <jring|cone> <1.0-9.9|10-30> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
@@ -162,8 +165,8 @@ public partial class MainViewModel
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
     /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
-    /// <c>.scope vector</c>, <c>.scope hist</c> and <c>.scope rings</c> against <see cref="OpenScope"/>, writing the echo or the error to the
-    /// status line.
+    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c> and <c>.scope tdm</c> against <see cref="OpenScope"/>, writing the
+    /// echo or the error to the status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeCommand(string text)
@@ -197,6 +200,7 @@ public partial class MainViewModel
             "VECTOR" => SetScopeVector,
             "HIST" => PinScopeHist,
             "RINGS" => RunScopeRings,
+            "TDM" => SetScopeTdm,
             _ => null,
         };
         if (handler is null)
@@ -348,6 +352,18 @@ public partial class MainViewModel
 
         scope.DeleteTearoffs(keys);
         return ScopeToolbarButtons.TearoffDeleteCommand(keys);
+    }
+
+    /// <summary><c>.scope tdm on|off</c>: turns top-down mode, which shows ground targets, on or off.</summary>
+    private static string SetScopeTdm(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length != 3) || (ParseOnOff(parts[2]) is not { } on))
+        {
+            return ScopeTdmUsage;
+        }
+
+        scope.IsTdm = on;
+        return on ? "Scope TDM ON" : "Scope TDM OFF";
     }
 
     /// <summary><c>on</c> is true and <c>off</c> false (case-insensitive); any other word is null.</summary>

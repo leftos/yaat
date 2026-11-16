@@ -21,7 +21,8 @@ public class ScopeCommandTests
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
         + " | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist <0-10>"
-        + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
+        + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
+        + " | .scope tdm <on|off>";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 

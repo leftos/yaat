@@ -22,6 +22,7 @@ public class ScopeProfileTests
         "tools",
         "auto",
         "maps",
+        "tdm",
         "db",
         "views",
         "brite",

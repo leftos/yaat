@@ -187,6 +187,7 @@ public class ScopeToolbarTests
                     ScopeButtonId.Hist,
                     ScopeButtonId.Tools,
                     ScopeButtonId.Auto,
+                    ScopeButtonId.Tdm,
                     ScopeButtonId.Db,
                     ScopeButtonId.Views,
                     ScopeButtonId.Brite,

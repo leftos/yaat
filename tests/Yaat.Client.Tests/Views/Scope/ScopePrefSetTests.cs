@@ -36,6 +36,7 @@ public class ScopePrefSetTests
         Assert.Equal(4, loaded.PinVectorMin);
         Assert.Equal(2, loaded.PinHistory);
         Assert.Equal("all", loaded.VectorOwnership);
+        Assert.True(loaded.Tdm);
     }
 
     [Fact]
@@ -66,6 +67,7 @@ public class ScopePrefSetTests
                 "pinHistory",
                 "pinRings",
                 "vectorOwnership",
+                "tdm",
             ],
             document.RootElement.EnumerateObject().Select(property => property.Name)
         );
@@ -135,6 +137,22 @@ public class ScopePrefSetTests
         Assert.Equal("own", loaded.VectorOwnership);
     }
 
+    [Fact]
+    public void MissingTdm_LoadsAsOff()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.False(loaded.Tdm);
+    }
+
     private static ScopePrefSet FullSet() =>
         new()
         {
@@ -160,6 +178,7 @@ public class ScopePrefSetTests
             PinVectorMin = 4,
             PinHistory = 2,
             VectorOwnership = "all",
+            Tdm = true,
         };
 
     private static ScopePrefSet RoundTrip(ScopePrefSet set) =>

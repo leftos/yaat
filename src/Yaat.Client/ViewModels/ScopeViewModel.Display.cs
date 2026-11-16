@@ -9,9 +9,9 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The Scope's display state: its BRITE groups, its video-map toggles and its DB settings. Changed only by
-/// <c>.scope brite</c>, <c>.scope map</c> and <c>.scope db</c> (the toolbar runs them) and by a pref-set load; never written
-/// to the preferences or the Radar, never sent to the server.
+/// The Scope's display state: its BRITE groups, its video-map toggles, its DB settings and top-down mode. Changed only by <c>.scope brite</c>,
+/// <c>.scope map</c>, <c>.scope db</c> and <c>.scope tdm</c> (the toolbar and Ctrl+T run them) and by a pref-set load; never written to the
+/// preferences or the Radar, never sent to the server.
 /// </summary>
 public sealed partial class ScopeViewModel
 {
@@ -28,6 +28,13 @@ public sealed partial class ScopeViewModel
     /// <summary>The scope's DB settings, seeded once from the preferences when the scope opens.</summary>
     [ObservableProperty]
     private ScopeDbSettings _dbSettings;
+
+    /// <summary>
+    /// Whether top-down mode is on: the scope then draws ground targets (aircraft on the ground, and airborne ones below
+    /// the display floor) with the ordinary block. A display setting, kept in pref sets and the saved state.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isTdm;
 
     /// <summary>
     /// The scope's own video-map toggles, in STARS id order, copied once from the radar's when the scope is seeded. A change

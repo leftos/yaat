@@ -52,6 +52,9 @@ public enum ScopeButtonId
     /// <summary>The MAPS menu; its tray holds CLR ALL and the Scope's map toggles.</summary>
     Maps,
 
+    /// <summary>TDM: turns top-down mode, which shows ground targets, on or off; lit while it is on.</summary>
+    Tdm,
+
     /// <summary>The MAPS menu's CLR ALL.</summary>
     MapClear,
 
@@ -252,6 +255,7 @@ public static class ScopeToolbarButtons
         new(ScopeButtonId.Auto, "AUTO", ScopeButtonKind.Command, [], null, AutoCommand),
         // The Scope's map toggles are facility data: ScopeViewModel.TrayChildren builds this tray.
         new(ScopeButtonId.Maps, "MAPS", ScopeButtonKind.Menu, [], null, null),
+        new(ScopeButtonId.Tdm, "TDM", ScopeButtonKind.Toggle, [], null, TdmCommandStem),
         new(
             ScopeButtonId.Db,
             "DB",
@@ -392,6 +396,12 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that clears every pinned band value (AUTO).</summary>
     public const string AutoCommand = ".scope auto";
+
+    /// <summary>The verb that turns top-down mode on or off, without its <c>on</c> or <c>off</c>.</summary>
+    public const string TdmCommandStem = ".scope tdm";
+
+    /// <summary>The command that turns top-down mode on (<paramref name="on"/>) or off.</summary>
+    public static string TdmCommand(bool on) => $"{TdmCommandStem} {(on ? "on" : "off")}";
 
     /// <summary>The command that pins others' block level to <paramref name="level"/> (<c>full</c> or <c>partial</c>).</summary>
     public static string OthersCommand(string level) => $".scope others {level}";

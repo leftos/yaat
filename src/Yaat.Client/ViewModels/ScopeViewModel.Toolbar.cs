@@ -57,12 +57,11 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Acts on a click of <paramref name="button"/>: a menu opens its tray, or closes it when it is the open one; a
-    /// command button closes the tray and runs its command; a toggle runs its command with the opposite of its state and
-    /// keeps the tray open; OTHERS flips others' level, pinning it, and VECTOR flips OWN and ALL, both closing the tray; any
-    /// other spinner does nothing on a click. A PREF set or SAVE button runs its command and closes the
-    /// tray; SAVE AS and RENAME type their command into the command box and close it; DELETE runs the active set's
-    /// delete. RENAME and DELETE with no active set answer in the status line instead.
+    /// Acts on a click of <paramref name="button"/>: a menu opens its tray, or closes it when it is the open one; a command button closes the
+    /// tray and runs its command; a toggle runs its command with the opposite of its state and keeps the tray open; OTHERS flips others' level,
+    /// pinning it, VECTOR flips OWN and ALL and TDM flips top-down mode, each closing the tray; any other spinner does nothing on a click. A
+    /// PREF set or SAVE button runs its command and closes the tray; SAVE AS and RENAME type their command into the command box and close it;
+    /// DELETE runs the active set's delete. RENAME and DELETE with no active set answer in the status line instead.
     /// </summary>
     public void Press(ScopeButton button)
     {
@@ -187,12 +186,14 @@ public sealed partial class ScopeViewModel
     /// turns on is on (<see cref="IsToggleOn"/>), a profile pick while its profile is the shown one, a command button while
     /// the template it picks is in use, a pref-set
     /// button while its set is the active one, DEL TEAROFF while its mode is on, OTHERS, VECTOR and HIST while their own
-    /// value is pinned (VECTOR's minutes; OWN or ALL never pins) and AUTO while any band value is.
+    /// value is pinned (VECTOR's minutes; OWN or ALL never pins), AUTO while any band value is and TDM while top-down mode
+    /// is on.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Id switch
         {
             ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
+            ScopeButtonId.Tdm => IsTdm,
             ScopeButtonId.Others => Pins.OthersLevel is not null,
             ScopeButtonId.Vector => Pins.VectorMin is not null,
             ScopeButtonId.Hist => Pins.History is not null,
@@ -256,7 +257,8 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// The press of a button that flips a value, closing the tray: OTHERS runs <c>.scope others</c> with the level other
-    /// than the one in effect, VECTOR runs <c>.scope vector</c> with the other of OWN and ALL. False for any other id.
+    /// than the one in effect, VECTOR runs <c>.scope vector</c> with the other of OWN and ALL, TDM runs <c>.scope tdm</c>
+    /// with the opposite of top-down mode. False for any other id.
     /// </summary>
     private bool TryPressFlip(ScopeButtonId id)
     {
@@ -264,6 +266,7 @@ public sealed partial class ScopeViewModel
         {
             ScopeButtonId.Others => ScopeToolbarButtons.OthersCommand(FlippedOthersLevel()),
             ScopeButtonId.Vector => ScopeToolbarButtons.VectorOwnershipCommand(FlippedVectorOwnership()),
+            ScopeButtonId.Tdm => ScopeToolbarButtons.TdmCommand(!IsTdm),
             _ => null,
         };
         if (command is null)

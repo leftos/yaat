@@ -7,7 +7,7 @@ namespace Yaat.Client.Views.Scope.Prefs;
 /// <summary>
 /// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
 /// settings, the maps that are on, the open views with their places, the tear-offs, the profile's toolbar and views
-/// arrays, the pinned band values and the vector lines' OWN or ALL. Every field holds text names rather than types from
+/// arrays, the pinned band values, the vector lines' OWN or ALL and top-down mode. Every field holds text names rather than types from
 /// the app, so a rename in code leaves the file readable.
 /// </summary>
 public sealed record ScopePrefSet
@@ -87,6 +87,9 @@ public sealed record ScopePrefSet
     /// A setting, not a pin: it is neither banded nor cleared by AUTO.
     /// </summary>
     public string VectorOwnership { get; init; } = ScopeVectorOwnerships.OwnName;
+
+    /// <summary>Whether top-down mode shows ground targets.</summary>
+    public bool Tdm { get; init; }
 
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
     [JsonExtensionData]

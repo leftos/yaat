@@ -106,6 +106,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<string, ScopeTrackRings>
     >(nameof(LocalRings), defaultValue: ScopeViewModel.NoRings);
 
+    /// <summary>
+    /// Whether top-down mode is on, drawing ground targets and airborne ones below the display floor; read in
+    /// <see cref="BuildFrame"/>, never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<ScopeCanvas, bool>(nameof(ShowTopDown));
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
 
@@ -217,6 +223,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(LocalRingsProperty);
         set => SetValue(LocalRingsProperty, value);
+    }
+
+    public bool ShowTopDown
+    {
+        get => GetValue(ShowTopDownProperty);
+        set => SetValue(ShowTopDownProperty, value);
     }
 
     /// <summary>
@@ -342,12 +354,15 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         }
     }
 
-    /// <summary>Whether <paramref name="property"/> sets the vector, history or ring layer, which the frame lays out.</summary>
+    /// <summary>
+    /// Whether <paramref name="property"/> sets the vector, history, ring or top-down layer, which the frame lays out.
+    /// </summary>
     private static bool IsLayerProperty(AvaloniaProperty property) =>
         (property == VectorMinutesProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
-        || (property == LocalRingsProperty);
+        || (property == LocalRingsProperty)
+        || (property == ShowTopDownProperty);
 
     /// <summary>
     /// Watches the traffic list only while in the visual tree, so a closed scope never stays rooted by the main view
@@ -494,7 +509,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     private ScopeFrame BuildFrame(ScopePalette palette)
     {
-        IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, false, false, false, null, DateTime.UtcNow);
+        IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, ShowTopDown, false, false, null, DateTime.UtcNow);
         ScopeAlertOptions alerts = BuildAlertOptions();
         ScopeDisplayOptions display = BuildDisplayOptions(palette);
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
