@@ -77,7 +77,7 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        if (TryPressFlip(button.Id))
+        if (TryPressFlip(button.Id) || TryPressRingTool(button))
         {
             return;
         }
@@ -133,6 +133,9 @@ public sealed partial class ScopeViewModel
                 return;
             case ScopeButtonId.Hist:
                 StepHist(steps);
+                return;
+            case ScopeButtonId.ToolSize:
+                StepRingSize(steps);
                 return;
         }
 
@@ -194,6 +197,8 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Vector => Pins.VectorMin is not null,
             ScopeButtonId.Hist => Pins.History is not null,
             ScopeButtonId.Auto => Pins.Any,
+            ScopeButtonId.ToolJRing or ScopeButtonId.ToolCone or ScopeButtonId.ToolDri5 or ScopeButtonId.ToolDri3 => ArmedRingTool
+                == ScopeToolbarButtons.RingToolOf(button.Id),
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
             _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
             _ => IsActiveByKind(button),
@@ -224,6 +229,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Profile => ScopeProfilePicker.NameOf(ProfileKind).ToUpperInvariant(),
             ScopeButtonId.Range => Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture),
             ScopeButtonId.DbChar => DbSettings.CharSize.ToString(CultureInfo.InvariantCulture),
+            ScopeButtonId.ToolSize => ScopeRingGeometry.FormatSize(RingSizeNm),
             _ => BandValue(button.Id) ?? BriteValue(button.Id),
         };
 

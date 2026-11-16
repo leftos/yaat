@@ -474,6 +474,8 @@ public partial class MainViewModel
             ground.DataBlockState.Clear();
         }
 
+        // A rewind re-adds the same callsigns: the Scope's rings belong to the timeline that just went away.
+        OpenScope?.ClearRings();
         Aircraft.Clear();
 
         int delayed = 0;
@@ -551,6 +553,7 @@ public partial class MainViewModel
         // A measurement latched to this aircraft has nothing left to follow; drop it rather than leave a
         // line frozen at the last known position (CRC drops RBLs on a dropped track the same way).
         Measure.PruneMissing(FindAircraft);
+        OpenScope?.ClearRings(ac.Callsign);
     }
 
     private void OnAircraftSpawned(AircraftDto dto)

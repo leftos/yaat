@@ -106,7 +106,9 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.Brightness)
                 or nameof(ScopeViewModel.DbSettings)
                 or nameof(ScopeViewModel.ActivePrefSet)
-                or nameof(ScopeViewModel.IsDeletingTearoffs);
+                or nameof(ScopeViewModel.IsDeletingTearoffs)
+                or nameof(ScopeViewModel.ArmedRingTool)
+                or nameof(ScopeViewModel.RingSizeNm);
 
     /// <summary>
     /// Fills the tray with the open menu's tray children (<see cref="ScopeViewModel.TrayChildren"/>), or hides it when no

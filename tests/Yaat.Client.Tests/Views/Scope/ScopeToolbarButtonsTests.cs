@@ -11,7 +11,7 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsProfileTemplateRangeOthersVectorHistAutoMapsDbViewsBritePrefThenDelTearoff()
+    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsDbViewsBritePrefThenDelTearoff()
     {
         Assert.Equal(
             [
@@ -21,6 +21,7 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Others,
                 ScopeButtonId.Vector,
                 ScopeButtonId.Hist,
+                ScopeButtonId.Tools,
                 ScopeButtonId.Auto,
                 ScopeButtonId.Maps,
                 ScopeButtonId.Db,
@@ -32,10 +33,37 @@ public class ScopeToolbarButtonsTests
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
         Assert.Equal(
-            ["PROFILE", "TEMPLATE", "RANGE", "OTHERS", "VECTOR", "HIST", "AUTO", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
+            ["PROFILE", "TEMPLATE", "RANGE", "OTHERS", "VECTOR", "HIST", "TOOLS", "AUTO", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
             ScopeToolbarButtons.All.Select(b => b.Label)
         );
     }
+
+    [Fact]
+    public void Tools_IsAMenuOfTheFourRingKindsAndSize_TheKindsArmingLocally()
+    {
+        ScopeButton tools = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Tools);
+
+        Assert.Equal(ScopeButtonKind.Menu, tools.Kind);
+        Assert.Equal(
+            [ScopeButtonId.ToolJRing, ScopeButtonId.ToolCone, ScopeButtonId.ToolDri5, ScopeButtonId.ToolDri3, ScopeButtonId.ToolSize],
+            tools.Children.Select(c => c.Id)
+        );
+        Assert.Equal(["J-RING", "CONE", "DRI 5", "DRI 3", "SIZE"], tools.Children.Select(c => c.Label));
+        Assert.Equal(["jring", "cone", "dri5", "dri3", null], tools.Children.Select(c => c.Value));
+        Assert.Equal(
+            [ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Spinner],
+            tools.Children.Select(c => c.Kind)
+        );
+        Assert.All(tools.Children, c => Assert.Null(c.Command));
+    }
+
+    [Theory]
+    [InlineData(ScopeRingTool.JRing, 3.0, ".scope rings jring 3.0 N123AB")]
+    [InlineData(ScopeRingTool.Cone, 12.0, ".scope rings cone 12 N123AB")]
+    [InlineData(ScopeRingTool.Dri5, 3.0, ".scope rings dri5 N123AB")]
+    [InlineData(ScopeRingTool.Dri3, 3.0, ".scope rings dri3 N123AB")]
+    public void RingsCommand_WritesTheVerbAClickRuns(ScopeRingTool tool, double sizeNm, string expected) =>
+        Assert.Equal(expected, ScopeToolbarButtons.RingsCommand(tool, sizeNm, "N123AB"));
 
     [Fact]
     public void Profile_IsAMenuOfTheThreeProfiles_EachRunningItsScopeProfileCommand()
@@ -72,6 +100,7 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Others,
                 ScopeButtonId.Vector,
                 ScopeButtonId.Hist,
+                ScopeButtonId.Tools,
                 ScopeButtonId.Auto,
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
@@ -85,7 +114,7 @@ public class ScopeToolbarButtonsTests
     }
 
     [Fact]
-    public void Brite_IsAMenuOfTheNineGroupSpinners_InOrder()
+    public void Brite_IsAMenuOfTheTenGroupSpinners_InOrder()
     {
         ScopeButton brite = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Brite);
 
@@ -102,11 +131,15 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.BriteDwell,
                 ScopeButtonId.BriteHist,
                 ScopeButtonId.BriteVector,
+                ScopeButtonId.BriteRings,
             ],
             brite.Children.Select(c => c.Id)
         );
-        Assert.Equal(["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL", "HIST", "VECTOR"], brite.Children.Select(c => c.Label));
-        Assert.Equal(["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell", "hist", "vector"], brite.Children.Select(c => c.Value));
+        Assert.Equal(
+            ["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL", "HIST", "VECTOR", "RINGS"],
+            brite.Children.Select(c => c.Label)
+        );
+        Assert.Equal(["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell", "hist", "vector", "rings"], brite.Children.Select(c => c.Value));
         Assert.All(brite.Children, c => Assert.Equal(ScopeButtonKind.Spinner, c.Kind));
         Assert.All(brite.Children, c => Assert.Null(c.Command));
         Assert.All(brite.Children, c => Assert.Empty(c.Children));

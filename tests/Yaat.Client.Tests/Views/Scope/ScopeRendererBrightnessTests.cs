@@ -70,6 +70,7 @@ public class ScopeRendererBrightnessTests
             layers.VectorMinutes,
             ScopeVectorOwnership.All,
             layers.HistoryCount,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
             hovered
         );
         return ScopeFrame.Build(input);

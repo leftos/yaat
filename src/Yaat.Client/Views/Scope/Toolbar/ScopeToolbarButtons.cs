@@ -82,6 +82,24 @@ public enum ScopeButtonId
     /// <summary>The Views menu's LA/CA/MCI toggle.</summary>
     ViewCa,
 
+    /// <summary>The TOOLS menu; its tray holds the Rings tool.</summary>
+    Tools,
+
+    /// <summary>The TOOLS menu's J-RING: arms the Rings tool to place J-rings; lit while armed.</summary>
+    ToolJRing,
+
+    /// <summary>The TOOLS menu's CONE: arms the Rings tool to place cones; lit while armed.</summary>
+    ToolCone,
+
+    /// <summary>The TOOLS menu's DRI 5: arms the Rings tool to place 5 NM DRI halos; lit while armed.</summary>
+    ToolDri5,
+
+    /// <summary>The TOOLS menu's DRI 3: arms the Rings tool to place 3 NM DRI halos; lit while armed.</summary>
+    ToolDri3,
+
+    /// <summary>The TOOLS menu's SIZE spinner: the J-ring radius and cone length a placement takes.</summary>
+    ToolSize,
+
     /// <summary>The BRITE menu.</summary>
     Brite,
 
@@ -111,6 +129,9 @@ public enum ScopeButtonId
 
     /// <summary>The BRITE menu's VECTOR spinner.</summary>
     BriteVector,
+
+    /// <summary>The BRITE menu's RINGS spinner.</summary>
+    BriteRings,
 
     /// <summary>The PREF menu; its tray holds the facility's pref sets and the pref-set actions.</summary>
     Pref,
@@ -214,6 +235,20 @@ public static class ScopeToolbarButtons
         // A click runs .scope vector with the other of OWN and ALL: ScopeViewModel.Press builds it.
         new(ScopeButtonId.Vector, "VECTOR", ScopeButtonKind.Spinner, [], null, null),
         new(ScopeButtonId.Hist, "HIST", ScopeButtonKind.Spinner, [], null, null),
+        new(
+            ScopeButtonId.Tools,
+            "TOOLS",
+            ScopeButtonKind.Menu,
+            [
+                RingTool(ScopeButtonId.ToolJRing, "J-RING", ScopeRingTool.JRing),
+                RingTool(ScopeButtonId.ToolCone, "CONE", ScopeRingTool.Cone),
+                RingTool(ScopeButtonId.ToolDri5, "DRI 5", ScopeRingTool.Dri5),
+                RingTool(ScopeButtonId.ToolDri3, "DRI 3", ScopeRingTool.Dri3),
+                new(ScopeButtonId.ToolSize, "SIZE", ScopeButtonKind.Spinner, [], null, null),
+            ],
+            null,
+            null
+        ),
         new(ScopeButtonId.Auto, "AUTO", ScopeButtonKind.Command, [], null, AutoCommand),
         // The Scope's map toggles are facility data: ScopeViewModel.TrayChildren builds this tray.
         new(ScopeButtonId.Maps, "MAPS", ScopeButtonKind.Menu, [], null, null),
@@ -252,6 +287,7 @@ public static class ScopeToolbarButtons
                 BriteSpinner(ScopeButtonId.BriteDwell, "DWELL", "dwell"),
                 BriteSpinner(ScopeButtonId.BriteHist, "HIST", "hist"),
                 BriteSpinner(ScopeButtonId.BriteVector, "VECTOR", "vector"),
+                BriteSpinner(ScopeButtonId.BriteRings, "RINGS", "rings"),
             ],
             null,
             null
@@ -369,6 +405,26 @@ public static class ScopeToolbarButtons
     /// <summary>The command that pins the history dot count to <paramref name="count"/>.</summary>
     public static string HistCommand(int count) => $".scope hist {count.ToString(CultureInfo.InvariantCulture)}";
 
+    /// <summary>
+    /// The command that places, resizes or removes the ring <paramref name="tool"/> arms on the track with
+    /// <paramref name="callsign"/>: <c>.scope rings jring 3.0 N123AB</c>, or <c>.scope rings dri5 N123AB</c> for a DRI.
+    /// </summary>
+    public static string RingsCommand(ScopeRingTool tool, double sizeNm, string callsign) =>
+        (tool is ScopeRingTool.JRing or ScopeRingTool.Cone)
+            ? $".scope rings {ScopeRingTools.NameOf(tool)} {ScopeRingGeometry.FormatSize(sizeNm)} {callsign}"
+            : $".scope rings {ScopeRingTools.NameOf(tool)} {callsign}";
+
+    /// <summary>The ring tool a TOOLS tray button arms, or <see cref="ScopeRingTool.None"/> for any other button.</summary>
+    public static ScopeRingTool RingToolOf(ScopeButtonId id) =>
+        id switch
+        {
+            ScopeButtonId.ToolJRing => ScopeRingTool.JRing,
+            ScopeButtonId.ToolCone => ScopeRingTool.Cone,
+            ScopeButtonId.ToolDri5 => ScopeRingTool.Dri5,
+            ScopeButtonId.ToolDri3 => ScopeRingTool.Dri3,
+            _ => ScopeRingTool.None,
+        };
+
     /// <summary>The command that sets the scope's range to <paramref name="rangeNm"/> NM.</summary>
     public static string RangeCommand(int rangeNm) => $".scope range {rangeNm}";
 
@@ -435,6 +491,10 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that deletes the tear-offs of <paramref name="keys"/>, in the order given.</summary>
     public static string TearoffDeleteCommand(IEnumerable<ScopeButtonKey> keys) => $".scope tearoff delete {string.Join(' ', keys.Select(NameOf))}";
+
+    // A ring tool arms locally on a press (ScopeViewModel.Press), so it carries no command; its value is the verb's kind word.
+    private static ScopeButton RingTool(ScopeButtonId id, string label, ScopeRingTool tool) =>
+        new(id, label, ScopeButtonKind.Toggle, [], ScopeRingTools.NameOf(tool), null);
 
     private static ScopeButton BriteSpinner(ScopeButtonId id, string label, string group) => new(id, label, ScopeButtonKind.Spinner, [], group, null);
 

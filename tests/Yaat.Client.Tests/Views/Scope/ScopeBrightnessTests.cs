@@ -36,14 +36,34 @@ public class ScopeBrightnessTests
     public void Lift_RaisesThePercentTowardFull(int percent, int dwell, int expected) => Assert.Equal(expected, ScopeBrightness.Lift(percent, dwell));
 
     [Fact]
-    public void Default_KeepsTodaysPixels() => Assert.Equal(new ScopeBrightness(100, 60, 100, 100, 0, 100, 20, 100, 100), ScopeBrightness.Default);
+    public void Default_KeepsTodaysPixels() =>
+        Assert.Equal(new ScopeBrightness(100, 60, 100, 100, 0, 100, 20, 100, 100, 100), ScopeBrightness.Default);
 
     [Fact]
     public void HistAndVector_ComeAfterDwell_AndOpenAt100()
     {
-        Assert.Equal(["dwell", "hist", "vector"], ScopeBrightness.Groups.Skip(6).Select(g => g.Name));
+        Assert.Equal(["dwell", "hist", "vector", "rings"], ScopeBrightness.Groups.Skip(6).Select(g => g.Name));
         Assert.Equal(100, ScopeBrightness.Default.Hist);
         Assert.Equal(100, ScopeBrightness.Default.Vector);
+    }
+
+    [Fact]
+    public void Rings_ComesAfterVector_AndOpensAt100()
+    {
+        Assert.Equal("rings", ScopeBrightness.Groups[^1].Name);
+        Assert.Equal("vector", ScopeBrightness.Groups[^2].Name);
+        Assert.Equal(100, ScopeBrightness.Default.Rings);
+    }
+
+    [Fact]
+    public void Groups_Rings_ScalesOnlyItsOwnMember()
+    {
+        ScopeBrightnessGroup rings = Assert.IsType<ScopeBrightnessGroup>(ScopeBrightness.FindGroup("rings"));
+
+        ScopeBrightness written = rings.With(ScopeBrightness.Default, 35);
+
+        Assert.Equal(35, written.Rings);
+        Assert.Equal(ScopeBrightness.Default with { Rings = 35 }, written);
     }
 
     [Fact]
@@ -59,6 +79,7 @@ public class ScopeBrightnessTests
                 ("dwell", 0, 20, 1),
                 ("hist", 0, 100, 5),
                 ("vector", 0, 100, 5),
+                ("rings", 0, 100, 5),
             ],
             ScopeBrightness.Groups.Select(g => (g.Name, g.Min, g.Max, g.Step))
         );
@@ -66,9 +87,9 @@ public class ScopeBrightnessTests
     [Fact]
     public void Groups_ReadAndWriteTheirOwnMember()
     {
-        var values = new ScopeBrightness(1, 2, 3, 4, -5, 6, 7, 8, 9);
+        var values = new ScopeBrightness(1, 2, 3, 4, -5, 6, 7, 8, 9, 10);
 
-        Assert.Equal([1, 2, 3, 4, -5, 6, 7, 8, 9], ScopeBrightness.Groups.Select(g => g.Get(values)));
+        Assert.Equal([1, 2, 3, 4, -5, 6, 7, 8, 9, 10], ScopeBrightness.Groups.Select(g => g.Get(values)));
         foreach (ScopeBrightnessGroup group in ScopeBrightness.Groups)
         {
             ScopeBrightness written = group.With(values, 0);

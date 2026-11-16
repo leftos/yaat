@@ -46,6 +46,7 @@ public class ScopeOthersLevelTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
             hovered
         );
         return ScopeFrame.Build(input);

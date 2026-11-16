@@ -185,6 +185,7 @@ public class ScopeToolbarTests
                     ScopeButtonId.Others,
                     ScopeButtonId.Vector,
                     ScopeButtonId.Hist,
+                    ScopeButtonId.Tools,
                     ScopeButtonId.Auto,
                     ScopeButtonId.Db,
                     ScopeButtonId.Views,
@@ -316,7 +317,7 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task BriteMenu_OpensATrayOfTheNineSpinners_WithTheirValues()
+    public async Task BriteMenu_OpensATrayOfTheTenSpinners_WithTheirValues()
     {
         (_, _, ScopeWindow window) = await OpenAsync();
         try
@@ -325,7 +326,19 @@ public class ScopeToolbarTests
 
             Click(ButtonOf(window, ScopeButtonId.Brite));
 
-            string[] expected = ["MAP A 100", "MAP B 60", "TARGETS 100", "FDB 100", "LINE 4 0", "ALERTS 100", "DWELL 20", "HIST 100", "VECTOR 100"];
+            string[] expected =
+            [
+                "MAP A 100",
+                "MAP B 60",
+                "TARGETS 100",
+                "FDB 100",
+                "LINE 4 0",
+                "ALERTS 100",
+                "DWELL 20",
+                "HIST 100",
+                "VECTOR 100",
+                "RINGS 100",
+            ];
             Assert.Equal(expected, TrayButtons(window).Select(DrawnText));
             Assert.Equal(expected, TrayButtons(window).Select(Label));
             Run value = ((TextBlock)ButtonOf(window, ScopeButtonId.BriteMapB).Content!).Inlines!.OfType<Run>().Last();

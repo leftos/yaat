@@ -19,6 +19,7 @@ public class ScopeProfileTests
         "others",
         "vector",
         "hist",
+        "tools",
         "auto",
         "maps",
         "db",

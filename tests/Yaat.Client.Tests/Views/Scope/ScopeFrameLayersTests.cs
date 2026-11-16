@@ -45,7 +45,8 @@ public class ScopeFrameLayersTests
             ScopeProfile.OthersFull,
             VectorMinutes: minutes,
             VectorOwnership: ownership,
-            HistoryCount: history
+            HistoryCount: history,
+            LocalRings: new Dictionary<string, ScopeTrackRings>()
         );
         return ScopeFrame.Build(input);
     }

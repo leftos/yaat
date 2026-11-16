@@ -28,6 +28,7 @@
       VectorMinutes="{Binding EffectiveBand.VectorMin}"
       VectorOwnership="{Binding VectorOwnership}"
       HistoryCount="{Binding EffectiveBand.History}"
+      LocalRings="{Binding LocalRings}"
     />
     <!-- No background: its empty area passes clicks to the canvas; only its tear-offs are hit. -->
     <scope:ScopeTearoffLayer x:Name="TearoffLayer" TextElement.FontFamily="{StaticResource MonoFont}" TextElement.FontSize="12" />

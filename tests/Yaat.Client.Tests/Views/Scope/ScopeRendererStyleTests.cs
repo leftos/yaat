@@ -72,7 +72,8 @@ public class ScopeRendererStyleTests
             OthersLevel: ScopeProfile.OthersFull,
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
-            HistoryCount: 0
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>()
         );
         return ScopeFrame.Build(input);
     }
@@ -359,7 +360,8 @@ public class ScopeRendererStyleTests
             OthersLevel: ScopeProfile.OthersFull,
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
-            HistoryCount: 0
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>()
         );
         var frame = ScopeFrame.Build(input);
         FieldRect indicator = FieldOf(frame, ScopeFieldSlot.HsfIndicator);
@@ -410,7 +412,8 @@ public class ScopeRendererStyleTests
             OthersLevel: ScopeProfile.OthersFull,
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
-            HistoryCount: 0
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>()
         );
         return ScopeFrame.Build(input);
     }

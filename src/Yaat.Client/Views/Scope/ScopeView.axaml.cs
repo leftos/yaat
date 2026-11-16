@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
@@ -11,11 +13,15 @@ namespace Yaat.Client.Views.Scope;
 /// The YAAT Scope: a scope canvas drawing traffic with the datablock template engine. A left click on a target or block
 /// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>); no field click sends a command.
+/// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
+/// nothing and toggling no lock, and Esc disarms it: the window-level handler runs in the tunnel, so it disarms the tool
+/// before any control inside the window sees Esc.
 /// </summary>
 public partial class ScopeView : UserControl
 {
     private ContextMenu? _activeContextMenu;
     private ScopeViewModel? _vm;
+    private TopLevel? _topLevel;
 
     public ScopeView()
     {
@@ -71,11 +77,49 @@ public partial class ScopeView : UserControl
         Canvas.MarkDirty();
     }
 
-    private void OnAircraftLeftClicked(string callsign) => (DataContext as ScopeViewModel)?.SelectAircraft(callsign);
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(KeyDownEvent, OnTopLevelKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _topLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
+        _topLevel = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    // Esc disarms an armed Rings tool; any other key, or Esc with the tool disarmed, passes on.
+    private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
+    {
+        if ((e.Key == Key.Escape) && (DataContext is ScopeViewModel vm) && vm.DisarmRingTool())
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void OnAircraftLeftClicked(string callsign)
+    {
+        if (DataContext is not ScopeViewModel vm)
+        {
+            return;
+        }
+
+        if (vm.IsRingToolArmed)
+        {
+            vm.PlaceRing(callsign);
+        }
+        else
+        {
+            vm.SelectAircraft(callsign);
+        }
+    }
 
     private void OnAircraftDwellLockToggleRequested(string callsign)
     {
-        if (DataContext is ScopeViewModel vm)
+        if ((DataContext is ScopeViewModel vm) && !vm.IsRingToolArmed)
         {
             vm.ToggleDwellLock(callsign);
         }

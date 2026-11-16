@@ -97,6 +97,15 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// <summary>The history dots in effect per track; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
     public static readonly StyledProperty<int> HistoryCountProperty = AvaloniaProperty.Register<ScopeCanvas, int>(nameof(HistoryCount));
 
+    /// <summary>
+    /// The rings the instructor placed on this scope, by callsign (an immutable snapshot); read in <see cref="BuildFrame"/>,
+    /// never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyDictionary<string, ScopeTrackRings>> LocalRingsProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        IReadOnlyDictionary<string, ScopeTrackRings>
+    >(nameof(LocalRings), defaultValue: ScopeViewModel.NoRings);
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
 
@@ -202,6 +211,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(HistoryCountProperty);
         set => SetValue(HistoryCountProperty, value);
+    }
+
+    public IReadOnlyDictionary<string, ScopeTrackRings> LocalRings
+    {
+        get => GetValue(LocalRingsProperty);
+        set => SetValue(LocalRingsProperty, value);
     }
 
     /// <summary>
@@ -327,9 +342,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         }
     }
 
-    /// <summary>Whether <paramref name="property"/> sets the vector or history layer, which the frame lays out.</summary>
+    /// <summary>Whether <paramref name="property"/> sets the vector, history or ring layer, which the frame lays out.</summary>
     private static bool IsLayerProperty(AvaloniaProperty property) =>
-        (property == VectorMinutesProperty) || (property == VectorOwnershipProperty) || (property == HistoryCountProperty);
+        (property == VectorMinutesProperty)
+        || (property == VectorOwnershipProperty)
+        || (property == HistoryCountProperty)
+        || (property == LocalRingsProperty);
 
     /// <summary>
     /// Watches the traffic list only while in the visual tree, so a closed scope never stays rooted by the main view
@@ -498,6 +516,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 VectorMinutes,
                 VectorOwnership,
                 HistoryCount,
+                LocalRings,
                 _hoveredCallsign,
                 VciHoveredCallsign: _hoveredVciCallsign,
                 LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns

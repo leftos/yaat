@@ -29,6 +29,10 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="VectorMinutes">The vector length in effect, in minutes, copied on the UI thread; 0 draws no vector.</param>
 /// <param name="VectorOwnership">The tracks vectors draw on: the viewer's own (every track with no viewer) or all.</param>
 /// <param name="HistoryCount">The history dots in effect per track, copied on the UI thread; 0 draws none.</param>
+/// <param name="LocalRings">
+/// The rings the instructor placed on this scope, by callsign (<c>ScopeViewModel.LocalRings</c>), copied on the UI thread;
+/// empty is none. A callsign with no drawn track draws nothing.
+/// </param>
 /// <param name="HoveredCallsign">The callsign of the track the pointer dwells on (<see cref="ScopeFrame.DwellAt"/>), or null.</param>
 /// <param name="VciHoveredCallsign">
 /// The callsign of the track whose VCI cell the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its VCI lights
@@ -52,6 +56,7 @@ public sealed record ScopeFrameInput(
     double VectorMinutes,
     ScopeVectorOwnership VectorOwnership,
     int HistoryCount,
+    IReadOnlyDictionary<string, ScopeTrackRings> LocalRings,
     string? HoveredCallsign = null,
     string? VciHoveredCallsign = null,
     IReadOnlySet<string>? LocalDwellLockedCallsigns = null
@@ -67,6 +72,7 @@ public sealed record ScopeFrameInput(
 /// <param name="Tint">The RPO tint that applies to the track, as the presenter decided it; it colours the symbol.</param>
 /// <param name="VectorEnd">Screen point the vector line from the symbol ends at, or null when the track draws none.</param>
 /// <param name="History">Screen points of the history dots, oldest first; null or empty when the track draws none.</param>
+/// <param name="Rings">The track's J-ring, cone, DRI halo and ATPA cone in screen points; <see cref="ScopeRingShapes.None"/> for none.</param>
 /// <param name="Level">The block level the track was presented at.</param>
 /// <param name="ShowsLeader">Whether the block draws its leader, as the presenter decided it.</param>
 public sealed record ScopeTrack(
@@ -79,6 +85,7 @@ public sealed record ScopeTrack(
     ScopeTintRole Tint,
     SKPoint? VectorEnd,
     IReadOnlyList<SKPoint>? History,
+    ScopeRingShapes Rings,
     ScopeBlockLevel Level = ScopeBlockLevel.Full,
     bool ShowsLeader = true
 )
@@ -223,10 +230,11 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     {
         bool isSelected = ReferenceEquals(ac, input.Selected);
         string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
+        AircraftModel? atpaLead = Peer(byCallsign, ac.AtpaLeadCallsign);
         var presenterInput = new TrackPresenterInput(
             ac,
             templateId,
-            Peer(byCallsign, ac.AtpaLeadCallsign),
+            atpaLead,
             Peer(byCallsign, ac.ConflictPeerCallsign),
             flashOn,
             isSelected,
@@ -261,9 +269,21 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             presentation.Tint,
             VectorEndFor(ac, input),
             ScopeTrackLayers.HistoryDots(ac, input.HistoryCount, input.Viewport),
+            RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset),
             presentation.Level,
             presentation.ShowsLeader
         );
+    }
+
+    /// <summary>
+    /// The ring layer of <paramref name="ac"/>: its placed rings (<see cref="ScopeFrameInput.LocalRings"/>) and its ATPA cone
+    /// toward <paramref name="atpaLead"/>, null when ATPA is off or the lead is not drawn; the J-ring's label sits opposite the
+    /// leader (<paramref name="leaderOffset"/>).
+    /// </summary>
+    private static ScopeRingShapes RingsFor(AircraftModel ac, ScopeFrameInput input, AircraftModel? atpaLead, SKPoint leaderOffset)
+    {
+        ScopeTrackRings rings = input.LocalRings.GetValueOrDefault(ac.Callsign) ?? ScopeTrackRings.None;
+        return ScopeRingGeometry.Shapes(ac, rings, atpaLead, leaderOffset, input.Viewport);
     }
 
     /// <summary>
@@ -402,9 +422,10 @@ public sealed record ScopeRenderSnapshot(
 public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOther, SKColor SelectedSymbol);
 
 /// <summary>
-/// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's history dots, every
-/// track's vector line, then each track's symbol, leader and block. Every block field is drawn from its
-/// <see cref="FieldRect"/>; the presenter has already blanked a flashing field's off-phase text, so nothing here flashes.
+/// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's rings (J-ring, DRI halo,
+/// cone, then ATPA cone), every track's history dots, every track's vector line, then each track's symbol, leader and
+/// block. Every block field is drawn from its <see cref="FieldRect"/>; the presenter has already blanked a flashing
+/// field's off-phase text, so nothing here flashes.
 /// </summary>
 public sealed class ScopeRenderer : IDisposable
 {
@@ -416,6 +437,9 @@ public sealed class ScopeRenderer : IDisposable
     private static readonly SKColor HistoryColor = new(0, 176, 255);
 
     private static readonly SKColor VectorColor = SKColors.White;
+
+    // The size labels' font size, as the Radar's TPA labels.
+    private const float RingLabelSize = 11f;
 
     /// <summary>The VCI's three arc radii as fractions of the largest.</summary>
     private static readonly float[] VciArcScales = [1f / 3f, 2f / 3f, 1f];
@@ -488,6 +512,19 @@ public sealed class ScopeRenderer : IDisposable
         IsAntialias = true,
     };
 
+    private readonly SKPaint _ringPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _ringLabelBackingPaint = new() { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+
+    private readonly SKPaint _ringTextPaint = new() { IsAntialias = true };
+
+    private readonly SKFont _ringLabelFont = PlatformHelper.MonospaceFontBold(RingLabelSize);
+
     private readonly SKPaint _textPaint = new() { IsAntialias = true };
 
     // Antialiased like today's radar strike paint, and outside the radar line style: its width comes from the font each draw.
@@ -509,7 +546,15 @@ public sealed class ScopeRenderer : IDisposable
 
     public ScopeRenderer()
     {
-        _strokePaints = [(_symbolPaint, 1.5f), (_leaderPaint, 2f), (_selectedBorderPaint, 1f), (_dwellBoxPaint, 1f), (_vectorPaint, 1f)];
+        _strokePaints =
+        [
+            (_symbolPaint, 1.5f),
+            (_leaderPaint, 2f),
+            (_selectedBorderPaint, 1f),
+            (_dwellBoxPaint, 1f),
+            (_vectorPaint, 1f),
+            (_ringPaint, 1f),
+        ];
     }
 
     /// <summary>Draws <paramref name="snapshot"/> into <paramref name="canvas"/>.</summary>
@@ -520,6 +565,11 @@ public sealed class ScopeRenderer : IDisposable
         _videoMapRenderer.BrightnessA = snapshot.Brightness.MapA / 100f;
         _videoMapRenderer.BrightnessB = snapshot.Brightness.MapB / 100f;
         _videoMapRenderer.Render(canvas, vp, snapshot.VideoMaps, snapshot.BrightnessLookup);
+
+        foreach (ScopeTrack track in snapshot.Frame.Tracks)
+        {
+            DrawRings(canvas, track, snapshot.Brightness.Rings);
+        }
 
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
@@ -573,9 +623,90 @@ public sealed class ScopeRenderer : IDisposable
         canvas.DrawLine(track.Symbol, end, _vectorPaint);
     }
 
+    /// <summary>
+    /// Draws <paramref name="track"/>'s ring layer at RINGS, at half alpha for a stale track: the J-ring and the DRI halo,
+    /// the manual cone, then the ATPA cone in its state's colour, each size label on a black box. DWELL never lifts them.
+    /// </summary>
+    private void DrawRings(SKCanvas canvas, ScopeTrack track, int percent)
+    {
+        ScopeRingShapes rings = track.Rings;
+        if (rings.IsEmpty)
+        {
+            return;
+        }
+
+        SKColor color = RingShade(TargetRenderer.TpaColor, track, percent);
+        if (rings.JRing is { } ring)
+        {
+            DrawPolyline(canvas, ring.Points, color);
+            DrawRingLabel(canvas, ring.LabelAt, ring.Label, color);
+        }
+
+        foreach (IReadOnlyList<SKPoint> arc in rings.DriArcs)
+        {
+            DrawPolyline(canvas, arc, color);
+        }
+
+        if (rings.Cone is { } cone)
+        {
+            DrawWedge(canvas, cone, color);
+        }
+
+        if (rings.AtpaCone is { } atpa)
+        {
+            DrawWedge(canvas, atpa, RingShade(TargetRenderer.AtpaConeColorFor(rings.AtpaState), track, percent));
+        }
+    }
+
+    /// <summary><paramref name="color"/> at <paramref name="percent"/>, at the stale alpha when <paramref name="track"/> coasts.</summary>
+    private static SKColor RingShade(SKColor color, ScopeTrack track, int percent) => Stale(track, ScopeBrightness.Apply(color, percent));
+
+    private void DrawPolyline(SKCanvas canvas, IReadOnlyList<SKPoint> points, SKColor color)
+    {
+        using var path = new SKPath();
+        path.MoveTo(points[0]);
+        for (int i = 1; i < points.Count; i++)
+        {
+            path.LineTo(points[i]);
+        }
+
+        _ringPaint.Color = color;
+        canvas.DrawPath(path, _ringPaint);
+    }
+
+    /// <summary>Strokes <paramref name="wedge"/>: apex, left, tip, right and back, then its length label at mid-axis.</summary>
+    private void DrawWedge(SKCanvas canvas, ScopeWedge wedge, SKColor color)
+    {
+        using var path = new SKPath();
+        path.MoveTo(wedge.Apex);
+        path.LineTo(wedge.Left);
+        path.LineTo(wedge.Tip);
+        path.LineTo(wedge.Right);
+        path.Close();
+        _ringPaint.Color = color;
+        canvas.DrawPath(path, _ringPaint);
+        DrawRingLabel(canvas, wedge.LabelAt, wedge.Label, color);
+    }
+
+    /// <summary>Draws <paramref name="text"/> centred on <paramref name="center"/> on a black box, as the Radar's TPA labels.</summary>
+    private void DrawRingLabel(SKCanvas canvas, SKPoint center, string text, SKColor color)
+    {
+        float width = _ringLabelFont.MeasureText(text);
+        float height = _ringLabelFont.Size;
+        float x = center.X - (width / 2f);
+        float baseline = center.Y + (height / 2f);
+        canvas.DrawRect(x - 2f, baseline - height - 1f, width + 4f, height + 4f, _ringLabelBackingPaint);
+        _ringTextPaint.Color = color;
+        canvas.DrawText(text, x, baseline, SKTextAlign.Left, _ringLabelFont, _ringTextPaint);
+    }
+
     public void Dispose()
     {
         _videoMapRenderer.Dispose();
+        _ringPaint.Dispose();
+        _ringLabelBackingPaint.Dispose();
+        _ringTextPaint.Dispose();
+        _ringLabelFont.Dispose();
         _symbolPaint.Dispose();
         _leaderPaint.Dispose();
         _selectedBorderPaint.Dispose();

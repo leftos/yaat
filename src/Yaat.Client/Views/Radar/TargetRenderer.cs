@@ -42,7 +42,7 @@ public sealed class TargetRenderer : IDisposable
 
     // STARS TPA graphics color (CRC's TCW value, DisplayElementTracks: Color.FromArgb(90, 180, 255)) —
     // used for the instructor J-Ring / Cone overlay so it reads like the TPA graphics a controller sees.
-    private static readonly SKColor TpaColor = new(90, 180, 255);
+    internal static readonly SKColor TpaColor = new(90, 180, 255);
 
     private const int TpaJRing = 1;
     private const int TpaCone = 2;

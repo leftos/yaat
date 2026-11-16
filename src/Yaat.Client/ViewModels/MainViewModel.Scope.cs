@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using Yaat.Client.Models;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -22,7 +23,14 @@ public partial class MainViewModel
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}";
+        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}"
+        + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
+
+    private const string ScopeRingsUsage =
+        "Usage: .scope rings <jring|cone> <1.0-9.9|10-30> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
+
+    /// <summary>The refusal of a DRI 3 on a track above FL230.</summary>
+    internal const string ReducedDriRefusal = "DRI 3 needs FL230 or below";
 
     private const string ScopeOthersUsage = "Usage: .scope others <full|partial>";
 
@@ -41,7 +49,7 @@ public partial class MainViewModel
     private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
 
     private const string ScopeBriteUsage =
-        "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector 0-100; line4 -20-0; dwell 0-20";
+        "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings 0-100; line4 -20-0; dwell 0-20";
 
     private const string ScopeMapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
 
@@ -154,7 +162,7 @@ public partial class MainViewModel
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
     /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
-    /// <c>.scope vector</c> and <c>.scope hist</c> against <see cref="OpenScope"/>, writing the echo or the error to the
+    /// <c>.scope vector</c>, <c>.scope hist</c> and <c>.scope rings</c> against <see cref="OpenScope"/>, writing the echo or the error to the
     /// status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
@@ -188,6 +196,7 @@ public partial class MainViewModel
             "AUTO" => ClearScopePins,
             "VECTOR" => SetScopeVector,
             "HIST" => PinScopeHist,
+            "RINGS" => RunScopeRings,
             _ => null,
         };
         if (handler is null)
@@ -480,6 +489,107 @@ public partial class MainViewModel
 
         scope.ClearPins();
         return "Scope AUTO";
+    }
+
+    /// <summary>
+    /// <c>.scope rings jring|cone &lt;size&gt; &lt;callsign&gt;</c>, <c>.scope rings dri5|dri3 &lt;callsign&gt;</c> or
+    /// <c>.scope rings clear [callsign]</c>: the Scope-local rings, never sent to the server. A kind the track already has at
+    /// the same size is removed, at another size resized; a DRI 3 above FL230 is refused with a terminal warning.
+    /// </summary>
+    private static string RunScopeRings(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length is 3 or 4) && string.Equals(parts[2], "clear", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClearScopeRings(scope, parts);
+        }
+
+        if (!TryParseRingCommand(parts, out ScopeRingTool tool, out double sizeNm))
+        {
+            return ScopeRingsUsage;
+        }
+
+        return (FindTypedAircraft(scope, parts[^1]) is { } ac) ? ToggleScopeRing(scope, ac, tool, sizeNm) : $"Unknown aircraft: {parts[^1]}";
+    }
+
+    /// <summary>
+    /// Parses <c>jring|cone &lt;size&gt; &lt;callsign&gt;</c> or <c>dri5|dri3 &lt;callsign&gt;</c> after <c>.scope rings</c>: the
+    /// kind and its size in NM (a DRI's radius for a DRI).
+    /// </summary>
+    /// <returns>False when the parts are no such command or the size is off CRC's grid.</returns>
+    private static bool TryParseRingCommand(string[] parts, out ScopeRingTool tool, out double sizeNm)
+    {
+        sizeNm = 0;
+        if ((parts.Length < 3) || !ScopeRingTools.TryParse(parts[2], out tool))
+        {
+            tool = ScopeRingTool.None;
+            return false;
+        }
+
+        bool sized = tool is ScopeRingTool.JRing or ScopeRingTool.Cone;
+        sizeNm = sized ? ParseRingSize(parts) : DriRadius(tool);
+        return (parts.Length == (sized ? 5 : 4)) && (sizeNm > 0);
+    }
+
+    /// <summary>The aircraft whose callsign is <paramref name="typed"/>, case-insensitive, or null.</summary>
+    private static AircraftModel? FindTypedAircraft(ScopeViewModel scope, string typed) =>
+        scope.Aircraft.FirstOrDefault(a => string.Equals(a.Callsign, typed, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Places, resizes or removes the ring <paramref name="tool"/> places on <paramref name="ac"/>, and echoes it.</summary>
+    private static string ToggleScopeRing(ScopeViewModel scope, AircraftModel ac, ScopeRingTool tool, double sizeNm)
+    {
+        ScopeTrackRings next = ScopeViewModel.Toggled(scope.RingsOf(ac.Callsign), tool, sizeNm);
+        bool placed = ScopeViewModel.Carries(next, tool);
+        if (placed && (tool == ScopeRingTool.Dri3) && !ScopeRingGeometry.AllowsReducedDri(ac.Altitude))
+        {
+            scope.Main.AddWarningEntry(ReducedDriRefusal);
+            return ReducedDriRefusal;
+        }
+
+        scope.SetRings(ac.Callsign, next);
+        return ScopeRingEcho(tool, sizeNm, ac.Callsign, placed);
+    }
+
+    /// <summary>The size of a <c>.scope rings jring|cone</c> command, or 0 when it is missing or off CRC's grid.</summary>
+    private static double ParseRingSize(string[] parts) =>
+        (
+            (parts.Length > 3)
+            && double.TryParse(parts[3], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double nm)
+            && ScopeRingGeometry.IsRingSize(nm)
+        )
+            ? nm
+            : 0;
+
+    private static double DriRadius(ScopeRingTool tool) =>
+        (tool == ScopeRingTool.Dri3) ? ScopeRingGeometry.ReducedDriNm : ScopeRingGeometry.StandardDriNm;
+
+    /// <summary><c>.scope rings clear</c> removes every ring; <c>.scope rings clear &lt;callsign&gt;</c> one track's.</summary>
+    private static string ClearScopeRings(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length == 3)
+        {
+            scope.ClearRings();
+            return "Scope rings cleared";
+        }
+
+        if (FindTypedAircraft(scope, parts[3]) is not { } ac)
+        {
+            return $"Unknown aircraft: {parts[3]}";
+        }
+
+        scope.ClearRings(ac.Callsign);
+        return $"Scope rings cleared {ac.Callsign}";
+    }
+
+    /// <summary>The status line's echo of a ring change: <c>Scope J-ring 3.0 NM N123AB</c>, with <c> removed</c> on a removal.</summary>
+    internal static string ScopeRingEcho(ScopeRingTool tool, double sizeNm, string callsign, bool placed)
+    {
+        string what = tool switch
+        {
+            ScopeRingTool.JRing => $"J-ring {ScopeRingGeometry.FormatSize(sizeNm)}",
+            ScopeRingTool.Cone => $"cone {ScopeRingGeometry.FormatSize(sizeNm)}",
+            _ => $"DRI {sizeNm.ToString("0", CultureInfo.InvariantCulture)}",
+        };
+        return $"Scope {what} NM {callsign}{(placed ? "" : " removed")}";
     }
 
     /// <summary>The status line's echo of a profile change: <c>Scope profile ERAM</c>.</summary>

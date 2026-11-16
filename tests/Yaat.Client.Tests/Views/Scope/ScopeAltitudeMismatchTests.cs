@@ -286,7 +286,8 @@ public class ScopeAltitudeMismatchTests
             OthersLevel: ScopeProfile.OthersFull,
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
-            HistoryCount: 0
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>()
         );
         return ScopeFrame.Build(input);
     }
