@@ -2193,6 +2193,48 @@ public static class ApproachCommandHandler
         return null;
     }
 
+    /// <summary>
+    /// The transition whose first fix-bearing leg is <paramref name="fixName"/>, else the first transition in procedure
+    /// order that contains the fix anywhere, or null when none does. An approach begins at its IAF (7110.65
+    /// §4-8-1.a.3; AIM 5-4-6.f: pilots cleared for an IAP are expected to execute the entire procedure commencing at
+    /// an IAF), and an aircraft is not overflown past a feeder to come back to that IAF (§4-8-1.a NOTE 8, AIM
+    /// 5-4-6.b), so a fix that is one transition's IAF and another's through-fix selects the transition beginning there.
+    /// </summary>
+    private static CifpTransition? FindTransitionBeginningAt(CifpApproachProcedure procedure, string fixName)
+    {
+        CifpTransition? containing = procedure.Transitions.Values.FirstOrDefault(transition => TransitionContainsFix(transition, fixName));
+        CifpTransition? beginning = procedure.Transitions.Values.FirstOrDefault(transition => TransitionBeginsAt(transition, fixName));
+        if (beginning is not null && containing is not null && !ReferenceEquals(beginning, containing))
+        {
+            Log.LogDebug(
+                "Transition selection at {Fix}: {Beginning} begins there, chosen over {Containing}, the first transition containing it",
+                fixName,
+                beginning.Name,
+                containing.Name
+            );
+        }
+
+        return beginning ?? containing;
+    }
+
+    private static bool TransitionBeginsAt(CifpTransition transition, string fixName)
+    {
+        foreach (CifpLeg leg in transition.Legs)
+        {
+            if (string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            return leg.FixIdentifier.Equals(fixName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static bool TransitionContainsFix(CifpTransition transition, string fixName) =>
+        transition.Legs.Any(leg => string.Equals(leg.FixIdentifier, fixName, StringComparison.OrdinalIgnoreCase));
+
     internal static CifpTransition? SelectBestTransition(CifpApproachProcedure procedure, AircraftState aircraft)
     {
         if (procedure.Transitions.Count == 0)
@@ -2285,20 +2327,19 @@ public static class ApproachCommandHandler
             }
 
             // Fix is only in a transition (e.g. HIRMO) — return that transition so the full
-            // fix sequence (transition legs + common legs) is built.
-            foreach (CifpTransition transition in procedure.Transitions.Values)
+            // fix sequence (transition legs + common legs) is built. When the fix is one
+            // transition's IAF and another's through-fix (KLIDE inside BORED), the transition
+            // beginning there wins: an approach begins at its IAF (7110.65 §4-8-1.a.3) and no
+            // feeder is overflown to come back to it (§4-8-1.a NOTE 8, AIM 5-4-6.b).
+            if (FindTransitionBeginningAt(procedure, navTarget.Name) is { } transitionAtFix)
             {
-                foreach (CifpLeg leg in transition.Legs)
-                {
-                    if (!string.IsNullOrEmpty(leg.FixIdentifier) && leg.FixIdentifier.Equals(navTarget.Name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return transition;
-                    }
-                }
+                return transitionAtFix;
             }
         }
 
-        // Try route-based match: find a transition whose fix appears in known fixes.
+        // Try route-based match: find a transition whose fix appears in known fixes. The first
+        // known route fix found (in transition order) selects the transition beginning there, as
+        // in the nav-route branch above; the preference applies to that one fix only.
         if (knownFixes.Count > 0)
         {
             foreach (CifpTransition transition in procedure.Transitions.Values)
@@ -2307,7 +2348,7 @@ public static class ApproachCommandHandler
                 {
                     if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
                     {
-                        return transition;
+                        return FindTransitionBeginningAt(procedure, leg.FixIdentifier);
                     }
                 }
             }
