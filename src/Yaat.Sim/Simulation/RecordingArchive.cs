@@ -631,6 +631,7 @@ public sealed class RecordingArchive : IDisposable
                 StudentPositionState = ReadInitialStudentPosition(),
                 InitialAtcPositions = ReadInitialAtcPositions(),
                 FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
+                TurnModel = ReadInitialTurnModel(),
                 WindGridPins = windGridPins,
             };
         }
@@ -683,6 +684,21 @@ public sealed class RecordingArchive : IDisposable
         }
 
         return FirstSnapshot.State.Scenario.FinalApproachSpeedVarietyEnabled;
+    }
+
+    /// <summary>
+    /// The turn model the recorded session flew, from the first snapshot's scenario block, as
+    /// <see cref="ReadInitialFinalApproachSpeedVariety"/> reads its flag. <see cref="TurnModel.Instant"/> when the recording
+    /// has no snapshots (legacy v1) or its first snapshot predates the field.
+    /// </summary>
+    public TurnModel ReadInitialTurnModel()
+    {
+        if (Manifest.Snapshots.Count == 0)
+        {
+            return TurnModel.Instant;
+        }
+
+        return FirstSnapshot.State.Scenario.TurnModel;
     }
 
     /// <summary>
@@ -742,6 +758,7 @@ public sealed class RecordingArchive : IDisposable
                 StudentPositionState = ReadInitialStudentPosition(),
                 InitialAtcPositions = ReadInitialAtcPositions(),
                 FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
+                TurnModel = ReadInitialTurnModel(),
                 WindGridPins = windGridPins,
             };
         }

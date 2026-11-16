@@ -43,6 +43,14 @@ public sealed class AircraftSnapshotDto
     public required double IndicatedAirspeed { get; init; }
     public required double VerticalSpeed { get; init; }
     public required double BankAngle { get; init; }
+
+    /// <summary>
+    /// The applied turn rate under the ramp turn model (<c>AircraftState.AppliedTurnRateDegPerSec</c>). Optional and left out
+    /// of the JSON while null: earlier snapshots restore none (the instant model never sets it), so no SnapshotSchemaMigrator
+    /// step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? AppliedTurnRateDegPerSec { get; init; }
     public required double WindN { get; init; }
     public required double WindE { get; init; }
 

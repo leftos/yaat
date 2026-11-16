@@ -34,6 +34,7 @@ These live directly on the record, not in a satellite:
 | `TrueHeading`, `TrueTrack` | `TrueHeading` | Nose direction vs ground-track direction (equal in calm wind). |
 | `Declination`, `DeclinationCachePosition` | `double` / `LatLon?` | Cached magnetic declination + the position it was computed at. `MagneticHeading`/`MagneticTrack` derive from these. |
 | `Altitude`, `IndicatedAirspeed`, `VerticalSpeed`, `BankAngle` | `double` | Vertical position, IAS, climb/descent rate, current bank. |
+| `AppliedTurnRateDegPerSec` | `double?` | The signed turn rate (positive right) under the ramp turn model, which `BankAngle` follows; null under the instant model and wherever the ramp does not apply. Carried by `AircraftSnapshotDto`, left out of the JSON while null ([flight-physics.md](flight-physics.md#heading-integration-updateheading)). |
 | `GroundSpeed` | `double` (computed) | On-ground = IAS; airborne = IAS→TAS + cached wind vector. |
 | `WindComponents` | `(double N, double E)` | Last observed wind in knots; `internal set` — only `FlightPhysics` writes it. |
 | `IsOnGround` | `bool` | Ground vs airborne — gates physics branches and conflict detection. |

@@ -179,6 +179,8 @@ The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO
 
 Absent fields restore as no route and no latch, and a follow restored with no follow route, or one the layout no longer resolves, plans afresh on its next tick. Whether a follower past its clearing bar is braking to rest along the clearing route is not carried: the first tick after a restore reads it again from the follower's position.
 
+**The turn model is snapshot-zero state, and an old recording replays `Instant`.** `SimScenarioState.TurnModel` (`Instant` | `Ramp`, [flight-physics.md](flight-physics.md#heading-integration-updateheading)) rides `ScenarioSnapshotDto.TurnModel`, and `AircraftSnapshotDto.AppliedTurnRateDegPerSec` (left out of the JSON while null) carries the ramp's applied rate; both are optional with no schema bump, an absent value reading `Instant` and no rate. `RecordingArchive.ReadInitialTurnModel` reads the first snapshot's value (`Instant` for a recording with no snapshots, a v1 recording, or a first snapshot that predates the field) into `SessionRecording.TurnModel`, and `ReplayDriver` sets it on the scenario before any preset dispatched during the load can turn an aircraft, so a replay flies the model the session flew. The Sim-side default is `Instant` for the reason below; only the server's fresh live load sets `Ramp`.
+
 **The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.
 
 **An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunwayMode` (enum, `Off`) and `AutoPullUpToParallel` (bare `bool`, false) default off, the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same.
@@ -670,6 +672,7 @@ ReplayDriver.cs                # Drives a recording forward (range / one second 
                                # (SimulationEngine.InitializeFromArtcc — the coordination channels too) once the config and student position are restored, so the mutations
                                # find what they assume exists. Internal — SimulationEngine.Replay.cs is the public surface over it.
                                # Takes its own Repin() of the recording's WindGridPins before LoadScenario and hands them to SimScenarioState.ReplaceWindGridPins.
+                               # Sets SimScenarioState.TurnModel from SessionRecording.TurnModel before the load's presets dispatch.
 ReplayHost.cs                  # The bare host plus pre-tick recorded actions and post-second action application through the pump and
                                # Actions.ApplyRecorded (unless the caller supplies its own applier); as an IActionHost it delegates every member to the bare host
 ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns),
@@ -681,14 +684,14 @@ ConsolidationState.cs          # Thread-safe manual consolidation overrides
 # Simulation/Snapshots/
 StateSnapshotDto.cs            # Top-level snapshot DTO + TimedSnapshot (elapsed + action index + state)
 LiveCheckpoint.cs              # A live room's compressed checkpoint (ElapsedSeconds, ActionIndex, Brotli JSON of a StateSnapshotDto); Capture / ToTimedSnapshot. Held on SimScenarioState.LiveCheckpoints
-AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, student-frequency eligibility, etc.)
+AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, student-frequency eligibility, etc.); AppliedTurnRateDegPerSec (ramp turn rate, omitted while null)
 ControlTargetsDto.cs           # Control targets + NavigationTarget + altitude/speed restriction DTOs
 CommandQueueDto.cs             # CommandBlock/TrackedCommand/BlockTrigger/DeferredDispatch DTOs
 PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for all ~35 Phase subclasses; GroundNavigatorDto.Playback (GroundNavigatorPlaybackDto + PathPrimitiveDto: Straight/Bezier/SlowTurn) carries the navigator's mid-turn state
                                # FollowingPhaseDto: FollowRoute (TaxiRouteDto) + MergeSegmentIndex + LeadEdgeIntoMerge (TaxiSegmentDto), GivingWay, Unjoinable, ExitingRunways, LeadWaitVerdicts + LeadWaitSecond, LeadDepartureBarNodeId + LeadDepartureRunwayEnd + LeadSeenDeparting,
                                # ClearingRoute + ClearingBarNodeId + ClearingAttemptedRunways, Navigator (null with neither route); additive, no schema bump
                                # RunwayInfoDto, ApproachClearanceDto, DepartureClearanceDto, PatternWaypointsDto, etc.
-ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues (DelayedSpawnDto carries a full AircraftSnapshotDto from schema 54), generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
+ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues (DelayedSpawnDto carries a full AircraftSnapshotDto from schema 54), generators, settings (TurnModel: absent reads Instant), coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
                                # AtcPositions (AtcPositionDto: the resolved ATC roster — scenario atc record + owner + TCP; null in a pre-feature snapshot leaves the loader's roster);
                                # AsdexSafetyLogicConfigs (Dictionary<facility id, AsdexSafetyLogicConfigDto + AsdexRunwayConfigDto>, the DTO carrying RunwayConfigurationChosen, omitted while false, and InhibitStartSeconds / SupersededConfigurationIds, omitted while empty, no schema bump (an inhibited position with no start restores as set at the snapshot's second); null-absent when empty — a restore replaces, so null restores as no config);
                                # LegacyAsdexSafetyLogicConfig (the pre-schema-36 single config, JSON name AsdexSafetyLogicConfig; SnapshotSchemaMigrator files it under the primary airport and nulls it);

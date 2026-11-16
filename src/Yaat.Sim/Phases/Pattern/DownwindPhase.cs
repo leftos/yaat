@@ -263,7 +263,7 @@ public sealed class DownwindPhase : Phase
             return false;
         }
 
-        bool baseTriggerReached = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+        bool baseTriggerReached = aircraftAlongTrack >= BaseTriggerAlongTrackNm(ctx);
         UpdatePastAbeamDescent(ctx, aircraftAlongTrack, reachedAbeamThisTick, baseTriggerReached);
 
         if (baseTriggerReached)
@@ -815,12 +815,36 @@ public sealed class DownwindPhase : Phase
     /// than progressing, so it has deferred its base turn and stays ahead in the landing
     /// sequence. Used to sequence a same-leg follower behind such a lead. Returns false when
     /// the leg's geometry is not yet initialized (<see cref="Waypoints"/> unset), so an
-    /// uninitialized phase never reads as "past base turn".
+    /// uninitialized phase never reads as "past base turn". This overload has no turn model, so it measures to the unled
+    /// threshold (<see cref="TurnModel.Instant"/>); a caller without a per-tick context uses it.
     /// </summary>
     public bool HasReachedBaseTurnPoint(LatLon position) =>
         Waypoints is not null
         && GeoMath.AlongTrackDistanceNm(position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading)
             >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+
+    /// <summary>
+    /// <see cref="HasReachedBaseTurnPoint(LatLon)"/> for <paramref name="aircraft"/> (this leg's own aircraft) under
+    /// <paramref name="turnModel"/>, the session's model from a per-tick context: the same led threshold
+    /// <see cref="OnTick"/> uses (<see cref="BaseTriggerAlongTrackNm(double, AircraftCategory, TurnModel)"/>), which is the
+    /// unled one under <see cref="TurnModel.Instant"/>.
+    /// </summary>
+    public bool HasReachedBaseTurnPoint(AircraftState aircraft, TurnModel turnModel) =>
+        Waypoints is not null
+        && GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading)
+            >= BaseTriggerAlongTrackNm(aircraft.GroundSpeed, AircraftCategorization.Categorize(aircraft.AircraftType), turnModel);
+
+    /// <summary>
+    /// The along-track distance at which the base turn starts: <see cref="AlongTrackToleranceNm"/> short of the planned
+    /// base turn and, under the ramp turn model, the roll-in lead earlier still
+    /// (<see cref="BasePhase.TurnLeadNm(double, AircraftCategory, PatternWaypoints?, TurnModel)"/>), so the base leg lies
+    /// where it was planned.
+    /// </summary>
+    private double BaseTriggerAlongTrackNm(double groundSpeedKt, AircraftCategory category, TurnModel turnModel) =>
+        _baseTurnAlongTrack - AlongTrackToleranceNm - BasePhase.TurnLeadNm(groundSpeedKt, category, Waypoints, turnModel);
+
+    /// <summary>The base trigger (<see cref="BaseTriggerAlongTrackNm(double, AircraftCategory, TurnModel)"/>) of the per-tick context.</summary>
+    private double BaseTriggerAlongTrackNm(PhaseContext ctx) => BaseTriggerAlongTrackNm(ctx.Aircraft.GroundSpeed, ctx.Category, ctx.TurnModel);
 
     /// <summary>
     /// Computes the descent target and vertical rate for the past-abeam descent and writes them
@@ -899,7 +923,7 @@ public sealed class DownwindPhase : Phase
         }
 
         double baseLenNm = BaseDescentLengthNm(ctx.Aircraft.Position, waypoints.FinalHeading, turnRadiusNm);
-        double remainingDwNm = Math.Max(_baseTurnAlongTrack - AlongTrackToleranceNm - aircraftAlongTrack, MinDescentLegNm);
+        double remainingDwNm = Math.Max(BaseTriggerAlongTrackNm(ctx) - aircraftAlongTrack, MinDescentLegNm);
         double targetFt = rolloutAlt + ((currentAlt - rolloutAlt) * baseLenNm / (remainingDwNm + baseLenNm));
         _descentTargetFt = targetFt;
         ctx.Targets.TargetAltitude = targetFt;

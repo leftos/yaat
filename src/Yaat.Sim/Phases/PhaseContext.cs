@@ -106,6 +106,14 @@ public sealed class PhaseContext
     public bool FinalApproachSpeedVarietyEnabled { get; init; }
 
     /// <summary>
+    /// The session's turn model (<c>SimScenarioState.TurnModel</c>), set from the session only on the engine's per-tick
+    /// context. A minimal context (<c>CommandDispatcher.BuildMinimalContext</c>) leaves it <see cref="TurnModel.Instant"/>,
+    /// so turn-lead maths reads the model from the per-tick context in <c>OnTick</c> or from
+    /// <see cref="PhysicsTickOptions.TurnModel"/>, never in <c>OnStart</c> from a minimal context.
+    /// </summary>
+    public TurnModel TurnModel { get; init; }
+
+    /// <summary>
     /// Shared deterministic RNG, captured on snapshot for replay fidelity. Phases that
     /// consume RNG (e.g. <see cref="Tower.FinalApproachPhase"/> solo-training go-around
     /// roll) must use this instead of <c>new Random()</c> so replays regenerate the

@@ -113,9 +113,12 @@ public sealed class ApproachNavigationPhase : Phase
             ApproachFix nextFix = Fixes[_currentFixIndex + 1];
             double currentBearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
             double nextBearing = GeoMath.BearingTo(new LatLon(fix.Latitude, fix.Longitude), new LatLon(nextFix.Latitude, nextFix.Longitude));
-            double turnRate =
-                ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, AircraftCategorization.Categorize(ctx.AircraftType));
-            anticipationNm = FlightPhysics.ComputeAnticipationDistanceNm(ctx.Aircraft.GroundSpeed, turnRate, currentBearing, nextBearing);
+            FlightPhysics.FlyByTurn turn = FlightPhysics.FlyByTurnFor(ctx.Aircraft, currentBearing, nextBearing, ctx.TurnModel);
+
+            // As FlightPhysics.SequencingThreshold: whether the fix is flown with anticipation is decided without the
+            // roll-in lead, which only moves the sequencing point of a fix already flown that way.
+            bool anticipates = FlightPhysics.ComputeAnticipationDistanceNm(turn with { LeadNm = 0 }) > FixArrivalThresholdNm;
+            anticipationNm = anticipates ? FlightPhysics.ComputeAnticipationDistanceNm(turn) : 0;
             threshold = Math.Max(anticipationNm, FixArrivalThresholdNm);
         }
 

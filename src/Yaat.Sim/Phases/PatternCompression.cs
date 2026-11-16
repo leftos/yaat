@@ -78,9 +78,6 @@ public static class PatternCompression
 {
     private const double BankDegrees = 25.0;
 
-    /// <summary>Knots per (deg/s) of the rate-one radius formula.</summary>
-    internal const double RadiusDivisor = 62.832;
-
     /// <summary>The coordinated-turn rate formula's constant: rate (deg/s) = this × tan(bank) / speed (kt).</summary>
     internal const double BankRateFactor = 1091.0;
 
@@ -108,7 +105,7 @@ public static class PatternCompression
         Math.Max(CategoryPerformance.PatternTurnRate(category), BankRateKnots / speedKt);
 
     /// <summary>Turn radius (nm) at 25 degrees of bank.</summary>
-    public static double TurnRadiusNm(double speedKt, AircraftCategory category) => speedKt / (TurnRateDegPerSec(speedKt, category) * RadiusDivisor);
+    public static double TurnRadiusNm(double speedKt, AircraftCategory category) => TurnShape.RadiusNm(speedKt, TurnRateDegPerSec(speedKt, category));
 
     /// <summary>The compressed speeds, rate and floor of a type; the floor's planning speeds carry the wind.</summary>
     public static CompressedLegs Legs(string aircraftType, AircraftCategory category, double windSpeedKt)

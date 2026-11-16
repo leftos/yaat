@@ -1409,7 +1409,7 @@ public static class AirborneFollowHelper
         return lead.Phases.CurrentPhase switch
         {
             BasePhase or FinalApproachPhase or LandingPhase => true,
-            DownwindPhase { IsExtended: false } downwind => downwind.HasReachedBaseTurnPoint(lead.Position),
+            DownwindPhase { IsExtended: false } downwind => downwind.HasReachedBaseTurnPoint(lead, ctx.TurnModel),
             _ => false,
         };
     }

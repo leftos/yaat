@@ -99,6 +99,7 @@ public sealed partial class SimulationEngine
         World.SoloTrainingMode = Scenario?.SoloTrainingMode ?? false;
         World.RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false;
         World.MagneticModelDateUtc = Scenario?.MagneticModelDateUtc ?? MagneticDeclination.EvaluationDateUtc;
+        World.TurnModel = Scenario?.TurnModel ?? TurnModel.Instant;
 
         start = TimingStart();
         RehydrateRestoredQueueBlocks();
@@ -1816,6 +1817,7 @@ public sealed partial class SimulationEngine
             SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
             SoloGoAroundProbabilityPercent = Scenario?.SoloGoAroundProbabilityPercent ?? 0,
             FinalApproachSpeedVarietyEnabled = Scenario?.FinalApproachSpeedVarietyEnabled ?? false,
+            TurnModel = Scenario?.TurnModel ?? TurnModel.Instant,
             Rng = World.Rng,
             TryReserveSoloParkingInitialCallupSlot = TryReserveSoloParkingInitialCallupSlot,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,

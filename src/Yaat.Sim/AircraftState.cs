@@ -516,6 +516,13 @@ public class AircraftState
     /// <summary>Current bank angle in degrees. Positive = right bank, negative = left bank. Zero when wings level.</summary>
     public double BankAngle { get; set; }
 
+    /// <summary>
+    /// The turn rate the aircraft is flying under the <see cref="TurnModel.Ramp"/> turn model, in signed degrees per second
+    /// (positive right); <see cref="BankAngle"/> is derived from it. Null under <see cref="TurnModel.Instant"/> and whenever
+    /// the ramp does not apply (no target heading, on the ground, a helicopter hovering or air-taxiing).
+    /// </summary>
+    public double? AppliedTurnRateDegPerSec { get; set; }
+
     public AircraftPattern Pattern { get; set; } = new();
 
     /// <summary>
@@ -598,6 +605,7 @@ public class AircraftState
             IndicatedAirspeed = dto.IndicatedAirspeed,
             VerticalSpeed = dto.VerticalSpeed,
             BankAngle = dto.BankAngle,
+            AppliedTurnRateDegPerSec = dto.AppliedTurnRateDegPerSec,
             FlightPlan = AircraftFlightPlan.FromSnapshot(dto.FlightPlan),
             Ground = AircraftGroundOps.FromSnapshot(dto.Ground, groundLayout),
             Transponder = AircraftTransponder.FromSnapshot(dto.Transponder),
@@ -719,6 +727,7 @@ public class AircraftState
             IndicatedAirspeed = IndicatedAirspeed,
             VerticalSpeed = VerticalSpeed,
             BankAngle = BankAngle,
+            AppliedTurnRateDegPerSec = AppliedTurnRateDegPerSec,
             WindN = WindComponents.N,
             WindE = WindComponents.E,
             FlightPlan = FlightPlan.ToSnapshot(),

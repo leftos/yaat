@@ -199,7 +199,7 @@ public sealed partial class VfrFollowPhase
         FinalFramePosition frame = FinalFrameOf(aircraft.Position, aircraft.TrueHeading, circuit.Runway, circuit.Direction);
         // The rate the reversal would otherwise fly, as FlightPhysics turns the heading.
         double rateDegPerSec = ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
-        double radiusNm = speedKt / (rateDegPerSec * PatternCompression.RadiusDivisor);
+        double radiusNm = TurnShape.RadiusNm(speedKt, rateDegPerSec);
         if (frame.PatternSideNm > radiusNm)
         {
             return;

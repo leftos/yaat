@@ -320,6 +320,14 @@ public sealed class SimScenarioState
     /// </summary>
     public bool FinalApproachSpeedVarietyEnabled { get; set; }
 
+    /// <summary>
+    /// How airborne aircraft roll into and out of turns (<see cref="Sim.TurnModel"/>). Defaults to
+    /// <see cref="TurnModel.Instant"/> here so recordings and checkpoints made before the ramp replay faithfully; the server
+    /// sets <see cref="TurnModel.Ramp"/> for a fresh live load, every rebuild of a session keeps the session's own value, and
+    /// it is captured in the recording's snapshots so a replay flies the model the session flew.
+    /// </summary>
+    public TurnModel TurnModel { get; set; }
+
     public bool HasSoloParkingInitialCallupSource { get; set; }
 
     public bool HasSoloArrivalGeneratorSource { get; set; }
@@ -691,6 +699,7 @@ public sealed class SimScenarioState
             SoloArrivalGeneratorRatePercent = SoloArrivalGeneratorRatePercent,
             SoloGoAroundProbabilityPercent = SoloGoAroundProbabilityPercent,
             FinalApproachSpeedVarietyEnabled = FinalApproachSpeedVarietyEnabled,
+            TurnModel = TurnModel,
             HasSoloParkingInitialCallupSource = HasSoloParkingInitialCallupSource,
             HasSoloArrivalGeneratorSource = HasSoloArrivalGeneratorSource,
             NextSoloParkingInitialCallupSlotSeconds = NextSoloParkingInitialCallupSlotSeconds,

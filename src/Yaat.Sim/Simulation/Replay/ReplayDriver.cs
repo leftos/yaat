@@ -163,6 +163,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                     scenario.ToweredAirports = towered;
                     scenario.ActiveRunways = initialActiveRunways;
                     scenario.InitialActiveRunways = initialActiveRunways;
+                    // The recording's own turn model, set before any preset dispatched during the load turns an aircraft.
+                    scenario.TurnModel = recording.TurnModel;
                 }
             );
         }
