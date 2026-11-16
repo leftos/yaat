@@ -33,6 +33,9 @@ internal interface ICommandTextSink
 
 public partial class MainViewModel
 {
+    /// <summary>What a command to an aircraft answers with no aircraft targeted: on the command line and on the Scope.</summary>
+    internal const string NoAircraftMatchedMessage = "No aircraft matched — type a callsign (or partial) before the command";
+
     /// <summary>
     /// Runs one typed line as the main command line runs it on Enter: the staged say-again guard, the <c>** </c> override,
     /// chat, client dot commands, global verbs, a bare callsign that selects, then a command to an aircraft. Every outcome,
@@ -363,7 +366,7 @@ public partial class MainViewModel
     {
         if (!(TryGetCanonicalVerb(compound.CanonicalString, out string verb) && IsHalfStripVerb(verb)))
         {
-            line.Sink.ReportError("No aircraft matched — type a callsign (or partial) before the command");
+            line.Sink.ReportError(NoAircraftMatchedMessage);
             return;
         }
 

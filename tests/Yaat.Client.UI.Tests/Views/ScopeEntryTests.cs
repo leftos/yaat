@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using SkiaSharp;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -157,6 +158,196 @@ public class ScopeEntryTests
         finally
         {
             window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AStarsEntry_SendsItsYaatCommand_AndLeavesTheCommandLineAlone()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+            FocusCanvas(window, view);
+            Type(window, "+100");
+            Assert.StartsWith("STARS +100 temporary altitude", Lines(view.EntryLayer.StarsArea)[0], StringComparison.Ordinal);
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal("TEMPALT 100", scope.LastSentEntryText);
+            Assert.Equal(Untouched, main.CommandText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AStarsKeyWordEntry_SendsItsYaatCommand_ForTheTypedCallsign()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            AddAircraft(main, "UAL238", 5000);
+
+            await RunEntryAsync(scope, "INIT UAL238");
+
+            Assert.Equal("UAL238 TRACK", scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("MF N")]
+    [InlineData("/3 UAL238")]
+    public async Task AStarsEntryWithNoYaatCommand_IsRefused_NotSupported_AndSendsNothing(string entry)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, ScopeViewModel.NotSupportedMessage, entry), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AStarsJRingEntry_PlacesTheScopesJRing_OnTheSelectedTrack()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+
+            await RunEntryAsync(scope, "*J5");
+
+            Assert.Equal(".scope rings jring 5 UAL238", scope.LastSentEntryText);
+            Assert.Equal(5.0, scope.RingsOf("UAL238").JRingNm);
+
+            await RunEntryAsync(scope, "*J");
+
+            Assert.Equal(".scope rings jring 5 UAL238", scope.LastSentEntryText);
+            Assert.Null(scope.RingsOf("UAL238").JRingNm);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BareHnd_OnATrackWithNoHandoff_AnswersThePilotPathsRefusal()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+
+            await RunEntryAsync(scope, "HND");
+
+            Assert.Equal("ACCEPT", scope.LastSentEntryText);
+            Assert.Equal(ScopeResponseKind.Error, scope.EntryResponse?.Kind);
+        }
+    }
+
+    private static readonly ActivePositionDto Oakland = new("OAK_APP", "Oakland Approach", null, "135.100", "NCT", "NorCal", "Tracon", "2B", "NCT");
+
+    // A STARS Scope acting as OAK_APP (2B), with UAL238 selected, its handoff running from owner to peer.
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> HandoffScopeAsync(string owner, string peer)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "2B", Oakland, 3));
+        scope.ProfileKind = ScopeProfileKind.Stars;
+        AircraftModel ac = AddAircraft(main, "UAL238", 5000);
+        ac.Owner = owner;
+        ac.OwnerFacilityId = "NCT";
+        ac.HandoffPeer = peer;
+        ac.HandoffPeerFacilityId = "NCT";
+        main.SelectedAircraft = ac;
+        return (main, scope);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("HND", "CANCEL")]
+    [InlineData("HND UAL2", "UAL238 CANCEL")]
+    [InlineData("HND UAL238", "UAL238 CANCEL")]
+    public async Task BareHnd_OnAHandoffFromTheActingPosition_Cancels(string entry, string sent)
+    {
+        (_, ScopeViewModel scope) = await HandoffScopeAsync("OAK_APP", "SFO_APP");
+        using (scope)
+        {
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(sent, scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("HND", "ACCEPT")]
+    [InlineData("HND UAL2", "UAL238 ACCEPT")]
+    public async Task BareHnd_OnAHandoffToTheActingPosition_Accepts(string entry, string sent)
+    {
+        (_, ScopeViewModel scope) = await HandoffScopeAsync("SFO_APP", "OAK_APP");
+        using (scope)
+        {
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(sent, scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("*J5")]
+    [InlineData("*P")]
+    public async Task ATpaEntry_WithNoAircraftSelected_AnswersTheNoAircraftText(string entry)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = null;
+
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, entry), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BareJ_OnATrackWithNoJRing_SaysSo()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+
+            await RunEntryAsync(scope, "*J");
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "No J-ring on UAL238", "*J"), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BareP_RemovesTheSelectedTracksCone()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+            await RunEntryAsync(scope, "*P5");
+            Assert.Equal(5.0, scope.RingsOf("UAL238").ConeNm);
+
+            await RunEntryAsync(scope, "*P");
+
+            Assert.Equal(".scope rings cone 5 UAL238", scope.LastSentEntryText);
+            Assert.Null(scope.RingsOf("UAL238").ConeNm);
         }
     }
 

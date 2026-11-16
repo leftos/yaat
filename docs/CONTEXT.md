@@ -809,6 +809,12 @@ The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while 
 **Brightness group (YAAT Scope)**:
 One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Scope window, never saved or sent.
 
+**CRC alias (YAAT)**:
+A line in a `.aliases` file that CRC, and YAAT's dot handlers, expand into a command; not a CRC dialect.
+
+**CRC dialect (YAAT Scope)**:
+The typed-entry grammar of the Scope's profile as CRC's own scope reads it (STARS entries such as `+100` or `INIT`, ERAM verbs such as `QQ`); the preview reads it beside YAAT pilot commands and dot commands, and the profile's dialect wins where a token could mean both. Not a CRC alias.
+
 **Feedback area (YAAT Scope)**:
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
@@ -828,7 +834,7 @@ The two-line block the YAAT Scope draws for an on-ground aircraft in top-down mo
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
 **Kind label (YAAT Scope)**:
-The words the Preview area shows before the entry to say how it will be read (`PILOT FH fly heading`, `DOT .scope`, `STARS {verb}`); `ScopeEntryClassifier` picks it.
+The words the Preview area shows before the entry to say how it will be read (`PILOT FH fly heading`, `DOT .scope`, `STARS +100 temporary altitude`); `ScopeEntryClassifier` picks it. A STARS entry's label is `STARS <first word> <gloss>`; the Scope's STARS entries are read by shape and key words, not by verb.
 
 **MCA (Message Composition Area)**:
 ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.

@@ -1,7 +1,12 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.Profiles;
+using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
@@ -30,7 +35,9 @@ internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
 /// <summary>
 /// Typing on the Scope: the entry being typed, the Scope's own entry history and the response to the last entry. Enter runs
 /// the entry through <see cref="MainViewModel.SendTextAsync"/> with a sink of the Scope's own, so the main command line's
-/// text and status are never touched; a CRC dialect entry is refused with <c>NOT SUPPORTED</c> and nothing is sent. On a
+/// text and status are never touched. A STARS entry sends the YAAT command it translates to, resolved here from the
+/// selected aircraft's state where it needs it (bare <c>HND</c>, <c>*J</c>/<c>*P</c>); an ERAM entry, and a STARS entry
+/// with no YAAT command, is refused with <c>NOT SUPPORTED</c> and nothing is sent. On a
 /// STARS profile the response goes at the next entry's first key; on ERAM and Mixed it stays until the next entry is sent.
 /// Esc clears both.
 /// </summary>
@@ -203,7 +210,14 @@ public sealed partial class ScopeViewModel
     public bool ExecuteEntry()
     {
         string entry = EntryText.Trim();
-        if ((entry.Length == 0) || (ScopeEntryClassifier.Classify(entry, ProfileKind).SendText.Length == 0))
+        if (entry.Length == 0)
+        {
+            return false;
+        }
+
+        // An unsupported STARS entry sends nothing but still runs, to be answered NOT SUPPORTED.
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind);
+        if ((reading.Kind != ScopeEntryKind.Stars) && (reading.SendText.Length == 0))
         {
             return false;
         }
@@ -225,18 +239,27 @@ public sealed partial class ScopeViewModel
         _savedEntry = "";
         EntryText = "";
 
-        if (reading.Kind is ScopeEntryKind.Stars or ScopeEntryKind.Eram)
+        if ((reading.Kind == ScopeEntryKind.Eram) || !reading.Supported)
         {
             Main.AddHistory("", entry);
             EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, NotSupportedMessage, entry);
             return;
         }
 
+        (string? sendText, string? refusal) =
+            (reading.Kind == ScopeEntryKind.Stars) ? ResolveStarsEntry(entry, reading.SendText) : (reading.SendText, null);
+        if (sendText is null)
+        {
+            Main.AddHistory("", entry);
+            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, refusal ?? "", entry);
+            return;
+        }
+
         var sink = new ScopeEntrySink(Main);
         try
         {
-            LastSentEntryText = reading.SendText;
-            await Main.SendTextAsync(reading.SendText, sink);
+            LastSentEntryText = sendText;
+            await Main.SendTextAsync(sendText, sink);
         }
         catch (Exception ex)
         {
@@ -250,6 +273,79 @@ public sealed partial class ScopeViewModel
         }
 
         EntryResponse = sink.ResponseTo(entry);
+    }
+
+    /// <summary>
+    /// The text a supported STARS entry sends, once the rows that need the Scope's state have it: bare <c>HND</c> becomes
+    /// <c>CANCEL</c> for a handoff outbound from the acting position (else it stays <c>ACCEPT</c>, which the pilot path refuses
+    /// when there is no handoff to take), and <c>*J</c>/<c>*P</c> act on the selected aircraft's Scope rings.
+    /// </summary>
+    /// <returns>The text to send, or null and the refusal to answer with.</returns>
+    private (string? Text, string? Refusal) ResolveStarsEntry(string entry, string translation)
+    {
+        if (StarsEntryParser.TryRead(entry) is not { } read)
+        {
+            return (translation, null);
+        }
+
+        return read.Need switch
+        {
+            StarsEntryNeed.HandoffAcceptOrCancel => (ResolveHandoff(read, translation), null),
+            StarsEntryNeed.RingPlacement => (Main.SelectedAircraft is { } ac)
+                ? ($"{translation} {ac.Callsign}", null)
+                : (null, MainViewModel.NoAircraftMatchedMessage),
+            StarsEntryNeed.RingRemoval => ResolveRingRemoval(read.Ring),
+            _ => (translation, null),
+        };
+    }
+
+    // Bare HND: CANCEL for a handoff from the acting position to another, else ACCEPT. A typed (partial) callsign is matched as
+    // the pilot path matches one, and the command then names the matched aircraft's full callsign.
+    private string ResolveHandoff(StarsEntryRead read, string translation)
+    {
+        AircraftModel? ac = (read.Callsign is { } callsign) ? CallsignMatcher.Match(callsign, Main.Aircraft).Match : Main.SelectedAircraft;
+        if (ac is null)
+        {
+            return translation;
+        }
+
+        string prefix = (read.Callsign is null) ? "" : $"{ac.Callsign} ";
+        return $"{prefix}{(IsOutboundHandoff(ac) ? "CANCEL" : "ACCEPT")}";
+    }
+
+    // A handoff from the acting position to another, not one to it; false while the acting position is unknown.
+    private bool IsOutboundHandoff(AircraftModel ac)
+    {
+        if (string.IsNullOrEmpty(Main.ActiveTcp))
+        {
+            return false;
+        }
+
+        var acting = new ActingPosition(Main.ActingCallsign, Main.ActingTrackFacilityId, Main.ActiveTcp);
+        var owner = new TrackPositionIdentity(ac.Owner, ac.OwnerFacilityId, ac.OwnerSectorCode);
+        var peer = new TrackPositionIdentity(ac.HandoffPeer, ac.HandoffPeerFacilityId, ac.HandoffPeerSectorCode);
+        var redirectedBy = new TrackPositionIdentity(
+            ac.HandoffRedirectedByCallsign,
+            ac.HandoffRedirectedByFacilityId,
+            ac.HandoffRedirectedBySectorCode
+        );
+        return !TrackCoordinationView.IsHandoffToActing(peer, redirectedBy, acting) && TrackCoordinationView.IsHandoffFromActing(owner, peer, acting);
+    }
+
+    // Bare *J / *P: the selected aircraft's ring of that kind, at its size, which the ring command toggles off.
+    private (string? Text, string? Refusal) ResolveRingRemoval(ScopeRingTool tool)
+    {
+        if (Main.SelectedAircraft is not { } ac)
+        {
+            return (null, MainViewModel.NoAircraftMatchedMessage);
+        }
+
+        ScopeTrackRings rings = RingsOf(ac.Callsign);
+        double? size = (tool == ScopeRingTool.JRing) ? rings.JRingNm : rings.ConeNm;
+        string kind = ScopeRingTools.NameOf(tool);
+        return (size is { } nm)
+            ? ($".scope rings {kind} {nm.ToString("0.#", CultureInfo.InvariantCulture)} {ac.Callsign}", null)
+            : (null, $"No {((tool == ScopeRingTool.JRing) ? "J-ring" : "cone")} on {ac.Callsign}");
     }
 
     // A new entry on STARS takes the place of the response shown in its one area.

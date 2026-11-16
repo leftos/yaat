@@ -1,3 +1,4 @@
+using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim.Commands;
 
@@ -22,21 +23,28 @@ internal enum ScopeEntryKind
     Eram,
 }
 
-/// <summary>An entry's reading: its kind, the label the preview shows over it and the text Enter sends.</summary>
+/// <summary>An entry's reading: its kind, the label the preview shows over it, the text Enter sends and whether it is supported.</summary>
 /// <param name="Kind">What the entry reads as.</param>
 /// <param name="Label">The kind label, empty for <see cref="ScopeEntryKind.None"/>.</param>
-/// <param name="SendText">The entry as Enter sends it: trimmed, with a leading <c>PILOT</c> word taken off.</param>
-internal sealed record ScopeEntryReading(ScopeEntryKind Kind, string Label, string SendText);
+/// <param name="SendText">
+/// The entry as Enter sends it: trimmed, with a leading <c>PILOT</c> word taken off; for a STARS entry, the YAAT command it
+/// translates to (empty when not supported).
+/// </param>
+/// <param name="Supported">False for a STARS entry with no YAAT command, which Enter answers <c>NOT SUPPORTED</c>.</param>
+internal sealed record ScopeEntryReading(ScopeEntryKind Kind, string Label, string SendText, bool Supported);
 
 /// <summary>
-/// Reads an entry typed on the Scope for its kind label. A leading dot is a dot command; a leading <c>PILOT</c> word forces a
-/// pilot read; a first word that is a dialect verb of the profile's kind (Mixed reads as ERAM) is a STARS or ERAM entry;
-/// anything else that parses as a pilot command (after a callsign or not) is one; the rest reads as nothing. This is the one
-/// place that names a dialect verb.
+/// Reads an entry typed on the Scope for its kind label. In order: a leading dot is a dot command; a leading <c>PILOT</c> word
+/// forces a pilot read; a leading <c>** </c> override is a pilot command with the override kept; on a STARS profile, a STARS
+/// shape or key word (<see cref="StarsEntryParser"/>) is a STARS entry, translated to its YAAT command or not supported; on
+/// ERAM and Mixed, a first word that is an ERAM verb is an ERAM entry; anything else that parses as a pilot command (after a
+/// callsign or not) is one; the rest reads as nothing. This is the one place that names a dialect verb.
 /// </summary>
 internal static class ScopeEntryClassifier
 {
     private const string PilotWord = "PILOT";
+
+    private const string OverridePrefix = "** ";
 
     /// <summary>CRC ERAM's command verbs.</summary>
     private static readonly HashSet<string> EramVerbs = new(StringComparer.OrdinalIgnoreCase)
@@ -66,9 +74,6 @@ internal static class ScopeEntryClassifier
         "WR",
     };
 
-    /// <summary>CRC STARS's command verbs: none read yet.</summary>
-    private static readonly HashSet<string> StarsVerbs = new(StringComparer.OrdinalIgnoreCase);
-
     private static readonly CommandScheme Scheme = CommandScheme.Default();
 
     private static readonly char[] BlockSeparators = [',', ';'];
@@ -79,32 +84,59 @@ internal static class ScopeEntryClassifier
         string trimmed = text.Trim();
         if (trimmed.Length == 0)
         {
-            return new ScopeEntryReading(ScopeEntryKind.None, "", trimmed);
+            return new ScopeEntryReading(ScopeEntryKind.None, "", trimmed, true);
         }
 
         if (trimmed.StartsWith('.'))
         {
-            return new ScopeEntryReading(ScopeEntryKind.Dot, $"DOT {FirstWord(trimmed)}", trimmed);
+            return new ScopeEntryReading(ScopeEntryKind.Dot, $"DOT {FirstWord(trimmed)}", trimmed, true);
         }
 
         string verb = FirstWord(trimmed);
         if (string.Equals(verb, PilotWord, StringComparison.OrdinalIgnoreCase))
         {
-            return ReadPilot(trimmed[verb.Length..].TrimStart());
+            string rest = trimmed[verb.Length..].TrimStart();
+            return ReadPilot(rest, rest);
         }
 
-        (ScopeEntryKind dialect, string dialectName, HashSet<string> verbs) = DialectOf(profile);
-        return verbs.Contains(verb) ? new ScopeEntryReading(dialect, $"{dialectName} {verb.ToUpperInvariant()}", trimmed) : ReadPilot(trimmed);
+        if (trimmed.StartsWith(OverridePrefix, StringComparison.Ordinal))
+        {
+            return ReadPilot(trimmed[OverridePrefix.Length..].TrimStart(), trimmed);
+        }
+
+        return ReadDialect(trimmed, verb, profile);
     }
 
-    private static (ScopeEntryKind Kind, string Name, HashSet<string> Verbs) DialectOf(ScopeProfileKind profile) =>
-        profile == ScopeProfileKind.Stars ? (ScopeEntryKind.Stars, "STARS", StarsVerbs) : (ScopeEntryKind.Eram, "ERAM", EramVerbs);
+    /// <summary>
+    /// Reads <paramref name="trimmed"/> in the profile's dialect: a STARS entry on STARS, an ERAM verb on ERAM and Mixed; else
+    /// as a pilot command.
+    /// </summary>
+    private static ScopeEntryReading ReadDialect(string trimmed, string verb, ScopeProfileKind profile)
+    {
+        if (profile == ScopeProfileKind.Stars)
+        {
+            return (StarsEntryParser.TryRead(trimmed) is { } stars) ? ReadStars(stars) : ReadPilot(trimmed, trimmed);
+        }
+
+        return EramVerbs.Contains(verb)
+            ? new ScopeEntryReading(ScopeEntryKind.Eram, $"ERAM {verb.ToUpperInvariant()}", trimmed, true)
+            : ReadPilot(trimmed, trimmed);
+    }
+
+    /// <summary>
+    /// A STARS entry: labelled <c>STARS &lt;first word&gt; &lt;gloss&gt;</c>, or <c>STARS &lt;first word&gt;</c> when not
+    /// supported.
+    /// </summary>
+    private static ScopeEntryReading ReadStars(StarsEntryRead read) =>
+        (read.Translation is { } translation)
+            ? new ScopeEntryReading(ScopeEntryKind.Stars, $"STARS {read.FirstWord} {read.Gloss}".TrimEnd(), translation, true)
+            : new ScopeEntryReading(ScopeEntryKind.Stars, $"STARS {read.FirstWord}", "", false);
 
     /// <summary>
     /// Reads <paramref name="text"/> as a pilot command, with or without a leading callsign; only its first block (up to a
-    /// comma or semicolon) names the label. None when neither parses.
+    /// comma or semicolon) names the label. None when neither parses. <paramref name="sendText"/> is what Enter sends.
     /// </summary>
-    private static ScopeEntryReading ReadPilot(string text)
+    private static ScopeEntryReading ReadPilot(string text, string sendText)
     {
         string block = text.Split(BlockSeparators, 2)[0].Trim();
         string[] words = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -118,11 +150,11 @@ internal static class ScopeEntryClassifier
 
         if (parsed is null)
         {
-            return new ScopeEntryReading(ScopeEntryKind.None, "", text);
+            return new ScopeEntryReading(ScopeEntryKind.None, "", sendText, true);
         }
 
         string gloss = CommandRegistry.Get(parsed.Type)?.Label.ToLowerInvariant() ?? "";
-        return new ScopeEntryReading(ScopeEntryKind.Pilot, $"{PilotWord} {verb.ToUpperInvariant()} {gloss}".TrimEnd(), text);
+        return new ScopeEntryReading(ScopeEntryKind.Pilot, $"{PilotWord} {verb.ToUpperInvariant()} {gloss}".TrimEnd(), sendText, true);
     }
 
     private static string FirstWord(string text)

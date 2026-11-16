@@ -72,4 +72,51 @@ public class ScopeEntryClassifierTests
         Assert.Equal("", reading.Label);
         Assert.Equal("", reading.SendText);
     }
+
+    [Fact]
+    public void AStarsShape_OnStars_ReadsAsStars_WithItsTranslation()
+    {
+        ScopeEntryReading reading = Read("+100", ScopeProfileKind.Stars);
+
+        Assert.Equal(new ScopeEntryReading(ScopeEntryKind.Stars, "STARS +100 temporary altitude", "TEMPALT 100", true), reading);
+    }
+
+    [Fact]
+    public void AnUnsupportedStarsEntry_ReadsAsStars_NotSupported()
+    {
+        ScopeEntryReading reading = Read("MF N", ScopeProfileKind.Stars);
+
+        Assert.Equal(ScopeEntryKind.Stars, reading.Kind);
+        Assert.Equal("STARS MF", reading.Label);
+        Assert.False(reading.Supported);
+    }
+
+    [Theory]
+    [InlineData(ScopeProfileKind.Eram)]
+    [InlineData(ScopeProfileKind.Mixed)]
+    public void AStarsShape_OnEramOrMixed_IsNoStarsEntry(ScopeProfileKind profile) =>
+        Assert.NotEqual(ScopeEntryKind.Stars, Read("+100", profile).Kind);
+
+    [Fact]
+    public void PilotUn_ReadsAsUnpause_AndUnOnStars_ReadsAsStars()
+    {
+        AssertReads(Read("PILOT UN", ScopeProfileKind.Stars), ScopeEntryKind.Pilot, "PILOT UN");
+        AssertReads(Read("UN", ScopeProfileKind.Stars), ScopeEntryKind.Stars, "STARS UN");
+    }
+
+    [Fact]
+    public void ADotCommand_OnStars_StaysADotCommand() =>
+        Assert.Equal(
+            new ScopeEntryReading(ScopeEntryKind.Dot, "DOT .scope", ".scope range 40", true),
+            Read(".scope range 40", ScopeProfileKind.Stars)
+        );
+
+    [Fact]
+    public void AnOverrideEntry_ReadsAsItsPilotCommand_AndSendsTheOverride()
+    {
+        ScopeEntryReading reading = Read("** FH 270", ScopeProfileKind.Stars);
+
+        AssertReads(reading, ScopeEntryKind.Pilot, "PILOT FH");
+        Assert.Equal("** FH 270", reading.SendText);
+    }
 }
