@@ -9,6 +9,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -21,8 +22,15 @@ namespace Yaat.Client.Views.Scope;
 /// or, picked with Shift held, stages <c>PILOT {callsign} {command}</c> in the entry (<see cref="ScopeViewModel.StageEntry"/>)
 /// and gives the canvas the focus, so Enter runs it.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
-/// nothing, opening no menu and toggling no lock. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through <c>.scope tdm</c>,
-/// as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
+/// nothing, opening no menu and toggling no lock. With text in the preview (and the Rings tool not armed) a left click on a
+/// target or block fills that track into the entry and selects it (<see cref="ScopeViewModel.FillTrack"/>), opening no menu
+/// and toggling no lock, unless the entry already names that track (its pilot entry first, or any entry last), where the
+/// click acts as with an empty preview (<see cref="ScopeViewModel.FillsOnLeftClick"/>); a left click on the map fills the
+/// point (<see cref="ScopeViewModel.FillPoint"/>). A middle click takes the row <see cref="ScopeMiddleClick"/> picks: on an
+/// ERAM block it fills the track into a non-empty preview and runs it, or on Field A with an empty preview runs <c>QF</c>;
+/// on a STARS or EuroScope block it toggles the highlight; on the map with the ERAM layout it fills the point into a
+/// non-empty preview and runs it. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through
+/// <c>.scope tdm</c>, as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
 /// which any press on it gives: printable text adds to the entry, Backspace edits it, Up and Down walk its history, Ctrl+R
 /// (Cmd+R on macOS) recalls the last entry on ERAM and Mixed, and Enter runs it; other chords, Tab and function keys pass on.
 /// Esc, in order: leaves a tear-off move to the tear-off layer, else clears the entry and its response, else disarms the Rings
@@ -45,6 +53,11 @@ public partial class ScopeView : UserControl
         Canvas.AircraftRightClicked += OnAircraftRightClicked;
         Canvas.AircraftDwellLockToggleRequested += OnAircraftDwellLockToggleRequested;
         Canvas.FieldClicked += OnFieldClicked;
+        Canvas.AircraftMiddleClicked += OnAircraftMiddleClicked;
+        Canvas.MapMiddleClicked += OnMapMiddleClicked;
+        Canvas.AircraftFillRequested += OnAircraftFillRequested;
+        Canvas.MapFillRequested += OnMapFillRequested;
+        Canvas.FillsOnLeftClick = callsign => (DataContext is ScopeViewModel vm) && vm.FillsOnLeftClick(callsign);
         Canvas.EntryTextInput += OnCanvasTextInput;
         Canvas.EntryKeyDown += OnCanvasKeyDown;
         Canvas.GotFocus += OnCanvasGotFocus;
@@ -264,6 +277,70 @@ public partial class ScopeView : UserControl
         Canvas.Focus();
         return true;
     }
+
+    // A middle click on a track: the row its resolved block kind picks (ScopeMiddleClick).
+    private void OnAircraftMiddleClicked(string callsign, bool onEramFieldA)
+    {
+        if ((DataContext is not ScopeViewModel vm) || (vm.FindAircraft(callsign) is not { } ac))
+        {
+            return;
+        }
+
+        switch (ScopeMiddleClick.OnTrack(vm.TemplateId, ac, onEramFieldA, vm.EntryText.Length > 0, vm.IsRingToolArmed))
+        {
+            case ScopeMiddleClickAction.ToggleHighlight:
+                vm.ToggleHighlight(callsign);
+                break;
+            case ScopeMiddleClickAction.FillTrackAndExecute:
+                vm.FillTrack(callsign);
+                vm.ExecuteEntry();
+                break;
+            case ScopeMiddleClickAction.RunQuickFlight:
+                vm.RunQuickFlight(callsign);
+                break;
+            default:
+                break;
+        }
+    }
+
+    // A middle click on the map: with the ERAM layout and text in the preview, the point fills the entry and it runs.
+    private void OnMapMiddleClicked(LatLon point)
+    {
+        if (
+            (DataContext is ScopeViewModel vm)
+            && (
+                ScopeMiddleClick.OnMap(vm.IsEramEntryLayout, vm.EntryText.Length > 0, vm.IsRingToolArmed)
+                == ScopeMiddleClickAction.FillPointAndExecute
+            )
+        )
+        {
+            vm.FillPoint(point, DescribePoint(vm, point));
+            vm.ExecuteEntry();
+        }
+    }
+
+    // A left click on a track with text in the preview: the track fills the entry and is selected.
+    private void OnAircraftFillRequested(string callsign)
+    {
+        if (DataContext is ScopeViewModel vm)
+        {
+            vm.FillTrack(callsign);
+            vm.SelectAircraft(callsign);
+        }
+    }
+
+    // A left click on the map with text in the preview: the point fills the entry.
+    private void OnMapFillRequested(LatLon point)
+    {
+        if (DataContext is ScopeViewModel vm)
+        {
+            vm.FillPoint(point, DescribePoint(vm, point));
+        }
+    }
+
+    // The point's FRD from the primary radar's fixes, as the aircraft menu names a point; null before they load.
+    private string? DescribePoint(ScopeViewModel vm, LatLon point) =>
+        new ClientMenuHost(vm.Main, null, Canvas, vm.Main.Radar.MvaFacilityId).DescribePoint(point);
 
     private void OnAircraftDwellLockToggleRequested(string callsign)
     {

@@ -123,6 +123,7 @@ Open decisions: D2, D3, D7 (EuroScope heading mode on the Scope).
 ### 5c. Middle-click executes, and clicks fill the preview
 User sees: ERAM: a typed entry plus middle-click on a track or map point appends it and runs it; left-click on a track puts a placeholder (▼) / the callsign in the preview. STARS: type, then left-click ("slew") runs it; middle-click toggles highlight when the preview is empty.
 Files: `ScopeCanvas.OnPointerPressed` (middle button; `IsMiddleButtonPressed`, new event `AircraftMiddleClicked`, `MapPointMiddleClicked` with lat/lon from `Viewport.ScreenToLatLon`) → `ScopeView.axaml.cs` → `ScopeViewModel.Entry.cs` (argument slots: track / location placeholder, "execute now") → highlight write `DataBlockState.ToggleHighlight` → Field A middle = QF readout (needs 5h for ERAM data; until then it prints the flight-plan summary from the model). Depends on 5a.
+Done by YAAT-2375: `Views/Scope/ScopeMiddleClick.cs` picks the row, `ScopeEntryFill.cs` builds the filled text (the callsign, not a ▼ placeholder; the point as FRD or `//DDMMN/DDDMMW`); STARS and EuroScope blocks toggle the highlight whatever the preview holds; Field A middle with an empty preview runs `QF {callsign}`, answered NOT SUPPORTED until YAAT-2380; on STARS a left-click fills the track into the preview and Enter runs the entry (the owner ruling on YAAT-2375).
 Tests: `ScopeMiddleClickTests.cs` (ERAM template executes, STARS toggles highlight, Mixed per-track kind, empty preview), extend `ScopeCanvasClickTests`.
 Open decisions: D3, D4.
 

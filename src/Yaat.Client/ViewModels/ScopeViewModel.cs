@@ -147,6 +147,12 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         DataBlockState.ToggleDwellLock(callsign);
     }
 
+    /// <summary>
+    /// Toggles the highlight of the aircraft's block on this scope, as a middle click on a STARS or EuroScope block does; the
+    /// scope's own state, never the Radar's.
+    /// </summary>
+    public void ToggleHighlight(string callsign) => DataBlockState.ToggleHighlight(callsign);
+
     /// <summary>The aircraft with <paramref name="callsign"/>, or null.</summary>
     public AircraftModel? FindAircraft(string callsign) => Main.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
 

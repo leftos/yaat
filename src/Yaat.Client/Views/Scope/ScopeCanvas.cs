@@ -324,6 +324,34 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Action<string, ScopeFieldAction, Point>? FieldClicked;
 
+    /// <summary>
+    /// Fired when an aircraft's symbol or block is middle-clicked, with the callsign and whether the click is on the callsign field
+    /// (Field A) of its block drawn with the ERAM template.
+    /// </summary>
+    public event Action<string, bool>? AircraftMiddleClicked;
+
+    /// <summary>Fired when the map, where no block or target is, is middle-clicked, with the point under the pointer.</summary>
+    public event Action<LatLon>? MapMiddleClicked;
+
+    /// <summary>
+    /// Fired in place of every other left-click event when <see cref="FillsOnLeftClick"/> answers true and the click lands on an
+    /// aircraft's symbol or block: the track is to be filled into the entry.
+    /// </summary>
+    public event Action<string>? AircraftFillRequested;
+
+    /// <summary>
+    /// Fired when <see cref="FillsOnLeftClick"/> answers true and the left click lands on the map, with the point under the
+    /// pointer: the point is to be filled into the entry.
+    /// </summary>
+    public event Action<LatLon>? MapFillRequested;
+
+    /// <summary>
+    /// Asked at each left press with the callsign of the aircraft under it (null on the map): true makes the press fill the entry
+    /// (<see cref="AircraftFillRequested"/>, <see cref="MapFillRequested"/>) instead of selecting, opening a field menu, toggling
+    /// a dwell lock. Null never fills.
+    /// </summary>
+    internal Func<string?, bool>? FillsOnLeftClick { get; set; }
+
     /// <summary>Fired for text typed while the canvas has the focus; a handler that takes it marks it handled.</summary>
     public event EventHandler<TextInputEventArgs>? EntryTextInput;
 
@@ -616,26 +644,97 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         Focus();
         Point pos = e.GetPosition(this);
         PointerPointProperties props = e.GetCurrentPoint(this).Properties;
-        if (props.IsLeftButtonPressed || props.IsRightButtonPressed)
+        if (props.IsMiddleButtonPressed)
         {
-            ScopeFrame frame = CurrentFrame;
-            AircraftModel? hit = frame.BlockAt((float)pos.X, (float)pos.Y) ?? frame.TargetAt((float)pos.X, (float)pos.Y);
-            if (hit is not null)
-            {
-                if (props.IsRightButtonPressed)
-                {
-                    AircraftRightClicked?.Invoke(hit.Callsign, pos);
-                }
-                else
-                {
-                    OnLeftPressed(frame, hit, pos);
-                }
-                e.Handled = true;
-                return;
-            }
+            OnMiddlePressed(pos);
+            e.Handled = true;
+            return;
+        }
+
+        if (props.IsLeftButtonPressed && TryFillPress(pos))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if ((props.IsLeftButtonPressed || props.IsRightButtonPressed) && PressAircraft(props.IsRightButtonPressed, pos))
+        {
+            e.Handled = true;
+            return;
         }
 
         base.OnPointerPressed(e);
+    }
+
+    // A left or right press on an aircraft: the right opens its menu, the left selects it (OnLeftPressed). False off any aircraft.
+    private bool PressAircraft(bool right, Point pos)
+    {
+        ScopeFrame frame = CurrentFrame;
+        if (HitAt(frame, pos) is not { } hit)
+        {
+            return false;
+        }
+
+        if (right)
+        {
+            AircraftRightClicked?.Invoke(hit.Callsign, pos);
+        }
+        else
+        {
+            OnLeftPressed(frame, hit, pos);
+        }
+
+        return true;
+    }
+
+    // A middle press: on an aircraft, with whether it is on its ERAM Field A; else on the map. The frame is rebuilt, as the
+    // press may toggle a highlight it draws.
+    private void OnMiddlePressed(Point pos)
+    {
+        ScopeFrame frame = CurrentFrame;
+        if (HitAt(frame, pos) is { } hit)
+        {
+            AircraftMiddleClicked?.Invoke(hit.Callsign, IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y));
+        }
+        else
+        {
+            MapMiddleClicked?.Invoke(PointAt(pos));
+        }
+
+        _lastFrame = null;
+        MarkDirty();
+    }
+
+    // A left press the entry takes (FillsOnLeftClick): an aircraft asks for its track, the map for its point. False when the
+    // entry does not take it, so the press goes on as without one.
+    private bool TryFillPress(Point pos)
+    {
+        AircraftModel? hit = HitAt(CurrentFrame, pos);
+        if (FillsOnLeftClick?.Invoke(hit?.Callsign) != true)
+        {
+            return false;
+        }
+
+        if (hit is not null)
+        {
+            AircraftFillRequested?.Invoke(hit.Callsign);
+        }
+        else
+        {
+            MapFillRequested?.Invoke(PointAt(pos));
+        }
+
+        return true;
+    }
+
+    // The aircraft whose block, else whose target, is under the point.
+    private static AircraftModel? HitAt(ScopeFrame frame, Point pos) =>
+        frame.BlockAt((float)pos.X, (float)pos.Y) ?? frame.TargetAt((float)pos.X, (float)pos.Y);
+
+    private LatLon PointAt(Point pos)
+    {
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        return new LatLon(lat, lon);
     }
 
     // A left press on an aircraft: an ERAM Field A asks for the dwell-lock toggle first; then a field with an action fires

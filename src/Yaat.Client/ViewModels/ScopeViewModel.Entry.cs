@@ -159,6 +159,45 @@ public sealed partial class ScopeViewModel
         _entryHistoryIndex = -1;
     }
 
+    /// <summary>
+    /// Fills the track <paramref name="callsign"/> into the entry (<see cref="ScopeEntryFill.Track"/>), as a click on it with text
+    /// in the preview does: first in a pilot entry, else appended.
+    /// </summary>
+    internal void FillTrack(string callsign)
+    {
+        SetEntry(ScopeEntryFill.Track(EntryText, callsign, ProfileKind, IsKnownCallsign));
+        _entryHistoryIndex = -1;
+    }
+
+    /// <summary>Appends the clicked point to the entry: <paramref name="frd"/> when known, else its ERAM lat/long.</summary>
+    internal void FillPoint(LatLon point, string? frd)
+    {
+        SetEntry(ScopeEntryFill.Point(EntryText, point, frd));
+        _entryHistoryIndex = -1;
+    }
+
+    /// <summary>
+    /// A middle click on an ERAM Field A with an empty preview: runs <c>QF {callsign}</c> through the entry, answered
+    /// <c>NOT SUPPORTED</c> as any ERAM entry is.
+    /// </summary>
+    internal void RunQuickFlight(string callsign)
+    {
+        SetEntry($"QF {callsign}");
+        _entryHistoryIndex = -1;
+        ExecuteEntry();
+    }
+
+    /// <summary>
+    /// Whether a left click fills the entry: text in the preview, the Rings tool not armed, and, on a track
+    /// (<paramref name="callsign"/> not null), a fill that would change the entry (<see cref="ScopeEntryFill.ChangesTrack"/>).
+    /// </summary>
+    internal bool FillsOnLeftClick(string? callsign) =>
+        (EntryText.Length > 0)
+        && !IsRingToolArmed
+        && ((callsign is null) || ScopeEntryFill.ChangesTrack(EntryText, callsign, ProfileKind, IsKnownCallsign));
+
+    private bool IsKnownCallsign(string word) => Main.Aircraft.Any(a => string.Equals(a.Callsign, word, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>Takes the last character off the entry.</summary>
     /// <returns>False when the entry is empty.</returns>
     public bool BackspaceEntry()
