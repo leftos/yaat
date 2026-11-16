@@ -38,6 +38,7 @@
 - Arriving airliners at SMF and FLL no longer ask for runway or terminal markers as gates, and GA arrivals never ask for an airline gate.
 - A GA arrival with no fitting parking asks ground for "taxi to parking" and waits for the instructor to assign a spot.
 - A route ending at a navaid named like the destination airport, such as SAC for KSAC, now continues direct to the field instead of flying straight on.
+- Scenario arrivals on a STAR ending in radar vectors, such as BRIXX4 into KSJC, fly the published heading at its last fix instead of turning direct to the airport.
 - Exported scenarios keep a VFR aircraft's at-or-above or at-or-below altitude (`CM A050`, `CM B050`) instead of a plain or reversed climb or descent.
 - `DCT FOZZY CM 5200` and similar lists no longer swallow `CM` as a fix name, and `ER HS F` now means exit right, then hold short of F.
 - The command bar refuses a bare `AT 5000;`, a malformed `AT` intersection or `AT ,` with the same message the server gives.
