@@ -60,8 +60,32 @@ public class ScopeToolbarTests
         return (main, scope, window);
     }
 
-    /// <summary>The text <paramref name="button"/> draws: its runs, joined.</summary>
-    private static string DrawnText(Button button) => string.Concat(((TextBlock)button.Content!).Inlines!.OfType<Run>().Select(r => r.Text));
+    /// <summary>
+    /// The text <paramref name="button"/> draws, read as one line: each line's runs joined, the lines joined by a space,
+    /// and " ▸" after the first line when its tile shows the menu mark.
+    /// </summary>
+    internal static string DrawnText(Button button)
+    {
+        List<string> lines = [""];
+        foreach (Inline inline in ((TextBlock)button.Content!).Inlines!)
+        {
+            if (inline is LineBreak)
+            {
+                lines.Add("");
+            }
+            else if (inline is Run run)
+            {
+                lines[^1] += run.Text;
+            }
+        }
+
+        if (button.Parent is ScopeButtonControl { Model.Kind: ScopeButtonKind.Menu })
+        {
+            lines[0] += " ▸";
+        }
+
+        return string.Join(" ", lines);
+    }
 
     /// <summary>Whether a pointer at <paramref name="point"/> (window coordinates) lands on the scope canvas.</summary>
     private static bool HitsCanvas(Window window, ScopeCanvas canvas, Point point)
@@ -630,7 +654,7 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task ATrayWiderThanTheWindow_WrapsOntoMoreRows_AndNeverResizesTheScope()
+    public async Task ATrayWiderThanTheWindow_WrapsIntoMoreTwoRowBlocks_AndNeverResizesTheScope()
     {
         int[] ids = [.. Enumerable.Range(1, 30)];
         (_, _, ScopeWindow window) = await OpenWithRadarAsync(new Size(600, 800), RadarWithToggles(ids));
@@ -646,11 +670,66 @@ public class ScopeToolbarTests
             Border tray = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "Tray");
             Button[] buttons = TrayButtons(window);
             Assert.Equal(31, buttons.Length);
-            double[] rows = [.. buttons.Select(b => b.TranslatePoint(default, window)!.Value.Y).Distinct()];
-            Assert.True(rows.Length > 1, "the tray's buttons wrap onto a second row");
+            Assert.All(buttons, b => Assert.Equal(22d, b.Bounds.Height));
             Assert.All(buttons, b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), tray)!.Value.X <= tray.Bounds.Width));
-            Assert.True(tray.Bounds.Height > 45, "the tray grows to hold its rows");
+            Assert.True(tray.Bounds.Height > 45, "the tray grows a second two-row block");
             Assert.Equal(bounds, canvas.Bounds);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ATrayBlockNarrowerThanTheFirst_LeavesTheTrayBackgroundBesideIt()
+    {
+        int[] ids = [.. Enumerable.Range(1, 20)];
+        (_, _, ScopeWindow window) = await OpenWithRadarAsync(new Size(600, 800), RadarWithToggles(ids));
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Maps));
+            Settle(window);
+
+            Border tray = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "Tray");
+            Button last = TrayButtons(window).Last();
+            Point lastEnd = last.TranslatePoint(new Point(last.Bounds.Width, last.Bounds.Height / 2), tray)!.Value;
+            Assert.True(lastEnd.Y > 45, "the tray wraps into a second block");
+            var beside = new Point(lastEnd.X + 5, lastEnd.Y);
+            Assert.True(beside.X < tray.Bounds.Width, "the second block is narrower than the first");
+
+            var divider = Color.Parse("#22313b");
+            Visual[] hits = [.. window.GetVisualsAt(tray.TranslatePoint(beside, window)!.Value)];
+            Assert.Contains(tray, hits);
+            Assert.DoesNotContain(
+                hits,
+                v =>
+                    (v is Panel { Background: ISolidColorBrush p } && (p.Color == divider))
+                    || (v is Border { Background: ISolidColorBrush b } && (b.Color == divider))
+            );
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ClearingThePrefSet_PairsBriteAndPrefAgain()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            scope.ActivePrefSet = "SR-DAY";
+            Settle(window);
+            scope.ActivePrefSet = null;
+            Settle(window);
+
+            Button brite = ButtonOf(window, ScopeButtonId.Brite);
+            Button pref = ButtonOf(window, ScopeButtonId.Pref);
+            Assert.Equal(22d, brite.Bounds.Height);
+            Assert.Equal(22d, pref.Bounds.Height);
+            Assert.Equal(InRow(window, brite).X, InRow(window, pref).X);
         }
         finally
         {
@@ -681,7 +760,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task ANarrowWindow_ShowsBothChevrons_AndScrollsDelTearoffIntoView()
     {
-        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
         try
         {
             ScrollViewer scroller = Scroller(window);
@@ -725,14 +804,145 @@ public class ScopeToolbarTests
         }
     }
 
+    /// <summary>The bar's row of tiles.</summary>
+    private static StackPanel MainRowOf(Window window) => window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "MainRow");
+
+    /// <summary>Where <paramref name="button"/>'s top-left sits in the bar's row of tiles.</summary>
+    private static Point InRow(Window window, Button button) => button.TranslatePoint(default, MainRowOf(window))!.Value;
+
     [AvaloniaFact]
-    public async Task TheDefaultWindow_ShowsTheChevrons()
+    public async Task TheDefaultWindow_FitsTheWholeBar()
     {
         (_, _, ScopeWindow window) = await OpenAsync();
         try
         {
-            Assert.True(Chevron(window, "ScrollLeft").IsEffectivelyVisible, "the bar with TDM is wider than the default window");
-            Assert.True(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar with TDM is wider than the default window");
+            Assert.False(Chevron(window, "ScrollLeft").IsEffectivelyVisible, "the bar fits the default window, so there is no left chevron");
+            Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits the default window, so there is no right chevron");
+            Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
+            Button[] bar = [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId)];
+            Assert.Equal(15, bar.Length);
+            Assert.All(
+                bar,
+                b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), row)!.Value.X <= row.Bounds.Width, $"{Label(b)} ends inside the bar")
+            );
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ValueButtons_AreFullTiles_TheRestPairUp()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            ScopeButtonId[] full =
+            [
+                ScopeButtonId.Range,
+                ScopeButtonId.Others,
+                ScopeButtonId.Vector,
+                ScopeButtonId.Hist,
+                ScopeButtonId.Profile,
+                ScopeButtonId.Template,
+                ScopeButtonId.DeleteTearoff,
+            ];
+            Assert.All(full, id => Assert.Equal(45d, ButtonOf(window, id).Bounds.Height));
+
+            (ScopeButtonId Top, ScopeButtonId Bottom)[] pairs =
+            [
+                (ScopeButtonId.Tools, ScopeButtonId.Auto),
+                (ScopeButtonId.Maps, ScopeButtonId.Tdm),
+                (ScopeButtonId.Db, ScopeButtonId.Views),
+                (ScopeButtonId.Brite, ScopeButtonId.Pref),
+            ];
+            foreach ((ScopeButtonId topId, ScopeButtonId bottomId) in pairs)
+            {
+                Button top = ButtonOf(window, topId);
+                Button bottom = ButtonOf(window, bottomId);
+                Assert.Equal(22d, top.Bounds.Height);
+                Assert.Equal(22d, bottom.Bounds.Height);
+                Point topAt = InRow(window, top);
+                Point bottomAt = InRow(window, bottom);
+                Assert.Equal(0d, topAt.Y);
+                Assert.Equal(23d, bottomAt.Y);
+                Assert.Equal(topAt.X, bottomAt.X);
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task APrefSet_MakesPrefAFullTile_AndBriteStandsAlone()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            scope.ActivePrefSet = "SR-DAY";
+            Settle(window);
+
+            Assert.Equal(45d, ButtonOf(window, ScopeButtonId.Pref).Bounds.Height);
+            Assert.Equal(45d, ButtonOf(window, ScopeButtonId.Brite).Bounds.Height);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PressingAPartHiddenButton_DoesNotScrollTheBar()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync(new Size(500, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            Button maps = ButtonOf(window, ScopeButtonId.Maps);
+
+            // Size the window so the bar's right edge cuts MAPS in half.
+            double mapsLeft = maps.TranslatePoint(default, scroller)!.Value.X;
+            window.Width += mapsLeft + (maps.Bounds.Width / 2) - scroller.Viewport.Width;
+            Settle(window);
+            mapsLeft = maps.TranslatePoint(default, scroller)!.Value.X;
+            double edge = scroller.Viewport.Width;
+            Assert.True((mapsLeft < edge) && (mapsLeft + maps.Bounds.Width > edge), "MAPS starts part-hidden past the bar's right edge");
+            Assert.Equal(0d, scroller.Offset.X);
+
+            Point press = maps.TranslatePoint(new Point((edge - mapsLeft) / 2, maps.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(press);
+            window.MouseDown(press, MouseButton.Left);
+            window.MouseUp(press, MouseButton.Left);
+            Settle(window);
+
+            Assert.Equal(0d, scroller.Offset.X);
+            Assert.Equal(ScopeButtonId.Maps, scope.OpenMenu);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TabFocus_BringsAHiddenButtonIntoView()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            Button del = ButtonOf(window, ScopeButtonId.DeleteTearoff);
+            Point delEnd = del.TranslatePoint(new Point(del.Bounds.Width, 0), scroller)!.Value;
+            Assert.True(delEnd.X > scroller.Viewport.Width, "DEL TEAROFF starts past the bar's right edge");
+
+            del.Focus(NavigationMethod.Tab);
+            Settle(window);
+
+            Point delLeft = del.TranslatePoint(default, scroller)!.Value;
+            Assert.InRange(delLeft.X, 0, scroller.Viewport.Width - del.Bounds.Width);
         }
         finally
         {
@@ -743,7 +953,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task TheWheel_OverANonSpinnerButton_DoesNotScrollTheBar()
     {
-        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
         try
         {
             ScrollViewer scroller = Scroller(window);
@@ -766,7 +976,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task TheWheel_OverAGapBetweenButtons_DoesNotScrollTheBar()
     {
-        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
         try
         {
             ScrollViewer scroller = Scroller(window);
@@ -780,15 +990,16 @@ public class ScopeToolbarTests
             Point autoEnd = auto.TranslatePoint(new Point(auto.Bounds.Width, auto.Bounds.Height / 2), window)!.Value;
             Point mapsStart = maps.TranslatePoint(new Point(0, maps.Bounds.Height / 2), window)!.Value;
             var between = new Point((autoEnd.X + mapsStart.X) / 2, autoEnd.Y);
-            Point below = auto.TranslatePoint(new Point(auto.Bounds.Width / 2, auto.Bounds.Height + 3), window)!.Value;
+            // The 1 DIP divider inside the TOOLS/AUTO pair, just above AUTO.
+            Point inPair = auto.TranslatePoint(new Point(auto.Bounds.Width / 2, -0.5), window)!.Value;
 
             WheelAt(window, between, new Vector(0, 1), RawInputModifiers.Shift);
             Assert.Equal(offset, scroller.Offset.X);
             WheelAt(window, between, new Vector(1, 0), RawInputModifiers.None);
             Assert.Equal(offset, scroller.Offset.X);
-            WheelAt(window, below, new Vector(0, 1), RawInputModifiers.Shift);
+            WheelAt(window, inPair, new Vector(0, 1), RawInputModifiers.Shift);
             Assert.Equal(offset, scroller.Offset.X);
-            WheelAt(window, below, new Vector(1, 0), RawInputModifiers.None);
+            WheelAt(window, inPair, new Vector(1, 0), RawInputModifiers.None);
             Assert.Equal(offset, scroller.Offset.X);
         }
         finally
@@ -800,7 +1011,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task Widening_UntilTheBarFits_HidesTheChevrons_AndResetsTheOffset()
     {
-        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
         try
         {
             ScrollViewer scroller = Scroller(window);
@@ -808,7 +1019,7 @@ public class ScopeToolbarTests
             Assert.True(scroller.Offset.X > 0, "the bar scrolled to its right end");
             double extent = scroller.Extent.Width;
 
-            // The bar's row is the window less the bar's 12 DIPs of padding.
+            // The bar has no padding, so its row is the window's width: 32 DIPs to spare over the bar's extent.
             window.Width = extent + 32;
             Settle(window);
 
@@ -847,7 +1058,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task ATearoff_FromAScrolledBar_GrabsTheButtonUnderThePointer()
     {
-        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync(new Size(500, 800));
         try
         {
             ScrollViewer scroller = Scroller(window);
@@ -877,7 +1088,7 @@ public class ScopeToolbarTests
             Assert.Equal(press.Y - grab.Y, at.Y, 1);
             Assert.Equal(offset, scroller.Offset.X);
 
-            Point drop = layer.TranslatePoint(new Point(600, 400), window)!.Value;
+            Point drop = layer.TranslatePoint(new Point(250, 400), window)!.Value;
             window.MouseMove(drop);
             window.MouseDown(drop, MouseButton.Left);
             window.MouseUp(drop, MouseButton.Left);

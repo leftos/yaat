@@ -40,15 +40,6 @@ public class ScopeTearoffLayerTests
         return (main, scope, window);
     }
 
-    /// <summary>
-    /// Widens the window so the whole bar, DEL TEAROFF last, is on screen, and every bar button sits in view without scrolling.
-    /// </summary>
-    private static void Widen(Window window)
-    {
-        window.Width = 2000;
-        Settle(window);
-    }
-
     /// <summary>Lays out and renders the window, as hit testing reads the rendered scene.</summary>
     private static void Settle(Window window)
     {
@@ -261,7 +252,6 @@ public class ScopeTearoffLayerTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();
         try
         {
-            Widen(window);
             main.RunScopeCommand(".scope tearoff range tl 10 10");
             Settle(window);
             ScopeTearoff[] before = [.. scope.Tearoffs];
@@ -293,6 +283,74 @@ public class ScopeTearoffLayerTests
     {
         ScopeTearoffLayer layer = LayerOf(window);
         return layer.Bounds.Width - control.TranslatePoint(new Point(control.Bounds.Width, 0), layer)!.Value.X;
+    }
+
+    [AvaloniaFact]
+    public async Task ACopy_KeepsItsShape_FromDragToDrop()
+    {
+        (_, _, ScopeWindow window) = await OpenScopeAsync();
+        try
+        {
+            AssertKeepsItsShape(window, BarControl(window, ScopeButtonId.Template), half: false, new Point(300, 200));
+            AssertKeepsItsShape(window, BarControl(window, ScopeButtonId.Auto), half: true, new Point(300, 300));
+            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Brite));
+            Settle(window);
+            AssertKeepsItsShape(window, BarControl(window, ScopeButtonId.BriteMapB), half: true, new Point(300, 400));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// Tears <paramref name="source"/> off and drops it at <paramref name="drop"/> (layer coordinates), and checks the
+    /// follower and the dropped copy are both a half tile (22 tall) when <paramref name="half"/>, else a full one (45),
+    /// and equally wide.
+    /// </summary>
+    private static void AssertKeepsItsShape(Window window, ScopeButtonControl source, bool half, Point drop)
+    {
+        double height = half ? 22 : 45;
+        PressStrip(window, source);
+        window.MouseMove(InLayer(window, drop.X, drop.Y));
+        Settle(window);
+        ScopeButtonControl follower = FollowerOf(window)!;
+        Assert.Equal(height, follower.Bounds.Height);
+        double dragged = follower.Bounds.Width;
+
+        ClickAt(window, InLayer(window, drop.X, drop.Y));
+
+        ScopeButtonControl copy = CopyOf(window, source.Key);
+        Assert.Equal(height, copy.Bounds.Height);
+        Assert.Equal(dragged, copy.Bounds.Width);
+    }
+
+    [AvaloniaFact]
+    public async Task ACopyDroppedNearTheRightEdge_LandsWhereItWasReleased()
+    {
+        (_, _, ScopeWindow window) = await OpenScopeAsync();
+        try
+        {
+            ScopeButtonControl auto = BarControl(window, ScopeButtonId.Auto);
+            PressStrip(window, auto);
+            ScopeTearoffLayer layer = LayerOf(window);
+            Point release = InLayer(window, layer.Bounds.Width - 80, 300);
+            window.MouseMove(release);
+            Settle(window);
+            ScopeButtonControl follower = FollowerOf(window)!;
+            Point followerEnd = follower.TranslatePoint(new Point(follower.Bounds.Width, 0), layer)!.Value;
+
+            ClickAt(window, release);
+
+            ScopeButtonControl copy = CopyOf(window, auto.Key);
+            Point copyEnd = copy.TranslatePoint(new Point(copy.Bounds.Width, 0), layer)!.Value;
+            Assert.Equal(followerEnd.X, copyEnd.X, 0.5);
+            Assert.Equal(followerEnd.Y, copyEnd.Y, 0.5);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -542,7 +600,6 @@ public class ScopeTearoffLayerTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();
         try
         {
-            Widen(window);
             main.RunScopeCommand(".scope tearoff range tl 10 10");
             main.RunScopeCommand(".scope tearoff brite tr 10 10");
             Settle(window);
@@ -577,7 +634,6 @@ public class ScopeTearoffLayerTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();
         try
         {
-            Widen(window);
             main.RunScopeCommand(".scope tearoff range tl 10 10");
             Settle(window);
             ScopeTearoff[] before = [.. scope.Tearoffs];

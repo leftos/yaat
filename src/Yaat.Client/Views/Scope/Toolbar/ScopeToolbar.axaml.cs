@@ -4,21 +4,32 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.Scope.Toolbar;
 
 /// <summary>
-/// The Scope window's toolbar: one row of buttons in the profile's order (<see cref="ScopeViewModel.ToolbarButtons"/>), and under it the tray of
-/// the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>), wrapped onto more rows when they don't
-/// fit. The bar scrolls sideways while it is wider than the window, with a chevron at each end. Each button
-/// (<see cref="ScopeButtonControl"/>) draws its label, value and active state from its <see cref="ScopeViewModel"/>.
+/// The Scope window's toolbar: a bar of tiles in the profile's order (<see cref="ScopeViewModel.ToolbarButtons"/>), and
+/// under it the tray of the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>). On the bar a button that
+/// shows a value is a full-height tile, consecutive buttons without one stack in half-height pairs, and one left without
+/// a partner is a full tile; the bar is laid out again when a button's value appears or goes. The tray holds half-height
+/// tiles in columns of two, wrapped into further two-row blocks when they don't fit the window. The bar scrolls sideways
+/// while it is wider than the window, with a chevron at each end. Each button (<see cref="ScopeButtonControl"/>) draws
+/// its label, value and active state from its <see cref="ScopeViewModel"/>.
 /// </summary>
 public partial class ScopeToolbar : UserControl
 {
-    // A list, not a map by id: the MAPS tray's toggles share one id.
-    private readonly List<ScopeButtonControl> _buttons = [];
+    private static readonly IBrush TrayDivider = new ImmutableSolidColorBrush(Color.Parse("#22313b"));
+
+    // Lists, not maps by id: the MAPS tray's toggles share one id.
+    private readonly List<ScopeButtonControl> _bar = [];
+    private readonly List<ScopeButtonControl> _tray = [];
+
+    // The bar's buttons, and which of them were half tiles when the bar was laid out.
+    private IReadOnlyList<ScopeButton> _barButtons = [];
+    private bool[] _barShape = [];
     private ScopeViewModel? _viewModel;
 
     public ScopeToolbar()
@@ -31,6 +42,7 @@ public partial class ScopeToolbar : UserControl
         // once the layout pass is over.
         MainScroll.LayoutUpdated += OnLayoutUpdated;
         MainRow.AddHandler(PointerWheelChangedEvent, OnBarWheel, RoutingStrategies.Bubble);
+        MainRow.AddHandler(GotFocusEvent, OnBarGotFocus, RoutingStrategies.Bubble);
         BuildMainRow(ScopeToolbarButtons.All);
         RefreshButtons();
         UpdateChevrons();
@@ -47,29 +59,73 @@ public partial class ScopeToolbar : UserControl
         RefreshButtons();
     }
 
-    /// <summary>Fills the bar with <paramref name="buttons"/>, left to right, a separator between each two.</summary>
+    /// <summary>
+    /// Fills the bar with <paramref name="buttons"/>, left to right, in the shapes <see cref="HalfTiles"/> gives them: a
+    /// full tile alone, two half tiles as a pair, top over bottom.
+    /// </summary>
     private void BuildMainRow(IReadOnlyList<ScopeButton> buttons)
     {
-        _buttons.RemoveAll(MainRow.Children.Contains);
+        _bar.Clear();
         MainRow.Children.Clear();
-        for (int i = 0; i < buttons.Count; i++)
+        _barButtons = buttons;
+        _barShape = ShapeOf(buttons);
+        int i = 0;
+        while (i < buttons.Count)
         {
-            if (i > 0)
+            if (!_barShape[i])
             {
-                MainRow.Children.Add(new Border { Classes = { "scopeSeparator" }, VerticalAlignment = VerticalAlignment.Center });
+                MainRow.Children.Add(BuildButton(_bar, buttons[i], isHalf: false));
+                i++;
+                continue;
             }
 
-            ScopeButtonControl control = BuildButton(buttons[i]);
-            // The row fills the bar so a wheel over the gaps between buttons lands on it; its buttons centre in it.
-            control.VerticalAlignment = VerticalAlignment.Center;
-            MainRow.Children.Add(control);
+            var pair = new StackPanel { Spacing = 1 };
+            pair.Children.Add(BuildButton(_bar, buttons[i], isHalf: true));
+            pair.Children.Add(BuildButton(_bar, buttons[i + 1], isHalf: true));
+            MainRow.Children.Add(pair);
+            i += 2;
         }
     }
 
-    private ScopeButtonControl BuildButton(ScopeButton model)
+    /// <summary>Which of <paramref name="buttons"/> are half tiles now (<see cref="HalfTiles"/>).</summary>
+    private bool[] ShapeOf(IReadOnlyList<ScopeButton> buttons) => HalfTiles(buttons, b => _viewModel?.SpinnerValue(b) is not null);
+
+    /// <summary>
+    /// Which of the bar's <paramref name="buttons"/> are half tiles: a button that shows a value
+    /// (<paramref name="showsValue"/>) is a full tile, two consecutive buttons without one pair up as half tiles, in bar
+    /// order, and one left without a partner is a full tile. Half tiles always come two by two, a pair's top first.
+    /// </summary>
+    public static bool[] HalfTiles(IReadOnlyList<ScopeButton> buttons, Func<ScopeButton, bool> showsValue)
     {
-        var button = new ScopeButtonControl(model, isTearoff: false);
-        _buttons.Add(button);
+        bool[] values = [.. buttons.Select(showsValue)];
+        bool[] half = new bool[buttons.Count];
+        int i = 0;
+        while (i + 1 < buttons.Count)
+        {
+            bool pairs = !values[i] && !values[i + 1];
+            half[i] = pairs;
+            half[i + 1] = pairs;
+            i += pairs ? 2 : 1;
+        }
+
+        return half;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="model"/>'s tile is a half one where it lives: a tray child's always, a bar button's as the
+    /// bar of <paramref name="viewModel"/> pairs it now (<see cref="HalfTiles"/>).
+    /// </summary>
+    public static bool IsHalfTile(ScopeViewModel viewModel, ScopeButton model)
+    {
+        IReadOnlyList<ScopeButton> bar = viewModel.ToolbarButtons;
+        int index = bar.Select(b => b.Id).ToList().IndexOf(model.Id);
+        return (index < 0) || HalfTiles(bar, b => viewModel.SpinnerValue(b) is not null)[index];
+    }
+
+    private static ScopeButtonControl BuildButton(List<ScopeButtonControl> list, ScopeButton model, bool isHalf)
+    {
+        var button = new ScopeButtonControl(model, isTearoff: false) { IsHalf = isHalf };
+        list.Add(button);
         return button;
     }
 
@@ -87,6 +143,12 @@ public partial class ScopeToolbar : UserControl
         if (trayChanged)
         {
             RebuildTray();
+        }
+
+        // A value appearing or going can change which buttons pair up; the bar is laid out again when it does.
+        if (IsDrawnState(e.PropertyName) && !ShapeOf(_barButtons).SequenceEqual(_barShape))
+        {
+            BuildMainRow(_barButtons);
         }
 
         if (trayChanged || IsDrawnState(e.PropertyName))
@@ -128,19 +190,35 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.RingSizeNm);
 
     /// <summary>
-    /// Fills the tray with the open menu's tray children (<see cref="ScopeViewModel.TrayChildren"/>), or hides it when no
-    /// menu is open.
+    /// Fills the tray with the open menu's tray children (<see cref="ScopeViewModel.TrayChildren"/>) as half tiles, two to
+    /// a column, filled column by column, or hides it when no menu is open.
     /// </summary>
     private void RebuildTray()
     {
-        _buttons.RemoveAll(TrayRow.Children.Contains);
+        _tray.Clear();
         TrayRow.Children.Clear();
         ScopeButton? menu = _viewModel?.OpenMenu is { } open ? ScopeToolbarButtons.Find(open) : null;
         if ((menu is not null) && (_viewModel is { } vm))
         {
-            foreach (ScopeButton child in vm.TrayChildren(menu))
+            IReadOnlyList<ScopeButton> children = vm.TrayChildren(menu);
+            for (int i = 0; i < children.Count; i += 2)
             {
-                TrayRow.Children.Add(BuildButton(child));
+                // The column's divider colour shows through its 1 DIP gap, under an empty bottom cell and down its right edge.
+                var column = new StackPanel { Spacing = 1 };
+                foreach (ScopeButton child in children.Skip(i).Take(2))
+                {
+                    column.Children.Add(BuildButton(_tray, child, isHalf: true));
+                }
+
+                TrayRow.Children.Add(
+                    new Border
+                    {
+                        Background = TrayDivider,
+                        BorderBrush = TrayDivider,
+                        BorderThickness = new Thickness(0, 0, 1, 0),
+                        Child = column,
+                    }
+                );
             }
         }
 
@@ -149,7 +227,7 @@ public partial class ScopeToolbar : UserControl
 
     private void RefreshButtons()
     {
-        foreach (ScopeButtonControl button in _buttons)
+        foreach (ScopeButtonControl button in _bar.Concat(_tray))
         {
             button.ViewModel = _viewModel;
             button.Refresh();
@@ -214,9 +292,21 @@ public partial class ScopeToolbar : UserControl
     }
 
     /// <summary>
-    /// The wheel never scrolls the bar: <see cref="MainRow"/> fills the whole row, so every wheel anywhere on the bar,
-    /// gaps between buttons included, reaches this handler and is marked handled before the scroller sees it. A spinner
-    /// has already stepped itself on its button by then.
+    /// The wheel never scrolls the bar: <see cref="MainRow"/> fills the whole row while the bar is wider than the window,
+    /// so every wheel anywhere on the bar, the dividers between tiles included, reaches this handler and is marked handled
+    /// before the scroller sees it. A spinner has already stepped itself on its button by then.
     /// </summary>
     private void OnBarWheel(object? sender, PointerWheelEventArgs e) => e.Handled = true;
+
+    /// <summary>
+    /// Brings a tile the keyboard focused into view. The scroller does not follow focus itself, so a tile a press focused
+    /// stays where it is under the pointer.
+    /// </summary>
+    private void OnBarGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if ((e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional) && (e.Source is Control focused))
+        {
+            focused.BringIntoView();
+        }
+    }
 }

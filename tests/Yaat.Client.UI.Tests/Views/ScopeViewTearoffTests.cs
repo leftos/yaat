@@ -194,15 +194,6 @@ public class ScopeViewTearoffTests
         return (main, scope, window);
     }
 
-    /// <summary>
-    /// Widens the window so the whole bar, DEL TEAROFF last, is on screen, and every bar button sits in view without scrolling.
-    /// </summary>
-    private static void Widen(Window window)
-    {
-        window.Width = 2000;
-        Settle(window);
-    }
-
     /// <summary>Lays out and renders the window, as hit testing reads the rendered scene.</summary>
     private static void Settle(Window window)
     {
@@ -366,7 +357,6 @@ public class ScopeViewTearoffTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
-            Widen(window);
             ScopeButtonControl range = BarControl(window, ScopeButtonId.Range);
             ClickAt(window, CentreOf(range.Strip!, window));
             Assert.Contains(LayerOf(window).Children.OfType<ScopeButtonControl>(), c => !c.IsHitTestVisible);
@@ -446,7 +436,6 @@ public class ScopeViewTearoffTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
-            Widen(window);
             PressTitle(window, FloatingCard(window, ScopeToolbarButtons.ViewSsaName));
             Assert.NotNull(OutlineOf(window));
 
@@ -676,7 +665,6 @@ public class ScopeViewTearoffTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
-            Widen(window);
             ScopeButtonControl delete = window
                 .GetVisualDescendants()
                 .OfType<ScopeButtonControl>()

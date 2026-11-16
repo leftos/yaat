@@ -846,16 +846,26 @@ Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+Shift+T
 A video map vNAS flags `TdmOnly` (an airport diagram): the YAAT Scope draws it only while TDM is on, even with its toggle on; the Radar ignores the flag.
 
 **Tear-off (YAAT Scope)**:
-A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs. A button copy (left press on the button's 5 px left-edge strip) behaves like its bar button, is one per button and removed with the DEL TEAROFF mode; a view floats as its card (left press on its title to move it, `▸` to dock it again). Either is anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.scope tearoff` or `.view … tear` (`ScopeTearoffLayer`).
+A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs. A button copy (left press on the button's *Tear-off strip*) behaves like its bar button, is one per button and removed with the DEL TEAROFF mode; a view floats as its card (left press on its title to move it, `▸` to dock it again). Either is anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.scope tearoff` or `.view … tear` (`ScopeTearoffLayer`).
+
+**Tear-off strip (YAAT Scope)**:
+The narrow band over a tile's left edge, the tile's full height, that shows gold under the pointer; a left press on it copies the button onto the scope as a *Tear-off*.
 
 **Template (YAAT Scope)**:
 A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile or by the Template button on the Scope's toolbar.
+
+**Tile (YAAT Scope)**:
+One button of the Scope's toolbar or of a tray: a full-height tile on the bar, or a half tile stacked in a pair with another; a tray's tiles are half height with one line.
+_Avoid_: cell, chip
 
 **Toolbar (YAAT Scope)**:
 The full-width navy row of buttons across the top of the Scope window (`Views/Scope/Toolbar/`), one theme for every template with a cyan active state; a menu button opens a tray below the bar while the main row stays visible, and every action is also a `.scope` or `.view` dot command.
 
 **TrackPresenter**:
 The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
+
+**Tray (YAAT Scope)**:
+The grid of a menu button's children shown under the toolbar while the main row stays visible: two rows of one-line tiles filled column by column, continued in a further two-row block when wider than the window.
 
 **Viewer (YAAT Scope)**:
 The position the Scope is viewed from: the instructor's active position (the scenario's student position by default, changed with `AS`), whose ERAM sector decides VCI, R and the handoff text (`ScopeViewer`).

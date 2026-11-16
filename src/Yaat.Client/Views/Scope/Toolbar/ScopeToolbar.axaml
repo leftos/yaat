@@ -7,22 +7,38 @@
 >
   <UserControl.Styles>
     <StyleInclude Source="avares://Yaat.Client/Views/Scope/Toolbar/ScopeToolbarStyles.axaml" />
-    <Style Selector="WrapPanel#TrayRow Button.scopeButton">
-      <Setter Property="Margin" Value="2,4" />
-    </Style>
   </UserControl.Styles>
   <StackPanel>
     <!-- The bar scrolls sideways while it is wider than the window; the chevrons show only then. -->
-    <Border Height="45" Background="#0a1015" Padding="6,0">
+    <Border Height="45" Background="#0a1015">
       <Grid x:Name="BarRow" ColumnDefinitions="Auto,*,Auto">
-        <Button x:Name="ScrollLeft" Grid.Column="0" Classes="scopeButton" Content="‹" Focusable="False" IsVisible="False" Click="OnScrollLeftClick" />
-        <ScrollViewer x:Name="MainScroll" Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
-          <StackPanel x:Name="MainRow" Background="Transparent" Orientation="Horizontal" />
+        <Button
+          x:Name="ScrollLeft"
+          Grid.Column="0"
+          Classes="scopeButton"
+          Padding="6,0"
+          Content="‹"
+          Focusable="False"
+          IsVisible="False"
+          Click="OnScrollLeftClick"
+        />
+        <!-- A focused tile is brought into view only when the keyboard focused it, so a press on a part-hidden tile never
+             moves the bar under the pointer. -->
+        <ScrollViewer
+          x:Name="MainScroll"
+          Grid.Column="1"
+          HorizontalScrollBarVisibility="Hidden"
+          VerticalScrollBarVisibility="Disabled"
+          BringIntoViewOnFocusChange="False"
+        >
+          <!-- The 1 DIP spacing over the row's background draws the dividers between tiles. -->
+          <StackPanel x:Name="MainRow" Background="#22313b" Orientation="Horizontal" Spacing="1" HorizontalAlignment="Left" />
         </ScrollViewer>
         <Button
           x:Name="ScrollRight"
           Grid.Column="2"
           Classes="scopeButton"
+          Padding="6,0"
           Content="›"
           Focusable="False"
           IsVisible="False"
@@ -30,9 +46,10 @@
         />
       </Grid>
     </Border>
-    <!-- The tray wraps onto more rows when its buttons don't fit; one row keeps the bar's height. -->
-    <Border x:Name="Tray" MinHeight="45" Background="#0a1015" BorderBrush="#22313b" BorderThickness="0,1,0,0" Padding="6,0" IsVisible="False">
-      <WrapPanel x:Name="TrayRow" Orientation="Horizontal" VerticalAlignment="Center" />
+    <!-- The tray: columns of two half-height tiles, wrapped into further two-row blocks when they don't fit the window. Each
+         column draws its own dividers, so the tray's background shows beside a block narrower than the first. -->
+    <Border x:Name="Tray" Background="#0a1015" BorderBrush="#22313b" BorderThickness="0,0,0,1" IsVisible="False">
+      <WrapPanel x:Name="TrayRow" Orientation="Horizontal" LineSpacing="1" HorizontalAlignment="Left" />
     </Border>
   </StackPanel>
 </UserControl>

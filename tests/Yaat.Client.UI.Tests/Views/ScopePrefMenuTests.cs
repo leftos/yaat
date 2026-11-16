@@ -339,8 +339,8 @@ public class ScopePrefMenuTests : IDisposable
         main.Radar.CenterLon = -122.38;
     }
 
-    /// <summary>The text <paramref name="button"/> draws: its runs, joined.</summary>
-    private static string DrawnText(Button button) => string.Concat(((TextBlock)button.Content!).Inlines!.OfType<Run>().Select(r => r.Text));
+    /// <summary>The text <paramref name="button"/> draws, read as one line (<see cref="ScopeToolbarTests.DrawnText"/>).</summary>
+    private static string DrawnText(Button button) => ScopeToolbarTests.DrawnText(button);
 
     private static string Label(Button button) => AutomationProperties.GetName(button) ?? "";
 

@@ -177,10 +177,13 @@ public sealed class ScopeTearoffLayer : Panel
             return;
         }
 
+        // A copy keeps the shape its button has where it lives (ScopeToolbar.IsHalfTile), as its follower had.
         foreach (ScopeTearoff tearoff in vm.Tearoffs)
         {
-            var copy = new ScopeButtonControl(vm.ButtonFor(tearoff.Key), isTearoff: true)
+            ScopeButton model = vm.ButtonFor(tearoff.Key);
+            var copy = new ScopeButtonControl(model, isTearoff: true)
             {
+                IsHalf = ScopeToolbar.IsHalfTile(vm, model),
                 ViewModel = vm,
                 HorizontalAlignment = tearoff.Place.HorizontalAlignment,
                 VerticalAlignment = tearoff.Place.VerticalAlignment,
@@ -248,7 +251,13 @@ public sealed class ScopeTearoffLayer : Panel
         _grab = e.Press.GetPosition(this) - topLeft;
         _size = source.Bounds.Size;
         _followerAt = topLeft;
-        var follower = new ScopeButtonControl(source.Model, isTearoff: true) { ViewModel = vm, IsHitTestVisible = false };
+        // The follower has the shape its copy will have once dropped, at its own content width.
+        var follower = new ScopeButtonControl(source.Model, isTearoff: true)
+        {
+            IsHalf = ScopeToolbar.IsHalfTile(vm, source.Model),
+            ViewModel = vm,
+            IsHitTestVisible = false,
+        };
         follower.Refresh();
         ScopeButtonKey key = source.Key;
         BeginMove(follower, source.IsTearoff ? source : null, e.Press, place => ScopeToolbarButtons.TearoffCommand(key, place));
@@ -364,8 +373,17 @@ public sealed class ScopeTearoffLayer : Panel
             return;
         }
 
-        // The source's measured size: the follower's own bounds are no measure of where it was dropped.
-        var rect = new Rect(_followerAt, _size);
+        // The follower's bounds may lag at the drop, so they are no measure of where it was dropped. A button's follower
+        // is drawn at its own content size, which can differ from its source's (a half tile stretched to its pair's width),
+        // so it is measured here; a view's outline is drawn at the size taken at the press.
+        Size size = _size;
+        if (_follower is ScopeButtonControl button)
+        {
+            button.Measure(Size.Infinity);
+            size = button.DesiredSize;
+        }
+
+        var rect = new Rect(_followerAt, size);
         string command = dropCommand(ScopePlacement.Nearest(rect, Bounds.Size));
         EndMove();
         vm.RunCommand(command);
