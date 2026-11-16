@@ -108,6 +108,7 @@ public sealed partial class ScopeViewModel
     {
         Profile = profile;
         ProfileKind = kind;
+        RecomputeBand();
         List<string> unknown = [];
         IReadOnlyList<ScopeButton> buttons = ScopeProfilePicker.Order(
             ScopeToolbarButtons.All,

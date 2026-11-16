@@ -65,8 +65,8 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// The scope's display state as a pref set named <paramref name="name"/>: range and centre, template, BRITE, DB, the
-    /// maps that are on, the open views and every view's place, the tear-offs, the bar's and the views' order, and the
-    /// profile's name. Bands live only in the profile's file.
+    /// maps that are on, the open views and every view's place, the tear-offs, the bar's and the views' order, the
+    /// profile's name and the pinned band values. Bands, and the values that follow them, live only in the profile's file.
     /// </summary>
     /// <param name="name">The set's uppercase name, or null for the scope's unnamed current state.</param>
     internal ScopePrefSet CapturePrefSet(string? name) =>
@@ -87,6 +87,10 @@ public sealed partial class ScopeViewModel
             Views = [.. _allViews.Select(view => view.Name)],
             Bands = null,
             Kind = ScopeProfilePicker.NameOf(ProfileKind),
+            PinOthersLevel = Pins.OthersLevel,
+            PinVectorMin = Pins.VectorMin,
+            PinHistory = Pins.History,
+            PinRings = Pins.Rings,
         };
 
     /// <summary>
@@ -101,6 +105,7 @@ public sealed partial class ScopeViewModel
         ApplyTemplate(set.TemplateId);
         ApplyBrightness(set.Brightness);
         ApplyDb(set.Db);
+        ApplyPins(set);
         ApplyRange(set.RangeNm);
         ApplyCentre(set.CenterLat, set.CenterLon);
         WarnUnknownOpenViews(set.OpenViews);

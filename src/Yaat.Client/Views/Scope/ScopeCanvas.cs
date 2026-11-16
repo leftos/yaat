@@ -8,6 +8,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 
@@ -73,6 +74,15 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public static readonly StyledProperty<ScopeDbSettings?> DbSettingsProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeDbSettings?>(
         nameof(DbSettings)
+    );
+
+    /// <summary>
+    /// The zoom band's level for others' tracks (<see cref="ScopeProfile.OthersFull"/> or <see cref="ScopeProfile.OthersPartial"/>);
+    /// read in <see cref="BuildFrame"/>, never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<string> OthersLevelProperty = AvaloniaProperty.Register<ScopeCanvas, string>(
+        nameof(OthersLevel),
+        defaultValue: ScopeProfile.OthersFull
     );
 
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
@@ -156,6 +166,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(RangeNmProperty);
         set => SetValue(RangeNmProperty, value);
+    }
+
+    public string OthersLevel
+    {
+        get => GetValue(OthersLevelProperty);
+        set => SetValue(OthersLevelProperty, value);
     }
 
     /// <summary>
@@ -248,6 +264,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             || (change.Property == MvaFacilityIdProperty)
             || (change.Property == TemplateIdProperty)
             || (change.Property == ViewerProperty)
+            || (change.Property == OthersLevelProperty)
         )
         {
             _lastFrame = null;
@@ -442,6 +459,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 offsets,
                 highlighted,
                 MvaFacilityId,
+                OthersLevel,
                 _hoveredCallsign,
                 VciHoveredCallsign: _hoveredVciCallsign,
                 LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns

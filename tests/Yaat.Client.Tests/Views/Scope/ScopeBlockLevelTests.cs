@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -308,7 +309,8 @@ public class ScopeBlockLevelTests
             ScopeTestAircraft.AllDisplay,
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
-            MvaFacilityId: null
+            MvaFacilityId: null,
+            OthersLevel: ScopeProfile.OthersFull
         );
 
         var frame = ScopeFrame.Build(input);

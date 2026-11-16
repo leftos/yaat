@@ -19,7 +19,8 @@ public class ScopeCommandTests
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
-        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>";
+        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
+        + " | .scope others <full|partial> | .scope auto";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
@@ -52,6 +53,63 @@ public class ScopeCommandTests
             Assert.Equal(ScopeProfileKind.Eram, scope.ProfileKind);
             Assert.Equal("eram", scope.TemplateId);
             Assert.Equal("Scope profile ERAM", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Others_PinsTheLevel_AndEchoes()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope others FULL");
+
+            Assert.Equal(ScopeProfile.OthersFull, scope.Pins.OthersLevel);
+            Assert.Equal(ScopeProfile.OthersFull, scope.EffectiveBand.OthersLevel);
+            Assert.Equal("Scope others FULL (pinned)", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Auto_ClearsThePins_AndEchoes()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope others full");
+
+            main.RunScopeCommand(".scope auto");
+
+            Assert.Equal(ScopeBandPins.None, scope.Pins);
+            Assert.Equal("Scope AUTO", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope others half")]
+    [InlineData(".scope others")]
+    [InlineData(".scope others full now")]
+    public async Task Others_BadWordOrArity_SaysTheUsage_AndPinsNothing(string command)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(command);
+
+            Assert.Equal("Usage: .scope others <full|partial>", main.StatusText);
+            Assert.Equal(ScopeBandPins.None, scope.Pins);
         }
         finally
         {

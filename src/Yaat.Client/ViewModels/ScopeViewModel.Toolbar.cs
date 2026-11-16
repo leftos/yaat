@@ -75,6 +75,13 @@ public sealed partial class ScopeViewModel
             return;
         }
 
+        if (button.Id == ScopeButtonId.Others)
+        {
+            OpenMenu = null;
+            RunCommand(ScopeToolbarButtons.OthersCommand(FlippedOthersLevel()));
+            return;
+        }
+
         switch (button.Kind)
         {
             case ScopeButtonKind.Menu:
@@ -141,12 +148,15 @@ public sealed partial class ScopeViewModel
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
     /// turns on is on (<see cref="IsToggleOn"/>), a profile pick while its profile is the shown one, a command button while
     /// the template it picks is in use, a pref-set
-    /// button while its set is the active one, DEL TEAROFF while its mode is on.
+    /// button while its set is the active one, DEL TEAROFF while its mode is on, OTHERS while others' level is pinned and
+    /// AUTO while any band value is.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Id switch
         {
             ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
+            ScopeButtonId.Others => Pins.OthersLevel is not null,
+            ScopeButtonId.Auto => Pins.Any,
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
             _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
             _ => IsActiveByKind(button),
@@ -167,13 +177,19 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), the active pref
-    /// set's name after PREF's label, the shown profile's name after PROFILE's, or null for any other button.
+    /// set's name after PREF's label, the shown profile's name after PROFILE's, others' level in effect after OTHERS', or
+    /// null for any other button.
     /// </summary>
     public string? SpinnerValue(ScopeButton button)
     {
         if (button.Id == ScopeButtonId.Pref)
         {
             return ActivePrefSet;
+        }
+
+        if (button.Id == ScopeButtonId.Others)
+        {
+            return EffectiveBand.OthersLevel.ToUpperInvariant();
         }
 
         if (button.Id == ScopeButtonId.Profile)

@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -30,7 +31,10 @@ public class ScopeDwellTests
             CenterLon = -122.0,
         };
 
-    private static ScopeFrame Build(string? hovered, ScopeBlockLevel defaultLevel, AircraftModel? selected, params AircraftModel[] aircraft)
+    /// <summary>A STARS viewer that owns none of the test tracks, so the others' level applies to each of them.</summary>
+    private static readonly ScopeViewer OtherStarsViewer = new(new ActingPosition("OAK_APP", "NCT", "2S"), "NCT", null);
+
+    private static ScopeFrame Build(string? hovered, string othersLevel, ScopeViewer viewer, AircraftModel? selected, params AircraftModel[] aircraft)
     {
         using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
         using var paint = new SKPaint();
@@ -41,17 +45,21 @@ public class ScopeDwellTests
             ScopeTemplates.StarsId,
             ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
             ScopeTestAircraft.AllAlerts,
-            ScopeTestAircraft.AllDisplay,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = viewer,
+            },
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
             MvaFacilityId: null,
-            hovered,
-            defaultLevel
+            othersLevel,
+            hovered
         );
         return ScopeFrame.Build(input);
     }
 
-    private static ScopeFrame Build(string? hovered, params AircraftModel[] aircraft) => Build(hovered, ScopeBlockLevel.Full, null, aircraft);
+    private static ScopeFrame Build(string? hovered, params AircraftModel[] aircraft) =>
+        Build(hovered, ScopeProfile.OthersFull, ScopeViewer.None, null, aircraft);
 
     private static AircraftModel Named(string callsign, double lon = -122.0)
     {
@@ -145,8 +153,8 @@ public class ScopeDwellTests
     public void DwellAt_ReadsTheDwelledLayout()
     {
         AircraftModel ac = Named("UAL238");
-        ScopeFrame reduced = Build(null, ScopeBlockLevel.Limited, null, ac);
-        ScopeFrame dwelled = Build("UAL238", ScopeBlockLevel.Limited, null, ac);
+        ScopeFrame reduced = Build(null, ScopeProfile.OthersPartial, OtherStarsViewer, null, ac);
+        ScopeFrame dwelled = Build("UAL238", ScopeProfile.OthersPartial, OtherStarsViewer, null, ac);
         ScopeTrack track = Assert.Single(dwelled.Tracks);
         // The cwt/type token sits on the Full line 2, right of the Limited block's one short line.
         FieldRect probe = Assert.Single(track.Block.Fields, f => f.Slot == ScopeFieldSlot.CwtType);
@@ -209,7 +217,7 @@ public class ScopeDwellTests
     public void Render_SelectedAndDwelledBlock_ShowsTheSelectionBorderAndTheDwellBox()
     {
         AircraftModel ac = Named("UAL238");
-        ScopeFrame frame = Build("UAL238", ScopeBlockLevel.Full, ac, ac);
+        ScopeFrame frame = Build("UAL238", ScopeProfile.OthersFull, ScopeViewer.None, ac, ac);
         ScopeTrack track = Assert.Single(frame.Tracks);
 
         using SKBitmap bitmap = Render(frame);

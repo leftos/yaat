@@ -99,6 +99,8 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.TemplateId)
                 or nameof(ScopeViewModel.ProfileKind)
                 or nameof(ScopeViewModel.RangeNm)
+                or nameof(ScopeViewModel.Pins)
+                or nameof(ScopeViewModel.EffectiveBand)
                 or nameof(ScopeViewModel.OpenViews)
                 or nameof(ScopeViewModel.Brightness)
                 or nameof(ScopeViewModel.DbSettings)

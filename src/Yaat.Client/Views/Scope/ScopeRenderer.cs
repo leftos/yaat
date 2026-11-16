@@ -22,8 +22,11 @@ namespace Yaat.Client.Views.Scope;
 /// The facility whose MVA chart wins where charts overlap (the Radar's <c>RadarViewModel.MvaFacilityId</c>, copied on the UI
 /// thread); null for none.
 /// </param>
+/// <param name="OthersLevel">
+/// The zoom band's level for tracks the viewer does not own (<see cref="Profiles.ScopeProfile.OthersFull"/> or
+/// <see cref="Profiles.ScopeProfile.OthersPartial"/>), copied on the UI thread; with no viewer every track is Full.
+/// </param>
 /// <param name="HoveredCallsign">The callsign of the track the pointer dwells on (<see cref="ScopeFrame.DwellAt"/>), or null.</param>
-/// <param name="DefaultLevel">The block level of every track that is not dwelled.</param>
 /// <param name="VciHoveredCallsign">
 /// The callsign of the track whose VCI cell the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its VCI lights
 /// without dwelling the block.
@@ -42,8 +45,8 @@ public sealed record ScopeFrameInput(
     IReadOnlyDictionary<string, SKPoint> ManualOffsets,
     IReadOnlySet<string> HighlightedCallsigns,
     string? MvaFacilityId,
+    string OthersLevel,
     string? HoveredCallsign = null,
-    ScopeBlockLevel DefaultLevel = ScopeBlockLevel.Full,
     string? VciHoveredCallsign = null,
     IReadOnlySet<string>? LocalDwellLockedCallsigns = null
 );
@@ -152,14 +155,46 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Dwell"/> while the pointer dwells on it, or
     /// while it is drawn with the ERAM template and dwell-locked, by the instructor on this scope
     /// (<see cref="ScopeFrameInput.LocalDwellLockedCallsigns"/>) or by the student's CRC for the viewer's ERAM sector; else
-    /// the frame's default.
+    /// Full for the viewer's own track and for every track when there is no viewer; else the others' level for the
+    /// track's template (<see cref="OthersLevelFor"/>).
     /// </summary>
     private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input)
     {
+        ScopeViewer viewer = input.Display.Viewer;
         bool locked =
             (templateId == ScopeTemplates.EramId)
-            && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, input.Display.Viewer));
-        return (IsHovered(ac, input) || locked) ? ScopeBlockLevel.Dwell : input.DefaultLevel;
+            && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, viewer));
+        if (IsHovered(ac, input) || locked)
+        {
+            return ScopeBlockLevel.Dwell;
+        }
+
+        if (!EramColumn0.HasViewer(viewer) || EramColumn0.IsViewersTrack(ac, viewer))
+        {
+            return ScopeBlockLevel.Full;
+        }
+
+        return OthersLevelFor(templateId, input.OthersLevel);
+    }
+
+    /// <summary>
+    /// The block level <paramref name="othersLevel"/> gives a track drawn with <paramref name="templateId"/>: <c>partial</c>
+    /// is ERAM's Partial (its LDB) and STARS' Limited, and leaves EuroScope, which has no collapsed lines, Full; any other
+    /// word is Full.
+    /// </summary>
+    private static ScopeBlockLevel OthersLevelFor(string templateId, string othersLevel)
+    {
+        if (othersLevel != Profiles.ScopeProfile.OthersPartial)
+        {
+            return ScopeBlockLevel.Full;
+        }
+
+        return templateId switch
+        {
+            ScopeTemplates.EramId => ScopeBlockLevel.Partial,
+            ScopeTemplates.StarsId => ScopeBlockLevel.Limited,
+            _ => ScopeBlockLevel.Full,
+        };
     }
 
     private static bool IsHovered(AircraftModel ac, ScopeFrameInput input) =>

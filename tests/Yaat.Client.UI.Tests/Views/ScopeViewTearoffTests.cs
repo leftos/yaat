@@ -194,6 +194,15 @@ public class ScopeViewTearoffTests
         return (main, scope, window);
     }
 
+    /// <summary>
+    /// Widens the window so the whole bar, DEL TEAROFF last, is on screen: the bar does not wrap yet (YAAT-2357).
+    /// </summary>
+    private static void Widen(Window window)
+    {
+        window.Width = 1600;
+        Settle(window);
+    }
+
     /// <summary>Lays out and renders the window, as hit testing reads the rendered scene.</summary>
     private static void Settle(Window window)
     {
@@ -436,6 +445,7 @@ public class ScopeViewTearoffTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
+            Widen(window);
             PressTitle(window, FloatingCard(window, ScopeToolbarButtons.ViewSsaName));
             Assert.NotNull(OutlineOf(window));
 
@@ -665,6 +675,7 @@ public class ScopeViewTearoffTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
+            Widen(window);
             ScopeButtonControl delete = window
                 .GetVisualDescendants()
                 .OfType<ScopeButtonControl>()

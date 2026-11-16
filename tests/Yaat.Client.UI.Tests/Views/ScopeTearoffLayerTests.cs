@@ -40,6 +40,15 @@ public class ScopeTearoffLayerTests
         return (main, scope, window);
     }
 
+    /// <summary>
+    /// Widens the window so the whole bar, DEL TEAROFF last, is on screen: the bar does not wrap yet (YAAT-2357).
+    /// </summary>
+    private static void Widen(Window window)
+    {
+        window.Width = 1600;
+        Settle(window);
+    }
+
     /// <summary>Lays out and renders the window, as hit testing reads the rendered scene.</summary>
     private static void Settle(Window window)
     {
@@ -252,6 +261,7 @@ public class ScopeTearoffLayerTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();
         try
         {
+            Widen(window);
             main.RunScopeCommand(".scope tearoff range tl 10 10");
             Settle(window);
             ScopeTearoff[] before = [.. scope.Tearoffs];
@@ -532,6 +542,7 @@ public class ScopeTearoffLayerTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();
         try
         {
+            Widen(window);
             main.RunScopeCommand(".scope tearoff range tl 10 10");
             main.RunScopeCommand(".scope tearoff brite tr 10 10");
             Settle(window);
@@ -566,6 +577,7 @@ public class ScopeTearoffLayerTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenScopeAsync();
         try
         {
+            Widen(window);
             main.RunScopeCommand(".scope tearoff range tl 10 10");
             Settle(window);
             ScopeTearoff[] before = [.. scope.Tearoffs];

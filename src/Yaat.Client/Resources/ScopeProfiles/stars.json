@@ -7,6 +7,6 @@
     { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring" }
   ],
   "template": "stars",
-  "toolbar": ["profile", "template", "range", "maps", "db", "views", "brite", "pref", "deletetearoff"],
+  "toolbar": ["profile", "template", "range", "others", "auto", "maps", "db", "views", "brite", "pref", "deletetearoff"],
   "views": ["ssa", "ca"]
 }

@@ -35,6 +35,6 @@ internal static class EramColumn0
     internal static bool VciLit(AircraftModel ac, ScopeViewer viewer) =>
         (EramStatusLine.ViewerSector(viewer).SectorId is { } sectorId) && ac.EramOnFrequencySectorIds.Contains(sectorId, StringComparer.Ordinal);
 
-    // No viewer: no acting position and no ERAM sector to compare the owner against.
-    private static bool HasViewer(ScopeViewer viewer) => (viewer.Acting is not null) || (EramStatusLine.ViewerSector(viewer).SectorId is not null);
+    /// <summary>Whether a viewer is known: an acting position or an ERAM sector to compare the owner against.</summary>
+    internal static bool HasViewer(ScopeViewer viewer) => (viewer.Acting is not null) || (EramStatusLine.ViewerSector(viewer).SectorId is not null);
 }

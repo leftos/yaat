@@ -18,6 +18,8 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Profile,
                 ScopeButtonId.Template,
                 ScopeButtonId.Range,
+                ScopeButtonId.Others,
+                ScopeButtonId.Auto,
                 ScopeButtonId.Maps,
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
@@ -28,7 +30,7 @@ public class ScopeToolbarButtonsTests
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
         Assert.Equal(
-            ["PROFILE", "TEMPLATE", "RANGE", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
+            ["PROFILE", "TEMPLATE", "RANGE", "OTHERS", "AUTO", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
             ScopeToolbarButtons.All.Select(b => b.Label)
         );
     }
@@ -65,6 +67,8 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Range,
                 ScopeButtonId.Profile,
                 ScopeButtonId.Template,
+                ScopeButtonId.Others,
+                ScopeButtonId.Auto,
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
                 ScopeButtonId.Brite,

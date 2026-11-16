@@ -182,6 +182,8 @@ public class ScopeToolbarTests
                     ScopeButtonId.Range,
                     ScopeButtonId.Profile,
                     ScopeButtonId.Template,
+                    ScopeButtonId.Others,
+                    ScopeButtonId.Auto,
                     ScopeButtonId.Db,
                     ScopeButtonId.Views,
                     ScopeButtonId.Brite,

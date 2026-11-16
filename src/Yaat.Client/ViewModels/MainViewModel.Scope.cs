@@ -18,7 +18,12 @@ public partial class MainViewModel
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
-        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>";
+        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
+        + " | .scope others <full|partial> | .scope auto";
+
+    private const string ScopeOthersUsage = "Usage: .scope others <full|partial>";
+
+    private const string ScopeAutoUsage = "Usage: .scope auto";
 
     private const string PrefUsage =
         "Usage: .scope pref save | .scope pref saveas <name> | .scope pref load <name>"
@@ -170,6 +175,8 @@ public partial class MainViewModel
             "TEAROFF" => SetScopeTearoff,
             "PREF" => RunScopePref,
             "PROFILE" => PickScopeProfile,
+            "OTHERS" => PinScopeOthers,
+            "AUTO" => ClearScopePins,
             _ => null,
         };
         if (handler is null)
@@ -395,6 +402,31 @@ public partial class MainViewModel
 
         scope.Main.PickScopeProfileByHand(kind);
         return ScopeProfileEcho(kind);
+    }
+
+    /// <summary><c>.scope others full|partial</c>: pins others' block level until <c>.scope auto</c>.</summary>
+    private static string PinScopeOthers(ScopeViewModel scope, string[] parts)
+    {
+        string? level = parts.Length == 3 ? parts[2].ToLowerInvariant() : null;
+        if ((level is null) || !ScopeViewModel.IsOthersLevel(level))
+        {
+            return ScopeOthersUsage;
+        }
+
+        scope.PinOthersLevel(level);
+        return $"Scope others {level.ToUpperInvariant()} (pinned)";
+    }
+
+    /// <summary><c>.scope auto</c>: clears every pinned band value, so each follows the zoom band again.</summary>
+    private static string ClearScopePins(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length != 2)
+        {
+            return ScopeAutoUsage;
+        }
+
+        scope.ClearPins();
+        return "Scope AUTO";
     }
 
     /// <summary>The status line's echo of a profile change: <c>Scope profile ERAM</c>.</summary>

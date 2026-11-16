@@ -58,6 +58,10 @@ public class ScopePrefSetTests
                 "views",
                 "bands",
                 "kind",
+                "pinOthersLevel",
+                "pinVectorMin",
+                "pinHistory",
+                "pinRings",
             ],
             document.RootElement.EnumerateObject().Select(property => property.Name)
         );

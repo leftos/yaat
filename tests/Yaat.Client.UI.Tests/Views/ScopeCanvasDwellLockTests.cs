@@ -11,6 +11,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -204,10 +205,12 @@ public class ScopeCanvasDwellLockTests
     [AvaloniaFact]
     public void ScopeCanvas_HoverOnTheVciCell_LightsTheVci_AndMovingOffReleasesIt()
     {
-        (MainViewModel main, _, ScopeView view, Window window) = ShowScope(ScopeTemplates.EramId);
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(ScopeTemplates.EramId);
         try
         {
             main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "C44", Sector44, 3, NoStarsDisplay: true));
+            // The track is not the viewer's, so the ERAM band would draw it as an LDB, which has no VCI cell: pin others Full.
+            scope.PinOthersLevel(ScopeProfile.OthersFull);
             Dispatcher.UIThread.RunJobs();
             AddAircraft(main, view.Canvas, "UAL238", 300, 300);
             ScopeTrack track = Assert.Single(view.Canvas.CurrentFrame.Tracks);

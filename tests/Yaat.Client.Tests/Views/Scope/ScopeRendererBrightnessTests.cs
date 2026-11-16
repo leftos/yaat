@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -56,6 +57,7 @@ public class ScopeRendererBrightnessTests
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
             MvaFacilityId: null,
+            OthersLevel: ScopeProfile.OthersFull,
             hovered
         );
         return ScopeFrame.Build(input);

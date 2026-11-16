@@ -37,6 +37,12 @@ public enum ScopeButtonId
     /// <summary>The range spinner.</summary>
     Range,
 
+    /// <summary>OTHERS: shows others' block level in effect and flips it, pinning it; lit while it is pinned.</summary>
+    Others,
+
+    /// <summary>AUTO: clears every pinned band value; lit while any is pinned.</summary>
+    Auto,
+
     /// <summary>The MAPS menu; its tray holds CLR ALL and the Scope's map toggles.</summary>
     Maps,
 
@@ -191,6 +197,9 @@ public static class ScopeToolbarButtons
             null
         ),
         new(ScopeButtonId.Range, "RANGE", ScopeButtonKind.Spinner, [], null, null),
+        // A press runs .scope others with the level other than the one in effect: ScopeViewModel.Press builds it.
+        new(ScopeButtonId.Others, "OTHERS", ScopeButtonKind.Command, [], null, null),
+        new(ScopeButtonId.Auto, "AUTO", ScopeButtonKind.Command, [], null, AutoCommand),
         // The Scope's map toggles are facility data: ScopeViewModel.TrayChildren builds this tray.
         new(ScopeButtonId.Maps, "MAPS", ScopeButtonKind.Menu, [], null, null),
         new(
@@ -327,6 +336,12 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that picks the template (or Mixed) with <paramref name="templateId"/>.</summary>
     public static string TemplateCommand(string templateId) => $".scope template {templateId}";
+
+    /// <summary>The command that clears every pinned band value (AUTO).</summary>
+    public const string AutoCommand = ".scope auto";
+
+    /// <summary>The command that pins others' block level to <paramref name="level"/> (<c>full</c> or <c>partial</c>).</summary>
+    public static string OthersCommand(string level) => $".scope others {level}";
 
     /// <summary>The command that sets the scope's range to <paramref name="rangeNm"/> NM.</summary>
     public static string RangeCommand(int rangeNm) => $".scope range {rangeNm}";

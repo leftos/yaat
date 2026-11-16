@@ -109,7 +109,7 @@ A navy toolbar runs across the top of the window. **PROFILE** is its first butto
 
 The profile is picked once per room, when your student position first arrives: ERAM for an ERAM sector, STARS for a TRACON or tower (ATCT) position, otherwise Mixed. Changing position later (`AS`) keeps it. A profile you pick by hand is remembered for that kind of student position (GND, TWR, APP, CTR) and wins in later rooms of that kind. A facility's saved Scope state keeps its own template.
 
-The profiles are files in `%LOCALAPPDATA%/yaat/scope/profiles/` (`stars.json`, `eram.json`, `mixed.json`), written when absent and never overwritten, so you can edit them. A field that is wrong falls back to the shipped value, and a file that cannot be read is renamed to a `.bak` and replaced with the shipped copy. `toolbar` and `views` list the buttons and views in the order you want them; ones you leave out follow in the default order. `bands` is stored but does nothing yet.
+The profiles are files in `%LOCALAPPDATA%/yaat/scope/profiles/` (`stars.json`, `eram.json`, `mixed.json`), written when absent and never overwritten, so you can edit them. A field that is wrong falls back to the shipped value, and a file that cannot be read is renamed to a `.bak` and replaced with the shipped copy. `toolbar` and `views` list the buttons and views in the order you want them; ones you leave out follow in the default order. `bands` drive the Scope: the band is the first whose `maxNm` is null or at least the range (the edge is inclusive), and tracks you do not own draw at that band's `othersLevel`.
 
 Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXED** and **EUROSCOPE** (the one in use has a cyan border); clicking a pick or **TEMPLATE** again closes the tray.
 
@@ -117,7 +117,9 @@ Click **TEMPLATE** to open a tray under the bar with **STARS**, **ERAM**, **MIXE
 
 The **RANGE** button shows the range in nautical miles (**RANGE 40**). Roll the mouse wheel over it to change the range by 1 NM per step, wheel up to zoom in, between 1 and 256 NM, at the Radar's scroll sensitivity; a click on it does nothing.
 
-By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **MAPS**, **DB**, **VIEWS**, **BRITE**, **PREF** and **DEL TEAROFF**.
+**OTHERS** reads **OTHERS FULL** or **OTHERS PARTIAL**: the level that tracks you do not own draw at, which the profile's band for the current range sets (ERAM Partial, STARS Limited, EuroScope tags unchanged). With no viewer position every track is Full, and your own tracks and the one under the cursor stay Full. A click flips the level and pins it, and the button is lit while pinned. **AUTO** is lit while any value is pinned; a click clears every pin, so the bands apply again. Pins survive a profile change and are saved in pref sets and the Scope's saved state.
+
+By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **AUTO**, **MAPS**, **DB**, **VIEWS**, **BRITE**, **PREF** and **DEL TEAROFF**.
 
 **MAPS** opens a tray with **CLR ALL**, which turns every map off, then one toggle per video map labelled with its STARS id and short name (`10 SFO`), in STARS id order and lit while the map is on. The Scope keeps its own map toggles, copied once from the Radar's when it opens, so the lit ones start as the Radar's active maps; toggling them never changes the Radar. The Scope opens from a centred Radar even when every map is off. When the buttons do not fit the tray wraps onto more rows; it overlays the scope and never resizes it.
 
@@ -165,7 +167,7 @@ A view moves the same way: a left press on a view card's title starts the move, 
 
 **DEL TEAROFF** is the last bar button. The first press enters delete mode: the button draws active and the tray closes. A left click on a torn-off button copy marks or unmarks it, and the next press on DEL TEAROFF deletes the marked copies. Esc leaves the mode and deletes nothing. It applies to button copies only, never to views.
 
-Every toolbar action is also a command typed in the command box, and the status line echoes it: `.scope range <1-256>`, `.scope profile <stars|eram|mixed>` (echoes `Scope profile ERAM`), `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>` (the group is `mapa`, `mapb`, `targets`, `fdb`, `alerts`, `line4` or `dwell`; `.scope brite fdb 80` echoes `.scope brite fdb 80`), `.scope map <starsId> <on|off>` and `.scope map clear`.
+Every toolbar action is also a command typed in the command box, and the status line echoes it: `.scope range <1-256>`, `.scope profile <stars|eram|mixed>` (echoes `Scope profile ERAM`), `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>` (the group is `mapa`, `mapb`, `targets`, `fdb`, `alerts`, `line4` or `dwell`; `.scope brite fdb 80` echoes `.scope brite fdb 80`), `.scope map <starsId> <on|off>`, `.scope map clear`, `.scope others <full|partial>` (echoes `Scope others FULL (pinned)`) and `.scope auto` (echoes `Scope AUTO`).
 
 The same goes for `.scope db <4thline|dwell|atpa> <on|off>` and `.scope db char <8-24>` (the DB echo is lowercase), `.view <ssa|ca> <on|off|dock>` (any letter case), `.scope tearoff <button> <tl|tr|bl|br> <dx> <dy>` and `.view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>`.
 
@@ -175,7 +177,7 @@ The pref set verbs are `.scope pref save`, `.scope pref saveas <name>`, `.scope 
 
 `.view <ssa|ca> tear …` opens the view if it is closed and floats it at that place, and `.view <ssa|ca> dock` opens it if closed and docks it; both echo.
 
-A bad value answers `Usage: .scope range <1-256>`, `Unknown scope template: <id>`, `Unknown scope profile '<id>'`, `Usage: .scope profile <stars|eram|mixed>`, `Unknown video map: <id>`, `Usage: .scope map <id> <on|off> | .scope map clear`, `Unknown scope DB item: <item>` (also for an unbuilt item).
+A bad value answers `Usage: .scope range <1-256>`, `Unknown scope template: <id>`, `Unknown scope profile '<id>'`, `Usage: .scope profile <stars|eram|mixed>`, `Unknown video map: <id>`, `Usage: .scope map <id> <on|off> | .scope map clear`, `Unknown scope DB item: <item>` (also for an unbuilt item) and `Usage: .scope others <full|partial>`.
 
 Further bad values answer `Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>`, `Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20`, `Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>`, `Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...`, `Unknown scope button: <typed>` or `No tear-off: <typed>`.
 

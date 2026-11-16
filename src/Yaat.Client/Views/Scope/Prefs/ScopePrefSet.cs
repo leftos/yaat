@@ -70,6 +70,18 @@ public sealed record ScopePrefSet
     /// </summary>
     public string? Kind { get; init; }
 
+    /// <summary>The pinned block level of others' tracks (<c>full</c> or <c>partial</c>), or null when it follows the band.</summary>
+    public string? PinOthersLevel { get; init; }
+
+    /// <summary>The pinned vector length in minutes, or null when it follows the band.</summary>
+    public double? PinVectorMin { get; init; }
+
+    /// <summary>The pinned history dot count, or null when it follows the band.</summary>
+    public int? PinHistory { get; init; }
+
+    /// <summary>The pinned ring kind (<c>jring</c> or <c>dri</c>), or null when it follows the band.</summary>
+    public string? PinRings { get; init; }
+
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }

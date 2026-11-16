@@ -11,7 +11,20 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// </summary>
 public class ScopeProfileTests
 {
-    private static readonly string[] ShippedToolbar = ["profile", "template", "range", "maps", "db", "views", "brite", "pref", "deletetearoff"];
+    private static readonly string[] ShippedToolbar =
+    [
+        "profile",
+        "template",
+        "range",
+        "others",
+        "auto",
+        "maps",
+        "db",
+        "views",
+        "brite",
+        "pref",
+        "deletetearoff",
+    ];
 
     private static ActivePositionDto Position(string positionType, string? eramSectorId) =>
         new(
