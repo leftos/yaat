@@ -8,9 +8,12 @@
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
     - [ ] YAAT-2377 YAAT Scope step 5e: speed-to-time (LC) readout · release vNext
     - [ ] YAAT-2378 YAAT Scope step 5f: CRR groups on the Scope · release vNext
-    - [/] YAAT-2380 YAAT Scope step 5h: ERAM-dialect scope entries in the preview · release vNext
     - [ ] YAAT-2381 YAAT Scope step 5i: the scope-data column of the field menus · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
+    - [ ] YAAT-2407 YAAT Scope step 6b: queued-commands badge · release vNext
+    - [ ] YAAT-2408 YAAT Scope step 6c: check-in truth · release vNext
+    - [ ] YAAT-2409 YAAT Scope step 6d: RPO queue view · release vNext
+    - [ ] YAAT-2416 Draw the intent path from what the sim flies: route-end course and final approach from the server · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
   - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
@@ -28,6 +31,13 @@
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
 - [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
+- [ ] YAAT-2412 Show long ERAM readouts on the YAAT Scope without cutting them to five lines
+- [ ] YAAT-2413 Handle QB with only beacon codes on the YAAT Scope as CRC does (client-side code list)
+- [ ] YAAT-2414 Map the ERAM weather-symbol keys on the YAAT Scope so SM, SW and WX text can be typed · release vNext
+- [ ] YAAT-2417 Send a clicked track as a pick in Scope ERAM entries so QP and the implied handoff work as in CRC · release vNext
+- [ ] YAAT-2419 Redraw the Scope entry label when the selected track changes owner kind
+- [ ] YAAT-2420 Test old RecordedAmendFlightPlan and RecordedCommand reads from Yaat.Sim's own suite
+- [ ] YAAT-2422 Test that the Scope PILOT LENS button goes dark when the lens is off and its tray closed
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -50,7 +60,6 @@
 
 - [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext+1
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
-- [ ] YAAT-2341 Aircraft snap through heading changes of 3 degrees or more set from the EuroScope-style heading select · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
 ## Context-menu quick commands (#471)
@@ -402,6 +411,7 @@
 - [ ] YAAT-2099 Prove heavies do not orbit tight ramp-connector fillets with the per-type radius
 - [ ] YAAT-2101 Bring StraightArrivalThresholdNm and LineUpGeometry.Compute within the hard limits
 - [ ] YAAT-2263 TAXI T TE @29 from KOAK stand 20 drops T with no unable-via warning
+- [ ] YAAT-2411 Rate-limit nosewheel steering so taxiing aircraft turn gradually and recentre before reversing · release vNext+1
 
 ## Ground traffic: follow, give-way and conflicts
 
@@ -825,6 +835,8 @@
 - [ ] YAAT-1947 Give helicopters an SMAX from their level-flight maximum, not 0.9 x Vne
 - [ ] YAAT-1956 Give M20P, C421 and KODI sourced performance profiles (borrowed cruise and descent figures)
 - [ ] YAAT-1957 Refuse a Mach assignment to a piston airplane (no Mach meter, AIM 4-4-12.b)
+- [ ] YAAT-2410 Cap airborne turn rate by a bank limit so fast jets turn slower than 2.5 deg/s
+- [ ] YAAT-2418 Roll out gradually when a ramped turn loses its target heading mid-turn
 
 ## SIDs, STARs and climb/descend via
 
@@ -931,6 +943,8 @@
 
 ### No milestone
 - [ ] YAAT-2362 HOLDP to a fix on the route: keep the route and compute the entry at the fix
+- [ ] YAAT-2423 Take a fly-by turn's inbound leg bearing from the leg, not the aircraft's live position
+- [ ] YAAT-2424 Stop a localizer intercept steepening to about 40 degrees just after capture
 
 ## Traffic pattern and airborne FOLLOW
 
@@ -992,6 +1006,7 @@
 - [ ] YAAT-2196 Keep a converging follower's turn-out from crossing the lead's final
 - [ ] YAAT-2214 Count the climb past the runway end in a crossing FOLLOW entrant's remaining path
 - [ ] YAAT-2216 A pursuer sequenced behind a landed lead from a spacing excursion goes around for alignment
+- [ ] YAAT-2425 MNA re-plans the downwind descent to the unled base trigger under the Ramp turn model
 
 ## Navigation data and route geometry
 
@@ -1294,6 +1309,7 @@
 - [ ] YAAT-2189 List a temporary dep freq once when it equals a facility frequency written differently
 - [ ] YAAT-2199 Scroll the vTDLS keyboard-highlighted row into view
 - [ ] YAAT-2402 Draw the heading-select preview arc at the aircraft's own turn rate, not 3°/s for every type · release vNext
+- [ ] YAAT-2421 Radar nav route: a vectored aircraft's heading tail may stay where the cache was built
 
 ## Client-driver MCP and automation pipe
 
@@ -1363,7 +1379,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (22/33 done)
+### 1 Defects (23/33 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
@@ -1374,7 +1390,6 @@
 - [ ] YAAT-2177 Fix the dotnet format style findings in untouched test files (IDE0008, IDE0044, IDE0060)
 - [ ] YAAT-2180 Stop HeldLayoutFetch.Dispose masking a test failure with Directory not empty
 - [ ] YAAT-2262 Reject NaN and Infinity in SoakRunner's --sim-hours and --sim-rate-limit
-- [ ] YAAT-2403 Find why CA2026 and CA2027 fire only on Linux, and make the pre-push gate catch Linux-only analyzer errors
 
 ### 2 Refinements and rulings (3/7 done)
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
@@ -1463,16 +1478,14 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (29/81 done)
+### 3 Hygiene and tests (31/82 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
   - [ ] YAAT-2343 Guard expensive log arguments (CA1873) and raise it to warning · release vNext
   - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext
   - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext
-  - [ ] YAAT-2346 Clear CA1859 and CA1822 (concrete types, static members) and raise both to warning · release vNext
   - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext
 - [/] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
-- [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
@@ -1516,6 +1529,7 @@
 - [ ] YAAT-2265 Remove the Legacy fillet Phase-D leftovers and line citations from the ground docs
 - [ ] YAAT-2328 Make the architecture-updater agent check yaat-server's File maps too
 - [ ] YAAT-2329 Settle dead null checks on non-null values (PilotProactive navDb fallback, empty Departure in GroundCommandHandler)
+- [ ] YAAT-2415 Make AtpaProcessor a static class and drop its DI registration and dead parameters
 
 ### No milestone
 - [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
