@@ -1201,7 +1201,7 @@ public static partial class PilotResponder
         }
 
         int bucket = VariantPick.Index(callsign, canonicalBody, speechContext.ElapsedSecond, speechContext.RngSeed, 100);
-        string[] words = [.. Regex.Split(canonicalBody.ToLowerInvariant(), "[^a-z0-9]+").Where(word => word.Length > 0)];
+        string[] words = [.. NonAlphanumericRunRegex().Split(canonicalBody.ToLowerInvariant()).Where(word => word.Length > 0)];
         return bucket switch
         {
             < 5 when !ContainsAny(words, NoAlrightTerms) && !words.Any(RunwayWithSide().IsMatch) => $"alright, {body}",
@@ -3021,7 +3021,7 @@ public static partial class PilotResponder
         // authored as controller-facing text where "Unable — reason" is the natural typography, and an
         // unhandled dash survives the strip to be spoken: "unable, — already turning off at G".
         string cleaned = reason.Trim();
-        cleaned = Regex.Replace(cleaned, @"^\s*unable\b[:,\s\-–—]*", "", RegexOptions.IgnoreCase);
+        cleaned = LeadingUnableRegex().Replace(cleaned, "");
         cleaned = cleaned.Trim(' ', '.', ',', ';', ':', '-', '–', '—');
         if (cleaned.Length == 0)
         {
@@ -4290,8 +4290,8 @@ public static partial class PilotResponder
     /// </summary>
     private static string NormalizeForTts(string text)
     {
-        string speech = Regex.Replace(text, @"\bx-ray\b", "xray", RegexOptions.IgnoreCase);
-        return Regex.Replace(speech, @"(?<=\w)-(?=\w)", " ");
+        string speech = XRayWordRegex().Replace(text, "xray");
+        return InnerHyphenRegex().Replace(speech, " ");
     }
 
     /// <summary>
@@ -4374,4 +4374,16 @@ public static partial class PilotResponder
     /// </summary>
     internal static string? FormatConditionForRpo(BlockCondition? condition) =>
         condition is GiveWayCondition giveWay ? $"behind {giveWay.TargetCallsign}," : FormatConditionTerminal(condition);
+
+    [GeneratedRegex("[^a-z0-9]+")]
+    private static partial Regex NonAlphanumericRunRegex();
+
+    [GeneratedRegex(@"^\s*unable\b[:,\s\-–—]*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingUnableRegex();
+
+    [GeneratedRegex(@"\bx-ray\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex XRayWordRegex();
+
+    [GeneratedRegex(@"(?<=\w)-(?=\w)")]
+    private static partial Regex InnerHyphenRegex();
 }

@@ -12,7 +12,7 @@ namespace Yaat.LayoutInspector.Commands;
 /// --pathfinder, --parking, --spots, --intersection, --validate) and writes
 /// results through an <see cref="IFormatter"/> (text or json).
 /// </summary>
-public sealed class QueryCommand : ICommand
+public sealed partial class QueryCommand : ICommand
 {
     /// <summary>The longest CWT fallback length (an A388's), the aircraft length for routes resolved with no aircraft type.</summary>
     internal static readonly double LongestFallbackLengthFt = AircraftLength.CwtFallbackLengthFt("A388");
@@ -536,14 +536,8 @@ public sealed class QueryCommand : ICommand
     private static int ComputeExplicitWalkCount(int total, IReadOnlyList<string> diagLog)
     {
         int extensionCount = 0;
-        var cachedRe = new System.Text.RegularExpressions.Regex(
-            @"cached Shortest extension \((\d+) segments?",
-            System.Text.RegularExpressions.RegexOptions.Compiled
-        );
-        var liRe = new System.Text.RegularExpressions.Regex(
-            @"\[LI\] Extension via FindRoute.*?: (\d+) segment",
-            System.Text.RegularExpressions.RegexOptions.Compiled
-        );
+        Regex cachedRe = CachedExtensionSegmentsRegex();
+        Regex liRe = FindRouteExtensionSegmentsRegex();
         foreach (string line in diagLog)
         {
             Match m = cachedRe.Match(line);
@@ -652,4 +646,10 @@ public sealed class QueryCommand : ICommand
 
         return false;
     }
+
+    [GeneratedRegex(@"cached Shortest extension \((\d+) segments?")]
+    private static partial Regex CachedExtensionSegmentsRegex();
+
+    [GeneratedRegex(@"\[LI\] Extension via FindRoute.*?: (\d+) segment")]
+    private static partial Regex FindRouteExtensionSegmentsRegex();
 }

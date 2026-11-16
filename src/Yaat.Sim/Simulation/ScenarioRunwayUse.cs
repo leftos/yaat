@@ -27,7 +27,10 @@ public sealed record ScenarioRunwayUse(int Departures, int Arrivals, IReadOnlyLi
         foreach (LoadedAircraft loaded in result.ImmediateAircraft.Concat(result.DelayedAircraft))
         {
             if (
-                (loaded.State.Phases?.AssignedRunway ?? ScenarioRunwaySignals.AircraftRunwaysInLoad(result, loaded).FirstOrDefault()?.Runway)
+                (
+                    loaded.State.Phases?.AssignedRunway
+                    ?? (ScenarioRunwaySignals.AircraftRunwaysInLoad(result, loaded) is [var signal, ..] ? signal.Runway : null)
+                )
                 is not { } runway
             )
             {

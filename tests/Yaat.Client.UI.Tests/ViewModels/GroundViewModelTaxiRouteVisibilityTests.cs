@@ -13,6 +13,9 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 // hover overlay.
 public class GroundViewModelTaxiRouteVisibilityTests
 {
+    private static readonly string[] OnlyTaxiwayA = ["A"];
+    private static readonly string[] TaxiwaysAAndB = ["A", "B"];
+
     private static IReadOnlySet<string> Set(params string[] items) => new HashSet<string>(items);
 
     private static IReadOnlyList<(string, bool)> Fleet(params (string Callsign, bool HasRoute)[] acs) =>
@@ -25,7 +28,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     {
         List<string> result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set("A"), Set(), showAll: false, Fleet(("A", true), ("B", true)));
 
-        Assert.Equal(new[] { "A" }, result);
+        Assert.Equal(OnlyTaxiwayA, result);
     }
 
     [Fact]
@@ -39,7 +42,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
         );
 
         // A taxiing and not hidden -> shown; B hidden -> out; C has no active route -> out.
-        Assert.Equal(new[] { "A" }, result);
+        Assert.Equal(OnlyTaxiwayA, result);
     }
 
     [Fact]
@@ -48,7 +51,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
         List<string> result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set("A"), Set("A"), showAll: true, Fleet(("A", true), ("B", true)));
 
         // A explicitly shown (wins over an overlapping hide) and listed once; B added via show-all.
-        Assert.Equal(new[] { "A", "B" }, result);
+        Assert.Equal(TaxiwaysAAndB, result);
     }
 
     [Fact]

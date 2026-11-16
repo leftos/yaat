@@ -6,6 +6,9 @@ namespace Yaat.Client.UI.Tests;
 
 public class SavedViewSettingsCloneTests
 {
+    private static readonly int[] OriginalStarsIds = [1, 2, 3];
+    private static readonly string[] OriginalPinnedMarkers = ["SFO", "OAK270010"];
+
     [Fact]
     public void RadarClone_IsIndependentDeepCopy()
     {
@@ -26,8 +29,8 @@ public class SavedViewSettingsCloneTests
         clone.RangeNm = 12;
         clone.PtlOwn = false;
 
-        Assert.Equal(new[] { 1, 2, 3 }, original.EnabledStarsIds);
-        Assert.Equal(new[] { "SFO", "OAK270010" }, original.PinnedMarkers);
+        Assert.Equal(OriginalStarsIds, original.EnabledStarsIds);
+        Assert.Equal(OriginalPinnedMarkers, original.PinnedMarkers);
         Assert.Equal(80, original.BrightnessValues!["MapA"]);
         Assert.Equal(55, original.RangeNm);
         Assert.True(original.PtlOwn);

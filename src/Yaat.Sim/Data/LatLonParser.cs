@@ -10,12 +10,10 @@ namespace Yaat.Sim.Data;
 /// be separated by an optional slash. Minutes are the last two digits of each half. Returns null when the
 /// string is not a well-formed coordinate pair. The <c>//</c> location prefix is stripped by the caller.
 /// </summary>
-public static class LatLonParser
+public static partial class LatLonParser
 {
-    private static readonly Regex CoordRegex = new(
-        @"^(\d{2})(\d{2})([NS])/?(\d{2,3})(\d{2})([EW])$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
-    );
+    [GeneratedRegex(@"^(\d{2})(\d{2})([NS])/?(\d{2,3})(\d{2})([EW])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CoordRegex();
 
     public static LatLon? Parse(string s)
     {
@@ -24,7 +22,7 @@ public static class LatLonParser
             return null;
         }
 
-        Match m = CoordRegex.Match(s.Trim());
+        Match m = CoordRegex().Match(s.Trim());
         if (!m.Success)
         {
             return null;

@@ -9,6 +9,10 @@ namespace Yaat.Sim.Tests;
 [Collection("NavDbMutator")]
 public class NavigationCommandTests : IDisposable
 {
+    private static readonly string[] RouteZoeeeCasstBepea = ["ZOEEE", "CASST", "BEPEA"];
+    private static readonly string[] RouteAlphaBravoCharlie = ["ALPHA", "BRAVO", "CHARLIE"];
+    private static readonly string[] RouteSunolCedesEddyy = ["SUNOL", "CEDES", "EDDYY"];
+
     private readonly IDisposable _navDbScope;
 
     public NavigationCommandTests()
@@ -301,7 +305,7 @@ public class NavigationCommandTests : IDisposable
 
         // CFIX is additive: the second CFIX does not clobber the first. The route is unchanged
         // in length/order and both fixes carry their own restriction.
-        Assert.Equal(new[] { "ZOEEE", "CASST", "BEPEA" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
+        Assert.Equal(RouteZoeeeCasstBepea, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
 
         NavigationTarget zoeee = aircraft.Targets.NavigationRoute.First(f => f.Name == "ZOEEE");
         Assert.Equal(250, zoeee.SpeedRestriction!.SpeedKts);
@@ -328,7 +332,7 @@ public class NavigationCommandTests : IDisposable
 
         // CFIX names a fix already on the route; it stamps that fix in place without dropping
         // the fixes ahead of it (ALPHA) — it is a crossing restriction, not a reroute.
-        Assert.Equal(new[] { "ALPHA", "BRAVO", "CHARLIE" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
+        Assert.Equal(RouteAlphaBravoCharlie, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
         Assert.Equal(8000, aircraft.Targets.NavigationRoute.First(f => f.Name == "BRAVO").AltitudeRestriction!.Altitude1Ft);
     }
 
@@ -356,7 +360,7 @@ public class NavigationCommandTests : IDisposable
             TestDispatch.Context(Random.Shared)
         );
 
-        Assert.Equal(new[] { "SUNOL", "CEDES", "EDDYY" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
+        Assert.Equal(RouteSunolCedesEddyy, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
         Assert.Equal(12000, aircraft.Targets.NavigationRoute[0].AltitudeRestriction!.Altitude1Ft);
         Assert.Equal(9000, aircraft.Targets.NavigationRoute[1].AltitudeRestriction!.Altitude1Ft);
         Assert.Equal(6000, aircraft.Targets.NavigationRoute[2].AltitudeRestriction!.Altitude1Ft);

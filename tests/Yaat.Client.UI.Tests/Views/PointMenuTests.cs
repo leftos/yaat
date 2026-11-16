@@ -962,10 +962,10 @@ public class PointMenuTests
     /// </summary>
     private const string TargetLabel =
         @"^(At \S+ \((nearest|near click|full length)(, (near click|full length))*\)|(Nearest|Near click|Full length)(, (near click|full length))*)$";
+    private static readonly string[] TargetReasonTags = ["nearest", "near click", "full length"];
 
     /// <summary>Each of the three reasons, nearest, near click and full length, is named by exactly one target.</summary>
-    private static void AssertEachReasonOnce(List<string> targets) =>
-        Assert.Equal(new[] { "nearest", "near click", "full length" }.Order(), targets.SelectMany(TagsOf).Order());
+    private static void AssertEachReasonOnce(List<string> targets) => Assert.Equal(TargetReasonTags.Order(), targets.SelectMany(TagsOf).Order());
 
     /// <summary>The Taxi to runway panel's targets in order, once each, read from its title lines (<c>RW {target} · …</c>).</summary>
     private static List<string> TargetsIn(TaxiToRunwayPanel panel) =>

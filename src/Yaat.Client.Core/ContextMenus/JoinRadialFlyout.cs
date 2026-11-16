@@ -152,7 +152,7 @@ public static class JoinRadialFlyout
             .ThenBy(fix => fix.Fix, StringComparer.Ordinal)
             .Select(fix => fix.Fix)
             .FirstOrDefault();
-        return onRoute ?? db.NavaidsNear(aircraft.Position, "").FirstOrDefault()?.Name;
+        return onRoute ?? (db.NavaidsNear(aircraft.Position, "") is [var nearest, ..] ? nearest.Name : null);
     }
 }
 

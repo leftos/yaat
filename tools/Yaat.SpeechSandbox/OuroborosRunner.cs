@@ -27,7 +27,7 @@ namespace Yaat.SpeechSandbox;
 /// verdicted PASS (all N trials match), FAIL (zero match), or FLAKY (some match) — the latter is
 /// the signal that the underlying issue is intermittent, not an outright pipeline gap.
 /// </summary>
-internal static class OuroborosRunner
+internal static partial class OuroborosRunner
 {
     private const int DefaultSpeakerId = 50;
     private const float DefaultSpeed = 1.0f;
@@ -307,7 +307,7 @@ internal static class OuroborosRunner
 
     private static bool CanonicalEquals(string a, string b) => Normalize(a) == Normalize(b);
 
-    private static string Normalize(string s) => Regex.Replace(s, @"\s+", " ").Trim().ToUpperInvariant();
+    private static string Normalize(string s) => WhitespaceRunRegex().Replace(s, " ").Trim().ToUpperInvariant();
 
     private static string VerdictLabel(CaseResult r) =>
         r.Verdict switch
@@ -500,4 +500,7 @@ internal static class OuroborosRunner
         public int RuleMs { get; set; }
         public int LlmMs { get; set; }
     }
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRunRegex();
 }

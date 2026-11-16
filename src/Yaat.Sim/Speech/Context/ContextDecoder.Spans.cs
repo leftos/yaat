@@ -108,7 +108,7 @@ public static partial class ContextDecoder
         public bool Fits(TokenRange range, FormShape shape)
         {
             (IReadOnlyList<SpokenToken> Name, IReadOnlyList<SpokenToken> Code) parts = SpokenFormScore.SplitHeard(Slice(range), shape.Tokens);
-            bool strayCode = (shape.Tokens.FirstOrDefault()?.Kind == TokenKind.Word) && (_tokens[range.Start].Kind != TokenKind.Word);
+            bool strayCode = ((shape.Tokens.Count > 0) && (shape.Tokens[0].Kind == TokenKind.Word)) && (_tokens[range.Start].Kind != TokenKind.Word);
             return !strayCode && PartFits(parts.Name.Count, shape.NameCount) && PartFits(parts.Code.Count, shape.CodeCount);
         }
 

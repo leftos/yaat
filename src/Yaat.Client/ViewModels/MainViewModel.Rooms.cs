@@ -170,7 +170,7 @@ public partial class MainViewModel
     /// permitted list's own spelling, so the bound combo box finds its selected item.
     /// </summary>
     internal static string? PickCreateArtcc(IReadOnlyList<string> permitted, string? saved, string? home) =>
-        PermittedOrNull(permitted, saved) ?? PermittedOrNull(permitted, home) ?? permitted.FirstOrDefault();
+        PermittedOrNull(permitted, saved) ?? PermittedOrNull(permitted, home) ?? (permitted.Count > 0 ? permitted[0] : null);
 
     /// <summary>The permitted list's spelling of <paramref name="artccId"/>, or null when it is not permitted.</summary>
     private static string? PermittedOrNull(IReadOnlyList<string> permitted, string? artccId)

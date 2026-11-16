@@ -20,6 +20,8 @@ namespace Yaat.Client.UI.Tests.Views;
 // command string, which tests capture via the sendCommand delegate.
 public class VStripsViewInteractionTests
 {
+    private static readonly string[] FindMatchCallsigns = ["UAL111", "AAL222", "UAL333"];
+
     [AvaloniaFact]
     public void VStripsViewWindow_BootsWithSeededBays()
     {
@@ -884,7 +886,7 @@ public class VStripsViewInteractionTests
         Assert.True(vm.ItemsByIdForTests["UAL333"].IsFindMatch);
         Assert.False(vm.ItemsByIdForTests["AAL222"].IsFindMatch);
         Assert.Equal("1/2", view.FindController.MatchSummary);
-        int currentCount = new[] { "UAL111", "AAL222", "UAL333" }.Count(id => vm.ItemsByIdForTests[id].IsCurrentFindMatch);
+        int currentCount = FindMatchCallsigns.Count(id => vm.ItemsByIdForTests[id].IsCurrentFindMatch);
         Assert.Equal(1, currentCount);
 
         // Next advances the current match.

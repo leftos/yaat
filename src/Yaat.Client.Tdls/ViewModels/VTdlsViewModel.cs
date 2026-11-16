@@ -271,7 +271,7 @@ public partial class VTdlsViewModel : ObservableObject
     /// <summary>Name of the active config, for the footer button ("Ops Config: OAKW").</summary>
     public string ActiveOpConfigName =>
         OpConfigs.FirstOrDefault(c => string.Equals(c.Id, ActiveOpConfigId, StringComparison.Ordinal))?.Name
-        ?? OpConfigs.FirstOrDefault()?.Name
+        ?? (OpConfigs.Count > 0 ? OpConfigs[0].Name : null)
         ?? "";
 
     /// <summary>

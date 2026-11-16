@@ -542,7 +542,7 @@ public partial class SettingsWindowSourceTests
     private static (SettingsSectionId Section, string Label, SettingsSectionId Target) LinkOf(SettingsSectionId section, XElement button)
     {
         string tag = (string?)button.Attribute("Tag") ?? "";
-        Match target = Regex.Match(tag, @"SettingsSectionId\.(\w+)\}");
+        Match target = SettingsSectionIdTagRegex().Match(tag);
         return (section, (string?)button.Attribute("Content") ?? "", Enum.Parse<SettingsSectionId>(target.Groups[1].Value));
     }
 
@@ -589,4 +589,7 @@ public partial class SettingsWindowSourceTests
 
     [GeneratedRegex(@"^\{Binding ([^,}]+)")]
     private static partial Regex BindingPathRegex();
+
+    [GeneratedRegex(@"SettingsSectionId\.(\w+)\}")]
+    private static partial Regex SettingsSectionIdTagRegex();
 }

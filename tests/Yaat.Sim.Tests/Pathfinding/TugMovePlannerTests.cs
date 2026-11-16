@@ -16,7 +16,7 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// spot 6A, then across the lanes onto spot 6B (140.5 ft apart). A tug cannot pivot the aircraft in place, so
 /// each spot is reached by pushing past it onto its lane and pulling forward onto the mark.</para>
 /// </summary>
-public class TugMovePlannerTests
+public partial class TugMovePlannerTests
 {
     private const string Narrowbody = "B738";
     private const double EndPositionToleranceFt = 1.5;
@@ -68,8 +68,11 @@ public class TugMovePlannerTests
     /// </summary>
     private const double F8MaxPenetrationFt = 19.9;
 
-    private static readonly Regex RunwayPavement = new(@"would put the aircraft on runway \S+", RegexOptions.CultureInvariant);
-    private static readonly Regex TaxiwayPavement = new(@"would put the aircraft on taxiway \S+", RegexOptions.CultureInvariant);
+    [GeneratedRegex(@"would put the aircraft on runway \S+", RegexOptions.CultureInvariant)]
+    private static partial Regex RunwayPavement();
+
+    [GeneratedRegex(@"would put the aircraft on taxiway \S+", RegexOptions.CultureInvariant)]
+    private static partial Regex TaxiwayPavement();
 
     private readonly ITestOutputHelper _output;
 
@@ -549,7 +552,7 @@ public class TugMovePlannerTests
         string refusal = Refusal(layout, OffStand(start, goal));
 
         Assert.Contains(goal.Label, refusal, StringComparison.Ordinal);
-        Assert.Matches(RunwayPavement, refusal);
+        Assert.Matches(RunwayPavement(), refusal);
     }
 
     /// <summary>
@@ -570,7 +573,7 @@ public class TugMovePlannerTests
         string refusal = Refusal(layout, StandStart(Parking(layout, "D1"), goal));
 
         Assert.Contains(goal.Label, refusal, StringComparison.Ordinal);
-        Assert.Matches(TaxiwayPavement, refusal);
+        Assert.Matches(TaxiwayPavement(), refusal);
     }
 
     /// <summary>The runway holding-position node nearest spot 18, asked for as a node goal.</summary>

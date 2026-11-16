@@ -143,6 +143,7 @@ public static class InputParams
     }
 
     /// <summary><paramref name="button"/> as a mouse button: left, right or middle in any case, and left when it is null.</summary>
+#pragma warning disable CA1507 // JSON wire key, not a C# parameter name
     public static (MouseButton Button, HandlerErrorResult? Error) ParseButton(string? button) =>
         button?.ToLowerInvariant() switch
         {
@@ -170,6 +171,7 @@ public static class InputParams
 
         return (result, null);
     }
+#pragma warning restore CA1507
 
     private static KeyModifiers? ModifierNamed(string part) =>
         part.ToLowerInvariant() switch

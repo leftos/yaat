@@ -32,6 +32,8 @@ namespace Yaat.Client.UI.Tests.Views;
 //     "TERMINAL to 30" (T U W) resolves and its "30 to TERMINAL" (W V T) does not, for the preset routes.
 public class GroundSubmenuCharacterizationTests
 {
+    private static readonly string[] CompassCardinals = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
     private const string Initials = "AB";
 
     private const string TaxiingCallsign = "SWA104";
@@ -179,7 +181,7 @@ public class GroundSubmenuCharacterizationTests
         Click(Item(CommandTree(built.Menu), $"Push back, {directions[0].Label}"));
 
         Assert.Equal([(ParkedCallsign, $"PUSH FACE {directions[0].Cardinal}", Initials)], built.Sent);
-        Assert.Contains(directions[0].Cardinal, new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" });
+        Assert.Contains(directions[0].Cardinal, CompassCardinals);
     }
 
     [AvaloniaFact]

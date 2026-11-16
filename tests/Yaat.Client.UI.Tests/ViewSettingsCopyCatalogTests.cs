@@ -6,6 +6,8 @@ namespace Yaat.Client.UI.Tests;
 
 public class ViewSettingsCopyCatalogTests
 {
+    private static readonly int[] CopiedStarsIds = [7, 8];
+
     [Fact]
     public void RadarMapsGroup_CopiesOnlyMaps_LeavesOtherFields()
     {
@@ -25,7 +27,7 @@ public class ViewSettingsCopyCatalogTests
 
         maps.Copy(source, target);
 
-        Assert.Equal(new[] { 7, 8 }, target.EnabledStarsIds);
+        Assert.Equal(CopiedStarsIds, target.EnabledStarsIds);
         Assert.Equal(40, target.RangeNm);
         Assert.False(target.PtlOwn);
     }
@@ -40,7 +42,7 @@ public class ViewSettingsCopyCatalogTests
         maps.Copy(source, target);
         target.EnabledStarsIds.Add(9);
 
-        Assert.Equal(new[] { 7, 8 }, source.EnabledStarsIds);
+        Assert.Equal(CopiedStarsIds, source.EnabledStarsIds);
     }
 
     [Fact]

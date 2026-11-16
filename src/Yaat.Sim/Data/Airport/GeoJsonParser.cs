@@ -13,7 +13,7 @@ namespace Yaat.Sim.Data.Airport;
 /// Expects features with properties.type = "parking" | "taxiway" | "spot" | "runway".
 /// Coordinates are [lon, lat] per GeoJSON spec.
 /// </summary>
-public static class GeoJsonParser
+public static partial class GeoJsonParser
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GeoJsonParser");
 
@@ -35,9 +35,10 @@ public static class GeoJsonParser
     private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
 
     /// <summary>Strips leading zeros from JSON number literals (e.g. 03 → 3) that are invalid per RFC 8259.</summary>
-    private static readonly Regex LeadingZeroRegex = new(@"(?<=[:,\[]\s*)0+(\d)", RegexOptions.Compiled);
+    [GeneratedRegex(@"(?<=[:,\[]\s*)0+(\d)")]
+    private static partial Regex LeadingZeroRegex();
 
-    private static string SanitizeJson(string json) => LeadingZeroRegex.Replace(json, "$1");
+    private static string SanitizeJson(string json) => LeadingZeroRegex().Replace(json, "$1");
 
     /// <summary>
     /// Look a feature property up by key: exact match first, then a case-insensitive scan, since

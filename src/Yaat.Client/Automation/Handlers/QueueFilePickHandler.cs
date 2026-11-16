@@ -61,6 +61,7 @@ public sealed class QueueFilePickHandler : IRequestHandler
         return parsed;
     }
 
+#pragma warning disable CA1507 // JSON wire key, not a C# parameter name
     private static HandlerErrorResult? Validate(string? path, bool? cancel)
     {
         if ((path is not null) && (cancel is not null))
@@ -85,4 +86,5 @@ public sealed class QueueFilePickHandler : IRequestHandler
 
         return null;
     }
+#pragma warning restore CA1507
 }

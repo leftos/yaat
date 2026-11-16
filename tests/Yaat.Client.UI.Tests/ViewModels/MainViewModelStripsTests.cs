@@ -17,6 +17,9 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// </summary>
 public class MainViewModelStripsTests
 {
+    private static readonly string[] StripsS1AndS2 = ["S1", "S2"];
+    private static readonly string[] OnlyStripS2 = ["S2"];
+
     private static MainViewModel NewVm() => new(new FakeFilePickerService());
 
     [AvaloniaFact]
@@ -256,7 +259,7 @@ public class MainViewModelStripsTests
         Dispatcher.UIThread.RunJobs();
 
         StripRackViewModel rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        Assert.Equal(new[] { "S1", "S2" }, rack.Strips.Select(s => s.Id).ToArray());
+        Assert.Equal(StripsS1AndS2, rack.Strips.Select(s => s.Id).ToArray());
     }
 
     [AvaloniaFact]
@@ -282,7 +285,7 @@ public class MainViewModelStripsTests
         Dispatcher.UIThread.RunJobs();
 
         StripRackViewModel rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        Assert.Equal(new[] { "S2" }, rack.Strips.Select(s => s.Id).ToArray());
+        Assert.Equal(OnlyStripS2, rack.Strips.Select(s => s.Id).ToArray());
     }
 
     [AvaloniaFact]

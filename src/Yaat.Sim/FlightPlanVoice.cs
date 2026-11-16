@@ -12,7 +12,7 @@ namespace Yaat.Sim;
 /// block (7110.65 §2-3-2 block 26). vNAS parses the same convention into its common <c>VoiceType</c>
 /// {Unknown, Full, ReceiveOnly, TextOnly}; YAAT stores those values as <see cref="AircraftVoice.Type"/>.
 /// </summary>
-public static class FlightPlanVoice
+public static partial class FlightPlanVoice
 {
     public const int Full = 1;
     public const int ReceiveOnly = 2;
@@ -20,7 +20,8 @@ public static class FlightPlanVoice
 
     // A voice marker is a slash-delimited single letter so free-text remarks (STS/…, SEL/…, PBN/…) cannot
     // false-positive. Case-insensitive: /v/ /r/ /t/ or /V/ /R/ /T/.
-    private static readonly Regex MarkerRegex = new(@"/[vrt]/", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    [GeneratedRegex(@"/[vrt]/", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MarkerRegex();
 
     /// <summary>
     /// Derives the voice type from the flight-plan remarks. The leftmost <c>/v/</c>·<c>/r/</c>·<c>/t/</c>
@@ -33,7 +34,7 @@ public static class FlightPlanVoice
             return Full;
         }
 
-        Match match = MarkerRegex.Match(remarks);
+        Match match = MarkerRegex().Match(remarks);
         if (!match.Success)
         {
             return Full;
@@ -65,5 +66,5 @@ public static class FlightPlanVoice
     }
 
     private static string StripMarkers(string remarks) =>
-        string.Join(' ', MarkerRegex.Replace(remarks, " ").Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        string.Join(' ', MarkerRegex().Replace(remarks, " ").Split(' ', StringSplitOptions.RemoveEmptyEntries));
 }

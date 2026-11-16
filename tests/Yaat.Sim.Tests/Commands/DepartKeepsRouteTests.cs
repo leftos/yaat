@@ -13,6 +13,10 @@ namespace Yaat.Sim.Tests.Commands;
 /// </summary>
 public sealed class DepartKeepsRouteTests
 {
+    private static readonly string[] RouteCorkkBrixxLuyta = ["CORKK", "BRIXX", "LUYTA"];
+    private static readonly string[] RouteLuytaOnly = ["LUYTA"];
+    private static readonly string[] RouteCorkkLuyta = ["CORKK", "LUYTA"];
+
     /// <summary>
     /// The published outbound course a STAR's terminating leg carries — LUYTA is the BRIXX4 STAR's last fix. Unlike the
     /// 140° depart heading, so a rebuild that forgets to drop it turns the aircraft the wrong way at the fix.
@@ -34,7 +38,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "CORKK", "BRIXX", "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteCorkkBrixxLuyta, RouteNames(aircraft));
         NavigationTarget kept = aircraft.Targets.NavigationRoute[^1];
         Assert.NotSame(original, kept);
         Assert.Null(kept.TerminalCourseMagnetic);
@@ -52,7 +56,7 @@ public sealed class DepartKeepsRouteTests
 
         Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "CORKK", "BRIXX", "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteCorkkBrixxLuyta, RouteNames(aircraft));
         Assert.Null(aircraft.Targets.NavigationRoute[^1].TerminalCourseMagnetic);
 
         FlyUntil(aircraft, ac => ac.Targets.NavigationRoute.Count == 0, "the aircraft flies the kept route through LUYTA and the fix sequences");
@@ -81,7 +85,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "CORKK", "BRIXX", "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteCorkkBrixxLuyta, RouteNames(aircraft));
         Assert.Contains("Depart LUYTA heading 140", result.Message);
     }
 
@@ -93,7 +97,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteLuytaOnly, RouteNames(aircraft));
         Assert.Contains("Depart LUYTA heading 140", result.Message);
         Assert.DoesNotContain("direct", result.Message);
     }
@@ -106,7 +110,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteLuytaOnly, RouteNames(aircraft));
         Assert.Contains("Proceed direct LUYTA, depart heading 140", result.Message);
     }
 
@@ -117,7 +121,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteLuytaOnly, RouteNames(aircraft));
         Assert.Contains("Proceed direct LUYTA, depart heading 140", result.Message);
     }
 
@@ -129,7 +133,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "CORKK", "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteCorkkLuyta, RouteNames(aircraft));
         Assert.Contains("Depart LUYTA heading 140", result.Message);
         Assert.DoesNotContain("direct", result.Message);
     }
@@ -143,7 +147,7 @@ public sealed class DepartKeepsRouteTests
 
         CommandResult result = Send(aircraft, "depart luyta 140");
 
-        Assert.Equal(new[] { "CORKK", "BRIXX", "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteCorkkBrixxLuyta, RouteNames(aircraft));
         NavigationTarget kept = aircraft.Targets.NavigationRoute[^1];
         Assert.Null(kept.TerminalCourseMagnetic);
         Assert.Contains("Depart LUYTA heading 140", result.Message);
@@ -181,7 +185,7 @@ public sealed class DepartKeepsRouteTests
 
         Send(aircraft, "DEPART LUYTA 140");
 
-        Assert.Equal(new[] { "CORKK", "BRIXX", "LUYTA" }, RouteNames(aircraft));
+        Assert.Equal(RouteCorkkBrixxLuyta, RouteNames(aircraft));
         NavigationTarget keptBrixx = aircraft.Targets.NavigationRoute[1];
         Assert.Same(brixx, keptBrixx);
         Assert.Equal(6000, keptBrixx.AltitudeRestriction?.Altitude1Ft);

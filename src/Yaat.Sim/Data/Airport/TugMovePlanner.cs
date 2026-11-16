@@ -2126,7 +2126,10 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private TugRowAnchor? RowAnchor(IReadOnlyList<TugMoveTrace> traces)
     {
-        TugMoveTrace? first = _moves.Count > 0 ? _moves[0] : traces.FirstOrDefault();
+        TugMoveTrace? first =
+            (_moves.Count > 0) ? _moves[0]
+            : (traces.Count > 0) ? traces[0]
+            : null;
         return first is null ? null : new TugRowAnchor(_request.Start, first.Move.Kind);
     }
 

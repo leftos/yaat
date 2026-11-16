@@ -20,7 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// braking limit, refused with the crew's "unable" when the turn-off cannot be made, and started once the exit is complete
 /// without the aircraft stopping at the landing runway's own bar.
 /// </summary>
-public sealed class TaxiOnLandingRolloutRulingTests
+public sealed partial class TaxiOnLandingRolloutRulingTests
 {
     private const string Arrival = "ARR1";
     private const int DispatchWindowSeconds = 60;
@@ -1539,17 +1539,13 @@ public sealed class TaxiOnLandingRolloutRulingTests
         _output.WriteLine($"TAXI J C B W W1 30 -> {taxi.Success} {taxi.Message} | {speech?.Terminal} | {speech?.Tts}");
         Assert.True(taxi.Success, taxi.Message);
         Assert.Equal("J", spawned.Aircraft.Phases!.RequestedExit?.Taxiway, StringComparer.OrdinalIgnoreCase);
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(taxi.Message ?? "", @"\bJ\b"));
+        Assert.Single(TaxiwayJWordRegex().Matches(taxi.Message ?? ""));
         if (controllerNamedTheExit)
         {
             Assert.StartsWith("Exit right at J, ", taxi.Message, StringComparison.Ordinal);
             Assert.NotNull(speech);
-            Assert.Single(
-                System.Text.RegularExpressions.Regex.Matches(speech.Terminal, @"\bJ\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-            );
-            Assert.Single(
-                System.Text.RegularExpressions.Regex.Matches(speech.Tts, @"\b(J|juliett?)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-            );
+            Assert.Single(TaxiwayJWordIgnoreCaseRegex().Matches(speech.Terminal));
+            Assert.Single(TaxiwayJOrJuliettWordRegex().Matches(speech.Tts));
         }
     }
 
@@ -2420,4 +2416,19 @@ public sealed class TaxiOnLandingRolloutRulingTests
         int held = SfoGroundHarness.TickUntil(spawned.Engine, () => spawned.Aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase, 300, null);
         Assert.True(held > 0, $"never held clear after the exit: {spawned.Aircraft.Phases?.CurrentPhase?.Name}");
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\bJ\b")]
+    private static partial System.Text.RegularExpressions.Regex TaxiwayJWordRegex();
+
+    [System.Text.RegularExpressions.GeneratedRegex(
+        @"\bJ\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+    )]
+    private static partial System.Text.RegularExpressions.Regex TaxiwayJWordIgnoreCaseRegex();
+
+    [System.Text.RegularExpressions.GeneratedRegex(
+        @"\b(J|juliett?)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+    )]
+    private static partial System.Text.RegularExpressions.Regex TaxiwayJOrJuliettWordRegex();
 }

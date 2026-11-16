@@ -17,7 +17,9 @@ public sealed record ScenarioLoadResult(string? FilePath, string? ApiScenarioId,
 public partial class LoadScenarioWindow : Window
 {
     private static readonly ILogger Log = AppLog.CreateLogger<LoadScenarioWindow>();
-    private static readonly Regex NamePrefixRegex = new(@"^([A-Z]+\d+)-([A-Z]+)", RegexOptions.Compiled);
+
+    [GeneratedRegex(@"^([A-Z]+\d+)-([A-Z]+)")]
+    private static partial Regex NamePrefixRegex();
 
     private readonly UserPreferences _preferences;
     private readonly ServerConnection? _connection;
@@ -157,7 +159,7 @@ public partial class LoadScenarioWindow : Window
             .. visible.Select(s =>
             {
                 string facility = "Unknown";
-                Match match = NamePrefixRegex.Match(s.Name);
+                Match match = NamePrefixRegex().Match(s.Name);
                 if (match.Success)
                 {
                     facility = match.Groups[2].Value;
@@ -248,7 +250,7 @@ public partial class LoadScenarioWindow : Window
                 string rating = "Unknown";
                 if (name is not null)
                 {
-                    Match match = NamePrefixRegex.Match(name);
+                    Match match = NamePrefixRegex().Match(name);
                     if (match.Success)
                     {
                         rating = $"{match.Groups[1].Value}-{match.Groups[2].Value}";

@@ -22,6 +22,8 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// </summary>
 public class SfoDepartureFunnelTests(ITestOutputHelper output)
 {
+    private static readonly string[] FunnelSpotsByDistance = ["FUN3", "FUN1", "FUN4", "FUN2"];
+
     private const string Type = "B738";
 
     /// <summary>Tick budget for the staging phase: four aircraft off the ramp, two of them down 1R behind a give-way.</summary>
@@ -379,7 +381,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
         Assert.Null(funnel.Entered28L);
 
         var byDistance = funnel.All.OrderBy(ac => GeoMath.DistanceNm(ac.Position, funnel.DestinationPosition)).Select(ac => ac.Callsign).ToList();
-        Assert.Equal(new[] { "FUN3", "FUN1", "FUN4", "FUN2" }, byDistance);
+        Assert.Equal(FunnelSpotsByDistance, byDistance);
     }
 
     private static void AssertQueueOrdinals(Funnel funnel)

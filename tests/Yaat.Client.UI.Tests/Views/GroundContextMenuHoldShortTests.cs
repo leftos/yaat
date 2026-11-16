@@ -14,6 +14,8 @@ namespace Yaat.Client.UI.Tests.Views;
 // assigned; the held runway comes from the phase alone, so no layout is consulted.
 public class GroundContextMenuHoldShortTests
 {
+    private static readonly string[] CrossRunway15Item = ["Cross 15"];
+
     [AvaloniaFact]
     public void HoldingShort_OffersOnlyHeldRunwayCrossing_NotNearbyParallelRunway()
     {
@@ -34,7 +36,7 @@ public class GroundContextMenuHoldShortTests
             .Select(m => (string)m.Header!)
             .ToList();
 
-        Assert.Equal(new[] { "Cross 15" }, crossItems);
+        Assert.Equal(CrossRunway15Item, crossItems);
         Assert.DoesNotContain(commandTree.OfType<MenuItem>(), m => m.Header is string s && s.Contains("28R", StringComparison.Ordinal));
         Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), m => m.Header is string s && s.Contains("28R", StringComparison.Ordinal));
     }

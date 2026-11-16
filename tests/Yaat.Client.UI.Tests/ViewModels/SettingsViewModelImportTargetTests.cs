@@ -15,6 +15,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 public class SettingsViewModelImportTargetTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "yaat-settings-import-target-tests", Guid.NewGuid().ToString("N"));
+    private static readonly string[] NonEnumImportValues = ["#80123456", "Never", "OnLanding", "Parked", "Above", "Below"];
 
     public void Dispose()
     {
@@ -251,7 +252,7 @@ public class SettingsViewModelImportTargetTests : IDisposable
             ],
             _ =>
             [
-                .. new[] { "#80123456", "Never", "OnLanding", "Parked", "Above", "Below" }
+                .. NonEnumImportValues
                     .Concat(Enum.GetNames<VfrCommandsForIfr>())
                     .Concat(Enum.GetNames<SoloAdvisoryPrefill>())
                     .Select(s => (JsonNode?)JsonValue.Create(s)),

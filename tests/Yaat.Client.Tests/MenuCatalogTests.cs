@@ -10,9 +10,10 @@ namespace Yaat.Client.Tests;
 /// <see cref="MenuCatalog"/> entry, identifiers follow the <c>&lt;group&gt;.&lt;item&gt;</c> scheme, and an unknown
 /// identifier fails loudly with its name.
 /// </summary>
-public class MenuCatalogTests
+public partial class MenuCatalogTests
 {
-    private static readonly Regex IdScheme = new(@"^[a-z]+\.[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.CultureInvariant);
+    [GeneratedRegex(@"^[a-z]+\.[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]
+    private static partial Regex IdScheme();
 
     private static List<string> DeclaredIds() =>
         [
@@ -39,7 +40,7 @@ public class MenuCatalogTests
     [Fact]
     public void CatalogIds_FollowTheGroupDotKebabScheme()
     {
-        List<string> malformed = [.. MenuCatalog.All.Select(e => e.Id).Where(id => !IdScheme.IsMatch(id))];
+        List<string> malformed = [.. MenuCatalog.All.Select(e => e.Id).Where(id => !IdScheme().IsMatch(id))];
         Assert.Empty(malformed);
     }
 

@@ -368,11 +368,20 @@ public partial class FlightPlanEditorWindow : Window
 
     // ── Input masks (mirrors CRC's FlightPlanEditorContent.xaml.cs PreviewTextInput) ──
 
-    private static readonly Regex AlphaUpperPattern = new("[^A-Z]+", RegexOptions.Compiled);
-    private static readonly Regex AlphanumericUpperPattern = new("[^A-Z0-9]+", RegexOptions.Compiled);
-    private static readonly Regex DigitsPattern = new("[^0-9]+", RegexOptions.Compiled);
-    private static readonly Regex AltitudePattern = new("[^0-9VFROTP/]+", RegexOptions.Compiled);
-    private static readonly Regex RoutePattern = new("[^A-Z0-9./+ ]+", RegexOptions.Compiled);
+    [GeneratedRegex("[^A-Z]+")]
+    private static partial Regex AlphaUpperPattern();
+
+    [GeneratedRegex("[^A-Z0-9]+")]
+    private static partial Regex AlphanumericUpperPattern();
+
+    [GeneratedRegex("[^0-9]+")]
+    private static partial Regex DigitsPattern();
+
+    [GeneratedRegex("[^0-9VFROTP/]+")]
+    private static partial Regex AltitudePattern();
+
+    [GeneratedRegex("[^A-Z0-9./+ ]+")]
+    private static partial Regex RoutePattern();
 
     private static void Mask(TextInputEventArgs e, Regex disallowed)
     {
@@ -382,15 +391,15 @@ public partial class FlightPlanEditorWindow : Window
         }
     }
 
-    private static void MaskAlphaUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphaUpperPattern);
+    private static void MaskAlphaUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphaUpperPattern());
 
-    private static void MaskAlphanumericUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphanumericUpperPattern);
+    private static void MaskAlphanumericUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphanumericUpperPattern());
 
-    private static void MaskDigitsOnly(object? sender, TextInputEventArgs e) => Mask(e, DigitsPattern);
+    private static void MaskDigitsOnly(object? sender, TextInputEventArgs e) => Mask(e, DigitsPattern());
 
-    private static void MaskAltitude(object? sender, TextInputEventArgs e) => Mask(e, AltitudePattern);
+    private static void MaskAltitude(object? sender, TextInputEventArgs e) => Mask(e, AltitudePattern());
 
-    private static void MaskRoute(object? sender, TextInputEventArgs e) => Mask(e, RoutePattern);
+    private static void MaskRoute(object? sender, TextInputEventArgs e) => Mask(e, RoutePattern());
 
     private static void MaskRemarks(object? sender, TextInputEventArgs e)
     {

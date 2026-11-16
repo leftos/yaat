@@ -364,7 +364,8 @@ public static partial class ContextDecoder
     private static bool IsHitPlaced(TokenRange range, int? prefix, FormShape shape, CallsignScan scan)
     {
         HeardText heard = scan.Heard;
-        bool scoresPrefixWord = IsPrefixWordAt(heard, range.Start) && (shape.Tokens.FirstOrDefault()?.Text != heard.Tokens[range.Start].Text);
+        bool scoresPrefixWord =
+            IsPrefixWordAt(heard, range.Start) && ((shape.Tokens.Count > 0 ? shape.Tokens[0].Text : null) != heard.Tokens[range.Start].Text);
         if (scoresPrefixWord)
         {
             return false;
@@ -414,7 +415,7 @@ public static partial class ContextDecoder
     /// <summary>A form that opens with "november", or a US registration's form that opens with its type or manufacturer name.</summary>
     private static bool IsRegistrationForm(RoomAircraft aircraft, FormShape shape)
     {
-        SpokenToken? first = shape.Tokens.FirstOrDefault();
+        SpokenToken? first = shape.Tokens.Count > 0 ? shape.Tokens[0] : null;
         string acid = aircraft.Callsign.Value;
         bool usRegistration = (acid.Length >= 2) && (acid[0] == 'N') && char.IsAsciiDigit(acid[1]);
         return (first is not null) && ((first.Text == "november") || (usRegistration && (first.Kind == TokenKind.Word)));

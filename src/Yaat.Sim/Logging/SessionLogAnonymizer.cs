@@ -50,7 +50,7 @@ public sealed record LogParticipant(string? Cid, string? RealName, string? Initi
 /// people, and a token the caller asks to keep (a command verb, so <c>CM 050</c> survives a controller
 /// whose initials are CM) is never replaced.
 /// </summary>
-public static class SessionLogAnonymizer
+public static partial class SessionLogAnonymizer
 {
     /// <summary>What a person outside the participant list becomes.</summary>
     public const string Unknown = "??";
@@ -178,11 +178,7 @@ public static class SessionLogAnonymizer
         // The sender slot names a person whatever the keep set says, and one the list does not hold is hidden.
         Dictionary<string, string> byInitials = PseudonymsByInitials(participants);
         HashSet<string> issued = IssuedPseudonyms(participants);
-        return Regex.Replace(
-            result,
-            @"(?<=\(from )[^\s()]+(?=\))",
-            m => byInitials.GetValueOrDefault(m.Value) ?? (IsKeptSender(m.Value, issued) ? m.Value : Unknown)
-        );
+        return FromSenderRegex().Replace(result, m => byInitials.GetValueOrDefault(m.Value) ?? (IsKeptSender(m.Value, issued) ? m.Value : Unknown));
     }
 
     private static bool IsKeptSender(string sender, HashSet<string> issued) =>
@@ -249,4 +245,7 @@ public static class SessionLogAnonymizer
         int digit = index % 10;
         return letter < 26 ? $"{(char)('A' + letter)}{digit}" : $"P{index}";
     }
+
+    [GeneratedRegex(@"(?<=\(from )[^\s()]+(?=\))")]
+    private static partial Regex FromSenderRegex();
 }

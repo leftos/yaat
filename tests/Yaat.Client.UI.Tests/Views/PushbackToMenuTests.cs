@@ -32,6 +32,8 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture<OakPushTargetSeedCopy>
 {
+    private static readonly string[] TaxiwayBadges = ["TL", "TW"];
+
     private const string Callsign = ClientMenuHostGroundTests.Callsign;
     private const string PushBackTo = "Push back to…";
     private const string BehindTheAircraft = "Behind the aircraft";
@@ -60,7 +62,7 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
         List<PushbackToMenu.PushTargetRow> rows = SectionRows(pushTo, PushbackToMenu.TaxiwaysHeader);
         Assert.NotEmpty(rows);
         Assert.Equal(list.Targets.Count, rows.Count);
-        Assert.All(rows, row => Assert.Contains(row.Badge, new[] { "TL", "TW" }));
+        Assert.All(rows, row => Assert.Contains(row.Badge, TaxiwayBadges));
         Assert.All(rows, row => Assert.StartsWith($"{row.Badge} ", row.ToString()));
         Assert.All(rows, row => Assert.Contains($" {PushbackToMenu.DistanceHint(row.Target.PathLengthFt)} {row.Target.Command}", row.ToString()));
         Assert.Equal(rows.Select(r => r.Target.PathLengthFt).Order(), rows.Select(r => r.Target.PathLengthFt));
@@ -85,7 +87,7 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
         List<object?> items = [.. pushTo.Items];
         int spots = items.FindIndex(i => (i is MenuItem m) && ((m.Header as string) == PushbackToMenu.SpotsHeader));
         Assert.IsType<Separator>(items[spots - 1]);
-        Assert.All(SectionRows(pushTo, PushbackToMenu.TaxiwaysHeader), row => Assert.Contains(row.Badge, new[] { "TL", "TW" }));
+        Assert.All(SectionRows(pushTo, PushbackToMenu.TaxiwaysHeader), row => Assert.Contains(row.Badge, TaxiwayBadges));
         Assert.Contains(SectionRows(pushTo, PushbackToMenu.SpotsHeader), row => row.Target.Command == "PUSH $C");
         Assert.All(SectionRows(pushTo, PushbackToMenu.SpotsHeader), row => Assert.Equal("S", row.Badge));
 

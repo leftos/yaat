@@ -710,7 +710,9 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
             return false;
         }
 
-        DirectionalEdge? first = joinable.PathToMerge.Segments.FirstOrDefault()?.Edge ?? joinable.LeadPathFromMerge.FirstOrDefault();
+        DirectionalEdge? first =
+            (joinable.PathToMerge.Segments.Count > 0 ? joinable.PathToMerge.Segments[0].Edge : null)
+            ?? (joinable.LeadPathFromMerge.Count > 0 ? joinable.LeadPathFromMerge[0] : null);
         return (first is { } edge) && !FollowRoutePlanner.DepartsAhead(follower, edge);
     }
 

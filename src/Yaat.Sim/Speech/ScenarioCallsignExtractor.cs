@@ -20,13 +20,15 @@ namespace Yaat.Sim.Speech;
 ///     (collides with <c>/V/ PARKING XXX, AUTO GENERATED</c>) — not supported</description></item>
 /// </list>
 /// </remarks>
-public static class ScenarioCallsignExtractor
+public static partial class ScenarioCallsignExtractor
 {
     // Labeled form: CALLSIGN "..." or CS "..." (case-insensitive, either straight or smart quotes).
-    private static readonly Regex LabeledQuoted = new(@"\b(?:CALLSIGN|CS)\s*[""“]([^""”]+)[""”]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    [GeneratedRegex(@"\b(?:CALLSIGN|CS)\s*[""“]([^""”]+)[""”]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex LabeledQuoted();
 
     // Bare quoted: any double-quoted substring. Caller must filter ambiguous results.
-    private static readonly Regex BareQuoted = new(@"[""“]([^""”]+)[""”]", RegexOptions.Compiled);
+    [GeneratedRegex(@"[""“]([^""”]+)[""”]")]
+    private static partial Regex BareQuoted();
 
     /// <summary>
     /// Extract custom telephony designators from a single remarks string.
@@ -45,7 +47,7 @@ public static class ScenarioCallsignExtractor
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Pass 1: labeled quoted (strongest signal).
-        foreach (Match m in LabeledQuoted.Matches(remarks))
+        foreach (Match m in LabeledQuoted().Matches(remarks))
         {
             string cs = NormalizeCandidate(m.Groups[1].Value);
             if (cs.Length > 0 && seen.Add(cs))
@@ -55,7 +57,7 @@ public static class ScenarioCallsignExtractor
         }
 
         // Pass 2: bare quoted (weaker but still reliable — any quoted token in remarks).
-        foreach (Match m in BareQuoted.Matches(remarks))
+        foreach (Match m in BareQuoted().Matches(remarks))
         {
             string cs = NormalizeCandidate(m.Groups[1].Value);
             if (cs.Length > 0 && seen.Add(cs))
