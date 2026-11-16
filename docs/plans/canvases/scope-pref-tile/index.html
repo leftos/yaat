@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT Scope: where the PREF tile goes (YAAT-2396)</title>
+<style>
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 32px 48px; min-width: 1440px; background: #181c21; color: #d4dbe2;
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+h2 { font-size: 17px; margin: 0 0 2px; color: #eef3f7; }
+.lede { max-width: 1360px; margin: 0 0 10px; color: #b8c2cb; }
+.how { margin: 2px 0 0; max-width: 1360px; }
+.worst { margin: 2px 0 0; max-width: 1360px; color: #f0c98a; }
+.lane { margin: 30px 0 0; padding-top: 16px; border-top: 1px solid #2d3640; }
+.frames { position: relative; margin: 10px 0 0; }
+.frame { margin: 0 0 12px; }
+.cap { font-size: 12.5px; color: #8e9aa5; margin: 0 0 4px; }
+.cap b { color: #d4dbe2; font-weight: 600; }
+.meas { position: relative; z-index: 6; display: inline-block; background: #181c21; font-family: "JBM", Consolas, monospace; font-size: 12.5px;
+  color: #9fd8ea; margin: 4px 0 0; padding-right: 4px; }
+.meas .mv { color: #f0c98a; }
+table.sum { border-collapse: collapse; margin: 10px 0 0; font-size: 13px; }
+table.sum th, table.sum td { border: 1px solid #2d3640; padding: 4px 10px; text-align: left; vertical-align: top; }
+table.sum th { background: #10141a; color: #eef3f7; font-weight: 600; }
+table.sum td.n { font-family: "JBM", Consolas, monospace; font-size: 12.5px; color: #9fd8ea; white-space: nowrap; }
+.guide { position: absolute; width: 0; border-left: 1px dashed #e0b84a; z-index: 5; pointer-events: none; }
+.guide span { position: absolute; top: -16px; left: 3px; font: 11px "Segoe UI", sans-serif; color: #e0b84a; white-space: nowrap; }
+
+/* The window's client area: 1 CSS px = 1 DIP. The outline sits outside it so the width is exact. */
+.win { position: relative; width: 1360px; height: 64px; background: #000; overflow: hidden; outline: 1px solid #56616c; }
+.tb { position: absolute; top: 0; left: 0; right: 0; z-index: 1; font-family: "JBM", Consolas, monospace; font-size: 12px; }
+
+/* Lane E of scope-dcb-compact, as shipped: full-height tiles for buttons with a value, half-height pairs for the rest */
+.tile { position: relative; flex: none; background: #10181e; color: #c9d4dc; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; white-space: pre; line-height: 14px; padding: 0 9px 0 6px;
+  font: 400 12px/14px "JBM", Consolas, monospace; }
+.tile .ln { display: block; line-height: 14px; }
+.tile b { font-weight: 700; }
+.tile .dim { color: #6f7d88; }
+.ts { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.tile .mk { position: absolute; right: 2px; top: 1px; font-size: 9px; line-height: 11px; color: #8fa3b1; }
+.tiles { display: inline-flex; gap: 1px; background: #22313b; vertical-align: top; }
+.ebar { background: #0a1015; border-bottom: 1px solid #22313b; overflow: hidden; white-space: nowrap; height: 46px; }
+.ebar .tiles { height: 45px; }
+.ebar .tile.full { height: 45px; }
+.pair { display: flex; flex-direction: column; gap: 1px; flex: none; }
+.tile.half { height: 22px; }
+/* The reserved PREF width: 9 characters of name (B: the tile's widest line is the name; C: "PREF " plus the name). */
+.tile.resB { min-width: calc(9ch + 15px); }
+.tile.resC { min-width: calc(14ch + 15px); }
+</style>
+</head>
+<body>
+<h1>YAAT Scope: where the PREF tile goes (YAAT-2396)</h1>
+<p class="lede">The Scope bar packs its buttons as STARS does: a button showing a value is a full-height tile, consecutive buttons without one stack in half-height pairs, and one left without a partner is a full tile. PREF shows the active pref set's name as its value, so today loading or clearing a set turns PREF from a half tile under BRITE into a full tile, BRITE becomes a lone full tile, and DEL TEAROFF jumps along the bar. Which shape should PREF take so the bar stops moving? Each lane draws the bar twice at 1 CSS px = 1 DIP, left-aligned in a 1360 DIP window: with no pref set, then with pref set SR-DAY active. The dashed gold line marks DEL TEAROFF's left edge in the first frame and runs down through the second, so any shift shows at a glance. Every width below is measured off this page as it renders.</p>
+<table class="sum" id="sum"></table>
+<div id="lanes"></div>
+<script>
+"use strict";
+const BUTTONS = [
+  { label: "PROFILE", menu: true, value: "MIXED" },
+  { label: "TEMPLATE", menu: true },
+  { label: "RANGE", value: "40" },
+  { label: "OTHERS", value: "PARTIAL" },
+  { label: "VECTOR", value: "1m OWN" },
+  { label: "HIST", value: "5" },
+  { label: "TOOLS", menu: true },
+  { label: "AUTO" },
+  { label: "MAPS", menu: true },
+  { label: "TDM" },
+  { label: "DB", menu: true },
+  { label: "VIEWS", menu: true },
+  { label: "BRITE", menu: true },
+  { label: "PREF", menu: true, pref: true },
+  { label: "DEL TEAROFF", noStrip: true, del: true },
+];
+const SET = "SR-DAY";
+const fmt = x => (Math.round(x * 10) / 10).toString();
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** The lines a tile draws: label over value (bold); a two-word label with no value splits over two lines. */
+function tileLines(b, oneLine) {
+  if (oneLine) return b.value !== undefined ? [[b.label + " ", { bold: b.value }]] : [b.label];
+  if (b.dimValue) return [b.label, { dim: b.dimValue }];
+  if (b.value !== undefined) return [b.label, { bold: b.value }];
+  if (b.label.includes(" ")) return b.label.split(" ");
+  return [b.label];
+}
+function part(d, x) {
+  if (typeof x === "string") d.append(document.createTextNode(x));
+  else if (x.bold !== undefined) d.append(el("b", null, x.bold));
+  else d.append(el("span", "dim", x.dim));
+}
+function tile(b, o = {}) {
+  const t = el("span", "tile" + (o.half ? " half" : " full") + (o.cls ? " " + o.cls : ""));
+  if (b.pref) t.dataset.k = "pref";
+  if (b.del) t.dataset.k = "del";
+  if (!b.noStrip) t.append(el("span", "ts"));
+  if (b.menu) t.append(el("span", "mk", "▸"));
+  for (const ln of tileLines(b, o.half)) {
+    const d = el("span", "ln");
+    (Array.isArray(ln) ? ln : [ln]).forEach(x => part(d, x));
+    t.append(d);
+  }
+  return t;
+}
+
+/** The shipped rule (ScopeToolbar.HalfTiles): valued is full, two consecutive value-less pair, a lone one is full. */
+function halfTiles(list, showsValue) {
+  const v = list.map(showsValue), half = list.map(() => false);
+  for (let i = 0; i < list.length;) {
+    const pairs = (i + 1 < list.length) && !v[i] && !v[i + 1];
+    half[i] = pairs; if (i + 1 < list.length) half[i + 1] = pairs;
+    i += pairs ? 2 : 1;
+  }
+  return half;
+}
+
+/** Lays out a list of {b, cls} as the rule gives it, or with forced pairs where an entry carries pairWithNext. */
+function drawBar(tb, list, showsValue, forcePair) {
+  const bar = el("div", "ebar"), row = el("div", "tiles");
+  const half = halfTiles(list.map(x => x.b), (b, ) => showsValue(b));
+  for (let i = 0; i < list.length; i++) {
+    const forced = forcePair && forcePair(i);
+    if (forced || half[i]) {
+      const p = el("span", "pair");
+      p.append(tile(list[i].b, { half: true, cls: list[i].cls }), tile(list[i + 1].b, { half: true, cls: list[i + 1].cls }));
+      row.append(p);
+      i++;
+    } else row.append(tile(list[i].b, { cls: list[i].cls }));
+  }
+  bar.append(row);
+  tb.append(bar);
+  return row;
+}
+
+/** The PREF button with or without the active set. */
+const pref = (set, extra) => Object.assign({}, BUTTONS[13], set ? { value: set } : {}, extra || {});
+
+// Each lane: draw(tb, set) returns the measured row.
+function drawLaneA(tb, set) {
+  const list = BUTTONS.map((b, i) => ({ b: i === 13 ? pref(set) : b }));
+  return drawBar(tb, list, b => b.value !== undefined);
+}
+function drawLaneB(tb, set, noReserve) {
+  const list = BUTTONS.map((b, i) => ({ b: i === 13 ? pref(set, set ? {} : { dimValue: "—" }) : b, cls: (i === 13 && !noReserve) ? "resB" : "" }));
+  return drawBar(tb, list, b => (b.value !== undefined) || !!b.pref);
+}
+function drawLaneC(tb, set, noReserve) {
+  const list = BUTTONS.map((b, i) => ({ b: i === 13 ? pref(set) : b, cls: (i === 13 && !noReserve) ? "resC" : "" }));
+  // BRITE over PREF always: PREF never counts as showing a value, and the pair is forced.
+  return drawBar(tb, list, b => (b.value !== undefined) && !b.pref, i => i === 12);
+}
+function drawLaneD(tb, set) {
+  const order = [...BUTTONS.slice(0, 13), BUTTONS[14], pref(set)];
+  return drawBar(tb, order.map(b => ({ b })), b => b.value !== undefined);
+}
+
+const LANES = [
+  { key: "A", name: "As landed", draw: drawLaneA,
+    how: "PREF follows the shared rule: with no set it has no value, so BRITE over PREF is a half-height pair; with a set it shows the name, so PREF becomes a full tile (PREF over SR-DAY) and BRITE, left without a partner, becomes a full tile too.",
+    worst: "an instructor reaching for DEL TEAROFF by position after a set loads lands on PREF and opens its menu instead; clearing the set moves DEL TEAROFF back, so its place depends on state the instructor did not just change." },
+  { key: "B", name: "PREF always a full tile", draw: drawLaneB,
+    how: "PREF counts as a button with a value even without a set: a full tile reading PREF over a dim \"—\", or PREF over the set's name. BRITE is a lone full tile in both frames. The PREF tile reserves 9 characters of width, so names up to 9 characters fit without moving anything; at content width alone it would grow from \"—\" to the name and DEL TEAROFF would move (the shift is measured below the second frame). A name over 9 characters still widens it.",
+    worst: "BRITE and PREF become two full-height menu tiles side by side, so a click meant for one opens the other's tray; the bar is the widest of the four in both states (see the table), and a set name over 9 characters still nudges DEL TEAROFF." },
+  { key: "C", name: "PREF stays half, name on one line", draw: drawLaneC,
+    how: "BRITE over PREF is always a pair; with a set the half tile reads PREF SR-DAY on one line, name bold. The column reserves room for PREF plus a 9-character name (14 characters), so BRITE and DEL TEAROFF never move for names up to 9 characters; at content width alone the column would widen by the name and DEL TEAROFF would move (measured below the second frame).",
+    worst: "the BRITE over PREF column is wide even with no set, so BRITE becomes a long thin target over a mostly empty PREF; a name over 9 characters still widens the column and nudges DEL TEAROFF." },
+  { key: "D", name: "PREF moved to the end", draw: drawLaneD,
+    how: "The order becomes ... VIEWS, BRITE, DEL TEAROFF, PREF. BRITE and DEL TEAROFF, both value-less, pair as a half-height column; PREF, last and left without a partner, is a full tile by the rule in both frames (PREF alone, then PREF over SR-DAY). Only PREF grows with a set, and nothing sits to its right.",
+    worst: "DEL TEAROFF becomes a half tile directly under BRITE, so a slightly low click on BRITE starts DEL TEAROFF's marking instead; PREF leaves the BRITE neighbourhood it shares with STARS's own DCB." },
+];
+
+const sum = document.getElementById("sum");
+sum.innerHTML = "<tr><th>Lane</th><th>Bar width, no set</th><th>Bar width, SR-DAY</th><th>DEL TEAROFF left edge, no set</th><th>DEL TEAROFF left edge, SR-DAY</th><th>DEL TEAROFF moved?</th></tr>";
+const report = {};
+
+function frame(parent, caption) {
+  const f = el("div", "frame");
+  const cap = el("div", "cap"); cap.innerHTML = caption;
+  const win = el("div", "win"), tb = el("div", "tb");
+  win.append(tb);
+  const meas = el("div", "meas");
+  f.append(cap, win, meas);
+  parent.append(f);
+  return { win, tb, meas };
+}
+
+/** The width DEL TEAROFF's left edge would move by without the 9-character reservation (B and C only). */
+function unreservedShift(draw) {
+  const probe = el("div", "tb");
+  probe.style.cssText = "position:absolute;left:-5000px;top:0;width:1360px;visibility:hidden";
+  document.body.append(probe);
+  const xs = [null, SET].map(set => {
+    probe.textContent = "";
+    const row = draw(probe, set, true);
+    const pr = probe.getBoundingClientRect();
+    return { del: row.querySelector('[data-k="del"]').getBoundingClientRect().left - pr.left, w: row.getBoundingClientRect().width };
+  });
+  probe.remove();
+  return xs;
+}
+
+function build() {
+  const root = document.getElementById("lanes");
+  for (const L of LANES) {
+    const sec = el("section", "lane");
+    sec.id = "lane-" + L.key;
+    sec.append(el("h2", null, L.key + ". " + L.name), el("p", "how", "How: " + L.how), el("p", "worst", "Worst case in use: " + L.worst));
+    const frames = el("div", "frames");
+    sec.append(frames);
+    root.append(sec);
+    const fs = [[null, "<b>No pref set</b>"], [SET, "<b>Pref set SR-DAY active</b>"]].map(([set, cap]) => {
+      const fr = frame(frames, cap);
+      const row = L.draw(fr.tb, set);
+      const wr = fr.win.getBoundingClientRect();
+      const rr = row.getBoundingClientRect();
+      const dr = row.querySelector('[data-k="del"]').getBoundingClientRect();
+      const pr = row.querySelector('[data-k="pref"]').getBoundingClientRect();
+      return { fr, w: rr.width, del: dr.left - wr.left, prefW: pr.width, winTop: wr.top, winBottom: wr.bottom };
+    });
+    const shift = fs[1].del - fs[0].del;
+    fs[0].fr.meas.textContent = "Bar " + fmt(fs[0].w) + " DIPs wide | DEL TEAROFF left edge at x = " + fmt(fs[0].del) + " | PREF tile " + fmt(fs[0].prefW) + " wide";
+    fs[1].fr.meas.innerHTML = "Bar " + fmt(fs[1].w) + " DIPs wide | DEL TEAROFF left edge at x = " + fmt(fs[1].del) + " | PREF tile " + fmt(fs[1].prefW) + " wide | " +
+      (Math.abs(shift) < 0.5 ? "DEL TEAROFF did not move" : "<span class=mv>DEL TEAROFF moved " + (shift > 0 ? "+" : "") + fmt(shift) + " DIPs</span>");
+    let unres = null;
+    if (L.key === "B" || L.key === "C") {
+      const u = unreservedShift(L.draw);
+      unres = { w0: u[0].w, w1: u[1].w, shift: u[1].del - u[0].del };
+      fs[1].fr.meas.innerHTML += "<br><span class=mv>Without the 9-character reservation: bar " + fmt(unres.w0) + " then " + fmt(unres.w1) +
+        " DIPs, DEL TEAROFF would move " + (unres.shift > 0 ? "+" : "") + fmt(unres.shift) + " DIPs</span>";
+    }
+    // The guide: DEL TEAROFF's left edge in the first frame, from the top of the first window to the bottom of the second.
+    const fb = frames.getBoundingClientRect();
+    const g = el("div", "guide");
+    g.style.left = fs[0].del + "px";
+    g.style.top = (fs[0].winTop - fb.top) + "px";
+    g.style.height = (fs[1].winBottom - fs[0].winTop) + "px";
+    frames.append(g);
+    report[L.key] = { w0: fs[0].w, w1: fs[1].w, del0: fs[0].del, del1: fs[1].del, shift, prefW0: fs[0].prefW, prefW1: fs[1].prefW, unres };
+    const tr = el("tr");
+    tr.innerHTML = "<td>" + L.key + ". " + L.name + "</td><td class=n>" + fmt(fs[0].w) + "</td><td class=n>" + fmt(fs[1].w) + "</td><td class=n>" + fmt(fs[0].del) +
+      "</td><td class=n>" + fmt(fs[1].del) + "</td><td class=n>" + (Math.abs(shift) < 0.5 ? "no" : "yes, " + (shift > 0 ? "+" : "") + fmt(shift)) + "</td>";
+    sum.append(tr);
+  }
+  window.__report = report;
+  document.body.classList.add("ready");
+}
+
+document.fonts.load('12px "JBM"').then(() => document.fonts.load('700 12px "JBM"')).then(() => document.fonts.ready).then(build)
+  .catch(e => { console.error("mock build failed", e); });
+</script>
+</body>
+</html>
