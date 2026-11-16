@@ -131,7 +131,11 @@ public class ScopeRendererBrightnessTests
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
         using var renderer = new ScopeRenderer();
-        renderer.Render(canvas, Viewport(), new ScopeRenderSnapshot(frame, maps, lookup, brightness, FontSize, NoTints));
+        renderer.Render(
+            canvas,
+            Viewport(),
+            new ScopeRenderSnapshot(frame, maps, lookup, brightness, FontSize, NoTints, [], null, new Dictionary<int, SKRect>())
+        );
         canvas.Flush();
         return bitmap;
     }

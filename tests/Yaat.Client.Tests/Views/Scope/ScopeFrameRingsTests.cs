@@ -72,7 +72,17 @@ public class ScopeFrameRingsTests
         renderer.Render(
             canvas,
             Viewport(),
-            new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), brightness, FontSize, new ScopePalette(null, null, SKColors.White))
+            new ScopeRenderSnapshot(
+                frame,
+                [],
+                new Dictionary<string, string>(),
+                brightness,
+                FontSize,
+                new ScopePalette(null, null, SKColors.White),
+                [],
+                null,
+                new Dictionary<int, SKRect>()
+            )
         );
         canvas.Flush();
         return bitmap;

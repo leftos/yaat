@@ -2821,9 +2821,9 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Handles the client-only distance measuring commands: <c>.rbl</c> (alias <c>*T</c>, CRC STARS'
-    /// name for the tool) arms the tool on both map views, <c>.rbl N</c> removes measurement N,
-    /// <c>.rbl A B</c> draws a radar-view line between two typed points — each a fix, an FRD, or a
-    /// callsign — and <c>.norbl</c> removes them all. Never sent to the server.
+    /// name for the tool) arms the tool on every map view, <c>.rbl N</c> removes measurement N,
+    /// <c>.rbl A B</c> draws a line on the active measure surface (<see cref="ActiveMeasureView"/>) between two
+    /// typed points — each a fix, an FRD, or a callsign — and <c>.norbl</c> removes them all. Never sent to the server.
     /// </summary>
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleMeasureCommand(string text, ICommandTextSink sink)
@@ -2855,7 +2855,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     // Endpoint errors are reported here; the placement reports its own outcome to the sink (a full store's
                     // text is written again, unchanged).
-                    if (PlaceMeasurementFromText(parts[1], parts[2], sink).Error is { } error)
+                    if (PlaceMeasurementFromText(parts[1], parts[2], sink, ActiveMeasureView).Error is { } error)
                     {
                         sink.ReportError(error);
                     }
@@ -2889,18 +2889,19 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Draws a measurement between two typed points, each a fix, an FRD, or a callsign (a callsign
-    /// endpoint latches and travels with the aircraft). Text-created measurements belong to the radar
-    /// view, matching CRC STARS' *T. Shared by the <c>.rbl A B</c> command and the <c>place_rbl</c> app tool.
+    /// endpoint latches and travels with the aircraft). These measurements belong to the radar view, whichever surface is
+    /// active. Used by the <c>place_rbl</c> app tool and the recording framing.
     /// </summary>
     /// <returns>The slot the line took, or the error text: an unresolvable or ambiguous endpoint, or every slot in use.</returns>
     public MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken) =>
-        PlaceMeasurementFromText(fromToken, toToken, new CommandLineSink(this));
+        PlaceMeasurementFromText(fromToken, toToken, new CommandLineSink(this), RblView.Radar);
 
     /// <summary>
-    /// Draws a measurement between two typed points as <see cref="PlaceMeasurementFromText(string, string)"/> does, reporting the
-    /// placed line's reading, or a full store's error, to <paramref name="sink"/>; an endpoint error is only returned.
+    /// Draws a measurement between two typed points as <see cref="PlaceMeasurementFromText(string, string)"/> does, on the
+    /// <paramref name="surface"/> map view, reporting the placed line's reading, or a full store's error, to
+    /// <paramref name="sink"/>; an endpoint error is only returned. The <c>.rbl A B</c> command passes the active surface.
     /// </summary>
-    internal MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken, ICommandTextSink sink)
+    internal MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken, ICommandTextSink sink, RblView surface)
     {
         (RblEndpoint? from, string? fromError) = ResolveMeasureEndpoint(fromToken);
         if (from is null)
@@ -2914,15 +2915,8 @@ public partial class MainViewModel : ObservableObject
             return new MeasurePlacement(null, toError);
         }
 
-        // The primary radar's track lookup is deliberate: Measure is one shared store, so the line renders
-        // in every Radar View window without the extra instances needing their own lookup.
-        (int? slot, string status) = Measure.PlaceSilently(
-            from.Value,
-            to.Value,
-            RadarViewModel.MeasureView,
-            Radar.MeasureTrackLookup,
-            RadarViewModel.MeasureUnits
-        );
+        (RblView view, RblTrackLookup lookup, RblUnits units) = MeasureSurface(surface);
+        (int? slot, string status) = Measure.PlaceSilently(from.Value, to.Value, view, lookup, units);
         ReportMeasure(sink, slot is not null, status);
         return slot is { } placed ? new MeasurePlacement(placed, null) : new MeasurePlacement(null, RangeBearingViewState.FullStatus);
     }

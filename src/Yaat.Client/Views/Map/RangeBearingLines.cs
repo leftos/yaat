@@ -28,6 +28,7 @@ public enum RblView
 {
     Radar,
     Ground,
+    Scope,
 }
 
 /// <summary>
@@ -62,7 +63,8 @@ public enum RblUnits
 public sealed record ResolvedRbl(int Slot, LatLon A, LatLon B, string Label, bool ALatched, bool BLatched);
 
 /// <summary>
-/// The instructor's placed range/bearing lines. One store serves both map views — slot numbers are
+/// The instructor's placed range/bearing lines. One store serves every map view (the Radar, the Ground and the YAAT
+/// Scope) — slot numbers are
 /// globally unique, so <c>.rbl 3</c> is unambiguous — but each line is tagged with the view it was
 /// created in and only renders there.
 /// </summary>
@@ -403,7 +405,7 @@ public static class RangeBearingLineResolver
 {
     /// <summary>
     /// Resolves the placed lines belonging to <paramref name="view" /> against the current aircraft
-    /// positions. Lines created in the other view are skipped — a measurement only renders where it was
+    /// positions. Lines created in another view are skipped — a measurement only renders where it was
     /// taken. Lines latched to an aircraft that has gone are skipped for this frame rather than drawn at
     /// a stale position.
     /// </summary>

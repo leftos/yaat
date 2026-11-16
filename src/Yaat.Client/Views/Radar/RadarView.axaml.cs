@@ -62,6 +62,8 @@ public partial class RadarView : UserControl
         _canvas.MeasurePointPicked += OnMeasurePointPicked;
         _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
         _canvas.MeasureCancelled += OnMeasureCancelled;
+        _canvas.GotFocus += OnCanvasActivatedForMeasure;
+        _canvas.AddHandler(PointerPressedEvent, OnCanvasActivatedForMeasure, RoutingStrategies.Tunnel);
 
         // Sync brightness and button states from ViewModel
         if (DataContext is RadarViewModel vm)
@@ -98,10 +100,16 @@ public partial class RadarView : UserControl
             _canvas.MeasurePointPicked -= OnMeasurePointPicked;
             _canvas.MeasureDragCompleted -= OnMeasureDragCompleted;
             _canvas.MeasureCancelled -= OnMeasureCancelled;
+            _canvas.GotFocus -= OnCanvasActivatedForMeasure;
+            _canvas.RemoveHandler(PointerPressedEvent, OnCanvasActivatedForMeasure);
         }
     }
 
     // --- Distance measuring tool ---
+
+    // The canvas taking the focus or a press makes the Radar the active measure surface: a typed .rbl A B places here.
+    private void OnCanvasActivatedForMeasure(object? sender, RoutedEventArgs e) =>
+        FindMainViewModel()?.SetActiveMeasureView(RadarViewModel.MeasureView);
 
     private void OnMeasurePointPicked(RblEndpoint endpoint)
     {

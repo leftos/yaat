@@ -128,7 +128,8 @@ internal static class WindowHotkeys
         }
 
         // Ctrl+M arms the distance measuring tool. Fixed binding, and deliberately global: the tool is
-        // shared by the radar and ground views, so it arms wherever the instructor clicks next.
+        // shared by the radar, ground and Scope views, so it arms wherever the instructor clicks next. The
+        // Scope window arms it from its own key handler (ScopeView), as this one does not act there.
         if (IsFocusInputScope(window) && Matches(MeasureChord, e))
         {
             vm.Measure.Arm();

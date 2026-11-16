@@ -67,6 +67,8 @@ public partial class GroundView : UserControl
         _canvas.MeasurePointPicked += OnMeasurePointPicked;
         _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
         _canvas.MeasureCancelled += OnMeasureCancelled;
+        _canvas.GotFocus += OnCanvasActivatedForMeasure;
+        _canvas.AddHandler(PointerPressedEvent, OnCanvasActivatedForMeasure, RoutingStrategies.Tunnel);
 
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
         {
@@ -112,6 +114,8 @@ public partial class GroundView : UserControl
             _canvas.MeasurePointPicked -= OnMeasurePointPicked;
             _canvas.MeasureDragCompleted -= OnMeasureDragCompleted;
             _canvas.MeasureCancelled -= OnMeasureCancelled;
+            _canvas.GotFocus -= OnCanvasActivatedForMeasure;
+            _canvas.RemoveHandler(PointerPressedEvent, OnCanvasActivatedForMeasure);
         }
 
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
@@ -1086,6 +1090,10 @@ public partial class GroundView : UserControl
         item.Click += async (_, _) => await action();
         return item;
     }
+
+    // The canvas taking the focus or a press makes the Ground the active measure surface: a typed .rbl A B places here.
+    private void OnCanvasActivatedForMeasure(object? sender, RoutedEventArgs e) =>
+        FindMainViewModel()?.SetActiveMeasureView(GroundViewModel.MeasureView);
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {

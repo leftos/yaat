@@ -71,6 +71,7 @@ internal static class HeadlessWindowExtensions
             Key.OemComma => PhysicalKey.Comma,
             Key.K => PhysicalKey.K,
             Key.L => PhysicalKey.L,
+            Key.M => PhysicalKey.M,
             Key.R => PhysicalKey.R,
             Key.F5 => PhysicalKey.F5,
             Key.T => PhysicalKey.T,

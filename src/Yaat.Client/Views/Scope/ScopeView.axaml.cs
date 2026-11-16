@@ -38,7 +38,11 @@ public partial class ScopeView : UserControl
         Canvas.AircraftDwellLockToggleRequested += OnAircraftDwellLockToggleRequested;
         Canvas.EntryTextInput += OnCanvasTextInput;
         Canvas.EntryKeyDown += OnCanvasKeyDown;
+        Canvas.GotFocus += OnCanvasGotFocus;
     }
+
+    // The canvas taking the focus makes the Scope the active measure surface: a typed .rbl A B places here.
+    private void OnCanvasGotFocus(object? sender, FocusChangedEventArgs e) => (DataContext as ScopeViewModel)?.ActivateMeasureSurface();
 
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
     internal ContextMenu? ActiveContextMenu => _activeContextMenu;
@@ -100,8 +104,9 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc clears the entry, else disarms an armed Rings tool, unless a tear-off move is on (the tear-off layer cancels it);
-    // Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
+    // Esc, unless a tear-off move is on (the tear-off layer cancels it): takes the measure prompt with the measurement (when
+    // nothing is typed), else clears the entry, else cancels the Scope's measurement, else disarms an armed Rings tool. Ctrl+M
+    // arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not ScopeViewModel vm)
@@ -111,7 +116,12 @@ public partial class ScopeView : UserControl
 
         if (e.Key == Key.Escape)
         {
-            e.Handled = (!TearoffLayer.IsMoving) && (vm.ClearEntry() || vm.DisarmRingTool());
+            e.Handled = (!TearoffLayer.IsMoving) && (vm.TakeMeasurePrompt() || vm.ClearEntry() || vm.CancelMeasure() || vm.DisarmRingTool());
+        }
+        else if ((e.Key == Key.M) && (e.KeyModifiers == ActionModifier))
+        {
+            vm.ArmMeasure();
+            e.Handled = true;
         }
         else if ((e.Key == Key.T) && (e.KeyModifiers == (ActionModifier | KeyModifiers.Shift)))
         {

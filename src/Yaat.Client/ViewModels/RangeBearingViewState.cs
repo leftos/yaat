@@ -5,8 +5,8 @@ using Yaat.Client.Views.Map;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// Observable mirror of the shared <see cref="RangeBearingLineStore" />, bound by both the Radar and
-/// Ground canvases. Slot numbers are globally unique across the two views, but each measurement is
+/// Observable mirror of the shared <see cref="RangeBearingLineStore" />, bound by the Radar, Ground and
+/// Scope canvases. Slot numbers are globally unique across the views, but each measurement is
 /// tagged with the view it was created in and only renders there.
 /// </summary>
 /// <remarks>

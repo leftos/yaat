@@ -442,13 +442,19 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 /// <param name="Brightness">The scope's BRITE groups: the maps by category, the symbols, the blocks, line 4, the alerts and DWELL.</param>
 /// <param name="FontSize">Datablock font size the frame was measured with.</param>
 /// <param name="Palette">The user's block colours, read from the preferences on the UI thread.</param>
+/// <param name="RangeBearingLines">The measure lines taken on the Scope, resolved for this frame.</param>
+/// <param name="PendingRangeBearingLine">The half-placed measure line picked on the Scope, to the cursor; null for none.</param>
+/// <param name="RblReadoutRects">Each measure readout's placed rect, by slot (0 for the half-placed line).</param>
 public sealed record ScopeRenderSnapshot(
     ScopeFrame Frame,
     IReadOnlyList<VideoMapData> VideoMaps,
     IReadOnlyDictionary<string, string> BrightnessLookup,
     ScopeBrightness Brightness,
     float FontSize,
-    ScopePalette Palette
+    ScopePalette Palette,
+    IReadOnlyList<ResolvedRbl> RangeBearingLines,
+    ResolvedRbl? PendingRangeBearingLine,
+    IReadOnlyDictionary<int, SKRect> RblReadoutRects
 );
 
 /// <summary>The user-chosen colours a frame draws with; the render thread reads no preferences.</summary>
@@ -460,8 +466,8 @@ public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOthe
 /// <summary>
 /// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's rings (J-ring, DRI halo,
 /// cone, then ATPA cone), every track's history dots, every track's vector line, then each track's symbol, leader and
-/// block. Every block field is drawn from its <see cref="FieldRect"/>; the presenter has already blanked a flashing
-/// field's off-phase text, so nothing here flashes.
+/// block, then the measure lines and their readouts. Every block field is drawn from its <see cref="FieldRect"/>; the
+/// presenter has already blanked a flashing field's off-phase text, so nothing here flashes.
 /// </summary>
 public sealed class ScopeRenderer : IDisposable
 {
@@ -507,6 +513,7 @@ public sealed class ScopeRenderer : IDisposable
     private const byte StaleAlpha = 128;
 
     private readonly VideoMapRenderer _videoMapRenderer = new();
+    private readonly RangeBearingRenderer _rangeBearingRenderer = new();
 
     private readonly SKPaint _symbolPaint = new()
     {
@@ -622,6 +629,9 @@ public sealed class ScopeRenderer : IDisposable
         {
             DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
         }
+
+        // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE, as on the Radar.
+        _rangeBearingRenderer.Draw(canvas, vp, snapshot.RangeBearingLines, snapshot.PendingRangeBearingLine, snapshot.RblReadoutRects);
     }
 
     /// <summary>
@@ -739,6 +749,7 @@ public sealed class ScopeRenderer : IDisposable
     public void Dispose()
     {
         _videoMapRenderer.Dispose();
+        _rangeBearingRenderer.Dispose();
         _ringPaint.Dispose();
         _ringLabelBackingPaint.Dispose();
         _ringTextPaint.Dispose();

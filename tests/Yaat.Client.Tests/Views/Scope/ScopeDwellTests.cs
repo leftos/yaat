@@ -81,7 +81,17 @@ public class ScopeDwellTests
         renderer.Render(
             canvas,
             Viewport(),
-            new ScopeRenderSnapshot(frame, [], new Dictionary<string, string>(), ScopeBrightness.Default, FontSize, NoTints)
+            new ScopeRenderSnapshot(
+                frame,
+                [],
+                new Dictionary<string, string>(),
+                ScopeBrightness.Default,
+                FontSize,
+                NoTints,
+                [],
+                null,
+                new Dictionary<int, SKRect>()
+            )
         );
         canvas.Flush();
         return bitmap;

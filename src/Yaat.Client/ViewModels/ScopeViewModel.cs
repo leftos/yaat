@@ -94,6 +94,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         _dbSettings = ScopeDbSettings.FromPreferences(main.Preferences);
         _viewer = BuildViewer(main);
         main.PropertyChanged += OnMainPropertyChanged;
+        main.Measure.PropertyChanged += OnMeasurePropertyChanged;
         if (!TrySeedFrom(main.Radar))
         {
             _seedSource = main.Radar;
@@ -159,6 +160,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         _disposed = true;
         SaveStateFor(_stateFacility);
         Main.PropertyChanged -= OnMainPropertyChanged;
+        Main.Measure.PropertyChanged -= OnMeasurePropertyChanged;
         StopWaitingForSeed();
         StopViews();
     }

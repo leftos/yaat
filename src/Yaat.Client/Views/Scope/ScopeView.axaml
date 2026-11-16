@@ -31,6 +31,9 @@
       LocalRings="{Binding LocalRings}"
       ShowTopDown="{Binding IsTdm}"
       TdmOnlyMapIds="{Binding TdmOnlyMapIds}"
+      IsMeasuring="{Binding Measure.IsMeasuring}"
+      RangeBearingLines="{Binding Measure.Lines}"
+      MeasureAnchor="{Binding Measure.Anchor}"
     />
     <!-- The entry areas: drawn over the canvas, never hit. -->
     <scope:ScopeEntryLayer x:Name="EntryLayer" />

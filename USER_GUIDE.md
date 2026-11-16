@@ -185,7 +185,9 @@ On a STARS Scope the preview reads STARS entries and labels them `STARS <first w
 
 On a STARS Scope `UN` rejects a point-out and Unpause is `PILOT UN`; bare `CA` stays the pilot Circle Airport. A `** <command>` override entry is labelled as its pilot command on every profile.
 
-**Esc** on the Scope does the first that applies: cancels a tear-off move, else clears the entry and response, else disarms the Rings tool. **Ctrl+Shift+T** is still TDM. The focus-command-input key, Ctrl+F8, Ctrl+M and the pop-out keys do not act in the Scope window.
+**Esc** on the Scope does the first that applies: cancels a tear-off move, else takes the measure prompt and cancels the measuring tool (when nothing is typed), else clears the entry and response, else cancels the Scope's own measurement (only when the Scope is the active surface or picked the first point), else disarms the Rings tool. **Ctrl+Shift+T** is still TDM. **Ctrl+M** (Cmd+M on macOS) arms the [measuring tool](#measuring-distance-and-bearing): the Scope's response shows `Measure: click the first point or aircraft (Esc to cancel)`, or `Measure: all 15 measurements in use — clear one first` when every slot is taken. The prompt clears when the tool is disarmed anywhere. The focus-command-input key, Ctrl+F8 and the pop-out keys do not act in the Scope window.
+
+Measure lines placed on the Scope draw white over the tracks, with each readout clear of the blocks. Radar and Ground lines do not show on the Scope, and Scope lines show only there. They share the 15-slot pool, are never saved, and survive the Scope's closing and its unload, restart and rewind clear; `.norbl` and `.rbl N` reach them. Placing points by clicking on the Scope is not available yet.
 
 **Tear-offs** put a copy of a button or a view on the scope. Every other bar and tray button has a 4 px strip over its left edge, the tile's full height, that shows gold under the pointer; a left press on the strip copies the button onto the scope, unless it is already torn off: each button has one tear-off, and each map toggle counts as its own button. The copy keeps its tile shape from drag to drop: a tray button's copy is a half tile, and a bar button's copy is a full or half tile as the bar shows that button. The copy follows the pointer, a left click drops it anchored to the nearest scope corner, and Esc cancels.
 
@@ -1436,7 +1438,7 @@ The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-ju
 
 ##### Measuring distance and bearing
 
-A range/bearing line (RBL) tool, matching CRC STARS' `*T`. It works the same way in the **Radar View** and the **Ground View**. Each measurement belongs to the view it was drawn in — a radar measurement never clutters the ground view and vice versa — but the two views share one numbering pool, so measurement 3 always means the same line no matter where you type `.rbl 3`.
+A range/bearing line (RBL) tool, matching CRC STARS' `*T`. It works the same way in the **Radar View** and the **Ground View**; the [YAAT Scope](#yaat-scope-preview) takes lines from a typed `.rbl A B` and from Ctrl+M. Each measurement belongs to the view it was drawn in — a radar measurement never clutters the ground view and vice versa — but the views share one numbering pool, so measurement 3 always means the same line no matter where you type `.rbl 3`.
 
 An endpoint can be a **fixed point** on the map or an **aircraft**. An endpoint placed on an aircraft **latches** to it: the line follows the aircraft as it flies or taxis, and the reading updates live. Latching is what makes the tool useful for watching a gap open or close rather than taking a single static measurement.
 
@@ -1448,7 +1450,7 @@ An endpoint can be a **fixed point** on the map or an **aircraft**. An endpoint 
 | **Button** | **RBL** on the radar's AUX menu (press **SHIFT** in the DCB bar) or on the ground view's toolbar. Then click the two endpoints. |
 | **Right-click menu** | **Measure from here** on the map/node menu, or **Measure from {callsign}** under **Display** in the aircraft menu on either view. The item reads **Measure to …** once the first endpoint is set. |
 | **Ctrl+M** | Arms the tool wherever you are, then click the two endpoints. |
-| **Typed command** | `.rbl <a> <b>` (or `*T <a> <b>`, the CRC STARS spelling) draws a line between two named points without touching the mouse — each endpoint can be a **fix**, an **[FRD](COMMANDS.md#fix-radial-distance-frd)**, or a **callsign** in any combination, e.g. `.rbl OAK MOD`, `*T UAL123 OAK169015`. Callsigns take the same partial matching as ordinary commands, and a callsign endpoint latches. Text-created measurements go to the **radar view**. |
+| **Typed command** | `.rbl <a> <b>` (or `*T <a> <b>`, the CRC STARS spelling) draws a line between two named points without touching the mouse — each endpoint can be a **fix**, an **[FRD](COMMANDS.md#fix-radial-distance-frd)**, or a **callsign** in any combination, e.g. `.rbl OAK MOD`, `*T UAL123 OAK169015`. Callsigns take the same partial matching as ordinary commands, and a callsign endpoint latches. A typed line goes to the map surface that last took focus or a press (Radar, Ground or the Scope): the Radar before any, and the Radar again once the Scope closes. |
 
 Once armed, the first click sets the anchor and a dashed line follows your cursor with a live reading; the second click commits it. **Esc** or **right-click** cancels a half-placed measurement without disturbing the ones already down.
 
@@ -1475,7 +1477,7 @@ Up to **15** measurements can be down at once, matching STARS. Removing one free
 
 - `.rbl` — arm the tool.
 - `.rbl <n>` — remove measurement *n*.
-- `.rbl <a> <b>` — draw a radar-view line between two named points (fix, FRD, or callsign each).
+- `.rbl <a> <b>` — draw a line on the surface that last took focus or a press, between two named points (fix, FRD, or callsign each).
 - `.norbl` — remove all measurements.
 
 **Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, plus a flashing `ID` while the aircraft is squawking ident (see below), (3) RPO assignment (in brackets), track owner TCP (when the owner is in another facility, followed by the position symbol the student's scope shows, e.g. `3Y(1)`, unless it repeats the owner's first or last letter or digit), a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set.

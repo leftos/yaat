@@ -121,12 +121,33 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: new HashSet<string>(StringComparer.Ordinal)
     );
 
+    /// <summary>Whether the distance measuring tool is armed (it is global: armed on one surface, armed on all).</summary>
+    public static readonly StyledProperty<bool> IsMeasuringProperty = AvaloniaProperty.Register<ScopeCanvas, bool>(nameof(IsMeasuring));
+
+    /// <summary>Every placed measurement; only those taken on the Scope draw here.</summary>
+    public static readonly StyledProperty<IReadOnlyList<RangeBearingLine>?> RangeBearingLinesProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        IReadOnlyList<RangeBearingLine>?
+    >(nameof(RangeBearingLines));
+
+    /// <summary>The first endpoint of a half-placed measurement; its preview draws here only when it was picked on the Scope.</summary>
+    public static readonly StyledProperty<RblPendingAnchor?> MeasureAnchorProperty = AvaloniaProperty.Register<ScopeCanvas, RblPendingAnchor?>(
+        nameof(MeasureAnchor)
+    );
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
+    private static readonly Dictionary<int, SKRect> NoReadoutRects = [];
 
     private readonly ScopeRenderer _renderer = new();
     private readonly SKPaint _measurePaint = new();
     private SKFont? _measureFont;
+
+    // Measure readouts: measured with the shared renderer's font; the spots each slot took last frame, for hysteresis. The
+    // Scope has no datablock deconfliction, so no readout nudges a block and the nudge map stays empty.
+    private readonly SKFont _rblMeasureFont = PlatformHelper.MonospaceFont(RangeBearingRenderer.LabelFontSize);
+    private readonly Dictionary<int, RblReadoutSpot> _rblReadoutSpots = [];
+    private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
     private ScopeFrame? _lastFrame;
     private string? _hoveredCallsign;
     private string? _hoveredVciCallsign;
@@ -246,6 +267,30 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         set => SetValue(TdmOnlyMapIdsProperty, value);
     }
 
+    public bool IsMeasuring
+    {
+        get => GetValue(IsMeasuringProperty);
+        set => SetValue(IsMeasuringProperty, value);
+    }
+
+    public IReadOnlyList<RangeBearingLine>? RangeBearingLines
+    {
+        get => GetValue(RangeBearingLinesProperty);
+        set => SetValue(RangeBearingLinesProperty, value);
+    }
+
+    public RblPendingAnchor? MeasureAnchor
+    {
+        get => GetValue(MeasureAnchorProperty);
+        set => SetValue(MeasureAnchorProperty, value);
+    }
+
+    /// <summary>
+    /// The pointer position the half-placed measurement's preview runs to, in canvas coordinates; null while no position is
+    /// known, which draws no preview.
+    /// </summary>
+    internal Point? MeasureCursor { get; set; }
+
     /// <summary>
     /// The user's preferences: the datablock font size and the alert overlays (the template comes from <see cref="TemplateId"/>).
     /// Null draws at 12.
@@ -314,6 +359,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         _renderer.Dispose();
         _measurePaint.Dispose();
         _measureFont?.Dispose();
+        _rblMeasureFont.Dispose();
     }
 
     protected override object? CreateRenderSnapshot()
@@ -321,6 +367,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         ScopePalette palette = BuildPalette();
         ScopeFrame frame = BuildFrame(palette);
         _lastFrame = frame;
+        (IReadOnlyList<ResolvedRbl> lines, ResolvedRbl? pending) = ResolveMeasurements();
         return new ScopeRenderSnapshot(
             frame,
             DrawnVideoMaps(),
@@ -328,8 +375,88 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             BrightnessLookup,
             Brightness,
             DatablockFontSize(),
-            palette
+            palette,
+            lines,
+            pending,
+            PlaceRblReadouts(frame, lines, pending)
         );
+    }
+
+    /// <summary>
+    /// Resolves this frame's measurements: the lines taken on the Scope, and the half-placed one when its anchor was picked
+    /// on the Scope and a cursor position is known.
+    /// </summary>
+    private (IReadOnlyList<ResolvedRbl> Lines, ResolvedRbl? Pending) ResolveMeasurements()
+    {
+        IReadOnlyList<RangeBearingLine>? placed = RangeBearingLines;
+        // A half-placed anchor picked on another surface previews there, not here.
+        RblEndpoint? anchor = MeasureAnchor is { View: ScopeViewModel.MeasureView } pending ? pending.Endpoint : null;
+        if ((placed is not { Count: > 0 }) && (anchor is null))
+        {
+            return ([], null);
+        }
+
+        RblTrackLookup lookup = BuildMeasureLookup();
+        List<ResolvedRbl> lines = placed is { Count: > 0 }
+            ? RangeBearingLineResolver.Resolve(placed, lookup, ScopeViewModel.MeasureUnits, ScopeViewModel.MeasureView)
+            : [];
+        if ((anchor is null) || (MeasureCursor is not { } cursor))
+        {
+            return (lines, null);
+        }
+
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)cursor.X, (float)cursor.Y);
+        return (lines, RangeBearingLineResolver.ResolvePending(anchor, new LatLon(lat, lon), lookup, ScopeViewModel.MeasureUnits));
+    }
+
+    /// <summary>Resolves a latched endpoint against the traffic this canvas draws.</summary>
+    private RblTrackLookup BuildMeasureLookup()
+    {
+        IReadOnlyList<AircraftModel>? aircraft = Aircraft;
+        return RangeBearingViewState.TrackLookup(callsign => aircraft?.FirstOrDefault(a => a.Callsign == callsign));
+    }
+
+    /// <summary>
+    /// Places this frame's readouts clear of the Scope's blocks, symbols and each other (<see cref="RblReadoutPlacement"/>),
+    /// keeping each slot's spot for the next frame. Returns each readout's rect by slot.
+    /// </summary>
+    private IReadOnlyDictionary<int, SKRect> PlaceRblReadouts(ScopeFrame frame, IReadOnlyList<ResolvedRbl> lines, ResolvedRbl? pending)
+    {
+        List<RblReadout> readouts = RangeBearingRenderer.BuildReadouts(lines, pending, Viewport, _rblMeasureFont);
+        if (readouts.Count == 0)
+        {
+            _rblReadoutSpots.Clear();
+            _rblNudgeOffsets.Clear();
+            return NoReadoutRects;
+        }
+
+        return RblReadoutPlacement.PlaceAll(readouts, BuildRblObstacles(frame, Viewport), _rblReadoutSpots, _rblNudgeOffsets);
+    }
+
+    /// <summary>
+    /// What a readout avoids on the Scope: every block of <paramref name="frame"/>, fixed (the Scope deconflicts no block, so a
+    /// readout never nudges one), and every symbol.
+    /// </summary>
+    internal static RblObstacles BuildRblObstacles(ScopeFrame frame, MapViewport viewport)
+    {
+        var blocks = new List<SKRect>(frame.Tracks.Count);
+        var symbols = new List<SKPoint>(frame.Tracks.Count);
+        foreach (ScopeTrack track in frame.Tracks)
+        {
+            blocks.Add(track.Block.Bounds);
+            symbols.Add(track.Symbol);
+        }
+
+        return new RblObstacles
+        {
+            FixedBlocks = blocks,
+            PlacedThisFrame = [],
+            MovableBlocks = [],
+            SymbolCentres = symbols,
+            SymbolHalfSide = ScopeFrame.TargetHitRadiusPx,
+            MaxLeaderLength = 0,
+            ViewSize = new SKSize(viewport.PixelWidth, viewport.PixelHeight),
+        };
     }
 
     /// <summary>
@@ -389,9 +516,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             _lastFrame = null;
             MarkDirty();
         }
-        else if (change.Property == BrightnessProperty)
+        else if ((change.Property == BrightnessProperty) || IsMeasureProperty(change.Property))
         {
-            // Colours only: the kept frame's layout still holds, so hit-testing keeps it.
+            // Colours or measure lines only: the kept frame's layout still holds, so hit-testing keeps it.
             MarkDirty();
         }
         else if ((change.Property == CenterLatProperty) || (change.Property == CenterLonProperty))
@@ -415,6 +542,10 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         || (property == LocalRingsProperty)
         || (property == ShowTopDownProperty)
         || (property == TdmOnlyMapIdsProperty);
+
+    /// <summary>Whether <paramref name="property"/> sets the measuring tool's state, which draws over the frame.</summary>
+    private static bool IsMeasureProperty(AvaloniaProperty property) =>
+        (property == IsMeasuringProperty) || (property == RangeBearingLinesProperty) || (property == MeasureAnchorProperty);
 
     /// <summary>
     /// Watches the traffic list only while in the visual tree, so a closed scope never stays rooted by the main view
