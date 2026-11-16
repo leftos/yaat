@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -209,6 +210,135 @@ public class Issue365LayoutApplyRestoreTests
             Assert.Equal(800, saved.Width);
             Assert.Equal(500, saved.Height);
             Assert.True(saved.IsMaximized);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // YAAT-2404: a maximized layout geometry applied to an already-maximized window was written onto the maximized frame
+    // and the window was never re-maximized.
+    [AvaloniaFact]
+    public void ApplyGeometry_MaximizedOntoMaximizedWindow_MovesTheRestoredFrameThenReMaximizes()
+    {
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow("Issue1386MaxOntoMaxTest");
+        try
+        {
+            window.WindowState = WindowState.Maximized;
+            Dispatcher.UIThread.RunJobs();
+
+            var statesAtMove = new List<WindowState>();
+            window.PositionChanged += (_, _) => statesAtMove.Add(window.WindowState);
+
+            SavedWindowGeometry geo = NormalGeometry();
+            geo.IsMaximized = true;
+            helper.ApplyGeometry(geo);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.NotEmpty(statesAtMove);
+            Assert.All(statesAtMove, s => Assert.Equal(WindowState.Normal, s));
+            Assert.Equal(WindowState.Maximized, window.WindowState);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // YAAT-2404: Win32 raises PositionChanged/Resized for a maximize before Window.WindowState flips, so the helper recorded
+    // the maximized frame as the normal one.
+    [AvaloniaFact]
+    public void SaveGeometry_AfterMaximize_KeepsTheNormalFrameNotTheMaximizedOne()
+    {
+        const string windowName = "Issue1386MaximizeCaptureTest";
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow(windowName);
+        try
+        {
+            window.Position = new PixelPoint(320, 240);
+            window.Width = 800;
+            window.Height = 500;
+            Dispatcher.UIThread.RunJobs();
+
+            // Win32's order for a maximize: WM_MOVE, then WM_SIZE, then the state change, all in one turn.
+            window.Position = new PixelPoint(-8, -8);
+            window.WindowState = WindowState.Maximized;
+            Dispatcher.UIThread.RunJobs();
+
+            helper.FlushSavedGeometry();
+
+            SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
+            Assert.NotNull(saved);
+            Assert.True(saved.IsMaximized);
+            Assert.Equal(320, saved.X);
+            Assert.Equal(240, saved.Y);
+            Assert.Equal(800, saved.Width);
+            Assert.Equal(500, saved.Height);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // YAAT-2404: both moves queue an update in one turn; the first update to run must not cancel the second.
+    [AvaloniaFact]
+    public void SaveGeometry_TwoMovesInOneTurn_KeepsTheLastMove()
+    {
+        const string windowName = "Issue1386TwoMovesTest";
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow(windowName);
+        try
+        {
+            window.Position = new PixelPoint(320, 240);
+            window.Position = new PixelPoint(400, 240);
+            Dispatcher.UIThread.RunJobs();
+
+            window.WindowState = WindowState.Maximized;
+            Dispatcher.UIThread.RunJobs();
+
+            helper.FlushSavedGeometry();
+
+            SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
+            Assert.NotNull(saved);
+            Assert.True(saved.IsMaximized);
+            Assert.Equal(400, saved.X);
+            Assert.Equal(240, saved.Y);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // YAAT-2404: a move and a resize in one turn each capture a frame; the resize must not be dropped.
+    [AvaloniaFact]
+    public void SaveGeometry_MoveAndResizeInOneTurn_KeepsBoth()
+    {
+        const string windowName = "Issue1386MoveResizeTest";
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow(windowName);
+        try
+        {
+            window.Position = new PixelPoint(320, 240);
+            window.Width = 800;
+            window.Height = 500;
+            Dispatcher.UIThread.RunJobs();
+
+            window.WindowState = WindowState.Maximized;
+            Dispatcher.UIThread.RunJobs();
+
+            helper.FlushSavedGeometry();
+
+            SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
+            Assert.NotNull(saved);
+            Assert.True(saved.IsMaximized);
+            Assert.Equal(320, saved.X);
+            Assert.Equal(240, saved.Y);
+            Assert.Equal(800, saved.Width);
+            Assert.Equal(500, saved.Height);
         }
         finally
         {

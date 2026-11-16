@@ -34,6 +34,12 @@ public sealed class WindowGeometryHelper
 
     private NormalWindowGeometry _lastNormalGeometry;
     private NormalWindowGeometry? _previousNormalGeometry;
+
+    // Bumped only by the synchronous stores (StoreNormalGeometry), so a posted change-handler update can tell that a
+    // profile apply or restore has superseded the frame it captured; posted updates never bump it, so updates posted
+    // in the same turn do not cancel each other.
+    private int _normalGeometryVersion;
+
     private SavedWindowGeometry? _startupGeometry;
     private DateTime _openedAtUtc = DateTime.MaxValue;
     private bool _wasMaximizedBeforeMinimize;
@@ -118,7 +124,7 @@ public sealed class WindowGeometryHelper
             _window.Width = _defaultWidth;
             _window.Height = _defaultHeight;
             _window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            _lastNormalGeometry = CaptureCurrentGeometry();
+            StoreNormalGeometry(CaptureCurrentGeometry());
         }
 
         ApplyTitle();
@@ -286,7 +292,7 @@ public sealed class WindowGeometryHelper
             }
             else
             {
-                LeaveMinimizedOrMaximizedFrame(geo);
+                LeaveMinimizedOrMaximizedFrame();
             }
 
             _window.Width = resolved.Width;
@@ -300,14 +306,14 @@ public sealed class WindowGeometryHelper
             // maximized or minimized across the write — both change handlers skip those states, so
             // a profile applied to an already-maximized window would keep persisting the geometry
             // it replaced (#408).
-            _lastNormalGeometry = new NormalWindowGeometry(new PixelPoint(resolved.X, resolved.Y), resolved.Width, resolved.Height);
+            StoreNormalGeometry(new NormalWindowGeometry(new PixelPoint(resolved.X, resolved.Y), resolved.Width, resolved.Height));
         }
         else
         {
             Log.LogWarning("{Window} apply: no screens reported; setting size only (saved={Saved})", _windowName, Describe(geo));
             _window.Width = geo.Width;
             _window.Height = geo.Height;
-            _lastNormalGeometry = new NormalWindowGeometry(new PixelPoint(geo.X, geo.Y), geo.Width, geo.Height);
+            StoreNormalGeometry(new NormalWindowGeometry(new PixelPoint(geo.X, geo.Y), geo.Width, geo.Height));
         }
 
         SetTopmost(geo.IsTopmost);
@@ -322,16 +328,18 @@ public sealed class WindowGeometryHelper
     }
 
     // Cannot resize/reposition while minimized or maximized — the geometry must land on the
-    // restored frame, not the iconic one, so drop to Normal first. Automation mode never changes
-    // the state of a visible window (see ApplySavedWindowState), so the geometry lands as it is.
-    private void LeaveMinimizedOrMaximizedFrame(SavedWindowGeometry geo)
+    // restored frame, not the iconic one, so drop to Normal first, whether or not the geometry
+    // asks for a maximized frame: a saved-maximized geometry re-maximizes afterwards, on the
+    // screen the restored frame was moved to (YAAT-2404). Automation mode never changes the state
+    // of a visible window (see ApplySavedWindowState), so the geometry lands as it is.
+    private void LeaveMinimizedOrMaximizedFrame()
     {
         if (AutomationGate.SuppressActivation)
         {
             return;
         }
 
-        if ((_window.WindowState == WindowState.Minimized) || ((_window.WindowState == WindowState.Maximized) && !geo.IsMaximized))
+        if ((_window.WindowState == WindowState.Minimized) || (_window.WindowState == WindowState.Maximized))
         {
             _window.WindowState = WindowState.Normal;
         }
@@ -655,12 +663,27 @@ public sealed class WindowGeometryHelper
 
         // A minimize can report its iconic position before WindowState flips to
         // Minimized — never let that sentinel replace the last normal geometry.
-        NormalWindowGeometry current = CaptureCurrentGeometry();
-        if (!_startupVerifyPending && (_window.WindowState == WindowState.Normal) && !IsIconicOrigin(current))
-        {
-            _previousNormalGeometry = _lastNormalGeometry;
-            _lastNormalGeometry = current;
-        }
+        NormalWindowGeometry captured = CaptureCurrentGeometry();
+        int versionAtPost = _normalGeometryVersion;
+        bool verifyPendingAtPost = _startupVerifyPending;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (IsPostedGeometrySuperseded(verifyPendingAtPost, versionAtPost) || (_window.WindowState != WindowState.Normal))
+                {
+                    return;
+                }
+
+                if (IsIconicOrigin(captured))
+                {
+                    return;
+                }
+
+                _previousNormalGeometry = _lastNormalGeometry;
+                _lastNormalGeometry = captured;
+            },
+            DispatcherPriority.Background
+        );
         ScheduleAutoSave();
     }
 
@@ -671,11 +694,37 @@ public sealed class WindowGeometryHelper
             return;
         }
 
-        if (!_startupVerifyPending && (_window.WindowState == WindowState.Normal))
-        {
-            _lastNormalGeometry = CaptureCurrentGeometry();
-        }
+        NormalWindowGeometry captured = CaptureCurrentGeometry();
+        int versionAtPost = _normalGeometryVersion;
+        bool verifyPendingAtPost = _startupVerifyPending;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (!IsPostedGeometrySuperseded(verifyPendingAtPost, versionAtPost) && (_window.WindowState == WindowState.Normal))
+                {
+                    _lastNormalGeometry = captured;
+                }
+            },
+            DispatcherPriority.Background
+        );
         ScheduleAutoSave();
+    }
+
+    // Win32 raises PositionChanged and Resized for a maximize before Window.WindowState flips, so the
+    // state read inside the change handler still says Normal while the frame is already the maximized
+    // one. Read the frame in the handler and decide on it once the dispatcher has drained the state
+    // change (YAAT-2404). Only a synchronous store (a profile apply, a startup restore) bumps the
+    // version, so an update posted before one is cancelled by it while every update posted in the same
+    // turn shares one version and the last event of the turn wins. The startup verify is still
+    // authoritative for its span: an event that fired while it was pending is never stored.
+    private bool IsPostedGeometrySuperseded(bool verifyPendingAtPost, int versionAtPost) =>
+        verifyPendingAtPost || _isClosed || _startupVerifyPending || (_normalGeometryVersion != versionAtPost);
+
+    // The synchronous stores: a frame the caller asked for, which posted updates must never overwrite.
+    private void StoreNormalGeometry(NormalWindowGeometry geometry)
+    {
+        _lastNormalGeometry = geometry;
+        _normalGeometryVersion++;
     }
 
     private void ScheduleAutoSave()
