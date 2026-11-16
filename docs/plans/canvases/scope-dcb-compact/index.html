@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT Scope: compact toolbar (DCB) layouts</title>
+<style>
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 32px 48px; min-width: 1440px; background: #181c21; color: #d4dbe2;
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+h2 { font-size: 17px; margin: 0 0 2px; color: #eef3f7; }
+h3 { font-size: 14px; margin: 18px 0 6px; color: #eef3f7; }
+.lede { max-width: 1360px; margin: 0 0 10px; color: #b8c2cb; }
+.facts { font-family: "JBM", Consolas, monospace; font-size: 12.5px; color: #9fd8ea; margin: 6px 0 0; max-width: 1380px; }
+.how { margin: 2px 0 0; max-width: 1360px; }
+.worst { margin: 2px 0 0; max-width: 1360px; color: #f0c98a; }
+.basis { margin: 4px 0 0; max-width: 1360px; color: #9aa6b1; font-size: 13px; }
+.basis q { color: #c8d2da; font-style: italic; }
+.lane { margin: 30px 0 0; padding-top: 16px; border-top: 1px solid #2d3640; }
+.frame { margin: 14px 0 0; }
+.cap { font-size: 12.5px; color: #8e9aa5; margin: 0 0 4px; }
+.cap b { color: #d4dbe2; font-weight: 600; }
+table.sum { border-collapse: collapse; margin: 10px 0 0; font-size: 13px; }
+table.sum th, table.sum td { border: 1px solid #2d3640; padding: 4px 10px; text-align: left; vertical-align: top; }
+table.sum th { background: #10141a; color: #eef3f7; font-weight: 600; }
+table.sum td.n { font-family: "JBM", Consolas, monospace; font-size: 12.5px; color: #9fd8ea; white-space: nowrap; }
+.refs { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 0; }
+.refs figure { margin: 0; }
+.refs img { display: block; border: 1px solid #2a333c; }
+.refs figcaption { font-size: 12.5px; color: #8e9aa5; margin: 3px 0 0; max-width: 1360px; }
+.legend { display: flex; gap: 22px; align-items: center; margin: 14px 0 6px; padding: 10px 14px; background: #10141a;
+  border: 1px solid #2a333c; width: 1362px; font-size: 13px; color: #aab5bf; }
+.legend .sample { display: flex; align-items: center; gap: 8px; background: #0a1015; height: 45px; padding: 0 6px; font-family: "JBM", Consolas, monospace; font-size: 12px; }
+
+/* The window's client area: 1 CSS px = 1 DIP. The outline sits outside it so the width is exact. */
+.win { position: relative; background: #000; overflow: hidden; outline: 1px solid #56616c; }
+.scope { position: absolute; inset: 0; }
+.tb { position: absolute; top: 0; left: 0; right: 0; z-index: 1; font-family: "JBM", Consolas, monospace; font-size: 12px; }
+.tb.side { right: auto; bottom: 0; background: #0a1015; border-right: 1px solid #22313b; }
+
+/* Today: Border Height=45 #0a1015 Padding 6,0 around a horizontal StackPanel */
+.bar { height: 45px; background: #0a1015; padding: 0 6px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; }
+.tray { min-height: 45px; background: #0a1015; border-top: 1px solid #22313b; padding: 0 6px; display: flex; flex-wrap: wrap;
+  align-items: center; align-content: center; }
+.tray .btn { margin: 4px 2px; }
+.bc { display: inline-flex; align-items: center; flex: none; }
+.strip { width: 5px; height: 28px; margin: 0 -2px 0 2px; position: relative; z-index: 1; background: transparent; }
+.strip.hover, .ts.hover { background: #E0B84A; }
+.btn { height: 28px; padding: 0 8px; margin: 0 2px; border: 1px solid #22313b; background: #10181e; color: #c9d4dc;
+  display: inline-flex; align-items: center; white-space: pre; font: 400 12px "JBM", Consolas, monospace; }
+.arr { font-size: 9px; }
+.btn b, .tile b, .bb b { font-weight: 700; }
+.btn.active { border-color: #58c4e6; color: #e7f6fb; }
+.sep { width: 1px; height: 28px; margin: 0 4px; background: #22313b; flex: none; }
+
+/* Tiles (A, D, E): no margin, a 1 px divider from the #22313b behind them, the tear-off strip inside the left edge */
+.tile { position: relative; flex: none; background: #10181e; color: #c9d4dc; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; white-space: pre; line-height: 14px; padding: 0 9px 0 6px;
+  font: 400 12px/14px "JBM", Consolas, monospace; }
+.tile .ln { display: block; line-height: 14px; }
+.ts { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.tile .mk { position: absolute; right: 2px; top: 1px; font-size: 9px; line-height: 11px; color: #8fa3b1; }
+.tile.active, .bb.active { box-shadow: inset 0 0 0 1px #58c4e6; color: #e7f6fb; }
+.tile.active .mk { color: #58c4e6; }
+.tiles { display: inline-flex; gap: 1px; background: #22313b; vertical-align: top; }
+
+/* A: one row of uniform two-line tiles */
+.abar { background: #0a1015; border-bottom: 1px solid #22313b; overflow: hidden; white-space: nowrap; height: 41px; }
+.abar .tile { height: 40px; }
+.atray { background: #0a1015; border-bottom: 1px solid #22313b; overflow: hidden; }
+.atray .tile { height: 36px; }
+
+/* B: two-line buttons in today's box, abutting inside a group, 6 px between groups */
+.bbar { height: 40px; background: #0a1015; padding: 0 6px; display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; }
+.bgrp { display: flex; flex: none; }
+.bb { position: relative; height: 34px; padding: 0 6px; border: 1px solid #22313b; background: #10181e; color: #c9d4dc;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; white-space: pre; flex: none;
+  font: 400 12px/14px "JBM", Consolas, monospace; }
+.bb + .bb { margin-left: -1px; }
+.bb.active { border-color: #58c4e6; z-index: 1; box-shadow: none; }
+.bb .ln { display: block; line-height: 14px; }
+.btray { background: #0a1015; border-top: 1px solid #22313b; padding: 4px 6px; }
+.btray .bgrp { flex-wrap: wrap; }
+
+/* C: today's buttons in a fixed two-row grid, filled column by column */
+.cbar { background: #0a1015; padding: 4px 6px; overflow: hidden; white-space: nowrap; }
+.cgrid { display: inline-grid; grid-auto-flow: column; grid-template-rows: 28px 28px; row-gap: 2px; column-gap: 4px; vertical-align: top; }
+.cgrid .bc { display: flex; }
+.cgrid .strip { margin: 0; }
+.cgrid .btn { margin: 0; flex: 1 1 auto; }
+
+/* D: a column of tiles down the left edge */
+.dcol { display: inline-grid; grid-auto-flow: column; gap: 1px; vertical-align: top; }
+.dcol .tile { box-shadow: 0 1px 0 #22313b, 1px 0 0 #22313b, 1px 1px 0 #22313b; }
+.dcol .tile.active { box-shadow: inset 0 0 0 1px #58c4e6, 0 1px 0 #22313b, 1px 0 0 #22313b; }
+.dcol .tile { height: 36px; }
+.dfly { position: absolute; z-index: 3; display: inline-grid; grid-auto-flow: column; gap: 1px; background: #22313b; border: 1px solid #22313b;
+  font-family: "JBM", Consolas, monospace; font-size: 12px; }
+.dfly .tile { height: 36px; }
+
+/* E: STARS main-DCB shape: full-height tiles for buttons with a value, half-height pairs for the rest */
+.ebar { background: #0a1015; border-bottom: 1px solid #22313b; overflow: hidden; white-space: nowrap; height: 46px; }
+.ebar .tiles { height: 45px; }
+.ebar .tile.full { height: 45px; }
+.pair { display: flex; flex-direction: column; gap: 1px; flex: none; }
+.tile.half { height: 22px; }
+.etray { background: #0a1015; border-bottom: 1px solid #22313b; overflow: hidden; }
+.egrid { display: inline-grid; grid-auto-flow: column; grid-template-rows: 22px 22px; gap: 1px; background: #22313b; vertical-align: top; }
+
+.callout { position: absolute; z-index: 4; font: 11px "Segoe UI", sans-serif; color: #f0c98a; background: rgba(24,28,33,.9);
+  border: 1px solid #6b5a3a; padding: 1px 6px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<h1>YAAT Scope: compact toolbar (DCB) layouts</h1>
+<p class="lede">Five ways to pack the Scope's toolbar tighter than today's single row of margined buttons, beside today's bar for comparison. Every lane draws the top of a Scope window to scale (1 CSS px = 1 DIP) at the default 1360 DIP width and at a narrow 1000 DIP one, then the same layout with the MAPS menu open, to show where its tray goes. All lanes keep the 15 buttons in today's order with today's values (RANGE 40, so OTHERS PARTIAL, VECTOR 1m OWN, HIST 5; PROFILE MIXED), JetBrains Mono 12 px, today's navy colours, and a tear-off strip on every button but DEL TEAROFF (shown gold, as on hover, on PROFILE in each first frame). The faint targets show how much of the scope each layout covers. Every number below is measured off this page as it renders, not estimated.</p>
+<p class="facts" id="measured">measuring...</p>
+<table class="sum" id="sum"></table>
+
+<h3>What CRC draws (its own screenshots, at their own pixel size, not to the scale above)</h3>
+<div class="refs">
+  <figure><img src="stars-dcb-main.png" alt="CRC STARS DCB main menu" data-no-lightbox><figcaption>STARS main DCB (docs/crc/img/stars/dcb/main-menu.png, 1510 x 80 px). Two-line tiles packed edge to edge: full-height tiles for a button with a value (RANGE 23, RR 5) or a menu (MAPS, BRITE), and half-height tiles stacked in pairs (PLACE CNTR over OFF CNTR, 3 A90 over 22 MVA, LDR DIR N over LDR 2). SHIFT at the far right.</figcaption></figure>
+  <figure><img src="stars-dcb-maps.png" alt="CRC STARS DCB MAPS submenu" data-no-lightbox><figcaption>STARS MAPS submenu (maps-submenu.png, 1368 x 80 px): it replaces the DCB in place, two rows of map tiles (ID over short name), DONE and CLR ALL at the left.</figcaption></figure>
+  <figure><img src="eram-master-toolbar.png" alt="CRC ERAM Master Toolbar" data-no-lightbox><figcaption>ERAM Master Toolbar (docs/crc/img/eram/toolbars/main.png, 752 x 69 px): a fixed 2 x 8 grid, each button with its gold tear-off bar on its left.</figcaption></figure>
+</div>
+
+<div class="legend">
+  <div class="sample" id="legendSample"></div>
+  <div>Tear-off strip: transparent until the pointer is over it, then gold (shown on PROFILE). On a tile it is a 4 px band inside the tile's left edge, so it costs no width. A cyan border marks an active button (MAPS while its tray is open; the "on" maps in a tray). On a tile, a small ▸ in the top-right corner marks a menu.</div>
+</div>
+<div id="lanes"></div>
+<script>
+"use strict";
+const BUTTONS = [
+  { label: "PROFILE", menu: true, value: "MIXED", grp: 0 },
+  { label: "TEMPLATE", menu: true, grp: 0 },
+  { label: "RANGE", value: "40", grp: 1 },
+  { label: "OTHERS", value: "PARTIAL", grp: 1 },
+  { label: "VECTOR", value: "1m OWN", grp: 1 },
+  { label: "HIST", value: "5", grp: 1 },
+  { label: "TOOLS", menu: true, grp: 2 },
+  { label: "AUTO", grp: 2 },
+  { label: "MAPS", menu: true, grp: 3 },
+  { label: "TDM", grp: 3 },
+  { label: "DB", menu: true, grp: 3 },
+  { label: "VIEWS", menu: true, grp: 3 },
+  { label: "BRITE", menu: true, grp: 4 },
+  { label: "PREF", menu: true, grp: 4 },
+  { label: "DEL TEAROFF", noStrip: true, grp: 5 },
+];
+const MAPS = [["15", "MAIN", 1], ["29", "4R/15R"], ["27", "15R/9"], ["33", "27"], ["31", "27/22", 1], ["35", "33L"], ["433", "RNPX33L"],
+  ["56", "4 STAR"], ["50", "22 STAR"], ["54", "33 STAR"], ["59", "9 SID"], ["51", "22L SID"], ["55", "33L SID"], ["72", "DREEM"],
+  ["46", "GPS 2"], ["903", "ZBW 2"]].map(([id, name, on]) => ({ label: id, value: name, on: !!on, map: true }));
+const WIN_H = 800;
+const fmt = x => (Math.round(x * 10) / 10).toString();
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** Today's ScopeButtonControl: the 5 px strip (unless the button never tears off) and the one-line button. */
+function button(b, o = {}) {
+  const bc = el("span", "bc");
+  if (o.k) bc.dataset.k = o.k;
+  if (!b.noStrip) bc.append(el("span", "strip" + (o.hover ? " hover" : "")));
+  const btn = el("span", "btn" + ((o.active || b.on) ? " active" : ""));
+  const t = el("span", "t");
+  if (b.map) t.append(document.createTextNode(b.label + " " + b.value));
+  else {
+    t.append(document.createTextNode(b.label));
+    if (b.menu) t.append(el("span", "arr", " ▸"));
+    if (b.value !== undefined) { t.append(document.createTextNode(" ")); t.append(el("b", null, b.value)); }
+  }
+  btn.append(t);
+  bc.append(btn);
+  return bc;
+}
+
+/** The lines a tile draws: label over value (bold); a two-word label with no value splits over two lines. */
+function tileLines(b, oneLine) {
+  if (oneLine) return [b.map ? b.label + " " + b.value : b.label];
+  if (b.map) return [b.label, b.value];
+  if (b.value !== undefined) return [b.label, { bold: b.value }];
+  if (b.label.includes(" ")) return b.label.split(" ");
+  return [b.label];
+}
+function tile(b, o = {}) {
+  const t = el("span", "tile" + ((o.active || b.on) ? " active" : "") + (o.half ? " half" : "") + (o.full ? " full" : ""));
+  if (o.k) t.dataset.k = o.k;
+  if (!b.noStrip) t.append(el("span", "ts" + (o.hover ? " hover" : "")));
+  if (b.menu) t.append(el("span", "mk", "▸"));
+  for (const ln of tileLines(b, o.oneLine)) {
+    const d = el("span", "ln");
+    if (typeof ln === "object") d.append(el("b", null, ln.bold)); else d.textContent = ln;
+    t.append(d);
+  }
+  return t;
+}
+/** B's button: today's box, label (with today's ▸ run) over the value, padding 6, no margin. */
+function bbtn(b, o = {}) {
+  const x = el("span", "bb" + ((o.active || b.on) ? " active" : ""));
+  if (o.k) x.dataset.k = o.k;
+  if (!b.noStrip) x.append(el("span", "ts" + (o.hover ? " hover" : "")));
+  const lines = b.map ? [b.label, b.value] : (b.value !== undefined ? [b.label, { bold: b.value }] : (b.label.includes(" ") ? b.label.split(" ") : [b.label]));
+  lines.forEach((ln, i) => {
+    const d = el("span", "ln");
+    if (typeof ln === "object") d.append(el("b", null, ln.bold)); else d.append(document.createTextNode(ln));
+    if (i === 0 && b.menu) d.append(el("span", "arr", " ▸"));
+    x.append(d);
+  });
+  return x;
+}
+
+/** The uniform tile width for A and D: the widest natural tile among the buttons (and, separately, the maps). */
+function uniformWidths() {
+  const probe = el("div", "tb");
+  probe.style.cssText = "position:absolute;left:-5000px;top:0;right:auto;visibility:hidden";
+  const r1 = el("div", "tiles"), r2 = el("div", "tiles");
+  BUTTONS.forEach(b => r1.append(tile(b)));
+  MAPS.forEach(m => r2.append(tile(m)));
+  probe.append(r1, el("br"), r2);
+  document.body.append(probe);
+  const w1 = Math.ceil(Math.max(...[...r1.children].map(n => n.getBoundingClientRect().width)));
+  const w2 = Math.ceil(Math.max(...[...r2.children].map(n => n.getBoundingClientRect().width)));
+  probe.remove();
+  return { TW: w1, MW: w2 };
+}
+
+/** Faint scope content: range rings, a map line and targets with data blocks across the frame's height. */
+function scope(W, H) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "scope");
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const cx = W * 0.55, cy = Math.max(420, H * 0.55);
+  let s = "";
+  for (const r of [160, 260, 360, 460, 560]) s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#14301f" stroke-width="1"/>';
+  s += '<polyline points="' + [[0, 150], [W * 0.18, 118], [W * 0.33, 132], [W * 0.5, 96], [W * 0.72, 108], [W, 70]].map(p => p.join(",")).join(" ") +
+    '" fill="none" stroke="#1d2a36" stroke-width="1.2"/>';
+  const cs = ["AAL123", "SWA418", "N731PA", "UAL9", "DAL2284", "JBU611", "SKW55", "ASA301", "FFT12", "N52RT", "ENY41", "RPA77", "JIA5120", "N12QX", "EJA88"];
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const n = Math.round(12 * H / 190);
+  for (let i = 0; i < n; i++) {
+    const x = 30 + rnd() * (W - 90), y = 18 + rnd() * (H - 30);
+    const alt = String(40 + Math.floor(rnd() * 37) * 10).padStart(3, "0") + " " + String(90 + Math.floor(rnd() * 34) * 10);
+    s += '<g opacity="0.75"><rect x="' + (x - 3) + '" y="' + (y - 3) + '" width="6" height="6" fill="none" stroke="#3fa860" stroke-width="1"/>' +
+      '<line x1="' + x + '" y1="' + y + '" x2="' + (x + 16) + '" y2="' + (y - 10) + '" stroke="#2f7d48"/>' +
+      '<text x="' + (x + 18) + '" y="' + (y - 12) + '" fill="#3fa860" font-family="Consolas, monospace" font-size="11">' + cs[i % cs.length] + '</text>' +
+      '<text x="' + (x + 18) + '" y="' + (y + 1) + '" fill="#3fa860" font-family="Consolas, monospace" font-size="11">' + alt + '</text></g>';
+  }
+  svg.innerHTML = s;
+  return svg;
+}
+
+function frame(parent, W, H, caption) {
+  const f = el("div", "frame");
+  const cap = el("div", "cap");
+  cap.innerHTML = caption;
+  const win = el("div", "win");
+  win.style.width = W + "px"; win.style.height = H + "px";
+  win.append(scope(W, H));
+  const tb = el("div", "tb");
+  win.append(tb);
+  f.append(cap, win);
+  parent.append(f);
+  return { win, tb, W, H };
+}
+
+/** Which of the 15 main buttons lie wholly inside the window, the bar's natural (unclipped) extent, and its band. */
+function measureFrame(fr, band) {
+  const wr = fr.win.getBoundingClientRect();
+  const items = [...fr.win.querySelectorAll('[data-k="main"]')];
+  const rs = items.map(n => n.getBoundingClientRect());
+  const inside = rs.map(r => (r.right - wr.left <= fr.W + 0.5) && (r.bottom - wr.top <= fr.H + 0.5));
+  const order = items.map(n => n.dataset.i | 0);
+  const out = BUTTONS.filter((b, i) => !inside[order.indexOf(i)]).map(b => b.label);
+  const br = band.getBoundingClientRect();
+  const right = Math.max(...rs.map(r => r.right)) - wr.left;
+  const bottom = Math.max(...rs.map(r => r.bottom)) - wr.top;
+  return { fit: inside.filter(Boolean).length, out, right, bottom, bandW: br.width, bandH: br.height };
+}
+function tag(node, i) { node.dataset.k = "main"; node.dataset.i = i; return node; }
+function callout(fr, x, y, text, right) { const c = el("div", "callout", text); if (right) c.style.right = "6px"; else c.style.left = x + "px"; c.style.top = y + "px"; fr.win.append(c); return c; }
+
+// ---- the layouts. Each takes a frame and {hover, open} and returns the band element to measure. ----
+function drawToday(fr, o) {
+  const bar = el("div", "bar");
+  BUTTONS.forEach((b, i) => {
+    if (i) bar.append(el("span", "sep"));
+    bar.append(tag(button(b, { hover: o.hover && i === 0, active: o.open && b.label === "MAPS" }), i));
+  });
+  fr.tb.append(bar);
+  if (o.open) { const tray = el("div", "tray"); MAPS.forEach(m => tray.append(button(m))); fr.tb.append(tray); }
+  return { band: bar, padR: 6 };
+}
+function drawA(fr, o) {
+  const bar = el("div", "abar"), row = el("div", "tiles");
+  BUTTONS.forEach((b, i) => { const t = tag(tile(b, { hover: o.hover && i === 0, active: o.open && b.label === "MAPS" }), i); t.style.width = U.TW + "px"; row.append(t); });
+  bar.append(row); fr.tb.append(bar);
+  if (o.open) {
+    const tr = el("div", "atray"), r = el("div", "tiles");
+    MAPS.forEach(m => { const t = tile(m); t.style.width = U.MW + "px"; r.append(t); });
+    tr.append(r); fr.tb.append(tr);
+  }
+  return { band: bar, padR: 0 };
+}
+function drawB(fr, o) {
+  const bar = el("div", "bbar");
+  let g = null, last = -1;
+  BUTTONS.forEach((b, i) => {
+    if (b.grp !== last) { g = el("span", "bgrp"); bar.append(g); last = b.grp; }
+    g.append(tag(bbtn(b, { hover: o.hover && i === 0, active: o.open && b.label === "MAPS" }), i));
+  });
+  fr.tb.append(bar);
+  if (o.open) { const tr = el("div", "btray"), g2 = el("span", "bgrp"); MAPS.forEach(m => g2.append(bbtn(m))); tr.append(g2); fr.tb.append(tr); }
+  return { band: bar, padR: 6 };
+}
+function drawC(fr, o) {
+  const bar = el("div", "cbar"), g = el("div", "cgrid");
+  BUTTONS.forEach((b, i) => g.append(tag(button(b, { hover: o.hover && i === 0, active: o.open && b.label === "MAPS" }), i)));
+  bar.append(g); fr.tb.append(bar);
+  if (o.open) { const tray = el("div", "tray"); MAPS.forEach(m => tray.append(button(m))); fr.tb.append(tray); }
+  return { band: bar, padR: 6 };
+}
+const DH = 36;
+function drawD(fr, o) {
+  fr.tb.className = "tb side";
+  const rows = Math.min(BUTTONS.length, Math.floor((fr.H - 1 + 1) / (DH + 1)));
+  const g = el("div", "dcol");
+  g.style.gridTemplateRows = "repeat(" + rows + ", " + DH + "px)";
+  g.style.gridAutoColumns = U.TW + "px";
+  BUTTONS.forEach((b, i) => g.append(tag(tile(b, { hover: o.hover && i === 0, active: o.open && b.label === "MAPS" }), i)));
+  fr.tb.append(g);
+  if (o.open) {
+    const maps = g.children[8];
+    const fly = el("div", "dfly");
+    fly.style.gridTemplateRows = "repeat(4, " + DH + "px)";
+    fly.style.gridAutoColumns = U.MW + "px";
+    MAPS.forEach(m => fly.append(tile(m)));
+    fly.style.left = (fr.tb.getBoundingClientRect().width) + "px";
+    fly.style.top = (maps.offsetTop - 1) + "px";
+    fr.win.append(fly);
+  }
+  return { band: fr.tb, padR: 0, side: true };
+}
+const E_COLS = [[0], [1], [2], [3], [4], [5], [6, 7], [8, 9], [10, 11], [12, 13], [14]];
+function drawE(fr, o) {
+  const bar = el("div", "ebar"), row = el("div", "tiles");
+  E_COLS.forEach(c => {
+    const opt = i => ({ hover: o.hover && i === 0, active: o.open && BUTTONS[i].label === "MAPS" });
+    if (c.length === 1) { row.append(tag(tile(BUTTONS[c[0]], Object.assign(opt(c[0]), { full: true })), c[0])); return; }
+    const p = el("span", "pair");
+    c.forEach(i => p.append(tag(tile(BUTTONS[i], Object.assign(opt(i), { half: true, oneLine: true })), i)));
+    row.append(p);
+  });
+  bar.append(row); fr.tb.append(bar);
+  if (o.open) { const tr = el("div", "etray"), g = el("div", "egrid"); MAPS.forEach(m => g.append(tile(m, { half: true, oneLine: true }))); tr.append(g); fr.tb.append(tr); }
+  return { band: bar, padR: 0 };
+}
+
+const LANES = [
+  { key: "Today", name: "Today's bar", draw: drawToday,
+    how: "One 45 px row of today's buttons: a 5 px tear-off strip, a 28 px bordered button with padding 8 and margin 2, value beside its label, a 9 px separator between each two. MAPS opens its tray as a wrapping row under the bar.",
+    worst: "the row is wider than the default window, so its last buttons sit past the right edge (see the facts line: one at 1360 DIPs, five at 1000) and are reached only by scrolling; every button added (TDM was the last) pushes another one out.",
+    basis: "The current ScopeToolbar anatomy (.tmp/map-yaat-2357.md sections 1 and 3) and the earlier overflow mock's drawing of it (docs/plans/canvases/scope-toolbar-overflow/index.html)." },
+  { key: "A", name: "STARS DCB tiles, one row", draw: drawA,
+    how: "One 41 px row of uniform two-line tiles (label over value, value bold), packed edge to edge with a 1 px divider and no margin. Every tile is as wide as the widest one. A menu tile carries a small ▸ in its top-right corner instead of a ▸ run in its text. The tear-off strip becomes a 4 px band inside each tile's left edge. MAPS opens a row of map tiles (ID over name) under the bar.",
+    worst: "uniform width wastes room on the short buttons (DB, TDM, AUTO are as wide as TEMPLATE), so the row is still wide: see the facts line for what falls past the edge at 1000 DIPs. Centred two-line text also reads less like a list than today's row.",
+    basis: '<q>The button bar across the top is known as the Display Control Bar, or DCB.</q> (docs/crc/stars.md, Display Control Bar). The tile shape is read off CRC\'s main-menu.png: uniform tiles, label over value (RANGE over 23, RR over 5), 1 px dividers. Map tiles: <q>The button shows the map ID plus the "Short Name" from the video map.</q> (stars.md, Table 1, MAP TOGGLES).' },
+  { key: "B", name: "Two-line compact row, grouped", draw: drawB,
+    how: "Today's look (bordered box, ▸ run after the label) but each button stacks its label over its value in a 34 px box with padding 6, and the boxes abut, sharing their 1 px borders. Separators are gone: the buttons sit in six blocks (PROFILE TEMPLATE | RANGE OTHERS VECTOR HIST | TOOLS AUTO | MAPS TDM DB VIEWS | BRITE PREF | DEL TEAROFF) with a 6 px gap between blocks. Each box is only as wide as its longer line. The strip is a 4 px band inside the box's left border.",
+    worst: "still one row, so a long value widens its button (VECTOR 10m ALL, PREF with a set name); the blocks are a grouping this mock proposes, not one CRC or the profile defines.",
+    basis: "Today's button styles (Button.scopeButton) with margins and separators removed, as the brief asks; the grouping follows the button order already in the profile." },
+  { key: "C", name: "Two-row DCB band", draw: drawC,
+    how: "Today's one-line buttons and strips in a fixed two-row grid, filled column by column (PROFILE over TEMPLATE, RANGE over OTHERS, ...), each column as wide as its wider button; 66 px tall, which is today's bar plus about one button row. MAPS opens today's tray under the band.",
+    worst: "the band covers 66 px of the scope across the whole width, 21 px more than today, even when there is room for one row; the pairing by column means the eye scans down and across.",
+    basis: '<q>The ERAM Master Toolbar contains buttons for controlling various ERAM system settings and functions.</q> (docs/crc/eram.md, Master Toolbar), drawn in eram/toolbars/main.png as a fixed 2 x 8 grid; <q>A button is torn-off by left or middle-clicking the gold tear-off bar on the left side of the button.</q> (eram.md, Tear-offs). STARS stacks pairs the same way (PLACE CNTR over OFF CNTR in main-menu.png).' },
+  { key: "D", name: "Side DCB (left edge)", draw: drawD, side: true,
+    how: "A column of uniform two-line tiles (36 px tall) down the scope's left edge, in today's order top to bottom, freeing the whole top of the scope. The column is a fixed strip of the window like today's 45 px row, so the scope gives up the column's width over the full height. MAPS opens a 4-row flyout of map tiles to the right of the column, level with the MAPS tile.",
+    worst: "a window shorter than the column wraps the tiles into a second column, doubling its width (third frame, 1000 x 460); the flyout covers the scope's left edge, and the column takes about as much scope area as today's row does.",
+    basis: '<q>DCB LEFT | This button places the DCB along the left side of the display.</q> (docs/crc/stars.md, Table 2, Aux Menu; TOP, RIGHT and BOTTOM likewise). ERAM\'s Toolbar Control menu also lists a <q>LEFT TOOLBAR: not simulated</q> (eram.md, Toolbar Control Menu).' },
+  { key: "E", name: "STARS mixed tiles: full tiles and half-height pairs (extra)", draw: drawE,
+    how: "Why it is worth showing: it is the shape CRC's own STARS main DCB uses, and it holds every button in today's 45 px height. A button with a value (PROFILE, RANGE, OTHERS, VECTOR, HIST) and a lone one (TEMPLATE, DEL TEAROFF) gets a full-height two-line tile; consecutive buttons without a value are stacked in half-height one-line pairs (TOOLS over AUTO, MAPS over TDM, DB over VIEWS, BRITE over PREF). Tiles are content-width, edge to edge with 1 px dividers. MAPS opens a two-row grid of half-height map tiles under the band, the way STARS's MAPS submenu packs its maps.",
+    worst: "the pairing depends on which buttons carry a value: a button that gains one (PREF showing a set name) must become a full tile and re-pairs its neighbours, and a lone value-less button between two valued ones (TEMPLATE) takes a whole column for one line.",
+    basis: 'CRC main-menu.png: full-height RANGE 23, RR 5, MAPS, BRITE beside half-height pairs PLACE CNTR / OFF CNTR, 3 A90 / 22 MVA, LDR DIR N / LDR 2; maps-submenu.png: two rows of map tiles. <q>Many of the DCB buttons allow you to choose from a range of values. These are referred to as "Spinner" buttons.</q> (stars.md, Display Control Bar).' },
+];
+
+let U;
+function build() {
+  U = uniformWidths();
+  const root = document.getElementById("lanes");
+  const report = { tileWidth: U.TW, mapTileWidth: U.MW, lanes: {} };
+  const ls = document.getElementById("legendSample");
+  ls.append(button(BUTTONS[0], { hover: true }), button(BUTTONS[8], { active: true }));
+  const lt = el("span", "tiles");
+  lt.append(tile(BUTTONS[0], { hover: true }), tile(BUTTONS[8], { active: true }));
+  ls.append(lt);
+
+  for (const L of LANES) {
+    const sec = el("section", "lane");
+    sec.id = "lane-" + L.key;
+    sec.append(el("h2", null, (L.key === "Today" ? "" : L.key + ". ") + L.name), el("p", "how", L.how), el("p", "worst", "Worst case: " + L.worst));
+    const basis = el("p", "basis"); basis.innerHTML = "Based on: " + L.basis; sec.append(basis);
+    const facts = el("p", "facts"); sec.append(facts);
+    root.append(sec);
+    const specs = L.side
+      ? [[1360, WIN_H, false, "<b>1360 x 800 DIPs</b> (the default window), at rest"],
+         [1000, WIN_H, true, "<b>1000 x 800 DIPs</b>, MAPS open: its flyout sits beside the column"],
+         [1000, 460, false, "<b>1000 x 460 DIPs</b>, a short window: the column wraps into a second column"]]
+      : [[1360, 170, false, "<b>1360 DIPs</b> (the default window), at rest"],
+         [1000, 170, false, "<b>1000 DIPs</b> (a narrow window), at rest"],
+         [1360, 210, true, "<b>1360 DIPs</b>, MAPS open: where its tray goes"]];
+    const res = specs.map(([W, H, open, cap], idx) => {
+      const fr = frame(sec, W, H, cap);
+      const d = L.draw(fr, { hover: idx === 0, open });
+      const m = measureFrame(fr, d.band);
+      if (!open && m.out.length) {
+        if (L.side) callout(fr, 4, H - 22, m.out.length + " tile(s) need more height");
+        else callout(fr, 0, m.bandH + 8, m.out.length + " button(s) past the edge: " + m.out.join(", ") + " →", true);
+      }
+      return { W, H, open, m, padR: d.padR };
+    });
+    const r0 = res[0].m;
+    const natW = L.side ? r0.bandW : r0.right + res[0].padR;
+    const natH = L.side ? r0.bottom : r0.bandH;
+    const fit1360 = res[0].m.fit;
+    const fit1000 = L.side ? res[1].m.fit : res[1].m.fit;
+    const area = L.side ? r0.bandW * WIN_H : r0.bandH * 1360;
+    const lane = { natW, natH, bandW: r0.bandW, bandH: r0.bandH, fit1360, fit1000, out1360: res[0].m.out, out1000: res[1].m.out, area,
+      frames: res.map(x => ({ W: x.W, H: x.H, open: x.open, fit: x.m.fit, out: x.m.out, bandW: x.m.bandW, bandH: x.m.bandH })) };
+    if (L.side) lane.short = { fit: res[2].m.fit, width: res[2].m.bandW };
+    report.lanes[L.key] = lane;
+    facts.textContent = L.side
+      ? "Column " + fmt(natW) + " DIPs wide x " + fmt(natH) + " tall (15 tiles of " + U.TW + " x " + DH + " + dividers) | fits at 1360 x 800: " + fit1360 + " of 15 | at 1000 x 800: " + fit1000 +
+        " of 15 | at 1000 x 460 it wraps to " + fmt(res[2].m.bandW) + " DIPs wide | scope given up: " + fmt(natW) + " x 800 = " + Math.round(area).toLocaleString("en-US") + " DIP² (" + fmt(100 * area / (1360 * WIN_H)) + "% of 1360 x 800)"
+      : "Bar " + fmt(natW) + " DIPs wide (unclipped) x " + fmt(natH) + " tall" + (L.key === "A" ? " (tiles " + U.TW + " DIPs each)" : "") +
+        " | fits at 1360: " + fit1360 + " of 15" + (res[0].m.out.length ? " (past the edge: " + res[0].m.out.join(", ") + ")" : "") +
+        " | at 1000: " + fit1000 + " of 15" + (res[1].m.out.length ? " (past the edge: " + res[1].m.out.join(", ") + ")" : "") +
+        " | scope given up at 1360 x 800: " + fmt(natH) + " x 1360 = " + Math.round(area).toLocaleString("en-US") + " DIP² (" + fmt(100 * area / (1360 * WIN_H)) + "%)";
+  }
+
+  const t = report.lanes.Today;
+  document.getElementById("measured").textContent = "Measured: today's 15-button bar is " + fmt(t.natW) + " DIPs wide and 45 tall; tile lanes use one uniform tile " + U.TW +
+    " DIPs wide (map tiles " + U.MW + "). Per-lane facts are under each lane's heading.";
+  const sum = document.getElementById("sum");
+  sum.innerHTML = "<tr><th>Lane</th><th>Shape</th><th>Size (DIPs, unclipped)</th><th>Fit at 1360</th><th>Fit at 1000</th><th>Scope given up at 1360 x 800</th></tr>";
+  for (const L of LANES) {
+    const r = report.lanes[L.key];
+    const tr = el("tr");
+    tr.innerHTML = "<td>" + (L.key === "Today" ? "Today" : L.key) + "</td><td>" + L.name + "</td><td class=n>" + fmt(r.natW) + " x " + fmt(r.natH) + "</td><td class=n>" + r.fit1360 +
+      " / 15</td><td class=n>" + r.fit1000 + " / 15</td><td class=n>" + Math.round(r.area).toLocaleString("en-US") + " DIP² (" + fmt(100 * r.area / (1360 * WIN_H)) + "%)</td>";
+    sum.append(tr);
+  }
+  window.__report = report;
+  document.body.classList.add("ready");
+}
+
+document.fonts.load('12px "JBM"').then(() => document.fonts.load('700 12px "JBM"')).then(() => document.fonts.ready).then(build)
+  .catch(e => { console.error("mock build failed", e); });
+</script>
+</body>
+</html>
