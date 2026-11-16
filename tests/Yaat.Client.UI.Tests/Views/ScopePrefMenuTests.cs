@@ -52,7 +52,8 @@ public class ScopePrefMenuTests : IDisposable
         (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
         try
         {
-            Assert.Equal("PREF ▸", DrawnText(ButtonOf(window, ScopeButtonId.Pref)));
+            Assert.Equal("PREF ▸ —", DrawnText(ButtonOf(window, ScopeButtonId.Pref)));
+            Assert.Equal("PREF", AutomationProperties.GetName(ButtonOf(window, ScopeButtonId.Pref)));
 
             main.RunScopeCommand(".scope pref saveas SR-DAY");
 

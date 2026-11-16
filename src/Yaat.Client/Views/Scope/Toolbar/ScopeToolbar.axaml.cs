@@ -13,11 +13,11 @@ namespace Yaat.Client.Views.Scope.Toolbar;
 /// <summary>
 /// The Scope window's toolbar: a bar of tiles in the profile's order (<see cref="ScopeViewModel.ToolbarButtons"/>), and
 /// under it the tray of the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>). On the bar a button that
-/// shows a value is a full-height tile, consecutive buttons without one stack in half-height pairs, and one left without
-/// a partner is a full tile; the bar is laid out again when a button's value appears or goes. The tray holds half-height
-/// tiles in columns of two, wrapped into further two-row blocks when they don't fit the window. The bar scrolls sideways
-/// while it is wider than the window, with a chevron at each end. Each button (<see cref="ScopeButtonControl"/>) draws
-/// its label, value and active state from its <see cref="ScopeViewModel"/>.
+/// shows a value (PREF always, with or without a set) is a full-height tile, consecutive buttons without one stack in
+/// half-height pairs, and one left without a partner is a full tile; the bar is laid out again when a button's value
+/// appears or goes. The tray holds half-height tiles in columns of two, wrapped into further two-row blocks when they
+/// don't fit the window. The bar scrolls sideways while it is wider than the window, with a chevron at each end. Each
+/// button (<see cref="ScopeButtonControl"/>) draws its label, value and active state from its <see cref="ScopeViewModel"/>.
 /// </summary>
 public partial class ScopeToolbar : UserControl
 {
@@ -88,7 +88,14 @@ public partial class ScopeToolbar : UserControl
     }
 
     /// <summary>Which of <paramref name="buttons"/> are half tiles now (<see cref="HalfTiles"/>).</summary>
-    private bool[] ShapeOf(IReadOnlyList<ScopeButton> buttons) => HalfTiles(buttons, b => _viewModel?.SpinnerValue(b) is not null);
+    private bool[] ShapeOf(IReadOnlyList<ScopeButton> buttons) => HalfTiles(buttons, b => ShowsValue(_viewModel, b));
+
+    /// <summary>
+    /// Whether <paramref name="button"/> counts as showing a value on <paramref name="viewModel"/>'s bar: PREF always, with
+    /// or without an active set, so loading or clearing one moves no tile; any other button while it has a value.
+    /// </summary>
+    private static bool ShowsValue(ScopeViewModel? viewModel, ScopeButton button) =>
+        (button.Id == ScopeButtonId.Pref) || (viewModel?.SpinnerValue(button) is not null);
 
     /// <summary>
     /// Which of the bar's <paramref name="buttons"/> are half tiles: a button that shows a value
@@ -119,7 +126,7 @@ public partial class ScopeToolbar : UserControl
     {
         IReadOnlyList<ScopeButton> bar = viewModel.ToolbarButtons;
         int index = bar.Select(b => b.Id).ToList().IndexOf(model.Id);
-        return (index < 0) || HalfTiles(bar, b => viewModel.SpinnerValue(b) is not null)[index];
+        return (index < 0) || HalfTiles(bar, b => ShowsValue(viewModel, b))[index];
     }
 
     private static ScopeButtonControl BuildButton(List<ScopeButtonControl> list, ScopeButton model, bool isHalf)

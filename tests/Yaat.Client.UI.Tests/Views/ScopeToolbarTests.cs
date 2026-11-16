@@ -715,21 +715,19 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task ClearingThePrefSet_PairsBriteAndPrefAgain()
+    public async Task ClearingThePrefSet_LeavesEveryTileWhereItWas()
     {
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
             scope.ActivePrefSet = "SR-DAY";
             Settle(window);
+            Rect[] before = BarTiles(window);
+
             scope.ActivePrefSet = null;
             Settle(window);
 
-            Button brite = ButtonOf(window, ScopeButtonId.Brite);
-            Button pref = ButtonOf(window, ScopeButtonId.Pref);
-            Assert.Equal(22d, brite.Bounds.Height);
-            Assert.Equal(22d, pref.Bounds.Height);
-            Assert.Equal(InRow(window, brite).X, InRow(window, pref).X);
+            Assert.Equal(before, BarTiles(window));
         }
         finally
         {
@@ -810,6 +808,16 @@ public class ScopeToolbarTests
     /// <summary>Where <paramref name="button"/>'s top-left sits in the bar's row of tiles.</summary>
     private static Point InRow(Window window, Button button) => button.TranslatePoint(default, MainRowOf(window))!.Value;
 
+    /// <summary>Each bar button's rectangle in the bar's row of tiles, in bar order.</summary>
+    private static Rect[] BarTiles(Window window) =>
+        [
+            .. MainRowOf(window)
+                .GetVisualDescendants()
+                .OfType<Button>()
+                .Where(b => b.Tag is ScopeButtonId)
+                .Select(b => new Rect(InRow(window, b), b.Bounds.Size)),
+        ];
+
     [AvaloniaFact]
     public async Task TheDefaultWindow_FitsTheWholeBar()
     {
@@ -846,6 +854,8 @@ public class ScopeToolbarTests
                 ScopeButtonId.Hist,
                 ScopeButtonId.Profile,
                 ScopeButtonId.Template,
+                ScopeButtonId.Brite,
+                ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,
             ];
             Assert.All(full, id => Assert.Equal(45d, ButtonOf(window, id).Bounds.Height));
@@ -855,7 +865,6 @@ public class ScopeToolbarTests
                 (ScopeButtonId.Tools, ScopeButtonId.Auto),
                 (ScopeButtonId.Maps, ScopeButtonId.Tdm),
                 (ScopeButtonId.Db, ScopeButtonId.Views),
-                (ScopeButtonId.Brite, ScopeButtonId.Pref),
             ];
             foreach ((ScopeButtonId topId, ScopeButtonId bottomId) in pairs)
             {
@@ -877,16 +886,79 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task APrefSet_MakesPrefAFullTile_AndBriteStandsAlone()
+    public async Task APrefSet_LeavesEveryTileWhereItWas()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Settle(window);
+            Rect[] before = BarTiles(window);
+
+            scope.ActivePrefSet = "SR-DAY";
+            Settle(window);
+
+            Assert.Equal(before, BarTiles(window));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ANineCharacterSetName_MovesNoTile()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Settle(window);
+            Rect[] noSet = BarTiles(window);
+
+            scope.ActivePrefSet = "SR-DAY-NT";
+            Settle(window);
+
+            Assert.Equal(noSet, BarTiles(window));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ATenCharacterSetName_WidensPref()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Settle(window);
+            double noSet = ButtonOf(window, ScopeButtonId.Pref).Bounds.Width;
+
+            scope.ActivePrefSet = "SR-DAY-NTX";
+            Settle(window);
+
+            Assert.True(ButtonOf(window, ScopeButtonId.Pref).Bounds.Width > noSet, "a 10-character name widens PREF past its reserve");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALongerSetName_StillWidensPref()
     {
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
             scope.ActivePrefSet = "SR-DAY";
             Settle(window);
+            double reserved = ButtonOf(window, ScopeButtonId.Pref).Bounds.Width;
 
-            Assert.Equal(45d, ButtonOf(window, ScopeButtonId.Pref).Bounds.Height);
-            Assert.Equal(45d, ButtonOf(window, ScopeButtonId.Brite).Bounds.Height);
+            scope.ActivePrefSet = "SR-DAY-LONG1";
+            Settle(window);
+
+            Assert.True(ButtonOf(window, ScopeButtonId.Pref).Bounds.Width > reserved, "a 12-character name widens PREF past its reserve");
         }
         finally
         {

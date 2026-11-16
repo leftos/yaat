@@ -303,6 +303,28 @@ public class ScopeTearoffLayerTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task ATornOffPref_IsAFullTile_AsWideAsTheBarTile()
+    {
+        (_, _, ScopeWindow window) = await OpenScopeAsync();
+        try
+        {
+            ScopeButtonControl bar = BarControl(window, ScopeButtonId.Pref);
+            double barWidth = bar.Bounds.Width;
+            PressStrip(window, bar);
+
+            ClickAt(window, InLayer(window, 300, 300));
+
+            ScopeButtonControl copy = CopyOf(window, new ScopeButtonKey(ScopeButtonId.Pref, null));
+            Assert.Equal(45d, copy.Bounds.Height);
+            Assert.Equal(barWidth, copy.Bounds.Width);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     /// <summary>
     /// Tears <paramref name="source"/> off and drops it at <paramref name="drop"/> (layer coordinates), and checks the
     /// follower and the dropped copy are both a half tile (22 tall) when <paramref name="half"/>, else a full one (45),
