@@ -18,12 +18,12 @@ public class ScopeOthersLevelTests
 {
     private static readonly ScopeViewer EramViewer = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");
 
-    private static ScopeFrame Frame(string templateId, ScopeViewer viewer, string othersLevel, string? hovered, AircraftModel ac)
+    private static ScopeFrame Frame(string templateId, ScopeViewer viewer, string othersLevel, string? hovered, params AircraftModel[] aircraft)
     {
         using var font = new SKFont { Size = 12f };
         using var paint = new SKPaint();
         var input = new ScopeFrameInput(
-            [ac],
+            aircraft,
             null,
             new MapViewport
             {
@@ -115,6 +115,22 @@ public class ScopeOthersLevelTests
     [Fact]
     public void EuroScope_UnderPartial_IsUnchanged() =>
         Assert.Equal(ScopeBlockLevel.Full, LevelOf(ScopeTemplates.EuroScopeId, EramViewer, ScopeProfile.OthersPartial, OtherSectorsTrack()));
+
+    [Fact]
+    public void MixedTemplate_UnderPartial_DrawsEachOwnersKind()
+    {
+        AircraftModel eram = OtherSectorsTrack();
+        AircraftModel stars = ScopeTestAircraft.CreateModel();
+        stars.Callsign = "DAL55";
+        stars.Owner = "NCT_A";
+        stars.OwnerFacilityId = "NCT";
+        stars.OwnerSectorCode = "1A";
+
+        ScopeFrame frame = Frame(ScopeTemplates.MixedId, EramViewer, ScopeProfile.OthersPartial, null, eram, stars);
+
+        Assert.Equal(ScopeBlockLevel.Partial, Assert.Single(frame.Tracks, t => ReferenceEquals(t.Aircraft, eram)).Level);
+        Assert.Equal(ScopeBlockLevel.Limited, Assert.Single(frame.Tracks, t => ReferenceEquals(t.Aircraft, stars)).Level);
+    }
 
     [Theory]
     [InlineData(ScopeTemplates.EramId)]

@@ -1,20 +1,26 @@
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// Zoom bands: a manual change stays pinned until AUTO. The range picks the band and never pins; a pin holds over every
 /// band and every profile until AUTO clears it, AUTO lights while any pin is set, and pref sets and the saved state keep
-/// the pinned values only.
+/// the pinned values only. The canvas draws others' tracks at the band's level, or the pin's over it.
 /// </summary>
 public class ScopeBandPinTests : IDisposable
 {
@@ -75,6 +81,54 @@ public class ScopeBandPinTests : IDisposable
 
     private ScopePrefSetStore Store() => new(_root, AppLog.CreateLogger<ScopePrefSetStore>());
 
+    /// <summary>A shown scope window, so the canvas builds frames; closing the window disposes the scope.</summary>
+    private static (ScopeView View, Window Window) ShowScope(ScopeViewModel scope)
+    {
+        var view = new ScopeView { DataContext = scope };
+        var side = new Border { Width = 100 };
+        DockPanel.SetDock(side, Dock.Left);
+        var panel = new DockPanel();
+        panel.Children.Add(side);
+        panel.Children.Add(view);
+        var window = new Window
+        {
+            Width = 900,
+            Height = 600,
+            Content = panel,
+        };
+        window.Closed += (_, _) => scope.Dispose();
+        window.Show();
+        for (int i = 0; i < 5; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        return (view, window);
+    }
+
+    /// <summary>An airborne aircraft whose symbol sits at the given canvas point, added to the traffic the scope draws.</summary>
+    private static void AddAircraft(MainViewModel main, ScopeCanvas canvas, string callsign, double screenX, double screenY)
+    {
+        (double lat, double lon) = canvas.Viewport.ScreenToLatLon((float)screenX, (float)screenY);
+        main.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = callsign,
+                AircraftType = "B738",
+                FiledAircraftType = "B738",
+                FlightRules = "IFR",
+                TransponderMode = "C",
+                Altitude = 5000,
+                GroundSpeed = 250,
+                Position = new LatLon(lat, lon),
+            }
+        );
+        Dispatcher.UIThread.RunJobs();
+    }
+
     [AvaloniaFact]
     public async Task RangeChange_AfterAPin_StaysPinned()
     {
@@ -96,6 +150,57 @@ public class ScopeBandPinTests : IDisposable
         finally
         {
             scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task RangeAlone_PinsNothing_AndMovesTheBandAcrossItsEdge()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            ScopeZoomBand at40 = scope.EffectiveBand;
+            Assert.Equal(ScopeProfile.OthersPartial, at40.OthersLevel);
+
+            main.RunScopeCommand(".scope range 20");
+            Assert.Equal(ScopeProfile.OthersFull, scope.EffectiveBand.OthersLevel);
+            Assert.NotEqual(at40, scope.EffectiveBand);
+            Assert.Equal(ScopeBandPins.None, scope.Pins);
+
+            main.RunScopeCommand(".scope range 60");
+            Assert.Equal(at40, scope.EffectiveBand);
+            Assert.Equal(ScopeBandPins.None, scope.Pins);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Canvas_OthersLevel_FollowsTheEffectiveBand()
+    {
+        MainViewModel main = await MainAsync();
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], Sector44.HandoffCode, Sector44, 3, NoStarsDisplay: true));
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        main.OpenScope = scope;
+        (ScopeView view, Window window) = ShowScope(scope);
+        try
+        {
+            main.RunScopeCommand(".scope template eram");
+
+            // No one owns this track, so it draws at the band's others' level.
+            AddAircraft(main, view.Canvas, "SKW5410", 300, 300);
+            Assert.Equal(ScopeBlockLevel.Partial, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
+
+            main.RunScopeCommand(".scope others full");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(ScopeBlockLevel.Full, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
         }
     }
 

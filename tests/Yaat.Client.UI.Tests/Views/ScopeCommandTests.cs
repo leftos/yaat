@@ -98,6 +98,25 @@ public class ScopeCommandTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Auto_WithExtraWords_SaysTheUsage_AndClearsNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope others full");
+
+            main.RunScopeCommand(".scope auto now");
+
+            Assert.Equal("Usage: .scope auto", main.StatusText);
+            Assert.Equal(ScopeBandPins.None with { OthersLevel = ScopeProfile.OthersFull }, scope.Pins);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
     [AvaloniaTheory]
     [InlineData(".scope others half")]
     [InlineData(".scope others")]
