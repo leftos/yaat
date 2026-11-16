@@ -135,6 +135,8 @@ All Commands
     Report when… alias:REPORT
       Report when… · N812HP [disabled]
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
       Reporting points · nearest first [disabled]
       VPCOL · 1.5 NM · 034° — REPORT VPCOL
       VPBCN · 1.7 NM · 278° — REPORT VPBCN

@@ -142,6 +142,8 @@ All Commands
       Report when… · N308AB · RWY 28R [disabled]
       Mile final — ···
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
       Reporting points · nearest first [disabled]
       SLMARINA · 0.6 NM · 225° — REPORT SLMARINA
       VPBCQ · 0.7 NM · 281° — REPORT VPBCQ

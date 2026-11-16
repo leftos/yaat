@@ -454,14 +454,14 @@ internal static class MenuGoldenFixtures
         };
 
     /// <summary>
-    /// A C172 on the downwind of a KOAK circuit to 28R at 1,000 ft, its phase sequence holding the circuit, with Turning base and
-    /// a 5-mile final armed: the Report when… flyout's turn rows, armed marks and Stop section.
+    /// A C172 on the downwind of a KOAK circuit to 28R at 1,000 ft, its phase sequence holding the circuit, with Turning base, a
+    /// 5-mile final and a reaching 5,000 ft report armed: the Report when… flyout's turn rows, armed marks and Stop section.
     /// </summary>
     private static AircraftModel ArmedCircuitCessna(string callsign, LatLon position)
     {
         AircraftModel aircraft = AirborneCessna(callsign, "Downwind", AircraftSituation.Pattern, position, 1000);
         aircraft.PhaseSequence = "Downwind > Base > FinalApproach > Landing";
-        aircraft.ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, null, null, null);
+        aircraft.ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, null, 5000, null);
         return aircraft;
     }
 

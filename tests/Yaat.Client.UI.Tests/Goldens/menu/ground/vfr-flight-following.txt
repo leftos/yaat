@@ -132,6 +132,8 @@ All Commands
     Report when… alias:REPORT
       Report when… · N302AB [disabled]
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
       Reporting points · nearest first [disabled]
       VPGGF · 4.3 NM · 142° — REPORT VPGGF
       VPBCL · 6.0 NM · 163° — REPORT VPBCL

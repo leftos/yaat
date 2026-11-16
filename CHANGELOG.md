@@ -4,7 +4,7 @@
 
 ### Added
 
-- `REPORT REACHING {altitude}` and `REPORT LEAVING {altitude}`: the pilot reads back, then calls "level 5,000", "passing 5,000 for 9,000" or "leaving 5,000 for 3,000".
+- `REPORT REACHING {altitude}` and `REPORT LEAVING {altitude}`, also as Reaching and Leaving rows in the Report when… menu: the pilot reads back, then calls "level 5,000" or "leaving 5,000 for 3,000".
 - An owner in another facility shows the symbol the student's STARS scope draws, as in `3Y(1)`, unless it repeats the owner's first or last character.
 - The aircraft menu's quick commands offer Accept handoff, Cancel handoff and Acknowledge pointout while one is pending for the position you act as.
 - VFR aircraft get an Altitude… quick command: pick thousands and hundreds to send `CM`, `CM A` or `CM B`, with VFR cruising altitudes outlined.

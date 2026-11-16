@@ -29,9 +29,10 @@ internal enum ReportWhenFocus
 /// single cancel, then All reports. Then the title line naming the aircraft and its runway; in a pattern circuit
 /// (<see cref="AircraftCommandApplicability.IsInPatternCircuit"/>) the five turn rows, an armed one badged; with an assigned
 /// runway the Mile final row, chips 2, 3, 5 and 10 sending at once beside a checked miles box; the Passing a fix box, checked
-/// against the navigation data; then the reporting points: an IFR aircraft's route fixes in order, every other aircraft's
-/// nearby reporting points nearest first, each with its distance and magnetic bearing and sending at once. Rows the sim would
-/// refuse are left out. Enter in a box sends its report; a click on a box row only focuses its box.
+/// against the navigation data; the Reaching and Leaving altitude boxes, each label noting an altitude armed on its own row;
+/// then the reporting points: an IFR aircraft's route fixes in order, every other aircraft's nearby reporting points nearest
+/// first, each with its distance and magnetic bearing and sending at once. Rows the sim would refuse are left out. Enter in a
+/// box sends its report; a click on a box row only focuses its box.
 /// </summary>
 internal static class ReportWhenFlyout
 {
@@ -43,6 +44,12 @@ internal static class ReportWhenFlyout
 
     /// <summary>The fix box's name.</summary>
     public const string FixBoxName = "ReportFixBox";
+
+    /// <summary>The reaching box's name.</summary>
+    public const string ReachingBoxName = "ReportReachingBox";
+
+    /// <summary>The leaving box's name.</summary>
+    public const string LeavingBoxName = "ReportLeavingBox";
 
     /// <summary>The reason the miles box gives for a decimal distance.</summary>
     public const string WholeMilesOnly = "Whole miles only";
@@ -79,6 +86,9 @@ internal static class ReportWhenFlyout
 
     /// <summary>The most route fixes the flyout lists.</summary>
     private const int MaxRouteFixes = 6;
+
+    /// <summary>The altitude at and above which the pilot reads an altitude as a flight level, <c>FL180</c>.</summary>
+    private const int FlightLevelFeet = 18000;
 
     /// <summary>The turn reports in circuit order: their leg, their row's label and the word the command names them by.</summary>
     private static readonly (ArmedReportLegs Leg, string Label, string Word)[] Legs =
@@ -119,6 +129,11 @@ internal static class ReportWhenFlyout
 
         InlineBoxRow fixRow = FixRow(armed?.Fix, host, Send);
         menu.Items.Add(fixRow.Item);
+        foreach (AltitudeRowSpec spec in AltitudeRowSpecs(armed))
+        {
+            menu.Items.Add(AltitudeRow(spec, Send).Item);
+        }
+
         if (aircraft is not null)
         {
             AddPointRows(menu.Items, aircraft, armed?.Fix, context, host);
@@ -266,6 +281,60 @@ internal static class ReportWhenFlyout
         InlineBoxSpec spec = BoxSpec(label, MenuIds.ApproachReportAtFix, "fix name", FixBoxName, 160, host.SuggestFixes, text => ReadFix(text, host));
         return InlineBoxRow.CreateFocusingOnClick(spec, send);
     }
+
+    /// <summary>The two altitude rows, Reaching first, each carrying the altitude armed on it.</summary>
+    private static AltitudeRowSpec[] AltitudeRowSpecs(ArmedReportsDto? armed) =>
+        [
+            new("REACHING", "reaching", "Reaching an altitude", ReachingBoxName, armed?.ReachingAltitudeFt),
+            new("LEAVING", "leaving", "Leaving an altitude", LeavingBoxName, armed?.LeavingAltitudeFt),
+        ];
+
+    /// <summary>An altitude row: its box, its label noting an altitude armed on it, and Enter sending <c>REPORT {verb} {hundreds}</c>.</summary>
+    private static InlineBoxRow AltitudeRow(AltitudeRowSpec spec, Func<string, Task> send)
+    {
+        string label = (spec.Armed is { } armed) ? $"{spec.Label} · replaces {spec.Word} {Display(armed)}" : spec.Label;
+        InlineBoxSpec box = BoxSpec(label, MenuIds.ApproachReportWhen, "altitude", spec.BoxName, 70, null, text => ReadAltitude(text, spec));
+        return InlineBoxRow.CreateFocusingOnClick(box, send);
+    }
+
+    /// <summary>
+    /// An altitude box's reading: the altitude typed (<see cref="MenuCatalog.ParseAltitudeFeet"/>) rounded to the nearest hundred,
+    /// sent in the sim's hundreds and read back as the pilot's answer (and, with an altitude armed on this row, that it replaces it
+    /// unless the rounded altitude is the armed one); anything else, under 100 ft included, refused as not a valid altitude; blank
+    /// waits.
+    /// </summary>
+    private static InlineBoxReading ReadAltitude(string text, AltitudeRowSpec spec)
+    {
+        string trimmed = text.Trim();
+        if (trimmed.Length == 0)
+        {
+            return InlineBoxReading.Blank;
+        }
+
+        if ((MenuCatalog.ParseAltitudeFeet(trimmed) is not { } feet) || (feet < 100))
+        {
+            return InlineBoxReading.Refuses(AltitudeFlyout.InvalidAltitude);
+        }
+
+        int sentFeet = (int)Math.Round(feet / 100.0, MidpointRounding.AwayFromZero) * 100;
+        string replaces = ((spec.Armed is { } armed) && (armed != sentFeet)) ? $" · replaces {spec.Word} {Display(armed)}" : "";
+        return InlineBoxReading.Reads(
+            string.Create(CultureInfo.InvariantCulture, $"REPORT {spec.Verb} {sentFeet / 100:000}"),
+            $"Pilot: will report {spec.Word} {Display(sentFeet)}{replaces}"
+        );
+    }
+
+    /// <summary>The altitude as the pilot reads it: <c>FL250</c> at or above 18,000 ft, else <c>5,000</c>.</summary>
+    private static string Display(int feet) =>
+        (feet >= FlightLevelFeet)
+            ? string.Create(CultureInfo.InvariantCulture, $"FL{feet / 100:000}")
+            : feet.ToString("N0", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// One altitude row: its command word, the word read back to the pilot, its label, its box's name and the altitude armed
+    /// on it.
+    /// </summary>
+    private sealed record AltitudeRowSpec(string Verb, string Word, string Label, string BoxName, int? Armed);
 
     private static InlineBoxSpec BoxSpec(
         string label,

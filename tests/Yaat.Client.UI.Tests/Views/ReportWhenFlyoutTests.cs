@@ -90,12 +90,23 @@ public class ReportWhenFlyoutTests
 
     private static InlineBoxRow FixRow(MenuItem flyout) => Assert.IsType<InlineBoxRow>(BoxRow(flyout, ReportWhenFlyout.FixBoxName));
 
+    private static InlineBoxRow ReachingRow(MenuItem flyout) => Assert.IsType<InlineBoxRow>(BoxRow(flyout, ReportWhenFlyout.ReachingBoxName));
+
+    private static InlineBoxRow LeavingRow(MenuItem flyout) => Assert.IsType<InlineBoxRow>(BoxRow(flyout, ReportWhenFlyout.LeavingBoxName));
+
     /// <summary>The Mile final row's chip reading <paramref name="miles"/>.</summary>
     private static Button Chip(InlineBoxRow milesRow, int miles) =>
         Assert.Single(
             milesRow.GetLogicalDescendants().OfType<Button>(),
             chip => (chip.Content as string) == miles.ToString(System.Globalization.CultureInfo.InvariantCulture)
         );
+
+    /// <summary>The label a box row shows over its box, without the command column's text.</summary>
+    private static string LabelOf(InlineBoxRow row)
+    {
+        string text = row.ToString();
+        return text[..text.IndexOf(" — ", StringComparison.Ordinal)];
+    }
 
     private static string[] TurnLabels => ["Turning crosswind", "Turning downwind", "Midfield downwind", "Turning base", "Turning final"];
 
@@ -294,6 +305,140 @@ public class ReportWhenFlyoutTests
         PressEnter(row.Input);
 
         Assert.Equal([(Callsign, "REPORT SUNOL", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// The Reaching box reads an altitude typed as feet, a flight level or hundreds as the sim's hundreds, read back as the
+    /// pilot's answer, and Enter sends <c>REPORT REACHING {hundreds}</c>.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("5000", "REPORT REACHING 050", "Pilot: will report reaching 5,000")]
+    [InlineData("FL250", "REPORT REACHING 250", "Pilot: will report reaching FL250")]
+    [InlineData("18000", "REPORT REACHING 180", "Pilot: will report reaching FL180")]
+    [InlineData("17900", "REPORT REACHING 179", "Pilot: will report reaching 17,900")]
+    [InlineData("5040", "REPORT REACHING 050", "Pilot: will report reaching 5,000")]
+    [InlineData("5060", "REPORT REACHING 051", "Pilot: will report reaching 5,100")]
+    public void ReachingBox_SendsHundreds(string typed, string command, string pilot)
+    {
+        RecordingMenuHost host = Host();
+        InlineBoxRow row = ReachingRow(Flyout(PatternAircraft(), host));
+
+        row.Text = typed;
+        Assert.Equal(pilot, row.NoteLine.Text);
+        PressEnter(row.Input);
+
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    /// <summary>The Leaving box reads hundreds and Enter sends <c>REPORT LEAVING {hundreds}</c>.</summary>
+    [AvaloniaFact]
+    public void LeavingBox_SendsHundreds()
+    {
+        RecordingMenuHost host = Host();
+        InlineBoxRow row = LeavingRow(Flyout(PatternAircraft(), host));
+
+        row.Text = "050";
+        Assert.Equal("Pilot: will report leaving 5,000", row.NoteLine.Text);
+        PressEnter(row.Input);
+
+        Assert.Equal([(Callsign, "REPORT LEAVING 050", Initials)], host.Sent);
+    }
+
+    /// <summary>Both altitude boxes refuse a word and an altitude under 100 ft inline, and Enter sends nothing.</summary>
+    [AvaloniaTheory]
+    [InlineData(ReportWhenFlyout.ReachingBoxName, "abc")]
+    [InlineData(ReportWhenFlyout.ReachingBoxName, "0")]
+    [InlineData(ReportWhenFlyout.LeavingBoxName, "abc")]
+    [InlineData(ReportWhenFlyout.LeavingBoxName, "0")]
+    public void AltitudeBoxes_RefuseNonsenseAndZero(string boxName, string typed)
+    {
+        RecordingMenuHost host = Host();
+        InlineBoxRow row = Assert.IsType<InlineBoxRow>(BoxRow(Flyout(PatternAircraft(), host), boxName));
+
+        row.Text = typed;
+        PressEnter(row.Input);
+
+        Assert.True(row.IsRefused);
+        Assert.Equal(AltitudeFlyout.InvalidAltitude, row.Refusal.ReasonLine.Text);
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>A blank altitude box waits: nothing read, nothing refused, nothing sent.</summary>
+    [AvaloniaFact]
+    public void AltitudeBoxes_Blank_Waits()
+    {
+        RecordingMenuHost host = Host();
+        MenuItem flyout = Flyout(PatternAircraft(), host);
+        InlineBoxRow reaching = ReachingRow(flyout);
+        InlineBoxRow leaving = LeavingRow(flyout);
+
+        PressEnter(reaching.Input);
+        PressEnter(leaving.Input);
+
+        Assert.False(reaching.IsRefused);
+        Assert.False(leaving.IsRefused);
+        Assert.Null(reaching.Command);
+        Assert.Null(leaving.Command);
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>
+    /// An armed reaching report is named in its row's label, a new one notes that it replaces it, and the leaving row is
+    /// untouched.
+    /// </summary>
+    [AvaloniaFact]
+    public void ArmedReaching_LabelAndReadingNoteTheReplacement()
+    {
+        FakeMenuAircraft aircraft = PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, null, null, 5000, null) };
+        MenuItem flyout = Flyout(aircraft, Host());
+        InlineBoxRow reaching = ReachingRow(flyout);
+
+        Assert.Equal("Reaching an altitude · replaces reaching 5,000", LabelOf(reaching));
+
+        reaching.Text = "080";
+
+        Assert.Equal("Pilot: will report reaching 8,000 · replaces reaching 5,000", reaching.NoteLine.Text);
+        Assert.Equal("Leaving an altitude", LabelOf(LeavingRow(flyout)));
+    }
+
+    /// <summary>Typing the altitude an armed reaching report holds, or one that rounds to it, adds no replaces note.</summary>
+    [AvaloniaTheory]
+    [InlineData("050")]
+    [InlineData("5040")]
+    public void ArmedReaching_TypingTheArmedAltitude_AddsNoNote(string typed)
+    {
+        FakeMenuAircraft aircraft = PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, null, null, 5000, null) };
+        InlineBoxRow row = ReachingRow(Flyout(aircraft, Host()));
+
+        row.Text = typed;
+
+        Assert.Equal("Pilot: will report reaching 5,000", row.NoteLine.Text);
+    }
+
+    /// <summary>The two altitude rows sit directly after the Passing a fix row, the Reaching row first.</summary>
+    [AvaloniaFact]
+    public void AltitudeRows_FollowThePassingAFixRow()
+    {
+        MenuItem flyout = Flyout(PatternAircraft(), Host());
+        int fixIndex = IndexOf(flyout, FixRow(flyout).Item);
+
+        Assert.True(fixIndex >= 0, "The flyout holds no Passing a fix row.");
+        Assert.Same(ReachingRow(flyout).Item, flyout.Items[fixIndex + 1]);
+        Assert.Same(LeavingRow(flyout).Item, flyout.Items[fixIndex + 2]);
+    }
+
+    /// <summary>The index of <paramref name="item"/> among the flyout's items, or -1.</summary>
+    private static int IndexOf(MenuItem flyout, MenuItem item)
+    {
+        for (int index = 0; index < flyout.Items.Count; index++)
+        {
+            if (ReferenceEquals(flyout.Items[index], item))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>A VFR aircraft lists the host's nearby reporting points, nearest first, and a point's row sends it.</summary>
