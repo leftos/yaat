@@ -124,51 +124,94 @@ public partial class MainViewModel
     /// Moves the room's sim to <paramref name="targetSeconds"/>. The returned task completes once the client has swapped in the
     /// rewound aircraft and set the status line; the outcome says whether the rewind worked, with that status line.
     /// </summary>
-    public async Task<RewindOutcome> RewindToSeconds(double targetSeconds)
+    public Task<RewindOutcome> RewindToSeconds(double targetSeconds) => RewindToSeconds(targetSeconds, new CommandLineSink(this));
+
+    /// <summary>
+    /// Moves the room's sim to <paramref name="targetSeconds"/> as <see cref="RewindToSeconds(double)"/> does, writing every status
+    /// of the jump to <paramref name="sink"/> (a refusal or a failure as an error).
+    /// </summary>
+    internal async Task<RewindOutcome> RewindToSeconds(double targetSeconds, ICommandTextSink sink)
     {
         // Every timeline jump (buttons, scrub, markers, bookmarks) comes through here; the server refuses RewindTo mid-load.
         if (IsRoomLoading)
         {
             _log.LogInformation("Rewind to {Seconds}s not sent: a scenario is loading in the room", targetSeconds);
-            StatusText = "Rewind unavailable while a scenario loads";
-            return new RewindOutcome(false, StatusText);
+            const string loading = "Rewind unavailable while a scenario loads";
+            sink.ReportError(loading);
+            return new RewindOutcome(false, loading);
         }
 
         // One call in flight: a jump asked for while this client's own runs is held, the latest target winning; one asked for
         // while another member's runs is refused, as the server would only queue a second full re-run behind it.
-        RewindOutcome outcome = await RewindOverlay.RequestAsync(targetSeconds, _preferences.UserInitials, SendRewindAsync);
+        bool ownSendRan = false;
+        RewindOutcome outcome = await RewindOverlay.RequestAsync(
+            targetSeconds,
+            _preferences.UserInitials,
+            t =>
+            {
+                ownSendRan = true;
+                return SendRewindAsync(t, sink);
+            }
+        );
         if (!outcome.Rewound && (RewindOverlay.RemoteJumpBy is { } who) && (outcome.Status == RewindOverlayViewModel.RefusalFor(who)))
         {
             _log.LogInformation("Rewind to {Seconds}s not sent: {Who}'s jump is running in the room", targetSeconds, who);
-            StatusText = outcome.Status;
+            sink.ReportError(outcome.Status);
+        }
+        else if (!ownSendRan && !sink.Equals(_lastRewindSink))
+        {
+            // Held, then replaced by a later request: the run that replaced it reported only to that request's sink, so this
+            // caller is told the outcome here, once. When the last run wrote to this caller's place it already holds the
+            // newest status there, which this would overwrite.
+            ReportRewindOutcome(sink, outcome);
         }
 
         return outcome;
     }
 
-    /// <summary>The one <c>RewindTo</c> call of a jump, its result applied on the UI thread.</summary>
-    private async Task<RewindOutcome> SendRewindAsync(double targetSeconds)
+    /// <summary>A test seam: replaces the server's <c>RewindTo</c> call of a jump. Null = ask the connected server.</summary>
+    internal Func<double, Task<RewindResultDto?>>? RewindSender { get; set; }
+
+    // The sink of the jump whose RewindTo call last started, set on the UI thread before it reports.
+    private ICommandTextSink? _lastRewindSink;
+
+    /// <summary>A jump's final outcome on <paramref name="sink"/>: its status when it rewound, else the same text as an error.</summary>
+    private static void ReportRewindOutcome(ICommandTextSink sink, RewindOutcome outcome)
     {
+        if (outcome.Rewound)
+        {
+            sink.ReportStatus(outcome.Status);
+        }
+        else
+        {
+            sink.ReportError(outcome.Status);
+        }
+    }
+
+    /// <summary>The one <c>RewindTo</c> call of a jump, its result applied on the UI thread, its statuses written to the sink.</summary>
+    private async Task<RewindOutcome> SendRewindAsync(double targetSeconds, ICommandTextSink sink)
+    {
+        _lastRewindSink = sink;
         try
         {
-            StatusText = $"Rewinding to {FormatTime(targetSeconds)}...";
-            RewindResultDto? result = await _connection.RewindToAsync(targetSeconds);
+            sink.ReportStatus($"Rewinding to {FormatTime(targetSeconds)}...");
+            RewindResultDto? result = await (RewindSender?.Invoke(targetSeconds) ?? _connection.RewindToAsync(targetSeconds));
             if (result is null || !result.Success)
             {
                 string failed = $"Rewind failed: {result?.Error ?? "Unknown error"}";
-                StatusText = failed;
+                sink.ReportError(failed);
                 return new RewindOutcome(false, failed);
             }
 
             string rewound = $"Rewound to {FormatTime(targetSeconds)}";
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ApplyRewindResult(result, targetSeconds, rewound));
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ApplyRewindResult(result, targetSeconds, rewound, sink));
             return new RewindOutcome(true, rewound);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Rewind failed");
             string error = $"Rewind error: {ex.Message}";
-            StatusText = error;
+            sink.ReportError(error);
             return new RewindOutcome(false, error);
         }
     }
@@ -178,7 +221,14 @@ public partial class MainViewModel
     /// <paramref name="targetSeconds"/>, the result's active runways replace the room's and the status line reads
     /// <paramref name="status"/>.
     /// </summary>
-    public void ApplyRewindResult(RewindResultDto result, double targetSeconds, string status)
+    public void ApplyRewindResult(RewindResultDto result, double targetSeconds, string status) =>
+        ApplyRewindResult(result, targetSeconds, status, new CommandLineSink(this));
+
+    /// <summary>
+    /// Applies a successful rewind as <see cref="ApplyRewindResult(RewindResultDto, double, string)"/> does, with
+    /// <paramref name="status"/> written to <paramref name="sink"/>.
+    /// </summary>
+    private void ApplyRewindResult(RewindResultDto result, double targetSeconds, string status, ICommandTextSink sink)
     {
         OpenScope?.ClearTrackState();
         Aircraft.Clear();
@@ -196,7 +246,7 @@ public partial class MainViewModel
         ApplyActiveRunways(result.ActiveRunways);
         OnPropertyChanged(nameof(ElapsedTimeDisplay));
         OnPropertyChanged(nameof(TimelineMaximum));
-        StatusText = status;
+        sink.ReportStatus(status);
     }
 
     /// <summary>

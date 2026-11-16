@@ -74,12 +74,12 @@ public partial class MainViewModel
     /// Expands <paramref name="text" /> against the CRC alias table and runs the result.
     /// </summary>
     /// <returns>False when nothing in the text matched an alias, so the caller can report it as unknown.</returns>
-    private bool TryHandleCrcAlias(string text)
+    private bool TryHandleCrcAlias(string text, ICommandTextSink sink)
     {
         if (text.Equals(".reloadaliases", StringComparison.OrdinalIgnoreCase))
         {
             CrcAliasLoad = LoadCrcAliasesAsync();
-            StatusText = "Reloading CRC aliases";
+            sink.ReportStatus("Reloading CRC aliases");
             return true;
         }
 
@@ -91,15 +91,15 @@ public partial class MainViewModel
 
         if (!_crcAliases.TryExpand(text, out string? expanded, out string? expansionError))
         {
-            StatusText = $"CRC alias {verb}: {expansionError}";
+            sink.ReportError($"CRC alias {verb}: {expansionError}");
             return true;
         }
 
-        RunCrcAlias(verb, CrcAliasExecutor.Plan(expanded, BuildCrcAliasContext()));
+        RunCrcAlias(verb, CrcAliasExecutor.Plan(expanded, BuildCrcAliasContext()), sink);
         return true;
     }
 
-    private void RunCrcAlias(string verb, CrcAliasExecution execution)
+    private void RunCrcAlias(string verb, CrcAliasExecution execution, ICommandTextSink sink)
     {
         switch (execution.Action)
         {
@@ -111,19 +111,19 @@ public partial class MainViewModel
 
                 return;
             case CrcAliasAction.ScopeMarkers:
-                TryHandleScopeMarkerCommand(execution.CommandText);
+                TryHandleScopeMarkerCommand(execution.CommandText, sink);
                 return;
             case CrcAliasAction.OpenUrl:
                 UrlLauncher.OpenInBrowser(execution.Url);
-                StatusText = $"Opened {execution.Url}";
+                sink.ReportStatus($"Opened {execution.Url}");
                 return;
             case CrcAliasAction.Unsupported:
             case CrcAliasAction.Failed:
-                StatusText = $"CRC alias {verb}: {execution.Message}";
+                sink.ReportError($"CRC alias {verb}: {execution.Message}");
                 return;
             default:
                 _log.LogError("Unhandled CRC alias action {Action} for {Verb}", execution.Action, verb);
-                StatusText = $"CRC alias {verb}: unhandled result";
+                sink.ReportError($"CRC alias {verb}: unhandled result");
                 return;
         }
     }

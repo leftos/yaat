@@ -12,14 +12,14 @@ public partial class MainViewModel
     private const string ViewUsage = "Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>";
 
     /// <summary>Runs a <c>.view</c> command from the Scope; nothing is added to the command history.</summary>
-    public void RunViewCommand(string text) => TryHandleViewCommand(text);
+    public void RunViewCommand(string text) => TryHandleViewCommand(text, new CommandLineSink(this));
 
     /// <summary>
     /// Handles <c>.view &lt;ssa|ca&gt; &lt;on|off|dock&gt;</c> and <c>.view &lt;ssa|ca&gt; tear &lt;corner&gt; &lt;dx&gt;
-    /// &lt;dy&gt;</c> against <see cref="OpenScope"/>, writing the echo or the error to the status line.
+    /// &lt;dy&gt;</c> against <see cref="OpenScope"/>, reporting the echo or the error to <paramref name="sink"/>.
     /// </summary>
     /// <returns>False when the first token is not <c>.view</c>, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleViewCommand(string text)
+    private bool TryHandleViewCommand(string text, ICommandTextSink sink)
     {
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if ((parts.Length == 0) || !string.Equals(parts[0], ".view", StringComparison.OrdinalIgnoreCase))
@@ -27,7 +27,7 @@ public partial class MainViewModel
             return false;
         }
 
-        StatusText = RunViewVerb(parts);
+        sink.ReportStatus(RunViewVerb(parts));
         return true;
     }
 

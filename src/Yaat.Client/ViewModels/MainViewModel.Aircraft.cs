@@ -439,7 +439,7 @@ public partial class MainViewModel
     /// reload is broadcast-suppressed, so aircraft that do not exist at the target time are never
     /// deleted on our side. The client that issued the rewind is excluded from this
     /// broadcast; it applies the rewound aircraft from the RPC result instead
-    /// (<see cref="ApplyRewindResult"/>).
+    /// (<see cref="ApplyRewindResult(RewindResultDto, double, string)"/>).
     /// </summary>
     internal void OnScenarioRewound(List<AircraftDto> manifest) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRewind(manifest));
 

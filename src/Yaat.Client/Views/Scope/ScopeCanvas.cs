@@ -273,6 +273,24 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Action<string>? AircraftDwellLockToggleRequested;
 
+    /// <summary>Fired for text typed while the canvas has the focus; a handler that takes it marks it handled.</summary>
+    public event EventHandler<TextInputEventArgs>? EntryTextInput;
+
+    /// <summary>Fired for a key pressed while the canvas has the focus; a handler that takes it marks it handled.</summary>
+    public event EventHandler<KeyEventArgs>? EntryKeyDown;
+
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        EntryTextInput?.Invoke(this, e);
+        base.OnTextInput(e);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        EntryKeyDown?.Invoke(this, e);
+        base.OnKeyDown(e);
+    }
+
     /// <summary>
     /// The frame clicks and hover are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
     /// changed since.
@@ -457,6 +475,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
+        // Any press gives the canvas the keyboard, so typing goes to the Scope's entry.
+        Focus();
         Point pos = e.GetPosition(this);
         PointerPointProperties props = e.GetCurrentPoint(this).Properties;
         if (props.IsLeftButtonPressed || props.IsRightButtonPressed)

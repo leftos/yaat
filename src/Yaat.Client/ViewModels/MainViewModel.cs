@@ -2779,7 +2779,7 @@ public partial class MainViewModel : ObservableObject
     /// <c>.nomarkers</c> clears them all. Never sent to the server.
     /// </summary>
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleScopeMarkerCommand(string text)
+    private bool TryHandleScopeMarkerCommand(string text, ICommandTextSink sink)
     {
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         string verb = parts[0].ToUpperInvariant();
@@ -2790,14 +2790,14 @@ public partial class MainViewModel : ObservableObject
         {
             case ".NOMARKERS":
                 Radar.ClearMarkers();
-                StatusText = "Scope markers cleared";
+                sink.ReportStatus("Scope markers cleared");
                 return true;
             case ".FF":
             case ".MARKER":
             case ".MARKERS":
                 if (parts.Length < 2)
                 {
-                    StatusText = $"Usage: {parts[0]} <fix> [fix ...]";
+                    sink.ReportError($"Usage: {parts[0]} <fix> [fix ...]");
                     return true;
                 }
 
@@ -2810,7 +2810,9 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
 
-                StatusText = unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated";
+                sink.ReportStatus(
+                    unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated"
+                );
                 return true;
             default:
                 return false;
@@ -2824,45 +2826,60 @@ public partial class MainViewModel : ObservableObject
     /// callsign — and <c>.norbl</c> removes them all. Never sent to the server.
     /// </summary>
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleMeasureCommand(string text)
+    private bool TryHandleMeasureCommand(string text, ICommandTextSink sink)
     {
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
         switch (parts[0].ToUpperInvariant())
         {
             case ".NORBL":
-                Measure.Clear();
+                sink.ReportStatus(Measure.ClearSilently());
                 return true;
             case ".RBL":
             case "*T":
                 if (parts.Length < 2)
                 {
-                    Measure.Arm();
+                    (bool armed, string armStatus) = Measure.ArmSilently();
+                    ReportMeasure(sink, armed, armStatus);
                     return true;
                 }
 
                 if (parts.Length == 2 && int.TryParse(parts[1], out int slot))
                 {
-                    Measure.Remove(slot);
+                    (bool removed, string removeStatus) = Measure.RemoveSilently(slot);
+                    ReportMeasure(sink, removed, removeStatus);
                     return true;
                 }
 
                 if (parts.Length == 3)
                 {
-                    // Endpoint errors are reported here; a placed line reports itself through Measure.StatusReported (a full
-                    // store's text is written again, unchanged).
-                    if (PlaceMeasurementFromText(parts[1], parts[2]).Error is { } error)
+                    // Endpoint errors are reported here; the placement reports its own outcome to the sink (a full store's
+                    // text is written again, unchanged).
+                    if (PlaceMeasurementFromText(parts[1], parts[2], sink).Error is { } error)
                     {
-                        StatusText = error;
+                        sink.ReportError(error);
                     }
 
                     return true;
                 }
 
-                StatusText = $"Usage: {parts[0]} [measurement number | point point]";
+                sink.ReportError($"Usage: {parts[0]} [measurement number | point point]");
                 return true;
             default:
                 return false;
+        }
+    }
+
+    /// <summary>A measuring tool's outcome: its status when it <paramref name="succeeded"/>, else the same text as an error.</summary>
+    private static void ReportMeasure(ICommandTextSink sink, bool succeeded, string status)
+    {
+        if (succeeded)
+        {
+            sink.ReportStatus(status);
+        }
+        else
+        {
+            sink.ReportError(status);
         }
     }
 
@@ -2876,7 +2893,14 @@ public partial class MainViewModel : ObservableObject
     /// view, matching CRC STARS' *T. Shared by the <c>.rbl A B</c> command and the <c>place_rbl</c> app tool.
     /// </summary>
     /// <returns>The slot the line took, or the error text: an unresolvable or ambiguous endpoint, or every slot in use.</returns>
-    public MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken)
+    public MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken) =>
+        PlaceMeasurementFromText(fromToken, toToken, new CommandLineSink(this));
+
+    /// <summary>
+    /// Draws a measurement between two typed points as <see cref="PlaceMeasurementFromText(string, string)"/> does, reporting the
+    /// placed line's reading, or a full store's error, to <paramref name="sink"/>; an endpoint error is only returned.
+    /// </summary>
+    internal MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken, ICommandTextSink sink)
     {
         (RblEndpoint? from, string? fromError) = ResolveMeasureEndpoint(fromToken);
         if (from is null)
@@ -2892,7 +2916,14 @@ public partial class MainViewModel : ObservableObject
 
         // The primary radar's track lookup is deliberate: Measure is one shared store, so the line renders
         // in every Radar View window without the extra instances needing their own lookup.
-        int? slot = Measure.Place(from.Value, to.Value, RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        (int? slot, string status) = Measure.PlaceSilently(
+            from.Value,
+            to.Value,
+            RadarViewModel.MeasureView,
+            Radar.MeasureTrackLookup,
+            RadarViewModel.MeasureUnits
+        );
+        ReportMeasure(sink, slot is not null, status);
         return slot is { } placed ? new MeasurePlacement(placed, null) : new MeasurePlacement(null, RangeBearingViewState.FullStatus);
     }
 
@@ -2943,16 +2974,16 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private Task SendCommandAsync() => SendTextAsync(CommandText, new CommandLineSink(this));
 
-    private async Task HandleGlobalCommand(ParsedInput parsed)
+    private async Task HandleGlobalCommand(ParsedInput parsed, ICommandTextSink sink)
     {
-        if (GlobalCommandHandlerFor(parsed.Type) is not { } handler)
+        if (GlobalSinkHandlerFor(parsed.Type) is not { } handler)
         {
             _log.LogError("Global command {Type} has no handler", parsed.Type);
-            StatusText = $"{parsed.Type} has no global command handler";
+            sink.ReportError($"{parsed.Type} has no global command handler");
             return;
         }
 
-        await handler(parsed);
+        await handler(parsed, sink);
     }
 
     /// <summary>
@@ -2961,33 +2992,37 @@ public partial class MainViewModel : ObservableObject
     /// (<c>MainViewModelGlobalCommandTests</c> checks both directions), so a routed verb can never go unsent.
     /// </summary>
     public Func<ParsedInput, Task>? GlobalCommandHandlerFor(CanonicalCommandType type) =>
+        GlobalSinkHandlerFor(type) is { } handler ? parsed => handler(parsed, new CommandLineSink(this)) : null;
+
+    /// <summary>The handler <see cref="GlobalCommandHandlerFor"/> wraps, reporting to the sink it is handed.</summary>
+    private Func<ParsedInput, ICommandTextSink, Task>? GlobalSinkHandlerFor(CanonicalCommandType type) =>
         type switch
         {
             CanonicalCommandType.TdlsOpsConfig => SendTdlsOpsAsync,
-            CanonicalCommandType.Pause => _ => SendPauseAsync(),
-            CanonicalCommandType.Unpause => _ => SendUnpauseAsync(),
+            CanonicalCommandType.Pause => (_, sink) => SendPauseAsync(sink),
+            CanonicalCommandType.Unpause => (_, sink) => SendUnpauseAsync(sink),
             CanonicalCommandType.SimRate => SendSimRateAsync,
-            CanonicalCommandType.SquawkAll => _ => SendSquawkAllAsync("SQALL"),
-            CanonicalCommandType.SquawkNormalAll => _ => SendSquawkAllAsync("SNALL"),
-            CanonicalCommandType.SquawkStandbyAll => _ => SendSquawkAllAsync("SSALL"),
+            CanonicalCommandType.SquawkAll => (_, sink) => SendSquawkAllAsync("SQALL", sink),
+            CanonicalCommandType.SquawkNormalAll => (_, sink) => SendSquawkAllAsync("SNALL", sink),
+            CanonicalCommandType.SquawkStandbyAll => (_, sink) => SendSquawkAllAsync("SSALL", sink),
             CanonicalCommandType.Add => SendAddAsync,
             CanonicalCommandType.Timer => SendTimerAsync,
             CanonicalCommandType.Bookmark => SendBookmarkAsync,
-            CanonicalCommandType.Consolidate => p => SendGlobalVerbAsync("CON", p.Argument),
-            CanonicalCommandType.ConsolidateFull => p => SendGlobalVerbAsync("CON+", p.Argument),
-            CanonicalCommandType.Deconsolidate => p => SendGlobalVerbAsync("DECON", p.Argument),
-            CanonicalCommandType.SetActivePosition => p => SendGlobalVerbAsync("AS", p.Argument),
-            CanonicalCommandType.AcceptAllHandoffs => p => SendGlobalVerbAsync("ACCEPTALL", p.Argument),
-            CanonicalCommandType.InitiateHandoffAll => p => SendGlobalVerbAsync("HOALL", p.Argument),
-            CanonicalCommandType.CoordinationAutoAck => p => SendGlobalVerbAsync("RDAUTO", p.Argument),
-            CanonicalCommandType.TaxiAll => p => SendGlobalVerbAsync("TAXIALL", p.Argument),
-            CanonicalCommandType.HoldForRelease => p => SendGlobalVerbAsync("HFR", p.Argument),
-            CanonicalCommandType.DisarmHoldForRelease => p => SendGlobalVerbAsync("HFROFF", p.Argument),
-            CanonicalCommandType.ReleaseDeparture => p => SendGlobalVerbAsync("REL", p.Argument),
-            CanonicalCommandType.ActiveRunways => p => SendGlobalVerbAsync("ARWY", p.Argument),
-            CanonicalCommandType.GhostTrack => p => SendGlobalVerbAsync("GHOST", p.Argument),
-            CanonicalCommandType.AsdexEnableAllAlerts => p => SendGlobalVerbAsync("ASDXALERTS", p.Argument),
-            CanonicalCommandType.SayAgainUnaddressed => p => SendGlobalVerbAsync("AGAINU", p.Argument),
+            CanonicalCommandType.Consolidate => (p, sink) => SendGlobalVerbAsync("CON", p.Argument, sink),
+            CanonicalCommandType.ConsolidateFull => (p, sink) => SendGlobalVerbAsync("CON+", p.Argument, sink),
+            CanonicalCommandType.Deconsolidate => (p, sink) => SendGlobalVerbAsync("DECON", p.Argument, sink),
+            CanonicalCommandType.SetActivePosition => (p, sink) => SendGlobalVerbAsync("AS", p.Argument, sink),
+            CanonicalCommandType.AcceptAllHandoffs => (p, sink) => SendGlobalVerbAsync("ACCEPTALL", p.Argument, sink),
+            CanonicalCommandType.InitiateHandoffAll => (p, sink) => SendGlobalVerbAsync("HOALL", p.Argument, sink),
+            CanonicalCommandType.CoordinationAutoAck => (p, sink) => SendGlobalVerbAsync("RDAUTO", p.Argument, sink),
+            CanonicalCommandType.TaxiAll => (p, sink) => SendGlobalVerbAsync("TAXIALL", p.Argument, sink),
+            CanonicalCommandType.HoldForRelease => (p, sink) => SendGlobalVerbAsync("HFR", p.Argument, sink),
+            CanonicalCommandType.DisarmHoldForRelease => (p, sink) => SendGlobalVerbAsync("HFROFF", p.Argument, sink),
+            CanonicalCommandType.ReleaseDeparture => (p, sink) => SendGlobalVerbAsync("REL", p.Argument, sink),
+            CanonicalCommandType.ActiveRunways => (p, sink) => SendGlobalVerbAsync("ARWY", p.Argument, sink),
+            CanonicalCommandType.GhostTrack => (p, sink) => SendGlobalVerbAsync("GHOST", p.Argument, sink),
+            CanonicalCommandType.AsdexEnableAllAlerts => (p, sink) => SendGlobalVerbAsync("ASDXALERTS", p.Argument, sink),
+            CanonicalCommandType.SayAgainUnaddressed => (p, sink) => SendGlobalVerbAsync("AGAINU", p.Argument, sink),
             _ => null,
         };
 
@@ -3013,41 +3048,39 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Sends <c>{verb} [argument]</c> with an empty callsign and shows the server's answer.</summary>
-    private async Task SendGlobalVerbAsync(string verb, string? argument)
+    private async Task SendGlobalVerbAsync(string verb, string? argument, ICommandTextSink sink)
     {
         string canonical = string.IsNullOrEmpty(argument) ? verb : $"{verb} {argument}";
         try
         {
             CommandResultDto result = await SubmitCommandAsync("", canonical);
-            AddHistory("", canonical);
-            StatusText = CommandStatusResolver.Resolve(result, verb);
+            sink.AddHistory("", canonical);
+            ReportResult(sink, result, verb);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "{Verb} failed", verb);
-            StatusText = $"{verb} error: {ex.Message}";
+            sink.ReportError($"{verb} error: {ex.Message}");
         }
-        _commandInput.DismissSuggestions();
-        _commandInput.ResetHistoryNavigation();
-        CommandText = "";
+        sink.ClearInput();
     }
 
-    private async Task SendTdlsOpsAsync(ParsedInput parsed)
+    private async Task SendTdlsOpsAsync(ParsedInput parsed, ICommandTextSink sink)
     {
         string canonical = $"TDLSOPS {parsed.Argument}".TrimEnd();
         await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-        AddHistory("", canonical);
-        CommandText = "";
+        sink.AddHistory("", canonical);
+        sink.ClearInput();
     }
 
-    private async Task SendPauseAsync()
+    private async Task SendPauseAsync(ICommandTextSink sink)
     {
         await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
-        AddHistory("", "PAUSE");
-        CommandText = "";
+        sink.AddHistory("", "PAUSE");
+        sink.ClearInput();
     }
 
-    private async Task SendUnpauseAsync()
+    private async Task SendUnpauseAsync(ICommandTextSink sink)
     {
         if (IsPaused && !await ConfirmResumeAsync())
         {
@@ -3055,65 +3088,61 @@ public partial class MainViewModel : ObservableObject
         }
 
         await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
-        AddHistory("", "UNPAUSE");
-        CommandText = "";
+        sink.AddHistory("", "UNPAUSE");
+        sink.ClearInput();
     }
 
-    private async Task SendSimRateAsync(ParsedInput parsed)
+    private async Task SendSimRateAsync(ParsedInput parsed, ICommandTextSink sink)
     {
         if (int.TryParse(parsed.Argument, out int rate))
         {
             await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
-            AddHistory("", $"SIMRATE {rate}");
+            sink.AddHistory("", $"SIMRATE {rate}");
         }
-        CommandText = "";
+        sink.ClearInput();
     }
 
-    private async Task SendSquawkAllAsync(string verb)
+    private async Task SendSquawkAllAsync(string verb, ICommandTextSink sink)
     {
         try
         {
             await _connection.SendCommandAsync("", verb, _preferences.UserInitials);
-            AddHistory("", verb);
+            sink.AddHistory("", verb);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "{Verb} failed", verb);
-            StatusText = $"{verb} error: {ex.Message}";
+            sink.ReportError($"{verb} error: {ex.Message}");
         }
-        _commandInput.DismissSuggestions();
-        _commandInput.ResetHistoryNavigation();
-        CommandText = "";
+        sink.ClearInput();
     }
 
-    private async Task SendAddAsync(ParsedInput parsed)
+    private async Task SendAddAsync(ParsedInput parsed, ICommandTextSink sink)
     {
         if (string.IsNullOrWhiteSpace(parsed.Argument))
         {
-            StatusText = "ADD requires arguments: ADD {rules} {weight} {engine} {position...}";
+            sink.ReportError("ADD requires arguments: ADD {rules} {weight} {engine} {position...}");
             return;
         }
 
-        await SendGlobalVerbAsync("ADD", parsed.Argument);
+        await SendGlobalVerbAsync("ADD", parsed.Argument, sink);
     }
 
-    private async Task SendTimerAsync(ParsedInput parsed)
+    private async Task SendTimerAsync(ParsedInput parsed, ICommandTextSink sink)
     {
         if (string.IsNullOrWhiteSpace(parsed.Argument))
         {
-            StatusText = "TIMER requires a duration (mm:ss or seconds) or CANCEL";
+            sink.ReportError("TIMER requires a duration (mm:ss or seconds) or CANCEL");
             return;
         }
 
-        await SendGlobalVerbAsync("TIMER", parsed.Argument);
+        await SendGlobalVerbAsync("TIMER", parsed.Argument, sink);
     }
 
-    private async Task SendBookmarkAsync(ParsedInput parsed)
+    private async Task SendBookmarkAsync(ParsedInput parsed, ICommandTextSink sink)
     {
-        await HandleBookmarkGlobalCommand(parsed.Argument);
-        _commandInput.DismissSuggestions();
-        _commandInput.ResetHistoryNavigation();
-        CommandText = "";
+        await HandleBookmarkGlobalCommand(parsed.Argument, sink);
+        sink.ClearInput();
     }
 
     /// <summary>
@@ -3121,32 +3150,35 @@ public partial class MainViewModel : ObservableObject
     /// mutations. Re-parses the canonical argument through <see cref="CommandParser"/> so the two
     /// halves agree on the grammar instead of the client re-deriving it.
     /// </summary>
-    public async Task HandleBookmarkGlobalCommand(string? argument)
+    public Task HandleBookmarkGlobalCommand(string? argument) => HandleBookmarkGlobalCommand(argument, new CommandLineSink(this));
+
+    /// <summary>Runs the <c>BM</c> verb as <see cref="HandleBookmarkGlobalCommand(string?)"/> does, reporting to <paramref name="sink"/>.</summary>
+    private async Task HandleBookmarkGlobalCommand(string? argument, ICommandTextSink sink)
     {
         string canonical = string.IsNullOrWhiteSpace(argument) ? "BM" : $"BM {argument}";
         ParseResult<ParsedCommand> parseResult = CommandParser.Parse(canonical);
         if (!parseResult.IsSuccess || parseResult.Value is not BookmarkCommand bookmark)
         {
-            StatusText = parseResult.Reason ?? "Invalid BM command";
+            sink.ReportError(parseResult.Reason ?? "Invalid BM command");
             return;
         }
 
-        if (await TryHandleBookmarkLocallyAsync(bookmark))
+        if (await TryHandleBookmarkLocallyAsync(bookmark, sink))
         {
-            AddHistory("", canonical);
+            sink.AddHistory("", canonical);
             return;
         }
 
         try
         {
             CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-            AddHistory("", canonical);
-            StatusText = CommandStatusResolver.Resolve(result, "BM");
+            sink.AddHistory("", canonical);
+            ReportResult(sink, result, "BM");
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "BM failed");
-            StatusText = $"BM error: {ex.Message}";
+            sink.ReportError($"BM error: {ex.Message}");
         }
     }
 
@@ -3186,7 +3218,7 @@ public partial class MainViewModel : ObservableObject
             StatusText = $"\"{token}\" is not a valid callsign";
             return;
         }
-        AircraftModel? match = ResolveAircraft(token);
+        AircraftModel? match = ResolveAircraft(token, new CommandLineSink(this));
         if (match is not null)
         {
             SelectedAircraft = match;
@@ -3200,14 +3232,14 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Resolves a full or partial callsign to a single spawned aircraft.
-    /// Returns null and sets StatusText if no match or ambiguous.
+    /// Returns null when nothing or more than one aircraft matches; an ambiguous match is reported to <paramref name="sink"/>.
     /// </summary>
-    private AircraftModel? ResolveAircraft(string token)
+    private AircraftModel? ResolveAircraft(string token, ICommandTextSink sink)
     {
         (AircraftModel? match, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel>? candidates) = CallsignMatcher.Match(token, Aircraft);
         if (outcome == CallsignMatcher.Outcome.Ambiguous)
         {
-            StatusText = CallsignMatcher.FormatAmbiguityMessage(token, candidates);
+            sink.ReportError(CallsignMatcher.FormatAmbiguityMessage(token, candidates));
         }
 
         return match;

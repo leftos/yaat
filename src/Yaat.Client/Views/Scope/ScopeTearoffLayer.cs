@@ -405,6 +405,9 @@ public sealed class ScopeTearoffLayer : Panel
         _surface.IsVisible = false;
     }
 
+    /// <summary>Whether a tear-off or view is being moved, which Esc cancels before anything else on the Scope.</summary>
+    internal bool IsMoving => _follower is not null;
+
     // Esc cancels a move, else leaves DEL TEAROFF's mode; any other key, or Esc with neither, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {

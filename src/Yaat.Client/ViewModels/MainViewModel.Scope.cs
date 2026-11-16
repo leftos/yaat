@@ -154,7 +154,7 @@ public partial class MainViewModel
             : ScopeProfilePicker.KindFor(ActivePosition);
 
     /// <summary>Runs a <c>.scope</c> command from the Scope's toolbar; nothing is added to the command history.</summary>
-    public void RunScopeCommand(string text) => TryHandleScopeCommand(text);
+    public void RunScopeCommand(string text) => TryHandleScopeCommand(text, new CommandLineSink(this));
 
     /// <summary>The parsed data of the video map with <paramref name="mapId"/> from the video-map cache, or null when it is not loaded.</summary>
     public VideoMapData? GetCachedVideoMap(string mapId) => _videoMapService.GetCached(mapId);
@@ -165,11 +165,11 @@ public partial class MainViewModel
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
     /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
-    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c> and <c>.scope tdm</c> against <see cref="OpenScope"/>, writing the
-    /// echo or the error to the status line.
+    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c> and <c>.scope tdm</c> against <see cref="OpenScope"/>, reporting
+    /// the echo or the error to <paramref name="sink"/>.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleScopeCommand(string text)
+    private bool TryHandleScopeCommand(string text, ICommandTextSink sink)
     {
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if ((parts.Length == 0) || !string.Equals(parts[0], ".scope", StringComparison.OrdinalIgnoreCase))
@@ -177,7 +177,7 @@ public partial class MainViewModel
             return false;
         }
 
-        StatusText = RunScopeVerb(parts);
+        sink.ReportStatus(RunScopeVerb(parts));
         return true;
     }
 

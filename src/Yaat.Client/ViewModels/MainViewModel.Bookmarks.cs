@@ -69,29 +69,35 @@ public partial class MainViewModel
         Bookmarks.LastOrDefault(b => b.TimeSeconds < ScenarioElapsedSeconds - BookmarkStepEpsilonSeconds);
 
     /// <summary>Seeks to the first bookmark after the current position; no-op when there is none.</summary>
-    public async Task SeekNextBookmarkAsync()
+    public Task SeekNextBookmarkAsync() => SeekNextBookmarkAsync(new CommandLineSink(this));
+
+    /// <summary>Seeks to the first bookmark after the current position, the rewind's statuses written to <paramref name="sink"/>.</summary>
+    private async Task SeekNextBookmarkAsync(ICommandTextSink sink)
     {
         if (FindNextBookmark() is { } next)
         {
-            await RewindToSeconds(next.TimeSeconds);
+            await RewindToSeconds(next.TimeSeconds, sink);
         }
     }
 
     /// <summary>Seeks to the last bookmark before the current position; no-op when there is none.</summary>
-    public async Task SeekPrevBookmarkAsync()
+    public Task SeekPrevBookmarkAsync() => SeekPrevBookmarkAsync(new CommandLineSink(this));
+
+    /// <summary>Seeks to the last bookmark before the current position, the rewind's statuses written to <paramref name="sink"/>.</summary>
+    private async Task SeekPrevBookmarkAsync(ICommandTextSink sink)
     {
         if (FindPrevBookmark() is { } prev)
         {
-            await RewindToSeconds(prev.TimeSeconds);
+            await RewindToSeconds(prev.TimeSeconds, sink);
         }
     }
 
     /// <summary>
     /// Handles the client-side half of the <c>BM</c> verb — the read-only <c>LIST</c> query and the
-    /// <c>GO</c>/<c>NEXT</c>/<c>PREV</c> seeks, which need <see cref="RewindToSeconds"/> and so have no
+    /// <c>GO</c>/<c>NEXT</c>/<c>PREV</c> seeks, which need <see cref="RewindToSeconds(double)"/> and so have no
     /// server-side form. Returns false for the mutating actions, which the caller forwards to the server.
     /// </summary>
-    private async Task<bool> TryHandleBookmarkLocallyAsync(BookmarkCommand bookmark)
+    private async Task<bool> TryHandleBookmarkLocallyAsync(BookmarkCommand bookmark, ICommandTextSink sink)
     {
         switch (bookmark.Action)
         {
@@ -99,20 +105,20 @@ public partial class MainViewModel
                 ListBookmarks();
                 return true;
             case BookmarkAction.Next:
-                await SeekNextBookmarkAsync();
+                await SeekNextBookmarkAsync(sink);
                 return true;
             case BookmarkAction.Prev:
-                await SeekPrevBookmarkAsync();
+                await SeekPrevBookmarkAsync(sink);
                 return true;
             case BookmarkAction.Goto:
                 TimelineBookmarkVm? target = Bookmarks.FirstOrDefault(b => b.Id == bookmark.Id);
                 if (target is null)
                 {
-                    StatusText = $"No bookmark {bookmark.Id}";
+                    sink.ReportError($"No bookmark {bookmark.Id}");
                     return true;
                 }
 
-                await RewindToSeconds(target.TimeSeconds);
+                await RewindToSeconds(target.TimeSeconds, sink);
                 return true;
             default:
                 return false;

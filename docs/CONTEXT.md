@@ -809,6 +809,9 @@ The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while 
 **Brightness group (YAAT Scope)**:
 One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Scope window, never saved or sent.
 
+**Feedback area (YAAT Scope)**:
+The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
+
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
 
@@ -824,6 +827,12 @@ The two-line block the YAAT Scope draws for an on-ground aircraft in top-down mo
 **HSF (ERAM)**:
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
+**Kind label (YAAT Scope)**:
+The words the Preview area shows before the entry to say how it will be read (`PILOT FH fly heading`, `DOT .scope`, `STARS {verb}`); `ScopeEntryClassifier` picks it.
+
+**MCA (Message Composition Area)**:
+ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.
+
 **Mixed (YAAT Scope template)**:
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
@@ -832,6 +841,12 @@ A value set by hand over the zoom band's default (others' level, vector minutes,
 
 **Pref set (YAAT Scope)**:
 A named snapshot of a YAAT Scope's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
+
+**Preview area (YAAT Scope)**:
+The part of the Scope's entry area that shows the entry being typed, with its Kind label and a trailing `_`; on STARS one unboxed area at the top left below the SSA's default place, on ERAM/Mixed the upper half of the MCA.
+
+**Response Area (RA)**:
+ERAM's message area above the MCA; in YAAT Scope on ERAM and Mixed an empty box above the MCA, kept for readouts.
 
 **SSA (YAAT Scope)**:
 The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).

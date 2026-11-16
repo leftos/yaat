@@ -56,7 +56,11 @@ public sealed partial class RangeBearingViewState : ObservableObject
     }
 
     /// <summary>Arms the tool so the next map click picks the first endpoint.</summary>
-    public void Arm() => Report(_store.Arm() ? ArmedStatus : FullStatus);
+    public void Arm() => Report(ArmSilently().Status);
+
+    /// <summary>Arms the tool as <see cref="Arm"/> does, returning its status instead of reporting it.</summary>
+    /// <returns>Whether the tool armed (false when every slot is in use), and the status to show.</returns>
+    internal (bool Armed, string Status) ArmSilently() => _store.Arm() ? (true, ArmedStatus) : (false, FullStatus);
 
     /// <summary>
     /// Feeds the tool a clicked endpoint: the first click anchors, the second completes the measurement.
@@ -79,9 +83,17 @@ public sealed partial class RangeBearingViewState : ObservableObject
     /// <returns>The slot number the measurement took, or null when every slot is in use.</returns>
     public int? Place(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
     {
-        int? slot = _store.Add(from, to, view);
-        Report(slot is { } placed ? DescribePlaced(placed, lookup, units, view) : FullStatus);
+        (int? slot, string status) = PlaceSilently(from, to, view, lookup, units);
+        Report(status);
         return slot;
+    }
+
+    /// <summary>Places a whole measurement as <see cref="Place"/> does, returning its status instead of reporting it.</summary>
+    /// <returns>The slot the measurement took (null when every slot is in use), and the status to show.</returns>
+    internal (int? Slot, string Status) PlaceSilently(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
+    {
+        int? slot = _store.Add(from, to, view);
+        return (slot, slot is { } placed ? DescribePlaced(placed, lookup, units, view) : FullStatus);
     }
 
     /// <summary>Cancels a half-placed measurement and disarms the tool. Placed measurements stay.</summary>
@@ -100,17 +112,28 @@ public sealed partial class RangeBearingViewState : ObservableObject
     /// <returns>True when the slot held a measurement; false when it was empty or out of range.</returns>
     public bool Remove(int slot)
     {
-        bool removed = _store.Remove(slot);
-        Report(removed ? $"Measurement {slot} removed" : $"No measurement {slot}");
+        (bool removed, string status) = RemoveSilently(slot);
+        Report(status);
         return removed;
     }
 
+    /// <summary>Removes one measurement as <see cref="Remove"/> does, returning its status instead of reporting it.</summary>
+    /// <returns>Whether the slot held a measurement, and the status to show.</returns>
+    internal (bool Removed, string Status) RemoveSilently(int slot)
+    {
+        bool removed = _store.Remove(slot);
+        return (removed, removed ? $"Measurement {slot} removed" : $"No measurement {slot}");
+    }
+
     /// <summary>Removes every measurement.</summary>
-    public void Clear()
+    public void Clear() => Report(ClearSilently());
+
+    /// <summary>Removes every measurement as <see cref="Clear"/> does, returning its status instead of reporting it.</summary>
+    internal string ClearSilently()
     {
         bool had = _store.HasLines;
         _store.Clear();
-        Report(had ? "Measurements cleared" : "No measurements to clear");
+        return had ? "Measurements cleared" : "No measurements to clear";
     }
 
     /// <summary>

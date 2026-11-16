@@ -1222,7 +1222,10 @@ public partial class MainViewModel
         });
     }
 
-    public async Task AssignAircraftAsync(List<string> callsigns, string targetConnectionId)
+    public Task AssignAircraftAsync(List<string> callsigns, string targetConnectionId) =>
+        AssignAircraftAsync(callsigns, targetConnectionId, new CommandLineSink(this));
+
+    private async Task AssignAircraftAsync(List<string> callsigns, string targetConnectionId, ICommandTextSink sink)
     {
         try
         {
@@ -1231,11 +1234,13 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "AssignAircraft failed");
-            StatusText = $"Assign error: {ex.Message}";
+            sink.ReportError($"Assign error: {ex.Message}");
         }
     }
 
-    public async Task UnassignAircraftAsync(List<string> callsigns)
+    public Task UnassignAircraftAsync(List<string> callsigns) => UnassignAircraftAsync(callsigns, new CommandLineSink(this));
+
+    private async Task UnassignAircraftAsync(List<string> callsigns, ICommandTextSink sink)
     {
         try
         {
@@ -1244,7 +1249,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "UnassignAircraft failed");
-            StatusText = $"Unassign error: {ex.Message}";
+            sink.ReportError($"Unassign error: {ex.Message}");
         }
     }
 
@@ -1268,31 +1273,37 @@ public partial class MainViewModel
 
     public string? SelfConnectionId => AssignableMembers.FirstOrDefault(m => m.Initials == _preferences.UserInitials)?.ConnectionId;
 
-    public async Task TakeControlAsync(string callsign)
+    public Task TakeControlAsync(string callsign) => TakeControlAsync(callsign, new CommandLineSink(this));
+
+    private async Task TakeControlAsync(string callsign, ICommandTextSink sink)
     {
         string? selfId = SelfConnectionId;
         if (selfId is null)
         {
-            StatusText = "Cannot take control — not in a multi-user room";
+            sink.ReportError("Cannot take control — not in a multi-user room");
             return;
         }
 
-        await AssignAircraftAsync([callsign], selfId);
+        await AssignAircraftAsync([callsign], selfId, sink);
     }
 
-    public async Task GiveControlAsync(string callsign, string targetInitials)
+    public Task GiveControlAsync(string callsign, string targetInitials) => GiveControlAsync(callsign, targetInitials, new CommandLineSink(this));
+
+    private async Task GiveControlAsync(string callsign, string targetInitials, ICommandTextSink sink)
     {
         AssignableMemberDto? member = AssignableMembers.FirstOrDefault(m => m.Initials == targetInitials.ToUpperInvariant());
         if (member is null)
         {
-            StatusText = $"No room member with initials '{targetInitials}'";
+            sink.ReportError($"No room member with initials '{targetInitials}'");
             return;
         }
 
-        await AssignAircraftAsync([callsign], member.ConnectionId);
+        await AssignAircraftAsync([callsign], member.ConnectionId, sink);
     }
 
-    public async Task ReleaseControlAsync(string callsign) => await UnassignAircraftAsync([callsign]);
+    public Task ReleaseControlAsync(string callsign) => UnassignAircraftAsync([callsign], new CommandLineSink(this));
+
+    private Task ReleaseControlAsync(string callsign, ICommandTextSink sink) => UnassignAircraftAsync([callsign], sink);
 
     public void BuildRpoMenuItems(ItemsControl menu, List<string> callsigns)
     {

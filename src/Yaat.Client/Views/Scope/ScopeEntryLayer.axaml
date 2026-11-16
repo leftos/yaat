@@ -1,0 +1,36 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.Scope.ScopeEntryLayer"
+  IsHitTestVisible="False"
+  FontFamily="{StaticResource MonoFont}"
+  FontSize="19"
+>
+  <Panel>
+    <!-- STARS: one unboxed area under the SSA's default place; the entry, then its response. -->
+    <StackPanel x:Name="StarsArea" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16,86,0,0" IsVisible="False" />
+    <!-- ERAM and Mixed: the Response Area over the MCA (Preview over Feedback), at the bottom left. -->
+    <StackPanel x:Name="EramBoxes" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16,0,0,16" Spacing="8" IsVisible="False">
+      <Border
+        x:Name="ResponseArea"
+        Width="372"
+        Height="70"
+        Background="#000000"
+        BorderBrush="#8a8a8a"
+        BorderThickness="1"
+        Padding="6,3"
+        ClipToBounds="True"
+      />
+      <Border x:Name="Mca" Width="374" MinHeight="105" Background="#000000" BorderBrush="#8a8a8a" BorderThickness="1" ClipToBounds="True">
+        <StackPanel>
+          <Border Padding="6,3" MinHeight="40">
+            <StackPanel x:Name="EramPreview" />
+          </Border>
+          <Border BorderBrush="#8a8a8a" BorderThickness="0,1,0,0" Padding="6,3">
+            <StackPanel x:Name="EramFeedback" />
+          </Border>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Panel>
+</UserControl>

@@ -16,9 +16,13 @@ namespace Yaat.Client.Views.Scope;
 /// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>); no field click sends a command.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
-/// nothing and toggling no lock, and Esc disarms it. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through
-/// <c>.scope tdm</c>, as the TDM button does. Both keys are taken by a window-level handler that runs in the tunnel, so it
-/// acts before any control inside the window sees the key.
+/// nothing and toggling no lock. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through <c>.scope tdm</c>,
+/// as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
+/// which any press on it gives: printable text adds to the entry, Backspace edits it, Up and Down walk its history, Ctrl+R
+/// (Cmd+R on macOS) recalls the last entry on ERAM and Mixed, and Enter runs it; other chords, Tab and function keys pass on.
+/// Esc, in order: leaves a tear-off move to the tear-off layer, else clears the entry and its response, else disarms the Rings
+/// tool. Esc and Ctrl+Shift+T are taken by a window-level handler that runs in the tunnel, so it acts before any control
+/// inside the window sees the key.
 /// </summary>
 public partial class ScopeView : UserControl
 {
@@ -32,6 +36,8 @@ public partial class ScopeView : UserControl
         Canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         Canvas.AircraftRightClicked += OnAircraftRightClicked;
         Canvas.AircraftDwellLockToggleRequested += OnAircraftDwellLockToggleRequested;
+        Canvas.EntryTextInput += OnCanvasTextInput;
+        Canvas.EntryKeyDown += OnCanvasKeyDown;
     }
 
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
@@ -94,7 +100,8 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc disarms an armed Rings tool and Ctrl+Shift+T flips top-down mode; any other key, or Esc with the tool disarmed, passes on.
+    // Esc clears the entry, else disarms an armed Rings tool, unless a tear-off move is on (the tear-off layer cancels it);
+    // Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not ScopeViewModel vm)
@@ -102,15 +109,56 @@ public partial class ScopeView : UserControl
             return;
         }
 
-        if ((e.Key == Key.Escape) && vm.DisarmRingTool())
+        if (e.Key == Key.Escape)
         {
-            e.Handled = true;
+            e.Handled = (!TearoffLayer.IsMoving) && (vm.ClearEntry() || vm.DisarmRingTool());
         }
-        else if ((e.Key == Key.T) && (e.KeyModifiers == ((PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control) | KeyModifiers.Shift)))
+        else if ((e.Key == Key.T) && (e.KeyModifiers == (ActionModifier | KeyModifiers.Shift)))
         {
             vm.RunCommand(ScopeToolbarButtons.TdmCommand(!vm.IsTdm));
             e.Handled = true;
         }
+    }
+
+    private static KeyModifiers ActionModifier => PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control;
+
+    private void OnCanvasTextInput(object? sender, TextInputEventArgs e)
+    {
+        if ((DataContext is ScopeViewModel vm) && vm.TypeEntryText(e.Text))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void OnCanvasKeyDown(object? sender, KeyEventArgs e)
+    {
+        if ((DataContext is ScopeViewModel vm) && RunEntryKey(vm, e))
+        {
+            e.Handled = true;
+        }
+    }
+
+    // The entry's editing keys; a chord with Ctrl, Alt or Meta other than the recall passes on.
+    private static bool RunEntryKey(ScopeViewModel vm, KeyEventArgs e)
+    {
+        if ((e.Key == Key.R) && (e.KeyModifiers == ActionModifier))
+        {
+            return vm.RecallLastEntry();
+        }
+
+        if ((e.KeyModifiers != KeyModifiers.None) && (e.KeyModifiers != KeyModifiers.Shift))
+        {
+            return false;
+        }
+
+        return e.Key switch
+        {
+            Key.Enter => vm.ExecuteEntry(),
+            Key.Back => vm.BackspaceEntry(),
+            Key.Up => vm.WalkEntryHistory(older: true),
+            Key.Down => vm.WalkEntryHistory(older: false),
+            _ => false,
+        };
     }
 
     private void OnAircraftLeftClicked(string callsign)

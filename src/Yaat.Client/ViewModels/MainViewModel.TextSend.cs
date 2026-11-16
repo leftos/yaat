@@ -6,17 +6,20 @@ using Yaat.Sim.Commands;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// Where <see cref="MainViewModel.SendTextAsync"/> reports the routing outcomes of its own steps (say-again guard, chat,
-/// the dot-command fallthrough, bare-callsign select, callsign resolution, RPO control, parse errors, the VFR and compound
-/// gates, the send to an aircraft), so the line can come from an entry other than the main command line. The handlers it
-/// hands a line to still report through <see cref="MainViewModel.StatusText"/>, <see cref="MainViewModel.CommandText"/> and
-/// the history themselves: the global verbs, the dot commands (<c>.scope</c>, <c>.view</c>, scope markers, measure, CRC
-/// aliases), the take/give/release control calls, and <c>ResolveAircraft</c>'s ambiguity message.
+/// Where <see cref="MainViewModel.SendTextAsync"/> reports every outcome of a line, so the line can come from an entry other
+/// than the main command line: its own steps (say-again guard, chat, the dot-command fallthrough, bare-callsign select,
+/// callsign resolution, RPO control, parse errors, the VFR and compound gates, the send to an aircraft) and the handlers it
+/// hands the line to (the global verbs, the dot commands <c>.scope</c>, <c>.view</c>, scope markers, measure and CRC aliases,
+/// the take/give/release control calls, <c>ResolveAircraft</c>'s ambiguity message, the measuring tool's reports and the bookmark
+/// seeks' rewind status). Each handler takes the sink as a parameter.
 /// </summary>
 internal interface ICommandTextSink
 {
-    /// <summary>Shows a routing outcome of the line: why it was not sent, the server's answer, or a send error.</summary>
+    /// <summary>Shows an outcome of the line that is not an error: a handler's echo, or the empty status of a success.</summary>
     void ReportStatus(string status);
+
+    /// <summary>Shows why the line failed: a usage or parse error, a refusal, the server's rejection or a send error.</summary>
+    void ReportError(string message);
 
     /// <summary>Takes the line out of the entry it was typed in. A line never cleared stays there for re-editing.</summary>
     void ClearInput();
@@ -32,12 +35,11 @@ public partial class MainViewModel
 {
     /// <summary>
     /// Runs one typed line as the main command line runs it on Enter: the staged say-again guard, the <c>** </c> override,
-    /// chat, client dot commands, global verbs, a bare callsign that selects, then a command to an aircraft. The outcomes of
-    /// these steps go to <paramref name="sink"/>; the global-verb, dot-command and control handlers, and
-    /// <c>ResolveAircraft</c>, still write the main command line's status, text and history directly.
+    /// chat, client dot commands, global verbs, a bare callsign that selects, then a command to an aircraft. Every outcome,
+    /// the handlers' included, goes to <paramref name="sink"/>.
     /// </summary>
     /// <param name="text">The line as typed.</param>
-    /// <param name="sink">Where this method's own status, clear, history and warnings go.</param>
+    /// <param name="sink">Where the line's status, errors, clear, history and warnings go.</param>
     internal async Task SendTextAsync(string text, ICommandTextSink sink)
     {
         string trimmed = text.Trim();
@@ -98,7 +100,7 @@ public partial class MainViewModel
             catch (Exception ex)
             {
                 _log.LogError(ex, "Chat send failed");
-                line.Sink.ReportStatus($"Chat error: {ex.Message}");
+                line.Sink.ReportError($"Chat error: {ex.Message}");
             }
         }
 
@@ -120,10 +122,10 @@ public partial class MainViewModel
             return false;
         }
 
-        if (!TryHandleClientCommand(text, forceAlias))
+        if (!TryHandleClientCommand(text, forceAlias, line.Sink))
         {
             string verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? text;
-            line.Sink.ReportStatus($"Unknown command or alias: {verb}");
+            line.Sink.ReportError($"Unknown command or alias: {verb}");
         }
 
         line.Sink.AddHistory("", text);
@@ -144,12 +146,17 @@ public partial class MainViewModel
     }
 
     /// <summary>Runs a dot command or CRC alias; false when nothing knows <paramref name="text"/>.</summary>
-    private bool TryHandleClientCommand(string text, bool forceAlias)
+    private bool TryHandleClientCommand(string text, bool forceAlias, ICommandTextSink sink)
     {
         bool handled =
             (!forceAlias)
-            && (TryHandleScopeMarkerCommand(text) || TryHandleMeasureCommand(text) || TryHandleScopeCommand(text) || TryHandleViewCommand(text));
-        return handled || TryHandleCrcAlias(text);
+            && (
+                TryHandleScopeMarkerCommand(text, sink)
+                || TryHandleMeasureCommand(text, sink)
+                || TryHandleScopeCommand(text, sink)
+                || TryHandleViewCommand(text, sink)
+            );
+        return handled || TryHandleCrcAlias(text, sink);
     }
 
     /// <summary>
@@ -171,7 +178,7 @@ public partial class MainViewModel
             return false;
         }
 
-        await HandleGlobalCommand(globalParsed);
+        await HandleGlobalCommand(globalParsed, line.Sink);
         return true;
     }
 
@@ -235,7 +242,7 @@ public partial class MainViewModel
         line.OriginalInput = line.Text;
         if (!TypedCommandText.TryExpandMacros(line.Text, _preferences.Macros, out string commandText, out string? macroError))
         {
-            line.Sink.ReportStatus(macroError);
+            line.Sink.ReportError(macroError);
             return false;
         }
 
@@ -258,7 +265,7 @@ public partial class MainViewModel
         CallsignPrefixResolver.Result prefixResult = CallsignPrefixResolver.Resolve(line.Command, line.Scheme, Aircraft);
         if (prefixResult is CallsignPrefixResolver.Ambiguous ambiguousPrefix)
         {
-            line.Sink.ReportStatus(ambiguousPrefix.Message);
+            line.Sink.ReportError(ambiguousPrefix.Message);
             return false;
         }
 
@@ -272,7 +279,7 @@ public partial class MainViewModel
         CallsignArgumentResolver.Result rewrite = CallsignArgumentResolver.TryRewrite(line.Command, line.Scheme, Aircraft);
         if (rewrite.Error is not null)
         {
-            line.Sink.ReportStatus(rewrite.Error);
+            line.Sink.ReportError(rewrite.Error);
             return false;
         }
 
@@ -291,30 +298,30 @@ public partial class MainViewModel
 
         if (line.Target is not { } target)
         {
-            line.Sink.ReportStatus("Select an aircraft first");
+            line.Sink.ReportError("Select an aircraft first");
             return true;
         }
 
         string initials = isGive ? upper[5..].Trim() : "";
         if (isGive && (initials.Length == 0))
         {
-            line.Sink.ReportStatus("Usage: GIVE <initials>");
+            line.Sink.ReportError("Usage: GIVE <initials>");
             return true;
         }
 
-        await RunRpoControlAsync(upper, target.Callsign, initials);
+        await RunRpoControlAsync(upper, target.Callsign, initials, line.Sink);
         line.Sink.AddHistory(target.Callsign, line.OriginalInput);
         line.Sink.ClearInput();
         return true;
     }
 
     /// <summary>Takes, gives or gives up control of <paramref name="callsign"/> for the RPO verb in <paramref name="upper"/>.</summary>
-    private Task RunRpoControlAsync(string upper, string callsign, string initials) =>
+    private Task RunRpoControlAsync(string upper, string callsign, string initials, ICommandTextSink sink) =>
         upper switch
         {
-            "TAKE" => TakeControlAsync(callsign),
-            "GIVEUP" => ReleaseControlAsync(callsign),
-            _ => GiveControlAsync(callsign, initials),
+            "TAKE" => TakeControlAsync(callsign, sink),
+            "GIVEUP" => ReleaseControlAsync(callsign, sink),
+            _ => GiveControlAsync(callsign, initials, sink),
         };
 
     /// <summary>
@@ -344,7 +351,7 @@ public partial class MainViewModel
         // focus the error on the verb that follows it.
         CommandErrorFormatter.Result commandError = CommandErrorFormatter.Format(line.Command, parseFailure, line.Scheme, Aircraft);
         _log.LogWarning("Command '{Verb}' {Reason} in input '{Input}'", commandError.Verb, commandError.Reason, line.Command);
-        line.Sink.ReportStatus(commandError.StatusText);
+        line.Sink.ReportError(commandError.StatusText);
         return null;
     }
 
@@ -356,7 +363,7 @@ public partial class MainViewModel
     {
         if (!(TryGetCanonicalVerb(compound.CanonicalString, out string verb) && IsHalfStripVerb(verb)))
         {
-            line.Sink.ReportStatus("No aircraft matched — type a callsign (or partial) before the command");
+            line.Sink.ReportError("No aircraft matched — type a callsign (or partial) before the command");
             return;
         }
 
@@ -372,12 +379,12 @@ public partial class MainViewModel
             line.Sink.AddHistory("", line.OriginalInput);
             line.Sink.ClearInput();
 
-            line.Sink.ReportStatus(CommandStatusResolver.Resolve(result, "(half-strip)"));
+            ReportResult(line.Sink, result, "(half-strip)");
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Half-strip command failed");
-            line.Sink.ReportStatus($"Command error: {ex.Message}");
+            line.Sink.ReportError($"Command error: {ex.Message}");
         }
     }
 
@@ -388,14 +395,14 @@ public partial class MainViewModel
         VfrGateResult gate = VfrCommandGate.Evaluate(target, compound.CanonicalString, VfrCommandsForIfr);
         if (!gate.Allowed)
         {
-            line.Sink.ReportStatus(gate.RejectionMessage!);
+            line.Sink.ReportError(gate.RejectionMessage!);
             line.Sink.AddWarning(gate.RejectionMessage!);
             return;
         }
 
         if (CompoundRejection(target, compound.CanonicalString) is { } rejectMsg)
         {
-            line.Sink.ReportStatus(rejectMsg);
+            line.Sink.ReportError(rejectMsg);
             line.Sink.AddWarning(rejectMsg);
             return;
         }
@@ -423,12 +430,26 @@ public partial class MainViewModel
             );
             line.Sink.ClearInput();
 
-            line.Sink.ReportStatus(CommandStatusResolver.Resolve(result, target.Callsign));
+            ReportResult(line.Sink, result, target.Callsign);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Command failed");
-            line.Sink.ReportStatus($"Command error: {ex.Message}");
+            line.Sink.ReportError($"Command error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Reports the server's answer: an error with its reason when it rejected the command, else an empty status.</summary>
+    private static void ReportResult(ICommandTextSink sink, CommandResultDto result, string contextLabel)
+    {
+        string status = CommandStatusResolver.Resolve(result, contextLabel);
+        if (result.Success)
+        {
+            sink.ReportStatus(status);
+        }
+        else
+        {
+            sink.ReportError(status);
         }
     }
 
@@ -511,7 +532,7 @@ public partial class MainViewModel
         }
 
         historyCallsign = normalization.Callsign;
-        return ResolveAircraft(normalization.Callsign);
+        return ResolveAircraft(normalization.Callsign, line.Sink);
     }
 
     private async Task SendSoloMappedCommandAsync(
@@ -527,7 +548,7 @@ public partial class MainViewModel
         VfrGateResult gate = VfrCommandGate.Evaluate(target, mappedCompound.CanonicalString, VfrCommandsForIfr);
         if (!gate.Allowed)
         {
-            line.Sink.ReportStatus(gate.RejectionMessage!);
+            line.Sink.ReportError(gate.RejectionMessage!);
             line.Sink.AddWarning(gate.RejectionMessage!);
             return;
         }
@@ -556,30 +577,35 @@ public partial class MainViewModel
             );
             line.Sink.ClearInput();
 
-            line.Sink.ReportStatus(CommandStatusResolver.Resolve(result, target.Callsign));
+            ReportResult(line.Sink, result, target.Callsign);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Solo natural command failed");
-            line.Sink.ReportStatus($"Command error: {ex.Message}");
+            line.Sink.ReportError($"Command error: {ex.Message}");
         }
     }
 
-    /// <summary>The main command line as an <see cref="ICommandTextSink"/>: its status line, its text box, the history and terminal.</summary>
-    private sealed class CommandLineSink(MainViewModel owner) : ICommandTextSink
+    /// <summary>
+    /// The main command line as an <see cref="ICommandTextSink"/>: its status line, its text box, the history and terminal. Two
+    /// for the same <see cref="Owner"/> are equal, as they write to the same place.
+    /// </summary>
+    private sealed record CommandLineSink(MainViewModel Owner) : ICommandTextSink
     {
-        public void ReportStatus(string status) => owner.StatusText = status;
+        public void ReportStatus(string status) => Owner.StatusText = status;
+
+        public void ReportError(string message) => Owner.StatusText = message;
 
         public void ClearInput()
         {
-            owner._commandInput.DismissSuggestions();
-            owner._commandInput.ResetHistoryNavigation();
-            owner.CommandText = "";
+            Owner._commandInput.DismissSuggestions();
+            Owner._commandInput.ResetHistoryNavigation();
+            Owner.CommandText = "";
         }
 
-        public void AddHistory(string callsign, string command) => owner.AddHistory(callsign, command);
+        public void AddHistory(string callsign, string command) => Owner.AddHistory(callsign, command);
 
-        public void AddWarning(string message) => owner.AddWarningEntry(message);
+        public void AddWarning(string message) => Owner.AddWarningEntry(message);
     }
 
     /// <summary>One typed line as the send steps narrow it down from the text to a command for an aircraft.</summary>
