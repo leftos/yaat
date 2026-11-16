@@ -36,6 +36,27 @@ public enum NavRouteShapeKind
     /// orbit point, drawn dashed (a sim convention; 7110.65 §4-6-5 and §7-1-4 define no shape).
     /// </summary>
     OrbitCircle = 5,
+
+    /// <summary>The course flown past the route's last fix (its terminal course), from that fix, drawn as a vector tail.</summary>
+    RouteEndCourse = 6,
+
+    /// <summary>
+    /// A heading the aircraft flies with no route ahead (an assigned heading or a heading-only departure), from the aircraft,
+    /// drawn as a vector tail.
+    /// </summary>
+    HeadingVector = 7,
+
+    /// <summary>The final approach course of a cleared or pending approach, from its anchor to the runway, drawn solid.</summary>
+    FinalApproachCourse = 8,
+
+    /// <summary>The final approach course of an expected approach (EA) not yet cleared, drawn dashed.</summary>
+    ExpectedFinalApproachCourse = 9,
+
+    /// <summary>A queued DEPART heading from its fix, drawn dashed with an arrowhead because the aircraft is not flying it yet.</summary>
+    PendingDepartHeading = 10,
+
+    /// <summary>A queued JRADI or JRADO radial from its fix, drawn dashed because the aircraft is not on it yet.</summary>
+    PendingJoinRadial = 11,
 }
 
 /// <summary>

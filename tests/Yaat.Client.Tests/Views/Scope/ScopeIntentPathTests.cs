@@ -206,6 +206,38 @@ public class ScopeIntentPathTests
         Assert.Empty(path.Shapes[1].Labels);
     }
 
+    [Theory]
+    [InlineData(NavRouteShapeKind.RouteEndCourse, true, true)]
+    [InlineData(NavRouteShapeKind.HeadingVector, true, true)]
+    [InlineData(NavRouteShapeKind.FinalApproachCourse, false, false)]
+    [InlineData(NavRouteShapeKind.ExpectedFinalApproachCourse, true, false)]
+    [InlineData(NavRouteShapeKind.PendingDepartHeading, true, true)]
+    [InlineData(NavRouteShapeKind.PendingJoinRadial, true, false)]
+    public void Shapes_OfTheIntentKinds_CarryTheirKindsDashAndArrow(NavRouteShapeKind kind, bool dashed, bool arrow)
+    {
+        AircraftModel ac = Aircraft();
+        ac.NavRouteShapes =
+        [
+            new NavRouteShapeDto(
+                kind,
+                [
+                    [37.1, -122.1],
+                    [37.15, -122.05],
+                ],
+                null,
+                null,
+                null
+            ),
+        ];
+
+        ScopeIntentPath path = Assert.IsType<ScopeIntentPath>(PathOf(ac, NavDb));
+
+        ScopeIntentShape shape = Assert.Single(path.Shapes);
+        Assert.Equal([Screen(37.1, -122.1), Screen(37.15, -122.05)], shape.Points);
+        Assert.Equal(dashed, shape.Dashed);
+        Assert.Equal(arrow, shape.Arrow);
+    }
+
     [Fact]
     public void VectoredAircraft_DrawsAVectorTailFromItsSymbol_AlongItsHeading()
     {

@@ -121,6 +121,7 @@ public sealed class RadarRenderer : IDisposable
     private readonly SKPaint[] _pathRestrictionLatentPaints;
     private readonly SKPaint[] _pathLeaderPaints;
     private readonly SKPaint[] _pathTailPaints;
+    private readonly SKPaint[] _pathArrowPaints;
 
     // Reused for each nav-route shape drawn as one path (a pending hold, an orbit circle), so the dash runs continuously
     // around it instead of restarting at every chord.
@@ -152,6 +153,7 @@ public sealed class RadarRenderer : IDisposable
         _pathRestrictionTokenGap = _pathRestrictionFont.MeasureText("  ");
         _pathLeaderPaints = new SKPaint[colors.Length];
         _pathTailPaints = new SKPaint[colors.Length];
+        _pathArrowPaints = new SKPaint[colors.Length];
 
         for (int i = 0; i < colors.Length; i++)
         {
@@ -195,6 +197,13 @@ public sealed class RadarRenderer : IDisposable
                 Style = SKPaintStyle.Stroke,
                 IsAntialias = true,
                 PathEffect = SKPathEffect.CreateDash([10, 5], 0),
+            };
+            // The filled arrowhead at a vector tail's tip or an arrowed shape's last point.
+            _pathArrowPaints[i] = new SKPaint
+            {
+                Color = colors[i],
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
             };
 
             _strokePaints.Add((_pathLinePaints[i], 2f));
@@ -594,7 +603,7 @@ public sealed class RadarRenderer : IDisposable
             // the segment has no waypoints — pure-vector aircraft).
             if (entry.Tail is { } tail)
             {
-                DrawVectorTail(canvas, vp, tail, tailPaint, linePaint);
+                DrawVectorTail(canvas, vp, tail, tailPaint, _pathArrowPaints[paintIdx]);
             }
         }
     }
@@ -617,30 +626,7 @@ public sealed class RadarRenderer : IDisposable
         {
             NavRouteShapeDto shape = entry.Shape;
             int paintIdx = PaintIndexForColor(entry.Color);
-
-            // A hold queued at a fix ahead is not flown yet, and a VFR or boundary orbit is a nominal circle, so both draw
-            // dashed, each as one path so the dash does not restart at every 5° chord.
-            if (shape.Kind is NavRouteShapeKind.PendingHoldRacetrack or NavRouteShapeKind.OrbitCircle)
-            {
-                DrawShapeAsPath(canvas, vp, shape, _pathTailPaints[paintIdx]);
-            }
-            else
-            {
-                // Coded-leg vectors are open-ended (a heading flown until an altitude/distance/radial), so
-                // they draw dashed like a vector tail. Holds and procedure turns are definite flown paths,
-                // so they draw solid. A military route corridor is a boundary rather than a path — it is
-                // where other traffic must not be (7110.65 §9-2-6.d) — so it draws dashed too.
-                SKPaint linePaint = shape.Kind is NavRouteShapeKind.CodedLegVector or NavRouteShapeKind.MilitaryRouteCorridor
-                    ? _pathTailPaints[paintIdx]
-                    : _pathLinePaints[paintIdx];
-
-                for (int i = 1; i < shape.Points.Count; i++)
-                {
-                    (float x1, float y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
-                    (float x2, float y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
-                    canvas.DrawLine(x1, y1, x2, y2, linePaint);
-                }
-            }
+            DrawShownShapeStroke(canvas, vp, shape, paintIdx);
 
             if (shape.Labels is { Count: > 0 } labels && shape.LabelLat is { } labelLat && shape.LabelLon is { } labelLon)
             {
@@ -652,6 +638,38 @@ public sealed class RadarRenderer : IDisposable
                     ty += 11;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Draws a shape's line, dashed or solid as its kind's look says (<see cref="NavRouteShapeLook.For"/>), and the arrowhead
+    /// at its last point when the look has one.
+    /// </summary>
+    private void DrawShownShapeStroke(SKCanvas canvas, MapViewport vp, NavRouteShapeDto shape, int paintIdx)
+    {
+        (bool dashed, bool arrow) = NavRouteShapeLook.For(shape.Kind);
+        SKPaint linePaint = dashed ? _pathTailPaints[paintIdx] : _pathLinePaints[paintIdx];
+
+        // A queued hold and an orbit draw as one path so the dash does not restart at every 5° chord.
+        if (shape.Kind is NavRouteShapeKind.PendingHoldRacetrack or NavRouteShapeKind.OrbitCircle)
+        {
+            DrawShapeAsPath(canvas, vp, shape, linePaint);
+        }
+        else
+        {
+            for (int i = 1; i < shape.Points.Count; i++)
+            {
+                (float x1, float y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
+                (float x2, float y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
+                canvas.DrawLine(x1, y1, x2, y2, linePaint);
+            }
+        }
+
+        if (arrow && (shape.Points.Count >= 2))
+        {
+            (float fx, float fy) = vp.LatLonToScreen(shape.Points[^2][0], shape.Points[^2][1]);
+            (float tx, float ty) = vp.LatLonToScreen(shape.Points[^1][0], shape.Points[^1][1]);
+            DrawArrowhead(canvas, new SKPoint(fx, fy), new SKPoint(tx, ty), _pathArrowPaints[paintIdx]);
         }
     }
 
@@ -684,15 +702,23 @@ public sealed class RadarRenderer : IDisposable
         (float sx, float sy) = vp.LatLonToScreen(tail.FromLat, tail.FromLon);
         (float ex, float ey) = vp.LatLonToScreen(endLat, endLon);
         canvas.DrawLine(sx, sy, ex, ey, linePaint);
+        DrawArrowhead(canvas, new SKPoint(sx, sy), new SKPoint(ex, ey), arrowPaint);
+    }
 
+    /// <summary>
+    /// Draws an arrowhead filled with <paramref name="fillPaint"/> with its tip at <paramref name="to"/>, pointing along the
+    /// screen direction from <paramref name="from"/>; nothing when the two are under a pixel apart.
+    /// </summary>
+    private static void DrawArrowhead(SKCanvas canvas, SKPoint from, SKPoint to, SKPaint fillPaint)
+    {
         // Arrowhead at the tip — isoceles triangle rotated to the line's screen-space
         // direction (mapping may rotate north relative to true), so the head reads correctly
         // even when the map is non-north-up. Sized to read clearly without dominating the
         // 2 px dashed line beneath it.
         const float arrowLen = 14f;
         const float arrowHalfWidth = 7f;
-        float dx = ex - sx;
-        float dy = ey - sy;
+        float dx = to.X - from.X;
+        float dy = to.Y - from.Y;
         float len = MathF.Sqrt((dx * dx) + (dy * dy));
         if (len < 1f)
         {
@@ -700,25 +726,17 @@ public sealed class RadarRenderer : IDisposable
         }
         float ux = dx / len;
         float uy = dy / len;
-        float baseX = ex - (ux * arrowLen);
-        float baseY = ey - (uy * arrowLen);
+        float baseX = to.X - (ux * arrowLen);
+        float baseY = to.Y - (uy * arrowLen);
         float perpX = -uy * arrowHalfWidth;
         float perpY = ux * arrowHalfWidth;
 
         using var path = new SKPath();
-        path.MoveTo(ex, ey);
+        path.MoveTo(to);
         path.LineTo(baseX + perpX, baseY + perpY);
         path.LineTo(baseX - perpX, baseY - perpY);
         path.Close();
-
-        var fillPaint = new SKPaint
-        {
-            Color = arrowPaint.Color,
-            Style = SKPaintStyle.Fill,
-            IsAntialias = true,
-        };
         canvas.DrawPath(path, fillPaint);
-        fillPaint.Dispose();
     }
 
     private static void DrawWeatherOverlay(SKCanvas canvas, IReadOnlyList<WeatherDisplayInfo> stations) =>
@@ -1061,6 +1079,7 @@ public sealed class RadarRenderer : IDisposable
             _pathRestrictionLatentPaints[i].Dispose();
             _pathLeaderPaints[i].Dispose();
             _pathTailPaints[i].Dispose();
+            _pathArrowPaints[i].Dispose();
         }
     }
 }

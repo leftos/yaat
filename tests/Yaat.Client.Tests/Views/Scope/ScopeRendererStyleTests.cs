@@ -2,6 +2,7 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
@@ -385,6 +386,62 @@ public class ScopeRendererStyleTests
         Assert.Equal(TrackPresenter.EramArrowCell, indicator.Text);
         Assert.True(AnyLit(drawn, PixelsOf(indicator)), "nothing drawn in the HSF indicator cell");
         Assert.False(AnyLit(plain, PixelsOf(indicator)), "the indicator cell is not blank without the style");
+    }
+
+    // The pilot lens's colour, duplicated rather than exposed.
+    private static readonly SKColor LensMagenta = new(255, 0, 255);
+
+    // A shape running 200 px east to its tip, clear of the track's symbol and block.
+    private static readonly SKPoint ShapeTail = new(100f, 700f);
+    private static readonly SKPoint ShapeTip = new(300f, 700f);
+
+    // Inside the arrowhead's flank above the line, 8 to 14 px back from the tip and 2 to 5 px off the line: the head is
+    // 14 px long and 7 px wide each side at its base, and the 2 px line covers none of it.
+    private static readonly SKRectI AboveTheLineNearTheTip = new(286, 695, 293, 698);
+
+    private static SKBitmap RenderShape(NavRouteShapeKind kind)
+    {
+        ScopeTrack track = Assert.Single(Frame(ScopeTestAircraft.CreateModel()).Tracks);
+        (bool dashed, bool arrow) = NavRouteShapeLook.For(kind);
+        var shape = new ScopeIntentShape([ShapeTail, ShapeTip], dashed, arrow, null, []);
+        return Render(new ScopeFrame(ScopeTemplates.StarsId, [track with { IntentPath = new ScopeIntentPath([], [shape]) }]));
+    }
+
+    [Fact]
+    public void IntentShape_HeadingVector_DrawsAFilledArrowheadAtItsTip()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+
+        using SKBitmap bitmap = RenderShape(NavRouteShapeKind.HeadingVector);
+
+        Assert.True(AnyPixel(bitmap, AboveTheLineNearTheTip, LensMagenta), "no arrowhead pixel beside the heading vector's tip");
+    }
+
+    [Fact]
+    public void IntentShape_FinalApproachCourse_DrawsNoArrowhead()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+
+        using SKBitmap bitmap = RenderShape(NavRouteShapeKind.FinalApproachCourse);
+
+        Assert.False(AnyLensTint(bitmap, AboveTheLineNearTheTip), "an arrowhead pixel beside the final approach course's tip");
+    }
+
+    // Any pixel the lens colour reached, even at the faint edge of an antialiased stroke: red and blue both lit.
+    private static bool AnyLensTint(SKBitmap bitmap, SKRectI area)
+    {
+        for (int y = area.Top; y < area.Bottom; y++)
+        {
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                SKColor c = bitmap.GetPixel(x, y);
+                if ((c.Red > 20) && (c.Blue > 20))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static bool AnyLit(SKBitmap bitmap, SKRectI area)

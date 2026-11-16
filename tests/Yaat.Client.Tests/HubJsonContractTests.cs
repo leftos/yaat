@@ -123,6 +123,12 @@ public class HubJsonContractTests
         const string json =
             """[{"Kind":4,"Points":[[37.6,-121.9],[37.61,-121.9]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
             + """{"Kind":5,"Points":[[37.75,-122.1]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":6,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":7,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":8,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":9,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":10,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":11,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
             + """{"Kind":99,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null}]""";
 
         List<Yaat.Sim.NavRouteShapeDto> first = Assert.IsType<List<Yaat.Sim.NavRouteShapeDto>>(
@@ -134,7 +140,17 @@ public class HubJsonContractTests
         );
 
         Assert.Equal(
-            [Yaat.Sim.NavRouteShapeKind.PendingHoldRacetrack, Yaat.Sim.NavRouteShapeKind.OrbitCircle, (Yaat.Sim.NavRouteShapeKind)99],
+            [
+                Yaat.Sim.NavRouteShapeKind.PendingHoldRacetrack,
+                Yaat.Sim.NavRouteShapeKind.OrbitCircle,
+                Yaat.Sim.NavRouteShapeKind.RouteEndCourse,
+                Yaat.Sim.NavRouteShapeKind.HeadingVector,
+                Yaat.Sim.NavRouteShapeKind.FinalApproachCourse,
+                Yaat.Sim.NavRouteShapeKind.ExpectedFinalApproachCourse,
+                Yaat.Sim.NavRouteShapeKind.PendingDepartHeading,
+                Yaat.Sim.NavRouteShapeKind.PendingJoinRadial,
+                (Yaat.Sim.NavRouteShapeKind)99,
+            ],
             again.Select(s => s.Kind)
         );
         Assert.Equal([37.61, -121.9], again[0].Points[1]);

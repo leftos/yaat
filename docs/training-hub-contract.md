@@ -76,6 +76,8 @@ never starts or stops (`ChangeDetectionTests.IsIdenting_Change_TriggersTrainingD
 
 `TargetSpeedKts` carries `ac.Targets.TargetSpeed` (the transient physics goal, null when none) — the one `Target*` value on the wire, and it is not `AssignedSpeed`. It exists so the client can run the sim's own parked-or-held classification (`GroundConflictDetector.IsParkedOrHeld`, whose at-rest test excludes a `LiningUp` aircraft creeping at 2 kt by its target speed) for the Ground view's push-route preview; it is already part of `TrainingDtoFingerprint`.
 
+`NavigationRoute` (`List<NavRouteFixDto>`) and `NavRouteShapes` (`List<NavRouteShapeDto>`, whose `NavRouteShapeKind` is a wire enum in `Yaat.Sim`, appended to only) also ride `AircraftStateDto`/`AircraftDto`, for the Radar's "Show nav route" overlay and the Scope's pilot-lens intent path; the fields, kinds and looks are in [radar-rendering.md](radar-rendering.md) ("Nav-route overlay wire contract").
+
 **Heading frame mismatch — `Heading` is TRUE, `AssignedHeading` is MAGNETIC.** The DTO's bare `Heading` field carries
 `ac.TrueHeading.Degrees` (in `ToTrainingDto`) — true heading — while `AssignedHeading` carries
 `ac.Targets.AssignedMagneticHeading?.Degrees` — magnetic. Client-side, `AircraftModel` reconstructs typed

@@ -1118,7 +1118,7 @@ public sealed class ScopeRenderer : IDisposable
         }
     }
 
-    /// <summary>Draws a shape as one path, dashed or solid as it says, and its label lines.</summary>
+    /// <summary>Draws a shape as one path, dashed or solid as it says, its arrowhead when it has one, and its label lines.</summary>
     private void DrawIntentShape(SKCanvas canvas, ScopeIntentShape shape, SKColor color)
     {
         if (shape.Points.Count >= 2)
@@ -1131,6 +1131,10 @@ public sealed class ScopeRenderer : IDisposable
             }
 
             canvas.DrawPath(_lensPath, shape.Dashed ? _lensDashPaint : _lensLinePaint);
+            if (shape.Arrow)
+            {
+                DrawIntentArrowhead(canvas, shape.Points[^2], shape.Points[^1]);
+            }
         }
 
         if (shape.LabelAt is not { } at)
@@ -1151,10 +1155,19 @@ public sealed class ScopeRenderer : IDisposable
     private void DrawIntentTail(SKCanvas canvas, ScopeIntentTail tail)
     {
         canvas.DrawLine(tail.From, tail.To, _lensDashPaint);
+        DrawIntentArrowhead(canvas, tail.From, tail.To);
+    }
+
+    /// <summary>
+    /// Draws a filled isosceles arrowhead with its tip at <paramref name="to"/>, turned along the screen direction from
+    /// <paramref name="from"/>; nothing when the two are under a pixel apart.
+    /// </summary>
+    private void DrawIntentArrowhead(SKCanvas canvas, SKPoint from, SKPoint to)
+    {
         const float arrowLen = 14f;
         const float arrowHalfWidth = 7f;
-        float dx = tail.To.X - tail.From.X;
-        float dy = tail.To.Y - tail.From.Y;
+        float dx = to.X - from.X;
+        float dy = to.Y - from.Y;
         float len = MathF.Sqrt((dx * dx) + (dy * dy));
         if (len < 1f)
         {
@@ -1163,12 +1176,12 @@ public sealed class ScopeRenderer : IDisposable
 
         float ux = dx / len;
         float uy = dy / len;
-        float baseX = tail.To.X - (ux * arrowLen);
-        float baseY = tail.To.Y - (uy * arrowLen);
+        float baseX = to.X - (ux * arrowLen);
+        float baseY = to.Y - (uy * arrowLen);
         float perpX = -uy * arrowHalfWidth;
         float perpY = ux * arrowHalfWidth;
         _lensPath.Reset();
-        _lensPath.MoveTo(tail.To);
+        _lensPath.MoveTo(to);
         _lensPath.LineTo(baseX + perpX, baseY + perpY);
         _lensPath.LineTo(baseX - perpX, baseY - perpY);
         _lensPath.Close();

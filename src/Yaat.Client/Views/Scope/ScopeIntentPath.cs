@@ -40,12 +40,13 @@ public sealed record ScopeIntentTail(SKPoint From, SKPoint To);
 /// <summary>One active-procedure shape of an intent path.</summary>
 /// <param name="Points">The shape's points, drawn as one path.</param>
 /// <param name="Dashed">
-/// Whether it draws dashed: a hold queued ahead, an orbit, an open-ended coded leg and a military corridor do; a hold or
-/// procedure turn being flown draws solid.
+/// Whether it draws dashed (<see cref="NavRouteShapeLook.For"/>): expected, pending and open-ended shapes do; a hold, procedure
+/// turn or cleared final approach course being flown draws solid.
 /// </param>
+/// <param name="Arrow">Whether an arrowhead marks its last point, pointing along its last segment, as on a vector tail.</param>
 /// <param name="LabelAt">Where its label lines start, or null for none.</param>
 /// <param name="Labels">Its label lines, top to bottom; empty for none.</param>
-public sealed record ScopeIntentShape(IReadOnlyList<SKPoint> Points, bool Dashed, SKPoint? LabelAt, IReadOnlyList<string> Labels);
+public sealed record ScopeIntentShape(IReadOnlyList<SKPoint> Points, bool Dashed, bool Arrow, SKPoint? LabelAt, IReadOnlyList<string> Labels);
 
 /// <summary>
 /// One route polyline of an intent path, in latitudes and longitudes: what <see cref="ScopeIntentPathCache"/> keeps between
@@ -174,15 +175,10 @@ internal static class ScopeIntentPaths
     private static ScopeIntentShape ShapeOf(NavRouteShapeDto shape, MapViewport vp)
     {
         SKPoint[] points = [.. shape.Points.Where(p => p.Length >= 2).Select(p => Screen(vp, p[0], p[1]))];
-        bool dashed =
-            shape.Kind
-            is NavRouteShapeKind.PendingHoldRacetrack
-                or NavRouteShapeKind.OrbitCircle
-                or NavRouteShapeKind.CodedLegVector
-                or NavRouteShapeKind.MilitaryRouteCorridor;
+        (bool dashed, bool arrow) = NavRouteShapeLook.For(shape.Kind);
         return (shape is { Labels: { Count: > 0 } labels, LabelLat: { } lat, LabelLon: { } lon })
-            ? new ScopeIntentShape(points, dashed, Screen(vp, lat, lon), [.. labels])
-            : new ScopeIntentShape(points, dashed, null, []);
+            ? new ScopeIntentShape(points, dashed, arrow, Screen(vp, lat, lon), [.. labels])
+            : new ScopeIntentShape(points, dashed, arrow, null, []);
     }
 
     private static SKPoint Screen(MapViewport vp, double lat, double lon)
