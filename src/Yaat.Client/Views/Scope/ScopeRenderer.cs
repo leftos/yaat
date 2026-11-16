@@ -74,6 +74,10 @@ namespace Yaat.Client.Views.Scope;
 /// The callsign of the track whose queued-commands badge the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its
 /// pending lines show without dwelling the block.
 /// </param>
+/// <param name="LensCheckIn">
+/// Whether the pilot lens's check-in tag draws (the lens and its CHECKIN both on), copied on the UI thread; it draws for every
+/// drawn track whose pilot's radio state has a mark (<see cref="ScopeCheckIn.StateOf"/>).
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -100,7 +104,8 @@ public sealed record ScopeFrameInput(
     IReadOnlySet<string>? LensPathCallsigns = null,
     NavigationDatabase? NavDb = null,
     bool LensQueue = false,
-    string? QueueHoveredCallsign = null
+    string? QueueHoveredCallsign = null,
+    bool LensCheckIn = false
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -124,6 +129,10 @@ public sealed record ScopeFrameInput(
 /// <param name="QueueBadge">
 /// The track's pilot-lens queued-commands badge, or null when the overlay is off or the aircraft has no pending command.
 /// </param>
+/// <param name="CheckInTag">
+/// The track's pilot-lens check-in tag (<see cref="ScopeCheckIn.LabelOf"/>), or null when the overlay is off or the track
+/// has no mark.
+/// </param>
 public sealed record ScopeTrack(
     AircraftModel Aircraft,
     SKPoint Symbol,
@@ -139,7 +148,8 @@ public sealed record ScopeTrack(
     bool ShowsLeader,
     bool Dwelled,
     ScopeIntentPath? IntentPath,
-    ScopeQueueBadgeView? QueueBadge
+    ScopeQueueBadgeView? QueueBadge,
+    string? CheckInTag
 )
 {
     /// <summary>How far the dwell box sits outside the text bounds (CRC <c>FdbRenderObject</c>: the fields rect inflated 2 px).</summary>
@@ -365,9 +375,17 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             presentation.ShowsLeader,
             dwelled,
             IntentPathFor(ac, input, isSelected),
-            QueueBadgeFor(ac, input, sx, sy)
+            QueueBadgeFor(ac, input, sx, sy),
+            CheckInTagFor(ac, input)
         );
     }
+
+    /// <summary>
+    /// The check-in tag of <paramref name="ac"/> while the lens check-in draws (<see cref="ScopeFrameInput.LensCheckIn"/>):
+    /// the label of its mark as the frame's viewer sees it; else, or when it has no mark, null.
+    /// </summary>
+    private static string? CheckInTagFor(AircraftModel ac, ScopeFrameInput input) =>
+        input.LensCheckIn ? ScopeCheckIn.LabelOf(ScopeCheckIn.StateOf(ac, input.Display.Viewer), ac.PendingPilotRequest) : null;
 
     /// <summary>
     /// The queued-commands badge of <paramref name="ac"/> while the lens queue draws (<see cref="ScopeFrameInput.LensQueue"/>)
@@ -573,7 +591,7 @@ public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOthe
 /// <summary>
 /// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's rings (J-ring, DRI halo,
 /// cone, then ATPA cone), every track's history dots, every track's vector line, then each track's symbol, leader and
-/// block, then the pilot lens (each track's intent path and queued-commands badge, then a hovered badge's lines), then the
+/// block, then the pilot lens (each track's intent path, queued-commands badge and check-in tag, then a hovered badge's lines), then the
 /// measure lines and their readouts. Every block field is drawn from its <see cref="FieldRect"/>; the presenter has already
 /// blanked a flashing field's off-phase text, so nothing here flashes.
 /// </summary>
@@ -799,6 +817,7 @@ public sealed class ScopeRenderer : IDisposable
         {
             DrawIntentPath(canvas, track, snapshot.Brightness.Lens);
             DrawQueueBadge(canvas, track, font, snapshot.Brightness.Lens);
+            DrawCheckInTag(canvas, track, font, snapshot.Brightness.Lens);
         }
 
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
@@ -993,6 +1012,23 @@ public sealed class ScopeRenderer : IDisposable
         _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
         string text = badge.Count.ToString(CultureInfo.InvariantCulture);
         canvas.DrawText(text, badge.Rect.Left, badge.Rect.Bottom, SKTextAlign.Left, font, _lensTextPaint);
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s check-in tag at LENS in the track font, its text box's left edge
+    /// <see cref="ScopeCheckIn.SymbolGapPx"/> right of the symbol and its top as far below it. LENS 0 draws nothing.
+    /// </summary>
+    private void DrawCheckInTag(SKCanvas canvas, ScopeTrack track, SKFont font, int percent)
+    {
+        if ((track.CheckInTag is not { } tag) || (percent <= 0))
+        {
+            return;
+        }
+
+        _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
+        float left = track.Symbol.X + ScopeCheckIn.SymbolGapPx;
+        float baseline = track.Symbol.Y + ScopeCheckIn.SymbolGapPx + font.Size;
+        canvas.DrawText(tag, left, baseline, SKTextAlign.Left, font, _lensTextPaint);
     }
 
     /// <summary>

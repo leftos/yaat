@@ -1047,7 +1047,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 // Only while the lens draws a path, and null until the navigation data loads, as the Radar's nav route waits for it.
                 NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null,
                 LensQueue: Lens.DrawsQueue,
-                QueueHoveredCallsign: _hoveredQueueCallsign
+                QueueHoveredCallsign: _hoveredQueueCallsign,
+                LensCheckIn: Lens.DrawsCheckIn
             )
         );
     }

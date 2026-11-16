@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -21,7 +22,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeLensTests
 {
-    private const string LensUsage = "Usage: .scope lens <on|off> | .scope lens <path|queue> <on|off> | .scope lens path <callsign>";
+    private const string LensUsage = "Usage: .scope lens <on|off> | .scope lens <path|queue|checkin> <on|off> | .scope lens path <callsign>";
 
     private const string PendingTwo = "[Active] FH 270\n[1] AT BRIXX DM 040\n[2] WAIT 30 SPD 210";
 
@@ -73,7 +74,7 @@ public class ScopeLensTests
         {
             Assert.Equal(ScopeLensSettings.Off, scope.Lens);
             Assert.Empty(scope.LensPathCallsigns);
-            Assert.Equal(new ScopePrefLens(false, false, false), scope.CapturePrefSet(null).Lens);
+            Assert.Equal(new ScopePrefLens(false, false, false, false), scope.CapturePrefSet(null).Lens);
         }
         finally
         {
@@ -262,7 +263,7 @@ public class ScopeLensTests
 
             scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
 
-            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: true, Queue: false), scope.Lens);
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: true, Queue: false, CheckIn: false), scope.Lens);
         }
         finally
         {
@@ -362,7 +363,7 @@ public class ScopeLensTests
 
             scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
 
-            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: true), scope.Lens);
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: true, CheckIn: false), scope.Lens);
         }
         finally
         {
@@ -386,7 +387,7 @@ public class ScopeLensTests
 
             scope.ApplyPrefSet(old);
 
-            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false), scope.Lens);
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false, CheckIn: false), scope.Lens);
         }
         finally
         {
@@ -403,6 +404,166 @@ public class ScopeLensTests
             AddAircraft(main, "KSFO", 5000);
 
             main.RunScopeCommand(".scope lens queue KSFO");
+
+            Assert.Equal(LensUsage, main.StatusText);
+            Assert.Equal(ScopeLensSettings.Off, scope.Lens);
+            Assert.Empty(scope.LensPathCallsigns);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>Makes ERAM sector 44 the active position, so the Scope is viewed from it.</summary>
+    private static void ViewFromSector44(MainViewModel main)
+    {
+        var sector44 = new ActivePositionDto(
+            Callsign: "OAK_44_CTR",
+            Name: "Sector 44",
+            RadioName: null,
+            Frequency: "135.100",
+            FacilityId: "ZOA",
+            FacilityName: "Oakland Center",
+            PositionType: "Artcc",
+            HandoffCode: "C44",
+            EramSectorId: "44"
+        );
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "C44", sector44, 3, NoStarsDisplay: true));
+    }
+
+    /// <summary>Adds <paramref name="callsign"/> at the canvas's screen point, owned by sector 44, its pilot not yet called.</summary>
+    private static AircraftModel AddOwnedNotCalled(MainViewModel main, ScopeCanvas canvas, string callsign, float screenX, float screenY)
+    {
+        AircraftModel ac = AddRouted(main, canvas, callsign, screenX, screenY);
+        ac.Owner = "OAK_44_CTR";
+        ac.OwnerFacilityId = "ZOA";
+        ac.OwnerSectorCode = "C44";
+        ac.HasMadeInitialContact = false;
+        Dispatcher.UIThread.RunJobs();
+        return ac;
+    }
+
+    private static (string Callsign, string? Tag)[] WithCheckInTag(ScopeCanvas canvas)
+    {
+        Dispatcher.UIThread.RunJobs();
+        return
+        [
+            .. canvas
+                .CurrentFrame.Tracks.Where(t => t.CheckInTag is not null)
+                .Select(t => (t.Aircraft.Callsign, t.CheckInTag))
+                .OrderBy(t => t.Callsign, StringComparer.Ordinal),
+        ];
+    }
+
+    [AvaloniaFact]
+    public void LensAndCheckInOn_TagAnOwnedAircraftWhosePilotHasNotCalled()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            ViewFromSector44(main);
+            AddOwnedNotCalled(main, view.Canvas, "N123AB", 300, 300);
+            AddRouted(main, view.Canvas, "UAL1", 500, 400);
+            main.RunScopeCommand(".scope lens on");
+            Assert.Empty(WithCheckInTag(view.Canvas));
+
+            main.RunScopeCommand(".scope lens checkin on");
+
+            Assert.Equal("Scope lens checkin ON", main.StatusText);
+            Assert.Equal([("N123AB", (string?)"NO CALL")], WithCheckInTag(view.Canvas));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(".scope lens off")]
+    [InlineData(".scope lens checkin off")]
+    public void EitherSwitchOff_DrawsNoCheckInTag(string command)
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            ViewFromSector44(main);
+            AddOwnedNotCalled(main, view.Canvas, "N123AB", 300, 300);
+            main.RunScopeCommand(".scope lens on");
+            main.RunScopeCommand(".scope lens checkin on");
+            Assert.NotEmpty(WithCheckInTag(view.Canvas));
+
+            main.RunScopeCommand(command);
+
+            Assert.Empty(WithCheckInTag(view.Canvas));
+            if (command == ".scope lens checkin off")
+            {
+                Assert.Equal("Scope lens checkin OFF", main.StatusText);
+            }
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PrefSet_KeepsTheCheckInSwitch()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope lens on");
+            main.RunScopeCommand(".scope lens checkin on");
+            string json = JsonSerializer.Serialize(scope.CapturePrefSet("CHECKIN"), ScopePrefSet.JsonOptions);
+            main.RunScopeCommand(".scope lens off");
+            main.RunScopeCommand(".scope lens checkin off");
+
+            scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
+
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false, CheckIn: true), scope.Lens);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OldPrefSet_WithNoCheckInInItsLens_TurnsTheCheckInOff()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope lens on");
+            main.RunScopeCommand(".scope lens checkin on");
+            string json = JsonSerializer.Serialize(scope.CapturePrefSet("OLD"), ScopePrefSet.JsonOptions);
+            JsonObject document = Assert.IsType<JsonObject>(JsonNode.Parse(json));
+            JsonObject lens = Assert.IsType<JsonObject>(document["lens"]);
+            Assert.True(lens.Remove("checkIn"), "the captured lens has no checkIn key to drop");
+            ScopePrefSet old = Assert.IsType<ScopePrefSet>(document.Deserialize<ScopePrefSet>(ScopePrefSet.JsonOptions));
+
+            scope.ApplyPrefSet(old);
+
+            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false, CheckIn: false), scope.Lens);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CheckInWithACallsign_AnswersTheUsageLine()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            AddAircraft(main, "KSFO", 5000);
+
+            main.RunScopeCommand(".scope lens checkin KSFO");
 
             Assert.Equal(LensUsage, main.StatusText);
             Assert.Equal(ScopeLensSettings.Off, scope.Lens);

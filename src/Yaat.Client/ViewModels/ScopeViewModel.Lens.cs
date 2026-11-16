@@ -27,7 +27,8 @@ public sealed partial class ScopeViewModel
     private IReadOnlySet<string> _lensPathCallsigns = NoLensPaths;
 
     /// <summary>Whether <paramref name="item"/> names a lens overlay <c>.scope lens</c> takes, case-sensitive lowercase.</summary>
-    internal static bool IsLensOverlay(string item) => item is ScopeToolbarButtons.LensPathItem or ScopeToolbarButtons.LensQueueItem;
+    internal static bool IsLensOverlay(string item) =>
+        item is ScopeToolbarButtons.LensPathItem or ScopeToolbarButtons.LensQueueItem or ScopeToolbarButtons.LensCheckInItem;
 
     /// <summary>Turns the lens's master switch on (<paramref name="on"/>) or off.</summary>
     public void SetLensEnabled(bool on) => Lens = Lens with { Enabled = on };
@@ -42,6 +43,10 @@ public sealed partial class ScopeViewModel
         else if (item == ScopeToolbarButtons.LensQueueItem)
         {
             Lens = Lens with { Queue = on };
+        }
+        else if (item == ScopeToolbarButtons.LensCheckInItem)
+        {
+            Lens = Lens with { CheckIn = on };
         }
     }
 
@@ -79,7 +84,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Whether the lens toggle <paramref name="id"/> is on: ON while the lens is, PATH while its path is, QUEUE while its queue
-    /// is; else false.
+    /// is, CHECKIN while its check-in is; else false.
     /// </summary>
     private bool IsLensToggleOn(ScopeButtonId id) =>
         id switch
@@ -87,6 +92,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.LensOn => Lens.Enabled,
             ScopeButtonId.LensPath => Lens.Path,
             ScopeButtonId.LensQueue => Lens.Queue,
+            ScopeButtonId.LensCheckIn => Lens.CheckIn,
             _ => false,
         };
 
@@ -97,14 +103,18 @@ public sealed partial class ScopeViewModel
 /// <param name="Enabled">PILOT LENS: the master switch.</param>
 /// <param name="Path">PATH: the intent path, drawn for the selected aircraft and every toggled track.</param>
 /// <param name="Queue">QUEUE: the queued-commands badge, drawn on every track with a pending command.</param>
-public sealed record ScopeLensSettings(bool Enabled, bool Path, bool Queue)
+/// <param name="CheckIn">CHECKIN: the check-in tag, drawn on every track whose pilot's radio state has a mark.</param>
+public sealed record ScopeLensSettings(bool Enabled, bool Path, bool Queue, bool CheckIn)
 {
     /// <summary>Every switch off: what a fresh scope and a pref set with no lens hold.</summary>
-    public static ScopeLensSettings Off { get; } = new(false, false, false);
+    public static ScopeLensSettings Off { get; } = new(false, false, false, false);
 
     /// <summary>Whether the intent path draws: the lens and its path both on.</summary>
     public bool DrawsPath => Enabled && Path;
 
     /// <summary>Whether the queued-commands badge draws: the lens and its queue both on.</summary>
     public bool DrawsQueue => Enabled && Queue;
+
+    /// <summary>Whether the check-in tag draws: the lens and its check-in both on.</summary>
+    public bool DrawsCheckIn => Enabled && CheckIn;
 }

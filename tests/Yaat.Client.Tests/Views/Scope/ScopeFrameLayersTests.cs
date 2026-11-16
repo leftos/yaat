@@ -159,6 +159,61 @@ public class ScopeFrameLayersTests
 
     private const string PendingTwo = "[Active] FH 270\n[1] AT BRIXX DM 040\n[2] WAIT 30 SPD 210";
 
+    /// <summary>
+    /// A frame of the three tracks seen from the ERAM viewer, none of whose pilots has called, with the lens check-in
+    /// <paramref name="lensCheckIn"/>: OWN1 is the viewer's (NO CALL), OTH1 another sector's and UNO1 unowned (no mark).
+    /// </summary>
+    private static ScopeFrame CheckInFrame(bool lensCheckIn)
+    {
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            ThreeTracks(),
+            null,
+            new MapViewport
+            {
+                PixelWidth = 1000,
+                PixelHeight = 800,
+                CenterLat = 37.0,
+                CenterLon = -122.0,
+            },
+            ScopeTemplates.EramId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = EramViewer,
+            },
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>(),
+            MvaFacilityId: null,
+            ScopeProfile.OthersFull,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.All,
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
+            LensCheckIn: lensCheckIn
+        );
+        return ScopeFrame.Build(input);
+    }
+
+    [Fact]
+    public void LensCheckInOn_AQualifyingTrack_CarriesItsLabel()
+    {
+        ScopeTrack track = TrackOf(CheckInFrame(lensCheckIn: true), "OWN1");
+
+        Assert.Equal("NO CALL", track.CheckInTag);
+    }
+
+    [Fact]
+    public void LensCheckInOff_HasNoTag() => Assert.Null(TrackOf(CheckInFrame(lensCheckIn: false), "OWN1").CheckInTag);
+
+    [Theory]
+    [InlineData("OTH1")]
+    [InlineData("UNO1")]
+    public void LensCheckInOn_ANoneStateTrack_HasNoTag(string callsign) => Assert.Null(TrackOf(CheckInFrame(lensCheckIn: true), callsign).CheckInTag);
+
     private static ScopeTrack TrackOf(ScopeFrame frame, string callsign) => frame.Tracks.Single(t => t.Aircraft.Callsign == callsign);
 
     [Fact]

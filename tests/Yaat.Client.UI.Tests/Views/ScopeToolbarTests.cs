@@ -627,7 +627,7 @@ public class ScopeToolbarTests
         try
         {
             Click(ButtonOf(window, ScopeButtonId.Lens));
-            Assert.Equal(["ON", "PATH", "QUEUE"], TrayButtons(window).Select(DrawnText));
+            Assert.Equal(["ON", "PATH", "QUEUE", "CHECKIN"], TrayButtons(window).Select(DrawnText));
 
             Click(ButtonOf(window, ScopeButtonId.LensOn));
             Assert.Equal("Scope lens ON", main.StatusText);

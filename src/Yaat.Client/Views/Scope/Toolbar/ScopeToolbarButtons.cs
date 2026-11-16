@@ -151,6 +151,9 @@ public enum ScopeButtonId
     /// <summary>The PILOT LENS menu's QUEUE toggle: the queued-commands badge overlay.</summary>
     LensQueue,
 
+    /// <summary>The PILOT LENS menu's CHECKIN toggle: the check-in tag overlay.</summary>
+    LensCheckIn,
+
     /// <summary>The PREF menu; its tray holds the facility's pref sets and the pref-set actions.</summary>
     Pref,
 
@@ -300,6 +303,7 @@ public static class ScopeToolbarButtons
                 new(ScopeButtonId.LensOn, "ON", ScopeButtonKind.Toggle, [], null, LensCommandStem),
                 new(ScopeButtonId.LensPath, "PATH", ScopeButtonKind.Toggle, [], null, $"{LensCommandStem} {LensPathItem}"),
                 new(ScopeButtonId.LensQueue, "QUEUE", ScopeButtonKind.Toggle, [], null, $"{LensCommandStem} {LensQueueItem}"),
+                new(ScopeButtonId.LensCheckIn, "CHECKIN", ScopeButtonKind.Toggle, [], null, $"{LensCommandStem} {LensCheckInItem}"),
             ],
             null,
             null
@@ -352,6 +356,9 @@ public static class ScopeToolbarButtons
 
     /// <summary>The pilot lens's queued-commands badge overlay, as <c>.scope lens</c> takes it.</summary>
     public const string LensQueueItem = "queue";
+
+    /// <summary>The pilot lens's check-in tag overlay, as <c>.scope lens</c> takes it.</summary>
+    public const string LensCheckInItem = "checkin";
 
     /// <summary>The verb that turns the pilot lens on or off, without its <c>on</c> or <c>off</c>.</summary>
     private const string LensCommandStem = ".scope lens";

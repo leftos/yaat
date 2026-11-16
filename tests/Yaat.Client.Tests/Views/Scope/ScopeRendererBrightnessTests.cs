@@ -44,9 +44,9 @@ public class ScopeRendererBrightnessTests
 
     /// <summary>
     /// The vector minutes and history dots a frame draws, and whether the lens queue draws with the first track's badge
-    /// hovered; <see cref="None"/> draws none of them.
+    /// hovered, and whether the lens check-in draws; <see cref="None"/> draws none of them.
     /// </summary>
-    private sealed record Layers(double VectorMinutes, int HistoryCount, bool QueueHovered = false)
+    private sealed record Layers(double VectorMinutes, int HistoryCount, bool QueueHovered = false, bool CheckIn = false)
     {
         public static Layers None { get; } = new(0, 0);
     }
@@ -77,7 +77,8 @@ public class ScopeRendererBrightnessTests
             IntentPaths: new ScopeIntentPathCache(),
             hovered,
             LensQueue: layers.QueueHovered,
-            QueueHoveredCallsign: layers.QueueHovered ? aircraft[0].Callsign : null
+            QueueHoveredCallsign: layers.QueueHovered ? aircraft[0].Callsign : null,
+            LensCheckIn: layers.CheckIn
         );
         return ScopeFrame.Build(input);
     }
@@ -440,6 +441,27 @@ public class ScopeRendererBrightnessTests
         Assert.True(Pixels(full, underBox).Max(c => c.Green) < 120, "the lines' box did not cover the vector at LENS 100");
         Assert.False(AnyLensPixel(off, badgeArea), "a lens-colour badge pixel at LENS 0");
         Assert.True(Pixels(off, underBox).Max(c => c.Green) > 200, "the lines' box covered the vector at LENS 0");
+    }
+
+    [Fact]
+    public void Lens0_DrawsNoCheckInTag_WhileLens100Does()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel ac = SouthboundWithHistory();
+        ac.PendingPilotRequest = new PendingPilotRequestDto("Release", "Pending", "ready for release", 1.0, 1.0);
+        ScopeTrack track = Assert.Single(Frame(ScopeTemplates.StarsId, null, null, new Layers(0, 0, CheckIn: true), [ac]).Tracks);
+        Assert.Equal("CALL RELEASE", track.CheckInTag);
+        // The tag's text box: its left 6 px right of the symbol, its top 6 px below it, a font size tall.
+        int x = (int)MathF.Round(track.Symbol.X);
+        int y = (int)MathF.Round(track.Symbol.Y);
+        var tagArea = new SKRectI(x + 6, y + 6, x + 6 + 40, y + 6 + (int)FontSize + 2);
+        ScopeFrame frame = new(ScopeTemplates.StarsId, [track]);
+
+        using SKBitmap full = Render(frame, ScopeBrightness.Default with { Lens = 100 });
+        using SKBitmap off = Render(frame, ScopeBrightness.Default with { Lens = 0 });
+
+        Assert.True(AnyLensPixel(full, tagArea), "no lens-colour tag pixel at LENS 100");
+        Assert.False(AnyLensPixel(off, tagArea), "a lens-colour tag pixel at LENS 0");
     }
 
     [Fact]
