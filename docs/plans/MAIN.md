@@ -10,9 +10,6 @@
     - [ ] YAAT-2378 YAAT Scope step 5f: CRR groups on the Scope · release vNext
     - [ ] YAAT-2381 YAAT Scope step 5i: the scope-data column of the field menus · release vNext
   - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
-    - [ ] YAAT-2407 YAAT Scope step 6b: queued-commands badge · release vNext
-    - [ ] YAAT-2408 YAAT Scope step 6c: check-in truth · release vNext
-    - [ ] YAAT-2409 YAAT Scope step 6d: RPO queue view · release vNext
     - [ ] YAAT-2416 Draw the intent path from what the sim flies: route-end course and final approach from the server · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
@@ -27,13 +24,14 @@
   - [ ] YAAT-2392 YAAT Scope shows a .scope or .view usage error as plain text, not red
   - [ ] YAAT-2395 YAAT Scope entry: Up, Backspace, Up, Down brings back the older half-typed text, not the edit
   - [ ] YAAT-2399 YAAT Scope: close an open aircraft or field menu when the view detaches or its aircraft goes away
+  - [ ] YAAT-2428 Send per-sector pilot contact to the client so the Scope's check-in lens marks handed-off tracks right
+  - [ ] YAAT-2429 Keep the YAAT Scope's entry focused after a dock card's close or dock button
 - [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
 - [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
 - [ ] YAAT-2412 Show long ERAM readouts on the YAAT Scope without cutting them to five lines
 - [ ] YAAT-2413 Handle QB with only beacon codes on the YAAT Scope as CRC does (client-side code list)
-- [ ] YAAT-2414 Map the ERAM weather-symbol keys on the YAAT Scope so SM, SW and WX text can be typed · release vNext
 - [ ] YAAT-2417 Send a clicked track as a pick in Scope ERAM entries so QP and the implied handoff work as in CRC · release vNext
 - [ ] YAAT-2419 Redraw the Scope entry label when the selected track changes owner kind
 - [ ] YAAT-2420 Test old RecordedAmendFlightPlan and RecordedCommand reads from Yaat.Sim's own suite
@@ -1233,7 +1231,7 @@
 
 ## Client UI: views, menus and windows
 
-### 1 Defects (2/31 done)
+### 1 Defects (2/33 done)
 - [ ] YAAT-100 Fix scenario-activation leftovers: Save-As JSON paths, dead assignment
 - [ ] YAAT-159 Keep the last flight-rules situation as the classifier hysteresis input
 - [ ] YAAT-165 Async load client leftovers: early Unload refusal, stale LoadId
@@ -1263,6 +1261,8 @@
 - [ ] YAAT-1736 Overlapping CRC alias reloads corrupt the alias table (903 of 15341 aliases until the next reload)
 - [ ] YAAT-1887 Filter the speed picker by the flown type for an aircraft with no flight plan (150-350 kt list today)
 - [ ] YAAT-2393 Report SIMRATE with a bad rate, a declined UNPAUSE and BM NEXT with no bookmark instead of staying silent
+- [ ] YAAT-2426 Draw the nav-route overlay's hold, procedure-turn and orbit turns at the aircraft's own turn rate, not 3°/s
+- [ ] YAAT-2427 Draw the heading-select preview along the ground track, not the heading, in a crosswind
 
 ### 2 Refinements and rulings (7/18 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
@@ -1308,7 +1308,6 @@
 - [ ] YAAT-2119 Infer a bare CTO's SID from any route fix, as the vTDLS editor does
 - [ ] YAAT-2189 List a temporary dep freq once when it equals a facility frequency written differently
 - [ ] YAAT-2199 Scroll the vTDLS keyboard-highlighted row into view
-- [ ] YAAT-2402 Draw the heading-select preview arc at the aircraft's own turn rate, not 3°/s for every type · release vNext
 - [ ] YAAT-2421 Radar nav route: a vectored aircraft's heading tail may stay where the cache was built
 
 ## Client-driver MCP and automation pipe
