@@ -70,7 +70,7 @@ public static partial class ContextDecoder
     /// <summary>The entity stage with no addressed aircraft: airport entities only, held to the no-callsign threshold.</summary>
     private static EntitySelection SelectAirportEntities(HeardText heard, CallsignHit? bestGuess, DecodeCall call)
     {
-        var remainder = new Remainder(RemainderOf(bestGuess, heard.Tokens.Count).Runs, null);
+        var remainder = new Remainder(RemainderOf(bestGuess, heard.Tokens.Length).Runs, null);
         return SelectEntities(heard, remainder, AirportSources(call), call.Settings.EntityAcceptNoCallsign, call);
     }
 
@@ -93,7 +93,7 @@ public static partial class ContextDecoder
     {
         var scan = new EntityScan(heard, remainder, RangesOf(heard, remainder.Runs, call.Settings), acceptFloor, call);
         Dictionary<TokenRange, AcceptedSpan> accepted = AcceptSpans(scan, sources);
-        List<AcceptedSpan> chosen = ChooseSpans(accepted.Values, heard.Tokens.Count);
+        List<AcceptedSpan> chosen = ChooseSpans(accepted.Values, heard.Tokens.Length);
         double meanScore = chosen.Count == 0 ? 1.0 : chosen.Average(span => span.Weighted * span.Source.Prior);
         return new EntitySelection(chosen, meanScore, Coverage(heard, remainder.Runs, chosen));
     }
@@ -225,9 +225,9 @@ public static partial class ContextDecoder
             return IsBareRunwayAllowed(scan, candidate, shape);
         }
 
-        IReadOnlyList<SpokenToken> tokens = scan.Heard.Tokens;
+        SpokenToken[] tokens = scan.Heard.Tokens;
         int end = candidate.Range.End;
-        bool nextIsDigit = (end < tokens.Count) && (tokens[end].Kind == TokenKind.Digit);
+        bool nextIsDigit = (end < tokens.Length) && (tokens[end].Kind == TokenKind.Digit);
         bool singleLetter = (shape.Tokens.Count == 1) && (shape.Tokens[0].Kind == TokenKind.Nato);
         return !((kind == EntityKind.Taxiway) && singleLetter && nextIsDigit) && HasSurfaceLeadIn(tokens, candidate);
     }
@@ -248,9 +248,9 @@ public static partial class ContextDecoder
         return (start > candidate.Run.Start) && HasRunwayLeadIn(scan.Heard.Tokens, start, candidate.Run);
     }
 
-    private static bool IsValueOrWrongSide(IReadOnlyList<SpokenToken> tokens, int end, FormShape shape)
+    private static bool IsValueOrWrongSide(SpokenToken[] tokens, int end, FormShape shape)
     {
-        if (end >= tokens.Count)
+        if (end >= tokens.Length)
         {
             return false;
         }
@@ -261,7 +261,7 @@ public static partial class ContextDecoder
         return wrongSide || ContextPhraseWords.RunwayValueFollowers.Contains(next);
     }
 
-    private static bool HasRunwayLeadIn(IReadOnlyList<SpokenToken> tokens, int start, TokenRange run)
+    private static bool HasRunwayLeadIn(SpokenToken[] tokens, int start, TokenRange run)
     {
         SpokenToken before = tokens[start - 1];
         if ((before.Kind != TokenKind.Word) || !ContextPhraseWords.BareRunwayLeadIns.Contains(before.Text))
@@ -272,7 +272,7 @@ public static partial class ContextDecoder
     }
 
     /// <summary>Walks back over a chain of letters and short digit runs, inside the run, to the word that introduces it.</summary>
-    private static bool HasSurfaceLeadIn(IReadOnlyList<SpokenToken> tokens, CandidateRange candidate)
+    private static bool HasSurfaceLeadIn(SpokenToken[] tokens, CandidateRange candidate)
     {
         TokenRange run = candidate.Run;
         for (int i = candidate.Range.Start - 1; i >= run.Start; i--)
@@ -298,7 +298,7 @@ public static partial class ContextDecoder
     }
 
     /// <summary>The start of the digit run ending at <paramref name="last"/> when it can be a taxiway's number, else -1.</summary>
-    private static int TaxiwayDigitsStart(IReadOnlyList<SpokenToken> tokens, int last, TokenRange run)
+    private static int TaxiwayDigitsStart(SpokenToken[] tokens, int last, TokenRange run)
     {
         int first = last;
         while ((first > run.Start) && (tokens[first - 1].Kind == TokenKind.Digit))

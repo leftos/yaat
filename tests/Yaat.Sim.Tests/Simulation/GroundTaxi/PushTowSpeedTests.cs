@@ -232,7 +232,7 @@ public class PushTowSpeedTests(PushTowSpeedTests.Fixture fixture, ITestOutputHel
         double laneDeg = double.NaN;
         if (ground.Layout.FindSpotNodeByName(Spot) is { } spot && command == $"PUSH ${Spot}")
         {
-            Assert.True(ground.Layout.TryGetSpotOutboundHeading(spot, out laneDeg), $"spot {Spot} has no outbound heading");
+            Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot, out laneDeg), $"spot {Spot} has no outbound heading");
         }
 
         AircraftState ac = SfoGroundHarness.SpawnParked(ground, "UAL7", aircraftType, gate);

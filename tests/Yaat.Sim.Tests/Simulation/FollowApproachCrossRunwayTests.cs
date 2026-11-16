@@ -188,7 +188,7 @@ public class FollowApproachCrossRunwayTests(ITestOutputHelper output)
         output.WriteLine($"28R limit {FafLimit(rwy):F2} nm; follower along-final {alongNm:F2} nm, displacement {DisplacementNm(rwy):F3} nm");
     }
 
-    private void AssertRefusedUnchanged(AircraftState follower, FollowerState before, CommandResult result)
+    private static void AssertRefusedUnchanged(AircraftState follower, FollowerState before, CommandResult result)
     {
         Assert.False(result.Success, result.Message);
         Assert.Equal(CrossRunwayText, result.Message);

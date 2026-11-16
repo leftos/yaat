@@ -703,7 +703,7 @@ public sealed partial class SimulationEngine
     /// had no host to supply one alerted where live did not. Empty when the scenario carries no ARTCC config
     /// (a bare test engine) or no student position, which is the same set the argument defaulted to.
     /// </summary>
-    private IReadOnlyList<string> ResolveInternalAirports() =>
+    private List<string> ResolveInternalAirports() =>
         Scenario is { ArtccConfig: { } config, StudentPosition.FacilityId: { } facilityId }
             ? config.GetStarsConfigForFacility(facilityId)?.InternalAirports ?? []
             : [];

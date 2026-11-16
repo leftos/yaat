@@ -450,7 +450,7 @@ public class TugKinematicsTests
         }
 
         GroundNode sixB = Spot(layout, "6B");
-        Assert.True(layout.TryGetSpotOutboundHeading(sixB, out double laneDeg), "SFO layout gives spot 6B no outbound heading");
+        Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(sixB, out double laneDeg), "SFO layout gives spot 6B no outbound heading");
         return new Lane(Spot(layout, "6A"), sixB, laneDeg);
     }
 

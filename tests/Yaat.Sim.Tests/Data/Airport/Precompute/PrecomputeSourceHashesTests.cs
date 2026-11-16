@@ -255,7 +255,7 @@ public partial class PrecomputeSourceHashesTests
         SetHash(simRoot, relativePaths, new Dictionary<string, byte[]>(StringComparer.Ordinal));
 
     /// <summary>The set hash, reading each file's bytes from <paramref name="bytesOverride"/> where it names the file.</summary>
-    private static string SetHash(string simRoot, IEnumerable<string> relativePaths, IReadOnlyDictionary<string, byte[]> bytesOverride)
+    private static string SetHash(string simRoot, IEnumerable<string> relativePaths, Dictionary<string, byte[]> bytesOverride)
     {
         string[] ordered = [.. relativePaths.Select(relative => relative.Replace('\\', '/')).OrderBy(relative => relative, StringComparer.Ordinal)];
         var concatenated = new StringBuilder();

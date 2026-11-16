@@ -45,7 +45,7 @@ public class AtFixSayTests(ITestOutputHelper output)
         };
     }
 
-    private (List<TerminalEntry> Captured, DispatchContext Ctx) MakeContext()
+    private static (List<TerminalEntry> Captured, DispatchContext Ctx) MakeContext()
     {
         var captured = new List<TerminalEntry>();
         DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, terminalEmitter: captured.Add);

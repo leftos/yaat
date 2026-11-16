@@ -34,7 +34,7 @@ public static class SpokenTokenizer
     public static IReadOnlySet<string> HesitationFillers { get; } =
         new HashSet<string>(StringComparer.Ordinal) { "uh", "um", "ah", "er", "erm", "hmm" };
 
-    private static readonly IReadOnlyDictionary<string, string> RunwaySuffixWords = new Dictionary<string, string>(StringComparer.Ordinal)
+    private static readonly Dictionary<string, string> RunwaySuffixWords = new(StringComparer.Ordinal)
     {
         ["l"] = "left",
         ["r"] = "right",

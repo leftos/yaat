@@ -44,7 +44,7 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
-    private SimulationEngine? SpawnSwa1360()
+    private static SimulationEngine? SpawnSwa1360()
     {
         string? scenarioJson = LoadScenarioJson();
         SimulationEngine? engine = BuildEngine();
@@ -81,8 +81,12 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
         GroundNode exit = layout.FindExitByTaxiway(ac.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
-        double northbound = Assert.NotNull(layout.GetEdgeBearingForTaxiway(exit, "Y", MagneticDeclination.MagneticToTrue(360.0, ac.Position)));
-        double southbound = Assert.NotNull(layout.GetEdgeBearingForTaxiway(exit, "Y", MagneticDeclination.MagneticToTrue(180.0, ac.Position)));
+        double northbound = Assert.NotNull(
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "Y", MagneticDeclination.MagneticToTrue(360.0, ac.Position))
+        );
+        double southbound = Assert.NotNull(
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "Y", MagneticDeclination.MagneticToTrue(180.0, ac.Position))
+        );
         _output.WriteLine($"taxiway Y at node {exit.Id}: northbound {northbound:F1}°, southbound {southbound:F1}° true");
 
         CommandResult result = engine.SendCommand("SWA1360", PushYankeeFacingNorth);

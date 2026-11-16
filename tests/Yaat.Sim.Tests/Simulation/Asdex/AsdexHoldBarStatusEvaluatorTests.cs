@@ -96,7 +96,7 @@ public class AsdexHoldBarStatusEvaluatorTests
     private AircraftState Arrival(RunwayInfo end, double beforeThresholdFt, double heightFt) =>
         At(end, -beforeThresholdFt, _fieldElevationFt + heightFt, onGround: false, speedKts: 140, offsetDeg: 0);
 
-    private AircraftState Rolling(RunwayInfo end, double alongFt, double speedKts) =>
+    private static AircraftState Rolling(RunwayInfo end, double alongFt, double speedKts) =>
         At(end, alongFt, RunwayElevationFt(end), onGround: true, speedKts: speedKts, offsetDeg: 0);
 
     private static AircraftState OverRunway(RunwayInfo end, double alongFt, double heightFt, double speedKts) =>

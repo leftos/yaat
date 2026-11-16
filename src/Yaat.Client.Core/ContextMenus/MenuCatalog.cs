@@ -1528,7 +1528,7 @@ public static class MenuCatalog
     /// from the lowest less 0.04 through the highest plus 0.01, on the hundredth, clamped to 0.60-0.92, and a row whose
     /// IAS at the altitude exceeds the knots ceiling is dropped.
     /// </summary>
-    private static IReadOnlyList<double> MachValues(string type, AircraftCategory category, double altitude, int knotsCeiling)
+    private static List<double> MachValues(string type, AircraftCategory category, double altitude, int knotsCeiling)
     {
         if (altitude < MachRowFloorFeet)
         {

@@ -1447,7 +1447,7 @@ public partial class VStripsViewModel : ObservableObject
         }
     }
 
-    private static int IndexOfId(IList<StripItemViewModel> strips, string id)
+    private static int IndexOfId(ObservableCollection<StripItemViewModel> strips, string id)
     {
         for (int i = 0; i < strips.Count; i++)
         {

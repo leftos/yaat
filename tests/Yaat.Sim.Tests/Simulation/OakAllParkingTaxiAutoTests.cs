@@ -167,7 +167,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
         output.WriteLine($"OK {parkingName} (node {parkingNodeId}) → RWY {runway.Designator}: {finalPhase}, {segInfo}");
     }
 
-    private bool TickUntil(SimulationEngine engine, AircraftState aircraft, int maxSeconds, Func<AircraftState, bool> condition)
+    private static bool TickUntil(SimulationEngine engine, AircraftState aircraft, int maxSeconds, Func<AircraftState, bool> condition)
     {
         for (int t = 1; t <= maxSeconds; t++)
         {

@@ -182,7 +182,7 @@ public partial class SettingsViewModel
                 $"The bundled preference '{key}' has no Settings field; add it to SettingsViewModel's bundled fields (SettingsViewModel.Bundle.cs)."
             );
 
-    private static IReadOnlyDictionary<string, BundledField> BuildBundledFields()
+    private static Dictionary<string, BundledField> BuildBundledFields()
     {
         IEnumerable<(string Key, BundledField Field)> keybinds = KeybindDescriptors.Select(descriptor =>
             Field(

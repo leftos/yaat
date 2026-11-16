@@ -7,9 +7,9 @@ namespace Yaat.Client.Services;
 /// <summary>
 /// Fetches training scenarios, weather profiles, and airport summaries from the vNAS data API.
 /// </summary>
-public sealed class TrainingDataService
+public static class TrainingDataService
 {
-    private static readonly ILogger Log = AppLog.CreateLogger<TrainingDataService>();
+    private static readonly ILogger Log = AppLog.CreateLogger(typeof(TrainingDataService).FullName!);
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
@@ -21,7 +21,7 @@ public sealed class TrainingDataService
         PropertyNameCaseInsensitive = true,
     };
 
-    public async Task<List<ScenarioSummaryDto>> GetScenarioSummariesAsync(string artccId)
+    public static async Task<List<ScenarioSummaryDto>> GetScenarioSummariesAsync(string artccId)
     {
         try
         {
@@ -36,7 +36,7 @@ public sealed class TrainingDataService
         }
     }
 
-    public async Task<string?> GetScenarioJsonAsync(string scenarioId)
+    public static async Task<string?> GetScenarioJsonAsync(string scenarioId)
     {
         try
         {
@@ -50,7 +50,7 @@ public sealed class TrainingDataService
         }
     }
 
-    public async Task<List<WeatherProfileDto>> GetWeatherProfilesAsync(string artccId)
+    public static async Task<List<WeatherProfileDto>> GetWeatherProfilesAsync(string artccId)
     {
         try
         {
@@ -65,7 +65,7 @@ public sealed class TrainingDataService
         }
     }
 
-    public async Task<string?> GetWeatherJsonAsync(string weatherId)
+    public static async Task<string?> GetWeatherJsonAsync(string weatherId)
     {
         try
         {

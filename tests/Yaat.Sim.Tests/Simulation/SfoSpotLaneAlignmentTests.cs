@@ -143,7 +143,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     private static bool RollsAlongTheSpotsLane(TaxiRouteSegment leg, GroundNode spot) =>
         VirtualNode.IsVirtualEdge(leg.Edge.Edge) && RampZeroSegmentRoll.IsOnLaneFacing(spot, leg.Edge.FromNode.Position, leg.Edge.DepartureBearing);
 
-    private int TickToRest(SimulationEngine engine, AircraftState aircraft, int maxSeconds) =>
+    private static int TickToRest(SimulationEngine engine, AircraftState aircraft, int maxSeconds) =>
         SfoGroundHarness.TickUntil(
             engine,
             () => (aircraft.GroundSpeed < AtRestKts) && (aircraft.Phases?.CurrentPhase is HoldingInPositionPhase or AtParkingPhase),

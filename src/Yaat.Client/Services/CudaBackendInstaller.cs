@@ -413,7 +413,7 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         Directory.Delete(partialRoot, recursive: true);
     }
 
-    private void SafeDeletePartial()
+    private static void SafeDeletePartial()
     {
         string partialRoot = Path.Combine(InstallRoot, PartialDirName);
         if (!Directory.Exists(partialRoot))

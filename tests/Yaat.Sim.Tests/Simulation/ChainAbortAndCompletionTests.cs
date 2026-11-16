@@ -191,7 +191,7 @@ public class ChainAbortAndCompletionTests
         return ac;
     }
 
-    private void TickUntil(SimulationEngine engine, int maxSeconds, Func<bool> done)
+    private static void TickUntil(SimulationEngine engine, int maxSeconds, Func<bool> done)
     {
         for (int t = 0; (t < maxSeconds) && !done(); t++)
         {

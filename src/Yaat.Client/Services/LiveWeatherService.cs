@@ -152,7 +152,7 @@ public sealed class LiveWeatherService
         }
     }
 
-    private List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId)
+    private static List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId)
     {
         // Get ARTCC center for magnetic declination
         LatLon artccCenter = GetArtccCenter(artccId);

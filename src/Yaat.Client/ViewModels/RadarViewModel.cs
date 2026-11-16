@@ -441,7 +441,7 @@ public partial class RadarViewModel(
         );
     }
 
-    private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes()
+    private List<(string Name, double Lat, double Lon)> BuildVisibleFixes()
     {
         if (!_navDbReady)
         {

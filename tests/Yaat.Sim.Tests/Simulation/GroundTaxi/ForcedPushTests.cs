@@ -709,7 +709,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     }
 
     /// <summary>The tug moves <paramref name="command"/> installs off <paramref name="gate"/>, or null without SFO's layout.</summary>
-    private IReadOnlyList<TugMove>? InstalledMoves(string gate, string command)
+    private List<TugMove>? InstalledMoves(string gate, string command)
     {
         if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {

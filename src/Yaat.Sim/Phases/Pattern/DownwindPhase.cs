@@ -363,7 +363,7 @@ public sealed class DownwindPhase : Phase
     }
 
     /// <summary>Voices the midfield reminder the way this leg is being flown: solo-training pilot speech, else the RPO warning.</summary>
-    private void VoiceMidfieldReminder(PhaseContext ctx)
+    private static void VoiceMidfieldReminder(PhaseContext ctx)
     {
         string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
         if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)

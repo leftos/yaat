@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
@@ -202,7 +203,7 @@ public class SettingsViewModelQuickCommandsTests
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         QuickCommandEntryRow custom = AddValidCustom(vm, "West");
-        IReadOnlyList<QuickCommandCatalogItem> available = vm.AvailableQuickCommandCatalogEntries;
+        ReadOnlyObservableCollection<QuickCommandCatalogItem> available = vm.AvailableQuickCommandCatalogEntries;
         List<string?> raised = [];
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 

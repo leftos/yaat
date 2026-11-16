@@ -607,8 +607,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             log.LogInformation("Fetching scenario {ScenarioId} from vNAS API", scenarioId);
             vm.StatusText = $"Fetching scenario {scenarioId}...";
-            var dataService = new TrainingDataService();
-            string? json = await dataService.GetScenarioJsonAsync(scenarioId);
+            string? json = await TrainingDataService.GetScenarioJsonAsync(scenarioId);
 
             if (json is null)
             {
@@ -2442,7 +2441,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ApplyExtraViews(vm, layout, selected);
             if (selected.Contains(ViewSettingsCopyCatalog.LayoutOpenTabsKey))
             {
-                IReadOnlyList<string> skippedTabs = await _layoutService.ApplyOpenTabsAsync(layout, vm);
+                IReadOnlyList<string> skippedTabs = await LayoutService.ApplyOpenTabsAsync(layout, vm);
                 if (skippedTabs.Count > 0)
                 {
                     notes += $" ({skippedTabs.Count} tab(s) no longer available: {string.Join(", ", skippedTabs)})";
@@ -2839,8 +2838,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private static async Task LoadWeatherFromApiAsync(MainViewModel vm, string apiWeatherId, string? displayName = null)
     {
         vm.StatusText = "Fetching weather…";
-        var trainingData = new TrainingDataService();
-        string? json = await trainingData.GetWeatherJsonAsync(apiWeatherId);
+        string? json = await TrainingDataService.GetWeatherJsonAsync(apiWeatherId);
         if (json is not null)
         {
             await vm.LoadWeatherFromJsonAsync(json, displayName ?? apiWeatherId, apiWeatherId);

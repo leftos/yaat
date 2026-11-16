@@ -422,7 +422,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     /// explicit F1 hold to a node on that centerline, which is what staging "on the runway short of F1"
     /// means rather than holding on the F1 taxiway beside it.
     /// </summary>
-    private void AssertRunsDown1RToItsF1Bar(Funnel funnel, AircraftState aircraft)
+    private static void AssertRunsDown1RToItsF1Bar(Funnel funnel, AircraftState aircraft)
     {
         TaxiRoute route = RouteOf(aircraft);
         Assert.True(

@@ -1779,7 +1779,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private static string SectionName(KeybindRow row) => (row.Kind == KeybindKind.PushToTalk) ? "Speech" : "Keys";
 
-    private static string JoinNames(IReadOnlyList<string> names) =>
+    private static string JoinNames(List<string> names) =>
         (names.Count == 1) ? names[0] : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
 
     private static bool SameChord(string a, string b) =>
@@ -1946,10 +1946,7 @@ public partial class SettingsViewModel : ObservableObject
     private const string ResetPendingNote = " Apply or OK keeps the change; Cancel discards it.";
 
     /// <summary>What Reset section does for each section that has settings of its own; link-only sections are absent.</summary>
-    private static readonly IReadOnlyDictionary<SettingsSectionId, Action<SettingsViewModel, UserPreferences>> SectionResets = new Dictionary<
-        SettingsSectionId,
-        Action<SettingsViewModel, UserPreferences>
-    >
+    private static readonly Dictionary<SettingsSectionId, Action<SettingsViewModel, UserPreferences>> SectionResets = new()
     {
         [SettingsSectionId.General] = static (vm, defaults) => vm.ResetGeneral(defaults),
         [SettingsSectionId.Appearance] = static (vm, defaults) => vm.ResetAppearance(defaults),
@@ -1972,7 +1969,7 @@ public partial class SettingsViewModel : ObservableObject
     };
 
     /// <summary>Reset section's tooltip where the section resets less, or other than, every setting it shows.</summary>
-    private static readonly IReadOnlyDictionary<SettingsSectionId, string> ResetToolTips = new Dictionary<SettingsSectionId, string>
+    private static readonly Dictionary<SettingsSectionId, string> ResetToolTips = new()
     {
         [SettingsSectionId.General] = "Puts Discord and the window settings back to their defaults. Initials are kept." + ResetPendingNote,
         [SettingsSectionId.CommandVerbs] = "Puts every command verb back to its default." + ResetPendingNote,

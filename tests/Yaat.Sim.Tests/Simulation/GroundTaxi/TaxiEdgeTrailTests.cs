@@ -45,7 +45,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         Assert.True(run.Engine.SendCommand(Callsign, "CROSS").Success);
         Assert.True(TickUntil(run.Engine, HoldBudgetSeconds, () => IsHoldingShortOf(run.Aircraft, "28L")), "never held short of 28L");
 
-        IReadOnlyList<GroundEdge> trail = ResolveTrail(run);
+        List<GroundEdge> trail = ResolveTrail(run);
         Assert.All(trail, edge => Assert.Contains(edge, routeEdges));
         for (int i = 1; i < trail.Count; i++)
         {
@@ -479,7 +479,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         return new TrailRun(groundData, engine, aircraft, layout, bar28R, bar28L, nearBar28R);
     }
 
-    private IReadOnlyList<GroundEdge> ResolveTrail(TrailRun run)
+    private List<GroundEdge> ResolveTrail(TrailRun run)
     {
         List<GroundEdge> edges = [];
         foreach (TaxiTrailEdge entry in run.Aircraft.Ground.TaxiEdgeTrail.Edges)
@@ -492,7 +492,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         return edges;
     }
 
-    private static int IndexTouching(IReadOnlyList<GroundEdge> trail, int nodeId)
+    private static int IndexTouching(List<GroundEdge> trail, int nodeId)
     {
         for (int i = 0; i < trail.Count; i++)
         {

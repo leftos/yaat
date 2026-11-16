@@ -2051,7 +2051,7 @@ public sealed class LandingPhase : Phase
     /// <summary>True when the crew has given <paramref name="taxiway"/> up on this landing (<see cref="GiveUpNamedExit"/>).</summary>
     private static bool IsGivenUp(AircraftState aircraft, string taxiway) => aircraft.Phases?.GivenUpExitTaxiways.Contains(taxiway) is true;
 
-    private bool TickFullStop(PhaseContext ctx, LandingPlan plan)
+    private static bool TickFullStop(PhaseContext ctx, LandingPlan plan)
     {
         // Brake to zero along runway heading. No exit found or LAHSO-like stop.
         ctx.Targets.TargetTrueHeading = plan.RunwayHeading;
@@ -2138,7 +2138,7 @@ public sealed class LandingPhase : Phase
     /// runway. Completes once stopped, handing the runway to <see cref="Ground.RunwayExitPhase"/>, whose backstop
     /// finds a way off.
     /// </summary>
-    private bool TickForcedRunwayEndStop(PhaseContext ctx, LandingPlan plan)
+    private static bool TickForcedRunwayEndStop(PhaseContext ctx, LandingPlan plan)
     {
         ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
         ctx.Targets.TargetSpeed = 0;

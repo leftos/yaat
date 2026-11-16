@@ -192,7 +192,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         }
     }
 
-    private bool HeadingEstablished(PhaseContext ctx, ProcedureLeg leg)
+    private static bool HeadingEstablished(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.CourseMagnetic is not { } course)
         {
@@ -248,7 +248,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         return Math.Abs(signed) <= leadNm || flipped;
     }
 
-    private bool TrackCourseToFix(PhaseContext ctx, ProcedureLeg leg)
+    private static bool TrackCourseToFix(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.FixPosition is not { } fix || leg.CourseMagnetic is not { } course)
         {
@@ -544,7 +544,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         );
     }
 
-    private bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
+    private static bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.FixPosition is not { } fix)
         {

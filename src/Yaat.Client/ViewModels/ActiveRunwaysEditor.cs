@@ -82,7 +82,7 @@ public static class ActiveRunwaysEditor
     }
 
     /// <summary><c>28R</c>, <c>28R and 30</c>, <c>28L, 28R and 30</c>.</summary>
-    private static string JoinAnd(IReadOnlyList<string> items) =>
+    private static string JoinAnd(List<string> items) =>
         items.Count == 1 ? items[0] : $"{string.Join(", ", items.Take(items.Count - 1))} and {items[^1]}";
 
     /// <summary>

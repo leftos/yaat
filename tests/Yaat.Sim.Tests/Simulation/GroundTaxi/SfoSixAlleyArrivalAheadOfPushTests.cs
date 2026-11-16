@@ -113,7 +113,7 @@ public class SfoSixAlleyArrivalAheadOfPushTests
             $"the two came within {run.MinSeparationFt:F0}ft of each other (floor {MinSeparationFt:F0}ft) across the {ChoreographyBudgetSeconds}s run"
         );
 
-        AssertRestingOnSpot(alley.Pusher, alley.Spot, alley.Ground.Layout);
+        AssertRestingOnSpot(alley.Pusher, alley.Spot);
         double finalFt = DistanceFt(alley.Arrival.Position, alley.Parking.Position);
         Assert.True(
             finalFt <= TaxiCoverageRunner.ParkingArrivalToleranceFt,
@@ -218,7 +218,7 @@ public class SfoSixAlleyArrivalAheadOfPushTests
     /// A completed <c>PUSH $spot</c> rests with the nosewheel on the marking — centroid a half fuselage
     /// back — and the nose on the spot's outbound heading, ready to taxi out.
     /// </summary>
-    private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot, AirportGroundLayout layout)
+    private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot)
     {
         double halfLengthFt = (FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? 110.0) / 2.0;
         double distFt = DistanceFt(ac.Position, spot.Position);
@@ -229,7 +229,7 @@ public class SfoSixAlleyArrivalAheadOfPushTests
         );
 
         Assert.True(
-            layout.TryGetSpotOutboundHeading(spot, out double outBearing),
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outBearing),
             $"the layout carries no outbound heading for the spot {ac.Callsign} pushed to"
         );
         double headingErrDeg = new TrueHeading(outBearing).AbsAngleTo(ac.TrueHeading);

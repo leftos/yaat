@@ -106,7 +106,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
             string ParallelRunwayId,
             List<GroundNode> PullUpPath,
             List<GroundNode> CrossingPath
-        )? crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, taxiway, landing);
+        )? crossing = AirportGroundLayout.FindParallelRunwayCrossing(landingHs, comeFrom, taxiway, landing);
         Assert.NotNull(crossing);
 
         (GroundNode? nearHs, GroundNode? farHs, string? parallelRunwayId, List<GroundNode>? pullUp, List<GroundNode>? crossingPath) = crossing.Value;
@@ -162,7 +162,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
             string ParallelRunwayId,
             List<GroundNode> PullUpPath,
             List<GroundNode> CrossingPath
-        )? crossing = layout.FindParallelRunwayCrossing(near28R, oak28LHoldShort, "G", "28R");
+        )? crossing = AirportGroundLayout.FindParallelRunwayCrossing(near28R, oak28LHoldShort, "G", "28R");
         Assert.Null(crossing);
     }
 
@@ -179,7 +179,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
             string ParallelRunwayId,
             List<GroundNode> PullUpPath,
             List<GroundNode> CrossingPath
-        )? crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
+        )? crossing = AirportGroundLayout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
         Assert.Null(crossing);
     }
 
@@ -196,7 +196,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
             string ParallelRunwayId,
             List<GroundNode> PullUpPath,
             List<GroundNode> CrossingPath
-        )? crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
+        )? crossing = AirportGroundLayout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
         Assert.NotNull(crossing);
 
         (GroundNode? nearHs, GroundNode? farHs, string _, List<GroundNode> _, List<GroundNode> _) = crossing.Value;

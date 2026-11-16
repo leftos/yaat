@@ -376,7 +376,7 @@ public class ExtLegDuringTouchAndGoClimbOutTests(ITestOutputHelper output)
     /// Ticks until PhaseRunner appends the next circuit, then returns that circuit's still-pending
     /// downwind and base — where the queued SA / EXT pre-arm lands.
     /// </summary>
-    private (DownwindPhase Downwind, BasePhase Base)? AwaitNextCircuitPendingLegs(SimulationEngine engine)
+    private static (DownwindPhase Downwind, BasePhase Base)? AwaitNextCircuitPendingLegs(SimulationEngine engine)
     {
         for (int t = 1; t <= 600; t++)
         {
@@ -394,7 +394,7 @@ public class ExtLegDuringTouchAndGoClimbOutTests(ITestOutputHelper output)
     }
 
     /// <summary>Ticks until the next circuit's upwind becomes the current phase.</summary>
-    private UpwindPhase? AwaitNextCircuitUpwind(SimulationEngine engine)
+    private static UpwindPhase? AwaitNextCircuitUpwind(SimulationEngine engine)
     {
         for (int t = 1; t <= 600; t++)
         {

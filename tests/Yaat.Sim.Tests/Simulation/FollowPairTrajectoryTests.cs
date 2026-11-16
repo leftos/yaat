@@ -228,7 +228,7 @@ public class FollowPairTrajectoryTests
     /// and upwind/final are runway-aligned but on the centerline (and excluded by phase).
     /// Fails when the condition persists for ≥6 consecutive ticks.
     /// </summary>
-    private void AssertNoAboutFace(List<Sample> follower, RunwayInfo rwy, PatternDirection dir)
+    private static void AssertNoAboutFace(List<Sample> follower, RunwayInfo rwy, PatternDirection dir)
     {
         var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
         double patternSign = dir == PatternDirection.Right ? 1.0 : -1.0;

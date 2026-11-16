@@ -291,7 +291,7 @@ public class QuickCommandMigrationTests : IDisposable
         Assert.Equal([SquawkAssigned, Accept, HoldPosition], reloaded.GetQuickCommandList(AircraftSituation.Taxiing));
     }
 
-    private static QuickCommandEntry Catalog(string id) => new CatalogQuickCommandEntry(id, null);
+    private static CatalogQuickCommandEntry Catalog(string id) => new(id, null);
 
     private static string Json(string catalogId) => $$"""{ "kind": "catalog", "catalogId": "{{catalogId}}" }""";
 

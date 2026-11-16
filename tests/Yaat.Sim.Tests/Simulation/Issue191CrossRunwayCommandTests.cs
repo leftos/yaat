@@ -150,7 +150,7 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         engine.World.ReactionDelayRng = new SerializableRandom(ReactionDelaySeed);
     }
 
-    private AircraftState AssertRecordedCompletedRunwayHold(SimulationEngine engine)
+    private static AircraftState AssertRecordedCompletedRunwayHold(SimulationEngine engine)
     {
         AircraftState? aircraft = engine.FindAircraft(RecordedCallsign);
         Assert.NotNull(aircraft);

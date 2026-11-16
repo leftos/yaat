@@ -36,13 +36,13 @@ public static class AircraftDisplayNames
         return _lookup.Value.TryGetValue(icaoType.Trim().ToUpperInvariant(), out displayName!);
     }
 
-    private static IReadOnlyDictionary<string, string> Load()
+    private static Dictionary<string, string> Load()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Data", "aircraft-display-names.json");
         if (!File.Exists(path))
         {
             Log.LogWarning("aircraft-display-names.json not found at {Path}; display-name map will be empty", path);
-            return new Dictionary<string, string>();
+            return [];
         }
 
         try
@@ -52,7 +52,7 @@ public static class AircraftDisplayNames
             if (raw is null || raw.Count == 0)
             {
                 Log.LogWarning("aircraft-display-names.json at {Path} parsed empty", path);
-                return new Dictionary<string, string>();
+                return [];
             }
 
             var dict = new Dictionary<string, string>(raw.Count, StringComparer.OrdinalIgnoreCase);
@@ -69,7 +69,7 @@ public static class AircraftDisplayNames
         catch (Exception ex)
         {
             Log.LogWarning(ex, "Failed to load aircraft-display-names.json at {Path}", path);
-            return new Dictionary<string, string>();
+            return [];
         }
     }
 }

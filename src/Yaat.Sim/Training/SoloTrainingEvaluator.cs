@@ -691,7 +691,7 @@ public sealed class SoloTrainingEvaluator
         double? completedAt,
         CompletionReason completionReason,
         string? completionDetail,
-        IReadOnlyList<SoloTrainingEvent> findings
+        List<SoloTrainingEvent> findings
     )
     {
         int separation = 0;
@@ -2909,7 +2909,7 @@ public sealed class SoloTrainingEvaluator
             return violations;
         }
 
-        private List<ActiveSameRunwayViolation> CreateApproachWakeViolations(
+        private static List<ActiveSameRunwayViolation> CreateApproachWakeViolations(
             RunwayOperation preceding,
             Dictionary<string, AircraftRunwayState> states,
             double scenarioElapsedSeconds

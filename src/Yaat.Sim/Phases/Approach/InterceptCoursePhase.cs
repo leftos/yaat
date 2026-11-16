@@ -398,7 +398,7 @@ public sealed class InterceptCoursePhase : Phase
         return true;
     }
 
-    private void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm)
+    private static void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm)
     {
         // VFR and visual approaches are not subject to 7110.65 §5-9-1
         if (ctx.Aircraft.FlightPlan.IsVfr)

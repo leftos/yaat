@@ -204,7 +204,7 @@ public partial class RadarView : UserControl
         return false;
     }
 
-    private ContextMenu BuildOwnerContextMenu(AircraftModel ac, MainViewModel mainVm)
+    private static ContextMenu BuildOwnerContextMenu(AircraftModel ac, MainViewModel mainVm)
     {
         var menu = new ContextMenu();
         FlyoutAppearance.ApplyFontSize(menu);

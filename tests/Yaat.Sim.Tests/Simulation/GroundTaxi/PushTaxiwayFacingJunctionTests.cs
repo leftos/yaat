@@ -130,7 +130,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         GroundNode exit = layout.FindExitByTaxiway(f3.Position, "A") ?? throw new InvalidOperationException("no A exit off F3");
         GroundNode junction = Junction(layout, f3);
         double towardF1Deg =
-            layout.GetEdgeBearingForTaxiway(exit, "A", GeoMath.BearingTo(exit.Position, junction.Position))
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "A", GeoMath.BearingTo(exit.Position, junction.Position))
             ?? throw new InvalidOperationException("no A edge");
 
         TugPlan plan = PlanPushAF1(layout, "F3");
@@ -191,7 +191,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         GroundNode exit = layout.FindExitByTaxiway(stand.Position, "A") ?? throw new InvalidOperationException($"no A exit off {gate}");
         GroundNode junction = Junction(layout, stand);
         double facingDeg =
-            layout.GetEdgeBearingForTaxiway(exit, "A", GeoMath.BearingTo(exit.Position, junction.Position))
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "A", GeoMath.BearingTo(exit.Position, junction.Position))
             ?? throw new InvalidOperationException("no A edge");
         var request = new TugRequest
         {
@@ -327,7 +327,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         GroundNode exit =
             ground.Layout.FindExitByTaxiway(Gate(ground.Layout, gate).Position, "A") ?? throw new InvalidOperationException($"no A exit off {gate}");
         double lineDeg =
-            ground.Layout.GetEdgeBearingForTaxiway(exit, "A", ac.TrueHeading.Degrees) ?? throw new InvalidOperationException("no A edge");
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "A", ac.TrueHeading.Degrees) ?? throw new InvalidOperationException("no A edge");
         double fromExitFt = GeoMath.DistanceNm(exit.Position, ac.Position) * GeoMath.FeetPerNm;
         double offFt = Math.Abs(fromExitFt * Math.Sin((GeoMath.BearingTo(exit.Position, ac.Position) - lineDeg) * Math.PI / 180.0));
         double noseOffDeg = Math.Min(

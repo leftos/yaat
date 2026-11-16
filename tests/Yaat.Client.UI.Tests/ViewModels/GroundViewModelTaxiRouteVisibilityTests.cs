@@ -16,7 +16,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     private static readonly string[] OnlyTaxiwayA = ["A"];
     private static readonly string[] TaxiwaysAAndB = ["A", "B"];
 
-    private static IReadOnlySet<string> Set(params string[] items) => new HashSet<string>(items);
+    private static HashSet<string> Set(params string[] items) => [.. items];
 
     private static IReadOnlyList<(string, bool)> Fleet(params (string Callsign, bool HasRoute)[] acs) =>
         [.. acs.Select(a => ((string, bool))(a.Callsign, a.HasRoute))];

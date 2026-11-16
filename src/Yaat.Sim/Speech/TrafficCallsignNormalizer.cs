@@ -104,7 +104,7 @@ public static class TrafficCallsignNormalizer
         return false;
     }
 
-    private static int CueLengthAt(IReadOnlyList<string> tokens, int index)
+    private static int CueLengthAt(List<string> tokens, int index)
     {
         foreach (string[] cue in Cues)
         {

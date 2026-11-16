@@ -217,7 +217,7 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
         );
     }
 
-    private void AssertStartsOnARealNode(TaxiRoute route)
+    private static void AssertStartsOnARealNode(TaxiRoute route)
     {
         TaxiRouteSegment first = route.Segments[0];
         Assert.True(

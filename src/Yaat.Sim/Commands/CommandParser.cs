@@ -1317,7 +1317,7 @@ public static class CommandParser
     /// <summary>
     /// Parses RDH [listId] [text].
     /// </summary>
-    private static ParsedCommand ParseHoldArgs(string? arg)
+    private static CoordinationHoldCommand ParseHoldArgs(string? arg)
     {
         if (arg is null)
         {

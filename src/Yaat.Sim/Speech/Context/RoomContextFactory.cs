@@ -40,7 +40,7 @@ public static class RoomContextFactory
     private static readonly ILogger Log = SimLog.CreateLogger("RoomContextFactory");
 
     /// <summary>Words naming a facility's function rather than its place; a facility name is what remains without them.</summary>
-    private static readonly IReadOnlySet<string> FacilityFunctionWords = new HashSet<string>(StringComparer.Ordinal)
+    private static readonly HashSet<string> FacilityFunctionWords = new(StringComparer.Ordinal)
     {
         "tower",
         "ground",

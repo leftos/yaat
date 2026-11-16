@@ -320,7 +320,7 @@ public sealed class DiscordRichPresenceService : IRichPresencePublisher, IDispos
         return true;
     }
 
-    private async Task SendActivityAsync(Stream stream, DiscordActivity activity, CancellationToken cancellationToken)
+    private static async Task SendActivityAsync(Stream stream, DiscordActivity activity, CancellationToken cancellationToken)
     {
         byte[] json = DiscordRpcJson.SetActivity(activity, Environment.ProcessId, Guid.NewGuid().ToString());
         await DiscordIpcFrame.WriteAsync(stream, DiscordIpcFrame.FrameOpcode, json, cancellationToken);

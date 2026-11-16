@@ -1298,7 +1298,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// The aircraft the Tower Cab view currently shows — the membership filter applied with this
     /// canvas's airport geometry and weather (cloud ceiling) — shared by render and both hit-testers.
     /// </summary>
-    private IReadOnlyList<AircraftModel> VisibleAircraft() =>
+    private List<AircraftModel> VisibleAircraft() =>
         FilterActiveAircraft(Aircraft, AirportCenterLat, AirportCenterLon, AirportElevation, GroundRenderer.ResolveAirborneMaxAglFt(WeatherInfo));
 
     /// <summary>
@@ -1313,7 +1313,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// treated like any other aircraft (which also means it never flickers off the view at rotation).
     /// Delayed-spawn aircraft are hidden until they appear.
     /// </summary>
-    private static IReadOnlyList<AircraftModel> FilterActiveAircraft(
+    private static List<AircraftModel> FilterActiveAircraft(
         IReadOnlyList<AircraftModel>? aircraft,
         double airportCenterLat,
         double airportCenterLon,

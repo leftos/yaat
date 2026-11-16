@@ -3331,7 +3331,7 @@ public static partial class GroundCommandHandler
     /// It is the fallback reading of a clearance with a destination (see <c>ResolveRoute</c> in
     /// <see cref="TryTaxi"/>) and the only reading of one without.
     /// </summary>
-    private static TaxiCommand AugmentPathWithHoldShortTaxiways(TaxiCommand taxi, IReadOnlyList<HoldShortTarget> foldTargets)
+    private static TaxiCommand AugmentPathWithHoldShortTaxiways(TaxiCommand taxi, List<HoldShortTarget> foldTargets)
     {
         if (foldTargets.Count == 0)
         {
@@ -4030,7 +4030,7 @@ public static partial class GroundCommandHandler
     private static void WarnUnclearedMovementAreaTaxiways(
         TaxiRoute route,
         AirportGroundLayout groundLayout,
-        IReadOnlyList<string> path,
+        List<string> path,
         string? occupiedTaxiway,
         IEnumerable<string?> implied
     )
@@ -4484,7 +4484,7 @@ public static partial class GroundCommandHandler
     /// <see cref="TurnDirection"/>, keyed by taxiway name, for echoing the turn in the response summary
     /// (e.g. "right on J"). Null when the command carries no turn hint.
     /// </summary>
-    private static IReadOnlyDictionary<string, TurnDirection>? BuildTurnHintMap(TaxiCommand taxi)
+    private static Dictionary<string, TurnDirection>? BuildTurnHintMap(TaxiCommand taxi)
     {
         if (taxi.PathTurnHints is not { } hints)
         {
@@ -5631,7 +5631,7 @@ public static partial class GroundCommandHandler
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="path">The clearance path, spot vias already rewritten to node references.</param>
     /// <returns>The spot's name, or null.</returns>
-    private static string? LastSpotViaName(AirportGroundLayout layout, IReadOnlyList<string> path)
+    private static string? LastSpotViaName(AirportGroundLayout layout, List<string> path)
     {
         for (int i = path.Count - 1; i >= 0; i--)
         {
@@ -6152,7 +6152,7 @@ public static partial class GroundCommandHandler
     /// <param name="layout">The airport it is on.</param>
     /// <param name="traffic">The aircraft and the other aircraft on the ground.</param>
     /// <returns>The warnings, in that order.</returns>
-    private static IReadOnlyList<string> ResponseWarnings(TaxiRoute route, AirportGroundLayout layout, TaxiStartTraffic traffic)
+    private static List<string> ResponseWarnings(TaxiRoute route, AirportGroundLayout layout, TaxiStartTraffic traffic)
     {
         if ((route.DestinationParking is not { } standName) || (layout.StandOccupant(standName, traffic) is not { } occupant))
         {
@@ -6367,11 +6367,11 @@ public static partial class GroundCommandHandler
     /// <c>Push to spot 7A</c> with the push's facing; with none, the RPO note names the taxiway the spot's nose-out facing
     /// points toward (<c>(nose out toward A)</c>), or nothing when the layout cannot name it.
     /// </summary>
-    private static PushReadback SpotReadback(PushbackCommand push, AirportGroundLayout groundLayout, GroundNode spot, string name)
+    private static PushReadback SpotReadback(PushbackCommand push, GroundNode spot, string name)
     {
         PushWords words = PushReadbackPhrases.ToSpot(push, name);
         string? note =
-            (!HasFacing(push) && groundLayout.TryGetSpotOutboundTaxiway(spot, out string outboundTaxiway))
+            (!HasFacing(push) && AirportGroundLayout.TryGetSpotOutboundTaxiway(spot, out string outboundTaxiway))
                 ? $"(nose out toward {outboundTaxiway})"
                 : null;
         return new PushReadback(words, note);
@@ -6610,7 +6610,7 @@ public static partial class GroundCommandHandler
         if (push.MagneticHeading is { } hint)
         {
             double hintTrueDeg = MagneticDeclination.MagneticToTrue(hint.Degrees, aircraft.Position);
-            double? edgeDeg = groundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, hintTrueDeg);
+            double? edgeDeg = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, hintTrueDeg);
             Log.LogDebug(
                 "[Pushback] {Callsign}: face hint {Hint:000} magnetic ({HintTrue:F1} true) → {Facing} along {PTwy}",
                 aircraft.Callsign,
@@ -6631,11 +6631,11 @@ public static partial class GroundCommandHandler
 
         if ((GeoMath.DistanceNm(exitNode.Position, facingNode.Position) * GeoMath.FeetPerNm) <= CoincidentFacingNodeFt)
         {
-            return FacingAtJunctionTrueDeg(aircraft, push, groundLayout, exitNode, facingNode);
+            return FacingAtJunctionTrueDeg(aircraft, push, exitNode, facingNode);
         }
 
         double bearingToFacing = GeoMath.BearingTo(exitNode.Position, facingNode.Position);
-        double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, bearingToFacing);
+        double? edgeBearing = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, bearingToFacing);
         Log.LogDebug(
             "[Pushback] {Callsign}: facing {FTwy} → {Facing} along {PTwy} (bearingToFacing={Brg:F0})",
             aircraft.Callsign,
@@ -6666,13 +6666,7 @@ public static partial class GroundCommandHandler
     /// junction by more than one straight edge, neither direction is named, and the push takes the direction nearest the
     /// aircraft's current nose — the least swing — logged as a guess.
     /// </summary>
-    private static double FacingAtJunctionTrueDeg(
-        AircraftState aircraft,
-        PushbackCommand push,
-        AirportGroundLayout groundLayout,
-        GroundNode exitNode,
-        GroundNode facingNode
-    )
+    private static double FacingAtJunctionTrueDeg(AircraftState aircraft, PushbackCommand push, GroundNode exitNode, GroundNode facingNode)
     {
         string taxiway = push.Taxiway!;
         List<double> leads =
@@ -6682,10 +6676,10 @@ public static partial class GroundCommandHandler
                 .Where(e => !e.IsRunwayCenterline && e.MatchesTaxiway(push.FacingTaxiway!))
                 .Select(e => GeoMath.BearingTo(facingNode.Position, e.OtherNode(facingNode).Position)),
         ];
-        if ((leads.Count == 1) && (groundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, leads[0]) is { } toward))
+        if ((leads.Count == 1) && (AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, leads[0]) is { } toward))
         {
             double reciprocal = new TrueHeading(toward).ToReciprocal().Degrees;
-            double away = groundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, reciprocal) ?? reciprocal;
+            double away = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, reciprocal) ?? reciprocal;
             double towardOffDeg = GeoMath.AbsBearingDifference(toward, leads[0]);
             double awayOffDeg = GeoMath.AbsBearingDifference(away, leads[0]);
             if (Math.Abs(towardOffDeg - awayOffDeg) > FacingTieDeg)
@@ -6705,7 +6699,7 @@ public static partial class GroundCommandHandler
         }
 
         double nose = aircraft.TrueHeading.Degrees;
-        double leastSwing = groundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, nose) ?? nose;
+        double leastSwing = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, nose) ?? nose;
         Log.LogDebug(
             "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} naming neither direction ({Leads}); "
                 + "guessing the least swing from nose {Nose:F1} → {Facing:F1}",
@@ -6741,7 +6735,7 @@ public static partial class GroundCommandHandler
 
         return (destination, groundLayout) switch
         {
-            ({ Spot: { } spot }, { } layout) => ResolvePushToSpot(aircraft, push, layout, spot, (goal, resolved.FinalFacingTrueDeg)),
+            ({ Spot: { } spot }, not null) => ResolvePushToSpot(aircraft, push, spot, (goal, resolved.FinalFacingTrueDeg)),
             ({ Parking: { } stand }, _) => ResolvePushToStand(stand, goal),
             _ => throw new UnreachableException($"PUSH {destination.Token} resolved to a goal without a spot and a layout, or a stand"),
         };
@@ -6871,7 +6865,6 @@ public static partial class GroundCommandHandler
     private static PushResolution ResolvePushToSpot(
         AircraftState aircraft,
         PushbackCommand push,
-        AirportGroundLayout groundLayout,
         string label,
         (TugGoal Goal, double? FinalFacingTrueDeg) resolved
     )
@@ -6883,7 +6876,7 @@ public static partial class GroundCommandHandler
             resolved.FinalFacingTrueDeg?.ToString("F1") ?? "none"
         );
 
-        PushReadback readback = SpotReadback(push, groundLayout, resolved.Goal.Node!, label);
+        PushReadback readback = SpotReadback(push, resolved.Goal.Node!, label);
         return PushResolution.Of(
             new PushTarget(resolved.Goal, resolved.FinalFacingTrueDeg, TugTerminus.OnSpot(resolved.Goal.Node!.Name), _ => readback)
         );
@@ -6933,7 +6926,7 @@ public static partial class GroundCommandHandler
         // A spot node reads as PUSH $spot does; any other node holds where the tug leaves it.
         bool onSpot = goal.Kind == TugGoalKind.Spot;
         PushReadback readback = onSpot
-            ? SpotReadback(push, groundLayout, goal.Node!, name)
+            ? SpotReadback(push, goal.Node!, name)
             : new PushReadback(PushReadbackPhrases.ToNode(push, goal.Node!.Id), null);
         return PushResolution.Of(
             new PushTarget(goal, facingTrueDeg, onSpot ? TugTerminus.OnSpot(goal.Node!.Name) : TugTerminus.Holding(null), _ => readback)
@@ -6961,7 +6954,7 @@ public static partial class GroundCommandHandler
         if ((facingTaxiway is not null) && (groundLayout.FindExitByTaxiway(destNode.Position, facingTaxiway) is { } facingNode))
         {
             double bearingToFacing = GeoMath.BearingTo(destNode.Position, facingNode.Position);
-            return groundLayout.GetEdgeBearingForTaxiway(destNode, facingTaxiway, bearingToFacing) ?? bearingToFacing;
+            return AirportGroundLayout.GetEdgeBearingForTaxiway(destNode, facingTaxiway, bearingToFacing) ?? bearingToFacing;
         }
 
         return null;
@@ -7136,7 +7129,7 @@ public static partial class GroundCommandHandler
                 return (TugGoal.Spot(node), facingTrueDeg);
             case TugGoalKind.TaxiwayLine:
                 string taxiway = amendment.TaxiwayName!;
-                double lineFacingDeg = groundLayout.GetEdgeBearingForTaxiway(node, taxiway, facingTrueDeg) ?? facingTrueDeg;
+                double lineFacingDeg = AirportGroundLayout.GetEdgeBearingForTaxiway(node, taxiway, facingTrueDeg) ?? facingTrueDeg;
                 return (TugGoal.TaxiwayLine(node, taxiway, lineFacingDeg), null);
             default:
                 return null;

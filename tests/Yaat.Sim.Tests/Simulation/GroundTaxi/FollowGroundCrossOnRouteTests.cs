@@ -2176,7 +2176,7 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
     /// Loads the YAAT-1527 KOAK recording, restores its snapshot at <see cref="OakRestoreSecond"/> and arms the recorded actions
     /// after it. Null on the repo's silent-skip path.
     /// </summary>
-    private (SimulationEngine Engine, AirportGroundLayout Layout)? StartOak()
+    private static (SimulationEngine Engine, AirportGroundLayout Layout)? StartOak()
     {
         TestVnasData.EnsureInitialized();
         RecordingArchive? archive = RecordingLoader.OpenArchive(OakRecordingPath);

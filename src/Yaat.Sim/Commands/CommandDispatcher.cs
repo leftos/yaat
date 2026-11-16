@@ -3505,7 +3505,7 @@ public static class CommandDispatcher
     /// The runways the CROSS commands in <paramref name="commands"/> name that a later takeoff or line-up clearance carries
     /// (<see cref="CarriesIntoClearance"/>), appended to <paramref name="carried"/>; null when there are none.
     /// </summary>
-    private static IReadOnlyList<string>? WithCrossings(IReadOnlyList<string>? carried, IEnumerable<ParsedCommand> commands)
+    private static List<string>? WithCrossings(IReadOnlyList<string>? carried, IEnumerable<ParsedCommand> commands)
     {
         List<string> runways = [.. carried ?? [], .. commands.OfType<CrossRunwayCommand>().Where(CarriesIntoClearance).SelectMany(c => c.RunwayIds)];
         return runways.Count > 0 ? runways : null;
@@ -3533,7 +3533,7 @@ public static class CommandDispatcher
     /// issued, or from a reaction delay carrying the readback's answers. Null otherwise
     /// (<see cref="DispatchContext.ReportsAnsweredByReadback"/>).
     /// </summary>
-    private static IReadOnlyList<ParsedCommand>? ReportsAnsweredByReadback(CompoundCommand compound, DispatchContext ctx) =>
+    private static List<ParsedCommand>? ReportsAnsweredByReadback(CompoundCommand compound, DispatchContext ctx) =>
         ((PilotProactive.BlockAnsweredAtIssue(compound) is { } first) && (!ctx.PreserveConditionals || (ctx.ReportPledges.Count > 0)))
             ? first.Commands
             : null;
@@ -4541,7 +4541,7 @@ public static class CommandDispatcher
     /// Every shape that sends an aircraft direct to a fix belongs here, so a single guard covers
     /// all of them.
     /// </summary>
-    private static IReadOnlyList<ResolvedFix>? DirectToFixes(ParsedCommand command) =>
+    private static List<ResolvedFix>? DirectToFixes(ParsedCommand command) =>
         command switch
         {
             DirectToCommand c => c.Fixes,
@@ -4746,8 +4746,8 @@ public static class CommandDispatcher
     /// </summary>
     private static void EmitQueueClearWarning(
         AircraftState aircraft,
-        IReadOnlyList<CommandBlock> dropped,
-        IReadOnlyList<DeferredDispatch> cancelledDeferrals,
+        List<CommandBlock> dropped,
+        List<DeferredDispatch> cancelledDeferrals,
         CompoundCommand compound
     )
     {

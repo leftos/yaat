@@ -186,7 +186,7 @@ public static class SpokenFormScore
         return true;
     }
 
-    private static double AlignmentScore(IReadOnlyList<SpokenToken> heard, IReadOnlyList<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    private static double AlignmentScore(IReadOnlyList<SpokenToken> heard, List<SpokenToken> form, MatchMode mode, DecoderSettings settings)
     {
         double[] previous = new double[form.Count + 1];
         double[] current = new double[form.Count + 1];

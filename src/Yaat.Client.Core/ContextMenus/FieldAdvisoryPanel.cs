@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
@@ -123,6 +124,11 @@ public sealed class FieldAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
     }
 
     /// <summary>The flyout's title.</summary>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Stays an instance member so the field advisory flyout tests read it through the panel instance, as the sibling panels' members are read"
+    )]
     public string Title => FieldAdvisoryFlyout.Title;
 
     /// <summary>The title line's right side (<see cref="AirborneTrafficFlyout.TitleNow"/>).</summary>
@@ -150,6 +156,11 @@ public sealed class FieldAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
     public AdvisoryClockDial Dial { get; } = new();
 
     /// <summary>The dial's caption.</summary>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Stays an instance member so the field advisory flyout tests read it through the panel instance, as the sibling panels' members are read"
+    )]
     public string DialCaption => FieldCaption;
 
     /// <summary>The Miles stepper, 1 to <see cref="MaxMiles"/>.</summary>

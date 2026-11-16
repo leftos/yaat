@@ -44,7 +44,7 @@ public static class OneWayResolver
     /// Forbidden directed moves for <paramref name="layout"/> with every constraint binding, whatever its exemptions: the
     /// span of every one-way lane, for <see cref="GetOneWayLaneTaxiways"/>. Cached; empty when the airport has no one-way data.
     /// </summary>
-    private static IReadOnlySet<(int From, int To)> GetForbiddenMovesIgnoringExemptions(AirportGroundLayout layout) =>
+    private static HashSet<(int From, int To)> GetForbiddenMovesIgnoringExemptions(AirportGroundLayout layout) =>
         UnexemptedCache.GetValue(layout, BuildUnexempted);
 
     /// <summary>

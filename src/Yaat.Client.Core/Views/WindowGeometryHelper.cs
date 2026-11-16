@@ -272,8 +272,8 @@ public sealed class WindowGeometryHelper
 
     private void ApplyGeometryToWindow(SavedWindowGeometry geo, bool isStartupRestore)
     {
-        IReadOnlyList<ScreenInfo> screenInfos = GetScreenSnapshot();
-        if (screenInfos.Count > 0)
+        ScreenInfo[] screenInfos = GetScreenSnapshot();
+        if (screenInfos.Length > 0)
         {
             ResolvedGeometry resolved = ResolveGeometry(geo, screenInfos);
 
@@ -442,8 +442,8 @@ public sealed class WindowGeometryHelper
             return;
         }
 
-        IReadOnlyList<ScreenInfo> screens = GetScreenSnapshot();
-        if (screens.Count == 0)
+        ScreenInfo[] screens = GetScreenSnapshot();
+        if (screens.Length == 0)
         {
             Log.LogWarning("{Window} post-open verify skipped: no screens reported", _windowName);
             return;
@@ -476,7 +476,7 @@ public sealed class WindowGeometryHelper
         _window.Position = new PixelPoint(resolved.X, resolved.Y);
     }
 
-    private IReadOnlyList<ScreenInfo> GetScreenSnapshot()
+    private ScreenInfo[] GetScreenSnapshot()
     {
         IReadOnlyList<Screen> screens = _window.Screens.All;
         var screenInfos = new ScreenInfo[screens.Count];

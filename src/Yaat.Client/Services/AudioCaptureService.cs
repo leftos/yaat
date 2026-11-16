@@ -211,7 +211,7 @@ public sealed class AudioCaptureService(UserPreferences preferences) : IAudioCap
         Log.LogInformation("PortAudio initialized: {Version}", PortAudio.VersionInfo.versionText);
     }
 
-    private int ResolveInputDevice(string preferred)
+    private static int ResolveInputDevice(string preferred)
     {
         if (string.IsNullOrWhiteSpace(preferred))
         {

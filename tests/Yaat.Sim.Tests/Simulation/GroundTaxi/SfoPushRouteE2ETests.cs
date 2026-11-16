@@ -745,7 +745,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// the second; (d) every change between push and pull has at least four still seconds before the new move
     /// moves.
     /// </summary>
-    private void AssertTugMotion(MoveRun run)
+    private static void AssertTugMotion(MoveRun run)
     {
         double tightRadiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(AircraftType), tight: true);
         IReadOnlyList<Sample> samples = run.Samples;
@@ -1020,7 +1020,10 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     private static (LatLon Position, double OutHeadingDeg) SpotRest(AirportGroundLayout layout, string spotName)
     {
         GroundNode spot = Spot(layout, spotName);
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outBearingDeg), $"spot '{spotName}' has no outbound heading in the layout");
+        Assert.True(
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outBearingDeg),
+            $"spot '{spotName}' has no outbound heading in the layout"
+        );
         double halfLengthNm = (AircraftLength.ResolveFt(AircraftType) / 2.0) / GeoMath.FeetPerNm;
         return (GeoMath.ProjectPoint(spot.Position, new TrueHeading(outBearingDeg).ToReciprocal(), halfLengthNm), outBearingDeg);
     }

@@ -90,7 +90,7 @@ public class EfAltitudeAwareStraightInTests : IDisposable
         return (result.Lat, result.Lon);
     }
 
-    private PatternEntryPhase RequireEntryPhase(AircraftState aircraft)
+    private static PatternEntryPhase RequireEntryPhase(AircraftState aircraft)
     {
         PatternEntryPhase? entry = aircraft.Phases!.Phases.OfType<PatternEntryPhase>().FirstOrDefault();
         Assert.NotNull(entry);

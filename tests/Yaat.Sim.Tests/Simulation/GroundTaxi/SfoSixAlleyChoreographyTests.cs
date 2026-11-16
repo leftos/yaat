@@ -113,7 +113,7 @@ public class SfoSixAlleyChoreographyTests
         string pushCommand = $"PUSH ${PushLongSpot}";
         int pushDoneSec = PushToSpot(alley, guard, pushCommand, PushLongPusherGate);
         _output.WriteLine($"{pushCommand} finished at t={pushDoneSec}s");
-        AssertRestingOnSpot(alley.Pusher, alley.Spot, alley.Ground.Layout);
+        AssertRestingOnSpot(alley.Pusher, alley.Spot);
 
         string clearance = $"TAXI T A T6B @{PushLongArrivalGate}";
         CommandResult taxi = alley.Ground.Engine.SendCommand(Arrival, clearance);
@@ -232,7 +232,7 @@ public class SfoSixAlleyChoreographyTests
                 + $"{requiredFt:F2}ft an {ArrivalType} and a {PusherType} need side by side (two half-spans plus the wingtip buffer)"
         );
 
-        AssertRestingOnSpot(alley.Pusher, alley.Spot, alley.Ground.Layout);
+        AssertRestingOnSpot(alley.Pusher, alley.Spot);
         double finalFt = DistanceFt(alley.Arrival.Position, alley.Parking.Position);
         Assert.True(
             finalFt <= TaxiCoverageRunner.ParkingArrivalToleranceFt,
@@ -317,7 +317,7 @@ public class SfoSixAlleyChoreographyTests
     /// <param name="command">The <c>PUSH $spot</c> clearance to issue.</param>
     /// <param name="pusherGate">Stand the pusher is on, for the failure message.</param>
     /// <returns>The second the push finished and came to rest on the spot.</returns>
-    private int PushToSpot(Alley alley, DeadlockGuard guard, string command, string pusherGate)
+    private static int PushToSpot(Alley alley, DeadlockGuard guard, string command, string pusherGate)
     {
         CommandResult push = alley.Ground.Engine.SendCommand(Pusher, command);
         Assert.True(push.Success, $"'{command}' from {pusherGate} failed: {push.Message}");
@@ -478,7 +478,7 @@ public class SfoSixAlleyChoreographyTests
     /// A completed <c>PUSH $spot</c> rests with the nosewheel on the marking — centroid a half fuselage
     /// back — and the nose on the spot's outbound heading, ready to taxi out.
     /// </summary>
-    private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot, AirportGroundLayout layout)
+    private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot)
     {
         double halfLengthFt = (FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? 110.0) / 2.0;
         double distFt = DistanceFt(ac.Position, spot.Position);
@@ -489,7 +489,7 @@ public class SfoSixAlleyChoreographyTests
         );
 
         Assert.True(
-            layout.TryGetSpotOutboundHeading(spot, out double outBearing),
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outBearing),
             $"the layout carries no outbound heading for the spot {ac.Callsign} pushed to"
         );
         double headingErrDeg = new TrueHeading(outBearing).AbsAngleTo(ac.TrueHeading);

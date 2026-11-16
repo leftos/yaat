@@ -60,7 +60,7 @@ public class AvoidTaxiwayPathfinderTests
             AvoidMode = mode,
         };
 
-    private static IReadOnlySet<string> AvoidSet(params string[] names) => new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+    private static HashSet<string> AvoidSet(params string[] names) => new(names, StringComparer.OrdinalIgnoreCase);
 
     private static bool UsesTaxiway(TaxiRoute route, string name) =>
         route.Segments.Any(s => string.Equals(s.TaxiwayName, name, StringComparison.OrdinalIgnoreCase));

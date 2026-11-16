@@ -1302,8 +1302,7 @@ internal static class NavigationCommandHandler
     private static bool IsOnStarCommonRoute(CifpStarProcedure star, string fixName) =>
         star.CommonLegs.Any(l => !string.IsNullOrEmpty(l.FixIdentifier) && fixName.Equals(l.FixIdentifier, StringComparison.OrdinalIgnoreCase));
 
-    private static string DescribeLegFixes(IReadOnlyList<CifpLeg> legs) =>
-        legs.Count == 0 ? "nothing" : string.Join(' ', legs.Select(l => l.FixIdentifier));
+    private static string DescribeLegFixes(List<CifpLeg> legs) => legs.Count == 0 ? "nothing" : string.Join(' ', legs.Select(l => l.FixIdentifier));
 
     /// <summary>
     /// Filters NavigationTargets to those ahead of the aircraft (within ±90° of heading),

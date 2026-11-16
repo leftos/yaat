@@ -240,7 +240,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
         }
 
         // Walk ahead along centerline
-        GroundNode? next = layout.FindCenterlineNeighborAhead(centerlineNode, rwy30Heading, "30");
+        GroundNode? next = AirportGroundLayout.FindCenterlineNeighborAhead(centerlineNode, rwy30Heading, "30");
         _output.WriteLine($"Centerline start: {centerlineNode.Id}, next: {next?.Id.ToString() ?? "null"}");
 
         // Should be able to walk at least one step

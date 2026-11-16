@@ -788,7 +788,7 @@ public static class TugGoalResolver
     {
         TugGoal goal = request.Goals[index];
         bool isLast = index == (request.Goals.Count - 1);
-        double? facing = FacingOf(layout, goal, isLast ? request.FinalFacingTrueDeg : null);
+        double? facing = FacingOf(goal, isLast ? request.FinalFacingTrueDeg : null);
         ResolvedTugGoal basis = Basis(goal, isHint: !isLast);
         return goal.Kind switch
         {
@@ -804,11 +804,11 @@ public static class TugGoalResolver
     /// The facing a goal ends on: the override, else a spot's nose-out heading, a stand's own heading, or the
     /// facing the goal carries. Null when none applies.
     /// </summary>
-    private static double? FacingOf(AirportGroundLayout? layout, TugGoal goal, double? overrideDeg) =>
+    private static double? FacingOf(TugGoal goal, double? overrideDeg) =>
         overrideDeg
         ?? goal.Kind switch
         {
-            TugGoalKind.Spot => layout!.TryGetSpotOutboundHeading(goal.Node!, out double outbound) ? outbound : null,
+            TugGoalKind.Spot => AirportGroundLayout.TryGetSpotOutboundHeading(goal.Node!, out double outbound) ? outbound : null,
             TugGoalKind.Stand => goal.Node!.TrueHeading?.Degrees,
             _ => goal.FacingTrueDeg,
         };
@@ -916,10 +916,10 @@ public static class TugGoalResolver
             };
     }
 
-    private static IReadOnlySet<string> NodeEdgeNames(GroundNode node) =>
-        new HashSet<string>(node.Edges.SelectMany(RampLaneReposition.EdgeNames), StringComparer.OrdinalIgnoreCase);
+    private static HashSet<string> NodeEdgeNames(GroundNode node) =>
+        new(node.Edges.SelectMany(RampLaneReposition.EdgeNames), StringComparer.OrdinalIgnoreCase);
 
-    private static IReadOnlySet<string> Names(string name) => new HashSet<string>([name], StringComparer.OrdinalIgnoreCase);
+    private static HashSet<string> Names(string name) => new([name], StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -1544,7 +1544,7 @@ internal sealed class TugPlanBuilder
     private readonly TugPathCheck? _pathCheck;
 
     /// <summary>The names of the taxiway straight behind the stand the plan starts on, exempt for every goal; empty otherwise.</summary>
-    private readonly IReadOnlySet<string> _standBehindNames;
+    private readonly HashSet<string> _standBehindNames;
 
     /// <summary>
     /// The pass-through hints (every goal but the last) the tow has still to pass, in order; a pass-through tow
@@ -2044,7 +2044,7 @@ internal sealed class TugPlanBuilder
     /// candidates that all keep the full buffer tie, and the usual keys decide. The choice goes on
     /// <see cref="BandChoices"/>. Null when there are no candidates.
     /// </summary>
-    private TugCandidate? BestWithinClearanceBand(IReadOnlyList<TugCandidate> candidates, Func<TugCandidate, TugCandidate?, bool> isBetter)
+    private TugCandidate? BestWithinClearanceBand(List<TugCandidate> candidates, Func<TugCandidate, TugCandidate?, bool> isBetter)
     {
         if (candidates.Count == 0)
         {
@@ -2855,7 +2855,7 @@ internal sealed class TugPlanBuilder
     /// The names on the first movement-area edge the push-off ray from a stand start crosses within
     /// <see cref="TugMovePlanner.StandBehindExemptionFt"/>, or none when the plan does not start on a stand.
     /// </summary>
-    private static IReadOnlySet<string> StandBehindNames(TugPathCheck? pathCheck, TugRequest request)
+    private static HashSet<string> StandBehindNames(TugPathCheck? pathCheck, TugRequest request)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if ((pathCheck is null) || !request.StartsAtStand)

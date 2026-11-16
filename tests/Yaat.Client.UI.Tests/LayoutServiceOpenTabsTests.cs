@@ -74,7 +74,7 @@ public class LayoutServiceOpenTabsTests
             OpenTabs = new SavedOpenTabs { Strips = ["NCT", "SFO"], Tdls = ["SFO"] },
         };
 
-        IReadOnlyList<string> skipped = await new LayoutService(vm.Preferences).ApplyOpenTabsAsync(layout, vm);
+        IReadOnlyList<string> skipped = await LayoutService.ApplyOpenTabsAsync(layout, vm);
 
         Assert.Empty(skipped);
         List<VStripsDockEntryViewModel> strips = ExtraStripsTabs(vm);
@@ -96,7 +96,7 @@ public class LayoutServiceOpenTabsTests
         VTdlsDockEntryViewModel tdls = await OpenTdlsTabAsync(vm, "SFO");
         var layout = new SavedLayout { Name = "no-tabs", OpenTabs = null };
 
-        IReadOnlyList<string> skipped = await new LayoutService(vm.Preferences).ApplyOpenTabsAsync(layout, vm);
+        IReadOnlyList<string> skipped = await LayoutService.ApplyOpenTabsAsync(layout, vm);
 
         Assert.Empty(skipped);
         Assert.Equal([strips], ExtraStripsTabs(vm));
@@ -117,7 +117,7 @@ public class LayoutServiceOpenTabsTests
             OpenTabs = new SavedOpenTabs { Strips = ["OAK"], Tdls = ["SMF"] },
         };
 
-        IReadOnlyList<string> skipped = await new LayoutService(vm.Preferences).ApplyOpenTabsAsync(layout, vm);
+        IReadOnlyList<string> skipped = await LayoutService.ApplyOpenTabsAsync(layout, vm);
 
         Assert.Empty(skipped);
         Assert.Equal([strips], ExtraStripsTabs(vm));
@@ -136,7 +136,7 @@ public class LayoutServiceOpenTabsTests
             OpenTabs = new SavedOpenTabs { Strips = ["OAK"], Tdls = [] },
         };
 
-        IReadOnlyList<string> skipped = await new LayoutService(vm.Preferences).ApplyOpenTabsAsync(layout, vm);
+        IReadOnlyList<string> skipped = await LayoutService.ApplyOpenTabsAsync(layout, vm);
 
         // The student's own facility already has its tab, as with vTDLS: no second tab, and nothing reported.
         Assert.Empty(skipped);
@@ -154,7 +154,7 @@ public class LayoutServiceOpenTabsTests
             OpenTabs = new SavedOpenTabs { Strips = ["ZOA", "NCT"], Tdls = ["SMF"] },
         };
 
-        IReadOnlyList<string> skipped = await new LayoutService(vm.Preferences).ApplyOpenTabsAsync(layout, vm);
+        IReadOnlyList<string> skipped = await LayoutService.ApplyOpenTabsAsync(layout, vm);
 
         Assert.Equal(["ZOA", "SMF"], skipped);
         Assert.Single(ExtraStripsTabs(vm));

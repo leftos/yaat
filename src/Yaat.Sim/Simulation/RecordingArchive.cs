@@ -647,8 +647,7 @@ public sealed class RecordingArchive : IDisposable
     /// how a Sim-side replay recovers the roster the deferred autotrack pass matches departures against. Returns null
     /// when the recording has no snapshots or the snapshot predates the roster.
     /// </summary>
-    private IReadOnlyList<AtcPositionDto>? ReadInitialAtcPositions() =>
-        Manifest.Snapshots.Count == 0 ? null : FirstSnapshot.State.Scenario.AtcPositions;
+    private List<AtcPositionDto>? ReadInitialAtcPositions() => Manifest.Snapshots.Count == 0 ? null : FirstSnapshot.State.Scenario.AtcPositions;
 
     /// <summary>
     /// Read the resolved student position from the first snapshot's scenario block. The scenario
@@ -784,7 +783,7 @@ public sealed class RecordingArchive : IDisposable
     /// is skipped at the JSON-element level (a full <see cref="StateSnapshotDto"/> decode per
     /// snapshot dominated recording load time and allocation).
     /// </summary>
-    private List<RecordedAction> AddSyntheticAircraftSpawnsFromSnapshots(List<RecordedAction> actions, IReadOnlySet<string> scenarioAircraftCallsigns)
+    private List<RecordedAction> AddSyntheticAircraftSpawnsFromSnapshots(List<RecordedAction> actions, HashSet<string> scenarioAircraftCallsigns)
     {
         if (actions.Any(static a => a is RecordedAircraftSpawn) || Manifest.Snapshots.Count < 2)
         {

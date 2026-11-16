@@ -320,7 +320,7 @@ public class LahsoPastHandoffTests(ITestOutputHelper output)
     /// Puts a C172 rolling in <see cref="RunwayExitPhase"/> early on 28R and ticks until it has committed to its exit and handed the
     /// route to the navigator, still on the approach leg. Returns the phase and the committed taxiway.
     /// </summary>
-    private (RunwayExitPhase Phase, string Committed) CommittedOnApproachLeg(Setup setup)
+    private static (RunwayExitPhase Phase, string Committed) CommittedOnApproachLeg(Setup setup)
     {
         PutOnRunway(setup, alongFt: 800, speedKts: 25, new RunwayExitPhase(), new HoldingAfterExitPhase());
         for (int t = 1; t <= 3; t++)

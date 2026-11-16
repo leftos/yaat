@@ -2652,7 +2652,7 @@ public static class CommandDescriber
     /// terminal canonical round-trips the hints through the server's <c>ParseTaxiTokens</c>. Returns the
     /// bare path unchanged when no taxiway carries a hint.
     /// </summary>
-    private static IReadOnlyList<string> TaxiPathTokensWithHints(TaxiCommand taxi)
+    private static List<string> TaxiPathTokensWithHints(TaxiCommand taxi)
     {
         List<TurnDirection?>? hints = taxi.PathTurnHints;
         if (hints is null)

@@ -54,13 +54,13 @@ public static partial class ContextDecoder
 
         public bool Typed { get; } = typed;
 
-        public IReadOnlyList<SpokenToken> Tokens => _tokens;
+        public SpokenToken[] Tokens => _tokens;
 
         public TokenRange Whole => new(0, _tokens.Length);
 
         public bool ConfidenceGated => _confidence is not null;
 
-        public IReadOnlyList<SpokenToken> Slice(TokenRange range) => new ArraySegment<SpokenToken>(_tokens, range.Start, range.Length);
+        public ArraySegment<SpokenToken> Slice(TokenRange range) => new(_tokens, range.Start, range.Length);
 
         public bool IsConfident(int sourceWord) => (_confidence is not null) && (_confidence[sourceWord] >= _settings.ConfidentWordProb);
 

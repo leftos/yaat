@@ -844,9 +844,9 @@ public sealed class SpeechRecognitionService(
         LlmMapperTrace? llmTrace = null;
 
         MapResult? ruleResult;
-        if (ruleMapper is PhraseologyCommandMapper phr)
+        if (ruleMapper is PhraseologyCommandMapper)
         {
-            (ruleResult, ruleTrace) = await phr.MapWithTraceAsync(commandText, mapContext, ct).ConfigureAwait(false);
+            (ruleResult, ruleTrace) = await PhraseologyCommandMapper.MapWithTraceAsync(commandText, mapContext, ct).ConfigureAwait(false);
         }
         else
         {

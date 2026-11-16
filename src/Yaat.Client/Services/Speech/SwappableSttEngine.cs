@@ -119,7 +119,7 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
     public Task<bool> SwapToLatestUnwarmedAsync(Func<Task<ISttEngine>> build, CancellationToken ct) =>
         SwapToLatestCoreAsync(build, warmUp: false, ct);
 
-    private async Task WarmUpOrDisposeAsync(ISttEngine next, CancellationToken ct)
+    private static async Task WarmUpOrDisposeAsync(ISttEngine next, CancellationToken ct)
     {
         try
         {

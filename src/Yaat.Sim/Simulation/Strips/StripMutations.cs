@@ -963,7 +963,7 @@ public static class StripMutations
     /// case-insensitive comparison.
     /// </summary>
     private static (AccessibleBay Bay, int Rack, int? Index, int TokensConsumed)? ResolveBayWithinFacility(
-        IReadOnlyList<string> tokens,
+        List<string> tokens,
         IReadOnlyList<AccessibleBay> accessibleBays
     )
     {

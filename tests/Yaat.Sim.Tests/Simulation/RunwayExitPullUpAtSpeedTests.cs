@@ -570,7 +570,7 @@ public sealed class RunwayExitPullUpAtSpeedTests(ITestOutputHelper output)
         foreach (IGroundEdge edge in bar.Edges.ToList())
         {
             GroundNode from = layout.Nodes[edge.OtherNodeId(bar.Id)];
-            if (layout.FindParallelRunwayCrossing(bar, from, "G", "19L") is not { } crossing)
+            if (AirportGroundLayout.FindParallelRunwayCrossing(bar, from, "G", "19L") is not { } crossing)
             {
                 continue;
             }

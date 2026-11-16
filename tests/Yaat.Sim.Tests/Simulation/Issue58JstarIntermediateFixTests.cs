@@ -138,7 +138,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         output.WriteLine(log.ToString());
     }
 
-    private void AssertFirstFixAhead(AircraftState aircraft)
+    private static void AssertFirstFixAhead(AircraftState aircraft)
     {
         List<NavigationTarget> navRoute = aircraft.Targets.NavigationRoute;
         if (navRoute.Count == 0)

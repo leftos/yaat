@@ -1969,7 +1969,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         AirportGroundLayout layout,
         (GroundNode Bar, RunwayInfo Runway) line,
         AircraftState aircraft,
-        IReadOnlySet<string> startedInside
+        HashSet<string> startedInside
     )
     {
         HashSet<string> inside = PartsInsideHoldLine(layout, line, aircraft.Position, aircraft.TrueHeading.Degrees, aircraft.AircraftType);
@@ -2869,7 +2869,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <paramref name="stub"/> along <paramref name="stub"/>'s taxiway, taking the straightest such edge at each node; null when
     /// that taxiway has no holding position for the same runway across it within <see cref="MaxCrossingWalkNodes"/> nodes.
     /// </summary>
-    private static GroundNode? FarSideBar(GroundNode hold, IGroundEdge stub)
+    private static GroundNode? FarSideBar(GroundNode hold, GroundEdge stub)
     {
         GroundNode node = hold;
         IGroundEdge from = stub;

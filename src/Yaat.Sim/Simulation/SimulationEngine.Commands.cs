@@ -77,7 +77,7 @@ public sealed partial class SimulationEngine
     /// nothing — the same rule the dispatcher applies.
     /// </para>
     /// </summary>
-    public void DeferForReaction(AircraftState aircraft, CompoundCommand compound, double seconds, DispatchOrigin origin)
+    public static void DeferForReaction(AircraftState aircraft, CompoundCommand compound, double seconds, DispatchOrigin origin)
     {
         if (!CommandDispatcher.IsConditionalIncoming(compound))
         {

@@ -2702,7 +2702,7 @@ internal static class PatternCommandHandler
     /// recover the commands by re-parsing the serialized <see cref="CommandBlock.SourceCommandText"/>
     /// (the same recovery SimulationEngine uses for restored track blocks).
     /// </summary>
-    private static IReadOnlyList<ParsedCommand> BlockParsedCommands(CommandBlock block, AircraftState aircraft)
+    private static List<ParsedCommand> BlockParsedCommands(CommandBlock block, AircraftState aircraft)
     {
         if (block.ParsedCommands is { } live)
         {

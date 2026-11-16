@@ -867,7 +867,7 @@ public partial class MainViewModel
         RefreshMetarOrdering();
     }
 
-    private static IReadOnlyList<WeatherDisplayInfo>? ExtractAllWeatherDisplay(IReadOnlyList<string>? metars)
+    private static List<WeatherDisplayInfo>? ExtractAllWeatherDisplay(List<string>? metars)
     {
         if (metars is null || metars.Count == 0)
         {

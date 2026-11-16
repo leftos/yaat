@@ -263,7 +263,7 @@ public class JunctionContinuationTests
     /// skipped taxiway (e.g. B never walked) and an out-of-order traversal (e.g. the second A
     /// before B3).
     /// </summary>
-    private static void AssertOrderedSubsequence(IReadOnlyList<string> expected, IReadOnlyList<string> actual)
+    private static void AssertOrderedSubsequence(IReadOnlyList<string> expected, List<string> actual)
     {
         int ai = 0;
         foreach (string want in expected)
@@ -481,7 +481,7 @@ public class JunctionContinuationTests
         return false;
     }
 
-    private static string? NearestSingleName(IReadOnlyList<TaxiRouteSegment> segs, int from, int step)
+    private static string? NearestSingleName(List<TaxiRouteSegment> segs, int from, int step)
     {
         for (int i = from + step; i >= 0 && i < segs.Count; i += step)
         {

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.Json;
 
 namespace Yaat.Sim.Data;
@@ -70,7 +71,7 @@ public static class GatePronunciationLoader
         );
     }
 
-    private static IReadOnlyList<NamePronunciation> CleanNames(IReadOnlyList<NamePronunciation?>? entries, string section, List<string> warnings)
+    private static ReadOnlyCollection<NamePronunciation> CleanNames(IReadOnlyList<NamePronunciation?>? entries, string section, List<string> warnings)
     {
         var cleaned = new List<NamePronunciation>();
         IReadOnlyList<NamePronunciation?> source = entries ?? [];
@@ -86,7 +87,7 @@ public static class GatePronunciationLoader
         return cleaned.AsReadOnly();
     }
 
-    private static IReadOnlyList<GroundPlaceDefinition> CleanPlaces(
+    private static ReadOnlyCollection<GroundPlaceDefinition> CleanPlaces(
         IReadOnlyList<GroundPlaceDefinition?>? entries,
         string section,
         List<string> warnings
@@ -144,7 +145,7 @@ public static class GatePronunciationLoader
         return (name.Trim().ToUpperInvariant(), spoken);
     }
 
-    private static IReadOnlyList<string> CleanStands(IReadOnlyList<string?>? stands, string location, List<string> warnings)
+    private static ReadOnlyCollection<string> CleanStands(IReadOnlyList<string?>? stands, string location, List<string> warnings)
     {
         var cleaned = new List<string>();
         foreach (string? stand in stands ?? [])

@@ -546,7 +546,7 @@ public static class SegmentExpander
             && !RouteReachesRunwayHoldShort(state.Edges, fallbackRunway, ctx)
         )
         {
-            IReadOnlySet<string> unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
+            HashSet<string> unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
             SearchContext autoCtx = ctx with
             {
                 WaypointSequence = [],
@@ -2063,7 +2063,7 @@ public static class SegmentExpander
     /// runway-crossing edges (<c>RWY…</c>, not ramp connectors) are excluded. Arc edges carry several
     /// names joined with <c>" - "</c>; each qualifying member counts.
     /// </summary>
-    private static IEnumerable<string> RampConnectorNames(GroundNode node, string clearedTaxiway)
+    private static HashSet<string> RampConnectorNames(GroundNode node, string clearedTaxiway)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (IGroundEdge edge in node.Edges)
@@ -2322,7 +2322,7 @@ public static class SegmentExpander
         SearchContext legCtx,
         List<(GroundNode Node, double StraightFt)> targets,
         string taxiway,
-        IReadOnlySet<string> avoided,
+        HashSet<string> avoided,
         string? impliedLane
     )
     {
@@ -3910,7 +3910,7 @@ public static class SegmentExpander
     /// first segment, token 0 carries a hint, and the start heading is known.
     /// </summary>
     private static double FirstTaxiwayTurnHintPenalty(
-        IReadOnlyList<DirectionalEdge> segEdges,
+        List<DirectionalEdge> segEdges,
         IReadOnlyList<WaypointToken> tokens,
         int fromIndex,
         SearchContext ctx
@@ -4885,7 +4885,7 @@ public static class SegmentExpander
     /// letter-only, so they are always free. Used to HARD-constrain the runway-destination fallback
     /// A* to the cleared taxiways so it cannot detour onto an unnamed taxiway.
     /// </summary>
-    private static IReadOnlySet<string> UnnamedLetterTaxiways(AirportGroundLayout layout, IReadOnlySet<string>? authorized)
+    private static HashSet<string> UnnamedLetterTaxiways(AirportGroundLayout layout, IReadOnlySet<string>? authorized)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (GroundNode node in layout.Nodes.Values)
@@ -6546,7 +6546,7 @@ public static class SegmentExpander
     /// a ramp taxilane (<see cref="MovementAreaClassification.IsRampTaxilane"/>), not the destination stand's or spot's
     /// own lead-in. Runway pavement is left to the centreline rules, so a runway name is never listed.
     /// </summary>
-    private static IReadOnlySet<string> UnclearedMovementAreaTaxiways(SearchContext ctx)
+    private static HashSet<string> UnclearedMovementAreaTaxiways(SearchContext ctx)
     {
         var classification = MovementAreaClassification.For(ctx.Layout);
         var cleared = new HashSet<string>(ctx.WaypointSequence, StringComparer.OrdinalIgnoreCase);

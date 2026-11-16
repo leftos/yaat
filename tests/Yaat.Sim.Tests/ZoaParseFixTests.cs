@@ -707,7 +707,7 @@ public class ZoaParseFixTests : IDisposable
         Assert.True(server.IsSuccess, server.Reason);
         Assert.Equal(2, server.Value!.Blocks.Count);
         Assert.Equal(120, Assert.IsType<WaitCommand>(Assert.Single(server.Value.Blocks[0].Commands)).Seconds);
-        IReadOnlyList<ParsedCommand> commands = server.Value.Blocks[1].Commands;
+        List<ParsedCommand> commands = server.Value.Blocks[1].Commands;
         Assert.Equal(2, commands.Count);
         Assert.Equal(["KDTO"], Assert.IsType<DirectToCommand>(commands[0]).Fixes.Select(f => f.Name));
         Assert.Equal(6500, Assert.IsType<ClimbMaintainCommand>(commands[1]).Altitude);

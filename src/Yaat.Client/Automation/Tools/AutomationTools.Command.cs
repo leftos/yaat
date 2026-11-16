@@ -55,7 +55,7 @@ public sealed partial class AutomationTools
     /// The texts that answer the command <paramref name="submission"/> sent: the server's message when it refused the command, and
     /// every warning the client added for it. Empty when the submission threw before answering.
     /// </summary>
-    private static IReadOnlyCollection<string> OwnAnswerTexts(CommandSubmission? submission, CommandBoxOutcome? outcome)
+    private static List<string> OwnAnswerTexts(CommandSubmission? submission, CommandBoxOutcome? outcome)
     {
         List<string> texts = [];
         if ((submission is not null) && !submission.Success && !string.IsNullOrEmpty(submission.Message))

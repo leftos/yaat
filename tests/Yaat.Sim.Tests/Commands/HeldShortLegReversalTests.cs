@@ -18,7 +18,7 @@ public class HeldShortLegReversalTests
     }
 
     /// <summary>The segment that drives <paramref name="edge"/> away from <paramref name="from"/>.</summary>
-    private static TaxiRouteSegment Segment(IGroundEdge edge, GroundNode from)
+    private static TaxiRouteSegment Segment(GroundEdge edge, GroundNode from)
     {
         GroundNode to = (edge.Nodes[0].Id == from.Id) ? edge.Nodes[1] : edge.Nodes[0];
         return new TaxiRouteSegment

@@ -7,7 +7,7 @@ public class NatoLetterNormalizerTests
 {
     private static readonly IReadOnlySet<string> EmptySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    private static IReadOnlySet<string> TaxiwaySet(params string[] names) => new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+    private static HashSet<string> TaxiwaySet(params string[] names) => new(names, StringComparer.OrdinalIgnoreCase);
 
     [Fact]
     public void Empty_Input_Returns_Empty()

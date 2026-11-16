@@ -1342,7 +1342,7 @@ public class AirborneFollowTests : IDisposable
         return (p.Lat, p.Lon);
     }
 
-    private AircraftState FollowerOnDownwindAt(double alongTrackNm, string? leadCallsign, string type = "C172")
+    private static AircraftState FollowerOnDownwindAt(double alongTrackNm, string? leadCallsign, string type = "C172")
     {
         (double lat, double lon) = AtAlongTrack(alongTrackNm);
         return MakeAircraftOnPatternPhase<DownwindPhase>(
@@ -1355,7 +1355,7 @@ public class AirborneFollowTests : IDisposable
         );
     }
 
-    private AircraftState LeadOnPhaseAt<TPhase>(double alongTrackNm, string type = "C172")
+    private static AircraftState LeadOnPhaseAt<TPhase>(double alongTrackNm, string type = "C172")
         where TPhase : Phase, new()
     {
         (double lat, double lon) = AtAlongTrack(alongTrackNm);

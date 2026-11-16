@@ -37,7 +37,7 @@ public sealed class AutomationScreenshotTests : AutomationHostFixture
             VerticalAlignment = VerticalAlignment.Top,
         };
 
-    private static Panel OnWhite(params Control[] children)
+    private static Grid OnWhite(params Control[] children)
     {
         var grid = new Grid { Background = Brushes.White };
         grid.Children.AddRange(children);

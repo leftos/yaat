@@ -309,7 +309,7 @@ public partial class TugPathCheckClampedOvershootTests
     {
         GroundNode exit = Exit(layout, from, taxiway);
         double hintTrueDeg = MagneticDeclination.MagneticToTrue(hintMagneticDeg, from);
-        double facingDeg = layout.GetEdgeBearingForTaxiway(exit, taxiway, hintTrueDeg) ?? hintTrueDeg;
+        double facingDeg = AirportGroundLayout.GetEdgeBearingForTaxiway(exit, taxiway, hintTrueDeg) ?? hintTrueDeg;
         return TugGoal.TaxiwayLine(exit, taxiway, facingDeg);
     }
 

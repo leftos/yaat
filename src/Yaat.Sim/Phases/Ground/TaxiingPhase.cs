@@ -1861,7 +1861,7 @@ public sealed class TaxiingPhase : Phase
     /// (<see cref="HoldAtCrossingAhead"/>) brakes as the crossing's own HOLD does (<see cref="CrossingRunwayPhase.PinHeldSpeed"/>):
     /// at the HOLD-on-the-runway rate, onto the near holding-position marking when that rate stops the nose there.
     /// </summary>
-    private void PinHoldAtCrossingAhead(PhaseContext ctx, TaxiRoute route)
+    private static void PinHoldAtCrossingAhead(PhaseContext ctx, TaxiRoute route)
     {
         if (
             (ctx.Aircraft.Ground.Hold?.Kind != HoldKind.GiveWay)
@@ -1879,7 +1879,7 @@ public sealed class TaxiingPhase : Phase
     /// (<see cref="HoldAtCrossingAhead"/>), when the HOLD stops some part of the aircraft past the near holding-position marking
     /// (<see cref="CrossingRunwayPhase.HoldStopsOnRunway"/>). Null otherwise, or when the bar names no runway.
     /// </summary>
-    public string? HeldOnRunwayEnd(AircraftState aircraft, ActiveRunways activeRunways) =>
+    public static string? HeldOnRunwayEnd(AircraftState aircraft, ActiveRunways activeRunways) =>
         (aircraft.Ground.AssignedTaxiRoute is { } route)
         && (aircraft.Ground.Layout is { } layout)
         && (HoldAtCrossingAhead(aircraft, route, layout) is { Bar.TargetName: { } runwayId } hold)
@@ -2126,7 +2126,7 @@ public sealed class TaxiingPhase : Phase
     /// measure to, so it is met while the nose is past its marking. The bar and how far (ft) the nose is past its marking; null
     /// otherwise.
     /// </summary>
-    private (HoldShortPoint Bar, double NosePastFt)? HoldAtCrossingAhead(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
+    private static (HoldShortPoint Bar, double NosePastFt)? HoldAtCrossingAhead(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
     {
         if (CrossingAhead(aircraft, route, layout) is not { } crossing)
         {

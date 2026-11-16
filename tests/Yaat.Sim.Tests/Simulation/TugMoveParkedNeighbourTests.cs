@@ -152,7 +152,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// aircraft's speed in one step). A second that ends at or below <see cref="CrawlBeforeStopKts"/> having started
     /// within twice it is the tow stopping, not braking, and is left out of that figure.
     /// </summary>
-    private Run TickPast(SimulationEngine engine, AircraftState mover, AircraftState parked, bool pulled)
+    private static Run TickPast(SimulationEngine engine, AircraftState mover, AircraftState parked, bool pulled)
     {
         int holdSeconds = 0;
         int longestHold = 0;
@@ -523,7 +523,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     private static (LatLon Start, LatLon Stop, double NoseTrueDeg) SixAPull(AirportGroundLayout layout)
     {
         GroundNode spot = layout.FindSpotNodeByName("6A") ?? throw new InvalidOperationException("SFO has no spot 6A");
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double noseDeg), "spot 6A has no nose-out heading");
+        Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double noseDeg), "spot 6A has no nose-out heading");
         (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(spot, noseDeg, AircraftFootprint.FromType(Narrowbody));
         return (staging, stop, noseDeg);
     }

@@ -476,7 +476,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     }
 
     /// <summary>Ticks until the aircraft is off the runway after its full-stop landing.</summary>
-    private AircraftState? FlyToRollout(SimulationEngine engine)
+    private static AircraftState? FlyToRollout(SimulationEngine engine)
     {
         for (int t = 1; t <= MaxTicks; t++)
         {

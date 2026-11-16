@@ -346,7 +346,7 @@ public class MenuHeaderTests
     /// Opens the host's command popup, asserts it is on <paramref name="anchor"/>, types a VFR-only command for the IFR
     /// aircraft and asserts the main view model's VFR gate refused it.
     /// </summary>
-    private static void AssertCommandRefusedByTheGate(IMenuHost host, Control anchor, MainViewModel main)
+    private static void AssertCommandRefusedByTheGate(ClientMenuHost host, Control anchor, MainViewModel main)
     {
         host.ShowCommandFlyout(Callsign, Initials);
         HeadlessWindowExtensions.PumpDispatcher();
@@ -363,7 +363,7 @@ public class MenuHeaderTests
     /// Opens the host's note popup with a current note, asserts it is on <paramref name="anchor"/> and prefilled, and that
     /// it hands the finished <c>NOTE</c> command to the sink it was given.
     /// </summary>
-    private static void AssertNotePopup(IMenuHost host, Control anchor)
+    private static void AssertNotePopup(ClientMenuHost host, Control anchor)
     {
         var commands = new List<string>();
         host.ShowNoteFlyout(

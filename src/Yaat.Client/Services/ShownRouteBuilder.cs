@@ -213,7 +213,7 @@ internal static class ShownRouteBuilder
         return procedure.CommonLegs;
     }
 
-    private static IReadOnlyList<CifpLeg> AssembleSidLegs(CifpSidProcedure procedure, string? departureRunway)
+    private static List<CifpLeg> AssembleSidLegs(CifpSidProcedure procedure, string? departureRunway)
     {
         // SID leg flow: runway transition → common legs → enroute transition. Trailing vectors
         // for SIDs are uncommon (most SIDs end at a fix or an explicit enroute transition fix),

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -49,9 +50,25 @@ public partial class TimelineBookmarkVm : ObservableObject
     public string ToolTipText =>
         string.IsNullOrWhiteSpace(CreatorInitials) ? $"{TimeText} — {DisplayName}" : $"{TimeText} — {DisplayName} (by {CreatorInitials})";
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Reached by name from an Avalonia XAML binding in MainWindow.axaml"
+    )]
     public double MarkerHeight => 8;
+
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Reached by name from an Avalonia XAML binding in MainWindow.axaml"
+    )]
     public double MarkerWidth => 3;
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Reached by name from an Avalonia XAML binding in MainWindow.axaml"
+    )]
     public IBrush FillBrush => BookmarkBrush;
 
     private static readonly IBrush BookmarkBrush = new SolidColorBrush(Color.FromRgb(255, 200, 40));

@@ -539,7 +539,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
     }
 
     /// <summary>The pathfinder's diagnostic lines for <c>E4 F3</c> from <paramref name="cmh"/>'s start, asserting it resolves.</summary>
-    private List<string> ResolveCmhE4F3(CmhE4F3Start cmh, string aircraftType)
+    private static List<string> ResolveCmhE4F3(CmhE4F3Start cmh, string aircraftType)
     {
         var diag = new List<string>();
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(

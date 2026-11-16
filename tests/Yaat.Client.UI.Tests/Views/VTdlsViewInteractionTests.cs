@@ -356,7 +356,7 @@ public class VTdlsViewInteractionTests
         }
     }
 
-    private static void AssertAtLeastWide(IReadOnlyDictionary<string, ComboBox> row, string field, double minWidth) =>
+    private static void AssertAtLeastWide(Dictionary<string, ComboBox> row, string field, double minWidth) =>
         Assert.True(row[field].Bounds.Width >= minWidth, $"{field} rendered {row[field].Bounds.Width}px wide, below its {minWidth}px floor");
 
     /// <summary>

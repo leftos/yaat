@@ -317,7 +317,7 @@ public sealed partial class QueryCommand : ICommand
     /// Returns the seeds in input order followed by any newly-discovered ids in BFS
     /// order. <paramref name="depth"/> = 0 returns the seeds unchanged.
     /// </summary>
-    private static List<int> ExpandNodeIds(LayoutAnalyzer analyzer, IReadOnlyList<int> seedIds, int depth)
+    private static List<int> ExpandNodeIds(LayoutAnalyzer analyzer, List<int> seedIds, int depth)
     {
         if (depth <= 0 || seedIds.Count == 0)
         {
@@ -559,7 +559,7 @@ public sealed partial class QueryCommand : ICommand
 
     private static void ScanRouteForAnomalies(
         LayoutAnalyzer analyzer,
-        IReadOnlyList<PathfinderSegment> segments,
+        List<PathfinderSegment> segments,
         IReadOnlyList<string> authorizedTaxiways,
         int explicitWalkCount,
         List<string> diagLog

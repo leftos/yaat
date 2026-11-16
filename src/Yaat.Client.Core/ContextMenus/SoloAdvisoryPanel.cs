@@ -744,7 +744,7 @@ public sealed class SoloAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
         return points;
     }
 
-    private IReadOnlyList<MenuAirborneTrafficRow> ListedRows(string filter) => AirborneTrafficRows.Listed(_traffic, filter, null);
+    private List<MenuAirborneTrafficRow> ListedRows(string filter) => AirborneTrafficRows.Listed(_traffic, filter, null);
 
     /// <summary>Lists the rows: the nearest, or those a typed filter matches; while held, in the held order.</summary>
     private void ShowRows()

@@ -206,7 +206,7 @@ public partial class VStripsView : UserControl
     }
 
     /// <summary>Selected bay's strips in visual order: racks left-to-right, each rack bottom-up.</summary>
-    private IReadOnlyList<IFindableItem> BuildFindSnapshot()
+    private List<IFindableItem> BuildFindSnapshot()
     {
         var result = new List<IFindableItem>();
         if (DataContext is VStripsViewModel { SelectedBay: { } bay })
@@ -1101,7 +1101,7 @@ public partial class VStripsView : UserControl
     /// bay push, or a trash delete. A target of None emits nothing — the
     /// ghost already flew back to its source slot.
     /// </summary>
-    private async Task DispatchDropAsync(VStripsViewModel vm, StripItemViewModel strip, DropTarget target)
+    private static async Task DispatchDropAsync(VStripsViewModel vm, StripItemViewModel strip, DropTarget target)
     {
         switch (target.Kind)
         {

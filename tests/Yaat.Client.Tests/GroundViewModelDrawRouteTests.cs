@@ -70,7 +70,7 @@ public class GroundViewModelDrawRouteTests
 
         (TaxiRoute? route, string _, TaxiSpotDestination? spot) = result!.Value;
         Assert.Null(spot);
-        string command = vm.BuildDrawRouteCopyCommand(route, spot);
+        string command = GroundViewModel.BuildDrawRouteCopyCommand(route, spot);
 
         // Readable taxiway name (not the dense "#2 #3"), pinned at the drawn endpoint node so the
         // aircraft stops where it was drawn instead of running to the end of taxiway V.
@@ -91,7 +91,7 @@ public class GroundViewModelDrawRouteTests
         Assert.NotNull(result);
 
         (TaxiRoute? route, string _, TaxiSpotDestination? spot) = result!.Value;
-        string command = vm.BuildDrawRouteCopyCommand(route, spot);
+        string command = GroundViewModel.BuildDrawRouteCopyCommand(route, spot);
 
         // The @parking token pins the stop, so no terminal node-ref is appended.
         Assert.Equal("TAXI V @8B", command);

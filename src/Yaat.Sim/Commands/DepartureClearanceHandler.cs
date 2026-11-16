@@ -2227,7 +2227,7 @@ internal static class DepartureClearanceHandler
     /// Extracts the magnetic heading from the last VM/VA/VI leg in the sequence.
     /// Returns the OutboundCourse of that leg (the assigned heading for radar vectors).
     /// </summary>
-    private static double? ExtractRadarVectorsHeading(IReadOnlyList<CifpLeg> legs)
+    private static double? ExtractRadarVectorsHeading(List<CifpLeg> legs)
     {
         for (int i = legs.Count - 1; i >= 0; i--)
         {

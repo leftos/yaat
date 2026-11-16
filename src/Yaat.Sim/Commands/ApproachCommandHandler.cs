@@ -1823,7 +1823,7 @@ public static class ApproachCommandHandler
     private static ResolvedApproach DisambiguateCandidates(
         NavigationDatabase navDb,
         string airport,
-        IReadOnlyList<string> candidates,
+        List<string> candidates,
         AircraftState aircraft,
         string? expectedApproach
     )

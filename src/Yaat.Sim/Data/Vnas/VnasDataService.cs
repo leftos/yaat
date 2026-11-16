@@ -335,7 +335,7 @@ public sealed class VnasDataService : IDisposable
         Log.LogInformation("CWT/wake turbulence data initialized: " + "{Count} CWT mappings", cwtLookup.Count);
     }
 
-    private async Task InitializeFaaAcdAsync()
+    private static async Task InitializeFaaAcdAsync()
     {
         try
         {

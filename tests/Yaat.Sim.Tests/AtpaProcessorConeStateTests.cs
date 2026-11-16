@@ -87,7 +87,7 @@ public class AtpaProcessorConeStateTests
         // code lists (regression for matching the legacy "Monitor"/"Alert" strings that never exist).
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 3, 140), MakeApproachAircraft("UAL202", 6, 140)];
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [MakeVolume("AlertAndMonitor")], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [MakeVolume("AlertAndMonitor")], MakeStarsConfig());
 
         Assert.True(results.ContainsKey("UAL202"));
         AtpaResult trailing = results["UAL202"];
@@ -101,7 +101,7 @@ public class AtpaProcessorConeStateTests
     {
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 3, 140), MakeApproachAircraft("UAL202", 6, 140)];
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [MakeVolume("Alert")], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [MakeVolume("Alert")], MakeStarsConfig());
 
         AtpaResult trailing = results["UAL202"];
         Assert.Contains("4A", trailing.AtpaAlertTcps);
@@ -130,7 +130,7 @@ public class AtpaProcessorConeStateTests
         // 3 nm vs 8 nm, equal speed: ~5 nm apart, not closing -> Monitor.
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 3, 140), MakeApproachAircraft("UAL202", 8, 140)];
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [MakeVolume("AlertAndMonitor")], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [MakeVolume("AlertAndMonitor")], MakeStarsConfig());
 
         Assert.Equal(AtpaConeState.Monitor, results["UAL202"].ConeState);
     }
@@ -141,7 +141,7 @@ public class AtpaProcessorConeStateTests
         // 3 nm vs 5 nm = 2 nm apart, below the 3.0 nm radar floor (no wake for B738/B738) -> Alert.
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 3, 140), MakeApproachAircraft("UAL202", 5, 140)];
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [MakeVolume("AlertAndMonitor")], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [MakeVolume("AlertAndMonitor")], MakeStarsConfig());
 
         Assert.Equal(AtpaConeState.Alert, results["UAL202"].ConeState);
     }

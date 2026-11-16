@@ -242,7 +242,7 @@ public sealed partial class SimulationEngine
     /// keeps the layout it was given, which its landing there must not take onto that airport's runway.
     /// <see cref="ResolveGroundLayout"/> then supplies the field's own layout, or none.
     /// </summary>
-    internal void DropLayoutOfAnotherField(AircraftState aircraft)
+    internal static void DropLayoutOfAnotherField(AircraftState aircraft)
     {
         if ((aircraft.Ground.Layout is { } carried) && !IsLayoutOfField(carried, FieldAirport(aircraft)))
         {

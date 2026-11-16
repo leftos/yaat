@@ -39,7 +39,7 @@ public static class GroundLayoutSpeechNames
     /// <returns>The uppercase spot names, distinct and sorted ordinally.</returns>
     public static IReadOnlyList<string> SpotNames(AirportGroundLayout layout) => NodeNames(layout, type => type is GroundNodeType.Spot);
 
-    private static IReadOnlyList<string> NodeNames(AirportGroundLayout layout, Func<GroundNodeType, bool> include)
+    private static List<string> NodeNames(AirportGroundLayout layout, Func<GroundNodeType, bool> include)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (GroundNode node in layout.Nodes.Values)

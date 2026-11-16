@@ -625,8 +625,7 @@ public class GroundViewModelHoldShortMenuOrderTests
         return GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard);
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<string>> Active(string ends) =>
-        new Dictionary<string, IReadOnlyList<string>> { ["OAK"] = ends.Split(',') };
+    private static Dictionary<string, IReadOnlyList<string>> Active(string ends) => new() { ["OAK"] = ends.Split(',') };
 
     private static GroundViewModel ViewModel(AirportGroundLayout layout, IReadOnlyDictionary<string, IReadOnlyList<string>> active)
     {

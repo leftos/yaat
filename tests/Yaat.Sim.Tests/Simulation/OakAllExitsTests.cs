@@ -140,7 +140,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         );
     }
 
-    private void AssertSmoothExit(ExitResult result, string label)
+    private static void AssertSmoothExit(ExitResult result, string label)
     {
         Assert.NotNull(result.FinalTaxiway);
 

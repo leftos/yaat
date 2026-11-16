@@ -973,7 +973,7 @@ public partial class MainViewModel
     /// merged page is an explicit choice rather than a sensible default — then to
     /// the first entry of any kind, then null when none are available.
     /// </summary>
-    private static string? ResolvePreferredTdlsFacility(IReadOnlyList<Services.AccessibleFacilityDto> facilities, string? primaryAirportId)
+    private static string? ResolvePreferredTdlsFacility(List<Services.AccessibleFacilityDto> facilities, string? primaryAirportId)
     {
         if (facilities.Count == 0)
         {

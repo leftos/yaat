@@ -122,14 +122,12 @@ dotnet_diagnostic.CA1725.severity = suggestion
 dotnet_diagnostic.CA1805.severity = suggestion
 dotnet_diagnostic.CA1806.severity = suggestion
 dotnet_diagnostic.CA1816.severity = suggestion
-dotnet_diagnostic.CA1822.severity = suggestion
 dotnet_diagnostic.CA1836.severity = suggestion
 dotnet_diagnostic.CA1844.severity = suggestion
 dotnet_diagnostic.CA1847.severity = suggestion
 dotnet_diagnostic.CA1848.severity = suggestion
 dotnet_diagnostic.CA1852.severity = suggestion
 dotnet_diagnostic.CA1854.severity = suggestion
-dotnet_diagnostic.CA1859.severity = suggestion
 dotnet_diagnostic.CA1862.severity = suggestion
 dotnet_diagnostic.CA1865.severity = suggestion
 dotnet_diagnostic.CA1866.severity = suggestion
@@ -146,7 +144,9 @@ dotnet_diagnostic.CA5351.severity = suggestion
 
 # Raised to warning by their YAAT-116 part.
 dotnet_diagnostic.CA1507.severity = warning
+dotnet_diagnostic.CA1822.severity = warning
 dotnet_diagnostic.CA1826.severity = warning
+dotnet_diagnostic.CA1859.severity = warning
 dotnet_diagnostic.CA1861.severity = warning
 dotnet_diagnostic.SYSLIB1045.severity = warning
 dotnet_diagnostic.SYSLIB1054.severity = warning

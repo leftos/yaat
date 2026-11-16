@@ -1316,7 +1316,7 @@ public sealed class GroundNavigator
     /// is never walked: it hands over through the ordinary swap.
     /// </para>
     /// </summary>
-    private ((int SegmentIndex, double Lat, double Lon) Aim, PathPrimitiveSlowTurn Arc) AimPastAStraightTheArcCannotFly(
+    private static ((int SegmentIndex, double Lat, double Lon) Aim, PathPrimitiveSlowTurn Arc) AimPastAStraightTheArcCannotFly(
         TaxiRoute route,
         PhaseContext ctx,
         (int SegmentIndex, double Lat, double Lon) aim,
@@ -2155,7 +2155,7 @@ public sealed class GroundNavigator
     /// route node lies a turning diameter from the jog's exit, the reversal has no tangent through it, or, at a junction, the
     /// jog or the reversal leaves the junction's pavement.
     /// </summary>
-    private TaxiwayTurnAboutPlan? SolveTurnAboutAt(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, TurnAboutSite site)
+    private static TaxiwayTurnAboutPlan? SolveTurnAboutAt(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, TurnAboutSite site)
     {
         double radiusFt = TurnAboutFitOf(ctx).RadiusFt;
         GroundEdge edge = site.Edge;
@@ -2339,7 +2339,7 @@ public sealed class GroundNavigator
     /// with no room there it has none: it never turns about off the pavement. Null when none of these solves.
     /// </para>
     /// </summary>
-    private (TaxiwayTurnAboutPlan Plan, TurnAboutBrakeLeg? Brake)? PlanTurnAboutAtNodeAhead(
+    private static (TaxiwayTurnAboutPlan Plan, TurnAboutBrakeLeg? Brake)? PlanTurnAboutAtNodeAhead(
         TaxiRoute route,
         TaxiRouteSegment seg,
         PhaseContext ctx,
@@ -2412,7 +2412,7 @@ public sealed class GroundNavigator
     /// braking ends inside it with its chord on the pavement, the turn about does not solve there, or none keeps every part
     /// short of the hold lines.
     /// </summary>
-    private (TaxiwayTurnAboutPlan Plan, TurnAboutBrakeLeg? Brake)? PlanTurnAboutOnContinuation(
+    private static (TaxiwayTurnAboutPlan Plan, TurnAboutBrakeLeg? Brake)? PlanTurnAboutOnContinuation(
         TaxiRoute route,
         TaxiRouteSegment seg,
         PhaseContext ctx,
@@ -5799,7 +5799,12 @@ public sealed class GroundNavigator
     /// a turn about at its own pivot speed, and on a ramp, apron or stand lead-in it is rounded (its entry speed is booked
     /// separately). <c>IsArcEntry</c> says it is the slow-turn arc's entry speed, which the braking curve plans one tick ahead.
     /// </summary>
-    private (double SpeedKts, double AtNm, bool IsArcEntry) FutureCornerConstraint(TaxiRoute route, PhaseContext ctx, int segIdx, double nodeDistNm)
+    private static (double SpeedKts, double AtNm, bool IsArcEntry) FutureCornerConstraint(
+        TaxiRoute route,
+        PhaseContext ctx,
+        int segIdx,
+        double nodeDistNm
+    )
     {
         TaxiRouteSegment seg = route.Segments[segIdx];
         TaxiRouteSegment next = route.Segments[segIdx + 1];

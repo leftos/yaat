@@ -432,7 +432,7 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     /// where the field (measured to the ARP) is beyond the trailer's acquisition range (field
     /// never held) but the 3 nm gap to the lead is inside it.
     /// </summary>
-    private (AircraftState Leader, AircraftState Trailer) EstablishFollowWithoutField(SimulationEngine engine)
+    private static (AircraftState Leader, AircraftState Trailer) EstablishFollowWithoutField(SimulationEngine engine)
     {
         RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);

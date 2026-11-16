@@ -481,7 +481,10 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     private static (LatLon Position, double OutHeadingDeg) SpotRest(AirportGroundLayout layout, string spotName, string aircraftType)
     {
         GroundNode spot = Spot(layout, spotName);
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outBearingDeg), $"spot '{spotName}' has no outbound heading in the layout");
+        Assert.True(
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outBearingDeg),
+            $"spot '{spotName}' has no outbound heading in the layout"
+        );
         double halfLengthNm = (Assert.IsType<double>(FaaAircraftDatabase.Get(aircraftType)?.LengthFt) / 2.0) / GeoMath.FeetPerNm;
         return (GeoMath.ProjectPoint(spot.Position, new TrueHeading(outBearingDeg).ToReciprocal(), halfLengthNm), outBearingDeg);
     }
@@ -1177,14 +1180,14 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     /// How far inside a convex footprint hull a point lies, feet; zero when the point is on or outside the boundary.
     /// Every edge is a supporting half-plane, so the inward distance is the least signed distance to one.
     /// </summary>
-    private static double HullDepthFt(OutlinePoint point, IReadOnlyList<OutlinePoint> hull)
+    private static double HullDepthFt(OutlinePoint point, OutlinePoint[] hull)
     {
         double leastLeftFt = double.MaxValue;
         double leastRightFt = double.MaxValue;
-        for (int i = 0; i < hull.Count; i++)
+        for (int i = 0; i < hull.Length; i++)
         {
             OutlinePoint a = hull[i];
-            OutlinePoint b = hull[(i + 1) % hull.Count];
+            OutlinePoint b = hull[(i + 1) % hull.Length];
             double edgeFt = OutlinePoint.Distance(a, b);
             if (edgeFt <= 0.0)
             {

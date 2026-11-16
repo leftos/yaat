@@ -213,7 +213,7 @@ public sealed class LayoutValidator(AirportGroundLayout layout)
                 Warn(
                     "orphan-node",
                     $"Node #{node.Id} ({node.Type}) at ({node.Position.Lat:F6},{node.Position.Lon:F6}) " + $"has no edges. Origin: {node.Origin}",
-                    null
+                    (GroundEdge?)null
                 );
             }
         }
@@ -345,12 +345,12 @@ public sealed class LayoutValidator(AirportGroundLayout layout)
             Warn(
                 "disconnected-subgraph",
                 $"Disconnected taxiway subgraph with {comp.Count} node(s) on [{string.Join(", ", taxiways.OrderBy(t => t))}]: {nodeList}",
-                (IGroundEdge?)null
+                (GroundEdge?)null
             );
         }
     }
 
-    private void Warn(string code, string message, IGroundEdge? edge) => _warnings.Add(new ValidationWarning(code, message, edge?.Origin));
+    private void Warn(string code, string message, GroundEdge? edge) => _warnings.Add(new ValidationWarning(code, message, edge?.Origin));
 
     private void Warn(string code, string message, GroundArc? arc) =>
         _warnings.Add(new ValidationWarning(code, message, (arc as IGroundEdge)?.Origin));

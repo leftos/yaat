@@ -46,7 +46,7 @@ public sealed partial class AtpaProcessor
     /// Processes all ATPA volumes and returns results keyed by callsign.
     /// Only aircraft that are in-trail (not the lead aircraft in their volume) get a result.
     /// </summary>
-    public Dictionary<string, AtpaResult> Process(List<AircraftState> snapshot, List<AtpaVolumeConfig> volumes, StarsConfig starsConfig)
+    public static Dictionary<string, AtpaResult> Process(List<AircraftState> snapshot, List<AtpaVolumeConfig> volumes, StarsConfig starsConfig)
     {
         if (volumes.Count == 0 || snapshot.Count == 0)
         {

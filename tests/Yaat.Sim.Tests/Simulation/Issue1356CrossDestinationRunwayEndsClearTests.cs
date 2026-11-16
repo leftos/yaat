@@ -128,7 +128,9 @@ public sealed class Issue1356CrossDestinationRunwayEndsClearTests(ITestOutputHel
         );
     }
 
-    private (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive, SessionRecording Recording)? Restore(double seconds)
+    private static (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive, SessionRecording Recording)? Restore(
+        double seconds
+    )
     {
         TestVnasData.EnsureInitialized();
         if ((RecordingLoader.OpenArchive(RecordingPath) is not { } archive) || (archive.ReadSnapshotAt(seconds) is not { } snapshot))

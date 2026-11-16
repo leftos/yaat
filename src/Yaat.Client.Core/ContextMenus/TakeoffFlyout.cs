@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
@@ -44,6 +45,11 @@ internal sealed class TakeoffAltitudeBox(string text)
     private string _text = text;
 
     /// <summary>The glyph leading the box.</summary>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Stays an instance member so the takeoff flyout tests read it through the box instance, as the sibling panels' members are read"
+    )]
     public QuickCommandGlyph Glyph => TakeoffFlyout.AltitudeGlyph;
 
     /// <summary>The box's text as typed; setting it raises <see cref="Changed"/> when it differs.</summary>
