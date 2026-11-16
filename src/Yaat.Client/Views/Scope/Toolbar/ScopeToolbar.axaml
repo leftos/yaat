@@ -12,8 +12,23 @@
     </Style>
   </UserControl.Styles>
   <StackPanel>
+    <!-- The bar scrolls sideways while it is wider than the window; the chevrons show only then. -->
     <Border Height="45" Background="#0a1015" Padding="6,0">
-      <StackPanel x:Name="MainRow" Orientation="Horizontal" VerticalAlignment="Center" />
+      <Grid x:Name="BarRow" ColumnDefinitions="Auto,*,Auto">
+        <Button x:Name="ScrollLeft" Grid.Column="0" Classes="scopeButton" Content="‹" Focusable="False" IsVisible="False" Click="OnScrollLeftClick" />
+        <ScrollViewer x:Name="MainScroll" Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="MainRow" Background="Transparent" Orientation="Horizontal" />
+        </ScrollViewer>
+        <Button
+          x:Name="ScrollRight"
+          Grid.Column="2"
+          Classes="scopeButton"
+          Content="›"
+          Focusable="False"
+          IsVisible="False"
+          Click="OnScrollRightClick"
+        />
+      </Grid>
     </Border>
     <!-- The tray wraps onto more rows when its buttons don't fit; one row keeps the bar's height. -->
     <Border x:Name="Tray" MinHeight="45" Background="#0a1015" BorderBrush="#22313b" BorderThickness="0,1,0,0" Padding="6,0" IsVisible="False">

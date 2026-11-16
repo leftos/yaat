@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-2357 mock: Scope toolbar on a narrow window</title>
+<style>
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 32px 40px; min-width: 1440px; background: #181c21; color: #d4dbe2;
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+h2 { font-size: 17px; margin: 0 0 2px; color: #eef3f7; }
+.lede { max-width: 1360px; margin: 0 0 10px; color: #b8c2cb; }
+.facts { font-family: "JBM", Consolas, monospace; font-size: 12.5px; color: #9fd8ea; margin: 4px 0 0; }
+.legend { display: flex; gap: 28px; align-items: center; margin: 14px 0 6px; padding: 10px 14px; background: #10141a;
+  border: 1px solid #2a333c; width: 1362px; font-size: 13px; color: #aab5bf; }
+.legend .sample { display: flex; align-items: center; background: #0a1015; height: 45px; padding: 0 6px; }
+.lane { margin: 28px 0 0; padding-top: 16px; border-top: 1px solid #2d3640; }
+.how { margin: 2px 0 0; max-width: 1360px; }
+.worst { margin: 2px 0 0; max-width: 1360px; color: #f0c98a; }
+.frame { margin: 14px 0 0; }
+.cap { font-size: 12.5px; color: #8e9aa5; margin: 0 0 4px; }
+.cap b { color: #d4dbe2; font-weight: 600; }
+/* The window's client area: 1 CSS px = 1 DIP. The outline sits outside it so the width is exact. */
+.win { position: relative; height: 190px; background: #000; overflow: hidden; outline: 1px solid #56616c; }
+.scope { position: absolute; inset: 0; }
+.tb { position: absolute; top: 0; left: 0; right: 0; z-index: 1; font-family: "JBM", Consolas, monospace; font-size: 12px; }
+/* Border Height=45 Background #0a1015 Padding 6,0 around a horizontal StackPanel */
+.bar { height: 45px; background: #0a1015; padding: 0 6px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; }
+.bar.wrap { height: auto; flex-wrap: wrap; align-items: stretch; }
+.g { display: flex; align-items: center; height: 45px; flex: none; }
+.vp { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; align-items: center; height: 45px; }
+.row { display: flex; align-items: center; flex: none; }
+.spacer { flex: 1 1 auto; }
+/* Border#Tray MinHeight 45, top border #22313b, WrapPanel; its buttons Margin 2,4 */
+.tray { min-height: 45px; background: #0a1015; border-top: 1px solid #22313b; padding: 0 6px; display: flex; flex-wrap: wrap;
+  align-items: center; align-content: center; }
+.tray .btn { margin: 4px 2px; }
+/* ScopeButtonControl: Grid Auto,Auto = strip (W5, Margin 2,0,-2,0) + Button */
+.bc { display: inline-flex; align-items: center; flex: none; }
+.strip { width: 5px; height: 28px; margin: 0 -2px 0 2px; position: relative; z-index: 1; background: transparent; }
+.strip.hover { background: #E0B84A; }
+/* Button.scopeButton: H28 Padding 8,0 Margin 2,0 radius 0 border 1 #22313b fill #10181e text #c9d4dc */
+.btn { height: 28px; padding: 0 8px; margin: 0 2px; border: 1px solid #22313b; background: #10181e; color: #c9d4dc;
+  display: inline-flex; align-items: center; white-space: pre; font: 400 12px "JBM", Consolas, monospace; }
+.btn .arr { font-size: 9px; }
+.btn b { font-weight: 700; }
+.btn.active { border-color: #58c4e6; color: #e7f6fb; }
+.btn.dim { color: #3e4c57; }
+.arrowbtn { padding: 0 6px; }
+/* Border.scopeSeparator: W1 H28 Margin 4,0 #22313b */
+.sep { width: 1px; height: 28px; margin: 0 4px; background: #22313b; flex: none; }
+.callout { position: absolute; z-index: 2; font: 11px "Segoe UI", sans-serif; color: #f0c98a; background: rgba(24,28,33,.88);
+  border: 1px solid #6b5a3a; padding: 1px 6px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<h1>YAAT-2357: the Scope toolbar on a narrow window</h1>
+<p class="lede">Four ways to handle a bar wider than its window. Each lane draws the Scope window's top edge to scale (1 CSS px = 1 DIP) at the default 1360 DIP window and at a narrow 1000 DIP one, then the open state that option depends on. The bar holds the default buttons in profile order plus YAAT-2335's TDM after MAPS, drawn as ScopeToolbar draws them: JetBrains Mono 12 px, a 28 px button in a 45 px bar, a 5 px tear-off strip left of every button but DEL TEAROFF, a separator between each two. Values are the defaults at RANGE 40 (the 120 NM band: OTHERS PARTIAL, VECTOR 1m OWN, HIST 5). The faint targets show how much of the scope the bar covers.</p>
+<p class="facts" id="measured">measuring...</p>
+<div class="legend">
+  <div class="sample" id="legendSample"></div>
+  <div>The tear-off strip is transparent until the pointer is over it, then gold (shown here on PROFILE). A cyan border marks an active button (shown on MAPS).</div>
+</div>
+<div id="lanes"></div>
+<script>
+"use strict";
+const BUTTONS = [
+  { label: "PROFILE", menu: true, value: "MIXED" },
+  { label: "TEMPLATE", menu: true },
+  { label: "RANGE", value: "40" },
+  { label: "OTHERS", value: "PARTIAL" },
+  { label: "VECTOR", value: "1m OWN" },
+  { label: "HIST", value: "5" },
+  { label: "TOOLS", menu: true },
+  { label: "AUTO" },
+  { label: "MAPS", menu: true },
+  { label: "TDM" },
+  { label: "DB", menu: true },
+  { label: "VIEWS", menu: true },
+  { label: "BRITE", menu: true },
+  { label: "PREF", menu: true },
+  { label: "DEL TEAROFF", noStrip: true },
+];
+const SEP = 9;
+const PAD = 6;
+const WIDTHS = [1360, 1000];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** One ScopeButtonControl: the strip (unless the button never tears off) and the button with its label runs. */
+function button(b, opts = {}) {
+  const bc = el("span", "bc");
+  if (!b.noStrip) bc.append(el("span", "strip" + (opts.hover ? " hover" : "")));
+  const btn = el("span", "btn" + (opts.active ? " active" : "") + (opts.dim ? " dim" : "") + (opts.cls ? " " + opts.cls : ""));
+  // One inline run holder, so the space between the arrow and the value stays (a flex container drops a lone space item).
+  const t = el("span", "t");
+  t.append(document.createTextNode(b.label));
+  if (b.menu) t.append(el("span", "arr", " ▸"));
+  if (b.value !== undefined) { t.append(document.createTextNode(" ")); t.append(el("b", null, b.value)); }
+  btn.append(t);
+  bc.append(btn);
+  return bc;
+}
+const sep = () => el("span", "sep");
+const CHEVRON = { label: "»", noStrip: true };
+const SHIFT = { label: "SHIFT", noStrip: true };
+
+/** Lays items out in a row: a separator between each two. */
+function fillRow(row, items, opts = {}) {
+  items.forEach((b, i) => { if (i > 0) row.append(sep()); row.append(button(b, opts[b.label] || {})); });
+}
+
+/** The natural widths, measured off-screen with the real font. */
+function measure() {
+  const probe = el("div", "tb");
+  probe.style.cssText = "position:absolute;left:-5000px;top:0;right:auto;visibility:hidden";
+  const bar = el("div", "bar");
+  bar.style.width = "max-content";
+  const row = el("div", "row");
+  fillRow(row, BUTTONS);
+  bar.append(row);
+  const extra = el("div", "row");
+  [CHEVRON, SHIFT].forEach(b => extra.append(button(b)));
+  const arrow = button({ label: "›", noStrip: true }, { cls: "arrowbtn" });
+  extra.append(arrow);
+  probe.append(bar, extra);
+  document.body.append(probe);
+  const w = [...row.querySelectorAll(":scope > .bc")].map(n => n.getBoundingClientRect().width);
+  const [chev, shift, arr] = [...extra.children].map(n => n.getBoundingClientRect().width);
+  const total = bar.getBoundingClientRect().width;
+  probe.remove();
+  return { w, chev, shift, arr, total };
+}
+
+/** How many leading buttons fit in avail when reserve (a trailing control and its separator) must fit too. */
+function fitCount(w, avail, reserve) {
+  let x = 0, n = 0;
+  for (let i = 0; i < w.length; i++) {
+    const add = (i > 0 ? SEP : 0) + w[i];
+    if (x + add + reserve > avail + 0.01) break;
+    x += add; n++;
+  }
+  return n;
+}
+const allFit = (M, W) => M.total <= W + 0.01;
+
+/** Faint scope content: range rings, a map line and a few targets with data blocks, some under the bar's rows. */
+function scope(W) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "scope");
+  svg.setAttribute("width", W); svg.setAttribute("height", 190);
+  const cx = W * 0.55, cy = 420;
+  let s = "";
+  for (const r of [160, 260, 360, 460]) s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#14301f" stroke-width="1"/>';
+  s += '<polyline points="' + [[0, 150], [W * 0.18, 118], [W * 0.33, 132], [W * 0.5, 96], [W * 0.72, 108], [W, 70]].map(p => p.join(",")).join(" ") +
+    '" fill="none" stroke="#1d2a36" stroke-width="1.2"/>';
+  const targets = [
+    [70, 22, "AAL123", "080 250"], [260, 64, "SWA418", "120 280"], [430, 150, "N731PA", "045 110"], [560, 30, "UAL9",  "240 410"],
+    [700, 70, "DAL2284", "160 300"], [880, 120, "JBU611", "100 260"], [960, 56, "SKW55", "090 220"], [1090, 26, "ASA301", "350 450"],
+    [1180, 72, "FFT12", "130 290"], [1290, 140, "N52RT", "025 095"], [140, 170, "ENY41", "060 210"], [760, 172, "RPA77", "070 230"],
+  ];
+  for (const [x, y, cs, alt] of targets) {
+    if (x > W - 20) continue;
+    s += '<g opacity="0.75"><rect x="' + (x - 3) + '" y="' + (y - 3) + '" width="6" height="6" fill="none" stroke="#3fa860" stroke-width="1"/>' +
+      '<line x1="' + x + '" y1="' + y + '" x2="' + (x + 16) + '" y2="' + (y - 10) + '" stroke="#2f7d48"/>' +
+      '<text x="' + (x + 18) + '" y="' + (y - 12) + '" fill="#3fa860" font-family="Consolas, monospace" font-size="11">' + cs + '</text>' +
+      '<text x="' + (x + 18) + '" y="' + (y + 1) + '" fill="#3fa860" font-family="Consolas, monospace" font-size="11">' + alt + '</text></g>';
+  }
+  svg.innerHTML = s;
+  return svg;
+}
+
+function frame(parent, W, caption) {
+  const f = el("div", "frame");
+  const cap = el("div", "cap");
+  cap.innerHTML = caption;
+  const win = el("div", "win");
+  win.style.width = W + "px";
+  win.append(scope(W));
+  const tb = el("div", "tb");
+  win.append(tb);
+  f.append(cap, win);
+  parent.append(f);
+  return { win, tb };
+}
+
+/** A: the bar wraps; a separator that would start a row is dropped. */
+function wrapBar(tb) {
+  const bar = el("div", "bar wrap");
+  const groups = BUTTONS.map((b, i) => {
+    const g = el("span", "g");
+    if (i > 0) g.append(sep());
+    g.append(button(b));
+    bar.append(g);
+    return g;
+  });
+  tb.append(bar);
+  for (let pass = 0; pass < 3; pass++) {
+    groups.forEach((g, i) => {
+      if (i === 0) return;
+      const s = g.firstChild.classList.contains("sep") ? g.firstChild : null;
+      if (!s) return;
+      s.style.display = "";
+    });
+    groups.forEach((g, i) => {
+      if (i === 0) return;
+      if (g.offsetTop > groups[i - 1].offsetTop) g.firstChild.style.display = "none";
+    });
+  }
+  const rows = new Set(groups.map(g => g.offsetTop)).size;
+  return { rows, height: bar.getBoundingClientRect().height, wrapped: groups.filter(g => g.offsetTop > 0).map((g, i) => BUTTONS[groups.indexOf(g)].label) };
+}
+
+/** B: one row in a clipped viewport with ‹ › at the ends; end=true scrolls to the end. */
+function scrollBar(tb, M, W, end) {
+  const bar = el("div", "bar");
+  tb.append(bar);
+  const row = el("div", "row");
+  fillRow(row, BUTTONS);
+  if (allFit(M, W)) { bar.append(row); return { overflow: 0 }; }
+  const left = button({ label: "‹", noStrip: true }, { cls: "arrowbtn", dim: !end });
+  const right = button({ label: "›", noStrip: true }, { cls: "arrowbtn", dim: end });
+  const vp = el("div", "vp");
+  vp.append(row);
+  bar.append(left, vp, right);
+  const max = vp.scrollWidth - vp.clientWidth;
+  vp.scrollLeft = end ? max : 0;
+  const vr = vp.getBoundingClientRect();
+  const hidden = [...row.querySelectorAll(":scope > .bc")].map((n, i) => [n.getBoundingClientRect(), BUTTONS[i].label])
+    .filter(([r]) => (r.right > vr.right + 1.5) || (r.left < vr.left - 1.5)).map(([, l]) => l);
+  return { overflow: max, hidden };
+}
+
+/** C: the buttons that fit, then » at the right end; open=true shows its tray. */
+function overflowBar(tb, M, W, open) {
+  const bar = el("div", "bar");
+  tb.append(bar);
+  const avail = W - 2 * PAD;
+  if (allFit(M, W)) { const row = el("div", "row"); fillRow(row, BUTTONS); bar.append(row); return { moved: [] }; }
+  const n = fitCount(M.w, avail, SEP + M.chev);
+  const row = el("div", "row");
+  fillRow(row, BUTTONS.slice(0, n));
+  row.append(sep(), button(CHEVRON, { active: open }));
+  bar.append(row);
+  const moved = BUTTONS.slice(n);
+  if (open) { const tray = el("div", "tray"); moved.forEach(b => tray.append(button(b))); tb.append(tray); }
+  return { moved: moved.map(b => b.label) };
+}
+
+/** D: pages split by width, SHIFT at the right end. */
+function pages(M, W) {
+  if (allFit(M, W)) return [BUTTONS];
+  const out = [];
+  let rest = BUTTONS.slice(), w = M.w.slice();
+  while (rest.length) {
+    const n = Math.max(1, fitCount(w, W - 2 * PAD, SEP + M.shift));
+    out.push(rest.slice(0, n)); rest = rest.slice(n); w = w.slice(n);
+  }
+  return out;
+}
+function pagedBar(tb, M, W, page) {
+  const bar = el("div", "bar");
+  tb.append(bar);
+  const ps = pages(M, W);
+  const row = el("div", "row");
+  fillRow(row, ps[page]);
+  bar.append(row);
+  if (ps.length > 1) { bar.append(el("span", "spacer"), button(SHIFT, { active: page > 0 })); }
+  return { pages: ps.map(p => p.map(b => b.label)) };
+}
+
+const fmt = x => (Math.round(x * 10) / 10).toString();
+
+function lane(root, key, name, how, worst) {
+  const l = el("section", "lane");
+  l.id = "lane-" + key;
+  l.append(el("h2", null, key + ". " + name), el("p", "how", how), el("p", "worst", "Worst case: " + worst));
+  const facts = el("p", "facts");
+  l.append(facts);
+  root.append(l);
+  return { l, facts };
+}
+
+function build() {
+  const M = measure();
+  const report = { totalBarWidth: M.total, buttonWidths: Object.fromEntries(BUTTONS.map((b, i) => [b.label, M.w[i]])), lanes: {} };
+  document.getElementById("measured").textContent =
+    "Measured: the 15-button bar is " + fmt(M.total) + " DIPs wide (buttons, strips, 14 separators and the 6 px padding each side), " +
+    (M.total > 1360 ? fmt(M.total - 1360) + " DIPs wider than the default 1360 window" : "inside the default 1360 window") +
+    "; without TDM it is " + fmt(M.total - M.w[9] - SEP) + ".";
+  const ls = document.getElementById("legendSample");
+  ls.append(button(BUTTONS[0], { hover: true }), sep(), button(BUTTONS[8], { active: true }), sep(), button(BUTTONS[14]));
+
+  const root = document.getElementById("lanes");
+  // A
+  let L = lane(root, "A", "Wrap",
+    "The bar wraps onto another 45 px row when it runs out of width; a separator that would start a row is dropped. Every button stays on screen and one click away.",
+    "the bar covers more of the scope: each extra row hides another 45 px strip across the whole window, and at the default 1360 window DEL TEAROFF alone wraps onto a second row.");
+  const a = WIDTHS.map(W => { const f = frame(L.l, W, "<b>" + W + " DIPs</b>" + (W === 1360 ? " (default window)" : " (narrow window)")); return [W, wrapBar(f.tb)]; });
+  L.facts.textContent = a.map(([W, r]) => W + ": " + r.rows + " row(s), bar " + fmt(r.height) + " px tall" + (r.wrapped.length ? ", row 2 = " + r.wrapped.join(", ") : "")).join("   |   ");
+  report.lanes.A = Object.fromEntries(a);
+  // B
+  L = lane(root, "B", "Scroll",
+    "One 45 px row. The buttons past the edge scroll in with the ‹ › buttons at the ends, which appear only while the bar is too wide; the wheel stays with the RANGE, VECTOR and HIST spinners.",
+    "the buttons past the edge are out of sight with nothing naming them; at 1000 DIPs the buttons from TDM to DEL TEAROFF need presses on › first, and the row moves under the pointer.");
+  const b = [];
+  for (const W of WIDTHS) { const f = frame(L.l, W, "<b>" + W + " DIPs</b>, at rest (scrolled to the start)"); b.push([W + " rest", scrollBar(f.tb, M, W, false)]); }
+  { const f = frame(L.l, 1000, "<b>1000 DIPs</b>, scrolled to the end"); b.push(["1000 end", scrollBar(f.tb, M, 1000, true)]); }
+  L.facts.textContent = b.map(([k, r]) => k + ": " + (r.overflow ? "scrolls " + fmt(r.overflow) + " px, hidden = " + r.hidden.join(", ") : "fits, no arrows")).join("   |   ");
+  report.lanes.B = Object.fromEntries(b);
+  // C
+  L = lane(root, "C", "Overflow menu",
+    "One 45 px row. The buttons that do not fit move, in order, into a » button at the right end; pressing it opens their list in the existing tray row under the bar, where they keep their strips, values and wheel.",
+    "a menu button moved into the » tray (DB, VIEWS, BRITE, PREF at 1000 DIPs) has a tray of its own, so pressing it must swap the » list for its children: a second tray level the bar does not have today.");
+  const c = [];
+  for (const W of WIDTHS) { const f = frame(L.l, W, "<b>" + W + " DIPs</b>, at rest"); c.push([W + " rest", overflowBar(f.tb, M, W, false)]); }
+  { const f = frame(L.l, 1000, "<b>1000 DIPs</b>, » pressed: its tray lists the moved buttons"); c.push(["1000 open", overflowBar(f.tb, M, 1000, true)]); }
+  L.facts.textContent = c.slice(0, 2).map(([k, r]) => k.split(" ")[0] + ": in » = " + (r.moved.length ? r.moved.join(", ") : "nothing (no »)")).join("   |   ");
+  report.lanes.C = Object.fromEntries(c);
+  // D
+  L = lane(root, "D", "Two pages",
+    "One 45 px row in pages, after CRC's STARS DCB, whose SHIFT button at the far right swaps the Main DCB for the Aux one. Here the first page holds what fits and SHIFT swaps it for the rest; SHIFT appears only while the bar is too wide.",
+    "the button you want may be on the other page, one SHIFT press away, and which buttons sit there moves with the window width: at 1360 DIPs the second page holds DEL TEAROFF alone.");
+  const d = [];
+  for (const W of WIDTHS) { const f = frame(L.l, W, "<b>" + W + " DIPs</b>, page 1"); d.push([W + " page 1", pagedBar(f.tb, M, W, 0)]); }
+  { const f = frame(L.l, 1000, "<b>1000 DIPs</b>, after SHIFT: page 2"); d.push(["1000 page 2", pagedBar(f.tb, M, 1000, 1)]); }
+  L.facts.textContent = d.slice(0, 2).map(([k, r]) => k.split(" ")[0] + ": " + r.pages.map((p, i) => "page " + (i + 1) + " = " + p.length + " buttons").join(", ") + (r.pages.length > 1 ? " (" + r.pages.slice(1).map(p => p.join(", ")).join(" / ") + ")" : "")).join("   |   ");
+  report.lanes.D = Object.fromEntries(d);
+
+  window.__report = report;
+  document.body.classList.add("ready");
+}
+
+document.fonts.load('12px "JBM"').then(() => document.fonts.load('700 12px "JBM"')).then(() => document.fonts.ready).then(build)
+  .catch(e => { console.error("mock build failed", e); });
+</script>
+</body>
+</html>

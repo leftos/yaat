@@ -1,5 +1,10 @@
 using System.ComponentModel;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.Scope.Toolbar;
@@ -7,8 +12,8 @@ namespace Yaat.Client.Views.Scope.Toolbar;
 /// <summary>
 /// The Scope window's toolbar: one row of buttons in the profile's order (<see cref="ScopeViewModel.ToolbarButtons"/>), and under it the tray of
 /// the open menu's children (<see cref="ScopeViewModel.TrayChildren"/>), wrapped onto more rows when they don't
-/// fit. Each button (<see cref="ScopeButtonControl"/>) draws its label, value and active state from its
-/// <see cref="ScopeViewModel"/>.
+/// fit. The bar scrolls sideways while it is wider than the window, with a chevron at each end. Each button
+/// (<see cref="ScopeButtonControl"/>) draws its label, value and active state from its <see cref="ScopeViewModel"/>.
 /// </summary>
 public partial class ScopeToolbar : UserControl
 {
@@ -19,8 +24,16 @@ public partial class ScopeToolbar : UserControl
     public ScopeToolbar()
     {
         InitializeComponent();
+        AutomationProperties.SetName(ScrollLeft, "Scroll toolbar left");
+        AutomationProperties.SetName(ScrollRight, "Scroll toolbar right");
+        MainScroll.PropertyChanged += OnScrollerPropertyChanged;
+        // The scroller reports its viewport while the row is still being measured, so the row's own width is only known
+        // once the layout pass is over.
+        MainScroll.LayoutUpdated += OnLayoutUpdated;
+        MainRow.AddHandler(PointerWheelChangedEvent, OnBarWheel, RoutingStrategies.Bubble);
         BuildMainRow(ScopeToolbarButtons.All);
         RefreshButtons();
+        UpdateChevrons();
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -43,10 +56,13 @@ public partial class ScopeToolbar : UserControl
         {
             if (i > 0)
             {
-                MainRow.Children.Add(new Border { Classes = { "scopeSeparator" } });
+                MainRow.Children.Add(new Border { Classes = { "scopeSeparator" }, VerticalAlignment = VerticalAlignment.Center });
             }
 
-            MainRow.Children.Add(BuildButton(buttons[i]));
+            ScopeButtonControl control = BuildButton(buttons[i]);
+            // The row fills the bar so a wheel over the gaps between buttons lands on it; its buttons centre in it.
+            control.VerticalAlignment = VerticalAlignment.Center;
+            MainRow.Children.Add(control);
         }
     }
 
@@ -139,4 +155,68 @@ public partial class ScopeToolbar : UserControl
             button.Refresh();
         }
     }
+
+    /// <summary>The most the bar scrolls sideways: its content past its viewport.</summary>
+    private double MaxOffset => Math.Max(MainScroll.Extent.Width - MainScroll.Viewport.Width, 0);
+
+    private void OnLayoutUpdated(object? sender, EventArgs e) => UpdateChevrons();
+
+    private void OnScrollerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (
+            (e.Property == ScrollViewer.ExtentProperty)
+            || (e.Property == ScrollViewer.ViewportProperty)
+            || (e.Property == ScrollViewer.OffsetProperty)
+        )
+        {
+            UpdateChevrons();
+        }
+    }
+
+    /// <summary>
+    /// Shows the chevrons while the bar is wider than the row that holds it, and enables one only while it can still move
+    /// the bar: <see cref="ScrollLeft"/> is disabled at the bar's left end and <see cref="ScrollRight"/> at its right. A bar
+    /// that fits goes back to its left end, whatever it was scrolled to before.
+    /// </summary>
+    private void UpdateChevrons()
+    {
+        // The row's own width, not the scroller's viewport: the chevrons narrow the viewport, so a bar only just wider
+        // than the viewport would keep them up for ever.
+        bool overflows = MainScroll.Extent.Width > (BarRow.Bounds.Width + 0.5);
+        ScrollLeft.IsVisible = overflows;
+        ScrollRight.IsVisible = overflows;
+        if (!overflows)
+        {
+            if (MainScroll.Offset.X != 0)
+            {
+                MainScroll.Offset = MainScroll.Offset.WithX(0);
+            }
+
+            ScrollLeft.IsEnabled = false;
+            ScrollRight.IsEnabled = false;
+            return;
+        }
+
+        ScrollLeft.IsEnabled = MainScroll.Offset.X > 0;
+        ScrollRight.IsEnabled = MainScroll.Offset.X < MaxOffset;
+    }
+
+    private void OnScrollLeftClick(object? sender, RoutedEventArgs e) => ScrollBar(-1);
+
+    private void OnScrollRightClick(object? sender, RoutedEventArgs e) => ScrollBar(1);
+
+    /// <summary>Scrolls the bar three quarters of a viewport toward <paramref name="direction"/>, clamped to its ends.</summary>
+    private void ScrollBar(int direction)
+    {
+        double target = MainScroll.Offset.X + (direction * 0.75 * MainScroll.Viewport.Width);
+        MainScroll.Offset = MainScroll.Offset.WithX(Math.Clamp(target, 0, MaxOffset));
+        UpdateChevrons();
+    }
+
+    /// <summary>
+    /// The wheel never scrolls the bar: <see cref="MainRow"/> fills the whole row, so every wheel anywhere on the bar,
+    /// gaps between buttons included, reaches this handler and is marked handled before the scroller sees it. A spinner
+    /// has already stepped itself on its button by then.
+    /// </summary>
+    private void OnBarWheel(object? sender, PointerWheelEventArgs e) => e.Handled = true;
 }

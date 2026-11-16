@@ -93,6 +93,46 @@ public class ScopeToolbarTests
 
     private static string Label(Button button) => AutomationProperties.GetName(button) ?? "";
 
+    /// <summary>The bar's sideways scroller.</summary>
+    private static ScrollViewer Scroller(Window window) => window.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "MainScroll");
+
+    /// <summary>The bar's chevron button named <paramref name="name"/>.</summary>
+    private static Button Chevron(Window window, string name) => window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name);
+
+    /// <summary>Lays out and renders the window, as hit testing reads the rendered scene.</summary>
+    private static void Settle(Window window)
+    {
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Presses <paramref name="chevron"/> until it disables itself, at most <paramref name="most"/> times.</summary>
+    private static void PressUntilDisabled(Button chevron, int most)
+    {
+        for (int i = 0; (i < most) && chevron.IsEnabled; i++)
+        {
+            Click(chevron);
+        }
+    }
+
+    /// <summary>Turns the wheel once over <paramref name="control"/>, by <paramref name="delta"/>.</summary>
+    private static void WheelOver(Window window, Control control, Vector delta)
+    {
+        // The wheel is routed by hit testing, which reads the rendered scene: render the current layout first.
+        Settle(window);
+        Point centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        WheelAt(window, centre, delta, RawInputModifiers.None);
+    }
+
+    /// <summary>Turns the wheel once at <paramref name="point"/> (window coordinates), by <paramref name="delta"/>.</summary>
+    private static void WheelAt(Window window, Point point, Vector delta, RawInputModifiers modifiers)
+    {
+        window.MouseWheel(point, delta, modifiers);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     [AvaloniaFact]
     public async Task TheBar_ReplacesTheMenu_AndShowsTemplateAndRange()
     {
@@ -306,16 +346,7 @@ public class ScopeToolbarTests
     }
 
     /// <summary>Turns the wheel once over <paramref name="button"/>, up when <paramref name="up"/>.</summary>
-    private static void WheelOnce(Window window, Button button, bool up)
-    {
-        // The wheel is routed by hit testing, which reads the rendered scene: render a freshly built tray first.
-        window.UpdateLayout();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Dispatcher.UIThread.RunJobs();
-        Point centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-        window.MouseWheel(centre, new Vector(0, up ? 1 : -1));
-        Dispatcher.UIThread.RunJobs();
-    }
+    private static void WheelOnce(Window window, Button button, bool up) => WheelOver(window, button, new Vector(0, up ? 1 : -1));
 
     [AvaloniaFact]
     public async Task BriteMenu_OpensATrayOfTheTenSpinners_WithTheirValues()
@@ -640,6 +671,220 @@ public class ScopeToolbarTests
             Assert.Equal(ScopeViewModel.DefaultRangeNm, scope.RangeNm);
             Assert.Equal("", main.StatusText);
             Assert.Empty(TrayButtons(window));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ANarrowWindow_ShowsBothChevrons_AndScrollsDelTearoffIntoView()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            Button left = Chevron(window, "ScrollLeft");
+            Button right = Chevron(window, "ScrollRight");
+            Assert.True(left.IsEffectivelyVisible, "the left chevron shows while the bar is wider than the window");
+            Assert.True(right.IsEffectivelyVisible, "the right chevron shows while the bar is wider than the window");
+            Assert.False(left.IsEnabled, "the left chevron is disabled at the bar's left end");
+            Assert.True(right.IsEnabled, "the right chevron is enabled at the bar's left end");
+
+            Button del = ButtonOf(window, ScopeButtonId.DeleteTearoff);
+            Point delEnd = del.TranslatePoint(new Point(del.Bounds.Width, 0), scroller)!.Value;
+            Assert.True(delEnd.X > scroller.Viewport.Width, "DEL TEAROFF starts past the bar's right edge");
+
+            PressUntilDisabled(right, 5);
+
+            Assert.False(right.IsEnabled, "the right chevron disables at the bar's right end");
+            Point delLeft = del.TranslatePoint(default, scroller)!.Value;
+            Assert.InRange(delLeft.X, 0, scroller.Viewport.Width - del.Bounds.Width);
+            Assert.True(left.IsEnabled, "the left chevron enables once the bar is scrolled");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AWideWindow_ShowsNoChevrons()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(2000, 800));
+        try
+        {
+            Assert.False(Chevron(window, "ScrollLeft").IsEffectivelyVisible, "the bar fits, so there is no left chevron");
+            Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits, so there is no right chevron");
+            Assert.Equal(0d, Scroller(window).Offset.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheDefaultWindow_ShowsTheChevrons()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Assert.True(Chevron(window, "ScrollLeft").IsEffectivelyVisible, "the bar with TDM is wider than the default window");
+            Assert.True(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar with TDM is wider than the default window");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheWheel_OverANonSpinnerButton_DoesNotScrollTheBar()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            PressUntilDisabled(Chevron(window, "ScrollRight"), 5);
+            double offset = scroller.Offset.X;
+            Assert.True(offset > 0, "the bar scrolled to its right end");
+
+            // The wheel up and the wheel right would both walk the bar back if the scroller read them.
+            WheelOver(window, ButtonOf(window, ScopeButtonId.Auto), new Vector(0, 1));
+            Assert.Equal(offset, scroller.Offset.X);
+            WheelOver(window, ButtonOf(window, ScopeButtonId.Auto), new Vector(1, 0));
+            Assert.Equal(offset, scroller.Offset.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheWheel_OverAGapBetweenButtons_DoesNotScrollTheBar()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            PressUntilDisabled(Chevron(window, "ScrollRight"), 5);
+            double offset = scroller.Offset.X;
+            Assert.True(offset > 0, "the bar scrolled to its right end");
+            Settle(window);
+
+            Button auto = ButtonOf(window, ScopeButtonId.Auto);
+            Button maps = ButtonOf(window, ScopeButtonId.Maps);
+            Point autoEnd = auto.TranslatePoint(new Point(auto.Bounds.Width, auto.Bounds.Height / 2), window)!.Value;
+            Point mapsStart = maps.TranslatePoint(new Point(0, maps.Bounds.Height / 2), window)!.Value;
+            var between = new Point((autoEnd.X + mapsStart.X) / 2, autoEnd.Y);
+            Point below = auto.TranslatePoint(new Point(auto.Bounds.Width / 2, auto.Bounds.Height + 3), window)!.Value;
+
+            WheelAt(window, between, new Vector(0, 1), RawInputModifiers.Shift);
+            Assert.Equal(offset, scroller.Offset.X);
+            WheelAt(window, between, new Vector(1, 0), RawInputModifiers.None);
+            Assert.Equal(offset, scroller.Offset.X);
+            WheelAt(window, below, new Vector(0, 1), RawInputModifiers.Shift);
+            Assert.Equal(offset, scroller.Offset.X);
+            WheelAt(window, below, new Vector(1, 0), RawInputModifiers.None);
+            Assert.Equal(offset, scroller.Offset.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Widening_UntilTheBarFits_HidesTheChevrons_AndResetsTheOffset()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            PressUntilDisabled(Chevron(window, "ScrollRight"), 5);
+            Assert.True(scroller.Offset.X > 0, "the bar scrolled to its right end");
+            double extent = scroller.Extent.Width;
+
+            // The bar's row is the window less the bar's 12 DIPs of padding.
+            window.Width = extent + 32;
+            Settle(window);
+
+            Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
+            string measured = $"bar {extent}, row {row.Bounds.Width}, window {window.Width}";
+            Assert.False(Chevron(window, "ScrollLeft").IsEffectivelyVisible, $"the bar fits, so there is no left chevron ({measured})");
+            Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, $"the bar fits, so there is no right chevron ({measured})");
+            Assert.Equal(0d, scroller.Offset.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheWheel_OverRange_StillStepsIt()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            double before = scope.RangeNm;
+
+            WheelOver(window, ButtonOf(window, ScopeButtonId.Range), new Vector(0, 1));
+
+            Assert.Equal(before - 1, scope.RangeNm);
+            Assert.Equal(0d, scroller.Offset.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ATearoff_FromAScrolledBar_GrabsTheButtonUnderThePointer()
+    {
+        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync(new Size(1000, 800));
+        try
+        {
+            ScrollViewer scroller = Scroller(window);
+            PressUntilDisabled(Chevron(window, "ScrollRight"), 5);
+            double offset = scroller.Offset.X;
+            Assert.True(offset > 0, "the bar scrolled to its right end");
+            Settle(window);
+
+            ScopeButtonControl brite = window
+                .GetVisualDescendants()
+                .OfType<ScopeButtonControl>()
+                .Single(c => !c.IsTearoff && (c.Model.Id == ScopeButtonId.Brite) && c.IsEffectivelyVisible);
+            Border strip = brite.Strip!;
+            var stripCentre = new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2);
+            Point grab = strip.TranslatePoint(stripCentre, brite)!.Value;
+            Point press = strip.TranslatePoint(stripCentre, window)!.Value;
+
+            window.MouseMove(press);
+            window.MouseDown(press, MouseButton.Left);
+            window.MouseUp(press, MouseButton.Left);
+            Settle(window);
+
+            ScopeTearoffLayer layer = window.GetVisualDescendants().OfType<ScopeTearoffLayer>().Single();
+            ScopeButtonControl follower = layer.Children.OfType<ScopeButtonControl>().Single(c => !c.IsHitTestVisible && c.IsTearoff);
+            Point at = follower.TranslatePoint(default, window)!.Value;
+            Assert.Equal(press.X - grab.X, at.X, 1);
+            Assert.Equal(press.Y - grab.Y, at.Y, 1);
+            Assert.Equal(offset, scroller.Offset.X);
+
+            Point drop = layer.TranslatePoint(new Point(600, 400), window)!.Value;
+            window.MouseMove(drop);
+            window.MouseDown(drop, MouseButton.Left);
+            window.MouseUp(drop, MouseButton.Left);
+            Settle(window);
+
+            ScopeTearoff tearoff = Assert.Single(scope.Tearoffs);
+            Assert.Equal(new ScopeButtonKey(ScopeButtonId.Brite, null), tearoff.Key);
         }
         finally
         {

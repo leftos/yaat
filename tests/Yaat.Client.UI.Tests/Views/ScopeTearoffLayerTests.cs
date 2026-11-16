@@ -41,7 +41,7 @@ public class ScopeTearoffLayerTests
     }
 
     /// <summary>
-    /// Widens the window so the whole bar, DEL TEAROFF last, is on screen: the bar does not wrap yet (YAAT-2357).
+    /// Widens the window so the whole bar, DEL TEAROFF last, is on screen, and every bar button sits in view without scrolling.
     /// </summary>
     private static void Widen(Window window)
     {
