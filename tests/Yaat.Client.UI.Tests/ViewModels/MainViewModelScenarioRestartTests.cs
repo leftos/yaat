@@ -65,13 +65,14 @@ public class MainViewModelScenarioRestartTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("SWA101", "Active"), MakeAircraft("UAL202", "Active"), MakeAircraft("FDX303", "Active")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         Assert.Equal(3, vm.Aircraft.Count);
 
         // The restart keeps SWA101 live, puts UAL202 back in the delayed queue, and drops FDX303
         // entirely (generator traffic drawn against the old seed).
-        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Active"), MakeAircraft("UAL202", "Delayed (120s)")]);
+        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Active"), MakeAircraft("UAL202", "Delayed (120s)")], null);
 
         Assert.Equal(["SWA101", "UAL202"], vm.Aircraft.Select(a => a.Callsign).OrderBy(c => c, StringComparer.Ordinal));
         Assert.DoesNotContain(vm.Aircraft, a => a.Callsign == "FDX303");
@@ -91,13 +92,14 @@ public class MainViewModelScenarioRestartTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("UAL202", "Active")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         Assert.False(vm.Aircraft[0].IsDelayed);
 
         // Same callsign, but the restart re-queued it — a merge would have left it showing Active at
         // its abandoned-run position.
-        vm.ApplyScenarioRestart([MakeAircraft("UAL202", "Delayed (120s)")]);
+        vm.ApplyScenarioRestart([MakeAircraft("UAL202", "Delayed (120s)")], null);
 
         AircraftModel restored = Assert.Single(vm.Aircraft);
         Assert.Equal("UAL202", restored.Callsign);
@@ -123,12 +125,13 @@ public class MainViewModelScenarioRestartTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("SWA101", "Active")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         Assert.Equal(0, vm.InitialDelayedSpawnCount);
         Assert.Equal(0, vm.PendingDelayedSpawnCount);
 
-        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Delayed (60s)"), MakeAircraft("UAL202", "Delayed (120s)")]);
+        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Delayed (60s)"), MakeAircraft("UAL202", "Delayed (120s)")], null);
 
         Assert.Equal(2, vm.InitialDelayedSpawnCount);
         Assert.Equal(2, vm.PendingDelayedSpawnCount);
@@ -158,6 +161,7 @@ public class MainViewModelScenarioRestartTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("SWA101", "Active"), MakeAircraft("FDX303", "Active")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
@@ -184,12 +188,13 @@ public class MainViewModelScenarioRestartTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("SWA101", "Active")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
         Assert.True(vm.HasBookmarks);
 
-        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Active")]);
+        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Active")], null);
 
         Assert.False(vm.HasBookmarks, "a restart discards the tape, so its bookmarks go with it");
     }

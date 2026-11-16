@@ -167,12 +167,12 @@ A scenario becomes active through **three** distinct entry points, and they all 
 
 `ScenarioBootstrap` (`ScenarioBootstrap.cs`) is a small record that exists precisely so the three differently-named
 DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `PositionDisplayConfig` — its `TcpCode`, `ActivePosition` and `ScratchpadMaxLength` reach `ActiveTcp`, `MainViewModel.ActivePosition` and `MainViewModel.ScratchpadMaxLength` through `SetActivePositionFromServer`, which `OnPositionDisplayChanged` and the scenario unload call too; a pick in the active-position dropdown clears `ActivePosition` until the server answers; an ERAM position sets `ActiveTcp` to `C{sector}` and raises `PropertyChanged` for `ActivePosition`, `ActingCallsign` and `ActingTrackFacilityId` after `ActiveTcp`, which `ScopeViewModel.Viewer` follows —,
-`FlightStripsConfig`, `Aircraft`, `ElapsedSeconds`). `ElapsedSeconds` is how long the scenario has already been
+`FlightStripsConfig`, `Aircraft`, `ElapsedSeconds`, `SessionStartUtc`). `ElapsedSeconds` is how long the scenario has already been
 running when this client picks it up: the loader and broadcast paths pass 0 (both fire as the scenario starts), the
 join path passes the room's `RoomStateDto.ElapsedSeconds`. `ApplyScenarioBootstrap` then does the work common to all
 three:
 
-- sets `ActiveScenarioId`/`Name`/`PrimaryAirportId` and `_commandInput.PrimaryAirportId`,
+- sets `ActiveScenarioId`/`Name`/`PrimaryAirportId`, `SessionStartUtc` and `_commandInput.PrimaryAirportId`,
 - rebuilds the `Aircraft` collection from the DTOs (recomputing `InitialDelayedSpawnCount` /
   `PendingDelayedSpawnCount`),
 - fans out to `Radar.ApplyScenarioBootstrap` / `Ground.ApplyScenarioBootstrap`, `VStrips.ApplyBayConfig`, and the
@@ -195,10 +195,12 @@ the editor empty, and Apply from an empty editor replaces the room's generators 
 
 **A recording load is a second scenario-identity writer.** `ApplyRecordingResult` (`MainViewModel.Timeline.cs:647`,
 reached by the loading client and by the `RecordingLoaded` broadcast) sets `ActiveScenarioId`/`Name`/`PrimaryAirportId`
-itself and does not go through the router, so it makes its own `StartRichPresence(result.ElapsedSeconds)` call — the
+and `SessionStartUtc` (the manifest's resolved start, so the SSA shows the recorded date) itself; it does not go through the router, so it makes its own `StartRichPresence(result.ElapsedSeconds)` call — the
 tape position is where the Discord timer starts. Anything keyed on "the active scenario changed" has to be wired into
 both `ApplyScenarioBootstrap` and `ApplyRecordingResult`. A rewind or skip (`RewindToSeconds`) goes through neither,
 and leaves the published start time alone.
+
+**The session clock.** `SessionStartUtc` (the server's `SessionStartUtc`, Kind Utc, null with no scenario; cleared with the scenario identity) and `ScenarioElapsedSeconds` give `SessionNowUtc` (start plus elapsed, null with no scenario), which stops while paused and runs at the sim rate. `ApplyScenarioRestart` takes the restart's new start and sets the elapsed seconds to 0; a rewind keeps the start. `SsaViewModel` reads `SessionNowUtc`, falling back to `MainViewModel.WallClock` with no scenario. Wire side: **Session clock** in [training-hub-contract.md](training-hub-contract.md).
 
 `RefreshRichPresence` republishes from the current `ActiveScenario*` properties without touching the start time: the
 Settings window calls it on each Apply (so the `DiscordRichPresenceEnabled` toggle takes effect at once), and

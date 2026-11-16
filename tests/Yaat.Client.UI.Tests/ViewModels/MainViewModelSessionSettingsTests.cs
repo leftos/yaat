@@ -145,7 +145,8 @@ public class MainViewModelSessionSettingsTests
                 SoloArrivalGeneratorRatePercent: 65,
                 HasSoloParkingInitialCallupSource: true,
                 HasSoloArrivalGeneratorSource: true,
-                RpoShowPilotSpeech: true
+                RpoShowPilotSpeech: true,
+                SessionStartUtc: null
             )
         );
 
@@ -193,7 +194,8 @@ public class MainViewModelSessionSettingsTests
                 ActiveRunways: [],
                 SessionSetup: null,
                 ToweredAirports: [],
-                DepartureAutoDeleteDistanceNm: 45
+                DepartureAutoDeleteDistanceNm: 45,
+                SessionStartUtc: null
             )
         );
 

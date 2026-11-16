@@ -44,7 +44,8 @@ public class MainViewModelLoadOverlayTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: [],
-            ToweredAirports: []
+            ToweredAirports: [],
+            SessionStartUtc: null
         )
         {
             LoadingBy = loadingBy,

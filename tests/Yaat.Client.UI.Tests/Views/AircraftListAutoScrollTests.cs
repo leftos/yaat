@@ -57,6 +57,7 @@ public class AircraftListAutoScrollTests
                 FlightStripsConfig = null,
                 Aircraft = [.. aircraft],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 

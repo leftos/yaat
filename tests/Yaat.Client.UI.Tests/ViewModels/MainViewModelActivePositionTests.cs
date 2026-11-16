@@ -116,6 +116,7 @@ public class MainViewModelActivePositionTests
             FlightStripsConfig = null,
             Aircraft = [],
             ElapsedSeconds = 0,
+            SessionStartUtc = null,
         };
 
     [AvaloniaFact]

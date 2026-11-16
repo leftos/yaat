@@ -459,7 +459,7 @@ public class ScopeRingsToolTests
 
             AddAircraft(main, "UAL1", 5000);
             main.RunScopeCommand(".scope rings cone 4 UAL1");
-            main.ApplyScenarioRestart([]);
+            main.ApplyScenarioRestart([], null);
             Assert.Empty(scope.LocalRings);
         }
         finally

@@ -173,7 +173,7 @@ public class SoloAdvisorySettingsTests
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Preferences.SetSoloAdvisorySettings(SoloAdvisoryPrefill.LeftForStudent, liveCheck: true);
 
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, [], [], [], "scenario-3", "OAK Ground", "OAK"));
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, [], [], null, [], "scenario-3", "OAK Ground", "OAK"));
 
         Assert.Equal(SoloAdvisoryPrefill.LeftForStudent, vm.SessionSoloAdvisoryPrefill);
         Assert.True(vm.SessionSoloAdvisoryLiveCheck);
@@ -200,7 +200,7 @@ public class SoloAdvisorySettingsTests
 
         // Another member loads a scenario into the room.
         vm.Preferences.SetSoloAdvisorySettings(SoloAdvisoryPrefill.LeftForStudent, liveCheck: true);
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], []));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], [], SessionStartUtc: null));
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(SoloAdvisoryPrefill.LeftForStudent, vm.SessionSoloAdvisoryPrefill);
@@ -222,7 +222,8 @@ public class SoloAdvisorySettingsTests
                 AllAircraft: [],
                 ActiveRunways: [],
                 SessionSetup: null,
-                ToweredAirports: []
+                ToweredAirports: [],
+                SessionStartUtc: null
             )
         );
 
@@ -291,7 +292,8 @@ public class SoloAdvisorySettingsTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: [],
-            ToweredAirports: []
+            ToweredAirports: [],
+            SessionStartUtc: null
         );
 
     private static SessionSettingsDto SessionSettings(bool soloTrainingMode) =>

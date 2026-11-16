@@ -31,6 +31,7 @@ public class MainViewModelLateNavDataRecenterTests
                 FlightStripsConfig = null,
                 Aircraft = [],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 

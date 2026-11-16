@@ -78,7 +78,8 @@ public class MainViewModelPilotVoiceWarningTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            SoloTrainingMode: solo
+            SoloTrainingMode: solo,
+            SessionStartUtc: null
         );
 
     /// <summary>
@@ -206,7 +207,8 @@ public class MainViewModelPilotVoiceWarningTests
                 AllAircraft: [],
                 ActiveRunways: [],
                 ToweredAirports: [],
-                SoloTrainingMode: true
+                SoloTrainingMode: true,
+                SessionStartUtc: null
             )
         );
         Dispatcher.UIThread.RunJobs();

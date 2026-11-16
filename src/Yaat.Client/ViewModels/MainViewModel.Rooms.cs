@@ -958,6 +958,7 @@ public partial class MainViewModel
                     FlightStripsConfig = state.FlightStripsConfig,
                     Aircraft = state.AllAircraft,
                     ElapsedSeconds = state.ElapsedSeconds,
+                    SessionStartUtc = state.SessionStartUtc,
                 }
             );
             IsLiveSession = state.IsLiveSession;

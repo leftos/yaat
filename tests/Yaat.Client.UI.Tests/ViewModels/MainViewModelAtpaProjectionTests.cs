@@ -56,6 +56,7 @@ public class MainViewModelAtpaProjectionTests
                 FlightStripsConfig = null,
                 Aircraft = [.. callsigns.Select(MakeAircraft)],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         return vm;

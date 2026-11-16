@@ -143,7 +143,7 @@ By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **VEC
 
 Each view's card has a **–** button that closes it. The window first opens at 1460×800.
 
-The **SSA** card (open by default) opens floating on the scope, 8 px from its top-left corner, so the dock column stays hidden until you dock a view. It has two lines, as in CRC. Line 1 is the UTC time as `HHmm/ss`, then the primary airport's altimeter (`30.02`, or `--.--` with no weather) and the airport; with no primary airport it is the time alone.
+The **SSA** card (open by default) opens floating on the scope, 8 px from its top-left corner, so the dock column stays hidden until you dock a view. It has two lines, as in CRC. Line 1 is the UTC time as `HHmm/ss`: with a scenario loaded it is the session time (it stops while the scenario is paused, runs at the sim rate, restarts with a restart, and after loading a recording shows the recorded session's date), and with none it is the wall clock. Then the primary airport's altimeter (`30.02`, or `--.--` with no weather) and the airport; with no primary airport it is the time alone.
 
 Line 2 is `OK/OK/NA FUSED` and the range (`FUSED 40NM`), or `NA/NA/NA` in red when you are not in a room with an active position. It refreshes every second.
 

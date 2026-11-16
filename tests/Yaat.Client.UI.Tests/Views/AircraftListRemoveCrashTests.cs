@@ -64,6 +64,7 @@ public class AircraftListRemoveCrashTests
                 FlightStripsConfig = null,
                 Aircraft = [.. aircraft],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 
@@ -112,6 +113,7 @@ public class AircraftListRemoveCrashTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 

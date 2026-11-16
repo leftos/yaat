@@ -338,6 +338,7 @@ public class DataGridContextMenuStateTests
                 FlightStripsConfig = null,
                 Aircraft = [Dto("AAL601"), Dto("AAL602")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         foreach (AircraftModel ac in main.Aircraft)

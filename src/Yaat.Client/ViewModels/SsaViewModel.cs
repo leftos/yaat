@@ -6,8 +6,9 @@ using Yaat.Client.Views.Scope.Toolbar;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The Scope's SSA view: two lines (<see cref="SsaLines"/>) rebuilt every second from the UTC clock, the primary airport's
-/// weather, the sign-in state and the Scope's range. The clock runs only while the view is open.
+/// The Scope's SSA view: two lines (<see cref="SsaLines"/>) rebuilt every second from the session clock
+/// (<see cref="MainViewModel.SessionNowUtc"/>, the wall clock with no scenario), the primary airport's weather, the sign-in
+/// state and the Scope's range. The refresh timer runs only while the view is open.
 /// </summary>
 public sealed partial class SsaViewModel : ScopeDockViewModel
 {
@@ -38,14 +39,15 @@ public sealed partial class SsaViewModel : ScopeDockViewModel
     /// <summary>Whether the 1 s clock is running.</summary>
     internal bool IsClockRunning => _clock.IsEnabled;
 
-    /// <summary>Rebuilds the lines from the current time, weather, sign-in state and range.</summary>
+    /// <summary>Rebuilds the lines from the session time (the wall clock with no scenario), weather, sign-in state and range.</summary>
     public void Refresh()
     {
         MainViewModel main = Scope.Main;
         string? airport = main.ActiveScenarioPrimaryAirportId;
         double? altimeter = airport is null ? null : main.GroundWeatherFor(airport)?.AltimeterInHg;
         bool signedIn = main.IsInRoom && !string.IsNullOrEmpty(main.ActiveTcp);
-        var lines = SsaLines.Build(MainViewModel.WallClock.GetUtcNow().UtcDateTime, altimeter, airport, signedIn, Scope.RangeNm);
+        DateTime now = main.SessionNowUtc ?? MainViewModel.WallClock.GetUtcNow().UtcDateTime;
+        var lines = SsaLines.Build(now, altimeter, airport, signedIn, Scope.RangeNm);
         Line1 = lines.Line1;
         Status = lines.Status;
         IsStatusAlert = lines.IsStatusAlert;

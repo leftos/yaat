@@ -35,14 +35,15 @@ public class MainViewModelRoomTitleTests
                 Positions: [],
                 ActiveRunways: [],
                 ToweredAirports: [],
-                ArtccId: artccLabel
+                ArtccId: artccLabel,
+                SessionStartUtc: null
             )
         );
         return vm;
     }
 
     private static ScenarioLoadedDto ScenarioLoaded(string? artccLabel) =>
-        new("scenario-2", "OAK Ground", "OAK", true, 1, [], [], [], ArtccId: artccLabel);
+        new("scenario-2", "OAK Ground", "OAK", true, 1, [], [], [], ArtccId: artccLabel, SessionStartUtc: null);
 
     [AvaloniaFact]
     public void ScenarioLoaded_FromAnotherArtcc_RelabelsTheRoomTitle()
@@ -71,7 +72,7 @@ public class MainViewModelRoomTitleTests
     {
         MainViewModel vm = VmInRoomLabelled("ZOA");
 
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, [], [], [], "scenario-3", "OAK Ground", "OAK", ArtccId: "ZLA"));
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, [], [], null, [], "scenario-3", "OAK Ground", "OAK", ArtccId: "ZLA"));
 
         Assert.Equal("(ZLA) AB's Room", vm.ActiveRoomName);
     }

@@ -39,7 +39,7 @@ public class ScopeTrackStateTests
         {
             SeedPerTrackState(main, scope);
 
-            main.ApplyScenarioRestart([]);
+            main.ApplyScenarioRestart([], null);
 
             AssertTrackStateCleared(scope);
         }
@@ -75,7 +75,7 @@ public class ScopeTrackStateTests
         {
             SeedPerTrackState(main, scope);
 
-            main.ApplyRewindResult(new RewindResultDto(true, null, [], [], Aircraft: []), 0, "Rewound");
+            main.ApplyRewindResult(new RewindResultDto(true, null, [], [], Aircraft: [], SessionStartUtc: null), 0, "Rewound");
 
             AssertTrackStateCleared(scope);
         }

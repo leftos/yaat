@@ -159,7 +159,7 @@ public class MainViewModelSessionSetupPromptTests
         var reply = new TaskCompletionSource<SessionSetupPromptDto?>();
         Task pending = vm.RequestSoloTrainingModeAsync(() => reply.Task);
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], [], []));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], [], [], SessionStartUtc: null));
         Dispatcher.UIThread.RunJobs();
         reply.SetResult(new SessionSetupPromptDto(null, GroundPositions()));
         await pending;
@@ -245,7 +245,7 @@ public class MainViewModelSessionSetupPromptTests
     {
         MainViewModel vm = PromptedVm(null, GroundPositions());
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], [], []));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], [], [], SessionStartUtc: null));
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(vm.ShowWorkedPositionsPrompt);

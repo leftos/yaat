@@ -46,7 +46,8 @@ public class MainViewModelRichPresenceTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            ElapsedSeconds: elapsedSeconds
+            ElapsedSeconds: elapsedSeconds,
+            SessionStartUtc: null
         );
 
     /// <summary>A room whose scenario carries no display name yet — the name follows in a member-changed push.</summary>
@@ -68,7 +69,8 @@ public class MainViewModelRichPresenceTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            ElapsedSeconds: 0
+            ElapsedSeconds: 0,
+            SessionStartUtc: null
         );
 
     /// <summary>
@@ -142,7 +144,8 @@ public class MainViewModelRichPresenceTests
                         ScenarioId: "scenario-7",
                         ScenarioName: "OAK Ground 7",
                         PrimaryAirportId: "OAK",
-                        ElapsedSeconds: 900
+                        ElapsedSeconds: 900,
+                        SessionStartUtc: null
                     )
                 );
 

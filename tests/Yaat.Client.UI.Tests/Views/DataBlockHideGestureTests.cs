@@ -132,7 +132,7 @@ public class DataBlockHideGestureTests
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Radar.DataBlockState.ToggleHidden(Callsign);
 
-        vm.ApplyScenarioRestart([]);
+        vm.ApplyScenarioRestart([], null);
 
         Assert.Empty(vm.Radar.DataBlockState.HiddenCallsigns);
     }

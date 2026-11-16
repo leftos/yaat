@@ -348,6 +348,7 @@ public class MainViewModelViewInstancesTests
                     FlightStripsConfig = null,
                     Aircraft = [],
                     ElapsedSeconds = 0,
+                    SessionStartUtc = null,
                 }
             );
 
@@ -378,6 +379,7 @@ public class MainViewModelViewInstancesTests
                     FlightStripsConfig = null,
                     Aircraft = [],
                     ElapsedSeconds = 0,
+                    SessionStartUtc = null,
                 }
             );
             GroundViewInstance mirroring = vm.OpenExtraGroundView("OAK");

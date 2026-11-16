@@ -30,6 +30,7 @@ public class MainViewModelRecordingBootstrapParityTests
     private const string ScenarioId = "scenario-7";
     private const string ScenarioName = "OAK Ground 7";
     private const string AirportId = "OAK";
+    private static readonly DateTime SessionStart = new(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc);
 
     private static MainViewModel NewVm() => new(new FakeFilePickerService());
 
@@ -73,6 +74,7 @@ public class MainViewModelRecordingBootstrapParityTests
                 FlightStripsConfig = null,
                 Aircraft = aircraft,
                 ElapsedSeconds = 0,
+                SessionStartUtc = SessionStart,
             }
         );
 
@@ -86,9 +88,14 @@ public class MainViewModelRecordingBootstrapParityTests
                 Aircraft: aircraft,
                 ScenarioId: ScenarioId,
                 ScenarioName: ScenarioName,
-                PrimaryAirportId: AirportId
+                PrimaryAirportId: AirportId,
+                SessionStartUtc: SessionStart
             )
         );
+
+        // The session clock starts from the same instant on both paths.
+        Assert.NotNull(viaRecording.SessionStartUtc);
+        Assert.Equal(viaBootstrap.SessionStartUtc, viaRecording.SessionStartUtc);
 
         // Scalar identity must propagate identically on both paths.
         Assert.Equal(ScenarioId, viaRecording.ActiveScenarioId);
@@ -118,7 +125,8 @@ public class MainViewModelRecordingBootstrapParityTests
                 Aircraft: [],
                 ScenarioId: ScenarioId,
                 ScenarioName: ScenarioName,
-                PrimaryAirportId: AirportId
+                PrimaryAirportId: AirportId,
+                SessionStartUtc: null
             )
         );
 
@@ -163,7 +171,8 @@ public class MainViewModelRecordingBootstrapParityTests
             PrimaryAirportId: AirportId,
             StudentPositionType: "TWR",
             IsPlayback: true,
-            SessionSettings: TapeSettings(autoClearedToLand)
+            SessionSettings: TapeSettings(autoClearedToLand),
+            SessionStartUtc: null
         );
 
     private static MainViewModel VmPreferringAutoClearedToLand()

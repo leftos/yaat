@@ -48,7 +48,8 @@ public class MainViewModelActiveRunwaysTests
             ActiveRunways: activeRunways,
             ToweredAirports: [],
             SessionSetup: promptNeeded ? new SessionSetupPromptDto(new ActiveRunwaysSetupDto(prefill, []), null) : null,
-            IsLiveSession: false
+            IsLiveSession: false,
+            SessionStartUtc: null
         );
 
     private static RoomStateDto RoomState(string? scenarioId, Dictionary<string, List<string>> activeRunways) =>
@@ -68,7 +69,8 @@ public class MainViewModelActiveRunwaysTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: activeRunways,
-            ToweredAirports: []
+            ToweredAirports: [],
+            SessionStartUtc: null
         );
 
     [AvaloniaFact]
@@ -76,7 +78,9 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["D28L"])), []));
+        vm.OnScenarioLoaded(
+            new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["D28L"])), [], SessionStartUtc: null)
+        );
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["D28L"] }, Held(vm));
@@ -99,7 +103,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], [], "scenario-3", "OAK Ground", "OAK"));
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], null, [], "scenario-3", "OAK Ground", "OAK"));
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["12"] }, Held(vm));
     }
@@ -109,7 +113,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.ApplyRewindResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), []), 30, "Rewound to 00:30");
+        vm.ApplyRewindResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], SessionStartUtc: null), 30, "Rewound to 00:30");
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["12"] }, Held(vm));
     }
@@ -130,7 +134,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.OnScenarioRestarted(new ScenarioRestartedDto([], Runways(("OAK", ["D28L", "A28R"]))));
+        vm.OnScenarioRestarted(new ScenarioRestartedDto([], Runways(("OAK", ["D28L", "A28R"])), SessionStartUtc: null));
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["D28L", "A28R"] }, Held(vm));
@@ -153,7 +157,9 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = NewVm();
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["30"])), []));
+        vm.OnScenarioLoaded(
+            new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["30"])), [], SessionStartUtc: null)
+        );
         vm.OnActiveRunwaysChanged(new ActiveRunwaysChangedDto(Runways(("OAK", ["D28L", "A28R"]), ("SFO", ["28R"]))));
         Dispatcher.UIThread.RunJobs();
 

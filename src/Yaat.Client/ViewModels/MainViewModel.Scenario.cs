@@ -729,6 +729,7 @@ public partial class MainViewModel
                 FlightStripsConfig = result.FlightStripsConfig,
                 Aircraft = result.AllAircraft,
                 ElapsedSeconds = 0,
+                SessionStartUtc = result.SessionStartUtc,
             }
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.VfrArrivalGenerators, result.OverflightGenerators, result.Positions);
@@ -779,6 +780,7 @@ public partial class MainViewModel
                     FlightStripsConfig = dto.FlightStripsConfig,
                     Aircraft = dto.AllAircraft,
                     ElapsedSeconds = 0,
+                    SessionStartUtc = dto.SessionStartUtc,
                 }
             );
             StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
@@ -810,6 +812,7 @@ public partial class MainViewModel
     {
         ActiveScenarioId = bootstrap.ScenarioId;
         ActiveScenarioName = bootstrap.ScenarioName;
+        SessionStartUtc = bootstrap.SessionStartUtc;
         ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(bootstrap.PrimaryAirportId);
         if (bootstrap.ScenarioName is not null)
         {
@@ -1018,6 +1021,7 @@ public partial class MainViewModel
         ActiveScenarioId = null;
         ActiveScenarioName = null;
         ActiveScenarioPrimaryAirportId = null;
+        SessionStartUtc = null;
         IsLiveSession = false;
         ClearActiveRunways();
         // Nothing is running, so nothing is shown. Every way out of a scenario reaches here: unload,

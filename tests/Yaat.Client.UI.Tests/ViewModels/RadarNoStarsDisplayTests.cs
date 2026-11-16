@@ -58,5 +58,6 @@ public class RadarNoStarsDisplayTests
             FlightStripsConfig = null,
             Aircraft = [],
             ElapsedSeconds = 0,
+            SessionStartUtc = null,
         };
 }

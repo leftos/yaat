@@ -37,7 +37,8 @@ public class MainViewModelJoinGeneratorStashTests
             OverflightGenerators: withGenerators ? [new OverflightGeneratorConfig { Id = "OVF-1" }] : [],
             Positions: withGenerators ? [new ScenarioPositionDto("01GEAT", "OAK_TWR", "Oakland Tower")] : [],
             ActiveRunways: [],
-            ToweredAirports: []
+            ToweredAirports: [],
+            SessionStartUtc: null
         );
 
     [AvaloniaFact]

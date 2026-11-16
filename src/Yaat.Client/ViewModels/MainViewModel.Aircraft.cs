@@ -392,7 +392,7 @@ public partial class MainViewModel
     internal void OnScenarioRestarted(ScenarioRestartedDto restarted) =>
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            ApplyScenarioRestart(restarted.Aircraft);
+            ApplyScenarioRestart(restarted.Aircraft, restarted.SessionStartUtc);
             ApplyActiveRunways(restarted.ActiveRunways);
         });
 
@@ -405,9 +405,13 @@ public partial class MainViewModel
     /// The server's own restart line arrives before this broadcast, so clearing the terminal here takes it too; the
     /// client then says the scenario restarted itself.
     /// </remarks>
-    internal void ApplyScenarioRestart(List<AircraftDto> manifest)
+    /// <param name="manifest">The post-restart aircraft manifest.</param>
+    /// <param name="sessionStartUtc">The restarted scenario's session start; the session clock restarts from it at zero.</param>
+    internal void ApplyScenarioRestart(List<AircraftDto> manifest, DateTime? sessionStartUtc)
     {
         ReplaceAircraftFromManifest(manifest);
+        SessionStartUtc = sessionStartUtc;
+        ScenarioElapsedSeconds = 0;
 
         // Only a restart drops the tape, so only a restart drops the bookmarks placed against it (the
         // server clears them too — see RestartScenarioAsync). A rewind keeps both.

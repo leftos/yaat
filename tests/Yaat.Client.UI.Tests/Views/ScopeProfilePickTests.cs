@@ -257,7 +257,7 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     private static RewindResultDto RecordingResult(string? studentPositionType) =>
-        new(true, null, [], [], [], "scenario-3", "OAK Ground", "OAK", StudentPositionType: studentPositionType);
+        new(true, null, [], [], null, [], "scenario-3", "OAK Ground", "OAK", StudentPositionType: studentPositionType);
 
     [AvaloniaFact]
     public void RoomJoinOrder_PositionThenANullType_KeepsTheProfile_AndALaterAsKeepsIt()
@@ -331,7 +331,8 @@ public class ScopeProfilePickTests : IDisposable
                 [],
                 [],
                 PositionDisplayConfig: Config(Sector44),
-                StudentPositionType: "CTR"
+                StudentPositionType: "CTR",
+                SessionStartUtc: null
             )
         );
         Dispatcher.UIThread.RunJobs();

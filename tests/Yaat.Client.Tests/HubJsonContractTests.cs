@@ -276,6 +276,35 @@ public class HubJsonContractTests
         Assert.Empty(restarted.ActiveRunways["OAK"]);
     }
 
+    // The five records that set the client's session clock carry the scenario's session start as a UTC instant; a
+    // payload without one (no scenario) binds null.
+    [Fact]
+    public void SessionStartUtc_DeserializesIntoAllFiveCarriers_AsUtc_AndNullWhenAbsent()
+    {
+        const string start = "\"SessionStartUtc\":\"2026-08-26T12:00:00Z\"";
+        var expected = new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc);
+        DateTime?[] withStart =
+        [
+            JsonSerializer.Deserialize("{" + start + "}", YaatHubJsonContext.Default.LoadScenarioResultDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{" + start + "}", YaatHubJsonContext.Default.ScenarioLoadedDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{" + start + "}", YaatHubJsonContext.Default.RoomStateDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{" + start + "}", YaatHubJsonContext.Default.RewindResultDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{" + start + "}", YaatHubJsonContext.Default.ScenarioRestartedDto)!.SessionStartUtc,
+        ];
+        DateTime?[] without =
+        [
+            JsonSerializer.Deserialize("{}", YaatHubJsonContext.Default.LoadScenarioResultDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{}", YaatHubJsonContext.Default.ScenarioLoadedDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{}", YaatHubJsonContext.Default.RoomStateDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{}", YaatHubJsonContext.Default.RewindResultDto)!.SessionStartUtc,
+            JsonSerializer.Deserialize("{}", YaatHubJsonContext.Default.ScenarioRestartedDto)!.SessionStartUtc,
+        ];
+
+        Assert.All(withStart, s => Assert.Equal(expected, s));
+        Assert.All(withStart, s => Assert.Equal(DateTimeKind.Utc, s!.Value.Kind));
+        Assert.All(without, s => Assert.Null(s));
+    }
+
     [Fact]
     public void ServerLoadShapes_DeserializeIntoClientRecords()
     {

@@ -996,6 +996,7 @@ public partial class MainViewModel
         ResetPilotVoiceWarningSession();
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;
+        SessionStartUtc = result.SessionStartUtc;
         ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(result.PrimaryAirportId);
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
         _lastRadarPrimaryAirportId = result.PrimaryAirportId;

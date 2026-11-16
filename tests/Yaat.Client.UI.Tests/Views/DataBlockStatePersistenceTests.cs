@@ -181,7 +181,7 @@ public class DataBlockStatePersistenceTests
         vm.Radar.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
         vm.Radar.DataBlockState.MinifiedCallsigns.Add(Callsign);
 
-        vm.ApplyScenarioRestart([]);
+        vm.ApplyScenarioRestart([], null);
 
         Assert.Empty(vm.Ground.DataBlockState.ManualOffsets);
         Assert.Empty(vm.Radar.DataBlockState.ManualOffsets);

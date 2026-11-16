@@ -52,6 +52,7 @@ public class Issue709FlightPlanEditorDeleteTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("UAL1"), MakeAircraft("DAL2")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         return vm;

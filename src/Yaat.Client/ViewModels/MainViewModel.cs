@@ -504,6 +504,13 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
     private double _scenarioElapsedSeconds;
 
+    /// <summary>
+    /// The loaded scenario's session start (Kind Utc), as the server sends it on every load, join, restart and recording
+    /// load; a rewind keeps it. Null with no scenario.
+    /// </summary>
+    [ObservableProperty]
+    private DateTime? _sessionStartUtc;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
     [NotifyPropertyChangedFor(nameof(LiveSessionBadgeText))]
@@ -572,6 +579,12 @@ public partial class MainViewModel : ObservableObject
     public string TimelineFilterText => TimelineFilterActive ? $"Filter: {TimelineFilterCallsign}" : "";
 
     public string PlayPauseIcon => IsPaused ? "▶" : "⏸";
+
+    /// <summary>
+    /// The session clock: the session start plus the elapsed seconds, so it stops while paused and runs at the sim rate.
+    /// Null with no scenario.
+    /// </summary>
+    internal DateTime? SessionNowUtc => SessionStartUtc?.AddSeconds(ScenarioElapsedSeconds);
 
     public string ElapsedTimeDisplay
     {

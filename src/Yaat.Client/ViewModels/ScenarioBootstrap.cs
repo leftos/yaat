@@ -38,4 +38,8 @@ public sealed record ScenarioBootstrap
     /// both fire as the scenario starts; the join path carries the room's clock, so
     /// a joiner's elapsed-time displays match the room rather than restarting.</summary>
     public required double ElapsedSeconds { get; init; }
+
+    /// <summary>The scenario's session start (Kind Utc), which the session clock counts the elapsed seconds from; null
+    /// when the server sent none.</summary>
+    public required DateTime? SessionStartUtc { get; init; }
 }

@@ -27,7 +27,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
             {
                 vm.OnRoomLoadingChanged("AB");
                 vm.OnTerminalEntry(Warning("Could not resolve ATC position OAK_GND"));
-                vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], []));
+                vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], [], SessionStartUtc: null));
                 vm.OnRoomLoadingChanged(null);
                 Dispatcher.UIThread.RunJobs();
 
@@ -79,7 +79,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
             {
                 vm.OnRoomLoadingChanged("AB");
                 Dispatcher.UIThread.RunJobs();
-                vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], []));
+                vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], [], SessionStartUtc: null));
                 Dispatcher.UIThread.RunJobs();
                 vm.ApplyScenarioResult(MainViewModelActiveRunwaysTests.LoadResult([], [], promptNeeded: false));
 
@@ -98,7 +98,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
                 );
                 Dispatcher.UIThread.RunJobs();
 
-                vm.ApplyScenarioRestart([]);
+                vm.ApplyScenarioRestart([], null);
 
                 Assert.Equal(["Scenario restarted with new traffic"], Messages(vm));
                 Assert.Equal(TerminalEntryKind.System, Assert.Single(vm.TerminalEntries).Kind);
@@ -116,7 +116,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
                 );
                 Dispatcher.UIThread.RunJobs();
 
-                vm.ApplyScenarioRestart([]);
+                vm.ApplyScenarioRestart([], null);
 
                 Assert.Equal([OldLine, "[Restart] Scenario restarted with new traffic"], Messages(vm));
             }
@@ -231,6 +231,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
                 FlightStripsConfig = null,
                 Aircraft = [],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
         vm.TerminalEntries.Clear();
@@ -266,6 +267,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            ElapsedSeconds: 0
+            ElapsedSeconds: 0,
+            SessionStartUtc: null
         );
 }

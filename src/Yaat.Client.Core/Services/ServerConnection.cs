@@ -1682,6 +1682,9 @@ public record LoadScenarioResultDto(
     SessionSetupPromptDto? SessionSetup,
     // The airports the room's loaded ARTCC configs give a tower; every other airport is untowered.
     List<string> ToweredAirports,
+    // The scenario's session start, Kind Utc: session now is it plus the elapsed seconds (MainViewModel.SessionNowUtc).
+    // Null with no scenario, and on a failure.
+    DateTime? SessionStartUtc,
     string? WeatherName = null,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     string? AutoDeleteOverride = null,
@@ -1861,6 +1864,9 @@ public record RoomStateDto(
     Dictionary<string, List<string>> ActiveRunways,
     // The airports the room's loaded ARTCC configs give a tower (LoadScenarioResultDto.ToweredAirports).
     List<string> ToweredAirports,
+    // The scenario's session start, Kind Utc: session now is it plus the elapsed seconds (MainViewModel.SessionNowUtc).
+    // Null with no scenario.
+    DateTime? SessionStartUtc,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,
@@ -2006,6 +2012,9 @@ public record ScenarioLoadedDto(
     Dictionary<string, List<string>> ActiveRunways,
     // The airports the room's loaded ARTCC configs give a tower (LoadScenarioResultDto.ToweredAirports).
     List<string> ToweredAirports,
+    // The scenario's session start, Kind Utc: session now is it plus the elapsed seconds (MainViewModel.SessionNowUtc).
+    // Null with no scenario.
+    DateTime? SessionStartUtc,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
@@ -2453,6 +2462,9 @@ public record RewindResultDto(
     Dictionary<string, List<string>> ActiveRunways,
     // The airports the room's loaded ARTCC configs give a tower (LoadScenarioResultDto.ToweredAirports); empty on a failure.
     List<string> ToweredAirports,
+    // The scenario's session start, Kind Utc: session now is it plus the elapsed seconds (MainViewModel.SessionNowUtc).
+    // Null with no scenario, and on a failure.
+    DateTime? SessionStartUtc,
     List<AircraftDto>? Aircraft = null,
     string? ScenarioId = null,
     string? ScenarioName = null,
@@ -2471,9 +2483,10 @@ public record RewindResultDto(
 
 /// <summary>
 /// The room's <c>ScenarioRestarted</c> broadcast: the post-restart aircraft manifest, which replaces the aircraft list
-/// wholesale, and the active runways the restart kept, by airport.
+/// wholesale, the active runways the restart kept, by airport, and the restarted scenario's session start (Kind Utc),
+/// which a restart draws afresh while the elapsed time goes back to zero.
 /// </summary>
-public record ScenarioRestartedDto(List<AircraftDto> Aircraft, Dictionary<string, List<string>> ActiveRunways);
+public record ScenarioRestartedDto(List<AircraftDto> Aircraft, Dictionary<string, List<string>> ActiveRunways, DateTime? SessionStartUtc);
 
 public record AssignableMemberDto(string ConnectionId, string Initials);
 

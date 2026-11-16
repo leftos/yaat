@@ -31,7 +31,8 @@ public class MainViewModelArtccAdoptionTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: [],
-            ToweredAirports: []
+            ToweredAirports: [],
+            SessionStartUtc: null
         );
 
     [AvaloniaFact]

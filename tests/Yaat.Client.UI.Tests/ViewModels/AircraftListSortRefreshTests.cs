@@ -86,6 +86,7 @@ public class AircraftListSortRefreshTests
                     MakeAircraft("DEL2", "Delayed (90s)"),
                 ],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 
@@ -125,6 +126,7 @@ public class AircraftListSortRefreshTests
                     MakeAircraft("DEL2", "Delayed (90s)", "ZZZ"),
                 ],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 
@@ -158,6 +160,7 @@ public class AircraftListSortRefreshTests
                 FlightStripsConfig = null,
                 Aircraft = [MakeAircraft("BBB1"), MakeAircraft("DDD1"), MakeAircraft("FFF1"), MakeAircraft("CCC1", "Delayed (60s)")],
                 ElapsedSeconds = 0,
+                SessionStartUtc = null,
             }
         );
 
