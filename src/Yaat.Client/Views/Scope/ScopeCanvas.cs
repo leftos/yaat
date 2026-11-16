@@ -157,6 +157,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     private readonly SKFont _rblMeasureFont = PlatformHelper.MonospaceFont(RangeBearingRenderer.LabelFontSize);
     private readonly Dictionary<int, RblReadoutSpot> _rblReadoutSpots = [];
     private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
+
+    // An Alt+left drag in flight: the endpoint under the press and where the press was. A release farther than the threshold
+    // from the press places the whole line; a nearer one anchors it, as on the Radar.
+    private RblEndpoint? _measureDragAnchor;
+    private Point _measureDragStart;
+    private const double MeasureDragThresholdSq = 25.0;
     private ScopeFrame? _lastFrame;
     private string? _hoveredCallsign;
     private string? _hoveredVciCallsign;
@@ -367,6 +373,18 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     internal Func<string?, bool>? FillsOnLeftClick { get; set; }
 
+    /// <summary>
+    /// Fired for a measurement endpoint the pointer picked: a left press while the tool is armed, or an Alt+left click released
+    /// within the drag threshold (which anchors the line). An aircraft under the pointer latches; else the map point.
+    /// </summary>
+    public event Action<RblEndpoint>? MeasurePointPicked;
+
+    /// <summary>Fired when an Alt+left drag is released past the drag threshold, with the press's and the release's endpoints.</summary>
+    public event Action<RblEndpoint, RblEndpoint>? MeasureDragCompleted;
+
+    /// <summary>Fired for a right press while the measuring tool is armed: the tool is to be cancelled.</summary>
+    public event Action? MeasureCancelled;
+
     /// <summary>Fired for text typed while the canvas has the focus; a handler that takes it marks it handled.</summary>
     public event EventHandler<TextInputEventArgs>? EntryTextInput;
 
@@ -432,14 +450,14 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Resolves this frame's measurements: the lines taken on the Scope, and the half-placed one when its anchor was picked
-    /// on the Scope and a cursor position is known.
+    /// Resolves this frame's measurements: the lines taken on the Scope, and the half-placed one (an Alt+left drag in flight,
+    /// else an anchor picked on the Scope) when a cursor position is known.
     /// </summary>
     private (IReadOnlyList<ResolvedRbl> Lines, ResolvedRbl? Pending) ResolveMeasurements()
     {
         IReadOnlyList<RangeBearingLine>? placed = RangeBearingLines;
         // A half-placed anchor picked on another surface previews there, not here.
-        RblEndpoint? anchor = MeasureAnchor is { View: ScopeViewModel.MeasureView } pending ? pending.Endpoint : null;
+        RblEndpoint? anchor = _measureDragAnchor ?? (MeasureAnchor is { View: ScopeViewModel.MeasureView } pending ? pending.Endpoint : null);
         if ((placed is not { Count: > 0 }) && (anchor is null))
         {
             return ([], null);
@@ -660,9 +678,21 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         Focus();
         Point pos = e.GetPosition(this);
         PointerPointProperties props = e.GetCurrentPoint(this).Properties;
+        if (!IsAltLeftPress(props, e.KeyModifiers))
+        {
+            // An Alt-drag whose release never came (its capture went elsewhere) ends at the next other press.
+            CancelMeasureDrag();
+        }
+
         if (props.IsMiddleButtonPressed)
         {
             OnMiddlePressed(pos);
+            e.Handled = true;
+            return;
+        }
+
+        if (TryMeasurePress(props, e.KeyModifiers, pos))
+        {
             e.Handled = true;
             return;
         }
@@ -680,6 +710,113 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnPointerPressed(e);
+    }
+
+    // The measuring tool's presses, ahead of the fill, the Rings tool and the aircraft rungs: Alt+left starts a drag whether or
+    // not the tool is armed; while it is armed a left press picks an endpoint and a right press cancels it (no menu, no pan).
+    // False for any other press.
+    // Each rung reads the button this press went down with (PointerUpdateKind), so a second button pressed while the left is
+    // held neither re-anchors nor picks.
+    private bool TryMeasurePress(PointerPointProperties props, KeyModifiers modifiers, Point pos)
+    {
+        if (IsAltLeftPress(props, modifiers))
+        {
+            _measureDragAnchor = MeasureEndpointAt(pos);
+            _measureDragStart = pos;
+            MeasureCursor = pos;
+            return true;
+        }
+
+        if (!IsMeasuring)
+        {
+            return false;
+        }
+
+        if (props.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+        {
+            MeasurePointPicked?.Invoke(MeasureEndpointAt(pos));
+            return true;
+        }
+
+        if (props.PointerUpdateKind == PointerUpdateKind.RightButtonPressed)
+        {
+            MeasureCancelled?.Invoke();
+            return true;
+        }
+
+        return false;
+    }
+
+    // A press that went down with the left button while Alt is held: it starts a measurement drag.
+    private static bool IsAltLeftPress(PointerPointProperties props, KeyModifiers modifiers) =>
+        (props.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed) && modifiers.HasFlag(KeyModifiers.Alt);
+
+    /// <summary>
+    /// Drops an Alt+left drag in flight, so its release places nothing and its line stops drawing: Esc's step for it, a lost
+    /// capture and any press other than Alt+left. Returns whether one was in flight.
+    /// </summary>
+    internal bool CancelMeasureDrag()
+    {
+        if (_measureDragAnchor is null)
+        {
+            return false;
+        }
+
+        _measureDragAnchor = null;
+        MarkDirty();
+        return true;
+    }
+
+    /// <summary>An Alt+left drag whose capture went elsewhere (Alt-Tab mid-drag) never gets its release: it ends here.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        CancelMeasureDrag();
+        base.OnPointerCaptureLost(e);
+    }
+
+    // A measurement endpoint at the point: the aircraft whose block, else whose target, is under it latches; else the map
+    // point, unlabelled, as the Radar labels a point with no fix near (the Scope names no FRD).
+    private RblEndpoint MeasureEndpointAt(Point pos) =>
+        HitAt(CurrentFrame, pos) is { } hit ? RblEndpoint.OnAircraft(hit.Callsign) : RblEndpoint.AtPoint(PointAt(pos), "");
+
+    /// <summary>
+    /// Ends an Alt+left drag: a release past the drag threshold places the whole line, a nearer one anchors it and leaves the
+    /// tool armed for a plain click to complete. Any release records the cursor the half-placed line runs to.
+    /// </summary>
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        Point pos = e.GetPosition(this);
+        TrackMeasureCursor(pos);
+        if ((_measureDragAnchor is not { } anchor) || (e.InitialPressMouseButton != MouseButton.Left))
+        {
+            base.OnPointerReleased(e);
+            return;
+        }
+
+        _measureDragAnchor = null;
+        double dx = pos.X - _measureDragStart.X;
+        double dy = pos.Y - _measureDragStart.Y;
+        if (((dx * dx) + (dy * dy)) > MeasureDragThresholdSq)
+        {
+            MeasureDragCompleted?.Invoke(anchor, MeasureEndpointAt(pos));
+        }
+        else
+        {
+            MeasurePointPicked?.Invoke(anchor);
+        }
+
+        MarkDirty();
+        e.Handled = true;
+    }
+
+    // Records where the half-placed line runs to, redrawing while one is in flight on the Scope.
+    private void TrackMeasureCursor(Point pos)
+    {
+        MeasureCursor = pos;
+        if ((_measureDragAnchor is not null) || (MeasureAnchor is { View: ScopeViewModel.MeasureView }))
+        {
+            MarkDirty();
+        }
     }
 
     // A left or right press on an aircraft: the right opens its menu, the left selects it (OnLeftPressed). False off any aircraft.
@@ -794,18 +931,20 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>
     /// Dwells the track under the pointer at once, as CRC does, or previews the VCI whose cell it is on, hit-testing the drawn
-    /// frame; the frame is rebuilt only when either hovered callsign changes. Panning stays with the base canvas.
+    /// frame; the frame is rebuilt only when either hovered callsign changes. Panning stays with the base canvas. Every move
+    /// records the cursor a half-placed measurement runs to.
     /// </summary>
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        Point pos = e.GetPosition(this);
+        TrackMeasureCursor(pos);
         if (e.Handled)
         {
             // A pan drag: the map moves with the pointer, so the dwell holds; the next free move re-tests it.
             return;
         }
 
-        Point pos = e.GetPosition(this);
         HoverFramesBuilt += _lastFrame is null ? 1 : 0;
         ScopeHoverHit hit = CurrentFrame.HoverAt((float)pos.X, (float)pos.Y);
         Hover(hit.Dwelled?.Callsign, hit.VciPreviewed?.Callsign);

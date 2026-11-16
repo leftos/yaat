@@ -29,12 +29,18 @@ namespace Yaat.Client.Views.Scope;
 /// point (<see cref="ScopeViewModel.FillPoint"/>). A middle click takes the row <see cref="ScopeMiddleClick"/> picks: on an
 /// ERAM block it fills the track into a non-empty preview and runs it, or on Field A with an empty preview runs <c>QF</c>;
 /// on a STARS or EuroScope block it toggles the highlight; on the map with the ERAM layout it fills the point into a
-/// non-empty preview and runs it. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through
+/// non-empty preview and runs it. The measuring tool comes before every left-click rung above: Alt+left-drag measures between
+/// the press and the release whether or not the tool is armed (an Alt-click anchors and arms it); while it is armed (Ctrl+M,
+/// Cmd+M on macOS, which also says so in the response) a left click picks an endpoint, latching an aircraft under it, and a
+/// right click cancels it, opening no menu; each pick's status shows in the response (<see cref="ScopeViewModel.PickMeasurePoint"/>).
+/// Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through
 /// <c>.scope tdm</c>, as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
 /// which any press on it gives: printable text adds to the entry, Backspace edits it, Up and Down walk its history, Ctrl+R
 /// (Cmd+R on macOS) recalls the last entry on ERAM and Mixed, and Enter runs it; other chords, Tab and function keys pass on.
-/// Esc, in order: leaves a tear-off move to the tear-off layer, else clears the entry and its response, else disarms the Rings
-/// tool. Esc and Ctrl+Shift+T are taken by a window-level handler that runs in the tunnel, so it acts before any control
+/// Esc, in order: leaves a tear-off move to the tear-off layer, else takes the measuring tool's own prompt with the
+/// measurement, else clears the entry and its response, else drops an Alt-drag in flight, else cancels the Scope's measurement,
+/// else disarms the Rings tool.
+/// Esc and Ctrl+Shift+T are taken by a window-level handler that runs in the tunnel, so it acts before any control
 /// inside the window sees the key.
 /// </summary>
 public partial class ScopeView : UserControl
@@ -61,6 +67,9 @@ public partial class ScopeView : UserControl
         Canvas.EntryTextInput += OnCanvasTextInput;
         Canvas.EntryKeyDown += OnCanvasKeyDown;
         Canvas.GotFocus += OnCanvasGotFocus;
+        Canvas.MeasurePointPicked += endpoint => (DataContext as ScopeViewModel)?.PickMeasurePoint(endpoint);
+        Canvas.MeasureDragCompleted += (from, to) => (DataContext as ScopeViewModel)?.PlaceMeasurement(from, to);
+        Canvas.MeasureCancelled += () => (DataContext as ScopeViewModel)?.CancelMeasureFromPointer();
     }
 
     // The canvas taking the focus makes the Scope the active measure surface: a typed .rbl A B places here.
@@ -127,7 +136,8 @@ public partial class ScopeView : UserControl
     }
 
     // Esc, unless a tear-off move is on (the tear-off layer cancels it): takes the measure prompt with the measurement (when
-    // nothing is typed), else clears the entry, else cancels the Scope's measurement, else disarms an armed Rings tool. Ctrl+M
+    // nothing is typed), else clears the entry, else drops an Alt-drag in flight, else cancels the Scope's measurement, else
+    // disarms an armed Rings tool. Ctrl+M
     // arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
@@ -138,7 +148,9 @@ public partial class ScopeView : UserControl
 
         if (e.Key == Key.Escape)
         {
-            e.Handled = (!TearoffLayer.IsMoving) && (vm.TakeMeasurePrompt() || vm.ClearEntry() || vm.CancelMeasure() || vm.DisarmRingTool());
+            e.Handled =
+                (!TearoffLayer.IsMoving)
+                && (vm.TakeMeasurePrompt() || vm.ClearEntry() || Canvas.CancelMeasureDrag() || vm.CancelMeasure() || vm.DisarmRingTool());
         }
         else if ((e.Key == Key.M) && (e.KeyModifiers == ActionModifier))
         {

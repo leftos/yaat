@@ -48,6 +48,67 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
+    /// A point the Scope's pointer picked (an armed left click, an Alt-click): makes the Scope the active surface and feeds the
+    /// tool, the first pick anchoring on the Scope and the second completing the line. Its status shows in the status line and
+    /// the Scope's response (an error for a full store); a prompt for the next point counts as the tool's own, for Esc.
+    /// </summary>
+    public void PickMeasurePoint(RblEndpoint endpoint)
+    {
+        ActivateMeasureSurface();
+        string? status = null;
+        void Capture(string reported) => status = reported;
+        Measure.StatusReported += Capture;
+        try
+        {
+            Measure.Pick(endpoint, MeasureView, MeasureTrackLookup, MeasureUnits);
+        }
+        finally
+        {
+            Measure.StatusReported -= Capture;
+        }
+
+        if (status is not null)
+        {
+            ShowMeasureResponse(status);
+        }
+    }
+
+    /// <summary>
+    /// An Alt-drag on the Scope: makes the Scope the active surface and places the whole line on the Scope, its reading (or the
+    /// full-store error) in the status line and the Scope's response.
+    /// </summary>
+    public void PlaceMeasurement(RblEndpoint from, RblEndpoint to)
+    {
+        ActivateMeasureSurface();
+        (_, string status) = Measure.PlaceSilently(from, to, MeasureView, MeasureTrackLookup, MeasureUnits);
+        Main.StatusText = status;
+        ShowMeasureResponse(status);
+    }
+
+    /// <summary>
+    /// A right press on the Scope while the tool is armed: makes the Scope the active surface and cancels the tool, as Esc
+    /// does; the status line says so and the Scope's response keeps what it shows, less the tool's own prompt.
+    /// </summary>
+    public void CancelMeasureFromPointer()
+    {
+        ActivateMeasureSurface();
+        CancelMeasure();
+    }
+
+    // A Scope-started measure status in the response: an error for a full store, text otherwise. While the tool stays armed it
+    // is the tool's own prompt, which Esc takes with the measurement and a disarm elsewhere takes down.
+    private void ShowMeasureResponse(string status)
+    {
+        var response = new ScopeEntryResponse(
+            status == RangeBearingViewState.FullStatus ? ScopeResponseKind.Error : ScopeResponseKind.Text,
+            status,
+            ""
+        );
+        _measureResponse = Measure.IsMeasuring ? response : null;
+        EntryResponse = response;
+    }
+
+    /// <summary>
     /// The tool disarming anywhere (a cancel on another surface, <c>.norbl</c>, <c>.rbl N</c>) takes down the prompt
     /// <see cref="ArmMeasure"/> wrote, while it still shows; any other response stays.
     /// </summary>
