@@ -13,7 +13,6 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Logging;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -42,8 +41,7 @@ public class ScopeToolbarTests
         Action<MainViewModel> beforeScope
     )
     {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        MainViewModel main = await ScopeTestFixture.MainAsync();
         beforeScope(main);
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
@@ -222,8 +220,7 @@ public class ScopeToolbarTests
         JsonObject edited = JsonNode.Parse(File.ReadAllText(mixedFile))!.AsObject();
         edited["toolbar"] = new JsonArray("maps", "range", "wx");
         File.WriteAllText(mixedFile, edited.ToJsonString());
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        MainViewModel main = await ScopeTestFixture.MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: store);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);

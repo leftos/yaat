@@ -9,13 +9,13 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Models;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -29,15 +29,6 @@ public class ScopeViewTearoffTests
     private const string Usage = "Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>";
 
     private static readonly ScopePlacement SsaDefault = new(ScopeCorner.TopLeft, 8, 8);
-
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
 
     /// <summary>The open view named <paramref name="name"/>, docked or floating.</summary>
     private static ScopeDockViewModel ViewOf(ScopeViewModel scope, string name) =>

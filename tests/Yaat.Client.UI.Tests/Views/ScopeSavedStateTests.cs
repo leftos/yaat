@@ -2,12 +2,12 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Data;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -434,13 +434,6 @@ public class ScopeSavedStateTests : IDisposable
 
     private static PositionDisplayConfigDto Config(ActivePositionDto position) =>
         new([], [], [], position.HandoffCode, position, 3, NoStarsDisplay: true);
-
-    private static async Task<MainViewModel> MainAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        return main;
-    }
 
     private static VideoMapData Map(string id) => new() { MapId = id, Lines = [] };
 

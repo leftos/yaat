@@ -15,6 +15,7 @@ using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -49,21 +50,6 @@ public class ScopeTdmTests : IDisposable
     }
 
     private static ScopeButton Button(ScopeButtonId id) => ScopeToolbarButtons.Find(id)!;
-
-    private static async Task<MainViewModel> MainAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        return main;
-    }
-
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
 
     /// <summary>A scope viewed from ZOA sector 44, saving through this test's store.</summary>
     private async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenStoredScopeAsync()

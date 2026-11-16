@@ -9,16 +9,14 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using SkiaSharp;
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
-using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -31,15 +29,6 @@ namespace Yaat.Client.UI.Tests.Views;
 public class ScopeEntryTests
 {
     private const string Untouched = "UNTOUCHED LINE";
-
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
 
     private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScopeAsync(ScopeProfileKind profile)
     {
@@ -93,23 +82,6 @@ public class ScopeEntryTests
     }
 
     private static List<string> Lines(Control area) => [.. area.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "")];
-
-    private static AircraftModel Add(MainViewModel main, string callsign)
-    {
-        var ac = new AircraftModel
-        {
-            Callsign = callsign,
-            AircraftType = "B738",
-            FiledAircraftType = "B738",
-            FlightRules = "IFR",
-            TransponderMode = "C",
-            Altitude = 5000,
-            GroundSpeed = 250,
-            Position = new LatLon(37.7, -122.2),
-        };
-        main.Aircraft.Add(ac);
-        return ac;
-    }
 
     private static RawInputModifiers ActionModifier => PlatformHelper.IsMacOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
 
@@ -167,7 +139,7 @@ public class ScopeEntryTests
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
         try
         {
-            Add(main, "UAL238");
+            AddAircraft(main, "UAL238", 5000);
             string statusBefore = main.StatusText;
             FocusCanvas(window, view);
             Type(window, "UAL238 FH 270");

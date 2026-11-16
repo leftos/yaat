@@ -7,13 +7,13 @@ using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -47,22 +47,6 @@ public class ScopeBandPinTests : IDisposable
     }
 
     private static ScopeButton Button(ScopeButtonId id) => ScopeToolbarButtons.Find(id)!;
-
-    private static async Task<MainViewModel> MainAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        return main;
-    }
-
-    /// <summary>A scope with no viewer and no store: the Mixed profile, at 40 NM.</summary>
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
 
     /// <summary>A scope viewed from ZOA sector 44, saving through this test's store.</summary>
     private async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenStoredScopeAsync()
@@ -110,7 +94,7 @@ public class ScopeBandPinTests : IDisposable
     }
 
     /// <summary>An airborne aircraft whose symbol sits at the given canvas point, added to the traffic the scope draws.</summary>
-    private static void AddAircraft(MainViewModel main, ScopeCanvas canvas, string callsign, double screenX, double screenY)
+    private static void AddAt(MainViewModel main, ScopeCanvas canvas, string callsign, double screenX, double screenY)
     {
         (double lat, double lon) = canvas.Viewport.ScreenToLatLon((float)screenX, (float)screenY);
         main.Aircraft.Add(
@@ -190,7 +174,7 @@ public class ScopeBandPinTests : IDisposable
             main.RunScopeCommand(".scope template eram");
 
             // No one owns this track, so it draws at the band's others' level.
-            AddAircraft(main, view.Canvas, "SKW5410", 300, 300);
+            AddAt(main, view.Canvas, "SKW5410", 300, 300);
             Assert.Equal(ScopeBlockLevel.Partial, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
 
             main.RunScopeCommand(".scope others full");

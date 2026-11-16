@@ -7,7 +7,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
@@ -24,10 +24,7 @@ public class ScopeDockTests
 {
     private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenAsync()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
+        (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Settle(window);

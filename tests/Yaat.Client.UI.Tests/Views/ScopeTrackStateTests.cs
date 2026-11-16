@@ -1,11 +1,9 @@
 using Avalonia.Headless.XUnit;
 using SkiaSharp;
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
-using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -89,7 +87,7 @@ public class ScopeTrackStateTests
 
     private static void SeedPerTrackState(MainViewModel main, ScopeViewModel scope)
     {
-        Add(main, "UAL1");
+        AddAircraft(main, "UAL1", 5000);
         scope.DataBlockState.ToggleDwellLock("UAL1");
         scope.DataBlockState.SetManualOffset("UAL1", new SKPoint(10, 20));
         main.RunScopeCommand(".scope rings dri5 UAL1");
@@ -103,30 +101,5 @@ public class ScopeTrackStateTests
         Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
         Assert.Empty(scope.DataBlockState.ManualOffsets);
         Assert.Empty(scope.LocalRings);
-    }
-
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
-
-    private static void Add(MainViewModel main, string callsign)
-    {
-        var ac = new AircraftModel
-        {
-            Callsign = callsign,
-            AircraftType = "B738",
-            FiledAircraftType = "B738",
-            FlightRules = "IFR",
-            TransponderMode = "C",
-            Altitude = 5000,
-            GroundSpeed = 250,
-            Position = new LatLon(37.7, -122.2),
-        };
-        main.Aircraft.Add(ac);
     }
 }

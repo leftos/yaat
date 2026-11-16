@@ -15,6 +15,7 @@ using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -30,32 +31,6 @@ public class ScopeRingsToolTests
         "Usage: .scope rings <jring|cone> <1.0-9.9|10-30> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]";
 
     private static ScopeButton Button(ScopeButtonId id) => ScopeToolbarButtons.Find(id)!;
-
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
-
-    private static AircraftModel Add(MainViewModel main, string callsign, double altitudeFt = 5000)
-    {
-        var ac = new AircraftModel
-        {
-            Callsign = callsign,
-            AircraftType = "B738",
-            FiledAircraftType = "B738",
-            FlightRules = "IFR",
-            TransponderMode = "C",
-            Altitude = altitudeFt,
-            GroundSpeed = 250,
-            Position = new LatLon(37.7, -122.2),
-        };
-        main.Aircraft.Add(ac);
-        return ac;
-    }
 
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(string? templateId = null)
     {
@@ -90,7 +65,7 @@ public class ScopeRingsToolTests
     private static AircraftModel AddAt(MainViewModel main, ScopeCanvas canvas, string callsign, double screenX, double screenY)
     {
         (double lat, double lon) = canvas.Viewport.ScreenToLatLon((float)screenX, (float)screenY);
-        AircraftModel ac = Add(main, callsign);
+        AircraftModel ac = AddAircraft(main, callsign, 5000);
         ac.Position = new LatLon(lat, lon);
         Dispatcher.UIThread.RunJobs();
         return ac;
@@ -285,7 +260,7 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "N123AB");
+            AddAircraft(main, "N123AB", 5000);
 
             main.RunScopeCommand(".scope rings jring 3.0 N123AB");
             Assert.Equal("Scope J-ring 3.0 NM N123AB", main.StatusText);
@@ -319,8 +294,8 @@ public class ScopeRingsToolTests
         try
         {
             await main.CrcAliasLoad;
-            Add(main, "UAL1", altitudeFt: 24000);
-            Add(main, "UAL2", altitudeFt: 23000);
+            AddAircraft(main, "UAL1", altitudeFt: 24000);
+            AddAircraft(main, "UAL2", altitudeFt: 23000);
 
             main.RunScopeCommand(".scope rings dri3 UAL1");
 
@@ -351,7 +326,7 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "N123AB");
+            AddAircraft(main, "N123AB", 5000);
 
             main.RunScopeCommand(command);
 
@@ -370,7 +345,7 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "UAL1");
+            AddAircraft(main, "UAL1", 5000);
             main.RunScopeCommand(".scope rings jring 3 UAL1");
             main.RunScopeCommand(".scope brite rings 40");
             Assert.Equal(".scope brite rings 40", main.StatusText);
@@ -411,8 +386,8 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "UAL1");
-            Add(main, "UAL2");
+            AddAircraft(main, "UAL1", 5000);
+            AddAircraft(main, "UAL2", 5000);
             main.RunScopeCommand(".scope rings jring 3 UAL1");
             main.RunScopeCommand(".scope rings cone 3 UAL2");
 
@@ -436,8 +411,8 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "UAL1");
-            Add(main, "UAL2");
+            AddAircraft(main, "UAL1", 5000);
+            AddAircraft(main, "UAL2", 5000);
             main.RunScopeCommand(".scope rings jring 3 UAL1");
             main.RunScopeCommand(".scope rings jring 3 UAL2");
 
@@ -458,7 +433,7 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "UAL1");
+            AddAircraft(main, "UAL1", 5000);
             main.RunScopeCommand(".scope rings dri5 UAL1");
 
             main.ClearScenarioState();
@@ -477,12 +452,12 @@ public class ScopeRingsToolTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Add(main, "UAL1");
+            AddAircraft(main, "UAL1", 5000);
             main.RunScopeCommand(".scope rings dri5 UAL1");
             main.ApplyScenarioRewind([]);
             Assert.Empty(scope.LocalRings);
 
-            Add(main, "UAL1");
+            AddAircraft(main, "UAL1", 5000);
             main.RunScopeCommand(".scope rings cone 4 UAL1");
             main.ApplyScenarioRestart([]);
             Assert.Empty(scope.LocalRings);

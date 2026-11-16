@@ -2,12 +2,12 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -45,22 +45,6 @@ public class ScopeVectorHistTests : IDisposable
     }
 
     private static ScopeButton Button(ScopeButtonId id) => ScopeToolbarButtons.Find(id)!;
-
-    private static async Task<MainViewModel> MainAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        return main;
-    }
-
-    /// <summary>A scope with no viewer and no store: the Mixed profile, at 40 NM (vector 1 minute, history 5).</summary>
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
 
     /// <summary>A scope viewed from ZOA sector 44, saving through this test's store.</summary>
     private async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenStoredScopeAsync()

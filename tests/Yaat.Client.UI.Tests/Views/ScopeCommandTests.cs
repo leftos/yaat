@@ -1,11 +1,11 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -28,21 +28,6 @@ public class ScopeCommandTests
 
     private const string BriteUsage =
         "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings 0-100; line4 -20-0; dwell 0-20";
-
-    private static async Task<MainViewModel> MainAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        return main;
-    }
-
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
-    {
-        MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        main.OpenScope = scope;
-        return (main, scope);
-    }
 
     [AvaloniaFact]
     public async Task Profile_SwitchesTheProfileAndItsTemplate_AndEchoes()

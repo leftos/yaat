@@ -2,13 +2,13 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Data;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -746,13 +746,6 @@ public class ScopePrefCommandTests : IDisposable
         main.RunScopeCommand(".scope pref saveas BAD");
         ScopePrefSetStore store = Store();
         store.SaveSet("ZOA", change(store.FindSet("ZOA", "BAD")!));
-    }
-
-    private static async Task<MainViewModel> MainAsync()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        return main;
     }
 
     private static PositionDisplayConfigDto EramConfig() => new([], [], [], "C44", Sector44, 3, NoStarsDisplay: true);

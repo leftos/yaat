@@ -9,7 +9,6 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -316,8 +315,7 @@ public class ScopePrefMenuTests : IDisposable
 
     private async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenAsync()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        MainViewModel main = await ScopeTestFixture.MainAsync();
         main.SetActivePositionFromServer(EramConfig());
         SeedRadar(main);
         var scope = new ScopeViewModel(main, Store(), profileStore: null);
