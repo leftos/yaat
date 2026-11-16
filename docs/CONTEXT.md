@@ -818,6 +818,9 @@ How much of a YAAT Scope datablock shows: Limited, Partial, Full, or Dwell (Full
 **FieldRect**:
 One laid-out datablock field in YAAT Scope: its slot, screen rect, text, color token and field style; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
 
+**Ground-target block**:
+The two-line block the YAAT Scope draws for an on-ground aircraft in top-down mode on the STARS and ERAM templates: the aircraft ID, then the destination (else the beacon code) and the pilot's aircraft type; the same at every zoom level and on dwell (`ScopeBlockLevel.Ground`).
+
 **HSF (ERAM)**:
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
@@ -837,7 +840,10 @@ The status area, a view of the Scope, open by default and floating at the scope'
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
 **TDM (YAAT Scope)**:
-Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+T in the Scope window) that draws on-ground and below-the-display-floor aircraft with the ordinary block; a saved display setting, not a pin.
+Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+T in the Scope window) that draws on-ground aircraft (with the ground-target block on STARS and ERAM), below-the-display-floor aircraft and the TDM-only maps; a saved display setting, not a pin.
+
+**TDM-only map**:
+A video map vNAS flags `TdmOnly` (an airport diagram): the YAAT Scope draws it only while TDM is on, even with its toggle on; the Radar ignores the flag.
 
 **Tear-off (YAAT Scope)**:
 A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs. A button copy (left press on the button's 5 px left-edge strip) behaves like its bar button, is one per button and removed with the DEL TEAROFF mode; a view floats as its card (left press on its title to move it, `▸` to dock it again). Either is anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.scope tearoff` or `.view … tear` (`ScopeTearoffLayer`).

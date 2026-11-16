@@ -23,6 +23,9 @@ public sealed partial class ScopeMapToggle : ObservableObject
     /// <summary>The map's brightness category ("A" or "B").</summary>
     public required string BrightnessCategory { get; init; }
 
+    /// <summary>Whether the map is TDM-only: the Scope draws it, while it is on, only in top-down mode.</summary>
+    public required bool TdmOnly { get; init; }
+
     /// <summary>Whether the Scope draws the map.</summary>
     [ObservableProperty]
     private bool _isOn;

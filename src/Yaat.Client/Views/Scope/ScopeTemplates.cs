@@ -35,6 +35,7 @@ public sealed record ScopeTemplateLine(IReadOnlyList<ScopeSlotPlacement> Slots, 
 /// <param name="LimitedLines">The lines a Limited block draws, or null when it draws <paramref name="Lines"/>.</param>
 /// <param name="PartialLines">The lines a Partial block draws, or null when it draws <paramref name="Lines"/>.</param>
 /// <param name="DwellLines">The lines a Dwell block draws, or null when it draws <paramref name="Lines"/>.</param>
+/// <param name="GroundLines">The lines a ground target's block draws, or null when it draws <paramref name="Lines"/>.</param>
 public sealed record ScopeTemplate(
     string Id,
     ScopeGapMode GapMode,
@@ -44,16 +45,21 @@ public sealed record ScopeTemplate(
     IReadOnlyList<ScopeColumn0Mark>? Column0,
     IReadOnlyList<ScopeTemplateLine>? LimitedLines = null,
     IReadOnlyList<ScopeTemplateLine>? PartialLines = null,
-    IReadOnlyList<ScopeTemplateLine>? DwellLines = null
+    IReadOnlyList<ScopeTemplateLine>? DwellLines = null,
+    IReadOnlyList<ScopeTemplateLine>? GroundLines = null
 )
 {
-    /// <summary>The lines a block at <paramref name="level"/> draws: <see cref="Lines"/> at Full, and at Dwell unless it has its own.</summary>
+    /// <summary>
+    /// The lines a block at <paramref name="level"/> draws: <see cref="Lines"/> at Full, and at Limited, Partial, Dwell and
+    /// Ground unless it has its own.
+    /// </summary>
     public IReadOnlyList<ScopeTemplateLine> LinesAt(ScopeBlockLevel level) =>
         level switch
         {
             ScopeBlockLevel.Limited => LimitedLines ?? Lines,
             ScopeBlockLevel.Partial => PartialLines ?? Lines,
             ScopeBlockLevel.Dwell => DwellLines ?? Lines,
+            ScopeBlockLevel.Ground => GroundLines ?? Lines,
             _ => Lines,
         };
 }
@@ -86,7 +92,7 @@ public static class ScopeTemplates
     /// ident, then the squawk-mismatch, status, ATPA, ModeC, warning, conflict and note lines. Limited and Partial draw the
     /// Radar's collapsed blocks (<see cref="Radar.RadarDatablockLayout.BuildCollapsedLines"/>): the beacon code (in the squawk
     /// slot), altitude and ident; or the altitude, handoff, ground speed and ident, then scratchpad 1. Dwell adds the ERAM
-    /// altitude's line under line 2 while the two sides differ.
+    /// altitude's line under line 2 while the two sides differ. Ground draws the ground target's block in top-down mode.
     /// </summary>
     public static readonly ScopeTemplate Stars = WithDwellLine(
         new(
@@ -128,7 +134,8 @@ public static class ScopeTemplates
                     Flashing(ScopeFieldSlot.Ident)
                 ),
                 Line(false, Steady(ScopeFieldSlot.Scratchpad1)),
-            ]
+            ],
+            GroundLines: GroundTargetLines()
         )
     );
 
@@ -140,7 +147,8 @@ public static class ScopeTemplates
     /// not-your-control <c>R</c> on row 3. Limited draws CRC's paired LDB (the aircraft id, the padded CERA or Mode C altitude,
     /// the special-purpose code) and Partial its enhanced paired LDB (the aircraft id, the ERAM altitude and its mismatch cell,
     /// the special-purpose code); every placement is reserved, since the whole LDB blinks while a special code shows. Dwell
-    /// adds the STARS altitude's line under line 2 while the two sides differ.
+    /// adds the STARS altitude's line under line 2 while the two sides differ. Ground draws the ground target's block in
+    /// top-down mode.
     /// </summary>
     public static readonly ScopeTemplate Eram = WithDwellLine(
         new(
@@ -178,7 +186,8 @@ public static class ScopeTemplates
                 Line(true, Flashing(ScopeFieldSlot.Callsign)),
                 Line(false, Flashing(ScopeFieldSlot.EramAltitude), new ScopeSlotPlacement(ScopeFieldSlot.AltitudeMismatch, "", true)),
                 SpcLine(),
-            ]
+            ],
+            GroundLines: GroundTargetLines()
         )
     );
 
@@ -244,6 +253,13 @@ public static class ScopeTemplates
     private static ScopeSlotPlacement Flashing(ScopeFieldSlot slot) => new(slot, " ", true);
 
     private static ScopeTemplateLine Line(bool alwaysShown, params ScopeSlotPlacement[] slots) => new(slots, alwaysShown, TrailingGapInBounds: true);
+
+    // CRC's ground target data block (STARS and ERAM alike): the aircraft ID; then the destination, or else the beacon code, and the type.
+    private static ScopeTemplateLine[] GroundTargetLines() =>
+        [
+            Line(true, Steady(ScopeFieldSlot.Callsign)),
+            Line(true, Steady(ScopeFieldSlot.Destination), Steady(ScopeFieldSlot.Squawk), Steady(ScopeFieldSlot.AircraftType)),
+        ];
 
     // ERAM LDB line 3: the special-purpose-code label in the status slot; it takes no row when there is none.
     private static ScopeTemplateLine SpcLine() => Line(false, Flashing(ScopeFieldSlot.StatusLine3));

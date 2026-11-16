@@ -107,10 +107,19 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     >(nameof(LocalRings), defaultValue: ScopeViewModel.NoRings);
 
     /// <summary>
-    /// Whether top-down mode is on, drawing ground targets and airborne ones below the display floor; read in
-    /// <see cref="BuildFrame"/>, never on the render thread.
+    /// Whether top-down mode is on, drawing ground targets (with their ground-target block), airborne ones below the display
+    /// floor and the TDM-only maps (<see cref="TdmOnlyMapIds"/>); read on the UI thread, never on the render thread.
     /// </summary>
     public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<ScopeCanvas, bool>(nameof(ShowTopDown));
+
+    /// <summary>
+    /// The ids of the video maps that are TDM-only (<c>ScopeViewModel.TdmOnlyMapIds</c>): <see cref="CreateRenderSnapshot"/>
+    /// leaves them out while <see cref="ShowTopDown"/> is off; read on the UI thread, never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlySet<string>> TdmOnlyMapIdsProperty = AvaloniaProperty.Register<ScopeCanvas, IReadOnlySet<string>>(
+        nameof(TdmOnlyMapIds),
+        defaultValue: new HashSet<string>(StringComparer.Ordinal)
+    );
 
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
@@ -231,6 +240,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowTopDownProperty, value);
     }
 
+    public IReadOnlySet<string> TdmOnlyMapIds
+    {
+        get => GetValue(TdmOnlyMapIdsProperty);
+        set => SetValue(TdmOnlyMapIdsProperty, value);
+    }
+
     /// <summary>
     /// The user's preferences: the datablock font size and the alert overlays (the template comes from <see cref="TemplateId"/>).
     /// Null draws at 12.
@@ -290,7 +305,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         _lastFrame = frame;
         return new ScopeRenderSnapshot(
             frame,
-            VideoMaps,
+            DrawnVideoMaps(),
             // The view model's own copy, never changed after it is set, so the render thread reads it as is.
             BrightnessLookup,
             Brightness,
@@ -298,6 +313,23 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             palette
         );
     }
+
+    /// <summary>
+    /// The maps this frame draws: <see cref="VideoMaps"/>, less the TDM-only ones (<see cref="TdmOnlyMapIds"/>) while
+    /// <see cref="ShowTopDown"/> is off.
+    /// </summary>
+    private IReadOnlyList<VideoMapData> DrawnVideoMaps()
+    {
+        IReadOnlySet<string> tdmOnly = TdmOnlyMapIds;
+        if (ShowTopDown || (tdmOnly.Count == 0))
+        {
+            return VideoMaps;
+        }
+        return [.. VideoMaps.Where(m => !tdmOnly.Contains(m.MapId))];
+    }
+
+    /// <summary>The snapshot the next frame would hand the render thread. Test seam.</summary>
+    internal ScopeRenderSnapshot RenderSnapshotForTesting() => (ScopeRenderSnapshot)CreateRenderSnapshot()!;
 
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
     {
@@ -355,14 +387,16 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Whether <paramref name="property"/> sets the vector, history, ring or top-down layer, which the frame lays out.
+    /// Whether <paramref name="property"/> sets the vector, history, ring or top-down layer (its TDM-only maps among them),
+    /// which the frame lays out.
     /// </summary>
     private static bool IsLayerProperty(AvaloniaProperty property) =>
         (property == VectorMinutesProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
         || (property == LocalRingsProperty)
-        || (property == ShowTopDownProperty);
+        || (property == ShowTopDownProperty)
+        || (property == TdmOnlyMapIdsProperty);
 
     /// <summary>
     /// Watches the traffic list only while in the visual tree, so a closed scope never stays rooted by the main view
@@ -534,7 +568,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 LocalRings,
                 _hoveredCallsign,
                 VciHoveredCallsign: _hoveredVciCallsign,
-                LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns
+                LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns,
+                ShowTopDown: ShowTopDown
             )
         );
     }

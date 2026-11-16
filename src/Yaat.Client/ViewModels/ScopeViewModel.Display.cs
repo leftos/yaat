@@ -30,8 +30,9 @@ public sealed partial class ScopeViewModel
     private ScopeDbSettings _dbSettings;
 
     /// <summary>
-    /// Whether top-down mode is on: the scope then draws ground targets (aircraft on the ground, and airborne ones below
-    /// the display floor) with the ordinary block. A display setting, kept in pref sets and the saved state.
+    /// Whether top-down mode is on: the scope then draws aircraft on the ground (with the ground-target block on the STARS
+    /// and ERAM templates), airborne ones below the display floor (with the ordinary block) and the TDM-only maps that are
+    /// on. A display setting, kept in pref sets and the saved state.
     /// </summary>
     [ObservableProperty]
     private bool _isTdm;
@@ -41,6 +42,13 @@ public sealed partial class ScopeViewModel
     /// to the list or to a toggle's state raises <see cref="ObservableObject.PropertyChanged"/> for this property.
     /// </summary>
     public ObservableCollection<ScopeMapToggle> MapToggles { get; } = [];
+
+    /// <summary>
+    /// The map ids of <see cref="MapToggles"/> that are TDM-only, derived when the toggles are seeded; the canvas leaves those
+    /// maps out of its frame while top-down mode is off.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlySet<string> _tdmOnlyMapIds = new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>Whether <paramref name="item"/> names a DB on/off item (<c>4thline</c>, <c>dwell</c>, <c>atpa</c>; lowercase).</summary>
     public static bool IsDbToggleItem(string item) =>
@@ -137,12 +145,14 @@ public sealed partial class ScopeViewModel
                 ShortName = item.ShortName,
                 Name = item.Name,
                 BrightnessCategory = item.BrightnessCategory,
+                TdmOnly = item.TdmOnly,
                 IsOn = _seededMaps.ContainsKey(item.MapId),
             };
             toggle.PropertyChanged += OnMapTogglePropertyChanged;
             MapToggles.Add(toggle);
         }
 
+        TdmOnlyMapIds = MapToggles.Where(t => t.TdmOnly).Select(t => t.MapId).ToHashSet(StringComparer.Ordinal);
         VideoMaps = [.. activeMaps];
         OnPropertyChanged(nameof(MapToggles));
     }

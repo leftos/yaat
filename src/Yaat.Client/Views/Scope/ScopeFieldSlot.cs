@@ -45,6 +45,9 @@ public enum ScopeFieldSlot
     /// <summary>The STARS <c>cwt/type</c> token.</summary>
     CwtType,
 
+    /// <summary>A ground target's block: the aircraft type the pilot connected with, alone.</summary>
+    AircraftType,
+
     /// <summary>The flashing <c>ID</c> while the transponder idents.</summary>
     Ident,
 
@@ -63,7 +66,10 @@ public enum ScopeFieldSlot
     /// <summary>The ERAM line 4: the HSF free text or heading/speed, else the aircraft type or destination fallback.</summary>
     Line4Notes,
 
-    /// <summary>Beacon-code mismatch: reported code then assigned code.</summary>
+    /// <summary>
+    /// Beacon-code mismatch: reported code then assigned code; the beacon code alone on the STARS LDB and on a ground target's
+    /// block.
+    /// </summary>
     Squawk,
 
     /// <summary>The struck-through <c>ModeC</c> while the transponder is in standby.</summary>
@@ -84,7 +90,7 @@ public enum ScopeFieldSlot
     /// <summary>EuroScope tag: the <c>type/cwt</c> token.</summary>
     TypeCwt,
 
-    /// <summary>EuroScope tag: destination airport.</summary>
+    /// <summary>Destination airport: on the EuroScope tag, and on a ground target's block when it has a flight plan.</summary>
     Destination,
 
     /// <summary>EuroScope tag: assigned altitude, or its <c>(---)</c> placeholder.</summary>

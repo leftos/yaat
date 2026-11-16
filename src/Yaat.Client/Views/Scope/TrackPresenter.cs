@@ -383,7 +383,7 @@ public static class TrackPresenter
 
     /// <summary>
     /// Presents <paramref name="input"/>'s track for its template at its block level. Dwell presents the Full block's fields;
-    /// EuroScope presents its full tag at every level.
+    /// Ground presents the ground target's fields on STARS and ERAM; EuroScope presents its full tag at every level.
     /// </summary>
     /// <exception cref="ArgumentException">The template id is unknown.</exception>
     public static TrackPresentation Present(TrackPresenterInput input)
@@ -401,8 +401,30 @@ public static class TrackPresenter
             (ScopeTemplates.StarsId, ScopeBlockLevel.Limited) => StarsLimitedFields(input),
             (ScopeTemplates.StarsId, ScopeBlockLevel.Partial) => StarsPartialFields(input),
             (ScopeTemplates.EramId, ScopeBlockLevel.Limited or ScopeBlockLevel.Partial) => EramLdbFields(input),
+            (ScopeTemplates.StarsId or ScopeTemplates.EramId, ScopeBlockLevel.Ground) => GroundFields(input),
             _ => FullFields(input),
         };
+
+    /// <summary>
+    /// CRC's ground target data block (STARS and ERAM Top-Down Mode): the aircraft ID; then the destination when the aircraft
+    /// has a flight plan with one, else its beacon code when it squawks one, and the aircraft type the pilot connected with,
+    /// bare of its wake prefix and equipment suffix.
+    /// </summary>
+    private static List<ScopeField> GroundFields(TrackPresenterInput input)
+    {
+        AircraftModel ac = input.Aircraft;
+        string destination = string.IsNullOrEmpty(ac.Destination) ? "" : ac.Destination;
+        return
+        [
+            Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Destination, destination, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Squawk, (destination.Length > 0) ? "" : BeaconText(ac), ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.AircraftType, ac.BaseAircraftType, ScopeColorToken.Default),
+        ];
+    }
+
+    // The beacon code the aircraft squawks, four digits; empty when none.
+    private static string BeaconText(AircraftModel ac) => (ac.BeaconCode > 0) ? ac.BeaconCode.ToString("0000", CultureInfo.InvariantCulture) : "";
 
     private static List<ScopeField> FullFields(TrackPresenterInput input)
     {
@@ -430,10 +452,9 @@ public static class TrackPresenter
     private static List<ScopeField> StarsLimitedFields(TrackPresenterInput input)
     {
         AircraftModel ac = input.Aircraft;
-        string beacon = ac.BeaconCode > 0 ? ac.BeaconCode.ToString("0000", CultureInfo.InvariantCulture) : "";
         return
         [
-            Steady(ScopeFieldSlot.Squawk, beacon, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Squawk, BeaconText(ac), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
         ];

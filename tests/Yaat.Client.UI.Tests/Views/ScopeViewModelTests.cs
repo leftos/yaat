@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -145,6 +146,31 @@ public class ScopeViewModelTests
         Assert.Equal([false, true, false], scope.MapToggles.Select(t => t.IsOn));
         ScopeMapToggle ten = scope.MapToggles[1];
         Assert.Equal(("m10", "Map 10", "A"), (ten.MapId, ten.Name, ten.BrightnessCategory));
+    }
+
+    private static VideoMapInfoDto MapInfo(int starsId, bool tdmOnly) =>
+        new($"m{starsId}", $"Map {starsId}", $"MAP{starsId}", [], "A", starsId, AlwaysVisible: false, TdmOnly: tdmOnly);
+
+    [AvaloniaFact]
+    public void Scope_SeedsTdmOnly_FromTheVideoMapDto_ThroughTheRadarsToggles()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Radar.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto(
+                "ZOA",
+                "NCT",
+                [new StarsAreaDto("A", "Area A", 37.62, -122.38, 60, [])],
+                [MapInfo(5, tdmOnly: true), MapInfo(6, tdmOnly: false)],
+                []
+            )
+        );
+        Assert.Equal([("m5", true), ("m6", false)], main.Radar.MapToggles.OrderBy(t => t.StarsId).Select(t => (t.MapId, t.TdmOnly)));
+
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+
+        Assert.False(scope.IsWaitingForRadarSeed);
+        Assert.Equal([("m5", true), ("m6", false)], scope.MapToggles.Select(t => (t.MapId, t.TdmOnly)));
+        Assert.Equal(["m5"], scope.TdmOnlyMapIds);
     }
 
     [AvaloniaFact]

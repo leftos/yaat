@@ -14,12 +14,13 @@ using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// TDM, the Scope's top-down mode: the <c>.scope tdm</c> verb, the TDM button and Ctrl+T turn it on and off; while it is
-/// on the Scope draws ground targets with the ordinary block; pref sets and the saved state keep it.
+/// on the Scope draws ground targets and the TDM-only maps; pref sets and the saved state keep it.
 /// </summary>
 public class ScopeTdmTests : IDisposable
 {
@@ -81,9 +82,13 @@ public class ScopeTdmTests : IDisposable
 
     private ScopePrefSetStore Store() => new(_root, AppLog.CreateLogger<ScopePrefSetStore>());
 
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
+    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope() => ShowScopeWith(_ => { });
+
+    /// <summary>Shows a scope in a window, running <paramref name="beforeScope"/> on the main view model before the scope opens.</summary>
+    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScopeWith(Action<MainViewModel> beforeScope)
     {
         var main = new MainViewModel(new FakeFilePickerService());
+        beforeScope(main);
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
@@ -184,6 +189,57 @@ public class ScopeTdmTests : IDisposable
 
             Assert.False(IsDrawn(view.Canvas, ground));
             Assert.True(IsDrawn(view.Canvas, airborne));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    /// <summary>Centres the radar with two maps on: <paramref name="ordinary"/> (STARS id 2), the TDM-only <paramref name="diagram"/> (3).</summary>
+    private static void CentreRadarWithMaps(MainViewModel main, VideoMapData ordinary, VideoMapData diagram)
+    {
+        main.Radar.MapToggles.Add(MapToggle(ordinary.MapId, 2, tdmOnly: false));
+        main.Radar.MapToggles.Add(MapToggle(diagram.MapId, 3, tdmOnly: true));
+        main.Radar.RangeNm = 60;
+        main.Radar.ActiveVideoMaps = [ordinary, diagram];
+        main.Radar.CenterLat = 37.62;
+        main.Radar.CenterLon = -122.38;
+    }
+
+    private static VideoMapToggleItem MapToggle(string mapId, int starsId, bool tdmOnly) =>
+        new()
+        {
+            MapId = mapId,
+            ShortName = $"MAP{starsId}",
+            Name = $"Map {starsId}",
+            BrightnessCategory = "A",
+            StarsId = starsId,
+            TdmOnly = tdmOnly,
+            IsEnabled = true,
+        };
+
+    [AvaloniaFact]
+    public void ATdmOnlyMap_IsDrawnOnlyWhileTdmIsOn()
+    {
+        VideoMapData ordinary = new() { MapId = "m2", Lines = [] };
+        VideoMapData diagram = new() { MapId = "m3", Lines = [] };
+        (_, ScopeViewModel scope, ScopeView view, Window window) = ShowScopeWith(main => CentreRadarWithMaps(main, ordinary, diagram));
+        try
+        {
+            Assert.All(scope.MapToggles, t => Assert.True(t.IsOn));
+            Assert.Equal([ordinary], view.Canvas.RenderSnapshotForTesting().VideoMaps);
+
+            scope.IsTdm = true;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal([ordinary, diagram], view.Canvas.RenderSnapshotForTesting().VideoMaps);
+
+            scope.IsTdm = false;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal([ordinary], view.Canvas.RenderSnapshotForTesting().VideoMaps);
         }
         finally
         {

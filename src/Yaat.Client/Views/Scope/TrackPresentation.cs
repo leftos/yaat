@@ -17,6 +17,12 @@ public enum ScopeBlockLevel
 
     /// <summary>A hovered block: the Full block's content, drawn on top with the dwell emphasis box and without the stale alpha.</summary>
     Dwell,
+
+    /// <summary>
+    /// A ground target's block in top-down mode (STARS and ERAM): the aircraft ID, then the destination or beacon code and the
+    /// pilot's aircraft type, the same at every zoom level and on dwell.
+    /// </summary>
+    Ground,
 }
 
 /// <summary>A named colour role; the renderer maps each token to a colour and brightness group.</summary>

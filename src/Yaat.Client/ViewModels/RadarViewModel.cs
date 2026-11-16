@@ -760,6 +760,7 @@ public partial class RadarViewModel(
                 Name = map.Name,
                 BrightnessCategory = map.BrightnessCategory,
                 StarsId = map.StarsId,
+                TdmOnly = map.TdmOnly,
                 IsEnabled = false,
             };
             PopulateFavoriteFlags(item);
@@ -1832,6 +1833,9 @@ public partial class VideoMapToggleItem : ObservableObject
     public required string Name { get; init; }
     public required string BrightnessCategory { get; init; }
     public required int StarsId { get; init; }
+
+    /// <summary>Whether the map is TDM-only (an airport diagram): the YAAT Scope draws it only in top-down mode; the Radar ignores it.</summary>
+    public bool TdmOnly { get; init; }
 
     public string DisplayLabel => $"{StarsId} {ShortName}";
 

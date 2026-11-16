@@ -1,7 +1,11 @@
+using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Data.Vnas;
@@ -454,6 +458,180 @@ public class TrackPresenterTests
     [Fact]
     public void UnknownTemplateId_Throws() =>
         Assert.Throws<ArgumentException>(() => TrackPresenter.Present(ScopeTestAircraft.Input(ScopeTestAircraft.CreateModel(), "nope")));
+
+    /// <summary>A STARS viewer that owns no test track, so the others' level applies.</summary>
+    private static readonly ScopeViewer OtherStarsViewer = new(new ActingPosition("OAK_APP", "NCT", "2S"), "NCT", null);
+
+    /// <summary>DAL385, an A321 on the ground filed to KATL and squawking 4521, as CRC's ground data block image shows it.</summary>
+    private static AircraftModel GroundTarget() =>
+        new()
+        {
+            Callsign = "DAL385",
+            AircraftType = "A321",
+            FiledAircraftType = "A321",
+            FlightRules = "IFR",
+            Position = new LatLon(37.0, -122.0),
+            Altitude = 0,
+            GroundSpeed = 0,
+            CwtCode = "E",
+            IsOnGround = true,
+            Destination = "KATL",
+            BeaconCode = 4521,
+            TransponderMode = "C",
+        };
+
+    /// <summary>One frame of <paramref name="ac"/> alone, viewed from <see cref="OtherStarsViewer"/>.</summary>
+    private static ScopeTrack TrackIn(string templateId, AircraftModel ac, bool showTopDown, string othersLevel, string? hovered)
+    {
+        using SKFont font = PlatformHelper.MonospaceFontBold(12f);
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            [ac],
+            null,
+            new MapViewport
+            {
+                PixelWidth = 1000,
+                PixelHeight = 800,
+                CenterLat = 37.0,
+                CenterLon = -122.0,
+            },
+            templateId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = OtherStarsViewer,
+            },
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>(),
+            MvaFacilityId: null,
+            othersLevel,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            hovered,
+            ShowTopDown: showTopDown
+        );
+        return Assert.Single(ScopeFrame.Build(input).Tracks);
+    }
+
+    private static ScopeTrack GroundTrackIn(string templateId, AircraftModel ac) => TrackIn(templateId, ac, true, ScopeProfile.OthersFull, null);
+
+    /// <summary>The block's drawn rows, top to bottom, each its texts left to right joined by a space.</summary>
+    private static List<string> Rows(ScopeTrack track) =>
+        [
+            .. track
+                .Block.Fields.Where(f => f.Text.Length > 0)
+                .GroupBy(f => f.Rect.Top)
+                .OrderBy(g => g.Key)
+                .Select(g => string.Join(" ", g.OrderBy(f => f.Rect.Left).Select(f => f.Text))),
+        ];
+
+    public static TheoryData<string> GroundTemplateIds => [ScopeTemplates.StarsId, ScopeTemplates.EramId];
+
+    [Theory]
+    [MemberData(nameof(GroundTemplateIds))]
+    public void GroundTarget_WithAFlightPlan_ShowsItsIdThenDestinationAndType(string templateId)
+    {
+        ScopeTrack track = GroundTrackIn(templateId, GroundTarget());
+
+        Assert.Equal(ScopeBlockLevel.Ground, track.Level);
+        Assert.Equal(["DAL385", "KATL A321"], Rows(track));
+    }
+
+    [Theory]
+    [MemberData(nameof(GroundTemplateIds))]
+    public void GroundTarget_SquawkingWithNoFlightPlan_ShowsItsBeaconCodeThenType(string templateId)
+    {
+        AircraftModel ac = GroundTarget();
+        ac.Destination = "";
+
+        Assert.Equal(["DAL385", "4521 A321"], Rows(GroundTrackIn(templateId, ac)));
+    }
+
+    [Theory]
+    [MemberData(nameof(GroundTemplateIds))]
+    public void GroundTarget_WithNeitherFlightPlanNorBeaconCode_ShowsItsTypeAlone(string templateId)
+    {
+        AircraftModel ac = GroundTarget();
+        ac.Destination = "";
+        ac.BeaconCode = 0;
+
+        Assert.Equal(["DAL385", "A321"], Rows(GroundTrackIn(templateId, ac)));
+    }
+
+    /// <summary>The pilot's connection type, the filed type that differs from it, and the type the block shows.</summary>
+    public static TheoryData<string, string, string, string> GroundTypes =>
+        new()
+        {
+            { ScopeTemplates.StarsId, "A321", "A320", "A321" },
+            { ScopeTemplates.EramId, "A321", "A320", "A321" },
+            { ScopeTemplates.StarsId, "H/A332/L", "A333", "A332" },
+            { ScopeTemplates.EramId, "H/A332/L", "A333", "A332" },
+            { ScopeTemplates.StarsId, "B738/L", "B739", "B738" },
+            { ScopeTemplates.EramId, "B738/L", "B739", "B738" },
+        };
+
+    [Theory]
+    [MemberData(nameof(GroundTypes))]
+    public void GroundTarget_ShowsThePilotsBareConnectionType_NotTheFiledType(string templateId, string type, string filed, string shown)
+    {
+        AircraftModel ac = GroundTarget();
+        ac.AircraftType = type;
+        ac.FiledAircraftType = filed;
+
+        Assert.Equal(["DAL385", $"KATL {shown}"], Rows(GroundTrackIn(templateId, ac)));
+    }
+
+    [Theory]
+    [MemberData(nameof(GroundTemplateIds))]
+    public void GroundAircraft_WithTdmOff_IsNoGroundBlock(string templateId)
+    {
+        ScopeTrack track = TrackIn(templateId, GroundTarget(), false, ScopeProfile.OthersFull, null);
+
+        Assert.Equal(ScopeBlockLevel.Full, track.Level);
+        Assert.NotEqual(["DAL385", "KATL A321"], Rows(track));
+    }
+
+    [Theory]
+    [MemberData(nameof(GroundTemplateIds))]
+    public void AirborneBelowTheFloor_WithTdmOn_KeepsTheOrdinaryBlock(string templateId)
+    {
+        AircraftModel ac = GroundTarget();
+        ac.IsOnGround = false;
+        ac.BelowDisplayFloor = true;
+        ac.Altitude = 800;
+
+        ScopeTrack track = GroundTrackIn(templateId, ac);
+
+        Assert.Equal(ScopeBlockLevel.Full, track.Level);
+        Assert.NotEqual(["DAL385", "KATL A321"], Rows(track));
+    }
+
+    [Fact]
+    public void GroundTarget_OnEuroScope_KeepsItsOrdinaryTag()
+    {
+        ScopeTrack track = GroundTrackIn(ScopeTemplates.EuroScopeId, GroundTarget());
+
+        Assert.Equal(ScopeBlockLevel.Full, track.Level);
+        Assert.Equal("-- DAL385", Rows(track)[0]);
+        Assert.True(Rows(track).Count > 2);
+    }
+
+    [Theory]
+    [MemberData(nameof(GroundTemplateIds))]
+    public void GroundTarget_KeepsItsTwoLines_AtFull_AtTheOthersPartialLevel_AndOnDwell(string templateId)
+    {
+        ScopeTrack full = GroundTrackIn(templateId, GroundTarget());
+        ScopeTrack partial = TrackIn(templateId, GroundTarget(), true, ScopeProfile.OthersPartial, null);
+        ScopeTrack dwelled = TrackIn(templateId, GroundTarget(), true, ScopeProfile.OthersFull, "DAL385");
+
+        Assert.All([full, partial, dwelled], t => Assert.Equal(ScopeBlockLevel.Ground, t.Level));
+        Assert.All([full, partial, dwelled], t => Assert.Equal(["DAL385", "KATL A321"], Rows(t)));
+        Assert.False(full.IsDwelled);
+        Assert.True(dwelled.IsDwelled);
+    }
 }
 
 /// <summary>Shared aircraft setups and presenter inputs for the YAAT Scope presenter, engine and parity tests.</summary>

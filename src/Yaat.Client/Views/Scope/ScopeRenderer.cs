@@ -41,6 +41,10 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="LocalDwellLockedCallsigns">
 /// Callsigns the instructor dwell-locked on this scope (DataBlockViewState.DwellLockedCallsigns); null is none.
 /// </param>
+/// <param name="ShowTopDown">
+/// Whether top-down mode is on (the canvas's <c>ShowTopDown</c>, copied on the UI thread): an aircraft on the ground then
+/// takes the ground-target block on the STARS and ERAM templates.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -59,7 +63,8 @@ public sealed record ScopeFrameInput(
     IReadOnlyDictionary<string, ScopeTrackRings> LocalRings,
     string? HoveredCallsign = null,
     string? VciHoveredCallsign = null,
-    IReadOnlySet<string>? LocalDwellLockedCallsigns = null
+    IReadOnlySet<string>? LocalDwellLockedCallsigns = null,
+    bool ShowTopDown = false
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -75,6 +80,10 @@ public sealed record ScopeFrameInput(
 /// <param name="Rings">The track's J-ring, cone, DRI halo and ATPA cone in screen points; <see cref="ScopeRingShapes.None"/> for none.</param>
 /// <param name="Level">The block level the track was presented at.</param>
 /// <param name="ShowsLeader">Whether the block draws its leader, as the presenter decided it.</param>
+/// <param name="Dwelled">
+/// Whether the pointer dwells on the track or it is dwell-locked; a ground target's block keeps its <see cref="ScopeBlockLevel.Ground"/>
+/// level then, so this carries its dwell.
+/// </param>
 public sealed record ScopeTrack(
     AircraftModel Aircraft,
     SKPoint Symbol,
@@ -86,15 +95,19 @@ public sealed record ScopeTrack(
     SKPoint? VectorEnd,
     IReadOnlyList<SKPoint>? History,
     ScopeRingShapes Rings,
-    ScopeBlockLevel Level = ScopeBlockLevel.Full,
-    bool ShowsLeader = true
+    ScopeBlockLevel Level,
+    bool ShowsLeader,
+    bool Dwelled
 )
 {
     /// <summary>How far the dwell box sits outside the text bounds (CRC <c>FdbRenderObject</c>: the fields rect inflated 2 px).</summary>
     public const float DwellBoxInflatePx = 2f;
 
-    /// <summary>Whether the block is dwelled (hovered): drawn on top, without the stale alpha, with its dwell box.</summary>
-    public bool IsDwelled => Level == ScopeBlockLevel.Dwell;
+    /// <summary>
+    /// Whether the block is dwelled (hovered or dwell-locked): drawn on top, without the stale alpha, with its dwell box. A
+    /// Dwell block always is; a ground target's block is while its level stays Ground.
+    /// </summary>
+    public bool IsDwelled => Dwelled;
 
     /// <summary>The text bounds inflated <see cref="DwellBoxInflatePx"/>; the hover hit-test and the emphasis both read it.</summary>
     public SKRect DwellBox
@@ -169,23 +182,24 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     }
 
     /// <summary>
-    /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Dwell"/> while the pointer dwells on it, or
-    /// while it is drawn with the ERAM template and dwell-locked, by the instructor on this scope
-    /// (<see cref="ScopeFrameInput.LocalDwellLockedCallsigns"/>) or by the student's CRC for the viewer's ERAM sector; else
-    /// Full for the viewer's own track and for every track when there is no viewer; else the others' level for the
-    /// track's template (<see cref="OthersLevelFor"/>).
+    /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Ground"/> for a ground target
+    /// (<see cref="IsGroundTarget"/>), dwelled or not; else <see cref="ScopeBlockLevel.Dwell"/> while it is
+    /// <paramref name="dwelled"/> (<see cref="IsDwelledTrack"/>); else Full for the viewer's own track and for every track
+    /// when there is no viewer; else the others' level for the track's template (<see cref="OthersLevelFor"/>).
     /// </summary>
-    private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input)
+    private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input, bool dwelled)
     {
-        ScopeViewer viewer = input.Display.Viewer;
-        bool locked =
-            (templateId == ScopeTemplates.EramId)
-            && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, viewer));
-        if (IsHovered(ac, input) || locked)
+        if (IsGroundTarget(ac, templateId, input))
+        {
+            return ScopeBlockLevel.Ground;
+        }
+
+        if (dwelled)
         {
             return ScopeBlockLevel.Dwell;
         }
 
+        ScopeViewer viewer = input.Display.Viewer;
         if (IsOwnTrack(ac, viewer))
         {
             return ScopeBlockLevel.Full;
@@ -193,6 +207,26 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 
         return OthersLevelFor(templateId, input.OthersLevel);
     }
+
+    /// <summary>
+    /// Whether the pointer dwells on <paramref name="ac"/>, or it is drawn with the ERAM template and dwell-locked, by the
+    /// instructor on this scope (<see cref="ScopeFrameInput.LocalDwellLockedCallsigns"/>) or by the student's CRC for the
+    /// viewer's ERAM sector.
+    /// </summary>
+    private static bool IsDwelledTrack(AircraftModel ac, string templateId, ScopeFrameInput input)
+    {
+        bool locked =
+            (templateId == ScopeTemplates.EramId)
+            && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, input.Display.Viewer));
+        return IsHovered(ac, input) || locked;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="ac"/> is a ground target: on the ground while top-down mode is on, drawn with the STARS or ERAM
+    /// template (EuroScope keeps its ordinary tag). An airborne aircraft below the display floor is not one.
+    /// </summary>
+    private static bool IsGroundTarget(AircraftModel ac, string templateId, ScopeFrameInput input) =>
+        input.ShowTopDown && ac.IsOnGround && (templateId is ScopeTemplates.StarsId or ScopeTemplates.EramId);
 
     /// <summary>Whether <paramref name="ac"/> counts as the viewer's own: every track does with no viewer.</summary>
     private static bool IsOwnTrack(AircraftModel ac, ScopeViewer viewer) => !EramColumn0.HasViewer(viewer) || EramColumn0.IsViewersTrack(ac, viewer);
@@ -231,6 +265,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         bool isSelected = ReferenceEquals(ac, input.Selected);
         string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
         AircraftModel? atpaLead = Peer(byCallsign, ac.AtpaLeadCallsign);
+        bool dwelled = IsDwelledTrack(ac, templateId, input);
         var presenterInput = new TrackPresenterInput(
             ac,
             templateId,
@@ -242,7 +277,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             input.Display,
             MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint, input.MvaFacilityId),
             input.HighlightedCallsigns.Contains(ac.Callsign),
-            LevelFor(ac, templateId, input),
+            LevelFor(ac, templateId, input, dwelled),
             VciPreview: string.Equals(ac.Callsign, input.VciHoveredCallsign, StringComparison.Ordinal)
         );
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
@@ -271,7 +306,8 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             ScopeTrackLayers.HistoryDots(ac, input.HistoryCount, input.Viewport),
             RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset),
             presentation.Level,
-            presentation.ShowsLeader
+            presentation.ShowsLeader,
+            dwelled
         );
     }
 
