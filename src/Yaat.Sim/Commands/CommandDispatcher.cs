@@ -279,7 +279,7 @@ public static class CommandDispatcher
         // id back, so it leaves the counter where it was; scenario presets and replay dispatch through here too, so the
         // ids follow dispatch order alone.
         int lastTransmissionId = aircraft.Queue.LastTransmissionId;
-        ctx = ctx with { TransmissionId = aircraft.Queue.NextTransmissionId() };
+        ctx = ctx with { TransmissionId = aircraft.Queue.NextTransmissionId(), ReportsAnsweredByReadback = ReportsAnsweredByReadback(compound, ctx) };
 
         CommandResult? refusal = TryAssumeShadow(aircraft, compound, ctx, out AssumeUndo? autoAssumed);
         if (refusal is not null)
@@ -1604,7 +1604,7 @@ public static class CommandDispatcher
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("Say", aircraft.Callsign, sayCmd.Text));
                 return Ok("");
             case ReportCommand reportCmd:
-                return NavigationCommandHandler.DispatchReport(reportCmd, aircraft);
+                return NavigationCommandHandler.DispatchReport(reportCmd, aircraft, ctx);
             case SaySpeedCommand:
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("SaySpeed", aircraft.Callsign, PilotSayBuilder.BuildSpeed(aircraft)));
                 return Ok("");
@@ -3516,17 +3516,33 @@ public static class CommandDispatcher
     /// crossings cleared in its earlier blocks carried in (<see cref="DispatchContext.CrossingsClearedInTransmission"/>), and
     /// whether a takeoff or line-up clearance follows in a later block (<see cref="DispatchContext.CrossFeedsFollowingClearance"/>).
     /// </summary>
+    /// <remarks>
+    /// The reaction delay's REPORT answers (<see cref="DispatchContext.ReportPledges"/>) belong to the first block alone.
+    /// </remarks>
     private static DispatchContext ForTransmissionBlock(DispatchContext ctx, List<ParsedBlock> blocks, int blockIndex) =>
         ctx with
         {
             CrossingsClearedInTransmission = WithCrossings(ctx.CrossingsClearedInTransmission, blocks.Take(blockIndex).SelectMany(b => b.Commands)),
             CrossFeedsFollowingClearance = blocks.Skip(blockIndex + 1).Any(b => b.Commands.Exists(IsTakeoffOrLineUp)),
+            ReportPledges = (blockIndex == 0) ? ctx.ReportPledges : [],
         };
+
+    /// <summary>
+    /// The commands of <paramref name="compound"/>'s first block when the readback answers a REPORT REACHING / LEAVING among
+    /// them (<see cref="PilotProactive.BlockAnsweredAtIssue"/>) and they apply now as the readback said: as the transmission is
+    /// issued, or from a reaction delay carrying the readback's answers. Null otherwise
+    /// (<see cref="DispatchContext.ReportsAnsweredByReadback"/>).
+    /// </summary>
+    private static IReadOnlyList<ParsedCommand>? ReportsAnsweredByReadback(CompoundCommand compound, DispatchContext ctx) =>
+        ((PilotProactive.BlockAnsweredAtIssue(compound) is { } first) && (!ctx.PreserveConditionals || (ctx.ReportPledges.Count > 0)))
+            ? first.Commands
+            : null;
 
     /// <summary>
     /// <paramref name="blockCtx"/> for command <paramref name="index"/> of a block's <paramref name="commands"/>: a CROSS earlier
     /// in the block adds its crossings, a takeoff or line-up clearance later in the block counts as following, and an altitude
-    /// assignment later in the block is the altitude a speed is judged at (<see cref="DispatchContext.AltitudeAssignedLaterInBlock"/>).
+    /// assignment later in the block is the altitude a speed is judged at (<see cref="DispatchContext.AltitudeAssignedLaterInBlock"/>);
+    /// the last one is the altitude a REPORT REACHING / LEAVING is judged at (<see cref="DispatchContext.LastAltitudeAssignedLaterInBlock"/>).
     /// </summary>
     private static DispatchContext ForBlockCommand(DispatchContext blockCtx, List<ParsedCommand> commands, int index) =>
         blockCtx with
@@ -3534,13 +3550,14 @@ public static class CommandDispatcher
             CrossingsClearedInTransmission = WithCrossings(blockCtx.CrossingsClearedInTransmission, commands.Take(index)),
             CrossFeedsFollowingClearance = blockCtx.CrossFeedsFollowingClearance || commands.Skip(index + 1).Any(IsTakeoffOrLineUp),
             AltitudeAssignedLaterInBlock = commands.Skip(index + 1).Select(AssignedAltitudeOf).FirstOrDefault(altitude => altitude is not null),
+            LastAltitudeAssignedLaterInBlock = commands.Skip(index + 1).Select(AssignedAltitudeOf).LastOrDefault(altitude => altitude is not null),
         };
 
     /// <summary>
     /// The altitude <paramref name="cmd"/> assigns when it is an altitude assignment: CM (not the VFR at-or-above / at-or-below
     /// form), DM, a forced altitude, or an expedite that carries its own altitude. Null otherwise.
     /// </summary>
-    private static int? AssignedAltitudeOf(ParsedCommand cmd) =>
+    internal static int? AssignedAltitudeOf(ParsedCommand cmd) =>
         cmd switch
         {
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.None } climb => climb.Altitude,

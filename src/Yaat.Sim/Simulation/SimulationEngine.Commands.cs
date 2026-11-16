@@ -90,6 +90,9 @@ public sealed partial class SimulationEngine
                 SourceText = compound.SourceText,
                 IsReactionDelay = true,
                 IsScenarioScripted = origin == DispatchOrigin.ControllerAi,
+                // The pilot's answer to each first-block REPORT REACHING / LEAVING, decided now: the readback says it and the
+                // handler obeys it when the delay fires.
+                ReportPledges = PilotProactive.PledgesAtIssue(aircraft, compound),
             }
         );
     }
@@ -123,6 +126,7 @@ public sealed partial class SimulationEngine
             StudentPosition = Scenario?.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
+            PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
         };
     }
 

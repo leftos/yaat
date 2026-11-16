@@ -290,6 +290,10 @@ A restored taxi whose route the current layout cannot rebuild (an archive withou
 
 Older snapshots read them as `TaxiTurnAboutShape.None` and null.
 
+`AircraftApproachStateDto.ReportReachingAltitudeFt`, `ReportLeavingAltitudeFt`, `ReportLastSampleAltitudeFt` and `ReportLeavingNearSideSeen` (additive, no schema bump, not written while null, or false for the flag) keep the armed `REPORT REACHING` / `REPORT LEAVING` altitudes, the previous report sample's altitude, which the reaching crossing test needs, and whether the aircraft has been near the leaving altitude or on its near side since arming, which gates the leaving report; absent, they restore unarmed.
+
+`DeferredDispatchDto.ReportPledges` (additive, no schema bump, written only when non-empty) is an array of `ReportPledgeDto` (trigger, altitude, answer, issue altitude): the answers a reaction-delay deferral read back at issue for the altitude `REPORT`s in its first part. They restore onto `DeferredDispatch.ReportPledges` and ride the dispatch when the delay fires; absent, the deferral judges them afresh.
+
 `GroundNavigator` round-trips the primitive it is playing: `GroundNavigatorDto.Playback` carries the primitive (straight, Bézier or slow turn), its playback progress, the arc-entry blend, the entry-alignment bookkeeping and the from-node of the segment it was captured on.
 
 `FromSnapshot` holds the playback back, and the owning phase's first `SetupSegment` after the restore resumes it (`TryResumeRestoredPlayback`) when that segment's from- and to-nodes match the saved ones, so a restore mid-curve goes on along the same curve, position for position (`GroundNavigatorArcRestoreTests`, `CrossingRunwayRestoreTests`). For a snapshot without saved curve progress, the setup's alignment check reads the bearing at the aircraft's closest point on the curve, on any route segment, so the restore continues along the curve instead of turning toward its start bearing.

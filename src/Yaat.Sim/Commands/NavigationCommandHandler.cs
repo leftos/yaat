@@ -3472,10 +3472,12 @@ internal static class NavigationCommandHandler
     /// <see cref="AircraftApproachState"/> so pattern-leg reports survive lap rebuilds (re-arm each
     /// circuit); N-mile-final and at-fix arms are one-shot and cleared by the tick poll when they
     /// fire. The pilot wilco acknowledgment is produced by the generic solo readback
-    /// (<c>PilotResponder.BuildReadback</c>); this handler only records intent and returns the
-    /// controller-facing echo. Dry-run safe — touches no <c>TerminalEmitter</c>.
+    /// (<c>PilotResponder.BuildReadback</c>); this handler records intent and returns the
+    /// controller-facing echo, except that the altitude branch (<see cref="DispatchReportAltitude"/>) can voice an at-once
+    /// answer: a REPORT REACHING / LEAVING in a later or conditional block that finds the aircraft already through, level
+    /// on, or not instructed to its altitude when the block applies. Touches no <c>TerminalEmitter</c>.
     /// </summary>
-    internal static CommandResult DispatchReport(ReportCommand cmd, AircraftState aircraft)
+    internal static CommandResult DispatchReport(ReportCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         AircraftApproachState approach = aircraft.Approach;
         switch (cmd.Trigger)
@@ -3509,6 +3511,10 @@ internal static class NavigationCommandHandler
 
             case ReportTrigger.AtFix:
                 return DispatchReportAtFix(cmd, aircraft);
+
+            case ReportTrigger.ReachingAltitude:
+            case ReportTrigger.LeavingAltitude:
+                return DispatchReportAltitude(cmd, aircraft, ctx);
 
             default:
                 return new CommandResult(false, "Unrecognized REPORT request");
@@ -3599,6 +3605,106 @@ internal static class NavigationCommandHandler
         aircraft.Approach.ReportAtFixLat = pos.Value.Lat;
         aircraft.Approach.ReportAtFixLon = pos.Value.Lon;
         return CommandDispatcher.Ok($"Will report passing {fixName}");
+    }
+
+    /// <summary>
+    /// <c>REPORT REACHING</c> or <c>REPORT LEAVING</c>. The pilot's answer is the one its reaction delay carries for this report
+    /// (<see cref="DispatchContext.ReportPledges"/>), else judged now against the altitude the aircraft is assigned once the
+    /// block is applied (<see cref="ReportAssignedAfter"/>). The wilco arms the report (<see cref="ArmReportAltitude"/>); any
+    /// other answer arms nothing. Where the readback answered this report (<see cref="IsAnsweredByReadback"/>) nothing is said
+    /// here; anywhere else (a later or conditional block) the pilot says the answer at once: the passing or leaving call,
+    /// "level", or "not instructed".
+    /// </summary>
+    private static CommandResult DispatchReportAltitude(ReportCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        if ((cmd.AltitudeFt is not { } altitudeFt) || (altitudeFt <= 0))
+        {
+            return new CommandResult(false, "REPORT requires an altitude");
+        }
+
+        int? assignedAfter = ReportAssignedAfter(aircraft, ctx);
+        ReportPledge? pledge = MatchingPledge(cmd, ctx);
+        PilotProactive.ReportAltitudeAnswer answer =
+            pledge?.Answer ?? PilotProactive.AnswerReportAltitude(cmd.Trigger, altitudeFt, aircraft.Altitude, aircraft.VerticalSpeed, assignedAfter);
+        if (answer == PilotProactive.ReportAltitudeAnswer.Wilco)
+        {
+            return ArmReportAltitude(cmd, altitudeFt, aircraft, pledge);
+        }
+
+        if (!IsAnsweredByReadback(cmd, ctx))
+        {
+            PilotSpeechText? said = PilotResponder.BuildReportAltitudeAnswer(aircraft, cmd.Trigger, altitudeFt, answer, assignedAfter);
+            SayReportAnswer(aircraft, ctx, said);
+        }
+
+        return CommandDispatcher.Ok(ReportAnswerEcho(answer, altitudeFt, aircraft.Altitude));
+    }
+
+    /// <summary>
+    /// The altitude a REPORT REACHING / LEAVING is judged against: the last altitude assigned later in the report's own block
+    /// (<see cref="DispatchContext.LastAltitudeAssignedLaterInBlock"/>, <c>REPORT REACHING 050, CM 090</c>), else the altitude
+    /// the aircraft is assigned, an assignment earlier in the block included (<c>CM 090, REPORT REACHING 050</c>).
+    /// </summary>
+    internal static int? ReportAssignedAfter(AircraftState aircraft, DispatchContext ctx) =>
+        ctx.LastAltitudeAssignedLaterInBlock ?? PilotProactive.AssignedAltitudeFt(aircraft);
+
+    /// <summary>
+    /// Whether the readback of <paramref name="cmd"/>'s transmission gave the pilot's answer to it: it is one of the
+    /// <see cref="DispatchContext.ReportsAnsweredByReadback"/>, by reference.
+    /// </summary>
+    private static bool IsAnsweredByReadback(ReportCommand cmd, DispatchContext ctx) =>
+        (ctx.ReportsAnsweredByReadback is { } answered) && answered.Any(c => ReferenceEquals(c, cmd));
+
+    /// <summary>
+    /// The reaction delay's answer for <paramref name="cmd"/>, a report the readback answered: the one of
+    /// <see cref="DispatchContext.ReportPledges"/> with its trigger and altitude; else null.
+    /// </summary>
+    private static ReportPledge? MatchingPledge(ReportCommand cmd, DispatchContext ctx) =>
+        IsAnsweredByReadback(cmd, ctx) ? ctx.ReportPledges.FirstOrDefault(pledge => pledge.Matches(cmd)) : null;
+
+    /// <summary>
+    /// Arms the report, replacing the one armed before. Its first sample is the aircraft's altitude when the report was issued
+    /// (<see cref="ReportPledge.IssueAltitudeFt"/>, else now), so a crossing during the reaction delay is caught on the first
+    /// report pass; a leaving report has seen the altitude's near side when that altitude or the present one is near it
+    /// (<see cref="PilotProactive.LeavingNearSideSeenAtArming"/>).
+    /// </summary>
+    private static CommandResult ArmReportAltitude(ReportCommand cmd, int altitudeFt, AircraftState aircraft, ReportPledge? pledge)
+    {
+        double issueAltitudeFt = pledge?.IssueAltitudeFt ?? aircraft.Altitude;
+        string altitude = altitudeFt.ToString("N0", CultureInfo.InvariantCulture);
+        if (cmd.Trigger == ReportTrigger.ReachingAltitude)
+        {
+            aircraft.Approach.ReportReachingAltitudeFt = altitudeFt;
+            aircraft.Approach.ReportLastSampleAltitudeFt = issueAltitudeFt;
+            return CommandDispatcher.Ok($"Will report reaching {altitude}");
+        }
+
+        aircraft.Approach.ReportLeavingAltitudeFt = altitudeFt;
+        aircraft.Approach.ReportLeavingNearSideSeen = PilotProactive.LeavingNearSideSeenAtArming(altitudeFt, issueAltitudeFt, aircraft.Altitude);
+        return CommandDispatcher.Ok($"Will report leaving {altitude}");
+    }
+
+    /// <summary>Routes the pilot's answer said at once to whoever it is tuned to, as the report pass routes the armed calls.</summary>
+    private static void SayReportAnswer(AircraftState aircraft, DispatchContext ctx, PilotSpeechText? said)
+    {
+        if (said is null)
+        {
+            return;
+        }
+
+        PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(ctx), said);
+    }
+
+    /// <summary>The controller-facing echo of an answer other than the wilco: "Already level 5,000", "Not instructed to climb 9,000".</summary>
+    private static string ReportAnswerEcho(PilotProactive.ReportAltitudeAnswer answer, int altitudeFt, double altitudeNowFt)
+    {
+        string altitude = altitudeFt.ToString("N0", CultureInfo.InvariantCulture);
+        return answer switch
+        {
+            PilotProactive.ReportAltitudeAnswer.AlreadyLevel => $"Already level {altitude}",
+            PilotProactive.ReportAltitudeAnswer.AlreadyThrough => $"Already through {altitude}",
+            _ => $"Not instructed to {(altitudeFt > altitudeNowFt ? "climb" : "descend")} {altitude}",
+        };
     }
 
     private static bool HasPatternCircuit(AircraftState aircraft) =>

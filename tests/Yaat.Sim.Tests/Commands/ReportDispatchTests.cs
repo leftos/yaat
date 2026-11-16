@@ -439,6 +439,141 @@ public class ReportDispatchTests
         Assert.False(AircraftApproachState.FromSnapshot(new AircraftApproachState().ToSnapshot()).ReportArmedMidfield);
     }
 
+    [Fact]
+    public void ArmReaching_ASecondReplacesTheFirst_AndArmLeaving_SetsItsOwnSlot()
+    {
+        AircraftState ac = MakeAircraft();
+
+        CommandResult first = CommandDispatcher.Dispatch(ParseReport("REPORT REACHING 050"), ac, TestDispatch.Context(Random.Shared));
+        CommandResult second = CommandDispatcher.Dispatch(ParseReport("REPORT REACHING 070"), ac, TestDispatch.Context(Random.Shared));
+        CommandResult leaving = CommandDispatcher.Dispatch(ParseReport("REPORT LEAVING 020"), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(first.Success, first.Message);
+        Assert.True(second.Success, second.Message);
+        Assert.True(leaving.Success, leaving.Message);
+        Assert.Equal("Will report reaching 7,000", second.Message);
+        Assert.Equal("Will report leaving 2,000", leaving.Message);
+        Assert.Equal(7000, ac.Approach.ReportReachingAltitudeFt);
+        Assert.Equal(2000, ac.Approach.ReportLeavingAltitudeFt);
+        Assert.Equal(1500, ac.Approach.ReportLastSampleAltitudeFt);
+    }
+
+    [Fact]
+    public void CancelAll_ClearsReachingAndLeaving()
+    {
+        AircraftState ac = MakeAircraft();
+        Assert.True(CommandDispatcher.Dispatch(ParseReport("REPORT REACHING 050"), ac, TestDispatch.Context(Random.Shared)).Success);
+        Assert.True(CommandDispatcher.Dispatch(ParseReport("REPORT LEAVING 010"), ac, TestDispatch.Context(Random.Shared)).Success);
+
+        CommandResult result = CommandDispatcher.Dispatch(ParseReport("REPORT OFF"), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Null(ac.Approach.ReportReachingAltitudeFt);
+        Assert.Null(ac.Approach.ReportLeavingAltitudeFt);
+        Assert.Null(ac.Approach.ReportLastSampleAltitudeFt);
+    }
+
+    [Theory]
+    [InlineData("REPORT REACHING 050", "will report reaching 5,000", "will report reaching five thousand")]
+    [InlineData("REPORT LEAVING 050", "will report leaving 5,000", "will report leaving five thousand")]
+    [InlineData("REPORT REACHING FL250", "will report reaching FL250", "will report reaching flight level two five zero")]
+    public void ArmReachingOrLeaving_WilcoNamesTheAltitude(string command, string terminal, string spoken)
+    {
+        AircraftState ac = MakeAircraft();
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac, ActiveRunways.Empty);
+
+        Assert.NotNull(readback);
+        Assert.Contains(terminal, readback.Terminal, StringComparison.Ordinal);
+        Assert.Contains(spoken, readback.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AltitudeReports_SurviveSnapshotRoundTrip_AndClearArmedReportsResetsThem()
+    {
+        var approach = new AircraftApproachState
+        {
+            ReportReachingAltitudeFt = 5000,
+            ReportLeavingAltitudeFt = 3000,
+            ReportLastSampleAltitudeFt = 4321.5,
+        };
+
+        var restored = AircraftApproachState.FromSnapshot(approach.ToSnapshot());
+        approach.ClearArmedReports();
+
+        Assert.Equal(5000, restored.ReportReachingAltitudeFt);
+        Assert.Equal(3000, restored.ReportLeavingAltitudeFt);
+        Assert.Equal(4321.5, restored.ReportLastSampleAltitudeFt);
+        Assert.Null(approach.ReportReachingAltitudeFt);
+        Assert.Null(approach.ReportLeavingAltitudeFt);
+        Assert.Null(approach.ReportLastSampleAltitudeFt);
+    }
+
+    /// <summary>
+    /// The altitude a REPORT REACHING is judged against is the one assigned once its block is applied, whichever order the
+    /// clauses come in: the readback's judge (<see cref="PilotProactive.AssignedAfterBlock"/>) gives 9,000 for both orders,
+    /// and so does the handler's, which arms REACHING 090 (the assigned altitude) on an aircraft descending through 4,500 to
+    /// 3,000 and answers REACHING 091 "not instructed" (beyond it) — an outcome only 9,000 gives. With two altitude
+    /// assignments after the REPORT, both judges take the last one (7,000).
+    /// </summary>
+    [Theory]
+    [InlineData("CM 090, REPORT REACHING {0}", 9000)]
+    [InlineData("REPORT REACHING {0}, CM 090", 9000)]
+    [InlineData("REPORT REACHING {0}, CM 090, CM 070", 7000)]
+    public void AssignedAfterBlock_BothClauseOrders_AgreeWithTheHandler(string form, int assignedFt)
+    {
+        ParsedBlock block = Assert.Single(ParseCompound(form.Replace("{0}", "050", StringComparison.Ordinal)).Blocks);
+        AircraftState atAssigned = DescendingThroughFortyFiveHundred();
+        AircraftState beyondAssigned = DescendingThroughFortyFiveHundred();
+
+        CommandResult arms = CommandDispatcher.DispatchCompound(
+            ParseCompound(form.Replace("{0}", $"{assignedFt / 100:D3}", StringComparison.Ordinal)),
+            atAssigned,
+            TestDispatch.Context(Random.Shared)
+        );
+        CommandResult answers = CommandDispatcher.DispatchCompound(
+            ParseCompound(form.Replace("{0}", $"{(assignedFt / 100) + 1:D3}", StringComparison.Ordinal)),
+            beyondAssigned,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.Equal(assignedFt, PilotProactive.AssignedAfterBlock(block.Commands, 3000));
+        Assert.True(arms.Success, arms.Message);
+        Assert.True(answers.Success, answers.Message);
+        Assert.Equal(assignedFt, atAssigned.Approach.ReportReachingAltitudeFt);
+        Assert.Null(beyondAssigned.Approach.ReportReachingAltitudeFt);
+        Assert.Equal(
+            PilotProactive.ReportAltitudeAnswer.NotInstructed,
+            PilotProactive.AnswerReportAltitude(ReportTrigger.ReachingAltitude, assignedFt + 100, 4500, -1000, assignedFt)
+        );
+    }
+
+    private static AircraftState DescendingThroughFortyFiveHundred()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Altitude = 4500;
+        ac.VerticalSpeed = -1000;
+        ac.Targets.AssignedAltitude = 3000;
+        ac.Targets.TargetAltitude = 3000;
+        return ac;
+    }
+
+    private static CompoundCommand ParseCompound(string input)
+    {
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound(input);
+        Assert.True(result.IsSuccess, result.Reason);
+        return result.Value!;
+    }
+
+    private static ReportCommand ParseReport(string input)
+    {
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound(input);
+        Assert.True(result.IsSuccess, result.Reason);
+        return Assert.IsType<ReportCommand>(Assert.Single(Assert.Single(result.Value!.Blocks).Commands));
+    }
+
     private static AircraftState MakeAircraft() =>
         new()
         {

@@ -16,9 +16,10 @@ public enum ArmedReportLegs
 /// The deferred reports armed on an aircraft, as the training-hub wire carries them: a projection of the armed fields on
 /// <see cref="AircraftApproachState"/>, which stays their one home. <see cref="Legs"/> holds the armed pattern-leg reports,
 /// <see cref="FinalMiles"/> the armed N-mile-final distance (null when none) and <see cref="Fix"/> the armed at-fix report's fix
-/// name (null when none).
+/// name (null when none). <see cref="ReachingAltitudeFt"/> and <see cref="LeavingAltitudeFt"/> are the armed REPORT REACHING
+/// and REPORT LEAVING altitudes (MSL feet, null when none).
 /// </summary>
-public sealed record ArmedReportsDto(ArmedReportLegs Legs, int? FinalMiles, string? Fix)
+public sealed record ArmedReportsDto(ArmedReportLegs Legs, int? FinalMiles, string? Fix, int? ReachingAltitudeFt, int? LeavingAltitudeFt)
 {
     /// <summary>The reports armed on <paramref name="approach"/>; null when none is armed.</summary>
     public static ArmedReportsDto? From(AircraftApproachState approach)
@@ -30,8 +31,21 @@ public sealed record ArmedReportsDto(ArmedReportLegs Legs, int? FinalMiles, stri
             | Leg(approach.ReportArmedBase, ArmedReportLegs.Base)
             | Leg(approach.ReportArmedFinal, ArmedReportLegs.Final);
 
-        bool nothingArmed = (legs == ArmedReportLegs.None) && (approach.ReportFinalMileTarget is null) && (approach.ReportAtFixName is null);
-        return nothingArmed ? null : new ArmedReportsDto(legs, approach.ReportFinalMileTarget, approach.ReportAtFixName);
+        bool nothingArmed =
+            (legs == ArmedReportLegs.None)
+            && (approach.ReportFinalMileTarget is null)
+            && (approach.ReportAtFixName is null)
+            && (approach.ReportReachingAltitudeFt is null)
+            && (approach.ReportLeavingAltitudeFt is null);
+        return nothingArmed
+            ? null
+            : new ArmedReportsDto(
+                legs,
+                approach.ReportFinalMileTarget,
+                approach.ReportAtFixName,
+                approach.ReportReachingAltitudeFt,
+                approach.ReportLeavingAltitudeFt
+            );
     }
 
     private static ArmedReportLegs Leg(bool armed, ArmedReportLegs leg) => armed ? leg : ArmedReportLegs.None;

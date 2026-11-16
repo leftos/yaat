@@ -53,6 +53,18 @@ public class ArmedReportsDtoTests
     }
 
     [Fact]
+    public void From_ReachingOrLeavingOnly_CarriesTheAltitude()
+    {
+        ArmedReportsDto reaching = Assert.IsType<ArmedReportsDto>(
+            ArmedReportsDto.From(new AircraftApproachState { ReportReachingAltitudeFt = 5000 })
+        );
+        ArmedReportsDto leaving = Assert.IsType<ArmedReportsDto>(ArmedReportsDto.From(new AircraftApproachState { ReportLeavingAltitudeFt = 3000 }));
+
+        Assert.Equal(new ArmedReportsDto(ArmedReportLegs.None, null, null, 5000, null), reaching);
+        Assert.Equal(new ArmedReportsDto(ArmedReportLegs.None, null, null, null, 3000), leaving);
+    }
+
+    [Fact]
     public void From_EverythingArmed_CarriesEveryFlagAndBothValues()
     {
         var approach = new AircraftApproachState

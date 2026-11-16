@@ -720,6 +720,12 @@ public static class PilotProactive
 
     private const double ReportAtFixArrivalNm = 0.5;
 
+    /// <summary>How far past the altitude a REPORT LEAVING aircraft must be before it calls: one Mode C increment.</summary>
+    private const double ReportLeavingMarginFt = 100.0;
+
+    /// <summary>The vertical speed under which an altitude report counts the aircraft as level.</summary>
+    private const double ReportLevelVerticalSpeedFpm = 100.0;
+
     /// <summary>
     /// Per-tick poll for the one-shot deferred reports armed by <c>REPORT &lt;n&gt; FINAL</c> and
     /// <c>REPORT &lt;fix&gt;</c>. Pattern-leg reports are voiced from the pattern phases, not here.
@@ -736,8 +742,15 @@ public static class PilotProactive
             return;
         }
 
-        AircraftApproachState approach = aircraft.Approach;
+        TickMileFinalReport(aircraft, scenario);
+        TickAtFixReport(aircraft, scenario);
+        TickReachingReport(aircraft, scenario);
+        TickLeavingReport(aircraft, scenario);
+    }
 
+    private static void TickMileFinalReport(AircraftState aircraft, SimScenarioState scenario)
+    {
+        AircraftApproachState approach = aircraft.Approach;
         if (
             approach.ReportFinalMileTarget is { } miles
             && aircraft.Phases?.AssignedRunway is { } runway
@@ -756,7 +769,11 @@ public static class PilotProactive
                 );
             }
         }
+    }
 
+    private static void TickAtFixReport(AircraftState aircraft, SimScenarioState scenario)
+    {
+        AircraftApproachState approach = aircraft.Approach;
         if (approach.ReportAtFixName is { } fixName && approach.ReportAtFixLat is { } fixLat && approach.ReportAtFixLon is { } fixLon)
         {
             double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(fixLat, fixLon));
@@ -769,6 +786,296 @@ public static class PilotProactive
             }
         }
     }
+
+    /// <summary>
+    /// <c>REPORT REACHING</c>: fires on the first sample at which the altitude was crossed or touched since the previous
+    /// sample, or the aircraft is level on it (within <see cref="FlightPhysics.AltitudeSnapFt"/>). Otherwise it lapses
+    /// silently once the assigned altitude no longer lies at or beyond the report altitude from where the aircraft is
+    /// (a new clearance that stops short of it or turns away from it), and else records this sample for the next.
+    /// </summary>
+    private static void TickReachingReport(AircraftState aircraft, SimScenarioState scenario)
+    {
+        AircraftApproachState approach = aircraft.Approach;
+        if (approach.ReportReachingAltitudeFt is not { } reportFt)
+        {
+            return;
+        }
+
+        double current = aircraft.Altitude;
+        bool levelOnIt = IsLevelOn(aircraft, reportFt);
+        int? assigned = AssignedAltitudeFt(aircraft);
+        if (CrossedSince(approach.ReportLastSampleAltitudeFt, current, reportFt) || levelOnIt)
+        {
+            ClearReachingReport(approach);
+            Log.LogDebug("{Callsign}: reached the reported altitude {Altitude} at {Current:F0} ft", aircraft.Callsign, reportFt, current);
+            PilotSpeechText text = PilotResponder.BuildReachingAltitudeReport(aircraft, reportFt, assigned, levelOnIt);
+            PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(scenario), text);
+            return;
+        }
+
+        if ((assigned is { } target) && !HoldsAssignedAltitude(aircraft, target) && !LiesBetween(reportFt, current, target))
+        {
+            ClearReachingReport(approach);
+            Log.LogDebug("{Callsign}: report reaching {Altitude} lapsed, assigned {Assigned}", aircraft.Callsign, reportFt, target);
+            return;
+        }
+
+        approach.ReportLastSampleAltitudeFt = current;
+    }
+
+    /// <summary>
+    /// <c>REPORT LEAVING</c>: a sample within <see cref="ReportLeavingMarginFt"/> of the altitude (inclusive) marks its near
+    /// side seen; once seen, it fires on the first sample at which the aircraft is at least that far past the altitude with
+    /// its vertical travel away from it. It stays armed while the aircraft holds the altitude, and lapses silently only when
+    /// the aircraft can never reach it (<see cref="StopsShortOf"/>).
+    /// </summary>
+    private static void TickLeavingReport(AircraftState aircraft, SimScenarioState scenario)
+    {
+        AircraftApproachState approach = aircraft.Approach;
+        if (approach.ReportLeavingAltitudeFt is not { } reportFt)
+        {
+            return;
+        }
+
+        double away = aircraft.Altitude - reportFt;
+        int? assigned = AssignedAltitudeFt(aircraft);
+        if (Math.Abs(away) <= ReportLeavingMarginFt)
+        {
+            approach.ReportLeavingNearSideSeen = true;
+        }
+
+        if (approach.ReportLeavingNearSideSeen && IsPastAndMovingAway(aircraft, reportFt))
+        {
+            ClearLeavingReport(approach);
+            Log.LogDebug("{Callsign}: left the reported altitude {Altitude} at {Current:F0} ft", aircraft.Callsign, reportFt, aircraft.Altitude);
+            PilotSpeechText text = PilotResponder.BuildLeavingAltitudeReport(aircraft, reportFt, assigned);
+            PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(scenario), text);
+            return;
+        }
+
+        if ((assigned is { } target) && !HoldsAssignedAltitude(aircraft, target) && StopsShortOf(away, target - reportFt))
+        {
+            ClearLeavingReport(approach);
+            Log.LogDebug("{Callsign}: report leaving {Altitude} lapsed, assigned {Assigned} stops short", aircraft.Callsign, reportFt, target);
+        }
+    }
+
+    /// <summary>
+    /// Whether a REPORT LEAVING aircraft can never reach the altitude to leave it: it is more than
+    /// <see cref="ReportLeavingMarginFt"/> short of it (<paramref name="away"/>, its altitude less the report altitude) and its
+    /// assigned altitude (<paramref name="assignedAway"/>, likewise) also lies short of it, on the same side. An aircraft
+    /// holding the altitude stays armed, whatever it is assigned.
+    /// </summary>
+    private static bool StopsShortOf(double away, int assignedAway) =>
+        (Math.Abs(away) > ReportLeavingMarginFt) && (Math.Sign(assignedAway) == Math.Sign(away));
+
+    /// <summary>Whether the altitude went from one side of <paramref name="reportFt"/> to it or past it since <paramref name="previous"/>.</summary>
+    private static bool CrossedSince(double? previous, double current, int reportFt) =>
+        (previous is { } p) && (((p < reportFt) && (current >= reportFt)) || ((p > reportFt) && (current <= reportFt)));
+
+    /// <summary>Whether <paramref name="reportFt"/> lies between the aircraft's altitude and its target, both included.</summary>
+    private static bool LiesBetween(int reportFt, double current, int target) =>
+        (reportFt >= Math.Min(current, target)) && (reportFt <= Math.Max(current, target));
+
+    private static void ClearReachingReport(AircraftApproachState approach)
+    {
+        approach.ReportReachingAltitudeFt = null;
+        approach.ReportLastSampleAltitudeFt = null;
+    }
+
+    /// <summary>Whether the aircraft holds its altitude: vertical speed under <see cref="ReportLevelVerticalSpeedFpm"/>.</summary>
+    private static bool IsLevel(AircraftState aircraft) => Math.Abs(aircraft.VerticalSpeed) < ReportLevelVerticalSpeedFpm;
+
+    /// <summary>
+    /// Whether the aircraft holds its assigned altitude: level, with <paramref name="assignedFt"/> within
+    /// <see cref="FlightPhysics.AltitudeSnapFt"/> of where it is. A report armed then waits for a climb or descent clearance.
+    /// </summary>
+    private static bool HoldsAssignedAltitude(AircraftState aircraft, int assignedFt) =>
+        IsLevel(aircraft) && (Math.Abs(aircraft.Altitude - assignedFt) <= FlightPhysics.AltitudeSnapFt);
+
+    /// <summary>
+    /// The pilot's answer to a REPORT REACHING / LEAVING: the wilco (armed), or why nothing is armed: already level on the
+    /// altitude, already through it, or not instructed to climb or descend to it.
+    /// </summary>
+    public enum ReportAltitudeAnswer
+    {
+        Wilco,
+        AlreadyLevel,
+        AlreadyThrough,
+        NotInstructed,
+    }
+
+    /// <summary>
+    /// How the pilot answers a REPORT REACHING or LEAVING for <paramref name="reportFt"/>, from the aircraft's altitude
+    /// <paramref name="altFt"/>, its vertical speed <paramref name="vsFpm"/> (level under <see cref="ReportLevelVerticalSpeedFpm"/>)
+    /// and the altitude it is assigned once the whole transmission is applied (<paramref name="assignedAfterFt"/>,
+    /// <see cref="AssignedAfterBlock"/>). A REACHING level on the altitude, within <see cref="FlightPhysics.AltitudeSnapFt"/>, is
+    /// "already level"; otherwise both are judged along the direction of travel (<see cref="TravelDirection"/>): a REACHING by
+    /// <see cref="AnswerReaching"/>, a LEAVING by <see cref="AnswerLeaving"/>. The handler arms only on
+    /// <see cref="ReportAltitudeAnswer.Wilco"/>.
+    /// </summary>
+    internal static ReportAltitudeAnswer AnswerReportAltitude(ReportTrigger trigger, int reportFt, double altFt, double vsFpm, int? assignedAfterFt)
+    {
+        bool level = Math.Abs(vsFpm) < ReportLevelVerticalSpeedFpm;
+        int direction = TravelDirection(altFt, level ? 0 : vsFpm, assignedAfterFt);
+        if (trigger == ReportTrigger.LeavingAltitude)
+        {
+            return AnswerLeaving(reportFt, altFt, direction);
+        }
+
+        if (level && (Math.Abs(altFt - reportFt) <= FlightPhysics.AltitudeSnapFt))
+        {
+            return ReportAltitudeAnswer.AlreadyLevel;
+        }
+
+        return AnswerReaching(reportFt, altFt, direction, assignedAfterFt);
+    }
+
+    /// <summary>
+    /// The direction the aircraft travels in (+1 up, -1 down, 0 none): toward <paramref name="assignedAfterFt"/> when it lies more
+    /// than <see cref="FlightPhysics.AltitudeSnapFt"/> away, else the sign of <paramref name="travelFpm"/> (0 when level).
+    /// </summary>
+    private static int TravelDirection(double altFt, double travelFpm, int? assignedAfterFt) =>
+        ((assignedAfterFt is { } assigned) && (Math.Abs(assigned - altFt) > FlightPhysics.AltitudeSnapFt))
+            ? Math.Sign(assigned - altFt)
+            : Math.Sign(travelFpm);
+
+    /// <summary>
+    /// A REPORT REACHING not level on its altitude: "already through" an altitude more than <see cref="FlightPhysics.AltitudeSnapFt"/>
+    /// behind the direction of travel; "not instructed" for one beyond the assigned altitude (<see cref="LiesBeyondAssigned"/>);
+    /// else the wilco, which a level aircraft with nothing assigned also gets.
+    /// </summary>
+    private static ReportAltitudeAnswer AnswerReaching(int reportFt, double altFt, int direction, int? assignedAfterFt)
+    {
+        if ((reportFt - altFt) * direction < -FlightPhysics.AltitudeSnapFt)
+        {
+            return ReportAltitudeAnswer.AlreadyThrough;
+        }
+
+        return ((assignedAfterFt is { } assigned) && LiesBeyondAssigned(reportFt, altFt, assigned))
+            ? ReportAltitudeAnswer.NotInstructed
+            : ReportAltitudeAnswer.Wilco;
+    }
+
+    /// <summary>
+    /// A REPORT LEAVING: "already through" once the aircraft is at least <see cref="ReportLeavingMarginFt"/> past the altitude on
+    /// the direction of travel's side, else the wilco. A level aircraft holding its assigned altitude has no direction, so it
+    /// arms and waits for a clearance; a LEAVING is never "not instructed".
+    /// </summary>
+    private static ReportAltitudeAnswer AnswerLeaving(int reportFt, double altFt, int direction) =>
+        ((altFt - reportFt) * direction >= ReportLeavingMarginFt) ? ReportAltitudeAnswer.AlreadyThrough : ReportAltitudeAnswer.Wilco;
+
+    /// <summary>
+    /// Whether <paramref name="reportFt"/> lies more than <see cref="FlightPhysics.AltitudeSnapFt"/> beyond
+    /// <paramref name="assignedFt"/>, on its far side from the aircraft; for an aircraft at its assigned altitude, more than the
+    /// snap from it on either side.
+    /// </summary>
+    private static bool LiesBeyondAssigned(int reportFt, double altFt, int assignedFt)
+    {
+        double past = reportFt - assignedFt;
+        double toAssigned = assignedFt - altFt;
+        return (Math.Abs(past) > FlightPhysics.AltitudeSnapFt)
+            && ((Math.Abs(toAssigned) <= FlightPhysics.AltitudeSnapFt) || (Math.Sign(past) == Math.Sign(toAssigned)));
+    }
+
+    /// <summary>
+    /// The altitude the aircraft is assigned once a block of a transmission is applied: the last altitude assignment among
+    /// <paramref name="blockCommands"/> (<see cref="CommandDispatcher.AssignedAltitudeOf"/>), else <paramref name="assignedNow"/>.
+    /// </summary>
+    internal static int? AssignedAfterBlock(IReadOnlyList<ParsedCommand> blockCommands, int? assignedNow) =>
+        blockCommands.Select(CommandDispatcher.AssignedAltitudeOf).LastOrDefault(altitude => altitude is not null) ?? assignedNow;
+
+    /// <summary>
+    /// Whether the pilot answers a REPORT REACHING / LEAVING in <paramref name="block"/> in the readback of its transmission:
+    /// the block is the transmission's first, with no condition and no WAIT, so it applies as the transmission is issued (or
+    /// when its reaction delay fires).
+    /// </summary>
+    internal static bool IsAnsweredAtIssue(ParsedBlock block) =>
+        (block.Condition is null) && !block.Commands.Exists(c => c is WaitCommand or WaitDistanceCommand);
+
+    /// <summary>
+    /// The first block of <paramref name="compound"/> when its REPORT is answered at issue (<see cref="IsAnsweredAtIssue"/>), else
+    /// null.
+    /// </summary>
+    internal static ParsedBlock? BlockAnsweredAtIssue(CompoundCommand compound) =>
+        ((compound.Blocks.Count > 0) && IsAnsweredAtIssue(compound.Blocks[0])) ? compound.Blocks[0] : null;
+
+    /// <summary>
+    /// The pilot's answer now to <paramref name="report"/>, a REPORT REACHING / LEAVING among <paramref name="blockCommands"/>,
+    /// judged against the altitude assigned once the block is applied; null for any other REPORT.
+    /// </summary>
+    internal static ReportAltitudeAnswer? AnswerAtIssue(AircraftState aircraft, IReadOnlyList<ParsedCommand> blockCommands, ReportCommand report) =>
+        ((report.Trigger is ReportTrigger.ReachingAltitude or ReportTrigger.LeavingAltitude) && (report.AltitudeFt is { } altitudeFt))
+            ? AnswerReportAltitude(
+                report.Trigger,
+                altitudeFt,
+                aircraft.Altitude,
+                aircraft.VerticalSpeed,
+                AssignedAfterBlock(blockCommands, AssignedAltitudeFt(aircraft))
+            )
+            : null;
+
+    /// <summary>
+    /// The answers a reaction delay carries for <paramref name="compound"/>: one for each REPORT REACHING / LEAVING of a first
+    /// block answered at issue, keyed by trigger and altitude (a repeat keeps the first), judged now, with the aircraft's
+    /// altitude now; empty when there is none.
+    /// </summary>
+    internal static IReadOnlyList<ReportPledge> PledgesAtIssue(AircraftState aircraft, CompoundCommand compound)
+    {
+        if (BlockAnsweredAtIssue(compound) is not { } block)
+        {
+            return [];
+        }
+
+        List<ReportPledge> pledges = [];
+        foreach (ReportCommand report in block.Commands.OfType<ReportCommand>())
+        {
+            if (
+                (report.AltitudeFt is { } altitudeFt)
+                && !pledges.Exists(pledge => pledge.Matches(report))
+                && (AnswerAtIssue(aircraft, block.Commands, report) is { } answer)
+            )
+            {
+                pledges.Add(new ReportPledge(report.Trigger, altitudeFt, answer, aircraft.Altitude));
+            }
+        }
+
+        return pledges;
+    }
+
+    /// <summary>
+    /// Whether a REPORT LEAVING armed now has already had the altitude near: the aircraft was within
+    /// <see cref="ReportLeavingMarginFt"/> of <paramref name="reportFt"/> when the report was issued (<paramref name="issueAltFt"/>)
+    /// or is now (<paramref name="altFt"/>), or crossed it in between, during the reaction delay.
+    /// </summary>
+    internal static bool LeavingNearSideSeenAtArming(int reportFt, double issueAltFt, double altFt) =>
+        (Math.Abs(issueAltFt - reportFt) <= ReportLeavingMarginFt)
+        || (Math.Abs(altFt - reportFt) <= ReportLeavingMarginFt)
+        || (Math.Sign(issueAltFt - reportFt) != Math.Sign(altFt - reportFt));
+
+    /// <summary>Whether the aircraft is level within <see cref="FlightPhysics.AltitudeSnapFt"/> of <paramref name="reportFt"/>.</summary>
+    internal static bool IsLevelOn(AircraftState aircraft, int reportFt) =>
+        IsLevel(aircraft) && (Math.Abs(aircraft.Altitude - reportFt) <= FlightPhysics.AltitudeSnapFt);
+
+    /// <summary>
+    /// Whether the aircraft is at least <see cref="ReportLeavingMarginFt"/> past <paramref name="reportFt"/> with its vertical
+    /// travel away from it: the moment an armed REPORT LEAVING fires.
+    /// </summary>
+    internal static bool IsPastAndMovingAway(AircraftState aircraft, int reportFt)
+    {
+        double away = aircraft.Altitude - reportFt;
+        return (Math.Abs(away) >= ReportLeavingMarginFt) && (Math.Sign(away) == Math.Sign(aircraft.VerticalSpeed));
+    }
+
+    private static void ClearLeavingReport(AircraftApproachState approach)
+    {
+        approach.ReportLeavingAltitudeFt = null;
+        approach.ReportLeavingNearSideSeen = false;
+    }
+
+    /// <summary>The aircraft's assigned altitude in whole feet, or null when it has none.</summary>
+    internal static int? AssignedAltitudeFt(AircraftState aircraft) =>
+        aircraft.Targets.AssignedAltitude is { } assigned ? (int)Math.Round(assigned) : null;
 
     /// <summary>
     /// Re-voices or closes the aircraft's open request (<see cref="PilotRequestTracker.TryQueueFollowUp"/>);

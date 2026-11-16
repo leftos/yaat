@@ -261,6 +261,7 @@ public static partial class PilotResponder
         var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound, covered), activeRunways)
         {
             Chained = IsChained(compound, covered),
+            IssueBlock = PilotProactive.BlockAnsweredAtIssue(compound),
         };
         PilotSpeechContext clauseContext = assembly.Chained ? ChainedClauseContext(speechContext) : speechContext;
         var blocks = new List<BlockClauses>();
@@ -369,6 +370,12 @@ public static partial class PilotResponder
         public bool OfferedQuietRows { get; set; }
 
         public bool Chained { get; set; }
+
+        /// <summary>
+        /// The transmission's first block when the readback answers a REPORT REACHING / LEAVING in it
+        /// (<see cref="PilotProactive.BlockAnsweredAtIssue"/>), else null: a REPORT anywhere else reads back as the plain wilco.
+        /// </summary>
+        public ParsedBlock? IssueBlock { get; init; }
     }
 
     /// <summary>One block's clauses, joined with ", ", in the terminal, spoken and RPO forms.</summary>
@@ -428,7 +435,7 @@ public static partial class PilotResponder
             return null;
         }
 
-        var trace = new ClauseTrace(assembly.WholeReadback);
+        var trace = new ClauseTrace(assembly.WholeReadback) { ReportAnswer = ReportAnswerAtIssue(cmd, assembly) };
         PilotSpeechText? clause;
         if ((assembly.HandlerReadback is { } handler) && IsCommandOfType(cmd, handler.Command))
         {
@@ -493,6 +500,37 @@ public static partial class PilotResponder
         public bool OfferedQuietRows { get; set; }
 
         public bool Chained { get; set; }
+
+        /// <summary>The pilot's answer to the REPORT REACHING / LEAVING the clause reads back, when the readback answers it.</summary>
+        public PilotProactive.ReportAltitudeAnswer? ReportAnswer { get; init; }
+    }
+
+    /// <summary>
+    /// The pilot's answer, in its readback, to <paramref name="cmd"/> when it is a REPORT REACHING / LEAVING in the block the
+    /// readback answers (<see cref="ReadbackAssembly.IssueBlock"/>): the answer its reaction delay carries
+    /// (<see cref="PledgedAnswer"/>), else judged now. Null for any other command, where the wilco is read back.
+    /// </summary>
+    private static PilotProactive.ReportAltitudeAnswer? ReportAnswerAtIssue(ParsedCommand cmd, ReadbackAssembly assembly)
+    {
+        if ((cmd is not ReportCommand report) || (assembly.IssueBlock is not { } block) || !block.Commands.Exists(c => ReferenceEquals(c, cmd)))
+        {
+            return null;
+        }
+
+        return PledgedAnswer(assembly.Aircraft, report) ?? PilotProactive.AnswerAtIssue(assembly.Aircraft, block.Commands, report);
+    }
+
+    /// <summary>
+    /// The answer the reaction delay holding <paramref name="report"/> (by reference) carries for it
+    /// (<see cref="DeferredDispatch.ReportPledges"/>, the one with its trigger and altitude); null when no delay holds it or it
+    /// carries none for this report.
+    /// </summary>
+    private static PilotProactive.ReportAltitudeAnswer? PledgedAnswer(AircraftState aircraft, ReportCommand report)
+    {
+        DeferredDispatch? delay = aircraft.DeferredDispatches.Find(d =>
+            d.IsReactionDelay && d.Payload.Blocks.Exists(b => b.Commands.Exists(c => ReferenceEquals(c, report)))
+        );
+        return delay?.ReportPledges.FirstOrDefault(pledge => pledge.Matches(report))?.Answer;
     }
 
     /// <summary>
@@ -718,7 +756,7 @@ public static partial class PilotResponder
                 option.PatternRunwayId
             ),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext, trace),
-            ReportCommand report => BuildReportWilcoClause(report),
+            ReportCommand report => BuildReportAnswerClause(report, trace.ReportAnswer, aircraft),
             SpeedMaxCommand => BuildMaximumForwardSpeed(),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
             MaintainMilitaryRouteAltitudesCommand => BuildMaintainRouteAltitudesClause(aircraft),
@@ -1029,6 +1067,24 @@ public static partial class PilotResponder
     private static PilotSpeechText? BuildMaximumForwardSpeed() => Dual("maximum forward speed", "maximum forward speed");
 
     /// <summary>
+    /// The readback clause of a controller <c>REPORT</c>: for a REPORT REACHING / LEAVING the readback answers
+    /// (<paramref name="answer"/>), "already level", "already through" or "not instructed" in place of the wilco; else the
+    /// wilco (<see cref="BuildReportWilcoClause"/>).
+    /// </summary>
+    private static PilotSpeechText? BuildReportAnswerClause(
+        ReportCommand report,
+        PilotProactive.ReportAltitudeAnswer? answer,
+        AircraftState aircraft
+    ) =>
+        (answer, report.AltitudeFt) switch
+        {
+            (PilotProactive.ReportAltitudeAnswer.AlreadyLevel, { } level) => BuildAlreadyLevelReadback(level),
+            (PilotProactive.ReportAltitudeAnswer.AlreadyThrough, { } through) => BuildAlreadyThroughReadback(through),
+            (PilotProactive.ReportAltitudeAnswer.NotInstructed, { } beyond) => BuildNotInstructedReadback(beyond, beyond > aircraft.Altitude),
+            _ => BuildReportWilcoClause(report),
+        };
+
+    /// <summary>
     /// Pilot wilco for a controller <c>REPORT</c> request: acknowledges now ("will report turning
     /// base"); the actual position report is voiced later when the event occurs. A cancel
     /// (<see cref="ReportTrigger.Cancel"/>) needs no readback.
@@ -1048,6 +1104,14 @@ public static partial class PilotResponder
             ReportTrigger.AtFix when report.FixName is { } fixName => Dual(
                 $"will report passing {PhraseologyVerbalizer.FixDisplayText(fixName)}",
                 $"will report passing {PhraseologyVerbalizer.SpellFix(fixName)}"
+            ),
+            ReportTrigger.ReachingAltitude when report.AltitudeFt is { } reaching => Dual(
+                $"will report reaching {PilotSayBuilder.PlainAltitude(reaching)}",
+                $"will report reaching {PhraseologyVerbalizer.AltitudeWords(reaching)}"
+            ),
+            ReportTrigger.LeavingAltitude when report.AltitudeFt is { } leaving => Dual(
+                $"will report leaving {PilotSayBuilder.PlainAltitude(leaving)}",
+                $"will report leaving {PhraseologyVerbalizer.AltitudeWords(leaving)}"
             ),
             _ => null,
         };
@@ -2487,6 +2551,110 @@ public static partial class PilotResponder
             $"{spoken}, passing {PhraseologyVerbalizer.SpellFix(fixName)}."
         );
     }
+
+    /// <summary>
+    /// Deferred pilot report for <c>REPORT REACHING {altitude}</c>, voiced when the climb or descent reaches it: "level
+    /// {altitude}" when the aircraft levelled on it (<paramref name="levelOnIt"/>) or it is the assigned altitude (AIM
+    /// 5-3-1.b.2(a)), else "passing {altitude} for {assigned}" (7110.65 6-6-2), with no "for" part when nothing is assigned.
+    /// Output: <c>"[N123AB] november one two three alpha bravo, passing five thousand for niner thousand."</c>
+    /// </summary>
+    public static PilotSpeechText BuildReachingAltitudeReport(AircraftState aircraft, int altitudeFt, int? assignedFt, bool levelOnIt)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        if (levelOnIt || (assignedFt == altitudeFt))
+        {
+            return new PilotSpeechText(
+                $"level {PilotSayBuilder.PlainAltitude(altitudeFt)}.",
+                $"{spoken}, level {PhraseologyVerbalizer.AltitudeWords(altitudeFt)}."
+            );
+        }
+
+        return new PilotSpeechText(
+            $"passing {PilotSayBuilder.PlainAltitude(altitudeFt)}{PlainForAltitude(assignedFt)}.",
+            $"{spoken}, passing {PhraseologyVerbalizer.AltitudeWords(altitudeFt)}{SpokenForAltitude(assignedFt)}."
+        );
+    }
+
+    /// <summary>
+    /// Deferred pilot report for <c>REPORT LEAVING {altitude}</c>, voiced once the aircraft has left it: "leaving {altitude}
+    /// for {assigned}" (AIM 5-3-1.b.2), with no "for" part when nothing is assigned. Output:
+    /// <c>"[N123AB] november one two three alpha bravo, leaving five thousand for niner thousand."</c>
+    /// </summary>
+    public static PilotSpeechText BuildLeavingAltitudeReport(AircraftState aircraft, int altitudeFt, int? assignedFt)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            $"leaving {PilotSayBuilder.PlainAltitude(altitudeFt)}{PlainForAltitude(assignedFt)}.",
+            $"{spoken}, leaving {PhraseologyVerbalizer.AltitudeWords(altitudeFt)}{SpokenForAltitude(assignedFt)}."
+        );
+    }
+
+    /// <summary>
+    /// The pilot's answer, in place of the wilco, to a REPORT REACHING / LEAVING for an altitude it has already passed:
+    /// <c>"already through 5,000"</c>, spoken <c>"already through five thousand"</c>.
+    /// </summary>
+    internal static PilotSpeechText BuildAlreadyThroughReadback(int altitudeFt) =>
+        new($"already through {PilotSayBuilder.PlainAltitude(altitudeFt)}", $"already through {PhraseologyVerbalizer.AltitudeWords(altitudeFt)}");
+
+    /// <summary>
+    /// The pilot's answer, in place of the wilco, to a REPORT REACHING for the altitude it is level at:
+    /// <c>"already level 5,000"</c>, spoken <c>"already level five thousand"</c>.
+    /// </summary>
+    internal static PilotSpeechText BuildAlreadyLevelReadback(int altitudeFt) =>
+        new($"already level {PilotSayBuilder.PlainAltitude(altitudeFt)}", $"already level {PhraseologyVerbalizer.AltitudeWords(altitudeFt)}");
+
+    /// <summary>
+    /// The pilot's answer, in place of the wilco, to a REPORT REACHING for an altitude beyond the one it is assigned:
+    /// <c>"not instructed to climb 9,000"</c>, spoken <c>"not instructed to climb niner thousand"</c>; "descend" when
+    /// <paramref name="climb"/> is false (the altitude is below the aircraft).
+    /// </summary>
+    internal static PilotSpeechText BuildNotInstructedReadback(int altitudeFt, bool climb) =>
+        new(
+            $"not instructed to {ClimbOrDescend(climb)} {PilotSayBuilder.PlainAltitude(altitudeFt)}",
+            $"not instructed to {ClimbOrDescend(climb)} {PhraseologyVerbalizer.AltitudeWords(altitudeFt)}"
+        );
+
+    /// <summary>
+    /// The pilot's answer to a REPORT REACHING / LEAVING in a later or conditional block, said at once when the block applies:
+    /// the passing (or leaving) call for an altitude it is already through, the "level" call for the one it is level at, and
+    /// "not instructed to climb / descend {altitude}" for one beyond its assigned altitude
+    /// (<paramref name="assignedFt"/>, which also gives the calls' "for" part). Null for the wilco, which arms the report.
+    /// </summary>
+    internal static PilotSpeechText? BuildReportAltitudeAnswer(
+        AircraftState aircraft,
+        ReportTrigger trigger,
+        int altitudeFt,
+        PilotProactive.ReportAltitudeAnswer answer,
+        int? assignedFt
+    ) =>
+        answer switch
+        {
+            PilotProactive.ReportAltitudeAnswer.AlreadyLevel => BuildReachingAltitudeReport(aircraft, altitudeFt, assignedFt, levelOnIt: true),
+            PilotProactive.ReportAltitudeAnswer.AlreadyThrough when trigger == ReportTrigger.LeavingAltitude => BuildLeavingAltitudeReport(
+                aircraft,
+                altitudeFt,
+                assignedFt
+            ),
+            PilotProactive.ReportAltitudeAnswer.AlreadyThrough => BuildReachingAltitudeReport(aircraft, altitudeFt, assignedFt, levelOnIt: false),
+            PilotProactive.ReportAltitudeAnswer.NotInstructed => BuildNotInstructedReport(aircraft, altitudeFt, altitudeFt > aircraft.Altitude),
+            _ => null,
+        };
+
+    /// <summary>
+    /// The "not instructed" answer said on its own transmission:
+    /// <c>"[N123AB] november one two three alpha bravo, not instructed to climb niner thousand."</c>
+    /// </summary>
+    private static PilotSpeechText BuildNotInstructedReport(AircraftState aircraft, int altitudeFt, bool climb)
+    {
+        PilotSpeechText answer = BuildNotInstructedReadback(altitudeFt, climb);
+        return new PilotSpeechText($"{answer.Terminal}.", $"{SpokenOwnCallsign(aircraft)}, {answer.Tts}.");
+    }
+
+    private static string ClimbOrDescend(bool climb) => climb ? "climb" : "descend";
+
+    private static string PlainForAltitude(int? assignedFt) => assignedFt is { } a ? $" for {PilotSayBuilder.PlainAltitude(a)}" : "";
+
+    private static string SpokenForAltitude(int? assignedFt) => assignedFt is { } a ? $" for {PhraseologyVerbalizer.AltitudeWords(a)}" : "";
 
     /// <summary>Cardinal spelling of a final-report distance (1–20 NM) for TTS, falling back to digits.</summary>
     /// <summary>

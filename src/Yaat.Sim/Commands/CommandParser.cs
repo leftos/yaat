@@ -2506,7 +2506,10 @@ public static class CommandParser
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Fail("REPORT requires a target (e.g. REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, REPORT OFF)");
+            return PR.Fail(
+                "REPORT requires a target (e.g. REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, REPORT REACHING 050, "
+                    + "REPORT LEAVING 050, REPORT OFF)"
+            );
         }
 
         string[] tokens = [.. SplitTokens(arg).Select(t => t.ToUpperInvariant())];
@@ -2517,16 +2520,15 @@ public static class CommandParser
             return ParseReportCancel(tokens);
         }
 
-        // N-mile final: a positive integer plus the FINAL keyword (either order).
-        int? miles = TryReadFinalMiles(tokens);
-        if (miles is not null)
+        // Altitude reports: REACHING or LEAVING, then one altitude. Read before the fix test, so the altitude is never a fix.
+        if (IsReportAltitudeKeyword(tokens[0]))
         {
-            if (miles <= 0)
-            {
-                return PR.Fail("final distance must be a positive whole number of miles");
-            }
+            return ParseReportAltitude(tokens);
+        }
 
-            return PR.Ok(new ReportCommand(ReportTrigger.MileFinal, DistanceNm: miles));
+        if (ParseReportMileFinal(tokens) is { } mileFinal)
+        {
+            return mileFinal;
         }
 
         if (tokens.Length == 1)
@@ -2542,7 +2544,66 @@ public static class CommandParser
             }
         }
 
-        return PR.Fail("unrecognized REPORT form; try REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, or REPORT OFF");
+        return PR.Fail(UnrecognizedReportForm);
+    }
+
+    private const string UnrecognizedReportForm =
+        "unrecognized REPORT form; try REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, REPORT REACHING 050, "
+        + "REPORT LEAVING 050, or REPORT OFF";
+
+    /// <summary>Whether <paramref name="token"/> opens an altitude report: <c>REACHING</c> or <c>LEAVING</c>.</summary>
+    private static bool IsReportAltitudeKeyword(string token) => token is "REACHING" or "LEAVING";
+
+    /// <summary>
+    /// The n-mile-final report: a whole number of miles and the FINAL keyword, in either order (<see cref="TryReadFinalMiles"/>).
+    /// A distance that is not positive is the final-distance error; null when <paramref name="tokens"/> are not a mile-final form.
+    /// </summary>
+    private static PR? ParseReportMileFinal(string[] tokens)
+    {
+        if (TryReadFinalMiles(tokens) is not { } miles)
+        {
+            return null;
+        }
+
+        return (miles <= 0)
+            ? PR.Fail("final distance must be a positive whole number of miles")
+            : PR.Ok(new ReportCommand(ReportTrigger.MileFinal, DistanceNm: miles));
+    }
+
+    /// <summary>
+    /// <c>REPORT REACHING {altitude}</c> or <c>REPORT LEAVING {altitude}</c>: the keyword in <paramref name="tokens"/>[0]
+    /// and exactly one altitude after it (<see cref="ResolveReportAltitude"/>). Anything else is the REPORT usage error.
+    /// </summary>
+    private static PR ParseReportAltitude(string[] tokens)
+    {
+        int? altitude = tokens.Length == 2 ? ResolveReportAltitude(tokens[1]) : null;
+        if (altitude is null)
+        {
+            return PR.Fail(UnrecognizedReportForm);
+        }
+
+        ReportTrigger trigger = tokens[0] == "REACHING" ? ReportTrigger.ReachingAltitude : ReportTrigger.LeavingAltitude;
+        return PR.Ok(new ReportCommand(trigger, AltitudeFt: altitude));
+    }
+
+    /// <summary>
+    /// A REPORT altitude: a flight level (<c>FL</c> and one to three digits, <c>FL250</c>) or an altitude written with an
+    /// <c>A</c> (<c>A50</c>, <c>A050</c>) has its prefix dropped; the rest goes through <see cref="AltitudeResolver.Resolve"/>
+    /// (<c>050</c>, <c>5000</c>, <c>KOAK+010</c>). Null when it is no altitude.
+    /// </summary>
+    private static int? ResolveReportAltitude(string token)
+    {
+        if (token.StartsWith("FL", StringComparison.Ordinal) && (token.Length is >= 3 and <= 5) && token[2..].All(char.IsAsciiDigit))
+        {
+            return AltitudeResolver.Resolve(token[2..]);
+        }
+
+        if ((token.Length >= 2) && (token[0] == 'A') && token[1..].All(char.IsAsciiDigit))
+        {
+            return AltitudeResolver.Resolve(token[1..]);
+        }
+
+        return AltitudeResolver.Resolve(token);
     }
 
     /// <summary>

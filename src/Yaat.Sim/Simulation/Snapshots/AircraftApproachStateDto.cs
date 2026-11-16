@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftApproachStateDto
@@ -56,4 +58,21 @@ public sealed class AircraftApproachStateDto
     public string? ReportAtFixName { get; init; }
     public double? ReportAtFixLat { get; init; }
     public double? ReportAtFixLon { get; init; }
+
+    /// <summary>
+    /// The REPORT REACHING / LEAVING altitudes and the previous report sample's altitude. Written only when set, so a
+    /// snapshot with neither armed serializes as before; absent, they restore unarmed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ReportReachingAltitudeFt { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ReportLeavingAltitudeFt { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ReportLastSampleAltitudeFt { get; init; }
+
+    /// <summary>Whether the REPORT LEAVING aircraft has been near the altitude since arming; written only when true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ReportLeavingNearSideSeen { get; init; }
 }

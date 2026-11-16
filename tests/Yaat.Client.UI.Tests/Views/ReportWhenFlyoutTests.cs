@@ -369,7 +369,7 @@ public class ReportWhenFlyoutTests
         {
             FlightRules = "IFR",
             NavigationRoute = ["SUNOL", "MOD"],
-            ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, null, "MOD"),
+            ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, null, "MOD", null, null),
         };
 
         MenuItem flyout = Flyout(aircraft, Host());
@@ -443,7 +443,7 @@ public class ReportWhenFlyoutTests
     public void Armed_StopSectionFirst_ListsExactlyWhatIsArmed()
     {
         RecordingMenuHost host = Host();
-        FakeMenuAircraft aircraft = PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, "SUNOL") };
+        FakeMenuAircraft aircraft = PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, "SUNOL", null, null) };
         MenuItem flyout = Flyout(aircraft, host);
 
         Assert.Equal(
@@ -475,7 +475,13 @@ public class ReportWhenFlyoutTests
     public void ArmedMidfield_StopRowSendsReportOffMidfield()
     {
         RecordingMenuHost host = Host();
-        MenuItem flyout = Flyout(PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.Midfield, null, null) }, host);
+        MenuItem flyout = Flyout(
+            PatternAircraft() with
+            {
+                ArmedReports = new ArmedReportsDto(ArmedReportLegs.Midfield, null, null, null, null),
+            },
+            host
+        );
 
         Click(Assert.IsType<MenuItem>(flyout.Items[1]));
 
@@ -487,7 +493,7 @@ public class ReportWhenFlyoutTests
     [AvaloniaFact]
     public void ArmedMilesOffTheChips_MileFinalNoteNamesIt()
     {
-        MenuItem flyout = Flyout(PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, 7, null) }, Host());
+        MenuItem flyout = Flyout(PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, 7, null, null, null) }, Host());
 
         InlineBoxRow miles = MilesRow(flyout);
         Assert.Contains("armed: 7-mile final", miles.ToString(), StringComparison.Ordinal);
@@ -501,7 +507,13 @@ public class ReportWhenFlyoutTests
         RecordingMenuHost host = Host();
         host.NearbyReportingPoints.Add(new NearbyReportingPoint("VPCOL", 0.8, 0.0));
         host.NearbyReportingPoints.Add(new NearbyReportingPoint("VPMOR", 4.1, 10.0));
-        MenuItem flyout = Flyout(PatternAircraft() with { ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, null, "VPMOR") }, host);
+        MenuItem flyout = Flyout(
+            PatternAircraft() with
+            {
+                ArmedReports = new ArmedReportsDto(ArmedReportLegs.None, null, "VPMOR", null, null),
+            },
+            host
+        );
 
         Assert.Contains("replaces passing VPMOR", FixRow(flyout).ToString(), StringComparison.Ordinal);
         Assert.Equal(["VPMOR"], SendRows(flyout).Where(pair => pair.Row.IsArmed).Select(pair => pair.Row.Label));
@@ -566,7 +578,7 @@ public class ReportWhenFlyoutTests
     [InlineData(MenuIds.ApproachReportAtFix)]
     public void StripButton_ShowsTheArmedDot_OnlyWhileAReportIsArmed(string id)
     {
-        Assert.True(QuickCommandStrip.ShowsArmedDot(StripButton(id, new ArmedReportsDto(ArmedReportLegs.None, null, "SUNOL"))));
+        Assert.True(QuickCommandStrip.ShowsArmedDot(StripButton(id, new ArmedReportsDto(ArmedReportLegs.None, null, "SUNOL", null, null))));
         Assert.False(QuickCommandStrip.ShowsArmedDot(StripButton(id, null)));
     }
 
@@ -601,7 +613,7 @@ public class ReportWhenFlyoutTests
         MenuItem pilotReports = SharedMenuGroups.PilotReports(
             PatternAircraft() with
             {
-                ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, null, null),
+                ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, null, null, null, null),
             },
             Context(),
             Host(),

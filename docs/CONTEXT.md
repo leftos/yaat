@@ -171,7 +171,7 @@ is still the host's.
 _Avoid_: handler, branch, case
 
 **Armed report**:
-A pilot report the controller has requested (`REPORT` a pattern leg, a mile final, or a fix) that the sim holds until the pilot makes it or it is cancelled. Carried on the wire as `ArmedReports`.
+A pilot report the controller has requested (`REPORT` a pattern leg, a mile final, a fix, or reaching or leaving an altitude) that the sim holds until the pilot makes it or it is cancelled. Carried on the wire as `ArmedReports`.
 
 **Scope**:
 What the router resolves before an arm runs — nothing, a callsign, a present aircraft, or the acting

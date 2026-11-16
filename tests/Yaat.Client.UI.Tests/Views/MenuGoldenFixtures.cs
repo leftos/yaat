@@ -461,7 +461,7 @@ internal static class MenuGoldenFixtures
     {
         AircraftModel aircraft = AirborneCessna(callsign, "Downwind", AircraftSituation.Pattern, position, 1000);
         aircraft.PhaseSequence = "Downwind > Base > FinalApproach > Landing";
-        aircraft.ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, null);
+        aircraft.ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, null, null, null);
         return aircraft;
     }
 

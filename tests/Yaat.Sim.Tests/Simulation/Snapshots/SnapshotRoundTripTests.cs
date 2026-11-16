@@ -212,6 +212,35 @@ public class SnapshotRoundTripTests
     }
 
     /// <summary>
+    /// The REPORT REACHING / LEAVING altitudes and the previous report sample round-trip through the recording serializer,
+    /// and an approach state with none armed writes none of them.
+    /// </summary>
+    [Fact]
+    public void ApproachState_AltitudeReports_RoundTrip()
+    {
+        var armed = new AircraftApproachState
+        {
+            ReportReachingAltitudeFt = 5000,
+            ReportLeavingAltitudeFt = 3000,
+            ReportLastSampleAltitudeFt = 4321.5,
+            ReportLeavingNearSideSeen = true,
+        };
+
+        string json = JsonSerializer.Serialize(armed.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = AircraftApproachState.FromSnapshot(JsonSerializer.Deserialize<AircraftApproachStateDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Equal(5000, restored.ReportReachingAltitudeFt);
+        Assert.Equal(3000, restored.ReportLeavingAltitudeFt);
+        Assert.Equal(4321.5, restored.ReportLastSampleAltitudeFt);
+        Assert.True(restored.ReportLeavingNearSideSeen);
+        string unarmed = JsonSerializer.Serialize(new AircraftApproachState().ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.DoesNotContain("ReportReachingAltitudeFt", unarmed, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportLeavingAltitudeFt", unarmed, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportLastSampleAltitudeFt", unarmed, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportLeavingNearSideSeen", unarmed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The towbar heading — from the nose gear out along the towbar to the tug — round-trips both ways: a value while
     /// a tug is attached, and null once it is gone.
     /// </summary>

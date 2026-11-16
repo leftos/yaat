@@ -168,12 +168,12 @@ public class AircraftDtoSituationTests
         // The server writes the legs as a number, as it does the situation flags: 9 is Crosswind (1) | Base (8).
         string hubJson = json.Replace(
             "\"armedReports\":null",
-            "\"armedReports\":{\"legs\":9,\"finalMiles\":5,\"fix\":\"SUNOL\"}",
+            "\"armedReports\":{\"legs\":9,\"finalMiles\":5,\"fix\":\"SUNOL\",\"reachingAltitudeFt\":5000,\"leavingAltitudeFt\":3000}",
             StringComparison.Ordinal
         );
         AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(hubJson, WireOptions)!;
 
-        Assert.Equal(new ArmedReportsDto(ArmedReportLegs.Crosswind | ArmedReportLegs.Base, 5, "SUNOL"), back.ArmedReports);
+        Assert.Equal(new ArmedReportsDto(ArmedReportLegs.Crosswind | ArmedReportLegs.Base, 5, "SUNOL", 5000, 3000), back.ArmedReports);
     }
 
     [Fact]
@@ -192,11 +192,11 @@ public class AircraftDtoSituationTests
     [Fact]
     public void Model_CopiesArmedReports_OnCreateAndUpdate()
     {
-        var baseArmed = new ArmedReportsDto(ArmedReportLegs.Base, null, null);
+        var baseArmed = new ArmedReportsDto(ArmedReportLegs.Base, null, null, null, null);
         var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { ArmedReports = baseArmed });
         Assert.Equal(baseArmed, model.ArmedReports);
 
-        var fixArmed = new ArmedReportsDto(ArmedReportLegs.None, 5, "SUNOL");
+        var fixArmed = new ArmedReportsDto(ArmedReportLegs.None, 5, "SUNOL", null, null);
         model.UpdateFromDto(Dto(AircraftSituation.Final) with { ArmedReports = fixArmed });
         Assert.Equal(fixArmed, model.ArmedReports);
 

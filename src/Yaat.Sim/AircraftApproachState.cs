@@ -144,6 +144,36 @@ public class AircraftApproachState
     public double? ReportAtFixLon { get; set; }
 
     /// <summary>
+    /// Deferred altitude report armed by <c>REPORT REACHING {altitude}</c> (MSL feet): the pilot calls "level {altitude}"
+    /// or "passing {altitude} for {assigned}" when the climb or descent reaches it. One-shot; it lapses silently once the
+    /// assigned altitude no longer lies at or beyond it. Null when unarmed. Snapshot-serialized.
+    /// </summary>
+    public int? ReportReachingAltitudeFt { get; set; }
+
+    /// <summary>
+    /// Deferred altitude report armed by <c>REPORT LEAVING {altitude}</c> (MSL feet): the pilot calls "leaving {altitude}
+    /// for {assigned}" once the aircraft has moved off it. One-shot; it stays armed while the aircraft holds the altitude, and
+    /// lapses silently once the aircraft is more than 100 ft short of it with its assigned altitude also short of it.
+    /// Null when unarmed. Snapshot-serialized.
+    /// </summary>
+    public int? ReportLeavingAltitudeFt { get; set; }
+
+    /// <summary>
+    /// Whether, since <see cref="ReportLeavingAltitudeFt"/> was armed, the aircraft has been within 100 ft of it (at a sample,
+    /// at the issue altitude, or crossed during the reaction delay). REPORT LEAVING fires only once this is set, so a report
+    /// armed past the altitude never fires stale.
+    /// Snapshot-serialized.
+    /// </summary>
+    public bool ReportLeavingNearSideSeen { get; set; }
+
+    /// <summary>
+    /// The aircraft's altitude at the previous report sample while <see cref="ReportReachingAltitudeFt"/> is armed, so a
+    /// crossing between two one-second samples is caught. Snapshot-serialized, so a restore between samples neither misses
+    /// nor repeats the call.
+    /// </summary>
+    public double? ReportLastSampleAltitudeFt { get; set; }
+
+    /// <summary>
     /// Clears every armed deferred report. Called by <c>REPORT OFF</c> and on full-stop landing
     /// (a touch-and-go deliberately does NOT clear, so pattern-leg reports re-arm next circuit).
     /// </summary>
@@ -158,6 +188,10 @@ public class AircraftApproachState
         ReportAtFixName = null;
         ReportAtFixLat = null;
         ReportAtFixLon = null;
+        ReportReachingAltitudeFt = null;
+        ReportLeavingAltitudeFt = null;
+        ReportLeavingNearSideSeen = false;
+        ReportLastSampleAltitudeFt = null;
     }
 
     public AircraftApproachStateDto ToSnapshot() =>
@@ -184,6 +218,10 @@ public class AircraftApproachState
             ReportAtFixName = ReportAtFixName,
             ReportAtFixLat = ReportAtFixLat,
             ReportAtFixLon = ReportAtFixLon,
+            ReportReachingAltitudeFt = ReportReachingAltitudeFt,
+            ReportLeavingAltitudeFt = ReportLeavingAltitudeFt,
+            ReportLeavingNearSideSeen = ReportLeavingNearSideSeen,
+            ReportLastSampleAltitudeFt = ReportLastSampleAltitudeFt,
         };
 
     public static AircraftApproachState FromSnapshot(AircraftApproachStateDto dto) =>
@@ -210,5 +248,9 @@ public class AircraftApproachState
             ReportAtFixName = dto.ReportAtFixName,
             ReportAtFixLat = dto.ReportAtFixLat,
             ReportAtFixLon = dto.ReportAtFixLon,
+            ReportReachingAltitudeFt = dto.ReportReachingAltitudeFt,
+            ReportLeavingAltitudeFt = dto.ReportLeavingAltitudeFt,
+            ReportLeavingNearSideSeen = dto.ReportLeavingNearSideSeen,
+            ReportLastSampleAltitudeFt = dto.ReportLastSampleAltitudeFt,
         };
 }

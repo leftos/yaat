@@ -2985,6 +2985,8 @@ public static class CommandDescriber
             ReportTrigger.Midfield => "REPORT MIDFIELD",
             ReportTrigger.MileFinal => $"REPORT {cmd.DistanceNm} FINAL",
             ReportTrigger.AtFix => $"REPORT {cmd.FixName}",
+            ReportTrigger.ReachingAltitude => $"REPORT REACHING {cmd.AltitudeFt}",
+            ReportTrigger.LeavingAltitude => $"REPORT LEAVING {cmd.AltitudeFt}",
             ReportTrigger.Cancel => cmd.CancelTarget switch
             {
                 ReportTrigger.MileFinal => $"REPORT OFF {cmd.DistanceNm} FINAL",
@@ -3005,6 +3007,8 @@ public static class CommandDescriber
             ReportTrigger.Midfield => "Report midfield downwind",
             ReportTrigger.MileFinal => $"Report {cmd.DistanceNm}-mile final",
             ReportTrigger.AtFix => $"Report at {cmd.FixName}",
+            ReportTrigger.ReachingAltitude => $"Report reaching {cmd.AltitudeFt:N0}",
+            ReportTrigger.LeavingAltitude => $"Report leaving {cmd.AltitudeFt:N0}",
             ReportTrigger.Cancel => cmd.CancelTarget switch
             {
                 ReportTrigger.MileFinal => $"Cancel {cmd.DistanceNm}-mile final report",

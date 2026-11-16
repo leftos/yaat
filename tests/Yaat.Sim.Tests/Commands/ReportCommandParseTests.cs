@@ -172,6 +172,49 @@ public class ReportCommandParseTests
     [InlineData("", false)]
     public void IsReportFixName(string token, bool expected) => Assert.Equal(expected, CommandParser.IsReportFixName(token));
 
+    [Theory]
+    [InlineData("REPORT REACHING 050", ReportTrigger.ReachingAltitude, 5000)]
+    [InlineData("REPORT REACHING 5000", ReportTrigger.ReachingAltitude, 5000)]
+    [InlineData("REPORT REACHING FL250", ReportTrigger.ReachingAltitude, 25000)]
+    [InlineData("REPORT REACHING A50", ReportTrigger.ReachingAltitude, 5000)]
+    [InlineData("report reaching fl250", ReportTrigger.ReachingAltitude, 25000)]
+    [InlineData("REPORT LEAVING 050", ReportTrigger.LeavingAltitude, 5000)]
+    [InlineData("REPORT LEAVING FL250", ReportTrigger.LeavingAltitude, 25000)]
+    [InlineData("REPORT LEAVING A50", ReportTrigger.LeavingAltitude, 5000)]
+    public void Parse_ReachingAndLeaving_ResolveTheAltitude(string input, ReportTrigger trigger, int altitudeFt)
+    {
+        ReportCommand cmd = Parse(input);
+        Assert.Equal(trigger, cmd.Trigger);
+        Assert.Equal(altitudeFt, cmd.AltitudeFt);
+        Assert.Null(cmd.FixName);
+    }
+
+    [Theory]
+    [InlineData("REPORT REACHING")]
+    [InlineData("REPORT LEAVING")]
+    [InlineData("REPORT REACHING SUNOL")]
+    [InlineData("REPORT LEAVING 0")]
+    [InlineData("REPORT REACHING 050 070")]
+    public void Parse_ReachingAndLeaving_MissingOrBadAltitude_FailsWithTheUsage(string input)
+    {
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound(input);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("REPORT REACHING 050", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("REPORT LEAVING 050", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Describe_ReachingAndLeaving_NameTheAltitude_AndTheCanonicalReparses()
+    {
+        ReportCommand reaching = Parse("REPORT REACHING 050");
+        ReportCommand leaving = Parse("REPORT LEAVING FL250");
+
+        Assert.Equal("Report reaching 5,000", CommandDescriber.DescribeNatural(reaching));
+        Assert.Equal("Report leaving 25,000", CommandDescriber.DescribeNatural(leaving));
+        Assert.Equal(reaching, Parse(CommandDescriber.DescribeCommand(reaching)));
+        Assert.Equal(leaving, Parse(CommandDescriber.DescribeCommand(leaving)));
+    }
+
     [Fact]
     public void Parse_CancelMileFinal_ZeroDistance_Fails()
     {
