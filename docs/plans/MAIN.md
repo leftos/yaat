@@ -11,7 +11,6 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
-    - [/] YAAT-2373 YAAT Scope step 5a: type on the Scope: a preview area, Enter executes, a feedback area (pilot and dot commands) · release vNext
     - [ ] YAAT-2374 YAAT Scope step 5b: field menus: a field click opens a pick menu; a row click sends, Shift+click stages · release vNext
     - [ ] YAAT-2375 YAAT Scope step 5c: middle-click executes; a left-click on a track or point fills the preview · release vNext
     - [ ] YAAT-2376 YAAT Scope step 5d: measure on the Scope (Alt-drag, Ctrl+M, .rbl) · release vNext
@@ -31,8 +30,9 @@
   - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
   - [ ] YAAT-2370 Share one OpenScopeAsync test fixture across the Scope test classes · release vNext
   - [ ] YAAT-2382 YAAT Scope: the min-sep readout from the design canvas · release vNext
-  - [ ] YAAT-2383 YAAT Scope bar jumps under the pointer when a part-hidden button is pressed · release vNext
-  - [ ] YAAT-2390 YAAT Scope bar: CRC STARS-style DCB tiles (value buttons full height, the rest in half-height pairs) · release vNext
+  - [ ] YAAT-2391 YAAT Scope bar pans under a touch or pen drag during a tear-off
+  - [ ] YAAT-2392 YAAT Scope shows a .scope or .view usage error as plain text, not red
+  - [ ] YAAT-2395 YAAT Scope entry: Up, Backspace, Up, Down brings back the older half-typed text, not the edit
 - [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
@@ -1224,7 +1224,7 @@
 
 ## Client UI: views, menus and windows
 
-### 1 Defects (2/30 done)
+### 1 Defects (2/31 done)
 - [ ] YAAT-100 Fix scenario-activation leftovers: Save-As JSON paths, dead assignment
 - [ ] YAAT-159 Keep the last flight-rules situation as the classifier hysteresis input
 - [ ] YAAT-165 Async load client leftovers: early Unload refusal, stale LoadId
@@ -1253,6 +1253,7 @@
 - [ ] YAAT-1722 WindowGeometryHelper unregisters a window whose Closing was cancelled
 - [ ] YAAT-1736 Overlapping CRC alias reloads corrupt the alias table (903 of 15341 aliases until the next reload)
 - [ ] YAAT-1887 Filter the speed picker by the flown type for an aircraft with no flight plan (150-350 kt list today)
+- [ ] YAAT-2393 Report SIMRATE with a bad rate, a declined UNPAUSE and BM NEXT with no bookmark instead of staying silent
 
 ### 2 Refinements and rulings (7/18 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
