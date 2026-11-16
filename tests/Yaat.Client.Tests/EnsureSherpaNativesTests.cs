@@ -19,7 +19,7 @@ namespace Yaat.Client.Tests;
 /// lock that keeps a waiting build from re-extracting the native another build just finished. Its loopback server's
 /// Dispose must end the serve loop even when Stop cannot abort the receive that loop already entered.
 /// </summary>
-public sealed class EnsureSherpaNativesTests
+public sealed partial class EnsureSherpaNativesTests
 {
     private const string LibraryA = "sherpa-onnx-c-api.dll";
     private const string LibraryB = "onnxruntime.dll";
@@ -261,8 +261,9 @@ public sealed class EnsureSherpaNativesTests
     }
 
     // Cancels every I/O still pending on the handle, whoever issued it, so a red run frees the thread the hold stranded.
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool CancelIoEx(IntPtr file, IntPtr overlapped);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CancelIoEx(IntPtr file, IntPtr overlapped);
 
     private static EnsureSherpaNatives NewTask(string manifestPath, bool required, FakeBuildEngine engine) =>
         new()

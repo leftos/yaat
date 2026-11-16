@@ -15,7 +15,7 @@ namespace Yaat.Client.Services;
 /// few MB and contains no scenario or user data, so it is safe to attach to a bug report.
 /// Windows-only; other platforms rely on the OS hang report.
 /// </summary>
-internal static class FreezeDumpWriter
+internal static partial class FreezeDumpWriter
 {
     private static readonly ILogger Log = AppLog.CreateLogger("FreezeDumpWriter");
 
@@ -99,8 +99,9 @@ internal static class FreezeDumpWriter
         }
     }
 
-    [DllImport("Dbghelp.dll", ExactSpelling = true, SetLastError = true)]
-    private static extern bool MiniDumpWriteDump(
+    [LibraryImport("Dbghelp.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool MiniDumpWriteDump(
         IntPtr hProcess,
         uint processId,
         SafeFileHandle hFile,

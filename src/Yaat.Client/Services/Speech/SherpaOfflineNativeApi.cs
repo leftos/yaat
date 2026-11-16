@@ -8,7 +8,7 @@ namespace Yaat.Client.Services.Speech;
 /// <see cref="SherpaNativeLoader"/> registers its CUDA resolver on it, so a recognizer built here runs on the set the
 /// loader picked.
 /// </summary>
-public sealed class SherpaOfflineNativeApi : ISherpaOfflineApi
+public sealed partial class SherpaOfflineNativeApi : ISherpaOfflineApi
 {
     private const string NativeLibrary = "sherpa-onnx-c-api";
 
@@ -59,37 +59,41 @@ public sealed class SherpaOfflineNativeApi : ISherpaOfflineApi
     /// <inheritdoc />
     public void DestroyStream(IntPtr stream) => SherpaOnnxDestroyOfflineStream(stream);
 
+    // OfflineRecognizerConfig (the SherpaOnnx package's struct) holds string fields, which source-generated marshalling
+    // cannot pass without a custom marshaller, so this one keeps the runtime's built-in struct marshalling.
+#pragma warning disable SYSLIB1054
     [DllImport(NativeLibrary)]
     private static extern IntPtr SherpaOnnxCreateOfflineRecognizer(ref OfflineRecognizerConfig config);
+#pragma warning restore SYSLIB1054
 
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDestroyOfflineRecognizer(IntPtr recognizer);
+    [LibraryImport(NativeLibrary)]
+    private static partial void SherpaOnnxDestroyOfflineRecognizer(IntPtr recognizer);
 
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxCreateOfflineStream(IntPtr recognizer);
+    [LibraryImport(NativeLibrary)]
+    private static partial IntPtr SherpaOnnxCreateOfflineStream(IntPtr recognizer);
 
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxCreateOfflineStreamWithHotwords(IntPtr recognizer, [MarshalAs(UnmanagedType.LPUTF8Str)] string hotwords);
+    [LibraryImport(NativeLibrary)]
+    private static partial IntPtr SherpaOnnxCreateOfflineStreamWithHotwords(IntPtr recognizer, [MarshalAs(UnmanagedType.LPUTF8Str)] string hotwords);
 
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxOfflineStreamSetOption(
+    [LibraryImport(NativeLibrary)]
+    private static partial void SherpaOnnxOfflineStreamSetOption(
         IntPtr stream,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string key,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string value
     );
 
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxAcceptWaveformOffline(IntPtr stream, int sampleRate, float[] samples, int n);
+    [LibraryImport(NativeLibrary)]
+    private static partial void SherpaOnnxAcceptWaveformOffline(IntPtr stream, int sampleRate, float[] samples, int n);
 
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDecodeOfflineStream(IntPtr recognizer, IntPtr stream);
+    [LibraryImport(NativeLibrary)]
+    private static partial void SherpaOnnxDecodeOfflineStream(IntPtr recognizer, IntPtr stream);
 
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxGetOfflineStreamResultAsJson(IntPtr stream);
+    [LibraryImport(NativeLibrary)]
+    private static partial IntPtr SherpaOnnxGetOfflineStreamResultAsJson(IntPtr stream);
 
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDestroyOfflineStreamResultJson(IntPtr json);
+    [LibraryImport(NativeLibrary)]
+    private static partial void SherpaOnnxDestroyOfflineStreamResultJson(IntPtr json);
 
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDestroyOfflineStream(IntPtr stream);
+    [LibraryImport(NativeLibrary)]
+    private static partial void SherpaOnnxDestroyOfflineStream(IntPtr stream);
 }

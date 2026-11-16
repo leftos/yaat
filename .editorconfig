@@ -149,6 +149,7 @@ dotnet_diagnostic.CA1507.severity = warning
 dotnet_diagnostic.CA1826.severity = warning
 dotnet_diagnostic.CA1861.severity = warning
 dotnet_diagnostic.SYSLIB1045.severity = warning
+dotnet_diagnostic.SYSLIB1054.severity = warning
 
 # Test method names use underscores (Method_Condition_Result).
 [tests/**.cs]

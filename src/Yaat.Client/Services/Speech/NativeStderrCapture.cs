@@ -41,7 +41,7 @@ public sealed record SherpaGpuFallbackProbes(Func<long> SampleGpuBytes, INativeF
 /// log, copies it back to the original stderr when there was one (a terminal, journald), and keeps the latest
 /// <c>Failed to enable CUDA</c> line. macOS runs sherpa-onnx on the CPU only, so it gets no capture.
 /// </summary>
-public sealed class NativeStderrCapture : INativeFallbackSource
+public sealed partial class NativeStderrCapture : INativeFallbackSource
 {
     private const string FallbackPrefix = "Failed to enable CUDA: ";
     private const string ProvidersSeparator = ". Available providers";
@@ -284,42 +284,43 @@ public sealed class NativeStderrCapture : INativeFallbackSource
     /// <summary>The pipe's read end, and how to write a line to the stderr the process had before, when it had one.</summary>
     private sealed record Redirect(Stream Read, Func<byte[], bool>? CopyToOriginal);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr GetStdHandle(int stdHandle);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial IntPtr GetStdHandle(int stdHandle);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CreatePipe(out SafeFileHandle readPipe, out IntPtr writePipe, IntPtr attributes, uint size);
+    private static partial bool CreatePipe(out SafeFileHandle readPipe, out IntPtr writePipe, IntPtr attributes, uint size);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetStdHandle(int stdHandle, IntPtr handle);
+    private static partial bool SetStdHandle(int stdHandle, IntPtr handle);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool WriteFile(IntPtr file, byte[] buffer, int count, out int written, IntPtr overlapped);
+    private static partial bool WriteFile(IntPtr file, byte[] buffer, int count, out int written, IntPtr overlapped);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(IntPtr handle);
+    private static partial bool CloseHandle(IntPtr handle);
 
-    [DllImport("libc", EntryPoint = "pipe", SetLastError = true)]
-    private static extern int Pipe(int[] fds);
+    // The kernel writes both descriptors into the array; a source-generated array parameter is in-only unless marked [Out].
+    [LibraryImport("libc", EntryPoint = "pipe", SetLastError = true)]
+    private static partial int Pipe([Out] int[] fds);
 
-    [DllImport("libc", EntryPoint = "dup", SetLastError = true)]
-    private static extern int Dup(int fd);
+    [LibraryImport("libc", EntryPoint = "dup", SetLastError = true)]
+    private static partial int Dup(int fd);
 
-    [DllImport("libc", EntryPoint = "dup2", SetLastError = true)]
-    private static extern int Dup2(int oldFd, int newFd);
+    [LibraryImport("libc", EntryPoint = "dup2", SetLastError = true)]
+    private static partial int Dup2(int oldFd, int newFd);
 
-    [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-    private static extern int Fcntl(int fd, int command, int argument);
+    [LibraryImport("libc", EntryPoint = "fcntl", SetLastError = true)]
+    private static partial int Fcntl(int fd, int command, int argument);
 
-    [DllImport("libc", EntryPoint = "write", SetLastError = true)]
-    private static extern nint WriteFd(int fd, byte[] buffer, nint count);
+    [LibraryImport("libc", EntryPoint = "write", SetLastError = true)]
+    private static partial nint WriteFd(int fd, byte[] buffer, nint count);
 
-    [DllImport("libc", EntryPoint = "close", SetLastError = true)]
-    private static extern int CloseFd(int fd);
+    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
+    private static partial int CloseFd(int fd);
 
     /// <summary>The source when nothing captures native stderr: no fallback line ever arrives.</summary>
     private sealed class NoCapture : INativeFallbackSource
