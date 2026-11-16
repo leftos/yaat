@@ -20,11 +20,12 @@ public class ScopeCommandTests
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + " | .scope others <full|partial> | .scope auto";
+        + " | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist <0-10>";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
-    private const string BriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
+    private const string BriteUsage =
+        "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector 0-100; line4 -20-0; dwell 0-20";
 
     private static async Task<MainViewModel> MainAsync()
     {

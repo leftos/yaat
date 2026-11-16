@@ -11,7 +11,7 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsProfileTemplateRangeMapsDbViewsBritePrefThenDelTearoff()
+    public void TheBar_IsProfileTemplateRangeOthersVectorHistAutoMapsDbViewsBritePrefThenDelTearoff()
     {
         Assert.Equal(
             [
@@ -19,6 +19,8 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Template,
                 ScopeButtonId.Range,
                 ScopeButtonId.Others,
+                ScopeButtonId.Vector,
+                ScopeButtonId.Hist,
                 ScopeButtonId.Auto,
                 ScopeButtonId.Maps,
                 ScopeButtonId.Db,
@@ -30,7 +32,7 @@ public class ScopeToolbarButtonsTests
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
         Assert.Equal(
-            ["PROFILE", "TEMPLATE", "RANGE", "OTHERS", "AUTO", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
+            ["PROFILE", "TEMPLATE", "RANGE", "OTHERS", "VECTOR", "HIST", "AUTO", "MAPS", "DB", "VIEWS", "BRITE", "PREF", "DEL TEAROFF"],
             ScopeToolbarButtons.All.Select(b => b.Label)
         );
     }
@@ -68,6 +70,8 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Profile,
                 ScopeButtonId.Template,
                 ScopeButtonId.Others,
+                ScopeButtonId.Vector,
+                ScopeButtonId.Hist,
                 ScopeButtonId.Auto,
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
@@ -81,7 +85,7 @@ public class ScopeToolbarButtonsTests
     }
 
     [Fact]
-    public void Brite_IsAMenuOfTheSevenGroupSpinners_InOrder()
+    public void Brite_IsAMenuOfTheNineGroupSpinners_InOrder()
     {
         ScopeButton brite = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Brite);
 
@@ -96,11 +100,13 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.BriteLine4,
                 ScopeButtonId.BriteAlerts,
                 ScopeButtonId.BriteDwell,
+                ScopeButtonId.BriteHist,
+                ScopeButtonId.BriteVector,
             ],
             brite.Children.Select(c => c.Id)
         );
-        Assert.Equal(["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL"], brite.Children.Select(c => c.Label));
-        Assert.Equal(["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell"], brite.Children.Select(c => c.Value));
+        Assert.Equal(["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL", "HIST", "VECTOR"], brite.Children.Select(c => c.Label));
+        Assert.Equal(["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell", "hist", "vector"], brite.Children.Select(c => c.Value));
         Assert.All(brite.Children, c => Assert.Equal(ScopeButtonKind.Spinner, c.Kind));
         Assert.All(brite.Children, c => Assert.Null(c.Command));
         Assert.All(brite.Children, c => Assert.Empty(c.Children));

@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
@@ -58,7 +59,8 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Acts on a click of <paramref name="button"/>: a menu opens its tray, or closes it when it is the open one; a
     /// command button closes the tray and runs its command; a toggle runs its command with the opposite of its state and
-    /// keeps the tray open; a spinner does nothing on a click. A PREF set or SAVE button runs its command and closes the
+    /// keeps the tray open; OTHERS flips others' level, pinning it, and VECTOR flips OWN and ALL, both closing the tray; any
+    /// other spinner does nothing on a click. A PREF set or SAVE button runs its command and closes the
     /// tray; SAVE AS and RENAME type their command into the command box and close it; DELETE runs the active set's
     /// delete. RENAME and DELETE with no active set answer in the status line instead.
     /// </summary>
@@ -75,10 +77,8 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        if (button.Id == ScopeButtonId.Others)
+        if (TryPressFlip(button.Id))
         {
-            OpenMenu = null;
-            RunCommand(ScopeToolbarButtons.OthersCommand(FlippedOthersLevel()));
             return;
         }
 
@@ -112,25 +112,60 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Steps the spinner with <paramref name="id"/> by <paramref name="steps"/> wheel steps, positive for wheel up: RANGE
-    /// zooms in (<see cref="StepRange"/> by <c>-steps</c>); CHAR grows by one point a step (<see cref="StepCharSize"/>); a
-    /// BRITE spinner moves its group by <c>steps</c> times its step, through <c>.scope brite</c>: a step past the group's
-    /// limit stops at the limit, so a value typed off the step grid can be wheeled back, and a step at the limit runs no
-    /// command.
+    /// zooms in (<see cref="StepRange"/> by <c>-steps</c>); CHAR grows by one point a step (<see cref="StepCharSize"/>);
+    /// VECTOR lengthens along 0, 1, 2, 4 and 8 minutes (<see cref="StepVector"/>) and HIST adds a dot a step
+    /// (<see cref="StepHist"/>), each pinning its value; a BRITE spinner moves its group by <c>steps</c> times its step,
+    /// through <c>.scope brite</c>: a step past the group's limit stops at the limit, so a value typed off the step grid
+    /// can be wheeled back, and a step at the limit runs no command.
     /// </summary>
     public void StepSpinner(ScopeButtonId id, int steps)
     {
-        if (id == ScopeButtonId.Range)
+        switch (id)
         {
-            StepRange(-steps);
-            return;
+            case ScopeButtonId.Range:
+                StepRange(-steps);
+                return;
+            case ScopeButtonId.DbChar:
+                StepCharSize(steps);
+                return;
+            case ScopeButtonId.Vector:
+                StepVector(steps);
+                return;
+            case ScopeButtonId.Hist:
+                StepHist(steps);
+                return;
         }
 
-        if (id == ScopeButtonId.DbChar)
+        StepBrite(id, steps);
+    }
+
+    /// <summary>
+    /// The vector minutes <paramref name="steps"/> wheel steps from <paramref name="current"/> along
+    /// <see cref="VectorMinutes"/>: the first step goes to the next grid value in the wheel's direction, so a value off the
+    /// grid steps onto it, and a step past either end stops there.
+    /// </summary>
+    internal static double SteppedVectorMinutes(double current, int steps)
+    {
+        if (steps == 0)
         {
-            StepCharSize(steps);
-            return;
+            return current;
         }
 
+        // The grid is ascending: the first value above the current one sits after every value at or below it, and the last
+        // value below it is the last of those strictly below.
+        int first = (steps > 0) ? VectorMinutes.Count(m => m <= current) : (VectorMinutes.Count(m => m < current) - 1);
+        if ((first < 0) || (first >= VectorMinutes.Count))
+        {
+            return current;
+        }
+
+        int index = first + ((steps > 0) ? (steps - 1) : (steps + 1));
+        return VectorMinutes[Math.Clamp(index, 0, VectorMinutes.Count - 1)];
+    }
+
+    /// <summary>Moves the BRITE group of the spinner with <paramref name="id"/> by <paramref name="steps"/> of its steps.</summary>
+    private void StepBrite(ScopeButtonId id, int steps)
+    {
         if (ScopeToolbarButtons.BriteGroupOf(id) is not { } group)
         {
             return;
@@ -148,14 +183,16 @@ public sealed partial class ScopeViewModel
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
     /// turns on is on (<see cref="IsToggleOn"/>), a profile pick while its profile is the shown one, a command button while
     /// the template it picks is in use, a pref-set
-    /// button while its set is the active one, DEL TEAROFF while its mode is on, OTHERS while others' level is pinned and
-    /// AUTO while any band value is.
+    /// button while its set is the active one, DEL TEAROFF while its mode is on, OTHERS, VECTOR and HIST while their own
+    /// value is pinned (VECTOR's minutes; OWN or ALL never pins) and AUTO while any band value is.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Id switch
         {
             ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
             ScopeButtonId.Others => Pins.OthersLevel is not null,
+            ScopeButtonId.Vector => Pins.VectorMin is not null,
+            ScopeButtonId.Hist => Pins.History is not null,
             ScopeButtonId.Auto => Pins.Any,
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
             _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
@@ -176,38 +213,61 @@ public sealed partial class ScopeViewModel
         };
 
     /// <summary>
-    /// The value a spinner shows after its label (the range, the CHAR size, or a BRITE group's value), the active pref
-    /// set's name after PREF's label, the shown profile's name after PROFILE's, others' level in effect after OTHERS', or
-    /// null for any other button.
+    /// The value a spinner shows after its label (the range, the CHAR size, a BRITE group's value, the vector minutes in
+    /// effect with OWN or ALL, as <c>1m OWN</c>, or the history count in effect), the active pref set's name after PREF's
+    /// label, the shown profile's name after PROFILE's, others' level in effect after OTHERS', or null for any other button.
     /// </summary>
-    public string? SpinnerValue(ScopeButton button)
+    public string? SpinnerValue(ScopeButton button) =>
+        button.Id switch
+        {
+            ScopeButtonId.Pref => ActivePrefSet,
+            ScopeButtonId.Profile => ScopeProfilePicker.NameOf(ProfileKind).ToUpperInvariant(),
+            ScopeButtonId.Range => Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture),
+            ScopeButtonId.DbChar => DbSettings.CharSize.ToString(CultureInfo.InvariantCulture),
+            _ => BandValue(button.Id) ?? BriteValue(button.Id),
+        };
+
+    /// <summary>The band value in effect OTHERS, VECTOR or HIST shows after its label, or null for any other id.</summary>
+    private string? BandValue(ScopeButtonId id) =>
+        id switch
+        {
+            ScopeButtonId.Others => EffectiveBand.OthersLevel.ToUpperInvariant(),
+            ScopeButtonId.Vector => VectorValue(),
+            ScopeButtonId.Hist => EffectiveBand.History.ToString(CultureInfo.InvariantCulture),
+            _ => null,
+        };
+
+    /// <summary>VECTOR's value: the minutes in effect and OWN or ALL, as <c>1m OWN</c>.</summary>
+    private string VectorValue()
     {
-        if (button.Id == ScopeButtonId.Pref)
+        string minutes = EffectiveBand.VectorMin.ToString(CultureInfo.InvariantCulture);
+        return $"{minutes}m {ScopeVectorOwnerships.NameOf(VectorOwnership).ToUpperInvariant()}";
+    }
+
+    /// <summary>The value of the BRITE group the spinner with <paramref name="id"/> steps, or null when it is no BRITE spinner.</summary>
+    private string? BriteValue(ScopeButtonId id) =>
+        ScopeToolbarButtons.BriteGroupOf(id) is { } group ? group.Get(Brightness).ToString(CultureInfo.InvariantCulture) : null;
+
+    /// <summary>
+    /// The press of a button that flips a value, closing the tray: OTHERS runs <c>.scope others</c> with the level other
+    /// than the one in effect, VECTOR runs <c>.scope vector</c> with the other of OWN and ALL. False for any other id.
+    /// </summary>
+    private bool TryPressFlip(ScopeButtonId id)
+    {
+        string? command = id switch
         {
-            return ActivePrefSet;
+            ScopeButtonId.Others => ScopeToolbarButtons.OthersCommand(FlippedOthersLevel()),
+            ScopeButtonId.Vector => ScopeToolbarButtons.VectorOwnershipCommand(FlippedVectorOwnership()),
+            _ => null,
+        };
+        if (command is null)
+        {
+            return false;
         }
 
-        if (button.Id == ScopeButtonId.Others)
-        {
-            return EffectiveBand.OthersLevel.ToUpperInvariant();
-        }
-
-        if (button.Id == ScopeButtonId.Profile)
-        {
-            return ScopeProfilePicker.NameOf(ProfileKind).ToUpperInvariant();
-        }
-
-        if (button.Id == ScopeButtonId.Range)
-        {
-            return Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture);
-        }
-
-        if (button.Id == ScopeButtonId.DbChar)
-        {
-            return DbSettings.CharSize.ToString(CultureInfo.InvariantCulture);
-        }
-
-        return ScopeToolbarButtons.BriteGroupOf(button.Id) is { } group ? group.Get(Brightness).ToString(CultureInfo.InvariantCulture) : null;
+        OpenMenu = null;
+        RunCommand(command);
+        return true;
     }
 
     /// <summary>
@@ -235,6 +295,34 @@ public sealed partial class ScopeViewModel
         if (next != current)
         {
             RunCommand(ScopeToolbarButtons.DbCharCommand(next));
+        }
+    }
+
+    /// <summary>
+    /// Steps the vector minutes in effect by <paramref name="steps"/> along <see cref="VectorMinutes"/>
+    /// (<see cref="SteppedVectorMinutes"/>) through <c>.scope vector</c>, pinning them; a step at an end runs no command.
+    /// </summary>
+    private void StepVector(int steps)
+    {
+        double current = EffectiveBand.VectorMin;
+        double next = SteppedVectorMinutes(current, steps);
+        if (next != current)
+        {
+            RunCommand(ScopeToolbarButtons.VectorCommand(next));
+        }
+    }
+
+    /// <summary>
+    /// Steps the history count in effect by <paramref name="steps"/> dots through <c>.scope hist</c>, pinning it; a step
+    /// past 0 or <see cref="MaxHistory"/> stops there, and a step at the limit runs no command.
+    /// </summary>
+    private void StepHist(int steps)
+    {
+        int current = EffectiveBand.History;
+        int next = Math.Clamp(current + steps, 0, MaxHistory);
+        if (next != current)
+        {
+            RunCommand(ScopeToolbarButtons.HistCommand(next));
         }
     }
 

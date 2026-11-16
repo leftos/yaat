@@ -45,7 +45,7 @@ public class ScopeTearoffLayerTests
     /// </summary>
     private static void Widen(Window window)
     {
-        window.Width = 1600;
+        window.Width = 2000;
         Settle(window);
     }
 

@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
+using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
@@ -36,6 +38,51 @@ public sealed partial class ScopeViewModel
             }
             : throw new ArgumentException($"Unknown others' level '{level}'.", nameof(level));
 
+    /// <summary>
+    /// The vector lengths, in minutes, the VECTOR spinner and <c>.scope vector</c> take, ascending; 0 draws no line.
+    /// </summary>
+    internal static IReadOnlyList<double> VectorMinutes { get; } = [0, 1, 2, 4, 8];
+
+    /// <summary>The most history dots HIST takes: every sample the server keeps.</summary>
+    internal const int MaxHistory = AircraftState.PositionHistoryCapacity;
+
+    /// <summary>
+    /// The tracks vector lines draw on: the viewer's own (every track with no viewer) or all. A setting, neither banded nor
+    /// pinned, so AUTO leaves it.
+    /// </summary>
+    [ObservableProperty]
+    private ScopeVectorOwnership _vectorOwnership = ScopeVectorOwnership.Own;
+
+    /// <summary>Whether <paramref name="minutes"/> is one of <see cref="VectorMinutes"/>.</summary>
+    internal static bool IsVectorMinutes(double minutes) => VectorMinutes.Contains(minutes);
+
+    /// <summary>Whether <paramref name="count"/> is a history dot count, 0 to <see cref="MaxHistory"/>.</summary>
+    internal static bool IsHistoryCount(int count) => count is >= 0 and <= MaxHistory;
+
+    /// <summary>Pins the vector length to <paramref name="minutes"/>, as <c>.scope vector</c> does.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The minutes are none of <see cref="VectorMinutes"/>.</exception>
+    internal void PinVectorMin(double minutes) =>
+        Pins = IsVectorMinutes(minutes)
+            ? Pins with
+            {
+                VectorMin = minutes,
+            }
+            : throw new ArgumentOutOfRangeException(nameof(minutes), minutes, "Vector minutes are 0, 1, 2, 4 or 8.");
+
+    /// <summary>Pins the history dot count to <paramref name="count"/>, as <c>.scope hist</c> does.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The count is outside 0 to <see cref="MaxHistory"/>.</exception>
+    internal void PinHistory(int count) =>
+        Pins = IsHistoryCount(count)
+            ? Pins with
+            {
+                History = count,
+            }
+            : throw new ArgumentOutOfRangeException(nameof(count), count, $"History counts are 0 to {MaxHistory}.");
+
+    /// <summary>The OWN or ALL a VECTOR click flips to: the other of the current one.</summary>
+    internal ScopeVectorOwnership FlippedVectorOwnership() =>
+        (VectorOwnership == ScopeVectorOwnership.All) ? ScopeVectorOwnership.Own : ScopeVectorOwnership.All;
+
     /// <summary>Clears every pin, as <c>.scope auto</c> does, so every value follows the band again.</summary>
     internal void ClearPins() => Pins = ScopeBandPins.None;
 
@@ -66,9 +113,27 @@ public sealed partial class ScopeViewModel
         ScopeBandPins kept = Pins;
         Pins = new ScopeBandPins(
             PinOrKept(set.PinOthersLevel, IsOthersLevel, kept.OthersLevel, "others' level"),
-            PinOrKept(set.PinVectorMin, minutes => minutes >= 0, kept.VectorMin, "vector minutes"),
-            PinOrKept(set.PinHistory, count => count >= 0, kept.History, "history count"),
+            PinOrKept(set.PinVectorMin, IsVectorMinutes, kept.VectorMin, "vector minutes"),
+            PinOrKept(set.PinHistory, IsHistoryCount, kept.History, "history count"),
             PinOrKept(set.PinRings, word => word is ScopeProfile.RingsJRing or ScopeProfile.RingsDri, kept.Rings, "ring kind")
+        );
+    }
+
+    /// <summary>
+    /// Applies a pref set's OWN or ALL; a word the scope does not take keeps the current setting with a warning.
+    /// </summary>
+    private void ApplyVectorOwnership(string word)
+    {
+        if (ScopeVectorOwnerships.TryParse(word, out ScopeVectorOwnership ownership))
+        {
+            VectorOwnership = ownership;
+            return;
+        }
+
+        Log.LogWarning(
+            "A pref set draws vectors on '{Value}', which the scope does not take; keeping {Current}",
+            word,
+            ScopeVectorOwnerships.NameOf(VectorOwnership)
         );
     }
 

@@ -310,7 +310,10 @@ public class ScopeBlockLevelTests
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
             MvaFacilityId: null,
-            OthersLevel: ScopeProfile.OthersFull
+            OthersLevel: ScopeProfile.OthersFull,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0
         );
 
         var frame = ScopeFrame.Build(input);

@@ -36,7 +36,15 @@ public class ScopeBrightnessTests
     public void Lift_RaisesThePercentTowardFull(int percent, int dwell, int expected) => Assert.Equal(expected, ScopeBrightness.Lift(percent, dwell));
 
     [Fact]
-    public void Default_KeepsTodaysPixels() => Assert.Equal(new ScopeBrightness(100, 60, 100, 100, 0, 100, 20), ScopeBrightness.Default);
+    public void Default_KeepsTodaysPixels() => Assert.Equal(new ScopeBrightness(100, 60, 100, 100, 0, 100, 20, 100, 100), ScopeBrightness.Default);
+
+    [Fact]
+    public void HistAndVector_ComeAfterDwell_AndOpenAt100()
+    {
+        Assert.Equal(["dwell", "hist", "vector"], ScopeBrightness.Groups.Skip(6).Select(g => g.Name));
+        Assert.Equal(100, ScopeBrightness.Default.Hist);
+        Assert.Equal(100, ScopeBrightness.Default.Vector);
+    }
 
     [Fact]
     public void Groups_HaveTheirRangesAndSteps_InSpinnerOrder() =>
@@ -49,6 +57,8 @@ public class ScopeBrightnessTests
                 ("line4", -20, 0, 1),
                 ("alerts", 0, 100, 5),
                 ("dwell", 0, 20, 1),
+                ("hist", 0, 100, 5),
+                ("vector", 0, 100, 5),
             ],
             ScopeBrightness.Groups.Select(g => (g.Name, g.Min, g.Max, g.Step))
         );
@@ -56,9 +66,9 @@ public class ScopeBrightnessTests
     [Fact]
     public void Groups_ReadAndWriteTheirOwnMember()
     {
-        var values = new ScopeBrightness(1, 2, 3, 4, -5, 6, 7);
+        var values = new ScopeBrightness(1, 2, 3, 4, -5, 6, 7, 8, 9);
 
-        Assert.Equal([1, 2, 3, 4, -5, 6, 7], ScopeBrightness.Groups.Select(g => g.Get(values)));
+        Assert.Equal([1, 2, 3, 4, -5, 6, 7, 8, 9], ScopeBrightness.Groups.Select(g => g.Get(values)));
         foreach (ScopeBrightnessGroup group in ScopeBrightness.Groups)
         {
             ScopeBrightness written = group.With(values, 0);

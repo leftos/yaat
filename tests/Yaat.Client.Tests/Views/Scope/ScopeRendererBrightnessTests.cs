@@ -42,7 +42,16 @@ public class ScopeRendererBrightnessTests
             CenterLon = -122.0,
         };
 
-    private static ScopeFrame Frame(string templateId, string? hovered, AircraftModel? selected, params AircraftModel[] aircraft)
+    /// <summary>The vector minutes and history dots a frame draws; <see cref="None"/> draws neither.</summary>
+    private sealed record Layers(double VectorMinutes, int HistoryCount)
+    {
+        public static Layers None { get; } = new(0, 0);
+    }
+
+    private static ScopeFrame Frame(string templateId, string? hovered, AircraftModel? selected, params AircraftModel[] aircraft) =>
+        Frame(templateId, hovered, selected, Layers.None, aircraft);
+
+    private static ScopeFrame Frame(string templateId, string? hovered, AircraftModel? selected, Layers layers, AircraftModel[] aircraft)
     {
         using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
         using var paint = new SKPaint();
@@ -58,12 +67,56 @@ public class ScopeRendererBrightnessTests
             new HashSet<string>(),
             MvaFacilityId: null,
             OthersLevel: ScopeProfile.OthersFull,
+            layers.VectorMinutes,
+            ScopeVectorOwnership.All,
+            layers.HistoryCount,
             hovered
         );
         return ScopeFrame.Build(input);
     }
 
     private static ScopeFrame Stars(AircraftModel ac, bool dwelled = false) => Frame(ScopeTemplates.StarsId, dwelled ? ac.Callsign : null, null, ac);
+
+    /// <summary>A STARS frame of <paramref name="ac"/> drawing a 1-minute vector and 3 history dots.</summary>
+    private static ScopeFrame StarsWithLayers(AircraftModel ac, bool dwelled = false) =>
+        Frame(ScopeTemplates.StarsId, dwelled ? ac.Callsign : null, null, new Layers(1, 3), [ac]);
+
+    /// <summary>
+    /// A track moving due south at 250 kt (its 1-minute vector runs straight down, away from the block), with history
+    /// samples due west of it, away from the vector and the block.
+    /// </summary>
+    private static AircraftModel SouthboundWithHistory()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.TrueTrack = 180;
+        ac.PositionHistory = [.. Enumerable.Range(1, 3).Reverse().Select(i => new[] { 37.0, -122.0 - (i * 0.004) })];
+        return ac;
+    }
+
+    /// <summary>The pixels around the midpoint of the track's vector line, well clear of its symbol.</summary>
+    private static SKRectI VectorMidpoint(ScopeTrack track)
+    {
+        SKPoint end = Assert.NotNull(track.VectorEnd);
+        Assert.True(SKPoint.Distance(track.Symbol, end) > 40f, "the vector is too short to sample clear of the symbol");
+        int x = (int)MathF.Round((track.Symbol.X + end.X) / 2f);
+        int y = (int)MathF.Round((track.Symbol.Y + end.Y) / 2f);
+        return new SKRectI(x - 2, y - 1, x + 3, y + 2);
+    }
+
+    /// <summary>The pixels of each of the track's history dots.</summary>
+    private static IEnumerable<SKRectI> HistoryDotAreas(ScopeTrack track)
+    {
+        IReadOnlyList<SKPoint> dots = Assert.IsAssignableFrom<IReadOnlyList<SKPoint>>(track.History);
+        Assert.NotEmpty(dots);
+        return dots.Select(d => new SKRectI(
+            (int)MathF.Round(d.X) - 1,
+            (int)MathF.Round(d.Y) - 1,
+            (int)MathF.Round(d.X) + 2,
+            (int)MathF.Round(d.Y) + 2
+        ));
+    }
+
+    private static int MaxChannel(SKBitmap bitmap, SKRectI area) => Pixels(bitmap, area).Max(c => Math.Max(c.Red, Math.Max(c.Green, c.Blue)));
 
     private static SKBitmap Render(ScopeFrame frame, ScopeBrightness brightness) => Render(frame, brightness, [], new Dictionary<string, string>());
 
@@ -319,6 +372,92 @@ public class ScopeRendererBrightnessTests
 
         Assert.True(track.IsStale);
         Assert.True(AnyPixel(bitmap, FieldPixels(track, ScopeFieldSlot.Callsign), White), "the dwelled stale block lost its alpha");
+    }
+
+    [Fact]
+    public void Vector0_DrawsNoVectorLine_WhileVector100Does()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeTrack track = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
+        ScopeFrame frame = new(ScopeTemplates.StarsId, [track]);
+
+        using SKBitmap full = Render(frame, ScopeBrightness.Default with { Vector = 100 });
+        using SKBitmap off = Render(frame, ScopeBrightness.Default with { Vector = 0 });
+
+        Assert.True(AnyLit(full, VectorMidpoint(track)), "no vector pixel at VECTOR 100");
+        Assert.False(AnyLit(off, VectorMidpoint(track)), "a vector pixel at VECTOR 0");
+    }
+
+    [Fact]
+    public void Hist0_DrawsNoHistoryDots_WhileHist100Does()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeTrack track = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
+        ScopeFrame frame = new(ScopeTemplates.StarsId, [track]);
+
+        using SKBitmap full = Render(frame, ScopeBrightness.Default with { Hist = 100 });
+        using SKBitmap off = Render(frame, ScopeBrightness.Default with { Hist = 0 });
+
+        Assert.All(HistoryDotAreas(track), area => Assert.True(AnyLit(full, area), "a history dot drew nothing at HIST 100"));
+        Assert.All(HistoryDotAreas(track), area => Assert.False(AnyLit(off, area), "a history dot drew at HIST 0"));
+    }
+
+    [Fact]
+    public void Symbol_DrawsOverTheVectorLineThatCrossesIt()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeTrack track = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
+        int x = (int)MathF.Round(track.Symbol.X);
+        int y = (int)MathF.Round(track.Symbol.Y);
+
+        using SKBitmap bitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, [track]), ScopeBrightness.Default);
+
+        // Below the symbol the white vector runs alone; where it crosses the symbol's bottom edge the blue ring covers it.
+        Assert.True(Pixels(bitmap, new SKRectI(x - 1, y + 12, x + 2, y + 13)).Max(c => c.Red) > 200, "no white vector pixel below the symbol");
+        Assert.True(Pixels(bitmap, new SKRectI(x, y + 4, x + 1, y + 6)).All(c => c.Red < 200), "the vector line drew over the symbol");
+    }
+
+    [Fact]
+    public void StaleTrack_DrawsItsVectorAtHalfAlpha()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        AircraftModel stale = SouthboundWithHistory();
+        stale.LiveTrafficStale = true;
+        ScopeTrack freshTrack = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
+        ScopeTrack staleTrack = Assert.Single(StarsWithLayers(stale).Tracks);
+
+        using SKBitmap freshBitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, [freshTrack]), ScopeBrightness.Default);
+        using SKBitmap staleBitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, [staleTrack]), ScopeBrightness.Default);
+
+        Assert.True(staleTrack.IsStale);
+        int fresh = MaxChannel(freshBitmap, VectorMidpoint(freshTrack));
+        int half = MaxChannel(staleBitmap, VectorMidpoint(staleTrack));
+        Assert.True(fresh > 200, $"the fresh vector drew at {fresh}");
+        Assert.InRange(half, (fresh / 2) - 4, (fresh / 2) + 4);
+    }
+
+    [Fact]
+    public void Dwell_LiftsNeitherTheHistNorTheVectorGroup()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeBrightness brightness = ScopeBrightness.Default with { Hist = 50, Vector = 50, Dwell = 20 };
+        ScopeFrame plain = StarsWithLayers(SouthboundWithHistory());
+        ScopeFrame dwelled = StarsWithLayers(SouthboundWithHistory(), dwelled: true);
+        ScopeTrack plainTrack = Assert.Single(plain.Tracks);
+        ScopeTrack dwelledTrack = Assert.Single(dwelled.Tracks);
+
+        using SKBitmap plainBitmap = Render(plain, brightness);
+        using SKBitmap dwelledBitmap = Render(dwelled, brightness);
+
+        Assert.True(dwelledTrack.IsDwelled);
+        int vector = MaxChannel(dwelledBitmap, VectorMidpoint(dwelledTrack));
+        Assert.True(vector <= 140, $"the dwelled vector drew at {vector}, above VECTOR 50");
+        Assert.Equal(MaxChannel(plainBitmap, VectorMidpoint(plainTrack)), vector);
+        Assert.Equal(
+            HistoryDotAreas(plainTrack).Select(a => MaxChannel(plainBitmap, a)),
+            HistoryDotAreas(dwelledTrack).Select(a => MaxChannel(dwelledBitmap, a))
+        );
+        Assert.All(HistoryDotAreas(dwelledTrack), a => Assert.True(MaxChannel(dwelledBitmap, a) <= 140, "a dwelled history dot drew above HIST 50"));
     }
 
     [Theory]

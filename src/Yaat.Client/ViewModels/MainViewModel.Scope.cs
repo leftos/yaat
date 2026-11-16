@@ -14,14 +14,21 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    private const string ScopeUsage =
+    // The HIST range text, built from the largest count the scope takes.
+    private static readonly string ScopeHistRange = $"<0-{ScopeViewModel.MaxHistory.ToString(CultureInfo.InvariantCulture)}>";
+
+    private static readonly string ScopeUsage =
         "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + " | .scope others <full|partial> | .scope auto";
+        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}";
 
     private const string ScopeOthersUsage = "Usage: .scope others <full|partial>";
+
+    private const string ScopeVectorUsage = "Usage: .scope vector <0|1|2|4|8> | .scope vector <own|all>";
+
+    private static readonly string ScopeHistUsage = $"Usage: .scope hist {ScopeHistRange}";
 
     private const string ScopeAutoUsage = "Usage: .scope auto";
 
@@ -33,7 +40,8 @@ public partial class MainViewModel
 
     private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
 
-    private const string ScopeBriteUsage = "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts 0-100; line4 -20-0; dwell 0-20";
+    private const string ScopeBriteUsage =
+        "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector 0-100; line4 -20-0; dwell 0-20";
 
     private const string ScopeMapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
 
@@ -145,7 +153,8 @@ public partial class MainViewModel
 
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
-    /// <c>.scope tearoff</c>, <c>.scope pref</c> and <c>.scope profile</c> against <see cref="OpenScope"/>, writing the echo or the error to the
+    /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
+    /// <c>.scope vector</c> and <c>.scope hist</c> against <see cref="OpenScope"/>, writing the echo or the error to the
     /// status line.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
@@ -177,6 +186,8 @@ public partial class MainViewModel
             "PROFILE" => PickScopeProfile,
             "OTHERS" => PinScopeOthers,
             "AUTO" => ClearScopePins,
+            "VECTOR" => SetScopeVector,
+            "HIST" => PinScopeHist,
             _ => null,
         };
         if (handler is null)
@@ -415,6 +426,48 @@ public partial class MainViewModel
 
         scope.PinOthersLevel(level);
         return $"Scope others {level.ToUpperInvariant()} (pinned)";
+    }
+
+    /// <summary>
+    /// <c>.scope vector 0|1|2|4|8</c>: pins the vector minutes until <c>.scope auto</c>; <c>.scope vector own|all</c>: the
+    /// tracks vectors draw on, a setting that never pins.
+    /// </summary>
+    private static string SetScopeVector(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length != 3)
+        {
+            return ScopeVectorUsage;
+        }
+
+        if (ScopeVectorOwnerships.TryParse(parts[2], out ScopeVectorOwnership ownership))
+        {
+            scope.VectorOwnership = ownership;
+            return $"Scope vector {ScopeVectorOwnerships.NameOf(ownership).ToUpperInvariant()}";
+        }
+
+        if (!int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int minutes) || !ScopeViewModel.IsVectorMinutes(minutes))
+        {
+            return ScopeVectorUsage;
+        }
+
+        scope.PinVectorMin(minutes);
+        return $"Scope vector {minutes.ToString(CultureInfo.InvariantCulture)} MIN (pinned)";
+    }
+
+    /// <summary><c>.scope hist &lt;0-10&gt;</c>: pins the history dot count until <c>.scope auto</c>.</summary>
+    private static string PinScopeHist(ScopeViewModel scope, string[] parts)
+    {
+        if (
+            (parts.Length != 3)
+            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int count)
+            || !ScopeViewModel.IsHistoryCount(count)
+        )
+        {
+            return ScopeHistUsage;
+        }
+
+        scope.PinHistory(count);
+        return $"Scope history {count.ToString(CultureInfo.InvariantCulture)} (pinned)";
     }
 
     /// <summary><c>.scope auto</c>: clears every pinned band value, so each follows the zoom band again.</summary>

@@ -5,7 +5,7 @@ namespace Yaat.Client.Views.Scope;
 /// <summary>
 /// The Scope's BRITE groups, as CRC's ERAM brightness works (<c>RenderUtils.ApplyColorBrightness</c>,
 /// <c>Style.CalculateBrightness</c>): each percent group scales the colour channels of the layer it names; LINE 4 and DWELL
-/// are modifiers. Display state only: never saved, never sent to the server.
+/// are modifiers. Display state: kept in pref sets and the saved state, never sent to the server.
 /// </summary>
 /// <param name="MapA">The A-category video maps, 0 to 100.</param>
 /// <param name="MapB">The B-category video maps, 0 to 100.</param>
@@ -14,13 +14,15 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="Line4">The modifier added to <paramref name="Fdb"/> for the ERAM line 4, -20 to 0.</param>
 /// <param name="Alerts">The conflict, no-landing-clearance and ATPA tokens, 0 to 100.</param>
 /// <param name="Dwell">The modifier that lifts everything drawn for a dwelled track toward 100, 0 to 20.</param>
-public sealed record ScopeBrightness(int MapA, int MapB, int Targets, int Fdb, int Line4, int Alerts, int Dwell)
+/// <param name="Hist">The history dots, 0 to 100; DWELL never lifts them.</param>
+/// <param name="Vector">The vector lines, 0 to 100; DWELL never lifts them.</param>
+public sealed record ScopeBrightness(int MapA, int MapB, int Targets, int Fdb, int Line4, int Alerts, int Dwell, int Hist, int Vector)
 {
     /// <summary>The DWELL value at which a dwelled track draws at full brightness (CRC's modifier maximum).</summary>
     private const double FullDwell = 20.0;
 
     /// <summary>The values a Scope opens with; they draw today's pixels.</summary>
-    public static ScopeBrightness Default { get; } = new(100, 60, 100, 100, 0, 100, 20);
+    public static ScopeBrightness Default { get; } = new(100, 60, 100, 100, 0, 100, 20, 100, 100);
 
     /// <summary>The groups the <c>.scope brite</c> command and the BRITE spinners set, in spinner order.</summary>
     public static IReadOnlyList<ScopeBrightnessGroup> Groups { get; } =
@@ -32,6 +34,8 @@ public sealed record ScopeBrightness(int MapA, int MapB, int Targets, int Fdb, i
         new("line4", -20, 0, 1, b => b.Line4, (b, v) => b with { Line4 = v }),
         new("alerts", 0, 100, 5, b => b.Alerts, (b, v) => b with { Alerts = v }),
         new("dwell", 0, 20, 1, b => b.Dwell, (b, v) => b with { Dwell = v }),
+        new("hist", 0, 100, 5, b => b.Hist, (b, v) => b with { Hist = v }),
+        new("vector", 0, 100, 5, b => b.Vector, (b, v) => b with { Vector = v }),
     ];
 
     /// <summary>The group named <paramref name="name"/>, case-insensitive, or null.</summary>

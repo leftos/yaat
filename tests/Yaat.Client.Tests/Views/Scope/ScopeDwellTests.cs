@@ -53,6 +53,9 @@ public class ScopeDwellTests
             new HashSet<string>(),
             MvaFacilityId: null,
             othersLevel,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0,
             hovered
         );
         return ScopeFrame.Build(input);

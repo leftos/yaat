@@ -33,6 +33,9 @@ public class ScopePrefSetTests
         Assert.Equal(set.Views, loaded.Views);
         Assert.Null(loaded.Bands);
         Assert.Equal("eram", loaded.Kind);
+        Assert.Equal(4, loaded.PinVectorMin);
+        Assert.Equal(2, loaded.PinHistory);
+        Assert.Equal("all", loaded.VectorOwnership);
     }
 
     [Fact]
@@ -62,6 +65,7 @@ public class ScopePrefSetTests
                 "pinVectorMin",
                 "pinHistory",
                 "pinRings",
+                "vectorOwnership",
             ],
             document.RootElement.EnumerateObject().Select(property => property.Name)
         );
@@ -115,6 +119,22 @@ public class ScopePrefSetTests
         Assert.Empty(loaded.Views);
     }
 
+    [Fact]
+    public void MissingVectorOwnership_LoadsAsOwn()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.Equal("own", loaded.VectorOwnership);
+    }
+
     private static ScopePrefSet FullSet() =>
         new()
         {
@@ -137,6 +157,9 @@ public class ScopePrefSetTests
             Toolbar = ["range", "map15", "pref"],
             Views = ["ssa", "ca"],
             Kind = "eram",
+            PinVectorMin = 4,
+            PinHistory = 2,
+            VectorOwnership = "all",
         };
 
     private static ScopePrefSet RoundTrip(ScopePrefSet set) =>

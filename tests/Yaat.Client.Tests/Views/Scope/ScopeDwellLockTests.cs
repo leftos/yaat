@@ -62,6 +62,9 @@ public class ScopeDwellLockTests
             new HashSet<string>(),
             MvaFacilityId: null,
             OthersLevel: ScopeProfile.OthersFull,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0,
             HoveredCallsign: hovered,
             VciHoveredCallsign: vciHovered,
             LocalDwellLockedCallsigns: localLocks

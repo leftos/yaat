@@ -40,6 +40,12 @@ public enum ScopeButtonId
     /// <summary>OTHERS: shows others' block level in effect and flips it, pinning it; lit while it is pinned.</summary>
     Others,
 
+    /// <summary>VECTOR: the wheel steps the vector minutes in effect, pinning them; a click flips OWN and ALL.</summary>
+    Vector,
+
+    /// <summary>HIST: the wheel steps the history dot count in effect, pinning it.</summary>
+    Hist,
+
     /// <summary>AUTO: clears every pinned band value; lit while any is pinned.</summary>
     Auto,
 
@@ -99,6 +105,12 @@ public enum ScopeButtonId
 
     /// <summary>The BRITE menu's DWELL spinner.</summary>
     BriteDwell,
+
+    /// <summary>The BRITE menu's HIST spinner.</summary>
+    BriteHist,
+
+    /// <summary>The BRITE menu's VECTOR spinner.</summary>
+    BriteVector,
 
     /// <summary>The PREF menu; its tray holds the facility's pref sets and the pref-set actions.</summary>
     Pref,
@@ -199,6 +211,9 @@ public static class ScopeToolbarButtons
         new(ScopeButtonId.Range, "RANGE", ScopeButtonKind.Spinner, [], null, null),
         // A press runs .scope others with the level other than the one in effect: ScopeViewModel.Press builds it.
         new(ScopeButtonId.Others, "OTHERS", ScopeButtonKind.Command, [], null, null),
+        // A click runs .scope vector with the other of OWN and ALL: ScopeViewModel.Press builds it.
+        new(ScopeButtonId.Vector, "VECTOR", ScopeButtonKind.Spinner, [], null, null),
+        new(ScopeButtonId.Hist, "HIST", ScopeButtonKind.Spinner, [], null, null),
         new(ScopeButtonId.Auto, "AUTO", ScopeButtonKind.Command, [], null, AutoCommand),
         // The Scope's map toggles are facility data: ScopeViewModel.TrayChildren builds this tray.
         new(ScopeButtonId.Maps, "MAPS", ScopeButtonKind.Menu, [], null, null),
@@ -235,6 +250,8 @@ public static class ScopeToolbarButtons
                 BriteSpinner(ScopeButtonId.BriteLine4, "LINE 4", "line4"),
                 BriteSpinner(ScopeButtonId.BriteAlerts, "ALERTS", "alerts"),
                 BriteSpinner(ScopeButtonId.BriteDwell, "DWELL", "dwell"),
+                BriteSpinner(ScopeButtonId.BriteHist, "HIST", "hist"),
+                BriteSpinner(ScopeButtonId.BriteVector, "VECTOR", "vector"),
             ],
             null,
             null
@@ -342,6 +359,15 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that pins others' block level to <paramref name="level"/> (<c>full</c> or <c>partial</c>).</summary>
     public static string OthersCommand(string level) => $".scope others {level}";
+
+    /// <summary>The command that pins the vector length to <paramref name="minutes"/> minutes.</summary>
+    public static string VectorCommand(double minutes) => $".scope vector {minutes.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>The command that draws vectors on the tracks <paramref name="ownership"/> names (<c>own</c> or <c>all</c>).</summary>
+    public static string VectorOwnershipCommand(ScopeVectorOwnership ownership) => $".scope vector {ScopeVectorOwnerships.NameOf(ownership)}";
+
+    /// <summary>The command that pins the history dot count to <paramref name="count"/>.</summary>
+    public static string HistCommand(int count) => $".scope hist {count.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>The command that sets the scope's range to <paramref name="rangeNm"/> NM.</summary>
     public static string RangeCommand(int rangeNm) => $".scope range {rangeNm}";

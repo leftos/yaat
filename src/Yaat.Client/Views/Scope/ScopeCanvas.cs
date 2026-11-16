@@ -85,6 +85,18 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: ScopeProfile.OthersFull
     );
 
+    /// <summary>The vector length in effect, in minutes; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
+    public static readonly StyledProperty<double> VectorMinutesProperty = AvaloniaProperty.Register<ScopeCanvas, double>(nameof(VectorMinutes));
+
+    /// <summary>The tracks vectors draw on (OWN or ALL); read in <see cref="BuildFrame"/>, never on the render thread.</summary>
+    public static readonly StyledProperty<ScopeVectorOwnership> VectorOwnershipProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        ScopeVectorOwnership
+    >(nameof(VectorOwnership), defaultValue: ScopeVectorOwnership.Own);
+
+    /// <summary>The history dots in effect per track; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
+    public static readonly StyledProperty<int> HistoryCountProperty = AvaloniaProperty.Register<ScopeCanvas, int>(nameof(HistoryCount));
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
 
@@ -172,6 +184,24 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(OthersLevelProperty);
         set => SetValue(OthersLevelProperty, value);
+    }
+
+    public double VectorMinutes
+    {
+        get => GetValue(VectorMinutesProperty);
+        set => SetValue(VectorMinutesProperty, value);
+    }
+
+    public ScopeVectorOwnership VectorOwnership
+    {
+        get => GetValue(VectorOwnershipProperty);
+        set => SetValue(VectorOwnershipProperty, value);
+    }
+
+    public int HistoryCount
+    {
+        get => GetValue(HistoryCountProperty);
+        set => SetValue(HistoryCountProperty, value);
     }
 
     /// <summary>
@@ -265,6 +295,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             || (change.Property == TemplateIdProperty)
             || (change.Property == ViewerProperty)
             || (change.Property == OthersLevelProperty)
+            || IsLayerProperty(change.Property)
         )
         {
             _lastFrame = null;
@@ -295,6 +326,10 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             ZoomToRange();
         }
     }
+
+    /// <summary>Whether <paramref name="property"/> sets the vector or history layer, which the frame lays out.</summary>
+    private static bool IsLayerProperty(AvaloniaProperty property) =>
+        (property == VectorMinutesProperty) || (property == VectorOwnershipProperty) || (property == HistoryCountProperty);
 
     /// <summary>
     /// Watches the traffic list only while in the visual tree, so a closed scope never stays rooted by the main view
@@ -460,6 +495,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 highlighted,
                 MvaFacilityId,
                 OthersLevel,
+                VectorMinutes,
+                VectorOwnership,
+                HistoryCount,
                 _hoveredCallsign,
                 VciHoveredCallsign: _hoveredVciCallsign,
                 LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns

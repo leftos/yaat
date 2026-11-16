@@ -6,9 +6,9 @@ namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
 /// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
-/// settings, the maps that are on, the open views with their places, the tear-offs, and the profile's toolbar and
-/// views arrays. Every field holds text names rather than types from the app, so a rename in code leaves the file
-/// readable.
+/// settings, the maps that are on, the open views with their places, the tear-offs, the profile's toolbar and views
+/// arrays, the pinned band values and the vector lines' OWN or ALL. Every field holds text names rather than types from
+/// the app, so a rename in code leaves the file readable.
 /// </summary>
 public sealed record ScopePrefSet
 {
@@ -36,7 +36,7 @@ public sealed record ScopePrefSet
 
     /// <summary>
     /// The BRITE groups, keyed by group name: <c>mapa</c>, <c>mapb</c>, <c>targets</c>, <c>fdb</c>, <c>line4</c>,
-    /// <c>alerts</c> and <c>dwell</c>.
+    /// <c>alerts</c>, <c>dwell</c>, <c>hist</c> and <c>vector</c>.
     /// </summary>
     public IReadOnlyDictionary<string, int> Brightness { get; init; } = new Dictionary<string, int>();
 
@@ -81,6 +81,12 @@ public sealed record ScopePrefSet
 
     /// <summary>The pinned ring kind (<c>jring</c> or <c>dri</c>), or null when it follows the band.</summary>
     public string? PinRings { get; init; }
+
+    /// <summary>
+    /// The tracks vector lines draw on: <c>own</c> (the default, and what a set from an older build reads as) or <c>all</c>.
+    /// A setting, not a pin: it is neither banded nor cleared by AUTO.
+    /// </summary>
+    public string VectorOwnership { get; init; } = ScopeVectorOwnerships.OwnName;
 
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
     [JsonExtensionData]

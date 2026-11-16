@@ -26,6 +26,9 @@ namespace Yaat.Client.Views.Scope;
 /// The zoom band's level for tracks the viewer does not own (<see cref="Profiles.ScopeProfile.OthersFull"/> or
 /// <see cref="Profiles.ScopeProfile.OthersPartial"/>), copied on the UI thread; with no viewer every track is Full.
 /// </param>
+/// <param name="VectorMinutes">The vector length in effect, in minutes, copied on the UI thread; 0 draws no vector.</param>
+/// <param name="VectorOwnership">The tracks vectors draw on: the viewer's own (every track with no viewer) or all.</param>
+/// <param name="HistoryCount">The history dots in effect per track, copied on the UI thread; 0 draws none.</param>
 /// <param name="HoveredCallsign">The callsign of the track the pointer dwells on (<see cref="ScopeFrame.DwellAt"/>), or null.</param>
 /// <param name="VciHoveredCallsign">
 /// The callsign of the track whose VCI cell the pointer is on (<see cref="ScopeFrame.HoverAt"/>), or null; its VCI lights
@@ -46,6 +49,9 @@ public sealed record ScopeFrameInput(
     IReadOnlySet<string> HighlightedCallsigns,
     string? MvaFacilityId,
     string OthersLevel,
+    double VectorMinutes,
+    ScopeVectorOwnership VectorOwnership,
+    int HistoryCount,
     string? HoveredCallsign = null,
     string? VciHoveredCallsign = null,
     IReadOnlySet<string>? LocalDwellLockedCallsigns = null
@@ -59,6 +65,8 @@ public sealed record ScopeFrameInput(
 /// <param name="BlockColor">The block's colour role, as the presenter decided it.</param>
 /// <param name="IsStale">Whether the track is a coasting live-traffic shadow, drawn at half alpha.</param>
 /// <param name="Tint">The RPO tint that applies to the track, as the presenter decided it; it colours the symbol.</param>
+/// <param name="VectorEnd">Screen point the vector line from the symbol ends at, or null when the track draws none.</param>
+/// <param name="History">Screen points of the history dots, oldest first; null or empty when the track draws none.</param>
 /// <param name="Level">The block level the track was presented at.</param>
 /// <param name="ShowsLeader">Whether the block draws its leader, as the presenter decided it.</param>
 public sealed record ScopeTrack(
@@ -69,6 +77,8 @@ public sealed record ScopeTrack(
     ScopeBlockColor BlockColor,
     bool IsStale,
     ScopeTintRole Tint,
+    SKPoint? VectorEnd,
+    IReadOnlyList<SKPoint>? History,
     ScopeBlockLevel Level = ScopeBlockLevel.Full,
     bool ShowsLeader = true
 )
@@ -169,13 +179,22 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             return ScopeBlockLevel.Dwell;
         }
 
-        if (!EramColumn0.HasViewer(viewer) || EramColumn0.IsViewersTrack(ac, viewer))
+        if (IsOwnTrack(ac, viewer))
         {
             return ScopeBlockLevel.Full;
         }
 
         return OthersLevelFor(templateId, input.OthersLevel);
     }
+
+    /// <summary>Whether <paramref name="ac"/> counts as the viewer's own: every track does with no viewer.</summary>
+    private static bool IsOwnTrack(AircraftModel ac, ScopeViewer viewer) => !EramColumn0.HasViewer(viewer) || EramColumn0.IsViewersTrack(ac, viewer);
+
+    /// <summary>The track's vector end, when its ownership draws one (<see cref="ScopeTrackLayers.ShowsVector"/>); else null.</summary>
+    private static SKPoint? VectorEndFor(AircraftModel ac, ScopeFrameInput input) =>
+        ScopeTrackLayers.ShowsVector(input.VectorOwnership, IsOwnTrack(ac, input.Display.Viewer))
+            ? ScopeTrackLayers.VectorEnd(ac, input.VectorMinutes, input.Viewport)
+            : null;
 
     /// <summary>
     /// The block level <paramref name="othersLevel"/> gives a track drawn with <paramref name="templateId"/>: <c>partial</c>
@@ -240,6 +259,8 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             presentation.BlockColor,
             ac.LiveTrafficStale,
             presentation.Tint,
+            VectorEndFor(ac, input),
+            ScopeTrackLayers.HistoryDots(ac, input.HistoryCount, input.Viewport),
             presentation.Level,
             presentation.ShowsLeader
         );
@@ -381,15 +402,20 @@ public sealed record ScopeRenderSnapshot(
 public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOther, SKColor SelectedSymbol);
 
 /// <summary>
-/// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, then each track's symbol, leader and
-/// block. Every block field is drawn from its <see cref="FieldRect"/>; the presenter has already blanked a flashing
-/// field's off-phase text, so nothing here flashes.
+/// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's history dots, every
+/// track's vector line, then each track's symbol, leader and block. Every block field is drawn from its
+/// <see cref="FieldRect"/>; the presenter has already blanked a flashing field's off-phase text, so nothing here flashes.
 /// </summary>
 public sealed class ScopeRenderer : IDisposable
 {
     private const float SymbolRadius = 5f;
 
     private static readonly SKColor SymbolColor = new(0, 176, 255);
+
+    // The history dots' colour, as the Radar's history trails.
+    private static readonly SKColor HistoryColor = new(0, 176, 255);
+
+    private static readonly SKColor VectorColor = SKColors.White;
 
     /// <summary>The VCI's three arc radii as fractions of the largest.</summary>
     private static readonly float[] VciArcScales = [1f / 3f, 2f / 3f, 1f];
@@ -453,6 +479,15 @@ public sealed class ScopeRenderer : IDisposable
         IsAntialias = true,
     };
 
+    private readonly SKPaint _historyPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+
+    private readonly SKPaint _vectorPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
     private readonly SKPaint _textPaint = new() { IsAntialias = true };
 
     // Antialiased like today's radar strike paint, and outside the radar line style: its width comes from the font each draw.
@@ -474,7 +509,7 @@ public sealed class ScopeRenderer : IDisposable
 
     public ScopeRenderer()
     {
-        _strokePaints = [(_symbolPaint, 1.5f), (_leaderPaint, 2f), (_selectedBorderPaint, 1f), (_dwellBoxPaint, 1f)];
+        _strokePaints = [(_symbolPaint, 1.5f), (_leaderPaint, 2f), (_selectedBorderPaint, 1f), (_dwellBoxPaint, 1f), (_vectorPaint, 1f)];
     }
 
     /// <summary>Draws <paramref name="snapshot"/> into <paramref name="canvas"/>.</summary>
@@ -486,11 +521,56 @@ public sealed class ScopeRenderer : IDisposable
         _videoMapRenderer.BrightnessB = snapshot.Brightness.MapB / 100f;
         _videoMapRenderer.Render(canvas, vp, snapshot.VideoMaps, snapshot.BrightnessLookup);
 
+        foreach (ScopeTrack track in snapshot.Frame.Tracks)
+        {
+            DrawHistory(canvas, track, snapshot.Brightness.Hist);
+        }
+
+        foreach (ScopeTrack track in snapshot.Frame.Tracks)
+        {
+            DrawVector(canvas, track, snapshot.Brightness.Vector);
+        }
+
         SKFont font = FontFor(snapshot.FontSize);
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
             DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
         }
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s history dots at HIST, as the Radar's history trails: the oldest faintest, the alpha
+    /// ramping to full at the newest. DWELL never lifts them.
+    /// </summary>
+    private void DrawHistory(SKCanvas canvas, ScopeTrack track, int percent)
+    {
+        if (track.History is not { Count: > 0 } dots)
+        {
+            return;
+        }
+
+        SKColor color = ScopeBrightness.Apply(HistoryColor, percent);
+        for (int i = 0; i < dots.Count; i++)
+        {
+            _historyPaint.Color = color.WithAlpha((byte)(255 * (i + 1) / dots.Count));
+            canvas.DrawCircle(dots[i].X, dots[i].Y, SymbolRadius / 2f, _historyPaint);
+        }
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s vector line from its symbol at VECTOR, at half alpha for a stale track; DWELL never
+    /// lifts it.
+    /// </summary>
+    private void DrawVector(SKCanvas canvas, ScopeTrack track, int percent)
+    {
+        if (track.VectorEnd is not { } end)
+        {
+            return;
+        }
+
+        SKColor color = ScopeBrightness.Apply(VectorColor, percent);
+        _vectorPaint.Color = track.IsStale ? color.WithAlpha(StaleAlpha) : color;
+        canvas.DrawLine(track.Symbol, end, _vectorPaint);
     }
 
     public void Dispose()
@@ -500,6 +580,8 @@ public sealed class ScopeRenderer : IDisposable
         _leaderPaint.Dispose();
         _selectedBorderPaint.Dispose();
         _dwellBoxPaint.Dispose();
+        _historyPaint.Dispose();
+        _vectorPaint.Dispose();
         _textPaint.Dispose();
         _strikethroughPaint.Dispose();
         _arrowPaint.Dispose();

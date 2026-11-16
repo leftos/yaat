@@ -305,7 +305,10 @@ public class ScopeEramColumn0Tests
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
             MvaFacilityId: null,
-            OthersLevel: ScopeProfile.OthersFull
+            OthersLevel: ScopeProfile.OthersFull,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0
         );
         return ScopeFrame.Build(input);
     }

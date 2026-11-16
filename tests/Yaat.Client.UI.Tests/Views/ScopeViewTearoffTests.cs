@@ -199,7 +199,7 @@ public class ScopeViewTearoffTests
     /// </summary>
     private static void Widen(Window window)
     {
-        window.Width = 1600;
+        window.Width = 2000;
         Settle(window);
     }
 
@@ -366,6 +366,7 @@ public class ScopeViewTearoffTests
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
+            Widen(window);
             ScopeButtonControl range = BarControl(window, ScopeButtonId.Range);
             ClickAt(window, CentreOf(range.Strip!, window));
             Assert.Contains(LayerOf(window).Children.OfType<ScopeButtonControl>(), c => !c.IsHitTestVisible);
