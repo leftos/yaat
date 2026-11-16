@@ -43,9 +43,9 @@ public sealed class HeadingModeState
 /// Draws the live heading-vector preview when <see cref="HeadingModeState"/> is active.
 ///
 /// Visual elements (mirroring EuroScope's elastic vector + anticipation arc):
-///   1. A turn arc from the aircraft's current position, curving from the current heading
-///      into the new heading (bearing aircraft -&gt; cursor). Radius = standard-rate turn radius
-///      computed from current ground speed.
+///   1. A roll-in lead drawn straight along the aircraft's current heading, then a turn arc curving
+///      into the new heading (bearing aircraft -&gt; cursor). Radius = the arc flown at the aircraft's
+///      type turn rate and current ground speed.
 ///   2. A straight line from the arc end-point to the cursor position.
 ///   3. A label near the cursor: "275M  3.2nm  0:48" (heading magnetic / distance / ETA).
 ///
@@ -53,7 +53,6 @@ public sealed class HeadingModeState
 /// </summary>
 public static class HeadingPreviewRenderer
 {
-    private const double StdTurnRateDegPerSec = 3.0;
     private const int ArcSegments = 24;
 
     private static readonly SKColor PreviewColor = new(255, 220, 80);
@@ -91,38 +90,11 @@ public static class HeadingPreviewRenderer
 
         SKPoint arcEndScreen = new(acSx, acSy);
 
-        // Arc: only meaningful if there's a course change AND the aircraft has appreciable speed.
-        if (absCourseChange >= 3.0 && ac.GroundSpeed > 30)
+        // Turn drawing: only meaningful if there's a course change AND the aircraft has appreciable speed.
+        if ((absCourseChange >= 3.0) && (ac.GroundSpeed > 30))
         {
-            double radiusNm = TurnRadiusNm(ac.GroundSpeed, StdTurnRateDegPerSec);
-            // Arc center is perpendicular to current heading, on the side of the turn.
-            double perpBearing = courseChange > 0 ? curHeadingTrue + 90 : curHeadingTrue - 90;
-            (double centerLat, double centerLon) = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, new TrueHeading(perpBearing), radiusNm);
-
-            double startBearingFromCenter = courseChange > 0 ? curHeadingTrue - 90 : curHeadingTrue + 90;
-            double endBearingFromCenter = courseChange > 0 ? newHeadingTrue - 90 : newHeadingTrue + 90;
-
-            using var arcPath = new SKPath();
-            for (int i = 0; i <= ArcSegments; i++)
-            {
-                double t = (double)i / ArcSegments;
-                double b = GeoMath.BlendBearings(startBearingFromCenter, endBearingFromCenter, t);
-                (double lat, double lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(b), radiusNm);
-                (float sx, float sy) = vp.LatLonToScreen(lat, lon);
-                if (i == 0)
-                {
-                    arcPath.MoveTo(sx, sy);
-                }
-                else
-                {
-                    arcPath.LineTo(sx, sy);
-                }
-                if (i == ArcSegments)
-                {
-                    arcEndScreen = new SKPoint(sx, sy);
-                }
-            }
-            canvas.DrawPath(arcPath, linePaint);
+            var anchor = new TurnAnchor(ac.Position, curHeadingTrue, newHeadingTrue, courseChange);
+            arcEndScreen = DrawTurn(canvas, vp, anchor, TurnFor(ac, courseChange), linePaint);
         }
 
         // Straight line from arc end (or aircraft position if no arc) to cursor.
@@ -137,6 +109,86 @@ public static class HeadingPreviewRenderer
     }
 
     /// <summary>
+    /// The turn the preview draws for <paramref name="ac"/>: the full turn rate of its type (the lookup
+    /// the sim's turns use), the arc radius at the aircraft's ground speed, and the roll-in lead a ramped
+    /// turn adds before the arc. The client has no session turn model on the wire, so the preview draws
+    /// <see cref="TurnModel.Ramp"/>, which every scenario load flies; a recording made before the ramp
+    /// flies <see cref="TurnModel.Instant"/> and has no lead. The lead is from wings level: the aircraft's
+    /// applied turn rate is not on the wire.
+    /// </summary>
+    internal static PreviewTurn TurnFor(AircraftModel ac, double courseChangeDeg)
+    {
+        double turnRateDegPerSec = AircraftPerformance.TurnRate(ac.AircraftType, ac.Category);
+        double radiusNm = TurnShape.RadiusNm(ac.GroundSpeed, turnRateDegPerSec);
+        double leadNm = TurnShape.LeadNm(new TurnLeadInput(ac.GroundSpeed, courseChangeDeg, turnRateDegPerSec, ac.Category, TurnModel.Ramp));
+        return new PreviewTurn(turnRateDegPerSec, radiusNm, leadNm);
+    }
+
+    /// <summary>
+    /// The lead's end and the arc's centre of <paramref name="turn"/> from <paramref name="anchor"/>: the lead
+    /// runs straight along the current heading, and the centre sits a radius abeam the lead's end, on the side
+    /// of the turn.
+    /// </summary>
+    internal static (LatLon LeadEnd, LatLon Center) TurnGeometry(TurnAnchor anchor, PreviewTurn turn)
+    {
+        (double leadLat, double leadLon) = GeoMath.ProjectPoint(
+            anchor.Position.Lat,
+            anchor.Position.Lon,
+            new TrueHeading(anchor.CurrentHeadingTrue),
+            turn.LeadNm
+        );
+        (double centerLat, double centerLon) = GeoMath.ProjectPoint(
+            leadLat,
+            leadLon,
+            new TrueHeading(anchor.CurrentHeadingTrue + TurnSide(anchor.CourseChange)),
+            turn.RadiusNm
+        );
+        return (new LatLon(leadLat, leadLon), new LatLon(centerLat, centerLon));
+    }
+
+    /// <summary>The bearing offset of the arc's centre from the lead's end: +90 for a right turn, -90 for a left.</summary>
+    private static double TurnSide(double courseChangeDeg) => courseChangeDeg > 0 ? 90 : -90;
+
+    /// <summary>
+    /// Draws the lead and the arc of one preview turn and returns the arc's end point on screen.
+    /// </summary>
+    private static SKPoint DrawTurn(SKCanvas canvas, MapViewport vp, TurnAnchor anchor, PreviewTurn turn, SKPaint paint)
+    {
+        (LatLon leadEnd, LatLon center) = TurnGeometry(anchor, turn);
+        (float acSx, float acSy) = vp.LatLonToScreen(anchor.Position.Lat, anchor.Position.Lon);
+        (float startSx, float startSy) = vp.LatLonToScreen(leadEnd.Lat, leadEnd.Lon);
+        if (turn.LeadNm > 0)
+        {
+            canvas.DrawLine(acSx, acSy, startSx, startSy, paint);
+        }
+
+        double side = TurnSide(anchor.CourseChange);
+        using var arcPath = new SKPath();
+        var arcEndScreen = new SKPoint(startSx, startSy);
+        for (int i = 0; i <= ArcSegments; i++)
+        {
+            double t = (double)i / ArcSegments;
+            double b = GeoMath.BlendBearings(anchor.CurrentHeadingTrue - side, anchor.TargetHeadingTrue - side, t);
+            (double lat, double lon) = GeoMath.ProjectPoint(center.Lat, center.Lon, new TrueHeading(b), turn.RadiusNm);
+            (float sx, float sy) = vp.LatLonToScreen(lat, lon);
+            if (i == 0)
+            {
+                arcPath.MoveTo(sx, sy);
+            }
+            else
+            {
+                arcPath.LineTo(sx, sy);
+            }
+            if (i == ArcSegments)
+            {
+                arcEndScreen = new SKPoint(sx, sy);
+            }
+        }
+        canvas.DrawPath(arcPath, paint);
+        return arcEndScreen;
+    }
+
+    /// <summary>
     /// Snap a magnetic heading in degrees to the nearest 5° bucket, mapped to [5, 360].
     /// Wraps so 0/360 collapse to 360 (matching the 001..360 convention used elsewhere).
     /// </summary>
@@ -145,17 +197,6 @@ public static class HeadingPreviewRenderer
         int snapped = (int)(Math.Round(magneticDeg / 5.0) * 5);
         snapped = ((snapped % 360) + 360) % 360;
         return snapped == 0 ? 360 : snapped;
-    }
-
-    private static double TurnRadiusNm(double groundSpeedKts, double turnRateDegPerSec)
-    {
-        if (groundSpeedKts <= 0)
-        {
-            return 0;
-        }
-        double turnRateRadPerSec = turnRateDegPerSec * Math.PI / 180.0;
-        double gsNmPerSec = groundSpeedKts / 3600.0;
-        return gsNmPerSec / turnRateRadPerSec;
     }
 
     private static string FormatEta(double distNm, double groundSpeedKts)
@@ -184,3 +225,15 @@ public static class HeadingPreviewRenderer
         canvas.DrawText(text, x, y, SKTextAlign.Left, style.Font, style.Paint);
     }
 }
+
+/// <summary>
+/// The turn a heading-select preview draws: the full turn rate of the aircraft's type (deg/s), the arc
+/// radius at its ground speed, and the roll-in lead flown straight from wings level before the arc starts.
+/// </summary>
+internal readonly record struct PreviewTurn(double TurnRateDegPerSec, double RadiusNm, double LeadNm);
+
+/// <summary>
+/// Where a preview turn starts and where it heads: the aircraft position, its current and target true
+/// headings, and the signed course change between them (positive right).
+/// </summary>
+internal readonly record struct TurnAnchor(LatLon Position, double CurrentHeadingTrue, double TargetHeadingTrue, double CourseChange);

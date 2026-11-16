@@ -1452,7 +1452,7 @@ Two flows are supported, mirroring EuroScope's pseudopilot UX:
 
 Headings snap to the nearest **5°** — the visual line, label, and dispatched `FH` value all reflect the same snapped value.
 
-The preview shows a turn-anticipation arc (standard rate, radius derived from current ground speed) curving from the current heading into the new heading, plus a straight line to the cursor and a label `"275M  3.2nm  0:48"` (heading magnetic / distance / ETA at current GS).
+The preview shows a short straight lead along the current heading (the roll-in), then a turn-anticipation arc into the new heading, its radius derived from current ground speed and the aircraft type's own turn rate (a jet's arc is wider than a turboprop's or piston's, a helicopter's tighter); a heading change under 3° or an aircraft at 30 kt or slower draws no arc or lead. The preview also shows a straight line to the cursor and a label `"275M  3.2nm  0:48"` (heading magnetic / distance / ETA at current GS).
 
 **Cancel** at any time with **Esc** or right-click. The mode does not commit any command if cancelled.
 

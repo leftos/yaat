@@ -24,6 +24,7 @@
 
 ### Fixed
 
+- The heading-select preview arc now matches the turn the aircraft flies: its type's own turn rate, after a short straight roll-in.
 - An aircraft cleared for an approach after a crossing restriction at a fix where a transition begins now enters there, instead of turning for an earlier transition's first fix.
 - Loading a layout saved with a maximized window now restores that window on its saved screen, and saving while maximized keeps its normal size and position.
 - A small mouse slip while clicking a EuroScope tag's heading field no longer sends a heading you did not pick.
