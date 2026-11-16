@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-2373 mock: typing on the Scope (preview area, Enter, feedback area)</title>
+<style>
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "JBM"; src: url("JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 32px 48px; min-width: 1440px; background: #181c21; color: #d4dbe2;
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+h2 { font-size: 17px; margin: 0 0 2px; color: #eef3f7; }
+h3 { font-size: 14px; margin: 18px 0 4px; color: #eef3f7; }
+.lede { max-width: 1360px; margin: 0 0 8px; color: #b8c2cb; }
+.facts { font-family: "JBM", Consolas, monospace; font-size: 12.5px; color: #9fd8ea; margin: 4px 0 0; max-width: 1360px; }
+.quotes { max-width: 1360px; margin: 10px 0 0; padding: 10px 14px; background: #10141a; border: 1px solid #2a333c; font-size: 13px; color: #aab5bf; }
+.quotes q { color: #e3e9ee; }
+.quotes .refimgs { display: flex; gap: 22px; align-items: flex-end; margin-top: 8px; }
+.quotes figure { margin: 0; }
+.quotes figcaption { font-size: 11.5px; color: #8e9aa5; }
+.lane { margin: 34px 0 0; padding-top: 16px; border-top: 1px solid #2d3640; }
+.how { margin: 2px 0 0; max-width: 1360px; }
+.worst { margin: 2px 0 0; max-width: 1360px; color: #f0c98a; }
+.persist { margin: 2px 0 0; max-width: 1360px; color: #9fd8ea; }
+.frame { margin: 14px 0 0; }
+.cap { font-size: 12.5px; color: #8e9aa5; margin: 0 0 4px; }
+.cap b { color: #d4dbe2; font-weight: 600; }
+.grid2 { display: flex; gap: 20px; flex-wrap: wrap; width: 1362px; }
+/* The window's client area: 1 CSS px = 1 DIP. The outline sits outside it so the size is exact. */
+.win { position: relative; width: 1360px; height: 800px; background: #000; overflow: hidden; outline: 1px solid #56616c; }
+.crop { position: relative; overflow: hidden; outline: 1px dashed #56616c; background: #000; }
+.crop > .win { position: absolute; outline: none; }
+.scope { position: absolute; inset: 0; }
+/* Toolbar: Border Height 45, #0a1015, Padding 6,0; buttons H28, border #22313b, fill #10181e, text #c9d4dc, JBM 12 */
+.bar { position: absolute; top: 0; left: 0; right: 0; height: 45px; background: #0a1015; padding: 0 6px; display: flex; align-items: center;
+  white-space: nowrap; overflow: hidden; z-index: 3; font: 400 12px "JBM", Consolas, monospace; }
+.btn { height: 28px; padding: 0 8px; margin: 0 2px; border: 1px solid #22313b; background: #10181e; color: #c9d4dc;
+  display: inline-flex; align-items: center; white-space: pre; flex: none; }
+.btn .arr { font-size: 9px; }
+.btn b { font-weight: 700; }
+.sep { width: 1px; height: 28px; margin: 0 4px; background: #22313b; flex: none; }
+.strip { width: 5px; flex: none; }
+/* View card (ScopeViewCard): border #22313b, header #10181e, body #0a1015, title #c9d4dc, JBM 12 */
+.card { position: absolute; z-index: 2; border: 1px solid #22313b; background: #0a1015; font: 400 12px/16px "JBM", Consolas, monospace; color: #c9d4dc; }
+.card .hdr { background: #10181e; padding: 2px 2px 2px 8px; display: flex; justify-content: space-between; height: 20px; }
+.card .hdr .btns { color: #c9d4dc; padding: 0 6px; }
+.card .body { padding: 6px 8px; }
+/* CRC STARS preview area: unboxed green text (img/stars/preview-area.png) */
+.starsPA { position: absolute; z-index: 2; font: 400 19px/19px "JBM", Consolas, monospace; color: #2fe02f; white-space: pre; }
+/* CRC ERAM MCA and RA: black box, grey border, light text (img/eram/mca.png, ra.png) */
+.eramBox { position: absolute; z-index: 2; background: #000; border: 1px solid #8a8a8a; font: 400 19px/18px "JBM", Consolas, monospace;
+  color: #e6e6e6; white-space: pre; overflow: hidden; }
+.eramBox .pa { padding: 3px 6px; min-height: 40px; }
+.eramBox .fb { border-top: 1px solid #8a8a8a; padding: 3px 6px; }
+.ok { color: #3fd06a; }
+.err { color: #ff4040; }
+.kindP { color: #E0B84A; }
+.kindS { color: #58c4e6; }
+.chip { display: inline-block; font: 700 11px/14px "JBM", Consolas, monospace; padding: 0 4px; border: 1px solid; margin-right: 6px; vertical-align: 1px; }
+.chip.P { color: #E0B84A; border-color: #E0B84A; }
+.chip.S { color: #58c4e6; border-color: #58c4e6; }
+.gloss { color: #7f8d99; }
+.cur { color: inherit; }
+/* Lane B entry view: an MCA-shaped view card */
+.entry .pv { padding: 5px 8px 4px; font-size: 13px; line-height: 18px; min-height: 45px; white-space: pre; }
+.entry .fbk { border-top: 1px solid #22313b; padding: 4px 8px 5px; font-size: 13px; line-height: 18px; min-height: 45px; white-space: pre; }
+/* Lane C strip */
+.stripC { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; height: 30px; background: #0a1015; border-top: 1px solid #22313b;
+  display: flex; align-items: center; padding: 0 10px; font: 400 13px "JBM", Consolas, monospace; color: #c9d4dc; white-space: pre; }
+.stripC .l { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.stripC .r { flex: none; padding-left: 14px; border-left: 1px solid #22313b; margin-left: 14px; }
+.callout { position: absolute; z-index: 4; font: 11.5px/1.35 "Segoe UI", sans-serif; color: #f0c98a; background: rgba(24,28,33,.92);
+  border: 1px solid #6b5a3a; padding: 2px 7px; white-space: nowrap; }
+.dim { position: absolute; z-index: 4; font: 10.5px "Segoe UI", sans-serif; color: #9fd8ea; white-space: nowrap; }
+.tear { outline: 1px dashed #E0B84A; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<h1>YAAT-2373: typing on the Scope (preview area, Enter executes, feedback area)</h1>
+<p class="lede">Owner ruling: with the YAAT Scope focused, typed text goes into a preview area drawn on the Scope; Enter executes it and its response shows in a feedback area on the Scope. The area takes scope entries (in the profile's CRC dialect) and YAAT pilot commands, and the preview names which kind it read before the entry is sent. YAAT's main command line keeps its own input. The open question is <b>where and how that area is drawn</b>: three lanes below.</p>
+<p class="lede">Every window is the Scope window's client area drawn to scale, 1 CSS px = 1 DIP, at 1360 × 800 DIP with its 45 DIP toolbar. Targets are blue symbols with white blocks as ScopeRenderer draws them; UAL238 is the selected aircraft. Each lane shows (i) typing the pilot command <code>UAL238 FH 270</code> on a STARS profile, (ii) typing the ERAM entry <code>QQ 250 UAL238</code> on an ERAM profile, (iii) after Enter: an accept, and a small frame with an error. The kind the preview names is gold for a <span class="kindP">PILOT</span> command and cyan for a <span class="kindS">scope entry</span> (here <span class="kindS">ERAM</span>), with the verb spelled out beside it (step-5 map D5: "ERAM QQ (interim altitude)" vs "PILOT …"). Dashed frames in (iii) are 1:1 crops of the same window, their window coordinates in the caption.</p>
+<p class="facts" id="measured">measuring...</p>
+<div class="quotes">
+  <b>What lane A is based on</b> (CRC docs in docs/crc/, quoted):
+  <ul style="margin:4px 0 0; padding-left: 20px;">
+    <li>STARS, stars.md:330: <q>The Preview Area is where textual commands are entered, and where the responses to various system commands are displayed. By default, the preview area is just below the SSA, but it can be repositioned by the user.</q> Its brightness is the DCB's FDB setting (stars.md:166: <q>Sets the brightness for Full Data Blocks and the preview area.</q>); <code>&lt;ESC&gt;</code> <q>Clears preview area.</q> (stars.md:1439); <code>&lt;MULTI FUNC&gt;P&lt;SLEW&gt;</code> <q>Relocate preview area.</q> (stars.md:1240).</li>
+    <li>ERAM, eram.md:42: <q>The Message Composition Area (MCA) contains two text areas: the upper Preview Area where commands are entered, and the lower Feedback Area where command processing success and error messages are displayed.</q> eram.md:58: <q><code>Esc</code> clears the Preview and Feedback areas.</q> eram.md:62: <q>The MCA cannot be suppressed, but can be repositioned by left-clicking anywhere within its boundaries.</q> Its menu (eram.md:70-73) sets PA LINES, WIDTH (characters per line), FONT and BRIGHT.</li>
+    <li>ERAM, eram.md:83: <q>The Response Area (RA) displays text outputted by commands. For example, using the QF command outputs flight plan details in the RA.</q> eram.md:85: <q>The RA cannot be suppressed, but can be repositioned</q>; eram.md:98: <q><code>Ctrl</code>+<code>Del</code> clears the Response Area.</q></li>
+    <li>Not in the docs, taken from CRC's own images below: the colours (STARS green text with no box; ERAM light text in a black box with a grey border and a rule between Preview and Feedback, a green check before ACCEPT, then the entry echoed) and the sizes (MCA 374 × 105, RA 372 × 70, width 30 characters in the MCA menu image). The docs give <b>no default position</b> for the MCA or RA; they are drawn here lower left, RA just above the MCA (an assumption). The ERAM error look is also not in the docs: drawn as the error text in red with no check (assumption); the error wording is docs/eram/error-responses.yaml's (<code>ALT FORMAT</code>).</li>
+  </ul>
+  <div class="refimgs">
+    <figure><img src="crc-stars-preview-area.png" width="157" height="63" alt="CRC STARS preview area"><figcaption>CRC STARS preview area (img/stars/preview-area.png)</figcaption></figure>
+    <figure><img src="crc-eram-mca.png" width="374" height="105" alt="CRC ERAM MCA"><figcaption>CRC ERAM MCA (img/eram/mca.png)</figcaption></figure>
+    <figure><img src="crc-eram-ra.png" width="372" height="70" alt="CRC ERAM Response Area"><figcaption>CRC ERAM Response Area (img/eram/ra.png)</figcaption></figure>
+  </div>
+</div>
+<div id="lanes"></div>
+<script>
+"use strict";
+const W = 1360, H = 800, BAR = 45;
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/* ---------- the scope underneath ---------- */
+const TARGETS = [
+  { x: 640, y: 400, cs: "UAL238", alt: "250", gs: "45", cid: "675", hx: 1, hy: 0.35, sel: true },
+  { x: 860, y: 300, cs: "DAL1182", alt: "110", gs: "28", cid: "412", hx: -1, hy: 0.2 },
+  { x: 470, y: 560, cs: "SWA2204", alt: "080", gs: "25", cid: "233", hx: 0.6, hy: -1 },
+  { x: 1010, y: 560, cs: "AAL452", alt: "170", gs: "38", cid: "301", hx: -0.8, hy: -0.6 },
+  { x: 300, y: 250, cs: "JBU611", alt: "190", gs: "41", cid: "118", hx: 1, hy: 0.6 },
+  { x: 1130, y: 190, cs: "SKW5520", alt: "130", gs: "30", cid: "560", hx: -1, hy: 0.9 },
+  { x: 150, y: 715, cs: "N731PA", alt: "045", gs: "12", cid: "702", hx: 1, hy: -0.4 },
+  { x: 760, y: 788, cs: "ENY41", alt: "060", gs: "21", cid: "844", hx: 0.3, hy: -1 },
+  { x: 1220, y: 700, cs: "RPA77", alt: "070", gs: "23", cid: "509", hx: -1, hy: -0.1 },
+];
+function scopeSvg(profile) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "scope");
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  let s = "";
+  const map = [[[0, 470], [220, 430], [380, 455], [560, 380], [780, 410], [980, 330], [1360, 300]],
+               [[600, 800], [660, 620], [700, 470], [760, 330], [800, 45]],
+               [[90, 45], [180, 300], [240, 520], [320, 800]],
+               [[1000, 800], [1080, 640], [1260, 520], [1360, 470]]];
+  for (const line of map) s += '<polyline points="' + line.map(p => p.join(",")).join(" ") + '" fill="none" stroke="#2c3843" stroke-width="1"/>';
+  for (const [fx, fy, nm] of [[560, 380, "ROBUC"], [980, 330, "MERIT"], [240, 520, "TNNIS"]]) {
+    s += '<path d="M' + fx + ' ' + (fy - 5) + ' l5 9 h-10 z" fill="none" stroke="#3b4a57"/>' +
+      '<text x="' + (fx + 8) + '" y="' + (fy + 12) + '" fill="#3b4a57" font-family="JBM, Consolas, monospace" font-size="11">' + nm + '</text>';
+  }
+  for (const t of TARGETS) {
+    const n = Math.hypot(t.hx, t.hy), ux = t.hx / n, uy = t.hy / n;
+    for (let i = 5; i >= 1; i--) s += '<rect x="' + (t.x - ux * 13 * i - 2) + '" y="' + (t.y - uy * 13 * i - 2) + '" width="4" height="4" fill="rgb(0,176,255)" opacity="' + (0.65 - i * 0.1) + '"/>';
+    s += '<line x1="' + t.x + '" y1="' + t.y + '" x2="' + (t.x + ux * 30) + '" y2="' + (t.y + uy * 30) + '" stroke="#fff" stroke-width="1"/>';
+    s += '<rect x="' + (t.x - 4) + '" y="' + (t.y - 4) + '" width="8" height="8" fill="rgb(0,176,255)"/>';
+    const lines = profile === "ERAM" ? [t.cs, t.alt + "C", t.cid + " " + t.gs + "0"] : [t.cs, t.alt + " " + t.gs];
+    const bx = t.x + 22, by = t.y - 12 - (lines.length - 1) * 14;
+    s += '<line x1="' + (t.x + 5) + '" y1="' + (t.y - 5) + '" x2="' + (bx - 3) + '" y2="' + (by + 2) + '" stroke="#fff" stroke-width="1"/>';
+    lines.forEach((l, i) => { s += '<text x="' + bx + '" y="' + (by + 10 + i * 14) + '" fill="#fff" font-family="JBM, Consolas, monospace" font-size="12">' + l + '</text>'; });
+    if (t.sel) s += '<rect x="' + (bx - 3) + '" y="' + (by - 2) + '" width="' + (Math.max(...lines.map(l => l.length)) * 7.2 + 6) + '" height="' + (lines.length * 14 + 4) + '" fill="none" stroke="#fff"/>';
+  }
+  svg.innerHTML = s;
+  return svg;
+}
+
+const BUTTONS = [
+  ["PROFILE", true, "?"], ["TEMPLATE", true], ["RANGE", false, "40"], ["OTHERS", false, "PARTIAL"], ["VECTOR", false, "1m OWN"],
+  ["HIST", false, "5"], ["TOOLS", true], ["AUTO", false], ["MAPS", true], ["TDM", false], ["DB", true], ["VIEWS", true], ["BRITE", true],
+  ["PREF", true], ["DEL TEAROFF", false],
+];
+function toolbar(profile) {
+  const bar = el("div", "bar");
+  BUTTONS.forEach(([label, menu, value], i) => {
+    if (i > 0) bar.append(el("span", "sep"));
+    if (label !== "DEL TEAROFF") bar.append(el("span", "strip"));
+    const v = label === "PROFILE" ? profile : value;
+    // One inline run holder, so the space between the arrow and the value stays (a flex container drops a lone space item).
+    bar.append(el("span", "btn", '<span class="t">' + esc(label) + (menu ? '<span class="arr"> ▸</span>' : "") + (v !== undefined ? " <b>" + esc(v) + "</b>" : "") + "</span>"));
+  });
+  return bar;
+}
+function ssaCard() {
+  const c = el("div", "card", '<div class="hdr"><span>SSA</span><span class="btns">–</span></div>' +
+    '<div class="body">1749/32 30.01A<br><span style="color:#3fd06a">OK/OK/NA</span> FUSED</div>');
+  c.style.cssText = "left:12px; top:57px; width:220px;";
+  c.dataset.m = "SSA view";
+  return c;
+}
+function callout(win, x, y, html) { const c = el("div", "callout", html); c.style.left = x + "px"; c.style.top = y + "px"; win.append(c); return c; }
+
+/* ---------- the entry text pieces ---------- */
+// preview: { kind: "P"|"S", tag, gloss, text }  feedback: { ok, msg, echo }
+const PILOT = { kind: "P", tag: "PILOT", gloss: "FH fly heading", text: "UAL238 FH 270" };
+const ERAMQQ = { kind: "S", tag: "ERAM", gloss: "QQ interim altitude", text: "QQ 250 UAL238" };
+const ERAMBAD = { kind: "S", tag: "ERAM", gloss: "QQ interim altitude", text: "QQ X50 UAL238" };
+const OK_PILOT = { ok: true, msg: "ACCEPT", echo: "UAL238 FH 270" };
+const OK_QQ = { ok: true, msg: "ACCEPT", echo: "QQ 250 UAL238" };
+const ERR_QQ = { ok: false, msg: "ALT FORMAT", echo: "QQ X50 UAL238" };
+const PREV = { ok: true, msg: "ACCEPT", echo: "DAL1182 DM 110" }; // the entry before this one: still shown while typing
+const fbHtml = f => f ? (f.ok ? '<span class="ok">✓</span> ACCEPT' : '<span class="err">' + esc(f.msg) + "</span>") + "\n" + esc(f.echo) : "";
+
+/* A: dialect-native */
+function laneA(win, profile, st) {
+  if (profile === "STARS") {
+    win.append(ssaCard());
+    const pa = el("div", "starsPA");
+    pa.style.cssText = "left:16px; top:131px;";
+    pa.dataset.m = "A STARS preview area";
+    if (st.preview) pa.innerHTML = '<span class="' + (st.preview.kind === "P" ? "kindP" : "kindS") + '">' + st.preview.tag + " " + esc(st.preview.gloss) + "</span>\n" + esc(st.preview.text) + "_";
+    else if (st.feedback) pa.innerHTML = st.feedback.ok ? "ACCEPT\n" + esc(st.feedback.echo) : '<span class="err">' + esc(st.feedback.msg) + "</span>\n" + esc(st.feedback.echo);
+    win.append(pa);
+    return pa;
+  }
+  const ra = el("div", "eramBox");
+  ra.style.cssText = "left:16px; top:601px; width:372px; height:70px; padding: 3px 6px;";
+  ra.dataset.m = "A ERAM RA";
+  ra.innerHTML = '<span style="font: italic 11.5px Segoe UI, sans-serif; color: #6f7b86">Response Area: readouts such as QF land here; nothing to read out yet</span>';
+  win.append(ra);
+  const mca = el("div", "eramBox");
+  mca.style.cssText = "left:16px; top:679px; width:374px; min-height:105px;";
+  mca.dataset.m = "A ERAM MCA";
+  const pv = st.preview ? '<span class="' + (st.preview.kind === "P" ? "kindP" : "kindS") + '" style="font-size:13px">' + st.preview.tag + " " + esc(st.preview.gloss) + "</span>\n" + esc(st.preview.text) + "_" : "_";
+  mca.innerHTML = '<div class="pa">' + pv + '</div><div class="fb">' + fbHtml(st.feedback) + "</div>";
+  win.append(mca);
+  return mca;
+}
+
+/* B: one YAAT entry view, MCA-shaped, bottom-left, a tear-off */
+function laneB(win, profile, st) {
+  const c = el("div", "card entry");
+  c.style.cssText = "left:12px; bottom:12px; width:420px;";
+  c.dataset.m = "B entry view";
+  const pv = st.preview ? '<span class="chip ' + st.preview.kind + '">' + st.preview.tag + '</span><span class="gloss">' + esc(st.preview.gloss) + "</span>\n" + esc(st.preview.text) + "_" : "_";
+  c.innerHTML = '<div class="hdr"><span>ENTRY</span><span class="btns">⠿</span></div><div class="pv">' + pv + '</div><div class="fbk">' + fbHtml(st.feedback) + "</div>";
+  win.append(c);
+  return c;
+}
+
+/* C: a strip along the bottom edge, preview left, feedback right */
+function laneC(win, profile, st) {
+  const s = el("div", "stripC");
+  s.dataset.m = "C strip";
+  const pv = st.preview ? '<span class="chip ' + st.preview.kind + '">' + st.preview.tag + '</span>' + esc(st.preview.text) + "_  " + '<span class="gloss">' + esc(st.preview.gloss) + "</span>" : "_";
+  const f = st.feedback;
+  const fb = f ? (f.ok ? '<span class="ok">✓ ACCEPT</span>  ' : '<span class="err">' + esc(f.msg) + "</span>  ") + esc(f.echo) : "";
+  s.innerHTML = '<span class="l">' + pv + '</span><span class="r">' + fb + "</span>";
+  win.append(s);
+  return s;
+}
+
+function scene(lane, profile, st) {
+  const win = el("div", "win");
+  win.append(scopeSvg(profile), toolbar(profile));
+  if (lane !== "A" && profile === "STARS") win.append(ssaCard());
+  const area = { A: laneA, B: laneB, C: laneC }[lane](win, profile, st);
+  return { win, area };
+}
+
+function fullFrame(parent, caption, lane, profile, st, notes) {
+  const f = el("div", "frame");
+  f.append(el("div", "cap", caption));
+  const { win, area } = scene(lane, profile, st);
+  f.append(win);
+  parent.append(f);
+  if (notes) notes(win, area);
+  return { win, area };
+}
+function cropFrame(parent, caption, lane, profile, st, r) {
+  const f = el("div", "frame");
+  f.append(el("div", "cap", caption + ' <span style="color:#6f7b86">(crop x ' + r.x + "–" + (r.x + r.w) + ", y " + r.y + "–" + (r.y + r.h) + ", 1:1)</span>"));
+  const c = el("div", "crop");
+  c.style.width = r.w + "px"; c.style.height = r.h + "px";
+  const { win } = scene(lane, profile, st);
+  win.style.left = -r.x + "px"; win.style.top = -r.y + "px";
+  c.append(win);
+  f.append(c);
+  parent.append(f);
+}
+
+/* ---------- lanes ---------- */
+const LANES = [
+  {
+    id: "A", title: "A. Dialect-native: CRC's own areas, where CRC draws them",
+    how: "How it works: a STARS profile types into STARS's one preview area just below the SSA, where the response then replaces the entry; an ERAM profile types into ERAM's MCA (Preview over Feedback) at its place, and a readout such as QF goes to the separate Response Area. <b>Mixed follows its ERAM half</b>: the MCA and the RA.",
+    worst: "Worst case: two layouts to build and to learn; on STARS the response replaces the entry in a small unboxed area, so a long YAAT error or readout spills into more lines over the scope; and the PILOT/ERAM line is an addition neither CRC area has.",
+    persist: "Feedback stays until the next entry (the default). STARS has one area, so the response stays until the next entry's first key (or Esc). ERAM: Feedback stays while the next entry is typed and is replaced when that entry is sent; Esc clears Preview and Feedback (eram.md:58); the RA keeps its readout until the next readout or Ctrl+Del (eram.md:98).",
+    crops: { STARS: { x: 0, y: 45, w: 420, h: 150 }, ERAM: { x: 0, y: 590, w: 420, h: 210 } },
+  },
+  {
+    id: "B", title: "B. One YAAT entry view on every profile: an MCA-style box, bottom-left, movable like the views",
+    how: "How it works: one ENTRY view card on STARS, ERAM and Mixed alike: a preview (the kind it read, then the entry) over a feedback area, at the bottom-left by default, moved by dragging its title like the other Scope views (a tear-off), its place saved with the Scope prefs.",
+    worst: "Worst case: a CRC user looks where CRC puts its area (below the SSA on STARS) and finds nothing; the box covers 420 × 113 of the bottom-left scope until moved (N731PA sits under it here); a long readout (QF) needs it to grow.",
+    persist: "Feedback stays until the next entry (the default): still shown while the next entry is typed, replaced when that entry is sent; Esc clears preview and feedback.",
+    crops: { STARS: { x: 0, y: 650, w: 460, h: 150 }, ERAM: { x: 0, y: 650, w: 460, h: 150 } },
+  },
+  {
+    id: "C", title: "C. A thin entry strip along the bottom edge, full width: preview left, feedback right",
+    how: "How it works: a 30 DIP strip across the bottom of the Scope window on every profile, drawn over the scope as the toolbar is at the top: the kind it read and the entry on the left, the last response on the right.",
+    worst: "Worst case: one line each, so a multi-line response (a QF readout, a long YAAT error) is cut or makes the strip grow; it takes 30 DIP off the whole bottom edge (ENY41's target sits under it here); and it is the furthest place from where CRC puts its area.",
+    persist: "Feedback stays until the next entry (the default): the right half keeps the last response while the next entry is typed on the left, and is replaced when that entry is sent; Esc clears both.",
+    crops: { STARS: { x: 0, y: 700, w: 1360, h: 100 }, ERAM: { x: 0, y: 700, w: 1360, h: 100 } },
+  },
+];
+
+function build() {
+const lanes = document.getElementById("lanes");
+const measured = [];
+for (const L of LANES) {
+  const sec = el("section", "lane");
+  sec.id = "lane" + L.id;
+  sec.append(el("h2", null, L.title), el("p", "how", L.how), el("p", "worst", L.worst), el("p", "persist", "Feedback stays: " + L.persist.replace(/^Feedback stays /, "")));
+  lanes.append(sec);
+
+  sec.append(el("h3", null, "(i) STARS profile: the instructor has typed <code>UAL238 FH 270</code>; the preview names it a <span class=\"kindP\">PILOT</span> command"));
+  const i = fullFrame(sec, "<b>Scope window, 1360 × 800, STARS profile.</b> " + (L.id === "A" ? "Below the SSA: STARS's preview area, CRC's colours." : "The previous entry's response (DAL1182 DM 110) is still shown while this one is typed."),
+    L.id, "STARS", { preview: PILOT, feedback: L.id === "A" ? null : PREV });
+  sec.append(el("h3", null, "(ii) ERAM profile: the instructor has typed <code>QQ 250 UAL238</code>; the preview names it an <span class=\"kindS\">ERAM</span> scope entry"));
+  const ii = fullFrame(sec, "<b>Scope window, 1360 × 800, ERAM profile.</b> The previous entry's response (UAL238 FH 270) is still shown while this one is typed.",
+    L.id, "ERAM", { preview: ERAMQQ, feedback: OK_PILOT });
+
+  for (const [fr, prof] of [[i, "STARS"], [ii, "ERAM"]]) {
+    const wr = fr.win.getBoundingClientRect();
+    const boxes = [...fr.win.querySelectorAll("[data-m]")].filter(n => !n.dataset.m.startsWith("SSA"));
+    for (const n of boxes) {
+      const r = n.getBoundingClientRect();
+      const x = Math.round(r.left - wr.left), y = Math.round(r.top - wr.top), w = Math.round(r.width), h = Math.round(r.height);
+      measured.push(n.dataset.m + " (" + prof + ") " + w + "×" + h + " at " + x + "," + y);
+      const d = el("div", "dim", n.dataset.m + ": " + w + " × " + h + " at x " + x + ", y " + y);
+      d.style.left = (x + w + 8) + "px";
+      d.style.top = y + "px";
+      if (L.id === "C") { d.style.left = (W - 340) + "px"; d.style.top = (y - 20) + "px"; }
+      fr.win.append(d);
+    }
+  }
+  if (L.id === "A") {
+    callout(i.win, 240, 160, "STARS: one area for entry and response, just below the SSA (stars.md:330); the first line names the kind, as CRC's own first line names the function (img: IC)");
+    callout(ii.win, 600, 601, "ERAM: MCA = Preview over Feedback (eram.md:42); RA above it for readouts such as QF (eram.md:83). Mixed uses these two.");
+    callout(ii.win, 600, 625, "Position: the docs give none (only 'can be repositioned', eram.md:62, :85); lower left is an assumption");
+  }
+  if (L.id === "B") {
+    callout(i.win, 448, 712, "ENTRY view: dragged by its title like the other views (a tear-off); same box on STARS, ERAM and Mixed");
+    callout(ii.win, 448, 712, "Same box and place on ERAM; only the kind it read changes");
+  }
+  if (L.id === "C") {
+    callout(i.win, 12, 726, "Strip over the scope's bottom edge, full width, as the toolbar is at the top; feedback right of the divider");
+    callout(ii.win, 12, 726, "Same strip on ERAM; the kind chip reads ERAM");
+  }
+
+  sec.append(el("h3", null, "(iii) After Enter: the response in the feedback area (an accept), and an error"));
+  const g = el("div", "grid2");
+  sec.append(g);
+  if (L.id === "A") {
+    cropFrame(g, "<b>STARS, accept</b>: the response replaces the entry in the one area", "A", "STARS", { preview: null, feedback: OK_PILOT }, L.crops.STARS);
+    cropFrame(g, "<b>STARS, error</b> (<code>UAL238 FH 2700</code>)", "A", "STARS", { preview: null, feedback: { ok: false, msg: "FORMAT", echo: "UAL238 FH 2700" } }, L.crops.STARS);
+    cropFrame(g, "<b>ERAM, accept</b>: check + ACCEPT, then the entry, in Feedback", "A", "ERAM", { preview: null, feedback: OK_QQ }, L.crops.ERAM);
+    cropFrame(g, "<b>ERAM, error</b> (<code>QQ X50 UAL238</code>)", "A", "ERAM", { preview: null, feedback: ERR_QQ }, L.crops.ERAM);
+  } else {
+    cropFrame(g, "<b>ERAM, accept</b> (<code>QQ 250 UAL238</code>)", L.id, "ERAM", { preview: null, feedback: OK_QQ }, L.crops.ERAM);
+    const small = L.id === "B" ? L.crops.ERAM : { x: 0, y: 740, w: 1360, h: 60 };
+    cropFrame(g, "<b>ERAM, error</b> (<code>QQ X50 UAL238</code>)", L.id, "ERAM", { preview: null, feedback: ERR_QQ }, small);
+  }
+}
+document.getElementById("measured").textContent = "Measured in the page: " + measured.join(" · ");
+}
+// Lay out only once the mono font is in, so every measured size is the real font's.
+Promise.all([document.fonts.load("400 12px JBM"), document.fonts.load("700 12px JBM")]).then(build);
+</script>
+</body>
+</html>
