@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -315,6 +316,211 @@ public class ScopeDockTests
             scope.ApplyOpenViews([]);
 
             Assert.False(scope.HasDockedViews);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static AircraftDto QueuedDto(string callsign, string pendingCommands) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Latitude = 37.7,
+            Longitude = -122.2,
+            Heading = 90,
+            Altitude = 9000,
+            GroundSpeed = 250,
+            BeaconCode = 1200,
+            TransponderMode = "C",
+            Departure = "OAK",
+            Destination = "SFO",
+            Route = "",
+            FlightRules = "IFR",
+            Status = "Active",
+            PendingCommands = pendingCommands,
+        };
+
+    [AvaloniaFact]
+    public async Task TheRpoQueueCard_CountsItsRows_AndFollowsAnAircraftUpdate()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel ac = ScopeTestFixture.AddAircraft(main, "UAL1549", 9000);
+            ac.PendingCommands = "[Active] FH 270\n[1] AT MENLO DM 040";
+
+            main.RunViewCommand(".view rpoq on");
+            Settle(window);
+
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewRpoQueueName));
+            ScopeViewCard card = CardOf(window, ScopeToolbarButtons.ViewRpoQueueName);
+            Assert.Contains("PILOT LENS · RPO QUEUE 1", Texts(card));
+            Assert.Contains("UAL1549 AT MENLO DM 040 wait", Texts(card));
+
+            main.OnAircraftUpdated(QueuedDto("UAL1549", "[1] AT MENLO DM 040\n[2] CM 050"));
+            Settle(window);
+
+            Assert.Equal("[1] AT MENLO DM 040\n[2] CM 050", ac.PendingCommands);
+            Assert.Contains("PILOT LENS · RPO QUEUE 2", Texts(card));
+            Assert.Contains("UAL1549 CM 050 wait", Texts(card));
+
+            main.RunViewCommand(".view rpoq off");
+            Settle(window);
+
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewRpoQueueName));
+            Assert.DoesNotContain(Cards(window), c => c.ViewName == ScopeToolbarButtons.ViewRpoQueueName);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ARemovedAircraft_LeavesTheRpoQueue()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel ac = ScopeTestFixture.AddAircraft(main, "UAL1549", 9000);
+            ac.PendingCommands = "[1] AT MENLO DM 040";
+            main.RunViewCommand(".view rpoq on");
+            Settle(window);
+            ScopeViewCard card = CardOf(window, ScopeToolbarButtons.ViewRpoQueueName);
+            Assert.Contains("PILOT LENS · RPO QUEUE 1", Texts(card));
+
+            main.OnAircraftDeleted("UAL1549");
+            Settle(window);
+
+            Assert.Contains("PILOT LENS · RPO QUEUE 0", Texts(card));
+            Assert.DoesNotContain("UAL1549 AT MENLO DM 040 wait", Texts(card));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static void ViewFromSector44(MainViewModel main)
+    {
+        var sector44 = new ActivePositionDto(
+            Callsign: "OAK_44_CTR",
+            Name: "Sector 44",
+            RadioName: null,
+            Frequency: "135.100",
+            FacilityId: "ZOA",
+            FacilityName: "Oakland Center",
+            PositionType: "Artcc",
+            HandoffCode: "C44",
+            EramSectorId: "44"
+        );
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "C44", sector44, 3, NoStarsDisplay: true));
+    }
+
+    [AvaloniaFact]
+    public async Task AViewerChange_RebuildsTheOpenRpoQueue()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel ac = ScopeTestFixture.AddAircraft(main, "N123AB", 9000);
+            ac.Owner = "OAK_44_CTR";
+            ac.OwnerFacilityId = "ZOA";
+            ac.OwnerSectorCode = "C44";
+            ac.HasMadeInitialContact = false;
+            main.RunViewCommand(".view rpoq on");
+            Settle(window);
+            ScopeViewCard card = CardOf(window, ScopeToolbarButtons.ViewRpoQueueName);
+            Assert.Contains("PILOT LENS · RPO QUEUE 0", Texts(card));
+
+            ViewFromSector44(main);
+            Settle(window);
+
+            Assert.Contains("PILOT LENS · RPO QUEUE 1", Texts(card));
+            Assert.Contains("N123AB not checked in (no VCI) !", Texts(card));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AClosedRpoQueue_StopsListeningForAircraftUpdates()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.RunViewCommand(".view rpoq on");
+            RpoQueueViewModel queue = scope.DockViews.OfType<RpoQueueViewModel>().Single();
+
+            main.RunViewCommand(".view rpoq off");
+            main.OnAircraftUpdated(QueuedDto("UAL1549", "[1] AT MENLO DM 040"));
+            Settle(window);
+
+            Assert.Empty(queue.Rows);
+            Assert.Equal("PILOT LENS · RPO QUEUE 0", queue.Title);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheRpoQueueCard_SitsBelowTheConflictList()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.RunViewCommand(".view ssa dock");
+            main.RunViewCommand(".view rpoq on");
+            main.RunViewCommand(".view ca on");
+            Settle(window);
+
+            string[] order = [ScopeToolbarButtons.ViewSsaName, ScopeToolbarButtons.ViewCaName, ScopeToolbarButtons.ViewRpoQueueName];
+            Assert.Equal(order, scope.OpenViews);
+            Assert.Equal(order, Cards(window).Select(c => c.ViewName));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ClickingAnRpoQueueRow_SelectsItsAircraft_AndLeavesTheScopeFocused()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel ac = ScopeTestFixture.AddAircraft(main, "UAL1549", 9000);
+            ac.PendingCommands = "[1] AT MENLO DM 040";
+            main.RunViewCommand(".view rpoq on");
+            Settle(window);
+            ScopeCanvas canvas = CanvasOf(window);
+            Point canvasCentre = canvas.TranslatePoint(new Point(canvas.Bounds.Width / 2, canvas.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(canvasCentre, MouseButton.Left);
+            window.MouseUp(canvasCentre, MouseButton.Left);
+            Settle(window);
+            Assert.True(canvas.IsFocused);
+            Assert.Null(scope.SelectedAircraft);
+
+            TextBlock row = CardOf(window, ScopeToolbarButtons.ViewRpoQueueName)
+                .GetVisualDescendants()
+                .OfType<TextBlock>()
+                .Single(t => t.Text == "UAL1549 AT MENLO DM 040 wait");
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Point centre = row.TranslatePoint(new Point(row.Bounds.Width / 2, row.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(centre, MouseButton.Left);
+            window.MouseUp(centre, MouseButton.Left);
+            Settle(window);
+
+            Assert.Same(ac, scope.SelectedAircraft);
+            Assert.True(canvas.IsFocused);
         }
         finally
         {

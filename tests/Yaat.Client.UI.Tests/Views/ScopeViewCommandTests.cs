@@ -7,12 +7,12 @@ using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The <c>.view</c> dot command: <c>.view &lt;ssa|ca&gt; &lt;on|off&gt;</c> opens or closes a view of the open YAAT Scope and
+/// The <c>.view</c> dot command: <c>.view &lt;ssa|ca|rpoq&gt; &lt;on|off&gt;</c> opens or closes a view of the open YAAT Scope and
 /// echoes itself in the status line; the toolbar's VIEWS toggles and the cards' close buttons run the same command.
 /// </summary>
 public class ScopeViewCommandTests
 {
-    private const string Usage = "Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>";
+    private const string Usage = "Usage: .view <ssa|ca|rpoq> <on|off|dock> | .view <ssa|ca|rpoq> tear <tl|tr|bl|br> <dx> <dy>";
 
     [AvaloniaFact]
     public async Task On_OpensTheView_AndOff_ClosesIt_CaseInsensitive()

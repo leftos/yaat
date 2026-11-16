@@ -85,6 +85,9 @@ public enum ScopeButtonId
     /// <summary>The Views menu's LA/CA/MCI toggle.</summary>
     ViewCa,
 
+    /// <summary>The Views menu's RPO QUEUE toggle.</summary>
+    ViewRpoQueue,
+
     /// <summary>The TOOLS menu; its tray holds the Rings tool.</summary>
     Tools,
 
@@ -291,7 +294,11 @@ public static class ScopeToolbarButtons
             ScopeButtonId.Views,
             "VIEWS",
             ScopeButtonKind.Menu,
-            [ViewToggle(ScopeButtonId.ViewSsa, "SSA", ViewSsaName), ViewToggle(ScopeButtonId.ViewCa, "LA/CA/MCI", ViewCaName)],
+            [
+                ViewToggle(ScopeButtonId.ViewSsa, "SSA", ViewSsaName),
+                ViewToggle(ScopeButtonId.ViewCa, "LA/CA/MCI", ViewCaName),
+                ViewToggle(ScopeButtonId.ViewRpoQueue, "RPO QUEUE", ViewRpoQueueName),
+            ],
             null,
             null
         ),
@@ -338,6 +345,9 @@ public static class ScopeToolbarButtons
 
     /// <summary>The LA/CA/MCI list's view name, as <c>.view</c> takes it.</summary>
     public const string ViewCaName = "ca";
+
+    /// <summary>The pilot lens's RPO queue view name, as <c>.view</c> takes it.</summary>
+    public const string ViewRpoQueueName = "rpoq";
 
     /// <summary>The DB 4TH LINE item, as <c>.scope db</c> takes it.</summary>
     public const string DbLine4Item = "4thline";

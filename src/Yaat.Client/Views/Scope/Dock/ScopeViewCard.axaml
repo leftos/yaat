@@ -29,6 +29,22 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </DataTemplate>
+    <DataTemplate x:DataType="vm:RpoQueueViewModel">
+      <ItemsControl Margin="8,6" ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="dock:RpoQueueRow">
+            <!-- A left click on a row selects its aircraft. -->
+            <Button
+              Classes="rowButton"
+              Command="{Binding $parent[ItemsControl].((vm:RpoQueueViewModel)DataContext).SelectCommand}"
+              CommandParameter="{Binding Callsign}"
+            >
+              <TextBlock Text="{Binding Text}" Foreground="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </DataTemplate>
   </UserControl.DataTemplates>
   <UserControl.Styles>
     <Style Selector="TextBlock.ssaStatus">
@@ -36,6 +52,17 @@
     </Style>
     <Style Selector="TextBlock.ssaStatus.alert">
       <Setter Property="Foreground" Value="{x:Static dock:ScopeViewCard.AlertBrush}" />
+    </Style>
+    <Style Selector="Button.rowButton">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
     <Style Selector="Button.cardButton">
       <Setter Property="Padding" Value="6,0" />

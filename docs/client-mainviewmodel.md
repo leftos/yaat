@@ -360,7 +360,7 @@ order:
    `*T`; `.rbl A B` resolves each token via `MeasureEndpointResolver` and places a radar-view line), then
    `TryHandleScopeCommand` (`MainViewModel.Scope.cs`: `.scope range <n>` / `.scope template <id>` / `.scope brite <group> <value>` / `.scope map <id> <on|off>` / `.scope db <item> <value>` drive
    `OpenScope`, the open YAAT Scope's view model, which `MainWindow` sets and clears; toolbar clicks echo but skip
-   command history), then `TryHandleViewCommand` (`MainViewModel.Views.cs`: `.view <ssa|ca> <on|off>` opens or closes a
+   command history), then `TryHandleViewCommand` (`MainViewModel.Views.cs`: `.view <ssa|ca|rpoq> <on|off>` opens or closes a
    view in the Scope's views dock), then
    `TryHandleCrcAlias` (`MainViewModel.CrcAliases.cs`); none claiming it yields "Unknown command or alias". The
    `CRC ` prefix skips the built-in steps so a shadowed alias is still reachable.

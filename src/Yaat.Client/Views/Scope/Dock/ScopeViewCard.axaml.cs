@@ -50,7 +50,7 @@ public sealed partial class ScopeViewCard : UserControl
         PickArea.PointerPressed += OnPickAreaPressed;
     }
 
-    /// <summary>The name of the view the card shows (<c>ssa</c>, <c>ca</c>), or null before it is bound.</summary>
+    /// <summary>The name of the view the card shows (<c>ssa</c>, <c>ca</c>, <c>rpoq</c>), or null before it is bound.</summary>
     public string? ViewName => (DataContext as ScopeDockViewModel)?.Name;
 
     /// <summary>

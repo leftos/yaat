@@ -7,8 +7,8 @@ using Yaat.Client.Views.Scope.Toolbar;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The Scope's views: the SSA and the LA/CA/MCI list. An open view sits in the views dock, in a fixed order (SSA, then
-/// LA/CA/MCI), or floats on the scope at its place (<see cref="ScopeDockViewModel.Place"/>); the SSA opens floating at the
+/// The Scope's views: the SSA, the LA/CA/MCI list and the RPO queue. An open view sits in the views dock, in a fixed order
+/// (SSA, LA/CA/MCI, RPO QUEUE), or floats on the scope at its place (<see cref="ScopeDockViewModel.Place"/>); the SSA opens floating at the
 /// scope's top-left. Every writer of a view's state (<c>.view</c>, the toolbar's VIEWS toggles, a card's close and dock
 /// buttons, a card's move, a pref-set load) goes through <see cref="SetViewOpen"/>, <see cref="SetViewPlace"/>,
 /// <see cref="ApplyOpenViews"/> or <see cref="RestoreViewPlace"/>.
@@ -38,8 +38,9 @@ public sealed partial class ScopeViewModel
     /// <summary>Whether the SSA's 1 s clock is running. Test seam.</summary>
     internal bool IsClockRunning => _ssa.IsClockRunning;
 
-    /// <summary>Whether <paramref name="name"/> names a view (<c>ssa</c> or <c>ca</c>; lowercase).</summary>
-    public static bool IsViewName(string name) => name is ScopeToolbarButtons.ViewSsaName or ScopeToolbarButtons.ViewCaName;
+    /// <summary>Whether <paramref name="name"/> names a view (<c>ssa</c>, <c>ca</c> or <c>rpoq</c>; lowercase).</summary>
+    public static bool IsViewName(string name) =>
+        name is ScopeToolbarButtons.ViewSsaName or ScopeToolbarButtons.ViewCaName or ScopeToolbarButtons.ViewRpoQueueName;
 
     /// <summary>Whether the view named <paramref name="name"/> is open.</summary>
     public bool IsViewOpen(string name) => _openViews.Any(v => v.Name == name);
@@ -111,7 +112,7 @@ public sealed partial class ScopeViewModel
     private void InitViews()
     {
         _ssa = new SsaViewModel(this) { Place = new ScopePlacement(ScopeCorner.TopLeft, 8, 8) };
-        _allViews = [_ssa, new ConflictListViewModel(this)];
+        _allViews = [_ssa, new ConflictListViewModel(this), new RpoQueueViewModel(this)];
         SetViewOpen(ScopeToolbarButtons.ViewSsaName, true);
     }
 
@@ -176,8 +177,14 @@ public abstract partial class ScopeDockViewModel(ScopeViewModel scope, string na
     /// <summary>The view's name, as <c>.view</c> takes it.</summary>
     public string Name { get; } = name;
 
-    /// <summary>The title the card's header shows.</summary>
-    public string Title { get; } = title;
+    private string _title = title;
+
+    /// <summary>The title the card's header shows; a view whose title carries live data sets it.</summary>
+    public string Title
+    {
+        get => _title;
+        protected set => SetProperty(ref _title, value);
+    }
 
     /// <summary>Starts reading the view's data, as the view opens.</summary>
     internal abstract void StartReading();

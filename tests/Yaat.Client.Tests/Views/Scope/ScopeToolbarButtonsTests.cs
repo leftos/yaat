@@ -279,10 +279,10 @@ public class ScopeToolbarButtonsTests
 
         Assert.Equal(ScopeButtonKind.Menu, views.Kind);
         Assert.Null(views.Command);
-        Assert.Equal([ScopeButtonId.ViewSsa, ScopeButtonId.ViewCa], views.Children.Select(c => c.Id));
-        Assert.Equal(["SSA", "LA/CA/MCI"], views.Children.Select(c => c.Label));
-        Assert.Equal(["ssa", "ca"], views.Children.Select(c => c.Value));
-        Assert.Equal([".view ssa", ".view ca"], views.Children.Select(c => c.Command));
+        Assert.Equal([ScopeButtonId.ViewSsa, ScopeButtonId.ViewCa, ScopeButtonId.ViewRpoQueue], views.Children.Select(c => c.Id));
+        Assert.Equal(["SSA", "LA/CA/MCI", "RPO QUEUE"], views.Children.Select(c => c.Label));
+        Assert.Equal(["ssa", "ca", "rpoq"], views.Children.Select(c => c.Value));
+        Assert.Equal([".view ssa", ".view ca", ".view rpoq"], views.Children.Select(c => c.Command));
         Assert.All(views.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
     }
 

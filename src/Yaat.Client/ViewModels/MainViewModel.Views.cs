@@ -9,7 +9,7 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    private const string ViewUsage = "Usage: .view <ssa|ca> <on|off|dock> | .view <ssa|ca> tear <tl|tr|bl|br> <dx> <dy>";
+    private const string ViewUsage = "Usage: .view <ssa|ca|rpoq> <on|off|dock> | .view <ssa|ca|rpoq> tear <tl|tr|bl|br> <dx> <dy>";
 
     /// <summary>Runs a <c>.view</c> command from the Scope; nothing is added to the command history.</summary>
     public void RunViewCommand(string text) => TryHandleViewCommand(text, new CommandLineSink(this));
