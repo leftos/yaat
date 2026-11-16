@@ -840,7 +840,7 @@ The status area, a view of the Scope, open by default and floating at the scope'
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
 **TDM (YAAT Scope)**:
-Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+T in the Scope window) that draws on-ground aircraft (with the ground-target block on STARS and ERAM), below-the-display-floor aircraft and the TDM-only maps; a saved display setting, not a pin.
+Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+Shift+T in the Scope window) that draws on-ground aircraft (with the ground-target block on STARS and ERAM), below-the-display-floor aircraft and the TDM-only maps; a saved display setting, not a pin.
 
 **TDM-only map**:
 A video map vNAS flags `TdmOnly` (an airport diagram): the YAAT Scope draws it only while TDM is on, even with its toggle on; the Radar ignores the flag.

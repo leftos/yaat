@@ -19,7 +19,7 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// TDM, the Scope's top-down mode: the <c>.scope tdm</c> verb, the TDM button and Ctrl+T turn it on and off; while it is
+/// TDM, the Scope's top-down mode: the <c>.scope tdm</c> verb, the TDM button and Ctrl+Shift+T turn it on and off; while it is
 /// on the Scope draws ground targets and the TDM-only maps; pref sets and the saved state keep it.
 /// </summary>
 public class ScopeTdmTests : IDisposable
@@ -282,7 +282,7 @@ public class ScopeTdmTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task CtrlT_TogglesTdm_InTheScopeWindow()
+    public async Task CtrlShiftT_TogglesTdm_InTheScopeWindow()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         var window = new ScopeWindow(main.Preferences, scope);
@@ -291,7 +291,7 @@ public class ScopeTdmTests : IDisposable
         window.UpdateLayout();
         try
         {
-            RawInputModifiers action = PlatformHelper.IsMacOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
+            RawInputModifiers action = (PlatformHelper.IsMacOS ? RawInputModifiers.Meta : RawInputModifiers.Control) | RawInputModifiers.Shift;
 
             window.DispatchKey(Key.T, action);
 
@@ -303,6 +303,12 @@ public class ScopeTdmTests : IDisposable
 
             Assert.False(scope.IsTdm);
             Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Tdm).Classes);
+
+            RawInputModifiers plainAction = PlatformHelper.IsMacOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
+
+            window.DispatchKey(Key.T, plainAction);
+
+            Assert.False(scope.IsTdm);
 
             window.DispatchKey(Key.T);
 

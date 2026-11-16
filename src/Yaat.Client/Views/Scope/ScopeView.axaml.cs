@@ -16,7 +16,7 @@ namespace Yaat.Client.Views.Scope;
 /// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>); no field click sends a command.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
-/// nothing and toggling no lock, and Esc disarms it. Ctrl+T (Cmd+T on macOS) turns top-down mode on or off through
+/// nothing and toggling no lock, and Esc disarms it. Ctrl+Shift+T (Cmd+Shift+T on macOS) turns top-down mode on or off through
 /// <c>.scope tdm</c>, as the TDM button does. Both keys are taken by a window-level handler that runs in the tunnel, so it
 /// acts before any control inside the window sees the key.
 /// </summary>
@@ -94,7 +94,7 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc disarms an armed Rings tool and Ctrl+T flips top-down mode; any other key, or Esc with the tool disarmed, passes on.
+    // Esc disarms an armed Rings tool and Ctrl+Shift+T flips top-down mode; any other key, or Esc with the tool disarmed, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not ScopeViewModel vm)
@@ -106,7 +106,7 @@ public partial class ScopeView : UserControl
         {
             e.Handled = true;
         }
-        else if ((e.Key == Key.T) && (e.KeyModifiers == (PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control)))
+        else if ((e.Key == Key.T) && (e.KeyModifiers == ((PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control) | KeyModifiers.Shift)))
         {
             vm.RunCommand(ScopeToolbarButtons.TdmCommand(!vm.IsTdm));
             e.Handled = true;

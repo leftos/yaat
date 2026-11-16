@@ -11,7 +11,7 @@
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
 - Favorite buttons can be cut and pasted onto another slot, and Delete settings empties a button into a blank of the same place and size.
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.
-- View > Windows > YAAT Scope previews the new instructor radar: STARS, ERAM or EuroScope datablocks, a toolbar, tear-offs, per-facility pref sets, profiles picked from the student position, zoom bands that set others' block level, vector length and history dots until pinned, VECTOR (along the ground track) and HIST controls, a TOOLS tray whose Rings tool places Scope-only J-rings, cones and DRI halos, and a TDM toggle (Ctrl+T) that shows ground targets with CRC's ground-target block, and the TDM-only maps.
+- View > Windows > YAAT Scope previews the new instructor radar: STARS, ERAM or EuroScope datablocks, a toolbar, tear-offs, per-facility pref sets, profiles picked from the student position, zoom bands that set others' block level, vector length and history dots until pinned, VECTOR (along the ground track) and HIST controls, a TOOLS tray whose Rings tool places Scope-only J-rings, cones and DRI halos, and a TDM toggle (Ctrl+Shift+T) that shows ground targets with CRC's ground-target block, and the TDM-only maps.
 
 ### Changed
 

@@ -34,7 +34,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 
   The pick runs once, when the room's student position first arrives (room open or scenario load); a later `AS` keeps the profile, and the PROFILE menu changes it by hand. A position with an ERAM sector picks ERAM, a TRACON or tower position picks STARS, anything else picks Mixed. The manual pick is saved per student position type (GND, TWR, APP, CTR).
 - **Viewer.** The viewer's ERAM sector (VCI, R, dwell lock, line-3 handoff text) is the instructor's active position: the scenario's student position by default, changed with the `AS` command.
-- **Ground.** The Ground view stays as it is. Top-down mode (TDM) is a Ctrl+T toggle on the scope, never a zoom band.
+- **Ground.** The Ground view stays as it is. Top-down mode (TDM) is a Ctrl+Shift+T toggle on the scope (Ctrl+T stays Take Control), never a zoom band.
 - **Conflict alerts.** The scope mirrors the student's system rule: STARS 3 NM with a 5 s look-ahead, or ERAM's 4-minute probe that honours the datablock altitude.
 - **Typing on the Scope.** While the Scope has focus, typed text goes into a preview area drawn on the Scope, as in CRC's STARS and ERAM scopes: Enter executes, and the response shows in a feedback area on the Scope. It accepts scope entries in the profile's CRC dialect alongside YAAT pilot commands, and the preview names which kind it read before you send. YAAT's main command line keeps its own input.
 - **Field-menu pilot picks.** A plain click sends; Shift+click puts the command in the command line for editing.
