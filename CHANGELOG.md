@@ -24,6 +24,7 @@
 ### Fixed
 
 - An aircraft cleared for an approach after a crossing restriction at a fix where a transition begins now enters there, instead of turning for an earlier transition's first fix.
+- Loading a layout saved with a maximized window now restores that window on its saved screen, and saving while maximized keeps its normal size and position.
 - A small mouse slip while clicking a EuroScope tag's heading field no longer sends a heading you did not pick.
 - A new beacon code is no longer drawn for an aircraft without a flight plan: STARS answers NO FLIGHT, ERAM QB and DQ answer NO FLIGHT PLAN.
 - A quick-command flyout such as Fly heading or Maintain altitude no longer closes as the pointer reaches it after crossing All Commands or Favorite Commands.
