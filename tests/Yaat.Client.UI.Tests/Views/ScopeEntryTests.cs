@@ -140,7 +140,7 @@ public class ScopeEntryTests
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ProfileKind = ScopeProfileKind.Stars;
-        Add(main, "UAL238");
+        AddAircraft(main, "UAL238", 5000);
         await RunEntryAsync(scope, "UAL238 FH 270");
         Assert.NotNull(scope.EntryResponse);
 
@@ -155,7 +155,7 @@ public class ScopeEntryTests
     public async Task StageEntry_AfterARecall_ResetsTheHistoryIndex()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        Add(main, "UAL238");
+        AddAircraft(main, "UAL238", 5000);
         await RunEntryAsync(scope, "UAL238 FH 270");
         Assert.True(scope.WalkEntryHistory(older: true));
 
