@@ -53,13 +53,13 @@ public class ScopeDockTests
         [.. control.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? "")];
 
     [AvaloniaFact]
-    public async Task TheWindow_Opens1360Wide_WithTheDockHidden()
+    public async Task TheWindow_Opens1460Wide_WithTheDockHidden()
     {
         (_, _, ScopeWindow window) = await OpenAsync();
         try
         {
             // The SSA floats on the scope by default (ScopeViewTearoffTests), so no view is docked.
-            Assert.Equal(1360, window.Width);
+            Assert.Equal(1460, window.Width);
             Assert.False(DockOf(window).IsEffectivelyVisible);
             Assert.Equal(ContentWidth(window), CanvasOf(window).Bounds.Width);
         }

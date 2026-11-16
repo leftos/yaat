@@ -91,6 +91,7 @@ public class ScopeCanvasHitTestTests
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             hoveredCallsign
         );
         return ScopeFrame.Build(input);
@@ -299,7 +300,8 @@ public class ScopeCanvasHitTestTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
-            LocalRings: new Dictionary<string, ScopeTrackRings>()
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
         );
         return ScopeFrame.Build(input);
     }

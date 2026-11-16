@@ -251,6 +251,7 @@ public class ScopeToolbarTests
                     ScopeButtonId.Tdm,
                     ScopeButtonId.Db,
                     ScopeButtonId.Views,
+                    ScopeButtonId.Lens,
                     ScopeButtonId.Brite,
                     ScopeButtonId.Pref,
                     ScopeButtonId.DeleteTearoff,
@@ -370,7 +371,7 @@ public class ScopeToolbarTests
     private static void WheelOnce(Window window, Button button, bool up) => WheelOver(window, button, new Vector(0, up ? 1 : -1));
 
     [AvaloniaFact]
-    public async Task BriteMenu_OpensATrayOfTheTenSpinners_WithTheirValues()
+    public async Task BriteMenu_OpensATrayOfTheElevenSpinners_WithTheirValues()
     {
         (_, _, ScopeWindow window) = await OpenAsync();
         try
@@ -391,6 +392,7 @@ public class ScopeToolbarTests
                 "HIST 100",
                 "VECTOR 100",
                 "RINGS 100",
+                "LENS 100",
             ];
             Assert.Equal(expected, TrayButtons(window).Select(DrawnText));
             Assert.Equal(expected, TrayButtons(window).Select(Label));
@@ -619,6 +621,44 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
+    public async Task LensTray_TogglesTheLensAndItsPath_AndTheMenuStaysLitWhileTheLensIsOn()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Lens));
+            Assert.Equal(["ON", "PATH"], TrayButtons(window).Select(DrawnText));
+
+            Click(ButtonOf(window, ScopeButtonId.LensOn));
+            Assert.Equal("Scope lens ON", main.StatusText);
+            Assert.True(scope.Lens.Enabled);
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.LensOn).Classes);
+
+            Click(ButtonOf(window, ScopeButtonId.LensPath));
+            Assert.Equal("Scope lens path ON", main.StatusText);
+            Assert.True(scope.Lens.Path);
+
+            Click(ButtonOf(window, ScopeButtonId.LensPath));
+            Assert.Equal("Scope lens path OFF", main.StatusText);
+            Assert.False(scope.Lens.Path);
+            Assert.Equal(ScopeButtonId.Lens, scope.OpenMenu);
+
+            Click(ButtonOf(window, ScopeButtonId.Lens));
+            Assert.Null(scope.OpenMenu);
+            Assert.Contains("active", ButtonOf(window, ScopeButtonId.Lens).Classes);
+
+            Click(ButtonOf(window, ScopeButtonId.Lens));
+            Click(ButtonOf(window, ScopeButtonId.LensOn));
+            Assert.Equal("Scope lens OFF", main.StatusText);
+            Assert.False(scope.Lens.Enabled);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task DbChar_WheelStepsByOne_AndClampsAtItsLimits()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
@@ -825,7 +865,7 @@ public class ScopeToolbarTests
             Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits the default window, so there is no right chevron");
             Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
             Button[] bar = [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId)];
-            Assert.Equal(15, bar.Length);
+            Assert.Equal(16, bar.Length);
             Assert.All(
                 bar,
                 b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), row)!.Value.X <= row.Bounds.Width, $"{Label(b)} ends inside the bar")
@@ -851,6 +891,7 @@ public class ScopeToolbarTests
                 ScopeButtonId.Hist,
                 ScopeButtonId.Profile,
                 ScopeButtonId.Template,
+                ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,

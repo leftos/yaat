@@ -54,6 +54,7 @@ public class ScopeMeasureTests
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             null
         );
         return ScopeFrame.Build(input);

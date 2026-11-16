@@ -136,6 +136,18 @@ public enum ScopeButtonId
     /// <summary>The BRITE menu's RINGS spinner.</summary>
     BriteRings,
 
+    /// <summary>The BRITE menu's LENS spinner.</summary>
+    BriteLens,
+
+    /// <summary>The PILOT LENS menu; lit while the lens is on or its tray is open.</summary>
+    Lens,
+
+    /// <summary>The PILOT LENS menu's ON toggle: the lens's master switch.</summary>
+    LensOn,
+
+    /// <summary>The PILOT LENS menu's PATH toggle: the intent path overlay.</summary>
+    LensPath,
+
     /// <summary>The PREF menu; its tray holds the facility's pref sets and the pref-set actions.</summary>
     Pref,
 
@@ -278,6 +290,17 @@ public static class ScopeToolbarButtons
             null
         ),
         new(
+            ScopeButtonId.Lens,
+            "PILOT LENS",
+            ScopeButtonKind.Menu,
+            [
+                new(ScopeButtonId.LensOn, "ON", ScopeButtonKind.Toggle, [], null, LensCommandStem),
+                new(ScopeButtonId.LensPath, "PATH", ScopeButtonKind.Toggle, [], null, $"{LensCommandStem} {LensPathItem}"),
+            ],
+            null,
+            null
+        ),
+        new(
             ScopeButtonId.Brite,
             "BRITE",
             ScopeButtonKind.Menu,
@@ -292,6 +315,7 @@ public static class ScopeToolbarButtons
                 BriteSpinner(ScopeButtonId.BriteHist, "HIST", "hist"),
                 BriteSpinner(ScopeButtonId.BriteVector, "VECTOR", "vector"),
                 BriteSpinner(ScopeButtonId.BriteRings, "RINGS", "rings"),
+                BriteSpinner(ScopeButtonId.BriteLens, "LENS", "lens"),
             ],
             null,
             null
@@ -318,6 +342,12 @@ public static class ScopeToolbarButtons
 
     /// <summary>The DB CHAR item, as <c>.scope db</c> takes it.</summary>
     public const string DbCharItem = "char";
+
+    /// <summary>The pilot lens's intent path overlay, as <c>.scope lens</c> takes it.</summary>
+    public const string LensPathItem = "path";
+
+    /// <summary>The verb that turns the pilot lens on or off, without its <c>on</c> or <c>off</c>.</summary>
+    private const string LensCommandStem = ".scope lens";
 
     /// <summary>The command that turns every Scope map off (the MAPS tray's CLR ALL).</summary>
     public const string MapClearCommand = ".scope map clear";

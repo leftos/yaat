@@ -511,6 +511,7 @@ public class TrackPresenterTests
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             hovered,
             ShowTopDown: showTopDown
         );

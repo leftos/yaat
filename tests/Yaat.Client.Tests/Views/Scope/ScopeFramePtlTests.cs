@@ -54,6 +54,7 @@ public class ScopeFramePtlTests
             VectorOwnership: ownership,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             LocalPtlCallsigns: ptl
         );
         return ScopeFrame.Build(input);

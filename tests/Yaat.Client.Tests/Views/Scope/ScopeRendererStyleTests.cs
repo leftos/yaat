@@ -73,7 +73,8 @@ public class ScopeRendererStyleTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
-            LocalRings: new Dictionary<string, ScopeTrackRings>()
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
         );
         return ScopeFrame.Build(input);
     }
@@ -372,7 +373,8 @@ public class ScopeRendererStyleTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
-            LocalRings: new Dictionary<string, ScopeTrackRings>()
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
         );
         var frame = ScopeFrame.Build(input);
         FieldRect indicator = FieldOf(frame, ScopeFieldSlot.HsfIndicator);
@@ -424,7 +426,8 @@ public class ScopeRendererStyleTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
-            LocalRings: new Dictionary<string, ScopeTrackRings>()
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
         );
         return ScopeFrame.Build(input);
     }

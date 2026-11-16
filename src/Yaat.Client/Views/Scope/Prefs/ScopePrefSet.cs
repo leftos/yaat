@@ -7,8 +7,8 @@ namespace Yaat.Client.Views.Scope.Prefs;
 /// <summary>
 /// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
 /// settings, the maps that are on, the open views with their places, the tear-offs, the profile's toolbar and views
-/// arrays, the pinned band values, the vector lines' OWN or ALL and top-down mode. Every field holds text names rather than types from
-/// the app, so a rename in code leaves the file readable.
+/// arrays, the pinned band values, the vector lines' OWN or ALL, top-down mode and the pilot lens's switches. Every field
+/// holds text names rather than types from the app, so a rename in code leaves the file readable.
 /// </summary>
 public sealed record ScopePrefSet
 {
@@ -36,7 +36,7 @@ public sealed record ScopePrefSet
 
     /// <summary>
     /// The BRITE groups, keyed by group name: <c>mapa</c>, <c>mapb</c>, <c>targets</c>, <c>fdb</c>, <c>line4</c>,
-    /// <c>alerts</c>, <c>dwell</c>, <c>hist</c> and <c>vector</c>.
+    /// <c>alerts</c>, <c>dwell</c>, <c>hist</c>, <c>vector</c>, <c>rings</c> and <c>lens</c>.
     /// </summary>
     public IReadOnlyDictionary<string, int> Brightness { get; init; } = new Dictionary<string, int>();
 
@@ -91,6 +91,12 @@ public sealed record ScopePrefSet
     /// <summary>Whether top-down mode shows ground targets.</summary>
     public bool Tdm { get; init; }
 
+    /// <summary>
+    /// The pilot lens's switches, or null in a set from an older build, which loads with every switch off. The tracks whose
+    /// intent path is toggled on are never saved.
+    /// </summary>
+    public ScopePrefLens? Lens { get; init; }
+
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
@@ -117,6 +123,11 @@ public sealed record ScopePrefSet
 /// <param name="Atpa">Whether ATPA pairs are shown.</param>
 /// <param name="CharSize">The datablock character size.</param>
 public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, int CharSize);
+
+/// <summary>The pilot lens's switches.</summary>
+/// <param name="Enabled">Whether the lens is on.</param>
+/// <param name="Path">Whether its intent path overlay is on.</param>
+public sealed record ScopePrefLens(bool Enabled, bool Path);
 
 /// <summary>One view's place: docked, or torn off to a corner with a pixel offset.</summary>
 /// <param name="Name">The view name, such as <c>ssa</c> or <c>ca</c>.</param>

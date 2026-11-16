@@ -55,7 +55,8 @@ public class ScopeFrameRingsTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.All,
             HistoryCount: 0,
-            LocalRings: rings
+            LocalRings: rings,
+            IntentPaths: new ScopeIntentPathCache()
         );
         return ScopeFrame.Build(input);
     }

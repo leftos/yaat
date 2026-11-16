@@ -314,7 +314,8 @@ public class ScopeBlockLevelTests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
-            LocalRings: new Dictionary<string, ScopeTrackRings>()
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
         );
 
         var frame = ScopeFrame.Build(input);

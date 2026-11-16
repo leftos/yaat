@@ -57,6 +57,7 @@ public class ScopeDwellTests
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             hovered
         );
         return ScopeFrame.Build(input);

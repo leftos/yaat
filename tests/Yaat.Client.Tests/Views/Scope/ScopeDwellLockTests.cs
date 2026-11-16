@@ -66,6 +66,7 @@ public class ScopeDwellLockTests
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             HoveredCallsign: hovered,
             VciHoveredCallsign: vciHovered,
             LocalDwellLockedCallsigns: localLocks

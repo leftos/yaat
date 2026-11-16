@@ -309,7 +309,8 @@ public class ScopeEramColumn0Tests
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
-            LocalRings: new Dictionary<string, ScopeTrackRings>()
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
         );
         return ScopeFrame.Build(input);
     }

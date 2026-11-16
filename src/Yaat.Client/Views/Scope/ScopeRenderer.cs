@@ -3,6 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Mva;
 
@@ -49,6 +50,21 @@ namespace Yaat.Client.Views.Scope;
 /// The callsigns with a PTL on this scope (<c>ScopeViewModel.LocalPtlCallsigns</c>), copied on the UI thread; null is none.
 /// Their tracks draw a vector whatever the VECTOR ownership says.
 /// </param>
+/// <param name="LensPath">
+/// Whether the pilot lens's intent path draws (the lens and its PATH both on), copied on the UI thread; it draws for the
+/// selected aircraft and for <paramref name="LensPathCallsigns"/>.
+/// </param>
+/// <param name="LensPathCallsigns">
+/// The callsigns whose intent path is toggled on (<c>ScopeViewModel.LensPathCallsigns</c>), copied on the UI thread; null is
+/// none.
+/// </param>
+/// <param name="NavDb">
+/// The navigation database the intent path reads: null while none is loaded (then only its shapes draw) and while the lens
+/// draws no path.
+/// </param>
+/// <param name="IntentPaths">
+/// The canvas's cache of each drawn track's intent-path routes, so only the projection runs per frame.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -65,11 +81,15 @@ public sealed record ScopeFrameInput(
     ScopeVectorOwnership VectorOwnership,
     int HistoryCount,
     IReadOnlyDictionary<string, ScopeTrackRings> LocalRings,
+    ScopeIntentPathCache IntentPaths,
     string? HoveredCallsign = null,
     string? VciHoveredCallsign = null,
     IReadOnlySet<string>? LocalDwellLockedCallsigns = null,
     bool ShowTopDown = false,
-    IReadOnlySet<string>? LocalPtlCallsigns = null
+    IReadOnlySet<string>? LocalPtlCallsigns = null,
+    bool LensPath = false,
+    IReadOnlySet<string>? LensPathCallsigns = null,
+    NavigationDatabase? NavDb = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -89,6 +109,7 @@ public sealed record ScopeFrameInput(
 /// Whether the pointer dwells on the track or it is dwell-locked; a ground target's block keeps its <see cref="ScopeBlockLevel.Ground"/>
 /// level then, so this carries its dwell.
 /// </param>
+/// <param name="IntentPath">The track's pilot-lens intent path in screen points, or null when it draws none.</param>
 public sealed record ScopeTrack(
     AircraftModel Aircraft,
     SKPoint Symbol,
@@ -102,7 +123,8 @@ public sealed record ScopeTrack(
     ScopeRingShapes Rings,
     ScopeBlockLevel Level,
     bool ShowsLeader,
-    bool Dwelled
+    bool Dwelled,
+    ScopeIntentPath? IntentPath
 )
 {
     /// <summary>How far the dwell box sits outside the text bounds (CRC <c>FdbRenderObject</c>: the fields rect inflated 2 px).</summary>
@@ -183,6 +205,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 
         tracks.AddRange(locked);
         tracks.AddRange(hovered);
+        input.IntentPaths.Sweep();
         return new ScopeFrame(input.TemplateId, tracks);
     }
 
@@ -318,9 +341,20 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset),
             presentation.Level,
             presentation.ShowsLeader,
-            dwelled
+            dwelled,
+            IntentPathFor(ac, input, isSelected)
         );
     }
+
+    /// <summary>
+    /// The intent path of <paramref name="ac"/> while the lens path draws (<see cref="ScopeFrameInput.LensPath"/>) and the
+    /// track is selected or toggled on (<see cref="ScopeFrameInput.LensPathCallsigns"/>); else null. Through the canvas's
+    /// cache (<see cref="ScopeFrameInput.IntentPaths"/>).
+    /// </summary>
+    private static ScopeIntentPath? IntentPathFor(AircraftModel ac, ScopeFrameInput input, bool isSelected) =>
+        (input.LensPath && (isSelected || (input.LensPathCallsigns?.Contains(ac.Callsign) == true)))
+            ? input.IntentPaths.PathFor(ac, input.NavDb, input.Viewport)
+            : null;
 
     /// <summary>
     /// The ring layer of <paramref name="ac"/>: its placed rings (<see cref="ScopeFrameInput.LocalRings"/>) and its ATPA cone
@@ -477,8 +511,9 @@ public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOthe
 /// <summary>
 /// Draws a <see cref="ScopeRenderSnapshot"/> back to front: background, video maps, every track's rings (J-ring, DRI halo,
 /// cone, then ATPA cone), every track's history dots, every track's vector line, then each track's symbol, leader and
-/// block, then the measure lines and their readouts. Every block field is drawn from its <see cref="FieldRect"/>; the
-/// presenter has already blanked a flashing field's off-phase text, so nothing here flashes.
+/// block, then the pilot lens (each track's intent path), then the measure lines and their readouts. Every block field is
+/// drawn from its <see cref="FieldRect"/>; the presenter has already blanked a flashing field's off-phase text, so nothing
+/// here flashes.
 /// </summary>
 public sealed class ScopeRenderer : IDisposable
 {
@@ -490,6 +525,13 @@ public sealed class ScopeRenderer : IDisposable
     private static readonly SKColor HistoryColor = new(0, 176, 255);
 
     private static readonly SKColor VectorColor = SKColors.White;
+
+    // The pilot lens's colour: apart from every other Scope colour, so an intent path never reads as a map, a track or an alert.
+    private static readonly SKColor LensColor = SKColors.Magenta;
+
+    // The half-size of an intent path's fix diamond, and its label lines' spacing, as the Radar's nav route draws them.
+    private const float IntentDiamondSize = 5f;
+    private const float IntentLabelLineHeight = 11f;
 
     // The size labels' font size, as the Radar's TPA labels.
     private const float RingLabelSize = 11f;
@@ -593,6 +635,44 @@ public sealed class ScopeRenderer : IDisposable
         StrokeJoin = SKStrokeJoin.Round,
     };
 
+    // The pilot lens's intent path, as the Radar's "Show nav route" draws it: solid legs and diamonds, a dashed leader from
+    // the symbol, dashed tails and open-ended shapes.
+    private readonly SKPaint _lensLinePaint = new()
+    {
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _lensLeaderPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = SKPathEffect.CreateDash([6, 4], 0),
+    };
+
+    private readonly SKPaint _lensDashPaint = new()
+    {
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = SKPathEffect.CreateDash([10, 5], 0),
+    };
+
+    private readonly SKPaint _lensFillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+
+    private readonly SKPaint _lensTextPaint = new() { IsAntialias = true };
+
+    private readonly SKFont _lensLabelFont = PlatformHelper.MonospaceFont(12);
+
+    private readonly SKFont _lensRestrictionFont = PlatformHelper.MonospaceFont(10);
+
+    // Width of two spaces in the restriction font: the gap between a label line's tokens.
+    private readonly float _lensRestrictionTokenGap;
+
+    private readonly SKPath _lensPath = new();
+
     // Stroke paints drawn in the radar's line style (no AA, device-pixel width) each frame; each carries its base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
@@ -608,7 +688,11 @@ public sealed class ScopeRenderer : IDisposable
             (_dwellBoxPaint, 1f),
             (_vectorPaint, 1f),
             (_ringPaint, 1f),
+            (_lensLinePaint, 2f),
+            (_lensLeaderPaint, 1f),
+            (_lensDashPaint, 2f),
         ];
+        _lensRestrictionTokenGap = _lensRestrictionFont.MeasureText("  ");
     }
 
     /// <summary>Draws <paramref name="snapshot"/> into <paramref name="canvas"/>.</summary>
@@ -639,6 +723,12 @@ public sealed class ScopeRenderer : IDisposable
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
             DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
+        }
+
+        // The pilot lens draws over targets and blocks, under the measure layer.
+        foreach (ScopeTrack track in snapshot.Frame.Tracks)
+        {
+            DrawIntentPath(canvas, track, snapshot.Brightness.Lens);
         }
 
         // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE, as on the Radar.
@@ -774,7 +864,158 @@ public sealed class ScopeRenderer : IDisposable
         _textPaint.Dispose();
         _strikethroughPaint.Dispose();
         _arrowPaint.Dispose();
+        _lensLinePaint.Dispose();
+        _lensLeaderPaint.Dispose();
+        _lensDashPaint.Dispose();
+        _lensFillPaint.Dispose();
+        _lensTextPaint.Dispose();
+        _lensLabelFont.Dispose();
+        _lensRestrictionFont.Dispose();
+        _lensPath.Dispose();
         _font?.Dispose();
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s intent path at LENS, as the Radar's "Show nav route" draws it: each segment's dashed
+    /// leader from the symbol, its legs, a diamond with name and crossing-restriction lines at each named fix, and its vector
+    /// tail, then the shapes. DWELL never lifts it; LENS 0 draws nothing.
+    /// </summary>
+    private void DrawIntentPath(SKCanvas canvas, ScopeTrack track, int percent)
+    {
+        if ((track.IntentPath is not { } path) || (percent <= 0))
+        {
+            return;
+        }
+
+        SKColor color = ScopeBrightness.Apply(LensColor, percent);
+        _lensLinePaint.Color = color;
+        _lensDashPaint.Color = color;
+        _lensFillPaint.Color = color;
+        _lensLeaderPaint.Color = color.WithAlpha(150);
+        foreach (ScopeIntentSegment segment in path.Segments)
+        {
+            DrawIntentSegment(canvas, segment, color);
+        }
+
+        foreach (ScopeIntentShape shape in path.Shapes)
+        {
+            DrawIntentShape(canvas, shape, color);
+        }
+    }
+
+    private void DrawIntentSegment(SKCanvas canvas, ScopeIntentSegment segment, SKColor color)
+    {
+        if ((segment.LeaderFrom is { } from) && (segment.Points.Count > 0))
+        {
+            canvas.DrawLine(from, segment.Points[0], _lensLeaderPaint);
+        }
+
+        for (int i = 1; i < segment.Points.Count; i++)
+        {
+            canvas.DrawLine(segment.Points[i - 1], segment.Points[i], _lensLinePaint);
+        }
+
+        foreach (ScopeIntentFix fix in segment.Fixes)
+        {
+            DrawIntentFix(canvas, fix, color);
+        }
+
+        if (segment.Tail is { } tail)
+        {
+            DrawIntentTail(canvas, tail);
+        }
+    }
+
+    /// <summary>
+    /// Draws a fix's diamond and name, its crossing-restriction lines stacked under the name, each line's tokens left to
+    /// right two spaces apart, a latent token (published, not in force now) dimmed.
+    /// </summary>
+    private void DrawIntentFix(SKCanvas canvas, ScopeIntentFix fix, SKColor color)
+    {
+        const float d = IntentDiamondSize;
+        float x = fix.At.X;
+        float y = fix.At.Y;
+        canvas.DrawLine(x, y - d, x + d, y, _lensLinePaint);
+        canvas.DrawLine(x + d, y, x, y + d, _lensLinePaint);
+        canvas.DrawLine(x, y + d, x - d, y, _lensLinePaint);
+        canvas.DrawLine(x - d, y, x, y - d, _lensLinePaint);
+        _lensTextPaint.Color = color;
+        canvas.DrawText(fix.Name, x + 8, y - 4, SKTextAlign.Left, _lensLabelFont, _lensTextPaint);
+        if (fix.Restrictions is not { Count: > 0 } lines)
+        {
+            return;
+        }
+
+        float ly = y + 8;
+        foreach (IReadOnlyList<NavRouteRestrictionToken> line in lines)
+        {
+            float tx = x + 8;
+            foreach (NavRouteRestrictionToken token in line)
+            {
+                _lensTextPaint.Color = token.Latent ? color.WithAlpha(115) : color;
+                canvas.DrawText(token.Text, tx, ly, SKTextAlign.Left, _lensRestrictionFont, _lensTextPaint);
+                tx += _lensRestrictionFont.MeasureText(token.Text) + _lensRestrictionTokenGap;
+            }
+
+            ly += IntentLabelLineHeight;
+        }
+    }
+
+    /// <summary>Draws a shape as one path, dashed or solid as it says, and its label lines.</summary>
+    private void DrawIntentShape(SKCanvas canvas, ScopeIntentShape shape, SKColor color)
+    {
+        if (shape.Points.Count >= 2)
+        {
+            _lensPath.Reset();
+            _lensPath.MoveTo(shape.Points[0]);
+            for (int i = 1; i < shape.Points.Count; i++)
+            {
+                _lensPath.LineTo(shape.Points[i]);
+            }
+
+            canvas.DrawPath(_lensPath, shape.Dashed ? _lensDashPaint : _lensLinePaint);
+        }
+
+        if (shape.LabelAt is not { } at)
+        {
+            return;
+        }
+
+        _lensTextPaint.Color = color;
+        float ty = at.Y - 4;
+        foreach (string label in shape.Labels)
+        {
+            canvas.DrawText(label, at.X + 8, ty, SKTextAlign.Left, _lensRestrictionFont, _lensTextPaint);
+            ty += IntentLabelLineHeight;
+        }
+    }
+
+    /// <summary>Draws a vector tail: a dashed line with a filled arrowhead at its tip, turned to the line's screen direction.</summary>
+    private void DrawIntentTail(SKCanvas canvas, ScopeIntentTail tail)
+    {
+        canvas.DrawLine(tail.From, tail.To, _lensDashPaint);
+        const float arrowLen = 14f;
+        const float arrowHalfWidth = 7f;
+        float dx = tail.To.X - tail.From.X;
+        float dy = tail.To.Y - tail.From.Y;
+        float len = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (len < 1f)
+        {
+            return;
+        }
+
+        float ux = dx / len;
+        float uy = dy / len;
+        float baseX = tail.To.X - (ux * arrowLen);
+        float baseY = tail.To.Y - (uy * arrowLen);
+        float perpX = -uy * arrowHalfWidth;
+        float perpY = ux * arrowHalfWidth;
+        _lensPath.Reset();
+        _lensPath.MoveTo(tail.To);
+        _lensPath.LineTo(baseX + perpX, baseY + perpY);
+        _lensPath.LineTo(baseX - perpX, baseY - perpY);
+        _lensPath.Close();
+        canvas.DrawPath(_lensPath, _lensFillPaint);
     }
 
     private SKFont FontFor(float size)

@@ -71,6 +71,7 @@ public class ScopeRendererBrightnessTests
             ScopeVectorOwnership.All,
             layers.HistoryCount,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
             hovered
         );
         return ScopeFrame.Build(input);
@@ -463,6 +464,74 @@ public class ScopeRendererBrightnessTests
             HistoryDotAreas(dwelledTrack).Select(a => MaxChannel(dwelledBitmap, a))
         );
         Assert.All(HistoryDotAreas(dwelledTrack), a => Assert.True(MaxChannel(dwelledBitmap, a) <= 140, "a dwelled history dot drew above HIST 50"));
+    }
+
+    // The pilot lens's colour, duplicated rather than exposed.
+    private static readonly SKColor LensMagenta = new(255, 0, 255);
+
+    /// <summary>A STARS track whose intent path is one leg running 60 px from due west of its symbol into its centre.</summary>
+    private static ScopeTrack TrackWithALegIntoItsSymbol()
+    {
+        ScopeTrack track = Assert.Single(Stars(ScopeTestAircraft.CreateModel()).Tracks);
+        var leg = new ScopeIntentSegment(null, [new SKPoint(track.Symbol.X - 60f, track.Symbol.Y), track.Symbol], [], null);
+        return track with { IntentPath = new ScopeIntentPath([leg], []) };
+    }
+
+    /// <summary>The pixels around the leg's point 40 px west of the symbol, clear of the symbol.</summary>
+    private static SKRectI LegMidpoint(ScopeTrack track)
+    {
+        int x = (int)MathF.Round(track.Symbol.X - 40f);
+        int y = (int)MathF.Round(track.Symbol.Y);
+        return new SKRectI(x - 1, y - 2, x + 2, y + 3);
+    }
+
+    [Fact]
+    public void Lens_ScalesTheIntentPath_AndLens0DrawsNone()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeTrack track = TrackWithALegIntoItsSymbol();
+        var frame = new ScopeFrame(ScopeTemplates.StarsId, [track]);
+
+        using SKBitmap full = Render(frame, ScopeBrightness.Default);
+        using SKBitmap half = Render(frame, ScopeBrightness.Default with { Lens = 50 });
+        using SKBitmap off = Render(frame, ScopeBrightness.Default with { Lens = 0 });
+
+        Assert.True(AnyPixel(full, LegMidpoint(track), LensMagenta), "no lens-colour pixel on the leg at LENS 100");
+        Assert.True(AnyPixel(half, LegMidpoint(track), new SKColor(127, 0, 127)), "no half lens-colour pixel on the leg at LENS 50");
+        Assert.False(AnyPixel(half, LegMidpoint(track), LensMagenta), "a full lens-colour pixel on the leg at LENS 50");
+        Assert.False(AnyLit(off, LegMidpoint(track)), "a leg pixel at LENS 0");
+    }
+
+    [Fact]
+    public void IntentPath_DrawsOverTheSymbol()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeTrack track = TrackWithALegIntoItsSymbol();
+
+        using SKBitmap bitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, [track]), ScopeBrightness.Default);
+
+        Assert.True(AnyPixel(bitmap, SymbolLeftEdge(track), LensMagenta), "the symbol drew over the lens leg");
+    }
+
+    [Fact]
+    public void Lens0_LeavesTheSymbolAsWithNoPath()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeTrack track = TrackWithALegIntoItsSymbol();
+        ScopeBrightness lens0 = ScopeBrightness.Default with { Lens = 0 };
+
+        using SKBitmap withPath = Render(new ScopeFrame(ScopeTemplates.StarsId, [track]), lens0);
+        using SKBitmap noPath = Render(new ScopeFrame(ScopeTemplates.StarsId, [track with { IntentPath = null }]), lens0);
+
+        SKRectI edge = SymbolLeftEdge(track);
+        Assert.True(AnyPixel(withPath, edge, SymbolBlue), "no symbol-blue pixel at the symbol's left edge at LENS 0");
+        for (int x = edge.Left; x < edge.Right; x++)
+        {
+            for (int y = edge.Top; y < edge.Bottom; y++)
+            {
+                Assert.Equal(noPath.GetPixel(x, y), withPath.GetPixel(x, y));
+            }
+        }
     }
 
     [Theory]

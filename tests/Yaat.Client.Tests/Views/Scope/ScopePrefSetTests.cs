@@ -68,6 +68,7 @@ public class ScopePrefSetTests
                 "pinRings",
                 "vectorOwnership",
                 "tdm",
+                "lens",
             ],
             document.RootElement.EnumerateObject().Select(property => property.Name)
         );

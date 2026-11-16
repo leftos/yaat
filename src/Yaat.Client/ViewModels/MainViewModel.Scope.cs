@@ -25,7 +25,10 @@ public partial class MainViewModel
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
         + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
-        + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]";
+        + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
+        + " | .scope lens <on|off> | .scope lens path <on|off|callsign>";
+
+    private const string ScopeLensUsage = "Usage: .scope lens <on|off> | .scope lens path <on|off> | .scope lens path <callsign>";
 
     private const string ScopeTdmUsage = "Usage: .scope tdm <on|off>";
 
@@ -54,7 +57,7 @@ public partial class MainViewModel
     private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
 
     private const string ScopeBriteUsage =
-        "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings 0-100; line4 -20-0; dwell 0-20";
+        "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings, lens 0-100; line4 -20-0; dwell 0-20";
 
     private const string ScopeMapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
 
@@ -167,7 +170,7 @@ public partial class MainViewModel
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
     /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
-    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c>, <c>.scope tdm</c> and <c>.scope ptl</c> against
+    /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c>, <c>.scope tdm</c>, <c>.scope ptl</c> and <c>.scope lens</c> against
     /// <see cref="OpenScope"/>, reporting the echo or the error to <paramref name="sink"/>.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
@@ -204,6 +207,7 @@ public partial class MainViewModel
             "RINGS" => RunScopeRings,
             "TDM" => SetScopeTdm,
             "PTL" => RunScopePtl,
+            "LENS" => RunScopeLens,
             _ => null,
         };
         if (handler is null)
@@ -639,6 +643,55 @@ public partial class MainViewModel
 
         scope.ClearPtl(ac.Callsign);
         return $"Scope PTL cleared {ac.Callsign}";
+    }
+
+    /// <summary>
+    /// <c>.scope lens on|off</c> turns the pilot lens on or off; <c>.scope lens &lt;overlay&gt; on|off</c> turns one of its
+    /// overlays on or off; <c>.scope lens path &lt;callsign&gt;</c> toggles that track's intent path. An unknown overlay or
+    /// any other shape answers the usage line. Scope-local, never sent to the server.
+    /// </summary>
+    private static string RunScopeLens(ScopeViewModel scope, string[] parts)
+    {
+        if (parts.Length == 3)
+        {
+            return (ParseOnOff(parts[2]) is { } enabled) ? SetScopeLens(scope, enabled) : ScopeLensUsage;
+        }
+
+        if (parts.Length != 4)
+        {
+            return ScopeLensUsage;
+        }
+
+        string item = parts[2].ToLowerInvariant();
+        return ScopeViewModel.IsLensOverlay(item) ? RunScopeLensOverlay(scope, item, parts[3]) : ScopeLensUsage;
+    }
+
+    /// <summary><c>.scope lens on|off</c>: the pilot lens's master switch.</summary>
+    private static string SetScopeLens(ScopeViewModel scope, bool enabled)
+    {
+        scope.SetLensEnabled(enabled);
+        return $"Scope lens {(enabled ? "ON" : "OFF")}";
+    }
+
+    /// <summary>
+    /// <c>.scope lens &lt;item&gt; on|off</c> turns the overlay <paramref name="item"/> on or off; any other last word is a
+    /// callsign whose intent path toggles.
+    /// </summary>
+    private static string RunScopeLensOverlay(ScopeViewModel scope, string item, string word)
+    {
+        if (ParseOnOff(word) is { } on)
+        {
+            scope.SetLensOverlay(item, on);
+            return $"Scope lens {item} {(on ? "ON" : "OFF")}";
+        }
+
+        if (FindTypedAircraft(scope, word) is not { } ac)
+        {
+            return $"Unknown aircraft: {word}";
+        }
+
+        bool shown = scope.ToggleLensPath(ac.Callsign);
+        return $"Scope lens path {ac.Callsign}{(shown ? "" : " removed")}";
     }
 
     /// <summary>The status line's echo of a PTL change: <c>Scope PTL N123AB</c>, with <c> removed</c> on a removal.</summary>

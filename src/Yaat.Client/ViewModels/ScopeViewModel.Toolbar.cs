@@ -186,8 +186,8 @@ public sealed partial class ScopeViewModel
     /// turns on is on (<see cref="IsToggleOn"/>), a profile pick while its profile is the shown one, a command button while
     /// the template it picks is in use, a pref-set
     /// button while its set is the active one, DEL TEAROFF while its mode is on, OTHERS, VECTOR and HIST while their own
-    /// value is pinned (VECTOR's minutes; OWN or ALL never pins), AUTO while any band value is and TDM while top-down mode
-    /// is on.
+    /// value is pinned (VECTOR's minutes; OWN or ALL never pins), AUTO while any band value is, TDM while top-down mode
+    /// is on and PILOT LENS while the lens is on or its tray is open.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Id switch
@@ -198,6 +198,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Vector => Pins.VectorMin is not null,
             ScopeButtonId.Hist => Pins.History is not null,
             ScopeButtonId.Auto => Pins.Any,
+            ScopeButtonId.Lens => Lens.Enabled || (OpenMenu == ScopeButtonId.Lens),
             ScopeButtonId.ToolJRing or ScopeButtonId.ToolCone or ScopeButtonId.ToolDri5 or ScopeButtonId.ToolDri3 => ArmedRingTool
                 == ScopeToolbarButtons.RingToolOf(button.Id),
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
@@ -281,7 +282,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Whether a toggle's setting is on: a map toggle while the map with its STARS id is on, a DB toggle while its setting
-    /// is on, a view toggle while the view it names is open.
+    /// is on, a lens toggle while its lens switch is on, a view toggle while the view it names is open.
     /// </summary>
     private bool IsToggleOn(ScopeButton button) =>
         button.Id switch
@@ -290,6 +291,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Db4thLine => DbSettings.Line4,
             ScopeButtonId.DbDwell => DbSettings.HoverDwell,
             ScopeButtonId.DbAtpa => DbSettings.Atpa,
+            ScopeButtonId.LensOn or ScopeButtonId.LensPath => IsLensToggleOn(button.Id),
             _ => (button.Value is { } view) && IsViewOpen(view),
         };
 

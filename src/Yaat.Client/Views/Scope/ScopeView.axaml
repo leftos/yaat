@@ -30,6 +30,8 @@
       HistoryCount="{Binding EffectiveBand.History}"
       LocalRings="{Binding LocalRings}"
       LocalPtlCallsigns="{Binding LocalPtlCallsigns}"
+      Lens="{Binding Lens}"
+      LensPathCallsigns="{Binding LensPathCallsigns}"
       ShowTopDown="{Binding IsTdm}"
       TdmOnlyMapIds="{Binding TdmOnlyMapIds}"
       IsMeasuring="{Binding Measure.IsMeasuring}"

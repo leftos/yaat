@@ -17,13 +17,26 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="Hist">The history dots, 0 to 100; DWELL never lifts them.</param>
 /// <param name="Vector">The vector lines, 0 to 100; DWELL never lifts them.</param>
 /// <param name="Rings">The Rings tool's J-rings, cones and DRI halos and the ATPA cones, 0 to 100; DWELL never lifts them.</param>
-public sealed record ScopeBrightness(int MapA, int MapB, int Targets, int Fdb, int Line4, int Alerts, int Dwell, int Hist, int Vector, int Rings)
+/// <param name="Lens">The pilot lens's overlays (the intent path), 0 to 100; DWELL never lifts them.</param>
+public sealed record ScopeBrightness(
+    int MapA,
+    int MapB,
+    int Targets,
+    int Fdb,
+    int Line4,
+    int Alerts,
+    int Dwell,
+    int Hist,
+    int Vector,
+    int Rings,
+    int Lens
+)
 {
     /// <summary>The DWELL value at which a dwelled track draws at full brightness (CRC's modifier maximum).</summary>
     private const double FullDwell = 20.0;
 
     /// <summary>The values a Scope opens with; they draw today's pixels.</summary>
-    public static ScopeBrightness Default { get; } = new(100, 60, 100, 100, 0, 100, 20, 100, 100, 100);
+    public static ScopeBrightness Default { get; } = new(100, 60, 100, 100, 0, 100, 20, 100, 100, 100, 100);
 
     /// <summary>The groups the <c>.scope brite</c> command and the BRITE spinners set, in spinner order.</summary>
     public static IReadOnlyList<ScopeBrightnessGroup> Groups { get; } =
@@ -38,6 +51,7 @@ public sealed record ScopeBrightness(int MapA, int MapB, int Targets, int Fdb, i
         new("hist", 0, 100, 5, b => b.Hist, (b, v) => b with { Hist = v }),
         new("vector", 0, 100, 5, b => b.Vector, (b, v) => b with { Vector = v }),
         new("rings", 0, 100, 5, b => b.Rings, (b, v) => b with { Rings = v }),
+        new("lens", 0, 100, 5, b => b.Lens, (b, v) => b with { Lens = v }),
     ];
 
     /// <summary>The group named <paramref name="name"/>, case-insensitive, or null.</summary>

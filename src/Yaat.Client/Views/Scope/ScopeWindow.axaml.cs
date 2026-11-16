@@ -19,7 +19,7 @@ public partial class ScopeWindow : Window, IAlwaysOnTopToggle
     {
         InitializeComponent();
         DataContext = viewModel;
-        _geometryHelper = new WindowGeometryHelper(this, preferences, GeometryKey, 1360, 800);
+        _geometryHelper = new WindowGeometryHelper(this, preferences, GeometryKey, 1460, 800);
         _geometryHelper.Restore();
         Closed += (_, _) => viewModel?.Dispose();
     }

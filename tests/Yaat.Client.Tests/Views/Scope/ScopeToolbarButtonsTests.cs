@@ -11,7 +11,7 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsBritePrefThenDelTearoff()
+    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefThenDelTearoff()
     {
         Assert.Equal(
             [
@@ -27,6 +27,7 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Tdm,
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
+                ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,
@@ -47,6 +48,7 @@ public class ScopeToolbarButtonsTests
                 "TDM",
                 "DB",
                 "VIEWS",
+                "PILOT LENS",
                 "BRITE",
                 "PREF",
                 "DEL TEAROFF",
@@ -122,6 +124,7 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Tdm,
                 ScopeButtonId.Db,
                 ScopeButtonId.Views,
+                ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,
@@ -132,7 +135,7 @@ public class ScopeToolbarButtonsTests
     }
 
     [Fact]
-    public void Brite_IsAMenuOfTheTenGroupSpinners_InOrder()
+    public void Brite_IsAMenuOfTheElevenGroupSpinners_InOrder()
     {
         ScopeButton brite = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Brite);
 
@@ -150,14 +153,18 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.BriteHist,
                 ScopeButtonId.BriteVector,
                 ScopeButtonId.BriteRings,
+                ScopeButtonId.BriteLens,
             ],
             brite.Children.Select(c => c.Id)
         );
         Assert.Equal(
-            ["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL", "HIST", "VECTOR", "RINGS"],
+            ["MAP A", "MAP B", "TARGETS", "FDB", "LINE 4", "ALERTS", "DWELL", "HIST", "VECTOR", "RINGS", "LENS"],
             brite.Children.Select(c => c.Label)
         );
-        Assert.Equal(["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell", "hist", "vector", "rings"], brite.Children.Select(c => c.Value));
+        Assert.Equal(
+            ["mapa", "mapb", "targets", "fdb", "line4", "alerts", "dwell", "hist", "vector", "rings", "lens"],
+            brite.Children.Select(c => c.Value)
+        );
         Assert.All(brite.Children, c => Assert.Equal(ScopeButtonKind.Spinner, c.Kind));
         Assert.All(brite.Children, c => Assert.Null(c.Command));
         Assert.All(brite.Children, c => Assert.Empty(c.Children));
@@ -179,6 +186,20 @@ public class ScopeToolbarButtonsTests
         Assert.Equal([".scope db 4thline", ".scope db dwell", ".scope db atpa", null], db.Children.Select(c => c.Command));
         Assert.Equal(".scope db char 16", ScopeToolbarButtons.DbCharCommand(16));
         Assert.All(db.Children, c => Assert.Empty(c.Children));
+    }
+
+    [Fact]
+    public void PilotLens_IsAMenuOfTheMasterAndPathToggles()
+    {
+        ScopeButton lens = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Lens);
+
+        Assert.Equal(("PILOT LENS", ScopeButtonKind.Menu), (lens.Label, lens.Kind));
+        Assert.Null(lens.Command);
+        Assert.Equal([ScopeButtonId.LensOn, ScopeButtonId.LensPath], lens.Children.Select(c => c.Id));
+        Assert.Equal(["ON", "PATH"], lens.Children.Select(c => c.Label));
+        Assert.Equal([".scope lens", ".scope lens path"], lens.Children.Select(c => c.Command));
+        Assert.All(lens.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
+        Assert.All(lens.Children, c => Assert.Empty(c.Children));
     }
 
     [Fact]

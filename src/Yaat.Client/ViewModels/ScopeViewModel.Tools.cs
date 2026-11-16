@@ -93,13 +93,14 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Drops every piece of per-track state the scope holds, its data-block state (dwell locks, block offsets, highlights,
-    /// z-order), its rings and its PTLs, for a scenario unload, restart or rewind.
+    /// z-order), its rings, its PTLs and its toggled intent paths, for a scenario unload, restart or rewind.
     /// </summary>
     public void ClearTrackState()
     {
         DataBlockState.Clear();
         ClearRings();
         ClearPtl();
+        ClearLensPaths();
     }
 
     /// <summary>Removes every ring on every track.</summary>

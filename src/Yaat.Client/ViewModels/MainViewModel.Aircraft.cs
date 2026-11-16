@@ -556,6 +556,7 @@ public partial class MainViewModel
         Measure.PruneMissing(FindAircraft);
         OpenScope?.ClearRings(ac.Callsign);
         OpenScope?.ClearPtl(ac.Callsign);
+        OpenScope?.ClearLensPath(ac.Callsign);
     }
 
     private void OnAircraftSpawned(AircraftDto dto)
