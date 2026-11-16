@@ -94,7 +94,7 @@ public class ScopeMeasureToolTests
             Assert.True(main.Measure.IsMeasuring);
             Assert.True(view.Canvas.IsMeasuring);
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, ArmedStatus, ""), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, ArmedStatus, "", []), scope.EntryResponse);
             Assert.Equal(ArmedStatus, main.StatusText);
         }
         finally
@@ -117,7 +117,7 @@ public class ScopeMeasureToolTests
             window.DispatchKey(Key.M, ActionModifier);
 
             Assert.False(main.Measure.IsMeasuring);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, RangeBearingViewState.FullStatus, ""), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, RangeBearingViewState.FullStatus, "", []), scope.EntryResponse);
         }
         finally
         {
@@ -343,7 +343,7 @@ public class ScopeMeasureToolTests
         {
             FocusCanvas(window, view);
             window.DispatchKey(Key.M, ActionModifier);
-            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Accept, "ACCEPT", ".X");
+            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Accept, "ACCEPT", ".X", []);
 
             window.DispatchKey(Key.Escape);
 
@@ -382,7 +382,7 @@ public class ScopeMeasureToolTests
         try
         {
             window.DispatchKey(Key.M, ActionModifier);
-            var accept = new ScopeEntryResponse(ScopeResponseKind.Accept, "ACCEPT", ".X");
+            var accept = new ScopeEntryResponse(ScopeResponseKind.Accept, "ACCEPT", ".X", []);
             scope.EntryResponse = accept;
 
             main.Measure.Cancel();
@@ -413,7 +413,7 @@ public class ScopeMeasureToolTests
             Assert.Null(scope.EntryResponse);
 
             window.DispatchKey(Key.M, ActionModifier);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, ArmedStatus, ""), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, ArmedStatus, "", []), scope.EntryResponse);
         }
         finally
         {

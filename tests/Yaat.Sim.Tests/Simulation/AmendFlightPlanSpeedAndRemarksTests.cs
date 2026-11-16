@@ -128,7 +128,7 @@ public class AmendFlightPlanSpeedAndRemarksTests(ITestOutputHelper output)
         AircraftState ac = Aircraft();
         SimulationEngine engine = BuildEngine(ac);
         FlightPlanAmendment amendment = NoEdit with { CruiseMach = 82, InterfacilityRemarks = "CHARTS", IntrafacilityRemarks = "LOCAL" };
-        var recorded = new RecordedAmendFlightPlan(12.0, Callsign, amendment, null);
+        var recorded = new RecordedAmendFlightPlan(12.0, Callsign, amendment, null, null);
 
         string json = JsonSerializer.Serialize<RecordedAction>(recorded, RecordingJsonOptions.Default);
         RecordedAction? read = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);

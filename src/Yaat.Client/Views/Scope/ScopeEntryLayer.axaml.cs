@@ -49,6 +49,7 @@ public partial class ScopeEntryLayer : UserControl
             is nameof(ScopeViewModel.EntryText)
                 or nameof(ScopeViewModel.EntryResponse)
                 or nameof(ScopeViewModel.ProfileKind)
+                or nameof(ScopeViewModel.SelectedAircraft)
                 or nameof(ScopeViewModel.Brightness)
         )
         {
@@ -146,9 +147,12 @@ public partial class ScopeEntryLayer : UserControl
             _ => text,
         };
         SKColor echo = ((response.Kind == ScopeResponseKind.Accept) && !eram) ? Ok : text;
-        foreach (ScopeResponseLine line in vm.EntryResponseLines)
+        IReadOnlyList<ScopeResponseLine> lines = vm.EntryResponseLines;
+        for (int i = 0; i < lines.Count; i++)
         {
-            bool eramAccept = eram && line.IsMessage && (response.Kind == ScopeResponseKind.Accept);
+            // Only the first line of an ERAM acceptance is its ACCEPT; the descriptor and ACID under it are plain lines.
+            ScopeResponseLine line = lines[i];
+            bool eramAccept = eram && (i == 0) && line.IsMessage && (response.Kind == ScopeResponseKind.Accept);
             panel.Children.Add(eramAccept ? EramAcceptLine(vm, lineHeight) : Line(line.Text, Brush(vm, line.IsMessage ? message : echo), lineHeight));
         }
     }

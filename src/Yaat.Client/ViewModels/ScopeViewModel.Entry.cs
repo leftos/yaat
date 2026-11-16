@@ -25,11 +25,12 @@ public enum ScopeResponseKind
     Error,
 }
 
-/// <summary>The response to one Scope entry: its kind, its message and the entry it echoes.</summary>
+/// <summary>The response to one Scope entry: its kind, its message, any lines under it and the entry it echoes.</summary>
 /// <param name="Kind">Accept, text or error.</param>
 /// <param name="Message">The message: <c>ACCEPT</c>, the echo text or the error.</param>
 /// <param name="Echo">The entry as it was typed.</param>
-public sealed record ScopeEntryResponse(ScopeResponseKind Kind, string Message, string Echo);
+/// <param name="Detail">The lines under the message, such as an ERAM acceptance's descriptor and ACID; empty for none.</param>
+public sealed record ScopeEntryResponse(ScopeResponseKind Kind, string Message, string Echo, IReadOnlyList<string> Detail);
 
 /// <summary>One line of a Scope response: its text, and whether it is the message (else the entry's echo).</summary>
 internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
@@ -38,8 +39,9 @@ internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
 /// Typing on the Scope: the entry being typed, the Scope's own entry history and the response to the last entry. Enter runs
 /// the entry through <see cref="MainViewModel.SendTextAsync"/> with a sink of the Scope's own, so the main command line's
 /// text and status are never touched. A STARS entry sends the YAAT command it translates to, resolved here from the
-/// selected aircraft's state where it needs it (bare <c>HND</c>, <c>*J</c>/<c>*P</c>); an ERAM entry, and a STARS entry
-/// with no YAAT command, is refused with <c>NOT SUPPORTED</c> and nothing is sent. On a
+/// selected aircraft's state where it needs it (bare <c>HND</c>, <c>*J</c>/<c>*P</c>); a STARS entry with no YAAT command
+/// is refused with <c>NOT SUPPORTED</c> and nothing is sent. An ERAM entry goes to the server's ERAM dispatch
+/// (<see cref="EramEntrySender"/>), which answers as CRC's ERAM does. On a
 /// STARS profile the response goes at the next entry's first key; on ERAM and Mixed it stays until the next entry is sent.
 /// Esc clears both.
 /// </summary>
@@ -90,22 +92,36 @@ public sealed partial class ScopeViewModel
     public bool IsEramEntryLayout => ProfileKind != ScopeProfileKind.Stars;
 
     /// <summary>How the entry being typed reads.</summary>
-    internal ScopeEntryReading EntryReading => ScopeEntryClassifier.Classify(EntryText, ProfileKind);
+    internal ScopeEntryReading EntryReading => ScopeEntryClassifier.Classify(EntryText, ProfileKind, SelectedOwnerTemplateId);
+
+    /// <summary>
+    /// The owner kind of the selected track (<see cref="ScopeOwnerKind.TemplateIdFor"/>), which picks an entry's dialect on a
+    /// Mixed profile; null with no track selected.
+    /// </summary>
+    private string? SelectedOwnerTemplateId => (SelectedAircraft is { } ac) ? ScopeOwnerKind.TemplateIdFor(ac) : null;
 
     /// <summary>The entry and its caret, wrapped, the last <see cref="PreviewLineCap"/> lines; empty while nothing is typed.</summary>
     internal IReadOnlyList<string> EntryPreviewLines => EntryText.Length == 0 ? [] : [.. Wrap(EntryText + Caret).TakeLast(PreviewLineCap)];
 
-    /// <summary>The response's message then its echo, wrapped, the first <see cref="FeedbackLineCap"/> lines.</summary>
+    /// <summary>The response's message, its detail lines, then its echo, wrapped, the first <see cref="FeedbackLineCap"/> lines.</summary>
     internal IReadOnlyList<ScopeResponseLine> EntryResponseLines =>
         EntryResponse is not { } response
             ? []
             :
             [
-                .. Wrap(response.Message)
+                .. new[] { response.Message }
+                    .Concat(response.Detail)
+                    .SelectMany(Wrap)
                     .Select(line => new ScopeResponseLine(line, true))
                     .Concat(Wrap(response.Echo).Select(line => new ScopeResponseLine(line, false)))
                     .Take(FeedbackLineCap),
             ];
+
+    /// <summary>
+    /// Sends an ERAM entry to the server and returns its answer: <see cref="MainViewModel.SendScopeEramEntryAsync"/> unless set.
+    /// Test seam.
+    /// </summary>
+    internal Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>>? EramEntrySender { get; set; }
 
     /// <summary>Adds typed <paramref name="text"/> to the entry; control characters are dropped.</summary>
     /// <returns>False when nothing printable was typed.</returns>
@@ -161,13 +177,29 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Fills the track <paramref name="callsign"/> into the entry (<see cref="ScopeEntryFill.Track"/>), as a click on it with text
-    /// in the preview does: first in a pilot entry, else appended.
+    /// in the preview does: first in a pilot entry, else appended, the entry read in the clicked track's dialect on Mixed.
     /// </summary>
     internal void FillTrack(string callsign)
     {
-        SetEntry(ScopeEntryFill.Track(EntryText, callsign, ProfileKind, IsKnownCallsign));
+        SetEntry(ScopeEntryFill.Track(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign));
         _entryHistoryIndex = -1;
     }
+
+    /// <summary>
+    /// A middle click on a track with text in the preview: fills the track (<see cref="FillTrack"/>) and runs the entry, both
+    /// read in the clicked track's dialect on Mixed, whatever is selected.
+    /// </summary>
+    internal void FillTrackAndRun(string callsign)
+    {
+        FillTrack(callsign);
+        RunEntry(OwnerTemplateIdOf(callsign));
+    }
+
+    /// <summary>
+    /// The owner kind of the track <paramref name="callsign"/> names (<see cref="ScopeOwnerKind.TemplateIdFor"/>), which a click on
+    /// it reads the entry's dialect from on Mixed; null, the profile's own dialect, when no known aircraft has that callsign.
+    /// </summary>
+    private string? OwnerTemplateIdOf(string callsign) => (FindAircraft(callsign) is { } ac) ? ScopeOwnerKind.TemplateIdFor(ac) : null;
 
     /// <summary>Appends the clicked point to the entry: <paramref name="frd"/> when known, else its ERAM lat/long.</summary>
     internal void FillPoint(LatLon point, string? frd)
@@ -177,14 +209,14 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// A middle click on an ERAM Field A with an empty preview: runs <c>QF {callsign}</c> through the entry, answered
-    /// <c>NOT SUPPORTED</c> as any ERAM entry is.
+    /// A middle click on an ERAM Field A with an empty preview: runs <c>QF {callsign}</c> through the entry, read in the clicked
+    /// track's dialect on Mixed and sent to the server as any ERAM entry is.
     /// </summary>
     internal void RunQuickFlight(string callsign)
     {
         SetEntry($"QF {callsign}");
         _entryHistoryIndex = -1;
-        ExecuteEntry();
+        RunEntry(OwnerTemplateIdOf(callsign));
     }
 
     /// <summary>
@@ -194,7 +226,7 @@ public sealed partial class ScopeViewModel
     internal bool FillsOnLeftClick(string? callsign) =>
         (EntryText.Length > 0)
         && !IsRingToolArmed
-        && ((callsign is null) || ScopeEntryFill.ChangesTrack(EntryText, callsign, ProfileKind, IsKnownCallsign));
+        && ((callsign is null) || ScopeEntryFill.ChangesTrack(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign));
 
     private bool IsKnownCallsign(string word) => Main.Aircraft.Any(a => string.Equals(a.Callsign, word, StringComparison.OrdinalIgnoreCase));
 
@@ -283,9 +315,14 @@ public sealed partial class ScopeViewModel
         return true;
     }
 
-    /// <summary>Enter: runs the entry, which leaves the preview for the response.</summary>
+    /// <summary>
+    /// Enter: runs the entry, read in the selected track's dialect on Mixed, which leaves the preview for the response.
+    /// </summary>
     /// <returns>False when nothing is typed, or the entry is only the <c>PILOT</c> word, which has nothing to send.</returns>
-    public bool ExecuteEntry()
+    public bool ExecuteEntry() => RunEntry(SelectedOwnerTemplateId);
+
+    // Runs the entry, read in the dialect the owner kind ownerTemplateId picks on Mixed.
+    private bool RunEntry(string? ownerTemplateId)
     {
         string entry = EntryText.Trim();
         if (entry.Length == 0)
@@ -294,19 +331,19 @@ public sealed partial class ScopeViewModel
         }
 
         // An unsupported STARS entry sends nothing but still runs, to be answered NOT SUPPORTED.
-        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind);
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId);
         if ((reading.Kind != ScopeEntryKind.Stars) && (reading.SendText.Length == 0))
         {
             return false;
         }
 
-        LastEntryRun = RunEntryAsync(entry);
+        LastEntryRun = RunEntryAsync(entry, ownerTemplateId);
         return true;
     }
 
-    private async Task RunEntryAsync(string entry)
+    private async Task RunEntryAsync(string entry, string? ownerTemplateId)
     {
-        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind);
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId);
         _entryHistory.Add(entry);
         if (_entryHistory.Count > EntryHistoryCap)
         {
@@ -317,10 +354,16 @@ public sealed partial class ScopeViewModel
         _savedEntry = "";
         EntryText = "";
 
-        if ((reading.Kind == ScopeEntryKind.Eram) || !reading.Supported)
+        if (reading.Kind == ScopeEntryKind.Eram)
+        {
+            await RunEramEntryAsync(entry);
+            return;
+        }
+
+        if (!reading.Supported)
         {
             Main.AddHistory("", entry);
-            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, NotSupportedMessage, entry);
+            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, NotSupportedMessage, entry, []);
             return;
         }
 
@@ -329,7 +372,7 @@ public sealed partial class ScopeViewModel
         if (sendText is null)
         {
             Main.AddHistory("", entry);
-            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, refusal ?? "", entry);
+            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, refusal ?? "", entry, []);
             return;
         }
 
@@ -351,6 +394,23 @@ public sealed partial class ScopeViewModel
         }
 
         EntryResponse = sink.ResponseTo(entry);
+    }
+
+    // An ERAM entry: in the history whatever happens, then to the server's ERAM dispatch, whose answer is the response.
+    private async Task RunEramEntryAsync(string entry)
+    {
+        Main.AddHistory("", entry);
+        Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>> send = EramEntrySender ?? Main.SendScopeEramEntryAsync;
+        try
+        {
+            ScopeEramEntryResultDto result = await send(ScopeEramEntryBuilder.Build(entry));
+            EntryResponse = ScopeEramEntryBuilder.ResponseTo(result, entry);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Scope ERAM entry failed");
+            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, ex.Message, entry, []);
+        }
     }
 
     /// <summary>
@@ -472,8 +532,8 @@ public sealed partial class ScopeViewModel
         public void AddWarning(string message) => main.AddWarningEntry(message);
 
         public ScopeEntryResponse ResponseTo(string entry) =>
-            _error is { } error ? new ScopeEntryResponse(ScopeResponseKind.Error, error, entry)
-            : string.IsNullOrWhiteSpace(_status) ? new ScopeEntryResponse(ScopeResponseKind.Accept, AcceptMessage, entry)
-            : new ScopeEntryResponse(ScopeResponseKind.Text, _status, entry);
+            _error is { } error ? new ScopeEntryResponse(ScopeResponseKind.Error, error, entry, [])
+            : string.IsNullOrWhiteSpace(_status) ? new ScopeEntryResponse(ScopeResponseKind.Accept, AcceptMessage, entry, [])
+            : new ScopeEntryResponse(ScopeResponseKind.Text, _status, entry, []);
     }
 }

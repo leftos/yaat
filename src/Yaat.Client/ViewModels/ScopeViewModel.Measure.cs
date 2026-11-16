@@ -43,7 +43,7 @@ public sealed partial class ScopeViewModel
         ActivateMeasureSurface();
         (bool armed, string status) = Measure.ArmSilently();
         Main.StatusText = status;
-        _measureResponse = new ScopeEntryResponse(armed ? ScopeResponseKind.Text : ScopeResponseKind.Error, status, "");
+        _measureResponse = new ScopeEntryResponse(armed ? ScopeResponseKind.Text : ScopeResponseKind.Error, status, "", []);
         EntryResponse = _measureResponse;
     }
 
@@ -102,7 +102,8 @@ public sealed partial class ScopeViewModel
         var response = new ScopeEntryResponse(
             status == RangeBearingViewState.FullStatus ? ScopeResponseKind.Error : ScopeResponseKind.Text,
             status,
-            ""
+            "",
+            []
         );
         _measureResponse = Measure.IsMeasuring ? response : null;
         EntryResponse = response;

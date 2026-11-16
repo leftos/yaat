@@ -597,7 +597,8 @@ public class StripStepTests
             1.0,
             "NOPE123",
             new FlightPlanAmendment(ClearBeaconCode: false, Remarks: "AMENDED"),
-            "STRIP_NOPE123"
+            "STRIP_NOPE123",
+            null
         );
 
         CommandResult result = engine.Actions.ApplyRecorded(amendment, host);

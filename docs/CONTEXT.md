@@ -837,7 +837,7 @@ The two-line block the YAAT Scope draws for an on-ground aircraft in top-down mo
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
 **Kind label (YAAT Scope)**:
-The words the Preview area shows before the entry to say how it will be read (`PILOT FH fly heading`, `DOT .scope`, `STARS +100 temporary altitude`); `ScopeEntryClassifier` picks it. A STARS entry's label is `STARS <first word> <gloss>`; the Scope's STARS entries are read by shape and key words, not by verb.
+The words the Preview area shows before the entry to say how it will be read (`PILOT FH fly heading`, `DOT .scope`, `STARS +100 temporary altitude`); `ScopeEntryClassifier` picks it. A STARS entry's label is `STARS <first word> <gloss>`, an ERAM entry's `ERAM <first word>`; the Scope's STARS entries are read by shape and key words, not by verb.
 
 **MCA (Message Composition Area)**:
 ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.

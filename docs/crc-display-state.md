@@ -327,7 +327,7 @@ A CRC client's position is synced onto its RPO connection the same way — `Room
 
 The CRC entries that write state no typed verb covers record a derived action instead, through `RoomEngine.ApplyAndRecord` (tick-path 3d-5b). They are a position's per-TCP shared display state (`UpdateStarsSharedTrackState` → `RecordedStarsSharedStateChange`), the flight-plan editor's clearance (`RecordedClearanceChange`) and the flight-plan editor's hold annotation set / delete (`RecordedHoldAnnotationChange`).
 
-They also include the ERAM keyboard entries QT / QH / HM / QQ / QR / QS / LF (`RecordedEramEntry`, one per aircraft, applied by the Sim's `EramEntryEngine`) and the CRR-group create / recolor / delete (`RecordedEramCrrGroup`, applied by `SimulationEngine.ApplyCrrGroup`).
+They also include the ERAM keyboard entries QT / QH / HM / QQ / QR / QS / LF (`RecordedEramEntry`, one per aircraft, applied by the Sim's `EramEntryEngine`) and the CRR-group create / recolor / delete (`RecordedEramCrrGroup`, applied by `SimulationEngine.ApplyCrrGroup`). An ERAM entry typed on the YAAT Scope runs through the same dispatch (`SendScopeEramEntry`, see [training-hub-contract.md](training-hub-contract.md)) and writes the same records, marked `EramEntrySource.Scope`; its instructor-terminal echo reads `[SCOPE] {owner} {verb}: {operands}` where a CRC entry's reads `[CRC] …`.
 
 The group definitions are engine state, snapshotted, and the room re-pushes the whole `EramCrrGroups` topic from the engine's dirty flag; a delete is still the handler's own push, and a rewind or restart clears the labels the new engine no longer holds.
 

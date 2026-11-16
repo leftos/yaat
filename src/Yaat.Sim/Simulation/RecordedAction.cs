@@ -82,34 +82,53 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
     /// written before the field existed; null replays as heard.
     /// </summary>
     public bool? IssuedByStudent { get; init; }
+
+    /// <summary>
+    /// Where the ERAM entry that issued the command was typed, CRC or the YAAT Scope (provenance only); null for a command
+    /// no ERAM entry issued and for recordings written before the field existed.
+    /// </summary>
+    public EramEntrySource? Source { get; init; }
 }
 
 /// <summary>
 /// A controller/RPO chat message sent to the training room. Chat has no simulation-state effect,
 /// so replay/reconstruction ignores it; it is recorded so exported bundles carry the chat log and
-/// forward tape-playback can re-surface it in the terminal.
+/// forward tape-playback can re-surface it in the terminal. <see cref="Source"/> is where the ERAM entry that posted it
+/// (<c>SM</c>, <c>SW</c>) was typed; null for any other chat and for recordings written before the field existed.
 /// </summary>
-public sealed record RecordedChat(double ElapsedSeconds, string Initials, string Message) : RecordedAction(ElapsedSeconds);
+public sealed record RecordedChat(double ElapsedSeconds, string Initials, string Message, EramEntrySource? Source) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A flight-plan amendment applied to the aircraft, from any source: the <c>FP</c>/<c>DA</c>/<c>RMK</c>/<c>APT</c>
 /// verbs, the training hub's editor and every CRC amendment. <see cref="StripId"/> is the id the amendment's
 /// departure-strip reprint printed under, drawn once live and baked here so a replay reprints under the same id
 /// instead of minting a second copy beside the one a snapshot restore carried in; null on a pre-feature record and
-/// when the reprint printed nothing, both of which mint as before.
+/// when the reprint printed nothing, both of which mint as before. <see cref="Source"/> is where the ERAM entry that
+/// amended it was typed (provenance only); null for any other amendment and for recordings written before the field existed.
 /// </summary>
-public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment, string? StripId)
-    : RecordedAction(ElapsedSeconds);
+public sealed record RecordedAmendFlightPlan(
+    double ElapsedSeconds,
+    string Callsign,
+    FlightPlanAmendment Amendment,
+    string? StripId,
+    EramEntrySource? Source
+) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A controller "recycle beacon code" request (CRC Flight Plan Editor button, the YAAT training-hub
 /// <c>RequestNewBeaconCode</c>, or a bare ERAM <c>QB</c>). Replay re-runs the pool release+draw so the
 /// recycled code is reproduced deterministically on rewind. The assigner fields carry the acting ERAM
 /// sector when the request came from an ERAM position (CRC's CODE view auto-lists codes it assigned);
-/// recordings written before these fields deserialize them as null.
+/// recordings written before these fields deserialize them as null. <see cref="Source"/> is where the <c>QB</c> was
+/// typed, CRC or the YAAT Scope (provenance only); null for any other request.
 /// </summary>
-public sealed record RecordedRequestNewBeaconCode(double ElapsedSeconds, string Callsign, string? AssignedByFacilityId, string? AssignedBySectorId)
-    : RecordedAction(ElapsedSeconds);
+public sealed record RecordedRequestNewBeaconCode(
+    double ElapsedSeconds,
+    string Callsign,
+    string? AssignedByFacilityId,
+    string? AssignedBySectorId,
+    EramEntrySource? Source
+) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A weather load (<see cref="WeatherJson"/> non-null) or clear (<see cref="WeatherJson"/> null).
@@ -220,7 +239,7 @@ public sealed record RecordedHoldAnnotationChange(double ElapsedSeconds, string 
 /// <see cref="SweptSimSeconds"/> are the target pose CRC was showing when the entry was made — the last 12 s sweep, or a
 /// coverage-coasting track's coast point — and the sim time that pose belongs to; a <c>COAST</c> with no <c>@</c> starts
 /// there. All four are set together or all null (every other entry, an unswept aircraft, and recordings made before they
-/// existed).
+/// existed). <see cref="Source"/> is where the entry was typed, CRC or the YAAT Scope (provenance only).
 /// </summary>
 public sealed record RecordedEramEntry(
     double ElapsedSeconds,
@@ -230,16 +249,17 @@ public sealed record RecordedEramEntry(
     double? SweptLat,
     double? SweptLon,
     double? SweptTrackDeg,
-    double? SweptSimSeconds
+    double? SweptSimSeconds,
+    EramEntrySource Source
 ) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A Continuous Range Readout group created, replaced or recolored (<c>LF</c> with a location, <c>SetEramCrrGroupColor</c>),
 /// or with a null <see cref="Lat"/> deleted (<c>ClearOrDeleteEramCrrGroup</c>). The group is engine state —
 /// <c>SimulationEngine.ApplyCrrGroup</c> applies it on every run kind — while membership rides each aircraft's
-/// <c>LF</c> entries.
+/// <c>LF</c> entries. <see cref="Source"/> is where the entry was typed (provenance only).
 /// </summary>
-public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, string? Color, double? Lat, double? Lon)
+public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, string? Color, double? Lat, double? Lon, EramEntrySource Source)
     : RecordedAction(ElapsedSeconds);
 
 /// <summary>
@@ -251,9 +271,10 @@ public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, s
 /// consults adaptation). The entered weather reports (<c>SimulationEngine.EramWeatherReports</c>, room-wide, so the
 /// facility is carried for shape only): <c>WX {station} {hhmm} {text}</c> stores one station's report, stamped with the
 /// session-clock instant of <see cref="RecordedAction.ElapsedSeconds"/>. <c>SimulationEngine.ApplyEramRoomEntry</c> applies
-/// it on every run kind.
+/// it on every run kind. <see cref="Source"/> is where the entry was typed (provenance only).
 /// </summary>
-public sealed record RecordedEramRoomEntry(double ElapsedSeconds, string FacilityId, string Entry) : RecordedAction(ElapsedSeconds);
+public sealed record RecordedEramRoomEntry(double ElapsedSeconds, string FacilityId, string Entry, EramEntrySource Source)
+    : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A controller asking for a flight strip to be printed for an aircraft: the training-hub

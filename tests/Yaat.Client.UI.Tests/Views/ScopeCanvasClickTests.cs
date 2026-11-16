@@ -124,6 +124,55 @@ public class ScopeCanvasClickTests
         }
     }
 
+    // On Mixed (the default profile) a click reads the dialect from the clicked track's owner, not the selection's.
+
+    [AvaloniaFact]
+    public void OnMixed_ALeftClickOnAStarsOwnedTrack_FillsItAsAPilotEntry_WhateverIsSelected()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            AircraftModel stars = AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            stars.OwnerSectorCode = "1A";
+            AircraftModel eram = AddAircraft(main, view.Canvas, "AAL1", 500, 450);
+            eram.OwnerSectorCode = "C36";
+            main.SelectedAircraft = eram;
+            scope.TypeEntryText("QQ 250");
+
+            Click(window, view.Canvas, new Point(300, 300), MouseButton.Left);
+
+            Assert.Equal("UAL238 QQ 250", scope.EntryText);
+            Assert.StartsWith("PILOT", scope.EntryReading.Label, StringComparison.Ordinal);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void OnMixed_ALeftClickOnAStarsOwnedTrack_WithNothingSelected_FillsItAsAPilotEntry()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            AircraftModel stars = AddAircraft(main, view.Canvas, "UAL238", 300, 300);
+            stars.OwnerSectorCode = "1A";
+            scope.TypeEntryText("QQ 250");
+
+            Click(window, view.Canvas, new Point(300, 300), MouseButton.Left);
+
+            Assert.Equal("UAL238 QQ 250", scope.EntryText);
+            Assert.StartsWith("PILOT", scope.EntryReading.Label, StringComparison.Ordinal);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());

@@ -17,10 +17,11 @@ internal static class ScopeEntryFill
     private const string OverridePrefix = "** ";
 
     /// <summary>
-    /// <paramref name="entry"/> with <paramref name="callsign"/> filled in, read on a <paramref name="profile"/> profile;
+    /// <paramref name="entry"/> with <paramref name="callsign"/> filled in, read on a <paramref name="profile"/> profile with the
+    /// owner kind of the track the entry is for, <paramref name="ownerTemplateId"/> (which picks the dialect on Mixed);
     /// <paramref name="isKnownCallsign"/> says whether a word is a known aircraft's callsign.
     /// </summary>
-    public static string Track(string entry, string callsign, ScopeProfileKind profile, Func<string, bool> isKnownCallsign)
+    public static string Track(string entry, string callsign, ScopeProfileKind profile, string? ownerTemplateId, Func<string, bool> isKnownCallsign)
     {
         string trimmed = entry.Trim();
         if (trimmed.Length == 0)
@@ -28,7 +29,7 @@ internal static class ScopeEntryFill
             return callsign;
         }
 
-        if (ScopeEntryClassifier.Classify(trimmed, profile).Kind != ScopeEntryKind.Pilot)
+        if (ScopeEntryClassifier.Classify(trimmed, profile, ownerTemplateId).Kind != ScopeEntryKind.Pilot)
         {
             return EndsWithCallsign(trimmed, callsign) ? trimmed : $"{trimmed} {callsign}";
         }
@@ -45,11 +46,18 @@ internal static class ScopeEntryFill
 
     /// <summary>
     /// Whether filling <paramref name="callsign"/> would change <paramref name="entry"/> (case aside): false when its pilot entry
-    /// already names the track first, or its last word is the track's callsign, where a click acts as with an empty preview.
+    /// already names the track first, or its last word is the track's callsign, where a click acts as with an empty preview;
+    /// <paramref name="ownerTemplateId"/> is the owner kind of the track the entry is for.
     /// </summary>
-    public static bool ChangesTrack(string entry, string callsign, ScopeProfileKind profile, Func<string, bool> isKnownCallsign) =>
+    public static bool ChangesTrack(
+        string entry,
+        string callsign,
+        ScopeProfileKind profile,
+        string? ownerTemplateId,
+        Func<string, bool> isKnownCallsign
+    ) =>
         !EndsWithCallsign(entry.Trim(), callsign)
-        && !string.Equals(Track(entry, callsign, profile, isKnownCallsign), entry.Trim(), StringComparison.OrdinalIgnoreCase);
+        && !string.Equals(Track(entry, callsign, profile, ownerTemplateId, isKnownCallsign), entry.Trim(), StringComparison.OrdinalIgnoreCase);
 
     // A leading PILOT word, then a leading ** override, each kept in front of the filled callsign; the rest after them.
     private static (string Prefix, string Remainder) SplitPrefixes(string trimmed)

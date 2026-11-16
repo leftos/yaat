@@ -268,7 +268,7 @@ public class ScopePtlTests
 
             await RunEntryAsync(scope, "MF R");
 
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, "MF R"), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, "MF R", []), scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
             Assert.Empty(scope.LocalPtlCallsigns);
         }

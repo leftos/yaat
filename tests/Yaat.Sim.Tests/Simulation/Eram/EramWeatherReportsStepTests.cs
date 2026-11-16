@@ -34,7 +34,7 @@ public class EramWeatherReportsStepTests
 
     private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
-    private static RecordedEramRoomEntry Entry(double elapsed, string entry) => new(elapsed, Facility, entry);
+    private static RecordedEramRoomEntry Entry(double elapsed, string entry) => new(elapsed, Facility, entry, EramEntrySource.Crc);
 
     /// <summary>Anchors the engine's session clock so its current second is <paramref name="nowUtc"/>.</summary>
     private static void SetClock(SimulationEngine engine, DateTime nowUtc)

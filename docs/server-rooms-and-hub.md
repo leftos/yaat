@@ -450,6 +450,8 @@ method-string → hub-method catalog and the server→client event catalog are i
 over the hand-written lists in yaat-server's `.claude/rules/rooms-commands.md`, which go stale (e.g. `CreateRoom` now takes `kind`,
 `SendCommand` takes `initials`, and `SpawnAircraft`/`DeleteAircraft` are `SendCommand`-routed verbs, not hub methods).
 
+**Scope ERAM entries.** `SendScopeEramEntry` (outside a room it answers `NOT IN A ROOM`) runs under the room gate through `ScopeEramEntryService` (`Hubs/ScopeEramEntryService.cs`): the connection's position (`ResolveIdentity`, its persistent `AS` selection else the student) must be an ERAM sector (`SESSION NOT ACTIVE`, `NOT ADAPTED` otherwise). The entry runs on a headless viewer `CrcClientState`, made per entry over `DetachedWebSocket`, never registered in `CrcClientManager`, and made the viewer by `ActAsScopeViewer`: it acts as that position in the room's ARTCC and `DispatchEramElements` is the same verb switch a CRC message reaches, so validation, feedback and recorded writes are shared. Its records carry `EramEntrySource.Scope` and its terminal echo is `[SCOPE] …`. The wire shape is in [training-hub-contract.md](training-hub-contract.md).
+
 ## Adding an `AircraftUpdated` field
 
 The canonical checklist (DTO → DTO → `DtoConverter` → `TrainingDtoFingerprint` → client consume → source-gen) lives in

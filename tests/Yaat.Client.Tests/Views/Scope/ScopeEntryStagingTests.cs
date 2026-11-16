@@ -31,6 +31,6 @@ public class ScopeEntryStagingTests
         string staged = ScopeEntryStaging.Text("", "UAL1", command);
 
         Assert.Equal($"PILOT UAL1 {command}", staged);
-        Assert.Equal(ScopeEntryKind.Pilot, ScopeEntryClassifier.Classify(staged, profile).Kind);
+        Assert.Equal(ScopeEntryKind.Pilot, ScopeEntryClassifier.Classify(staged, profile, null).Kind);
     }
 }

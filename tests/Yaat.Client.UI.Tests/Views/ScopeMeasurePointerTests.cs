@@ -152,7 +152,7 @@ public class ScopeMeasurePointerTests
             );
             string expected = $"Measurement {resolved.Label}";
             Assert.StartsWith("1", resolved.Label, StringComparison.Ordinal);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, expected, ""), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, expected, "", []), scope.EntryResponse);
             Assert.Equal(expected, main.StatusText);
         }
         finally
@@ -202,7 +202,7 @@ public class ScopeMeasurePointerTests
             Assert.True(main.Measure.IsMeasuring);
             Assert.Equal(new RblPendingAnchor(RblEndpoint.AtPoint(LatLonAt(view.Canvas, MapA), ""), RblView.Scope), main.Measure.Anchor);
             Assert.Empty(main.Measure.Lines);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, AnchoredStatus, ""), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, AnchoredStatus, "", []), scope.EntryResponse);
 
             Click(window, view.Canvas, MapB, MouseButton.Left);
 
@@ -595,7 +595,7 @@ public class ScopeMeasurePointerTests
 
             Assert.Null(main.Measure.Anchor);
             Assert.False(main.Measure.IsMeasuring);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, RangeBearingViewState.FullStatus, ""), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, RangeBearingViewState.FullStatus, "", []), scope.EntryResponse);
             Assert.Equal(RangeBearingViewState.FullStatus, main.StatusText);
         }
         finally

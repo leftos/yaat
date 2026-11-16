@@ -463,6 +463,7 @@ public sealed class ActionRouter
                 StripId = ctx?.StripId,
                 Accepted = result.Success,
                 IssuedByStudent = input.IssuedByStudent,
+                Source = input.Source,
             };
             _engine.RecordAction(toRecord);
         }

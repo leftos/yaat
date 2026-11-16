@@ -35,6 +35,8 @@ public class ScopeEntryTests
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ProfileKind = profile;
+        // No server here: an ERAM entry is answered ACCEPT, so the tests that only walk the history stay hermetic.
+        scope.EramEntrySender = _ => Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
         main.CommandText = Untouched;
         var view = new ScopeView { DataContext = scope };
         var window = new Window
@@ -179,11 +181,50 @@ public class ScopeEntryTests
 
             Assert.Equal("", scope.EntryText);
             Assert.Equal("UAL238 FH 270", scope.LastSentEntryText);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "Command error: Not connected.", "UAL238 FH 270"), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "Command error: Not connected.", "UAL238 FH 270", []), scope.EntryResponse);
             Assert.Equal(["Command error: Not connected.", "UAL238 FH 270"], Lines(view.EntryLayer.StarsArea));
             Assert.Contains(main.CommandHistory, h => h.Command == "UAL238 FH 270");
             Assert.Equal(statusBefore, main.StatusText);
             Assert.Equal(Untouched, main.CommandText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OnMixed_TheSelectedTracksOwner_DecidesTheDialect_AndTheLabelFollowsTheSelection()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Mixed);
+        try
+        {
+            var eramSends = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                eramSends.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+            AircraftModel stars = AddAircraft(main, "UAL238", 5000);
+            stars.OwnerSectorCode = "1A";
+            AircraftModel eram = AddAircraft(main, "AAL1", 5000);
+            eram.OwnerSectorCode = "C36";
+            main.SelectedAircraft = stars;
+            FocusCanvas(window, view);
+            Type(window, "QQ 250");
+            Assert.StartsWith("PILOT QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+
+            main.SelectedAircraft = eram;
+            Settle(window);
+            Assert.StartsWith("ERAM QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+
+            main.SelectedAircraft = stars;
+            Settle(window);
+            Assert.StartsWith("PILOT QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+            await EnterAsync(window, scope);
+
+            Assert.Equal("QQ 250", scope.LastSentEntryText);
+            Assert.Empty(eramSends);
         }
         finally
         {
@@ -241,7 +282,7 @@ public class ScopeEntryTests
 
             await RunEntryAsync(scope, entry);
 
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, ScopeViewModel.NotSupportedMessage, entry), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, ScopeViewModel.NotSupportedMessage, entry, []), scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
         }
     }
@@ -342,7 +383,7 @@ public class ScopeEntryTests
 
             await RunEntryAsync(scope, entry);
 
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, entry), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, entry, []), scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
         }
     }
@@ -358,7 +399,7 @@ public class ScopeEntryTests
 
             await RunEntryAsync(scope, "*J");
 
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "No J-ring on UAL238", "*J"), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "No J-ring on UAL238", "*J", []), scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
         }
     }
@@ -408,11 +449,17 @@ public class ScopeEntryTests
     }
 
     [AvaloniaFact]
-    public async Task AnEramEntry_IsRefused_NotSupported()
+    public async Task AnEramEntry_IsSentToTheServer_AndTheFeedbackShowsItsLines()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
         try
         {
+            var sent = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                sent.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT", "INTERIM ALT", "UAL238"], null));
+            };
             string statusBefore = main.StatusText;
             FocusCanvas(window, view);
             Type(window, "QQ 250 UAL238");
@@ -420,10 +467,54 @@ public class ScopeEntryTests
 
             await EnterAsync(window, scope);
 
-            Assert.Equal(["NOT SUPPORTED", "QQ 250 UAL238"], Lines(view.EntryLayer.EramFeedback));
+            Assert.Equal(["QQ", "250", "UAL238"], Assert.Single(sent).Tokens);
+            Assert.Equal(["✓", " ACCEPT", "INTERIM ALT", "UAL238", "QQ 250 UAL238"], Lines(view.EntryLayer.EramFeedback));
             Assert.Equal(["_"], Lines(view.EntryLayer.EramPreview));
             Assert.Null(scope.LastSentEntryText);
             Assert.Equal(statusBefore, main.StatusText);
+            Assert.Equal("QQ 250 UAL238", main.CommandHistory[^1].Command);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AnEramRefusal_ShowsTheErrorLine()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
+        try
+        {
+            scope.EramEntrySender = _ => Task.FromResult(new ScopeEramEntryResultDto(false, ["NOT YOUR CONTROL"], null));
+            FocusCanvas(window, view);
+            Type(window, "QQ 250 UAL238");
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal(["NOT YOUR CONTROL", "QQ 250 UAL238"], Lines(view.EntryLayer.EramFeedback));
+            Assert.Equal(ScopeResponseKind.Error, scope.EntryResponse?.Kind);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AnEramSendFailure_ShowsTheException_AndKeepsTheHistory()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
+        try
+        {
+            scope.EramEntrySender = _ => throw new InvalidOperationException("Not connected.");
+            FocusCanvas(window, view);
+            Type(window, "QT UAL238");
+
+            await EnterAsync(window, scope);
+
+            Assert.Equal(["Not connected.", "QT UAL238"], Lines(view.EntryLayer.EramFeedback));
+            Assert.Equal("QT UAL238", main.CommandHistory[^1].Command);
         }
         finally
         {
@@ -468,7 +559,7 @@ public class ScopeEntryTests
             Type(window, "QQ 250 UAL238");
             await EnterAsync(window, scope);
             Type(window, "FH");
-            Assert.Equal(["NOT SUPPORTED", "QQ 250 UAL238"], Lines(view.EntryLayer.EramFeedback));
+            Assert.Equal(["✓", " ACCEPT", "QQ 250 UAL238"], Lines(view.EntryLayer.EramFeedback));
 
             window.DispatchKey(Key.Escape);
             Settle(window);
@@ -905,11 +996,12 @@ public class ScopeEntryTests
         using (scope)
         {
             scope.ProfileKind = ScopeProfileKind.Eram;
+            scope.EramEntrySender = _ => Task.FromResult(new ScopeEramEntryResultDto(false, ["FORMAT"], null));
             await RunEntryAsync(scope, "QQ " + new string('1', 200));
 
             IReadOnlyList<ScopeResponseLine> lines = scope.EntryResponseLines;
             Assert.Equal(5, lines.Count);
-            Assert.Equal(new ScopeResponseLine("NOT SUPPORTED", true), lines[0]);
+            Assert.Equal(new ScopeResponseLine("FORMAT", true), lines[0]);
             Assert.All(lines.Skip(1), line => Assert.False(line.IsMessage));
         }
     }
@@ -920,11 +1012,11 @@ public class ScopeEntryTests
         (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
         try
         {
-            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Accept, ScopeViewModel.AcceptMessage, "FH 270");
+            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Accept, ScopeViewModel.AcceptMessage, "FH 270", []);
             Settle(window);
             List<Color> accept = Colours(view.EntryLayer.StarsArea);
 
-            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, "Bad entry", "FH 270");
+            scope.EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, "Bad entry", "FH 270", []);
             Settle(window);
             List<Color> error = Colours(view.EntryLayer.StarsArea);
 

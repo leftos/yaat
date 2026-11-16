@@ -29,7 +29,7 @@ public class EramSectorMessagesStepTests
 
     private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
-    private static RecordedEramRoomEntry Entry(double elapsed, string entry) => new(elapsed, Facility, entry);
+    private static RecordedEramRoomEntry Entry(double elapsed, string entry) => new(elapsed, Facility, entry, EramEntrySource.Crc);
 
     /// <summary>A recording of everything the engine has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
@@ -62,7 +62,7 @@ public class EramSectorMessagesStepTests
 
         Assert.True(engine.Actions.ApplyRecorded(Entry(0, "SM 44 WX DEVIATIONS NORTH"), host).Success);
         Assert.True(engine.Actions.ApplyRecorded(Entry(0, "SM 62 RELIEF IN 5"), host).Success);
-        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramRoomEntry(0, "ZLA", "SM 44 OTHER CENTER"), host).Success);
+        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramRoomEntry(0, "ZLA", "SM 44 OTHER CENTER", EramEntrySource.Crc), host).Success);
 
         Assert.Equal("WX DEVIATIONS NORTH", Message(engine, Facility, "44"));
         Assert.Equal("RELIEF IN 5", Message(engine, Facility, "62"));
@@ -166,7 +166,7 @@ public class EramSectorMessagesStepTests
         var host = new AttendanceActionHost();
         Assert.True(engine.Actions.ApplyRecorded(Entry(0, "SM 62 SECOND SECTOR"), host).Success);
         Assert.True(engine.Actions.ApplyRecorded(Entry(0, "SM 44 FIRST SECTOR"), host).Success);
-        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramRoomEntry(0, "ZLA", "SM 12 OTHER CENTER"), host).Success);
+        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramRoomEntry(0, "ZLA", "SM 12 OTHER CENTER", EramEntrySource.Crc), host).Success);
 
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
 

@@ -30,7 +30,7 @@ public class EramRoomSettingsStepTests
 
     private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
-    private static RecordedEramRoomEntry Entry(double elapsed, string entry) => new(elapsed, Facility, entry);
+    private static RecordedEramRoomEntry Entry(double elapsed, string entry) => new(elapsed, Facility, entry, EramEntrySource.Crc);
 
     /// <summary>A recording of everything the engine has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
@@ -205,7 +205,7 @@ public class EramRoomSettingsStepTests
         var host = new AttendanceActionHost();
         Assert.True(engine.Actions.ApplyRecorded(Entry(0, "CA MCI FUNCTION OFF"), host).Success);
         Assert.True(engine.Actions.ApplyRecorded(Entry(0, "CA CA DISPLAY 46 44 OFF"), host).Success);
-        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramRoomEntry(0, "ZLA", "CA MCI DISPLAY 12 OFF"), host).Success);
+        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramRoomEntry(0, "ZLA", "CA MCI DISPLAY 12 OFF", EramEntrySource.Crc), host).Success);
 
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
 

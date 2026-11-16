@@ -17,6 +17,12 @@ public sealed record ActionInput(string Callsign, string Command, string Connect
     /// <see cref="BakedDraws.IssuedByStudent"/> instead of deciding again.
     /// </summary>
     public bool? IssuedByStudent { get; init; }
+
+    /// <summary>
+    /// Where the ERAM entry that issued this action was typed (CRC or the YAAT Scope); null for an action no ERAM entry
+    /// issued. Provenance only: the router copies it onto the <see cref="RecordedCommand"/> and nothing else reads it.
+    /// </summary>
+    public EramEntrySource? Source { get; init; }
 }
 
 /// <summary>

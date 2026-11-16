@@ -155,11 +155,15 @@ public class RecordedStateChangeTests
 
         AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
 
-        CommandResult track = engine.Actions.ApplyRecorded(new RecordedEramEntry(0, ac.Callsign, "TRACK", "3O", null, null, null, null));
+        CommandResult track = engine.Actions.ApplyRecorded(
+            new RecordedEramEntry(0, ac.Callsign, "TRACK", "3O", null, null, null, null, EramEntrySource.Crc)
+        );
         Assert.True(track.Success, track.Message);
         Assert.Equal(engine.Scenario!.StudentPosition, ac.Track.Owner);
 
-        CommandResult heading = engine.Actions.ApplyRecorded(new RecordedEramEntry(1, ac.Callsign, "QS 270", null, null, null, null, null));
+        CommandResult heading = engine.Actions.ApplyRecorded(
+            new RecordedEramEntry(1, ac.Callsign, "QS 270", null, null, null, null, null, EramEntrySource.Crc)
+        );
         Assert.True(heading.Success, heading.Message);
         Assert.Equal("H270", ac.Eram.AssignedHeading);
     }
@@ -179,7 +183,7 @@ public class RecordedStateChangeTests
         const double sweptAt = 4;
         const double sweptTrack = 200;
         CommandResult coast = engine.Actions.ApplyRecorded(
-            new RecordedEramEntry(10, ac.Callsign, "COAST T10", "3O", swept.Lat, swept.Lon, sweptTrack, sweptAt)
+            new RecordedEramEntry(10, ac.Callsign, "COAST T10", "3O", swept.Lat, swept.Lon, sweptTrack, sweptAt, EramEntrySource.Crc)
         );
         Assert.True(coast.Success, coast.Message);
         Assert.Equal(swept.Lat, ac.Eram.CoastLat);
@@ -189,7 +193,9 @@ public class RecordedStateChangeTests
 
         // A record with no swept pose (unswept, or made before records carried one) keeps the live target at the entry's time.
         AircraftState live = unswept.FindAircraft(AiTestFixture.Callsign)!;
-        CommandResult liveCoast = unswept.Actions.ApplyRecorded(new RecordedEramEntry(10, live.Callsign, "COAST T10", "3O", null, null, null, null));
+        CommandResult liveCoast = unswept.Actions.ApplyRecorded(
+            new RecordedEramEntry(10, live.Callsign, "COAST T10", "3O", null, null, null, null, EramEntrySource.Crc)
+        );
         Assert.True(liveCoast.Success, liveCoast.Message);
         Assert.Equal(live.Position.Lat, live.Eram.CoastLat);
         Assert.Equal(live.Position.Lon, live.Eram.CoastLon);
@@ -206,7 +212,7 @@ public class RecordedStateChangeTests
         }
 
         var host = new AttendanceActionHost();
-        var group = new RecordedEramCrrGroup(0, "ABC", "Yellow", 37.5, -122.0);
+        var group = new RecordedEramCrrGroup(0, "ABC", "Yellow", 37.5, -122.0, EramEntrySource.Crc);
 
         CommandResult applied = engine.Actions.ApplyRecorded(group, host);
 
@@ -224,7 +230,7 @@ public class RecordedStateChangeTests
         }
 
         var host = new AttendanceActionHost();
-        var entry = new RecordedEramRoomEntry(0, "ZOA", "CA CA DISPLAY 44 OFF");
+        var entry = new RecordedEramRoomEntry(0, "ZOA", "CA CA DISPLAY 44 OFF", EramEntrySource.Crc);
 
         CommandResult applied = engine.Actions.ApplyRecorded(entry, host);
 
@@ -332,11 +338,15 @@ public class RecordedStateChangeTests
         List<RecordedAction> log = engine.Scenario!.ActionLog;
         int before = log.Count;
 
-        CommandResult refused = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 400", null, null, null, null, null));
+        CommandResult refused = engine.Actions.IssueDerived(
+            new RecordedEramEntry(0, ac.Callsign, "QS 400", null, null, null, null, null, EramEntrySource.Crc)
+        );
         Assert.False(refused.Success);
         Assert.Equal(before, log.Count);
 
-        CommandResult applied = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 270", null, null, null, null, null));
+        CommandResult applied = engine.Actions.IssueDerived(
+            new RecordedEramEntry(0, ac.Callsign, "QS 270", null, null, null, null, null, EramEntrySource.Crc)
+        );
         Assert.True(applied.Success, applied.Message);
         RecordedEramEntry recorded = Assert.IsType<RecordedEramEntry>(log[^1]);
         Assert.Equal("QS 270", recorded.Entry);

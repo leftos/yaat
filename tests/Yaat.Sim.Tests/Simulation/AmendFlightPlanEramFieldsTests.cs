@@ -88,7 +88,7 @@ public class AmendFlightPlanEramFieldsTests(ITestOutputHelper output)
     public void RecordedAmendment_WithoutClearBeaconCode_DeserializesAsNotClearing()
     {
         // A recording written before the flag existed: serialize with it set, then take it out of the JSON.
-        var recorded = new RecordedAmendFlightPlan(12.0, Callsign, new FlightPlanAmendment(ClearBeaconCode: true, Remarks: "NEW"), null);
+        var recorded = new RecordedAmendFlightPlan(12.0, Callsign, new FlightPlanAmendment(ClearBeaconCode: true, Remarks: "NEW"), null, null);
         JsonObject action = JsonSerializer.SerializeToNode<RecordedAction>(recorded, RecordingJsonOptions.Default)!.AsObject();
         JsonObject amendment = action[nameof(RecordedAmendFlightPlan.Amendment)]!.AsObject();
         Assert.True(amendment.Remove(nameof(FlightPlanAmendment.ClearBeaconCode)));
@@ -114,6 +114,7 @@ public class AmendFlightPlanEramFieldsTests(ITestOutputHelper output)
                 SpecialAircraftIndicator: true,
                 NumberOfAircraft: 3
             ),
+            null,
             null
         );
 

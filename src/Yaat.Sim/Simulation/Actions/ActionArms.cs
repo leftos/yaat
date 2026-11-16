@@ -240,7 +240,7 @@ internal static class ActionArms
         ctx.StripId = ctx.Engine.ReprintDepartureStripAfterAmendment(callsign, ctx.Input.Baked?.StripId);
         if (engine.Scenario is { } scenario)
         {
-            engine.RecordAction(new RecordedAmendFlightPlan(scenario.ElapsedSeconds, callsign, amendment, ctx.StripId));
+            engine.RecordAction(new RecordedAmendFlightPlan(scenario.ElapsedSeconds, callsign, amendment, ctx.StripId, null));
         }
 
         string response;

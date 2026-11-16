@@ -434,6 +434,8 @@ The entry is not tracked in the manifest, so it is absent in older recordings �
   `StripRequests.PrintRequestedStrip` (Yaat.Sim, applied by the router on every run kind) prints under the recorded id — an engine that already holds it (a snapshot restore carried it in) prints nothing, a from-scratch reconstruction prints it — and answers the verdict, so a request whose aircraft is gone is a fidelity warning.
 
   `RecordedAmendFlightPlan` carries a `StripId` the same way: the id the amendment reprint printed under, null on records written before it existed (which then mint, as before).
+
+  `EramEntrySource` (`Crc` or `Scope`, written by name; an old integer still reads) is where an ERAM entry was typed, carried by `RecordedEramEntry`, `RecordedEramCrrGroup` and `RecordedEramRoomEntry` (an unsourced record reads as `Crc`) and, set only when an ERAM entry wrote them, by `RecordedCommand`, `RecordedAmendFlightPlan`, `RecordedRequestNewBeaconCode` and `RecordedChat` (null otherwise). Provenance only: replay applies a record the same whatever its source.
 - `RecordedAttendanceChange(AttendedPositionIds)` — the first **recorded input** (ADR 0003, `CONTEXT.md`): the full set of vNAS position ids a CRC client was working in the room. The live host writes it whenever the set it derives from `PositionRegistry` differs from the engine's (`RoomEngine.SyncAttendance`, in the live host's end-of-second recorded-actions slot — the slot a replay applies the record in — after a load and on return to live).
 
   On apply it is replaced whole through `SimulationEngine.Attendance` (each id resolved to its owner and TCP through the *room's* ARTCC config; an id the config cannot resolve stays id-only).

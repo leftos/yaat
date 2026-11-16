@@ -4318,6 +4318,12 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Sends an ERAM entry typed on the Scope to the server's ERAM dispatch (<see cref="ServerConnection.SendScopeEramEntryAsync"/>),
+    /// acting as this connection's position; in playback a state-changing entry asks first, as a command does.
+    /// </summary>
+    internal Task<ScopeEramEntryResultDto> SendScopeEramEntryAsync(ScopeEramEntryDto entry) => _connection.SendScopeEramEntryAsync(entry);
+
     internal void AddHistory(string callsign, string command)
     {
         var entry = new CommandHistoryEntry(callsign.ToUpperInvariant(), command.ToUpperInvariant());

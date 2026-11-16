@@ -1047,7 +1047,7 @@ public class RecordingArchiveTests
             ScenarioJson = basis.ScenarioJson,
             RngSeed = basis.RngSeed,
             WeatherJson = basis.WeatherJson,
-            Actions = [.. basis.Actions, new RecordedChat(5.0, "LF", "traffic is your three o'clock")],
+            Actions = [.. basis.Actions, new RecordedChat(5.0, "LF", "traffic is your three o'clock", null)],
             TerminalLog =
             [
                 new RecordedTerminalEntry(0.0, new DateTime(2026, 3, 21, 12, 0, 0, DateTimeKind.Utc), "LF", "Command", "AAL100", "H270"),

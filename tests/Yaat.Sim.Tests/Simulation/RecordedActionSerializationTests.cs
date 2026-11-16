@@ -93,7 +93,7 @@ public class RecordedActionSerializationTests
     public void RecordedEramEntry_WithoutSweptFields_LoadsWithNullSweptPosition()
     {
         // A recording written before ERAM entries carried the swept position has no Swept* properties at all.
-        var current = new RecordedEramEntry(100.0, "AAL100", "COAST T100", "07", 37.5, -122.25, 270.0, 96.0);
+        var current = new RecordedEramEntry(100.0, "AAL100", "COAST T100", "07", 37.5, -122.25, 270.0, 96.0, EramEntrySource.Crc);
         JsonObject json = JsonSerializer.SerializeToNode<RecordedAction>(current, RecordingJsonOptions.Default)!.AsObject();
         List<string> sweptProperties = [.. json.Select(p => p.Key).Where(k => k.StartsWith("swept", StringComparison.OrdinalIgnoreCase))];
         Assert.Equal(4, sweptProperties.Count);
@@ -203,7 +203,7 @@ public class RecordedActionSerializationTests
                 StripId = "SEP_3",
                 Accepted = true,
             },
-            new RecordedChat(18.0, "LA", "SWA22 will be number two behind the RJ"),
+            new RecordedChat(18.0, "LA", "SWA22 will be number two behind the RJ", null),
             new RecordedAmendFlightPlan(
                 24.0,
                 "SWA22",
@@ -221,9 +221,10 @@ public class RecordedActionSerializationTests
                     BeaconAssignedByFacilityId: "NCT",
                     BeaconAssignedBySectorId: "OAK"
                 ),
-                "STRIP_7"
+                "STRIP_7",
+                null
             ),
-            new RecordedRequestNewBeaconCode(31.0, "N123AB", "ZOA", "40"),
+            new RecordedRequestNewBeaconCode(31.0, "N123AB", "ZOA", "40", null),
             new RecordedWeatherChange(40.0, "{\"metars\":[\"KOAK 011253Z 29012KT 10SM FEW015 18/11 A2992\"]}", ReconstructMetars: true),
             new RecordedSettingChange(45.0, "AutoCrossRunway", "true"),
             new RecordedArrivalGeneratorsChange(50.0, "[{\"Fix\":\"SUNOL\",\"IntervalSeconds\":180,\"Enabled\":true}]"),
@@ -307,9 +308,9 @@ public class RecordedActionSerializationTests
                     Efc = 1815,
                 }
             ),
-            new RecordedEramEntry(100.0, "AAL100", "QR 350", "07", 37.5, -122.25, 270.0, 96.0),
-            new RecordedEramCrrGroup(105.0, "ALPHA", "Green", 37.7213, -122.2208),
-            new RecordedEramRoomEntry(107.0, "ZOA", "CA MCI DISPLAY 44 45 OFF"),
+            new RecordedEramEntry(100.0, "AAL100", "QR 350", "07", 37.5, -122.25, 270.0, 96.0, EramEntrySource.Crc),
+            new RecordedEramCrrGroup(105.0, "ALPHA", "Green", 37.7213, -122.2208, EramEntrySource.Crc),
+            new RecordedEramRoomEntry(107.0, "ZOA", "CA MCI DISPLAY 44 45 OFF", EramEntrySource.Crc),
             new RecordedStripRequest(110.0, "AAL100", "OAK", "STRIP_11"),
             new RecordedAsdexSafetyLogicChange(
                 115.0,

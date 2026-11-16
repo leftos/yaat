@@ -44,4 +44,69 @@ public class ServerConnectionTakeControlGateTests
 
         Assert.True(connection.WouldTakeControl(command));
     }
+
+    [Theory]
+    [InlineData("QQ", "110", "UAL238")]
+    [InlineData("QT", "UAL238")]
+    [InlineData("//UAL238")]
+    public void InPlayback_AScopeEramEntryThatChangesState_TakesControl(params string[] tokens)
+    {
+        var connection = new ServerConnection { IsPlaybackMode = true };
+
+        Assert.True(connection.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+    }
+
+    [Theory]
+    [InlineData("QF", "UAL238")]
+    [InlineData("LA", "UAL238", "SFO")]
+    [InlineData("LB", "SFO", "OAK")]
+    [InlineData("LC", "UAL238", "SFO")]
+    public void InPlayback_AScopeEramReadout_TakesNoControl(params string[] tokens)
+    {
+        var connection = new ServerConnection { IsPlaybackMode = true };
+
+        Assert.False(connection.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+    }
+
+    [Theory]
+    [InlineData("LD", "UAL238")]
+    [InlineData("LE", "UAL238")]
+    [InlineData("UR", "UAL238")]
+    [InlineData("SM")]
+    [InlineData("RK")]
+    public void InPlayback_AnOtherReadout_TakesNoControl(params string[] tokens) =>
+        Assert.False(new ServerConnection { IsPlaybackMode = true }.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+
+    [Theory]
+    [InlineData("SM", "44", "HELLO")]
+    [InlineData("RK", "44", "ON")]
+    public void InPlayback_SmOrRkWithOperands_TakesControl(params string[] tokens) =>
+        Assert.True(new ServerConnection { IsPlaybackMode = true }.WouldTakeControl(new ScopeEramEntryDto([.. tokens], false)));
+
+    [Fact]
+    public async Task AServerWithoutTheMethod_AnswersNotSupportedByServer()
+    {
+        // The message a SignalR server sends for a hub method it does not have (its binder's "Method does not exist.").
+        const string Missing = "Failed to invoke 'SendScopeEramEntry' due to an error on the server. HubException: Method does not exist.";
+
+        ScopeEramEntryResultDto result = await ServerConnection.InvokeScopeEramEntryAsync(() =>
+            throw new Microsoft.AspNetCore.SignalR.HubException(Missing)
+        );
+
+        Assert.False(result.Ok);
+        Assert.Equal([ServerConnection.NotSupportedByServerMessage], result.Feedback);
+        Assert.Null(result.Response);
+    }
+
+    [Fact]
+    public async Task AnyOtherServerError_IsNotAnsweredNotSupported() =>
+        await Assert.ThrowsAsync<Microsoft.AspNetCore.SignalR.HubException>(() =>
+            ServerConnection.InvokeScopeEramEntryAsync(() =>
+                throw new Microsoft.AspNetCore.SignalR.HubException("An unexpected error occurred invoking 'SendScopeEramEntry' on the server.")
+            )
+        );
+
+    [Fact]
+    public void OffPlayback_NoScopeEramEntryTakesControl() =>
+        Assert.False(new ServerConnection { IsPlaybackMode = false }.WouldTakeControl(new ScopeEramEntryDto(["QQ", "110", "UAL238"], false)));
 }

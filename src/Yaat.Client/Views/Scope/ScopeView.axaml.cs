@@ -304,8 +304,7 @@ public partial class ScopeView : UserControl
                 vm.ToggleHighlight(callsign);
                 break;
             case ScopeMiddleClickAction.FillTrackAndExecute:
-                vm.FillTrack(callsign);
-                vm.ExecuteEntry();
+                vm.FillTrackAndRun(callsign);
                 break;
             case ScopeMiddleClickAction.RunQuickFlight:
                 vm.RunQuickFlight(callsign);

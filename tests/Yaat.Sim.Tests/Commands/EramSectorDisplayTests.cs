@@ -127,11 +127,11 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
 
         List<RecordedAction> actions =
         [
-            new RecordedEramEntry(1, callsign, "DWELL ZOA 44 1", null, null, null, null, null),
+            new RecordedEramEntry(1, callsign, "DWELL ZOA 44 1", null, null, null, null, null, EramEntrySource.Crc),
             // The same value again keeps the lock: a toggle would clear it here.
-            new RecordedEramEntry(2, callsign, "DWELL ZOA 44 1", null, null, null, null, null),
-            new RecordedEramEntry(2, callsign, "DWELL ZOA 45 1", null, null, null, null, null),
-            new RecordedEramEntry(3, callsign, "DWELL ZOA 44 0", null, null, null, null, null),
+            new RecordedEramEntry(2, callsign, "DWELL ZOA 44 1", null, null, null, null, null, EramEntrySource.Crc),
+            new RecordedEramEntry(2, callsign, "DWELL ZOA 45 1", null, null, null, null, null, EramEntrySource.Crc),
+            new RecordedEramEntry(3, callsign, "DWELL ZOA 44 0", null, null, null, null, null, EramEntrySource.Crc),
         ];
         SessionRecording recording = WithActions(baseline, actions, 5);
         var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());

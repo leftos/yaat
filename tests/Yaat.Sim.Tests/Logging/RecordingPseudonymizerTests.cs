@@ -40,8 +40,8 @@ public class RecordingPseudonymizerTests
             new RecordedCommand(3, "N123AB", "FP B738/L KSFO KOAK", "CRC", "crc-1"),
             new RecordedCommand(4, "SKW12", "FH 090", "YAAT", "yaat"),
             new RecordedCommand(5, "SKW12", "FH 100", "", "conn-2"),
-            new RecordedChat(6, "JD", "handing off to Pat Smith"),
-            new RecordedChat(7, "SECTOR 12", "UAL238 frequency change approved"),
+            new RecordedChat(6, "JD", "handing off to Pat Smith", null),
+            new RecordedChat(7, "SECTOR 12", "UAL238 frequency change approved", null),
         ];
         List<RecordedTerminalEntry> terminalLog =
         [
@@ -66,7 +66,7 @@ public class RecordingPseudonymizerTests
         // The command text replays, so it is never rewritten.
         Assert.Equal("CM 050", result.Actions.OfType<RecordedCommand>().First().Command);
         Assert.Equal(
-            [new RecordedChat(6, "A0", "handing off to A1"), new RecordedChat(7, "SECTOR 12", "UAL238 frequency change approved")],
+            [new RecordedChat(6, "A0", "handing off to A1", null), new RecordedChat(7, "SECTOR 12", "UAL238 frequency change approved", null)],
             result.Actions.OfType<RecordedChat>()
         );
         Assert.Equal(
@@ -91,7 +91,7 @@ public class RecordingPseudonymizerTests
     [Fact]
     public void RecordingPseudonymizer_UnknownInitials_BecomeQuestionMarks()
     {
-        List<RecordedAction> actions = [new RecordedCommand(1, "UAL238", "FH 270", "XY", "conn-1"), new RecordedChat(2, "B2", "back in 5")];
+        List<RecordedAction> actions = [new RecordedCommand(1, "UAL238", "FH 270", "XY", "conn-1"), new RecordedChat(2, "B2", "back in 5", null)];
         List<RecordedTerminalEntry> terminalLog =
         [
             Line("XY (override)", "Command", "UAL238", "FH 270"),

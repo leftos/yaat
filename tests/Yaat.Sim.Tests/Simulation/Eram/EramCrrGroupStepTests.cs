@@ -35,7 +35,8 @@ public class EramCrrGroupStepTests
 
     private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
-    private static RecordedEramCrrGroup Created(double elapsed, string color, double lat, double lon) => new(elapsed, Label, color, lat, lon);
+    private static RecordedEramCrrGroup Created(double elapsed, string color, double lat, double lon) =>
+        new(elapsed, Label, color, lat, lon, EramEntrySource.Crc);
 
     /// <summary>A recording of everything the engine has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
@@ -131,7 +132,10 @@ public class EramCrrGroupStepTests
         Assert.True(engine.Actions.ApplyRecorded(Created(0, "White", 37.5, -122.0), host).Success);
         Assert.NotEmpty(engine.CrrGroups);
 
-        CommandResult deleted = engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(3, Label, Color: null, Lat: null, Lon: null), host);
+        CommandResult deleted = engine.Actions.ApplyRecorded(
+            new RecordedEramCrrGroup(3, Label, Color: null, Lat: null, Lon: null, EramEntrySource.Crc),
+            host
+        );
 
         Assert.True(deleted.Success, deleted.Message);
         Assert.Empty(engine.CrrGroups);
@@ -168,7 +172,7 @@ public class EramCrrGroupStepTests
 
         var host = new AttendanceActionHost();
         Assert.True(engine.Actions.ApplyRecorded(Created(0, "Green", 37.5, -122.0), host).Success);
-        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(0, "ALT", "Coral", 38.0, -121.0), host).Success);
+        Assert.True(engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(0, "ALT", "Coral", 38.0, -121.0, EramEntrySource.Crc), host).Success);
 
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
 

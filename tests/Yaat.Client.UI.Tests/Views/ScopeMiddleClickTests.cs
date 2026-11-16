@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -114,6 +115,95 @@ public class ScopeMiddleClickTests
             ScopeEntryResponse response = Assert.IsType<ScopeEntryResponse>(scope.EntryResponse);
             Assert.Equal("QQ 250 UAL238", response.Echo);
             Assert.Null(view.ActiveContextMenu);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // On Mixed a middle click runs the entry in the clicked track's dialect, whatever is selected.
+
+    [AvaloniaFact]
+    public async Task OnMixed_AMiddleClickOnAnEramOwnedTrack_RunsTheEramEntry_WithAStarsOwnedTrackSelected()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel eram) = await ShowAsync(ScopeTemplates.MixedId, "QQ 250");
+        try
+        {
+            var eramSends = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                eramSends.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+            eram.OwnerSectorCode = "C36";
+            AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f);
+            stars.OwnerSectorCode = "1A";
+            scope.Main.SelectedAircraft = stars;
+            Dispatcher.UIThread.RunJobs();
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            Assert.Equal(["QQ", "250", "UAL238"], Assert.Single(eramSends).Tokens);
+            Assert.Null(scope.LastSentEntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OnMixed_AMiddleClickOnAnEramOwnedFieldA_WithAnEmptyPreview_RunsQuickFlight_WithAStarsOwnedTrackSelected()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel eram) = await ShowAsync(ScopeTemplates.MixedId, "");
+        try
+        {
+            var eramSends = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                eramSends.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+            eram.OwnerSectorCode = "C36";
+            AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f);
+            stars.OwnerSectorCode = "1A";
+            scope.Main.SelectedAircraft = stars;
+            Dispatcher.UIThread.RunJobs();
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            Assert.Equal(["QF", "UAL238"], Assert.Single(eramSends).Tokens);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OnMixed_AMiddleClickOnAStarsOwnedTrack_TogglesItsHighlight_AndSendsNothing()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel stars) = await ShowAsync(ScopeTemplates.MixedId, "QQ 250");
+        try
+        {
+            var eramSends = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                eramSends.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+            stars.OwnerSectorCode = "1A";
+            Dispatcher.UIThread.RunJobs();
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");
+
+            Assert.Contains("UAL238", scope.DataBlockState.HighlightedCallsigns);
+            Assert.Equal("QQ 250", scope.EntryText);
+            Assert.Empty(eramSends);
+            Assert.Null(scope.LastSentEntryText);
         }
         finally
         {

@@ -597,25 +597,80 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<CommandResultDto> SendCommandAsync(string callsign, string command, string initials)
     {
         EnsureConnected();
-        if (WouldTakeControl(command) && TakeControlConfirmation is { } confirm)
+        if (!await ConfirmTakeControlAsync(() => WouldTakeControl(command)))
         {
-            await _takeControlGate.WaitAsync();
-            try
-            {
-                // Re-asked inside the gate: if the command that held it was confirmed, the room has left playback and
-                // this one takes no tape with it, so it goes through without a second prompt.
-                if (WouldTakeControl(command) && !await confirm())
-                {
-                    return new CommandResultDto(false, "Cancelled — the room is still playing back the tape");
-                }
-            }
-            finally
-            {
-                _takeControlGate.Release();
-            }
+            return new CommandResultDto(false, TakeControlCancelledMessage);
         }
 
         return await _connection!.InvokeAsync<CommandResultDto>("SendCommand", callsign, command, initials);
+    }
+
+    private const string TakeControlCancelledMessage = "Cancelled — the room is still playing back the tape";
+
+    /// <summary>What a Scope ERAM entry answers when the server has no <c>SendScopeEramEntry</c> method.</summary>
+    public const string NotSupportedByServerMessage = "NOT SUPPORTED BY SERVER";
+
+    /// <summary>
+    /// Whether a Scope ERAM <paramref name="entry"/> would take control of a tape the room is playing back: in playback, any
+    /// entry but a readout (<see cref="Yaat.Sim.Commands.EramEntryVerbs.IsReadoutEntry"/>: <c>QF</c>, <c>LA</c>-<c>LE</c>, <c>UR</c>,
+    /// and a bare <c>SM</c> or <c>RK</c>), which only answers. False off playback.
+    /// </summary>
+    internal bool WouldTakeControl(ScopeEramEntryDto entry) => IsPlaybackMode && !Yaat.Sim.Commands.EramEntryVerbs.IsReadoutEntry(entry.Tokens);
+
+    /// <summary>
+    /// An ERAM entry typed on the Scope (<c>SendScopeEramEntry</c>), run by the server's ERAM dispatch as this connection's
+    /// position. In playback a state-changing entry asks first, as a command does. A server without the method answers
+    /// <see cref="NotSupportedByServerMessage"/>.
+    /// </summary>
+    public async Task<ScopeEramEntryResultDto> SendScopeEramEntryAsync(ScopeEramEntryDto entry)
+    {
+        EnsureConnected();
+        if (!await ConfirmTakeControlAsync(() => WouldTakeControl(entry)))
+        {
+            return new ScopeEramEntryResultDto(false, [TakeControlCancelledMessage], null);
+        }
+
+        return await InvokeScopeEramEntryAsync(() => _connection!.InvokeAsync<ScopeEramEntryResultDto>("SendScopeEramEntry", entry));
+    }
+
+    /// <summary>
+    /// Runs <paramref name="invoke"/>, the <c>SendScopeEramEntry</c> call, and answers <see cref="NotSupportedByServerMessage"/>
+    /// when the server has no such method (its "Method does not exist." error); any other error is thrown on.
+    /// </summary>
+    internal static async Task<ScopeEramEntryResultDto> InvokeScopeEramEntryAsync(Func<Task<ScopeEramEntryResultDto>> invoke)
+    {
+        try
+        {
+            return await invoke();
+        }
+        catch (Microsoft.AspNetCore.SignalR.HubException ex) when (ex.Message.Contains("Method does not exist", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ScopeEramEntryResultDto(false, [NotSupportedByServerMessage], null);
+        }
+    }
+
+    /// <summary>
+    /// Asks <see cref="TakeControlConfirmation"/> when <paramref name="wouldTakeControl"/> says the send would cut short a tape
+    /// the room is playing back. False when the user declined; true otherwise (no prompt, or no dialog to prompt with).
+    /// </summary>
+    private async Task<bool> ConfirmTakeControlAsync(Func<bool> wouldTakeControl)
+    {
+        if (!wouldTakeControl() || TakeControlConfirmation is not { } confirm)
+        {
+            return true;
+        }
+
+        await _takeControlGate.WaitAsync();
+        try
+        {
+            // Re-asked inside the gate: if the send that held it was confirmed, the room has left playback and this one
+            // takes no tape with it, so it goes through without a second prompt.
+            return !wouldTakeControl() || await confirm();
+        }
+        finally
+        {
+            _takeControlGate.Release();
+        }
     }
 
     public async Task SendChatAsync(string initials, string message)
@@ -1566,6 +1621,17 @@ public record PendingPilotRequestDto(
 /// the server's RunwayUseCountsDto.
 /// </summary>
 public record RunwayUseCountsDto(int Departures, int Arrivals, List<string> GeneratorArrivalRunways);
+
+/// <summary>An ERAM entry typed on the Scope (<c>SendScopeEramEntry</c>). Kept name-for-name in sync with the server's.</summary>
+/// <param name="Tokens">The typed entry, one token per whitespace run, as CRC's keyboard sends it.</param>
+/// <param name="InvertNumericKeypad">CRC's numeric-keypad inversion for leader directions; false on the Scope.</param>
+public record ScopeEramEntryDto(List<string> Tokens, bool InvertNumericKeypad);
+
+/// <summary>The server's answer to a Scope ERAM entry, as CRC's ERAM shows it. Kept name-for-name in sync with the server's.</summary>
+/// <param name="Ok">Whether the entry was accepted.</param>
+/// <param name="Feedback">The feedback lines: <c>ACCEPT</c>, the message descriptor and the ACID, or the one refusal line.</param>
+/// <param name="Response">A readout's response text (<c>QF</c>, <c>LA</c>, <c>LB</c>, <c>LC</c>), else null.</param>
+public record ScopeEramEntryResultDto(bool Ok, List<string> Feedback, string? Response);
 
 /// <summary>
 /// The session-setup prompt: the questions a load (or solo switched on) puts to this client. A section is null when it
