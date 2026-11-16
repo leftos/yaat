@@ -1790,7 +1790,7 @@ In solo training with a radar student, the IFR pilot asks for further clearance 
 | `DVIA SPD 180 SUNOL` | Descend via STAR with speed restriction (maintain 180 knots at SUNOL) |
 | `CVIA` | Climb via SID — clears the assigned altitude, enables altitude/speed constraint following and climbs to the SID's top altitude, and cancels a speed assigned earlier, unless a speed in force when it fires was applied in the same transmission or later; a speed still queued or refused does not count; a minimum the aircraft crossed at a published "at or above" speed stays; self-activates the filed SID if none is active (e.g. after `CTO RH` or vectors) |
 | `CVIA 190` | Climb via SID, except maintain FL190 (the top altitude is 19000 ft) |
-| `DEPART SUNOL 270` | Depart fix SUNOL on heading 270 |
+| `DEPART SUNOL 270` | Depart fix SUNOL on heading 270. When SUNOL is ahead on the aircraft's route, the aircraft keeps flying the route to SUNOL, drops the fixes after it, and turns to 270 at SUNOL (readback "Depart SUNOL heading 270"); otherwise it proceeds direct to SUNOL and then turns |
 
 `JARR` also accepts aliases `ARR`, `STAR`, `JSTAR`. `JRADO` also accepts `JRAD`. `JRADI` also accepts `JICRS`. `DEPART` also accepts `DEP` and `D`.
 

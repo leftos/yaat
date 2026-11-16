@@ -139,20 +139,37 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
     {
-        // Preserve any crossing restriction already assigned to the depart fix (e.g. a
-        // preceding `CFIX CASST 6000 210`). "Depart FIX heading" proceeds direct to the fix
-        // and then turns — it must not discard a cross-at altitude/speed the controller set
-        // on that same fix, otherwise the aircraft sails over it at default cruise (issue #184).
-        NavigationTarget? existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+        // A fix already ahead on the route keeps the route to itself: the aircraft flies the cleared route and turns at the
+        // fix (7110.65 §5-6-2.a.1; AIM §4-4-10.a), instead of turning direct from wherever the command caught it. The kept fix
+        // is rebuilt rather than moved — a STAR's terminating leg carries a published course that would override the depart
+        // heading at the fix — and the fixes after it are dropped, so the turn lands at the fix rather than on turn
+        // anticipation short of it. A fix that is not on the route goes direct, as before.
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int fixIndex = route.FindIndex(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+        NavigationTarget? existing = (fixIndex >= 0) ? route[fixIndex] : null;
 
-        // Block 0 (immediate): navigate to fix (navigation phase — clear assigned heading)
+        // Block 0 (immediate): navigate to fix along the kept route (navigation phase — clear assigned heading)
         aircraft.Targets.AssignedMagneticHeading = null;
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(
+        if (fixIndex >= 0)
+        {
+            route.RemoveRange(fixIndex, route.Count - fixIndex);
+        }
+        else
+        {
+            route.Clear();
+        }
+
+        // Preserve any crossing restriction already assigned to the depart fix (e.g. a preceding `CFIX CASST 6000 210`): it
+        // must not discard a cross-at altitude/speed the controller set on that same fix, otherwise the aircraft sails over
+        // it at default cruise.
+        // The kept fix goes back at its own position: two fixes can share an ident, and the route's copy is the one the
+        // aircraft is flying to. The direct path has no route target and takes the position the command resolved.
+        LatLon fixPosition = (existing is { } matched) ? matched.Position : new LatLon(cmd.FixLat, cmd.FixLon);
+        route.Add(
             new NavigationTarget
             {
                 Name = cmd.FixName,
-                Position = new LatLon(cmd.FixLat, cmd.FixLon),
+                Position = fixPosition,
                 AltitudeRestriction = existing?.AltitudeRestriction,
                 SpeedRestriction = existing?.SpeedRestriction,
                 RevertAltitude = existing?.RevertAltitude,
@@ -173,7 +190,9 @@ internal static class NavigationCommandHandler
         // Block 1: on reaching fix, fly heading (controller heading)
         aircraft.Queue.Blocks.Add(BuildDepartBlock(cmd));
 
-        return CommandDispatcher.Ok($"Proceed direct {FixDisplay(cmd.FixName)}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
+        return (fixIndex >= 0)
+            ? CommandDispatcher.Ok($"Depart {FixDisplay(cmd.FixName)} heading {cmd.MagneticHeading.ToDisplayInt():000}")
+            : CommandDispatcher.Ok($"Proceed direct {FixDisplay(cmd.FixName)}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
     }
 
     /// <summary>

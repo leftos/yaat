@@ -432,8 +432,8 @@ public static class CommandDescriber
             return CommandDimension.Vertical | (crossFix.Speed is not null ? CommandDimension.Speed : CommandDimension.None);
         }
 
-        // DepartFix does replace the route (DispatchDepartFix clears NavigationRoute and installs the single fix plus a
-        // departure heading), so it stays lateral.
+        // DepartFix does replace the route (DispatchDepartFix ends the route at the fix, or installs the fix alone when it is not
+        // on the route, plus a departure heading), so it stays lateral.
         if (command is DepartFixCommand)
         {
             return CommandDimension.Lateral | CommandDimension.Vertical;
