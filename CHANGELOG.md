@@ -22,6 +22,7 @@
 
 ### Fixed
 
+- Show nav route's heading arrow on the Radar now starts at the aircraft as it moves, not where the route was first drawn.
 - ERAM `LC`, `LD` and `LE` measure from the scenario's clock, so their speeds and times hold at any sim rate and after a pause.
 - A quick-command flyout such as Fly heading or Maintain altitude no longer closes as the pointer reaches it after crossing All Commands or Favorite Commands.
 - An arrival given `PTAC` or `CAPP` after a speed keeps that speed instead of speeding up on the intercept, and a slow type like the C421 no longer goes around at its own approach speed.
