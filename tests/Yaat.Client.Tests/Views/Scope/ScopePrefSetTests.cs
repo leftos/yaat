@@ -69,6 +69,7 @@ public class ScopePrefSetTests
                 "vectorOwnership",
                 "tdm",
                 "lens",
+                "mapTools",
             ],
             document.RootElement.EnumerateObject().Select(property => property.Name)
         );
@@ -152,6 +153,22 @@ public class ScopePrefSetTests
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
 
         Assert.False(loaded.Tdm);
+    }
+
+    [Fact]
+    public void MissingMapTools_LoadsAsNull()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.Null(loaded.MapTools);
     }
 
     private static ScopePrefSet FullSet() =>

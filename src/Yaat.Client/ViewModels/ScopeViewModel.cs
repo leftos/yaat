@@ -232,6 +232,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         {
             case nameof(ScopeMapSource.CenterLat) or nameof(ScopeMapSource.CenterLon):
                 FollowLateRecentre();
+                SyncOffCenter();
                 break;
             case nameof(ScopeMapSource.IsLoading):
                 OnMapSourceLoadEnded();

@@ -202,6 +202,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.ToolJRing or ScopeButtonId.ToolCone or ScopeButtonId.ToolDri5 or ScopeButtonId.ToolDri3 => ArmedRingTool
                 == ScopeToolbarButtons.RingToolOf(button.Id),
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
+            ScopeButtonId.DisplayOffCntr => IsOffCenter,
             _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
             _ => IsActiveByKind(button),
         };
@@ -292,6 +293,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.DbDwell => DbSettings.HoverDwell,
             ScopeButtonId.DbAtpa => DbSettings.Atpa,
             ScopeButtonId.LensOn or ScopeButtonId.LensPath or ScopeButtonId.LensQueue or ScopeButtonId.LensCheckIn => IsLensToggleOn(button.Id),
+            ScopeButtonId.Mva or ScopeButtonId.DisplayLock => IsMapToolToggleOn(button.Id),
             _ => (button.Value is { } view) && IsViewOpen(view),
         };
 

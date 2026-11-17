@@ -250,6 +250,8 @@ public class ScopeToolbarTests
                     ScopeButtonId.Tools,
                     ScopeButtonId.Auto,
                     ScopeButtonId.Tdm,
+                    ScopeButtonId.Mva,
+                    ScopeButtonId.Display,
                     ScopeButtonId.Db,
                     ScopeButtonId.Views,
                     ScopeButtonId.Lens,
@@ -895,7 +897,7 @@ public class ScopeToolbarTests
             Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits the default window, so there is no right chevron");
             Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
             Button[] bar = [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId)];
-            Assert.Equal(16, bar.Length);
+            Assert.Equal(18, bar.Length);
             Assert.All(
                 bar,
                 b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), row)!.Value.X <= row.Bounds.Width, $"{Label(b)} ends inside the bar")

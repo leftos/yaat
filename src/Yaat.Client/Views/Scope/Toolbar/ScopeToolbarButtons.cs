@@ -180,6 +180,18 @@ public enum ScopeButtonId
 
     /// <summary>DEL TEAROFF: marks tear-offs, then deletes the marked ones.</summary>
     DeleteTearoff,
+
+    /// <summary>MVA: turns the MVA altitude tint on or off; lit while it is on.</summary>
+    Mva,
+
+    /// <summary>The DISPLAY menu; its tray holds LOCK and OFF CNTR.</summary>
+    Display,
+
+    /// <summary>The DISPLAY menu's LOCK: turns wheel zoom and right-drag pan off; lit while locked.</summary>
+    DisplayLock,
+
+    /// <summary>The DISPLAY menu's OFF CNTR: pans back to the facility's home centre; lit while the scope is off it.</summary>
+    DisplayOffCntr,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -280,6 +292,18 @@ public static class ScopeToolbarButtons
         // The Scope's map toggles are facility data: ScopeViewModel.TrayChildren builds this tray.
         new(ScopeButtonId.Maps, "MAPS", ScopeButtonKind.Menu, [], null, null),
         new(ScopeButtonId.Tdm, "TDM", ScopeButtonKind.Toggle, [], null, TdmCommandStem),
+        new(ScopeButtonId.Mva, "MVA", ScopeButtonKind.Toggle, [], null, MvaCommandStem),
+        new(
+            ScopeButtonId.Display,
+            "DISPLAY",
+            ScopeButtonKind.Menu,
+            [
+                new(ScopeButtonId.DisplayLock, "LOCK", ScopeButtonKind.Toggle, [], null, LockCommandStem),
+                new(ScopeButtonId.DisplayOffCntr, "OFF CNTR", ScopeButtonKind.Command, [], null, CenterCommand),
+            ],
+            null,
+            null
+        ),
         new(
             ScopeButtonId.Db,
             "DB",
@@ -460,6 +484,15 @@ public static class ScopeToolbarButtons
 
     /// <summary>The verb that turns top-down mode on or off, without its <c>on</c> or <c>off</c>.</summary>
     public const string TdmCommandStem = ".scope tdm";
+
+    /// <summary>The verb that turns the MVA altitude tint on or off, without its <c>on</c> or <c>off</c>.</summary>
+    public const string MvaCommandStem = ".scope mva";
+
+    /// <summary>The verb that locks or unlocks pan and zoom, without its <c>on</c> or <c>off</c>.</summary>
+    public const string LockCommandStem = ".scope lock";
+
+    /// <summary>The command that pans the scope back to the facility's home centre (OFF CNTR).</summary>
+    public const string CenterCommand = ".scope center";
 
     /// <summary>The command that turns top-down mode on (<paramref name="on"/>) or off.</summary>
     public static string TdmCommand(bool on) => $"{TdmCommandStem} {(on ? "on" : "off")}";

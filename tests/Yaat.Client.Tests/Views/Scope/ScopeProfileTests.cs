@@ -23,6 +23,8 @@ public class ScopeProfileTests
         "auto",
         "maps",
         "tdm",
+        "mva",
+        "display",
         "db",
         "views",
         "brite",

@@ -116,6 +116,7 @@ public sealed partial class ScopeViewModel
             VectorOwnership = ScopeVectorOwnerships.NameOf(VectorOwnership),
             Tdm = IsTdm,
             Lens = new ScopePrefLens(Lens.Enabled, Lens.Path, Lens.Queue, Lens.CheckIn),
+            MapTools = CaptureMapTools(),
         };
 
     /// <summary>
@@ -144,6 +145,7 @@ public sealed partial class ScopeViewModel
         ApplyOpenViews(set.OpenViews);
         ApplyViewPlaces(set.ViewPlaces);
         ApplyTearoffs(set.Tearoffs);
+        ApplyMapTools(set.MapTools);
         return hold ? 0 : ApplySeededParts(set);
     }
 
@@ -153,6 +155,7 @@ public sealed partial class ScopeViewModel
     {
         ApplyRange(set.RangeNm);
         ApplyCentre(set.CenterLat, set.CenterLon);
+        ApplySeededMapTools(set.MapTools);
         return ApplyMaps(set);
     }
 

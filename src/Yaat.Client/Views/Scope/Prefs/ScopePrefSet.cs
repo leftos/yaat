@@ -97,6 +97,12 @@ public sealed record ScopePrefSet
     /// </summary>
     public ScopePrefLens? Lens { get; init; }
 
+    /// <summary>
+    /// The map tools' settings, or null in a set from an older build, which leaves pan and zoom unlocked and the MVA tint at
+    /// the facility's default.
+    /// </summary>
+    public ScopePrefMapTools? MapTools { get; init; }
+
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }

@@ -1,0 +1,80 @@
+using Avalonia;
+using Avalonia.Input;
+using SkiaSharp;
+using Yaat.Sim;
+using Yaat.Sim.Data.Mva;
+
+namespace Yaat.Client.Views.Scope;
+
+/// <summary>
+/// The canvas's map tools: the Ctrl-hover MVA readout, which shows the MVA floor under the pointer while raw Control is
+/// held over the canvas, on every platform.
+/// </summary>
+public sealed partial class ScopeCanvas
+{
+    // The pointer's last position over the canvas, or null before the first move.
+    private Point? _mapToolsPointer;
+
+    // Whether Control is held, as the last pointer move or Control key event on the canvas told it.
+    private bool _mvaKeyHeld;
+
+    /// <summary>
+    /// Tracks Control from a key event on the canvas: pressing or releasing a Control key shows or hides the readout at once,
+    /// with no pointer move.
+    /// </summary>
+    internal void TrackMvaKey(KeyEventArgs e, bool isDown)
+    {
+        bool held = (e.Key is Key.LeftCtrl or Key.RightCtrl) ? isDown : e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        SetMvaKeyHeld(held);
+    }
+
+    /// <summary>Whether the canvas takes Control as held. Test seam.</summary>
+    internal bool IsMvaKeyHeld => _mvaKeyHeld;
+
+    /// <summary>Hides the readout when the canvas loses the keyboard, since a Control release then never reaches it.</summary>
+    internal void ReleaseMvaKey() => SetMvaKeyHeld(false);
+
+    partial void MoveMapTools(in ScopeMove move)
+    {
+        _mapToolsPointer = move.Pos;
+        bool wasHeld = _mvaKeyHeld;
+        SetMvaKeyHeld(move.Event.KeyModifiers.HasFlag(KeyModifiers.Control));
+        if (wasHeld)
+        {
+            // The label follows the pointer.
+            MarkDirty();
+        }
+    }
+
+    partial void CollectMapTools(ScopeFrame frame, ref ScopeOverlays overlays)
+    {
+        if (MvaHoverAtPointer() is { } hover)
+        {
+            overlays = overlays with { MvaHover = hover };
+        }
+    }
+
+    private void SetMvaKeyHeld(bool held)
+    {
+        if (held == _mvaKeyHeld)
+        {
+            return;
+        }
+
+        _mvaKeyHeld = held;
+        MarkDirty();
+    }
+
+    /// <summary>The MVA label at the pointer while Control is held over the canvas and an MVA sector lies under it; else null.</summary>
+    private ScopeMvaHover? MvaHoverAtPointer()
+    {
+        if (!_mvaKeyHeld || (_mapToolsPointer is not { } pointer) || !IsPointerOver || (Viewport.PixelWidth < 1))
+        {
+            return null;
+        }
+
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)pointer.X, (float)pointer.Y);
+        string? text = ScopeMvaReadout.TextAt(MvaDatabase.Default, new LatLon(lat, lon), MvaFacilityId);
+        return text is null ? null : new ScopeMvaHover(text, new SKPoint((float)pointer.X, (float)pointer.Y));
+    }
+}
