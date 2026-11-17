@@ -294,11 +294,11 @@ public partial class ScopeView : UserControl
         }
         else if (action == ScopeFieldAction.OpenEramAltitudeMenu)
         {
-            OpenEramAltitudePopup(vm, ac);
+            OpenEramAltitudePopup(vm, ac, action);
         }
         else if (HsfKindFor(action) is { } kind)
         {
-            OpenEramHsfPopup(vm, ac, kind);
+            OpenEramHsfPopup(vm, ac, kind, action);
         }
         else
         {
@@ -334,7 +334,7 @@ public partial class ScopeView : UserControl
 
     // The ERAM altitude popup: a SCOPE DATA row runs its entry, or with Shift stages it; a PILOT row sends, or with Shift stages,
     // as a field menu's row does.
-    private void OpenEramAltitudePopup(ScopeViewModel vm, AircraftModel ac)
+    private void OpenEramAltitudePopup(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
     {
         _fieldMenuShift = false;
         string callsign = ac.Callsign;
@@ -344,11 +344,11 @@ public partial class ScopeView : UserControl
             shift => _fieldMenuShift = shift,
             entry => PickScopeData(vm, callsign, entry)
         );
-        ShowFieldPopup(popup, callsign);
+        ShowFieldPopup(popup, callsign, action);
     }
 
     // An ERAM fourth-line popup of the kind: its rows run or stage as the altitude popup's do.
-    private void OpenEramHsfPopup(ScopeViewModel vm, AircraftModel ac, HsfPopupKind kind)
+    private void OpenEramHsfPopup(ScopeViewModel vm, AircraftModel ac, HsfPopupKind kind, ScopeFieldAction action)
     {
         _fieldMenuShift = false;
         string callsign = ac.Callsign;
@@ -359,15 +359,22 @@ public partial class ScopeView : UserControl
             entry => PickScopeData(vm, callsign, entry),
             kind
         );
-        ShowFieldPopup(popup, callsign);
+        ShowFieldPopup(popup, callsign, action);
     }
 
-    // Closes any open aircraft menu or field popup, then opens the popup as the one open, until it closes.
-    private void ShowFieldPopup(ScopeDataPopupBase popup, string callsign)
+    // Closes any open aircraft menu or field popup, then opens the popup as the one open, until it closes: below the track's
+    // block, or at the pointer when the frame draws none for it.
+    private void ShowFieldPopup(ScopeDataPopupBase popup, string callsign, ScopeFieldAction action)
     {
         _activeContextMenu?.Close();
         _activeFieldPopup?.Close();
-        if (!popup.Open(Canvas))
+        Rect? block = Canvas.BlockBoundsOf(callsign);
+        if (block is null)
+        {
+            Log.LogWarning("ScopeView: no block drawn for {Callsign}; the {Action} popup opens at the pointer", callsign, action);
+        }
+
+        if (!popup.Open(Canvas, block))
         {
             Log.LogWarning("ScopeView: no overlay layer for the canvas; the ERAM field popup for {Callsign} is not shown", callsign);
             return;

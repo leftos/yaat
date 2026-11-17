@@ -960,6 +960,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         return true;
     }
 
+    /// <summary>The bounds of <paramref name="callsign"/>'s block in the current frame, in canvas coordinates; null when none draws.</summary>
+    internal Rect? BlockBoundsOf(string callsign) =>
+        (CurrentFrame.Tracks.FirstOrDefault(t => t.Aircraft.Callsign == callsign)?.Block.Bounds is { } b)
+            ? new Rect(b.Left, b.Top, b.Width, b.Height)
+            : null;
+
     // The aircraft whose block, else whose target, is under the point.
     private static AircraftModel? HitAt(ScopeFrame frame, Point pos) =>
         frame.BlockAt((float)pos.X, (float)pos.Y) ?? frame.TargetAt((float)pos.X, (float)pos.Y);

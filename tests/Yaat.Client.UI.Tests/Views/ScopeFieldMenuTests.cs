@@ -5,7 +5,9 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Threading;
+using SkiaSharp;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -28,7 +30,14 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeFieldMenuTests
 {
-    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string templateId)
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string templateId) =>
+        ShowScope(templateId, 800, 600);
+
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(
+        string templateId,
+        double width,
+        double height
+    )
     {
         MainViewModel main = await MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = templateId };
@@ -36,8 +45,8 @@ public class ScopeFieldMenuTests
         var view = new ScopeView { DataContext = scope };
         var window = new Window
         {
-            Width = 800,
-            Height = 600,
+            Width = width,
+            Height = height,
             Content = view,
         };
         window.Closed += (_, _) => scope.Dispose();
@@ -53,9 +62,12 @@ public class ScopeFieldMenuTests
         return (main, scope, view, window);
     }
 
-    private static AircraftModel AddAt(MainViewModel main, ScopeCanvas canvas, Action<AircraftModel> setUp)
+    private static AircraftModel AddAt(MainViewModel main, ScopeCanvas canvas, Action<AircraftModel> setUp) =>
+        AddAt(main, canvas, setUp, new Point(300, 300));
+
+    private static AircraftModel AddAt(MainViewModel main, ScopeCanvas canvas, Action<AircraftModel> setUp, Point target)
     {
-        (double lat, double lon) = canvas.Viewport.ScreenToLatLon(300f, 300f);
+        (double lat, double lon) = canvas.Viewport.ScreenToLatLon((float)target.X, (float)target.Y);
         var ac = new AircraftModel
         {
             Callsign = "UAL238",
@@ -661,18 +673,20 @@ public class ScopeFieldMenuTests
     }
 
     // Opens the popup over a bare window on the host, as ScopeView would over its canvas.
-    private static Window OpenInWindow(ScopeDataHsfPopup popup)
+    private static Window OpenInWindow(ScopeDataPopupBase popup) => OpenInWindow(popup, 600);
+
+    private static Window OpenInWindow(ScopeDataPopupBase popup, double height)
     {
         var anchor = new Border();
         var window = new Window
         {
             Width = 800,
-            Height = 600,
+            Height = height,
             Content = anchor,
         };
         window.Show();
         Dispatcher.UIThread.RunJobs();
-        Assert.True(popup.Open(anchor));
+        Assert.True(popup.Open(anchor, null));
         Dispatcher.UIThread.RunJobs();
         return window;
     }
@@ -866,6 +880,310 @@ public class ScopeFieldMenuTests
         return new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, _ => { }, kind);
     }
 
+    // The popups against their mocks: the rows hint, the captions, a disabled row's colours, the notes' column, the altitude
+    // title note, the PILOT column's width, the Combined popup's height, the entries' ERAM marks, and where the popup opens.
+
+    private static readonly Color NormalLabel = Color.Parse("#E8E8E8");
+
+    private static readonly Color Faded = Color.Parse("#5D636B");
+
+    private static Color ColorOf(TextBlock text) => Assert.IsAssignableFrom<ISolidColorBrush>(text.Foreground).Color;
+
+    private static void AssertRowsHintBeside(TextBox? box)
+    {
+        Panel row = Assert.IsAssignableFrom<Panel>(Assert.IsType<TextBox>(box).Parent);
+        TextBlock hint = Assert.Single(row.Children.OfType<TextBlock>(), t => t.Text == ScopeDataPopupBase.RowsHint);
+        Assert.Equal(11, hint.FontSize);
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Right, hint.HorizontalAlignment);
+        Assert.Equal(Faded, ColorOf(hint));
+    }
+
+    [AvaloniaFact]
+    public void EramPopups_EveryBoxRow_HoldsTheFadedRowsHint()
+    {
+        ScopeDataHsfPopup combined = NewHsf(HsfPopupKind.Combined, _ => { });
+        AssertRowsHintBeside(combined.HeadingBox);
+        AssertRowsHintBeside(combined.SpeedBox);
+        AssertRowsHintBeside(NewHsf(HsfPopupKind.FreeText, _ => { }).FreeTextBox);
+        AssertRowsHintBeside(new ScopeDataAltitudePopup(Jet(), new RecordingMenuHost(""), _ => { }, _ => { }).AltitudeBox);
+    }
+
+    private static void AssertBoldCaption(ScopeDataHsfPopup popup, string caption)
+    {
+        Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
+        TextBlock text = Assert.Single(content.GetLogicalDescendants().OfType<TextBlock>(), t => t.Text == caption);
+        Assert.Equal(FontWeight.Bold, text.FontWeight);
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_SectionCaptions_ReadInBoldCapitals()
+    {
+        ScopeDataHsfPopup combined = NewHsf(HsfPopupKind.Combined, _ => { });
+        AssertBoldCaption(combined, "HEADING");
+        AssertBoldCaption(combined, "SPEED");
+        AssertBoldCaption(NewHsf(HsfPopupKind.FreeText, _ => { }), "FREE TEXT");
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_ADisabledRow_KeepsItsLabel_AndFadesItsEntryAndNote()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, _ => { });
+        Assert.False(popup.RowFor("Clear heading").IsEnabled);
+
+        (TextBlock label, TextBlock entry, TextBlock note) = popup.RowPartsFor("Clear heading");
+
+        Assert.Equal(NormalLabel, ColorOf(label));
+        Assert.Equal(Faded, ColorOf(entry));
+        Assert.Equal(Faded, ColorOf(note));
+    }
+
+    // Where a control's left and right edges fall in the row's coordinates.
+    private static (double Left, double Right) Span(Control control, Control row)
+    {
+        Point? left = control.TranslatePoint(new Point(0, 0), row);
+        Assert.NotNull(left);
+        return (left.Value.X, left.Value.X + control.Bounds.Width);
+    }
+
+    [AvaloniaFact]
+    public void EramAltitudePopup_ANote_SitsRightAlignedBesideTheEntry()
+    {
+        AircraftModel ac = Jet();
+        ac.CruiseAltitude = 25000;
+        ScopeDataAltitudePopup popup = AltitudePopupFor(ac);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            Button row = popup.RowFor("FP altitude");
+            (TextBlock label, TextBlock entry, TextBlock note) = popup.RowPartsFor("FP altitude");
+            (_, double labelRight) = Span(label, row);
+            (double noteLeft, double noteRight) = Span(note, row);
+            (double entryLeft, _) = Span(entry, row);
+
+            Assert.InRange(entryLeft - noteRight, 0, 16);
+            // The headless font is too wide to leave slack in the row, so the right alignment is read from the grid: a star
+            // column between the label and the note takes whatever room is left.
+            Grid grid = Assert.IsType<Grid>(label.Parent);
+            int noteColumn = Grid.GetColumn(note);
+            Assert.Equal(Grid.GetColumn(entry) - 1, noteColumn);
+            Assert.True(grid.ColumnDefinitions[noteColumn - 1].Width.IsStar, "no star column before the note");
+            Assert.True(noteLeft >= labelRight, $"the note at {noteLeft} overlaps the label ending at {labelRight}");
+        }
+        finally
+        {
+            popup.Close();
+            CloseWindow(window);
+        }
+    }
+
+    private static ScopeDataAltitudePopup AltitudePopupFor(AircraftModel ac) => new(ac, new RecordingMenuHost(""), _ => { }, _ => { });
+
+    // EramInterimAltitude is in hundreds of feet, CruiseAltitude in feet.
+    [AvaloniaFact]
+    public void EramAltitudePopup_TitleNote_ReadsTheFpAltitudeAndTheInterim_AndFpAltitudeReadsNow()
+    {
+        AircraftModel ac = Jet();
+        ac.CruiseAltitude = 25000;
+        ac.EramInterimAltitude = null;
+        ScopeDataAltitudePopup popup = AltitudePopupFor(ac);
+
+        Assert.Equal("FP 250 · no interim", popup.CaptionNoteFor("Scope data"));
+        Assert.Equal("now 250", popup.NoteShownFor("FP altitude"));
+
+        ac.EramInterimAltitude = 180;
+        popup.Refresh();
+
+        Assert.Equal("FP 250 · interim 180", popup.CaptionNoteFor("Scope data"));
+    }
+
+    [AvaloniaFact]
+    public void EramAltitudePopup_WithNoCruiseAltitude_TitleNoteElidesIt_AndFpAltitudeHasNoNote()
+    {
+        AircraftModel ac = Jet();
+        ac.CruiseAltitude = 0;
+        ac.EramInterimAltitude = null;
+        ScopeDataAltitudePopup popup = AltitudePopupFor(ac);
+
+        Assert.Equal("FP ··· · no interim", popup.CaptionNoteFor("Scope data"));
+        Assert.Equal("", popup.NoteShownFor("FP altitude"));
+    }
+
+    [AvaloniaFact]
+    public void EramSpeedPopup_ThePilotColumn_HoldsAssignSpeed_WithEightPixelsToSpare()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Speed, WithHsf);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            Control column = Assert.IsAssignableFrom<Control>(popup.PilotColumnHost);
+            SpeedFlyoutPanel panel = Assert.IsType<SpeedFlyoutPanel>(popup.SpeedPanel);
+            Assert.True(column.Bounds.Width >= 319, $"the PILOT column is {column.Bounds.Width} wide");
+            Assert.True(column.Bounds.Width >= panel.DesiredSize.Width + 8, $"{column.Bounds.Width} < {panel.DesiredSize.Width} + 8");
+            (_, double right) = Span(panel, column);
+            Assert.True(right <= column.Bounds.Width - 8, $"Assign speed ends at {right} in a column {column.Bounds.Width} wide");
+        }
+        finally
+        {
+            popup.Close();
+            CloseWindow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramCombinedPopup_CapsItsHeightAt600_AndScrollsItsPilotColumn()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, WithHsf);
+        // A window taller than the cap, so only the cap can keep the popup at 600.
+        Window window = OpenInWindow(popup, 1000);
+        try
+        {
+            ScrollViewer scroll = Assert.IsType<ScrollViewer>(popup.PilotScroll);
+            Assert.Equal(Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, scroll.VerticalScrollBarVisibility);
+            List<Control> inside = [.. scroll.GetLogicalDescendants().OfType<Control>()];
+            Assert.Contains(Assert.IsType<HeadingFlyoutPanel>(popup.HeadingPanel), inside);
+            Assert.Contains(Assert.IsType<SpeedFlyoutPanel>(popup.SpeedPanel), inside);
+            Assert.True(
+                scroll.Extent.Height > scroll.Viewport.Height,
+                $"the PILOT column ({scroll.Extent.Height}) fits its {scroll.Viewport.Height}"
+            );
+
+            Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
+            content.Measure(Size.Infinity);
+            Assert.True(content.DesiredSize.Height <= 600, $"the Combined popup wants {content.DesiredSize.Height}");
+        }
+        finally
+        {
+            popup.Close();
+            CloseWindow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramFreeTextPopup_SetFreeText_ShowsEramMarks_AndPicksTheBacktickEntry()
+    {
+        AircraftModel ac = Jet();
+        WithFreeText(ac);
+        var picks = new List<string>();
+        var popup = new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, picks.Add, HsfPopupKind.FreeText);
+
+        Assert.Equal("QS ○LOWALT UAL238", popup.EntryShownFor("Set free text"));
+
+        popup.RowFor("Set free text").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal(["QS `LOWALT UAL238"], picks);
+    }
+
+    // The run site: RunEramText gets the backtick entry and sends ERAM's own clear-weather character in its place.
+    [AvaloniaFact]
+    public async Task EramFreeTextPopup_PlainClickOnSetFreeText_RunsTheBacktickEntry()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramFreeTextMenu, WithFreeText);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ClickInPopup(OpenHsf(view).RowFor("Set free text"), RawInputModifiers.None);
+            await scope.LastEntryRun;
+
+            Assert.Equal(["QS", "\u0087LOWALT", "UAL238"], Assert.Single(sends).Tokens);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The stage site: StageEramText gets the backtick entry as is.
+    [AvaloniaFact]
+    public async Task EramFreeTextPopup_ShiftClickOnSetFreeText_StagesTheBacktickEntry()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramFreeTextMenu, WithFreeText);
+        try
+        {
+            ClickInPopup(OpenHsf(view).RowFor("Set free text"), RawInputModifiers.Shift);
+
+            Assert.Equal("QS `LOWALT UAL238", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // Shows the ERAM scope in a 1400 x 1000 window, adds UAL238 with its target where `target` puts it on the canvas, clicks its
+    // altitude, and answers the popup's frame, the block and the window, all in the canvas's coordinates.
+    private static async Task<(ScopeView View, Window Window, Rect Popup, Rect Block, Rect Bounds)> ClickAltitudePlacedAsync(Func<Rect, Point> target)
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope(ScopeTemplates.EramId, 1400, 1000);
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        AddAt(main, view.Canvas, _ => { }, target(view.Canvas.Bounds));
+        main.SelectedAircraft = null;
+        Dispatcher.UIThread.RunJobs();
+        ClickAt(window, view.Canvas, Centre(view.Canvas, ScopeFieldSlot.EramAltitude));
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        SKRect block = Assert.Single(view.Canvas.CurrentFrame.Tracks).Block.Bounds;
+        Control content = Assert.IsAssignableFrom<Control>(OpenPopup(view).Popup.Child);
+        PixelPoint canvasAt = view.Canvas.PointToScreen(new Point(0, 0));
+        PixelPoint contentAt = content.PointToScreen(new Point(0, 0));
+        PixelPoint windowAt = window.PointToScreen(new Point(0, 0));
+        return (
+            view,
+            window,
+            new Rect(contentAt.X - canvasAt.X, contentAt.Y - canvasAt.Y, content.Bounds.Width, content.Bounds.Height),
+            new Rect(block.Left, block.Top, block.Width, block.Height),
+            new Rect(windowAt.X - canvasAt.X, windowAt.Y - canvasAt.Y, window.ClientSize.Width, window.ClientSize.Height)
+        );
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudeClick_WithRoomBelow_OpensThePopupUnderTheBlock_LeftAligned()
+    {
+        (ScopeView view, Window window, Rect popup, Rect block, _) = await ClickAltitudePlacedAsync(_ => new Point(300, 300));
+        try
+        {
+            Assert.True(popup.Top >= block.Bottom, $"the popup's top {popup.Top} is above the block's bottom {block.Bottom}");
+            Assert.InRange(popup.Top - block.Bottom, 3, 5);
+            Assert.InRange(popup.Left - block.Left, -1, 1);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudeClick_NearTheBottomEdge_OpensThePopupAboveTheBlock_InsideTheWindow()
+    {
+        (ScopeView view, Window window, Rect popup, Rect block, Rect bounds) = await ClickAltitudePlacedAsync(c => new Point(300, c.Height - 60));
+        try
+        {
+            Assert.True(bounds.Contains(popup), $"the popup {popup} leaves the window {bounds}");
+            Assert.True(popup.Bottom <= block.Top, $"the popup's bottom {popup.Bottom} covers the block from {block.Top}");
+            Assert.InRange(popup.Left - block.Left, -1, 1);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudeClick_NearTheRightEdge_ShiftsThePopupLeft_InsideTheWindow()
+    {
+        (ScopeView view, Window window, Rect popup, Rect block, Rect bounds) = await ClickAltitudePlacedAsync(c => new Point(c.Width - 150, 300));
+        try
+        {
+            Assert.True(bounds.Contains(popup), $"the popup {popup} leaves the window {bounds}");
+            Assert.True(popup.Top >= block.Bottom, $"the popup's top {popup.Top} is above the block's bottom {block.Bottom}");
+            Assert.True(popup.Left < block.Left, $"the popup at {popup.Left} is not shifted left of the block at {block.Left}");
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
     [AvaloniaFact]
     public async Task EramHeadingToken_OpensTheHeadingSection_BesideFlyHeading()
     {
@@ -935,7 +1253,7 @@ public class ScopeFieldMenuTests
             Assert.DoesNotContain(ScopeDataPopupBase.PilotHead, texts);
             Assert.Contains(ScopeDataHsfPopup.FreeTextCaption, texts);
             Assert.Equal("LOWALT", popup.FreeTextBox.Text);
-            Assert.Equal("QS `LOWALT UAL238", popup.EntryShownFor("Set free text"));
+            Assert.Equal("QS \u25CBLOWALT UAL238", popup.EntryShownFor("Set free text"));
         }
         finally
         {

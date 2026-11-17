@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Media;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
@@ -22,7 +23,7 @@ internal enum HsfPopupKind
 }
 
 /// <summary>
-/// The popup a click on an ERAM block's fourth line opens at the pointer (<see cref="HsfPopupKind"/>): SCOPE DATA sections
+/// The popup a click on an ERAM block's fourth line opens below the block (<see cref="HsfPopupKind"/>): SCOPE DATA sections
 /// for the HSF heading, speed or free text, each a caption with the stored value, a box opening with that value selected, and
 /// rows showing the ERAM entry they run (<see cref="ScopeDataEntries"/>), beside the PILOT panels the catalog's Fly heading and
 /// Assign speed entries build. A Set row is enabled while its box holds a value the server takes
@@ -32,13 +33,13 @@ internal enum HsfPopupKind
 internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
 {
     /// <summary>The heading section's caption.</summary>
-    public const string HeadingCaption = "Heading";
+    public const string HeadingCaption = "HEADING";
 
     /// <summary>The speed section's caption.</summary>
-    public const string SpeedCaption = "Speed";
+    public const string SpeedCaption = "SPEED";
 
     /// <summary>The free-text section's caption.</summary>
-    public const string FreeTextCaption = "Free text";
+    public const string FreeTextCaption = "FREE TEXT";
 
     /// <summary>What the empty heading box reads.</summary>
     public const string HeadingPlaceholder = "e.g. H300 or 20L";
@@ -75,7 +76,8 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
 
         StackPanel column = SectionsColumn();
         Control[] pilot = sections.PilotPanels();
-        Control content = (pilot.Length == 0) ? SingleColumnPanel(column) : Panel(column, PilotColumn(pilot));
+        Control content =
+            (pilot.Length == 0) ? SingleColumnPanel(column) : Panel(column, PilotColumn(pilot), scrollPilot: kind == HsfPopupKind.Combined);
         Attach(content, recordShift, host, [.. pilot.OfType<IFlyoutPanel>()]);
     }
 
@@ -249,7 +251,7 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
     // A section's caption with its stored value, read again with the rows, its box, and the line above its rows.
     private void AddSection(StackPanel column, string caption, Func<string?> stored, TextBox box)
     {
-        AddCaption(column, caption, () => NowNote(stored()));
+        AddCaption(column, caption, () => NowNote(stored()), FontWeight.Bold);
         column.Children.Add(BoxRow(box));
         column.Children.Add(FlyoutPanelParts.SeparatorLine());
     }
