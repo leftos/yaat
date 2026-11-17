@@ -210,6 +210,9 @@ public class ScopeCanvasMenuGestureTests
             (LatLon position, Point screen) = Assert.Single(raised);
             Assert.Equal(MapA, screen);
             Assert.Null(scope.SelectedAircraft);
+            // The view opens the point menu there: with nothing selected, its point section and "Settings for this view…".
+            ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
+            Assert.Equal("Settings for this view…", (menu.Items[^1] as MenuItem)?.Header);
             (double lat, double lon) = view.Canvas.Viewport.ScreenToLatLon((float)MapA.X, (float)MapA.Y);
             Assert.Equal(lat, position.Lat, 3);
             Assert.Equal(lon, position.Lon, 3);

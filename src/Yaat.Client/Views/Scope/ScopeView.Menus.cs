@@ -13,8 +13,8 @@ public partial class ScopeView
     {
         Canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         Canvas.EmptySpaceClicked += OnEmptySpaceClicked;
-        // A right click on the empty map opens nothing on the Scope; the canvas raises the point it landed on for the menu.
-        Canvas.MapRightClicked += (_, _) => { };
+        // A right click on the empty map opens the point menu at the point it landed on.
+        Canvas.MapRightClicked += OnMapRightClicked;
     }
 
     // Ctrl(Cmd)+click on a target, its block or an indicator over it: the aircraft's flight plan opens instead of the
