@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
@@ -12,9 +13,9 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// Acceptance for the step-1 templates: the STARS template's Full block reads the same lines and bounds as today's
 /// <see cref="RadarDatablockLayout.Compute"/>, and the EuroScope template produces the same drawn fields, texts,
 /// relative rects and bounds as today's <see cref="EuroScopeTagLayout.Layout"/>. Today's layouts read the flash
-/// phase from <see cref="RadarBlink.Clock"/>, which each row pins to the phase it passes the presenter.
+/// phase from <see cref="MapBlink.Clock"/>, which each row pins to the phase it passes the presenter.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeTemplateParityTests
 {
     private const float OriginX = 137f;
@@ -133,7 +134,7 @@ public class ScopeTemplateParityTests
 
     /// <summary>A track the student's scope shows at <paramref name="level"/>, with the marker preference on or off.</summary>
     private static Case Student(StarsDatablockLevel level, bool markLevel) =>
-        new(With(ac => ac.StudentDatablockLevel = level), null, null, markLevel ? RadarDatablockLayout.StudentLevelMarker(level) : "", markLevel);
+        new(With(ac => ac.StudentDatablockLevel = level), null, null, markLevel ? DatablockText.StudentLevelMarker(level) : "", markLevel);
 
     private static void OwnedWithScratchpads(AircraftModel ac)
     {
@@ -163,7 +164,7 @@ public class ScopeTemplateParityTests
 
     private static RadarDatablockLayout Today(Case c, bool flashOn, TextStyle style)
     {
-        using var pin = RadarBlinkPin.Phase(flashOn);
+        using var pin = MapBlinkPin.Phase(flashOn);
         return RadarDatablockLayout.Compute(
             c.Ac,
             new DatablockPlacement(0, 0, style, true),
@@ -175,7 +176,7 @@ public class ScopeTemplateParityTests
     /// <summary>The lines today's renderer draws for a layout, in draw order; the ident token blanks off-phase.</summary>
     private static List<string> DrawnLines(RadarDatablockLayout layout, bool flashOn)
     {
-        string line2 = (layout.IdentActive && !flashOn) ? layout.Line2[..^(RadarDatablockLayout.IdentText.Length + 1)] : layout.Line2;
+        string line2 = (layout.IdentActive && !flashOn) ? layout.Line2[..^(DatablockText.IdentText.Length + 1)] : layout.Line2;
         var lines = new List<string> { layout.Line1, line2 };
         AddIf(lines, layout.SquawkLine, layout.SquawkLine.Length > 0);
         AddIf(lines, layout.Line3, layout.ReserveOwnerSlot);
@@ -236,6 +237,60 @@ public class ScopeTemplateParityTests
         }
     }
 
+    /// <summary>
+    /// One frozen STARS full block: the lines today's renderer draws, in draw order. Text only, since measured bounds
+    /// follow the machine's default typeface.
+    /// </summary>
+    /// <param name="Case">The <see cref="Cases"/> key.</param>
+    /// <param name="FlashOn">The flash phase the block was laid out in.</param>
+    /// <param name="Lines">The drawn lines, in draw order.</param>
+    private sealed record GoldenBlock(string Case, bool FlashOn, string[] Lines);
+
+    private static readonly JsonSerializerOptions GoldenJson = new(JsonSerializerDefaults.Web);
+
+    private static readonly Lazy<GoldenBlock[]> GoldenBlocks = new(() =>
+        JsonSerializer.Deserialize<GoldenBlock[]>(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Views", "Scope", "Golden", "stars-full-block.json")),
+            GoldenJson
+        ) ?? throw new InvalidOperationException("stars-full-block.json deserialized to null")
+    );
+
+    private static GoldenBlock Golden(string caseName, bool flashOn) =>
+        Assert.Single(GoldenBlocks.Value, g => (g.Case == caseName) && (g.FlashOn == flashOn));
+
+    [Fact]
+    public void FrozenStarsText_CoversExactlyTheParityCases()
+    {
+        HashSet<(string, bool)> expected = [.. Cases.Keys.SelectMany(name => new[] { (name, true), (name, false) })];
+
+        HashSet<(string, bool)> frozen = [.. GoldenBlocks.Value.Select(g => (g.Case, g.FlashOn))];
+
+        Assert.Equal(expected, frozen);
+    }
+
+    [Theory]
+    [MemberData(nameof(CasesByPhase))]
+    public void StarsTemplate_FullBlock_MatchesFrozenStarsText(string caseName, bool flashOn)
+    {
+        GoldenBlock golden = Golden(caseName, flashOn);
+
+        ScopeBlockLayout scope = ScopeLayout(ScopeTemplates.StarsId, Cases[caseName](), flashOn, Style(12));
+
+        Assert.Equal(golden.Lines, Rows(scope).Select(JoinRow));
+    }
+
+    /// <summary>Proves the frozen fixture is today's text; it goes with <see cref="RadarDatablockLayout"/>.</summary>
+    [Theory]
+    [MemberData(nameof(CasesByPhase))]
+    public void FrozenStarsText_MatchesRadarDatablockLayout(string caseName, bool flashOn)
+    {
+        GoldenBlock golden = Golden(caseName, flashOn);
+
+        RadarDatablockLayout today = Today(Cases[caseName](), flashOn, Style(12));
+
+        Assert.Equal(golden.Lines, DrawnLines(today, flashOn));
+    }
+
     [Theory]
     [MemberData(nameof(CasesBySizeAndPhase))]
     public void EuroScopeTemplate_MatchesEuroScopeTagLayout(string caseName, float fontSize, bool flashOn)
@@ -243,7 +298,7 @@ public class ScopeTemplateParityTests
         TextStyle style = Style(fontSize);
         Case c = Cases[caseName]();
         EuroScopeTagResult today;
-        using (RadarBlinkPin.Phase(flashOn))
+        using (MapBlinkPin.Phase(flashOn))
         {
             today = EuroScopeTagLayout.Layout(c.Ac, OriginX, OriginY, style, true, true, c.Peer);
         }

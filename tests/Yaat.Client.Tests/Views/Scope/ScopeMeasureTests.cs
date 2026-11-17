@@ -14,7 +14,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// Measure lines on the Scope: the Scope resolves only the lines taken on it and only an anchor picked on it, places each
 /// readout clear of the Scope's blocks, and ships the lines in its render snapshot.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeMeasureTests
 {
     private static readonly LatLon West = new(37.0, -122.2);

@@ -15,7 +15,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// track but a hovered one; hovering the VCI cell (inflated as CRC's
 /// <c>OnFrequencyIndicatorBounds</c>) lights the VCI without dwelling the block, and the 8 px symbol zone wins over it.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeDwellLockTests
 {
     private const float FontSize = 12f;

@@ -2,7 +2,6 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
@@ -13,7 +12,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// The four block levels: ERAM Limited is CRC's paired LDB and Partial its enhanced paired LDB, STARS Limited and Partial are
 /// the Radar's collapsed blocks, EuroScope draws the Full tag at every level, and Dwell shows the Full block's content.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeBlockLevelTests
 {
     private static readonly ScopeFieldSlot[] AlertSlots =
@@ -212,7 +211,7 @@ public class ScopeBlockLevelTests
     {
         (AircraftModel ac, ScopeBlockLevel level) = StarsCollapsed(caseName);
         TextStyle style = Style();
-        IReadOnlyList<string> today = RadarDatablockLayout.BuildCollapsedLines(ac);
+        IReadOnlyList<string> today = DatablockText.BuildCollapsedLines(ac);
 
         TrackPresentation p = Present(ac, ScopeTemplates.StarsId, level);
         ScopeBlockLayout layout = Layout(p, style);

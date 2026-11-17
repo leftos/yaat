@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// ERAM column 0: the VCI mark on row 2 when the viewer's ERAM sector is on frequency, and <c>R</c> on row 3 when the track's
 /// owner is not the viewer's sector, laid left of the text block inside widened bounds, with the leader on the text block.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeEramColumn0Tests
 {
     // An independent oracle for DatablockTemplate.ColumnGap (CRC: 2 + 1 + 3 px), deliberately not read from the engine.
@@ -320,7 +320,7 @@ public class ScopeEramColumn0Tests
     {
         ScopeTrack withMarks;
         ScopeTrack withoutMarks;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             withMarks = Assert.Single(Frame(WithLine3(), EramViewer).Tracks);
             withoutMarks = Assert.Single(Frame(WithLine3(), ScopeViewer.None).Tracks);
@@ -334,7 +334,7 @@ public class ScopeEramColumn0Tests
     public void SelectionBorder_FramesTheTextBlock()
     {
         ScopeTrack track;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             track = Assert.Single(Frame(WithLine3(), EramViewer).Tracks) with { IsSelected = true };
         }

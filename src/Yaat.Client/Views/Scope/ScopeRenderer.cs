@@ -3,7 +3,6 @@ using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Mva;
@@ -229,13 +228,13 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     private const int MvaAtBandFt = 100;
 
     /// <summary>
-    /// Lays every track out for this frame, reading the blink phase from <see cref="RadarBlink"/> once so the whole frame
+    /// Lays every track out for this frame, reading the blink phase from <see cref="MapBlink"/> once so the whole frame
     /// shares one phase. Each block sits at the default leader offset; dwelled tracks come last, so they draw on top and
     /// hit-test first: the dwell-locked ones, then the hovered one.
     /// </summary>
     public static ScopeFrame Build(ScopeFrameInput input)
     {
-        bool flashOn = RadarBlink.IsOn;
+        bool flashOn = MapBlink.IsOn;
         var byCallsign = new Dictionary<string, AircraftModel>(StringComparer.Ordinal);
         foreach (AircraftModel ac in input.Aircraft)
         {
@@ -369,7 +368,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
         ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
         bool hasManual = input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
-        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, false, hasManual, manual, atOrigin.Bounds, null);
+        SKPoint offset = DatablockText.ResolveBlockOffset(ac, false, hasManual, manual, atOrigin.Bounds, null);
         (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         ScopeBlockLayout placed = atOrigin.At(sx + offset.X, sy + offset.Y);
         if (!EramDwellLock.HasEramSector(input.Display.Viewer))
@@ -885,7 +884,7 @@ public sealed class ScopeRenderer : IDisposable
     /// <summary>Draws <paramref name="snapshot"/> into <paramref name="canvas"/>.</summary>
     public void Render(SKCanvas canvas, MapViewport vp, ScopeRenderSnapshot snapshot)
     {
-        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+        MapLineStyle.Apply(_strokePaints, MapLineStyle.GetScale(canvas));
         canvas.Clear(SKColors.Black);
         _videoMapRenderer.BrightnessA = snapshot.Brightness.MapA / 100f;
         _videoMapRenderer.BrightnessB = snapshot.Brightness.MapB / 100f;
@@ -978,7 +977,7 @@ public sealed class ScopeRenderer : IDisposable
             return;
         }
 
-        SKColor color = RingShade(TargetRenderer.TpaColor, track, percent);
+        SKColor color = RingShade(TargetColors.TpaColor, track, percent);
         if (rings.JRing is { } ring)
         {
             DrawPolyline(canvas, ring.Points, color);
@@ -997,7 +996,7 @@ public sealed class ScopeRenderer : IDisposable
 
         if (rings.AtpaCone is { } atpa)
         {
-            DrawWedge(canvas, atpa, RingShade(TargetRenderer.AtpaConeColorFor(rings.AtpaState), track, percent));
+            DrawWedge(canvas, atpa, RingShade(TargetColors.AtpaConeColorFor(rings.AtpaState), track, percent));
         }
     }
 
@@ -1542,7 +1541,7 @@ public sealed class ScopeRenderer : IDisposable
 
     /// <summary>
     /// Draws the text before the first space at <paramref name="color"/>, then the rest (its leading space included) at
-    /// <paramref name="tailColor"/>, placed as today's <c>TargetRenderer.DrawSquawkMismatchLine</c> places its head and tail.
+    /// <paramref name="tailColor"/>, placed as today's <c>TargetColors.DrawSquawkMismatchLine</c> places its head and tail.
     /// </summary>
     private void DrawDimTail(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, SKColor tailColor)
     {

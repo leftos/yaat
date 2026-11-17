@@ -528,7 +528,7 @@ harness shows is what the server did.
 
   It skips on-ground shadows always and stale ones for All / WithinRadius (an unattended bulk action does not take a coasting track; a hand-picked one does), then issues one recorded `ASSUME` per aircraft under a single room gate. The client prints `Assumed X of Y live aircraft (n on the ground, n stale, n refused)`.
 - **Rendering** — `TargetRenderer.DrawPositionSymbol` draws a shadow with `_shadowSymbolPaint` (dashed outline circle);
-  `ResolveTargetColors` applies `StaleAlpha` (128) to symbol and datablock when `LiveTrafficStale`. `GroundRenderer.DrawAircraft`
+  `ResolveTargetColors` applies `TargetColors.StaleAlpha` (128) to symbol and datablock when `LiveTrafficStale`. `GroundRenderer.DrawAircraft`
   uses the stroke `_shadowAircraftPaint` for shadows with the same stale alpha. Datablock content is untouched (`Status` = `LIVE` /
   `LIVE CST` from `AircraftStatusDescriber`).
 - **Aircraft List** — `MainViewModel.IsAircraftVisible(ac, showOnlyActive, filter, LiveTrafficListFilter)`; the tri-state

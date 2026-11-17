@@ -329,7 +329,7 @@ public partial class RadarViewModel(
     /// rather than by the canvas so it survives tab switches and pop-out/dock-back; every
     /// <see cref="Views.Radar.RadarCanvas"/> bound to this view-model shares it.
     /// </summary>
-    public RadarDataBlockViewState DataBlockState { get; } = new();
+    public ScopeDataBlockViewState DataBlockState { get; } = new();
 
     /// <summary>
     /// Moves the callsign's datablock to a screen-pixel <paramref name="offset"/> from its target symbol, as dragging it does;

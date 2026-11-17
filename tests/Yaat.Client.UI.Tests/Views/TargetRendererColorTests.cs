@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Xunit;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -27,8 +28,8 @@ public class TargetRendererColorTests
             }
         );
 
-        Assert.Equal(live.Symbol.WithAlpha(TargetRenderer.StaleAlpha), stale.Symbol);
-        Assert.Equal(live.DataBlock.WithAlpha(TargetRenderer.StaleAlpha), stale.DataBlock);
+        Assert.Equal(live.Symbol.WithAlpha(TargetColors.StaleAlpha), stale.Symbol);
+        Assert.Equal(live.DataBlock.WithAlpha(TargetColors.StaleAlpha), stale.DataBlock);
     }
 
     [Fact]

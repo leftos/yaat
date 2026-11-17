@@ -1,10 +1,10 @@
-namespace Yaat.Client.Views.Radar;
+namespace Yaat.Client.Views.Map;
 
 /// <summary>
 /// The one phase every blinking radar token (a flashing datablock field, a blinking target symbol) follows: on for half a
 /// second, off for half a second.
 /// </summary>
-internal static class RadarBlink
+internal static class MapBlink
 {
     /// <summary>
     /// The millisecond clock the phase is read from. A screenshot harness pins it to a value on the on phase, so blinking

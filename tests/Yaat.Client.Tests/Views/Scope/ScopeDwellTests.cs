@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// Hover dwell as CRC's <c>ViewDataBlocks.HandleMouseMove</c> judges it: within 8 px of a track's symbol, or inside its drawn
 /// block's text bounds inflated 2 px, topmost block first; a dwelled track draws last with a 1 px box in its block colour.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeDwellTests
 {
     private const float FontSize = 12f;
@@ -247,7 +247,7 @@ public class ScopeDwellTests
     [Fact]
     public void Render_DwelledBlock_KeepsTheSquawkMismatchPulsesOffPhase()
     {
-        using var pin = RadarBlinkPin.Phase(false);
+        using var pin = MapBlinkPin.Phase(false);
         AircraftModel ac = ScopeTestAircraft.CreateSquawkMismatch();
         ScopeFrame plain = Build(null, ac);
         ScopeFrame hovered = Build(ac.Callsign, ac);

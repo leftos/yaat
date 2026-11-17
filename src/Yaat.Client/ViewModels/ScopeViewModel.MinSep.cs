@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Entries;
 using Yaat.Sim;
@@ -163,7 +163,7 @@ public sealed partial class ScopeViewModel
     }
 
     // Whether the Scope draws the aircraft, by the rule its canvas filters traffic with.
-    private bool IsDisplayed(AircraftModel ac) => RadarCanvas.FilterAircraft([ac], IsTdm, false, false, null, DateTime.UtcNow).Count > 0;
+    private bool IsDisplayed(AircraftModel ac) => AircraftVisibility.FilterAircraft([ac], IsTdm, false, false, null, DateTime.UtcNow).Count > 0;
 
     // Recomputes the pair's projection; data it cannot run on takes the pair down, as CRC drops it.
     private void RecomputeMinSep()

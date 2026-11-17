@@ -53,10 +53,10 @@ public class MapCanvasTimerLifecycleTests
         var window = new Window { Content = canvas };
         window.Show();
         Dispatcher.UIThread.RunJobs();
-        RadarDataBlockViewState? local = canvas.WatchedDataBlockState;
+        ScopeDataBlockViewState? local = canvas.WatchedDataBlockState;
         Assert.NotNull(local);
 
-        var vmState = new RadarDataBlockViewState();
+        var vmState = new ScopeDataBlockViewState();
         canvas.DataBlockState = vmState;
         Assert.Same(vmState, canvas.WatchedDataBlockState);
 

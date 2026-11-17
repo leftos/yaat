@@ -196,7 +196,7 @@ public class DatablockHitTestParityTests
 
         // The renderer's peer index is built from the same filtered list the draw pass uses, so the
         // on-ground lead is invisible to the draw path and the ATPA row is not drawn.
-        IReadOnlyList<AircraftModel> drawn = RadarCanvas.FilterAircraft(
+        IReadOnlyList<AircraftModel> drawn = AircraftVisibility.FilterAircraft(
             canvas.Aircraft,
             canvas.ShowTopDown,
             canvas.ShowSpeechBubbles,
@@ -233,7 +233,7 @@ public class DatablockHitTestParityTests
     {
         // A dragged block over the CRC spot is fixed: the readout moves around it and the block ships no nudge delta.
         AircraftModel ac = CreateModel();
-        var state = new RadarDataBlockViewState();
+        var state = new ScopeDataBlockViewState();
         var manual = new SKPoint(28f, -28f);
         state.ManualOffsets[ac.Callsign] = manual;
         var canvas = new RadarCanvas

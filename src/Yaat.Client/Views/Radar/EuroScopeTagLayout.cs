@@ -101,7 +101,7 @@ public static class EuroScopeTagLayout
         // renderer flashes the text on the 500 ms cycle.
         if (ac.IsIdenting)
         {
-            x = AddField(fields, TagFieldId.Ident, RadarDatablockLayout.IdentText, x, y2Top, y2Bot, style);
+            x = AddField(fields, TagFieldId.Ident, DatablockText.IdentText, x, y2Top, y2Bot, style);
         }
         if (x > originX)
         {
@@ -130,7 +130,7 @@ public static class EuroScopeTagLayout
 
         // Line 4: runway + scratchpads (only if at least one is set, to keep block compact)
         bool hasRwy = !string.IsNullOrEmpty(ac.AssignedRunway);
-        string? effectiveSp1 = RadarDatablockLayout.EffectiveScratchpad1(ac);
+        string? effectiveSp1 = DatablockText.EffectiveScratchpad1(ac);
         bool hasSp1 = !string.IsNullOrEmpty(effectiveSp1);
         bool hasSp2 = !string.IsNullOrEmpty(ac.Scratchpad2);
         bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
@@ -167,7 +167,7 @@ public static class EuroScopeTagLayout
             if (hasHandoff)
             {
                 // Flash to match STARS convention.
-                bool show = RadarBlink.IsOn;
+                bool show = MapBlink.IsOn;
                 if (show)
                 {
                     x = AddField(fields, TagFieldId.Handoff, $">{ac.HandoffDisplay}", x, y4Top, y4Bot, style);
@@ -216,15 +216,15 @@ public static class EuroScopeTagLayout
             float yBot = yTop + style.Size;
             // Reserve the line slot in the bounds even when the flash is off-phase so the
             // tag height doesn't pulse.
-            float reservedWidth = style.Measure(RadarDatablockLayout.NoLandingClearanceText);
+            float reservedWidth = style.Measure(DatablockText.NoLandingClearanceText);
             maxWidth = MathF.Max(maxWidth, reservedWidth);
             lineCount++;
 
-            bool flashOn = RadarBlink.IsOn;
+            bool flashOn = MapBlink.IsOn;
             if (flashOn)
             {
                 x = originX;
-                AddField(fields, TagFieldId.NoLandingClearance, RadarDatablockLayout.NoLandingClearanceText, x, yTop, yBot, style);
+                AddField(fields, TagFieldId.NoLandingClearance, DatablockText.NoLandingClearanceText, x, yTop, yBot, style);
             }
             lastLineYTop = yTop;
         }
@@ -237,11 +237,11 @@ public static class EuroScopeTagLayout
             float yBot = yTop + style.Size;
             // Measure the stable text (built regardless of flash phase) so the reserved width tracks
             // the separation values without pulsing between phases.
-            string conflictText = RadarDatablockLayout.BuildConflictLine(ac, conflictPeer);
+            string conflictText = DatablockText.BuildConflictLine(ac, conflictPeer);
             maxWidth = MathF.Max(maxWidth, style.Measure(conflictText));
             lineCount++;
 
-            bool flashOn = RadarBlink.IsOn;
+            bool flashOn = MapBlink.IsOn;
             if (flashOn)
             {
                 x = originX;

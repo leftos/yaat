@@ -5,7 +5,6 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
@@ -104,7 +103,7 @@ internal readonly struct DataBlockLayout
         // radar STARS datablock. Ground stays on the physical AircraftType (tower-cab "out the window"
         // surface), unlike the radar surfaces which use DisplayAircraftType.
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
-        string cwtType = RadarDatablockLayout.FormatCwtType(cwt, ac.AircraftType);
+        string cwtType = DatablockText.FormatCwtType(cwt, ac.AircraftType);
         string line2 = string.IsNullOrEmpty(fix) ? cwtType : (cwtType.Length > 0 ? $"{cwtType} {fix}" : fix);
         // Flight-plan gate from the remarks, its own line directly under the type/fix line.
         string gateLine = ac.GateLine;
@@ -2314,7 +2313,7 @@ public sealed class GroundRenderer : IDisposable
             bool isAirborne = !ac.IsOnGround;
 
             SKPaint paint = ac.IsLiveTraffic ? _shadowAircraftPaint : _aircraftPaint;
-            paint.Color = ac.LiveTrafficStale ? _aircraftColor.WithAlpha(TargetRenderer.StaleAlpha) : _aircraftColor;
+            paint.Color = ac.LiveTrafficStale ? _aircraftColor.WithAlpha(TargetColors.StaleAlpha) : _aircraftColor;
 
             // One FAA lookup per aircraft: the silhouette, the rotor and the tug all read the same record.
             FaaAircraftRecord? record = FaaAircraftDatabase.Get(ac.AircraftType);
@@ -2840,7 +2839,7 @@ public sealed class GroundRenderer : IDisposable
         // so both views pulse in the same cadence and color treatment.
         if (layout.SquawkLine.Length > 0)
         {
-            TargetRenderer.DrawSquawkMismatchLine(
+            TargetColors.DrawSquawkMismatchLine(
                 canvas,
                 layout.SquawkLine,
                 layout.TextX,

@@ -253,11 +253,11 @@ ASDE-X / SAID membership is not decided here: the Sim owns it, hysteresis includ
 
   Test airports (`AddAirportsForTest`) form a slice that outranks every ARTCC. The list serves Tower Cab (`EvaluateTowerCab` reports an airport a refresh drops as removed, so CRC gets the deletes); ASDE-X / SAID follow the room's own ARTCC config through the Sim. Regression: `CrcVisibilityAirportRefreshTests`.
 
-- `IsVisibleOnStars` + `IsCoasting` — an aircraft on the airport surface (`AircraftState.IsOnGround`) is **never** on STARS/ERAM and is **always** a ground target, regardless of altitude — a hard veto checked before the floor, mirroring `RadarCanvas.FilterAircraft` (which hides on-ground aircraft outright). This keeps a taxiing aircraft off terminal radar even when field-elevation resolution drifts below its stored altitude or stale hysteresis survives a timeline scrub.
+- `IsVisibleOnStars` + `IsCoasting` — an aircraft on the airport surface (`AircraftState.IsOnGround`) is **never** on STARS/ERAM and is **always** a ground target, regardless of altitude — a hard veto checked before the floor, mirroring `AircraftVisibility.FilterAircraft` (which hides on-ground aircraft outright). This keeps a taxiing aircraft off terminal radar even when field-elevation resolution drifts below its stored altitude or stale hysteresis survives a timeline scrub.
 
   For airborne aircraft the STARS floor is AGL ≥ 100 ft (`FieldElevationResolver.AcquisitionFloorAglFt`); on exit, hysteresis to field elevation; coast for 12 s before delete (`CoastDurationSeconds`, ~2 missed ASR sweeps); re-ascent during coast cancels deletion.
 
-  Airborne ghosts auto-resolve. YAAT's own radar mirrors this floor: the training-hub DTO carries `BelowDisplayFloor` (same `FieldElevationResolver` field-elevation logic) and `RadarCanvas.FilterAircraft` withholds an airborne target while its displayed altitude rounds to `000`.
+  Airborne ghosts auto-resolve. YAAT's own radar mirrors this floor: the training-hub DTO carries `BelowDisplayFloor` (same `FieldElevationResolver` field-elevation logic) and `AircraftVisibility.FilterAircraft` withholds an airborne target while its displayed altitude rounds to `000`.
 - **ERAM commanded frozen (`QH F`) and coast (`QT … CT`) tracks** are unpaired from their target. `EvaluateEram` keeps sending the *track* at its frozen or coasted position (never auto-dropped, never coverage-coasted), while the real *target* follows the normal ERAM coverage lifecycle (Update above the floor less hysteresis, Delete below it or on the ground).
 
   CRC 2.18.2 draws them apart (checked live: coast shows a `#` symbol with `CST`, freeze a boxed FDB with `FRZN`; the target slash keeps moving with the aircraft) and a plain `QT` re-pairs them.

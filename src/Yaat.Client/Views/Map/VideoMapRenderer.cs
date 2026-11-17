@@ -1,8 +1,7 @@
 using SkiaSharp;
-using Yaat.Client.Views.Map;
 using Yaat.Sim.Data;
 
-namespace Yaat.Client.Views.Radar;
+namespace Yaat.Client.Views.Map;
 
 /// <summary>
 /// Renders parsed video map line features onto a SkiaSharp canvas.
@@ -28,7 +27,7 @@ public sealed class VideoMapRenderer : IDisposable
         IsAntialias = true,
     };
 
-    // Rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each frame; the tuple
+    // Rendered CRC-style (no AA, device-pixel width) by MapLineStyle.Apply each frame; the tuple
     // carries each paint's base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
@@ -42,7 +41,7 @@ public sealed class VideoMapRenderer : IDisposable
 
     public void Render(SKCanvas canvas, MapViewport vp, IReadOnlyList<VideoMapData> maps, IReadOnlyDictionary<string, string> brightnessLookup)
     {
-        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+        MapLineStyle.Apply(_strokePaints, MapLineStyle.GetScale(canvas));
 
         foreach (VideoMapData map in maps)
         {

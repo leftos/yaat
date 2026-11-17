@@ -1,16 +1,16 @@
 using Xunit;
 using Yaat.Client.Models;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Map;
 
-namespace Yaat.Client.Tests;
+namespace Yaat.Client.Tests.Views.Map;
 
 /// <summary>
-/// Tests for <see cref="RadarCanvas.FilterAircraft"/>, which decides what the radar draws.
+/// Tests for <see cref="AircraftVisibility.FilterAircraft"/>, which decides what the radar draws.
 /// Issue #169: a ground aircraft is normally hidden on the radar, but when it carries an active
 /// speech bubble and no ground view is showing its airport, the radar must surface it so the
 /// SAY / pilot / WARN prompt isn't missed.
 /// </summary>
-public class RadarCanvasFilterTests
+public class AircraftVisibilityTests
 {
     private static readonly DateTime Now = new(2026, 5, 23, 12, 0, 0, DateTimeKind.Utc);
 
@@ -39,7 +39,7 @@ public class RadarCanvasFilterTests
         bool alwaysShowGroundBubbles = false
     )
     {
-        IReadOnlyList<AircraftModel> result = RadarCanvas.FilterAircraft(
+        IReadOnlyList<AircraftModel> result = AircraftVisibility.FilterAircraft(
             aircraft,
             showTopDown,
             showSpeechBubbles,

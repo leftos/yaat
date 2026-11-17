@@ -9,7 +9,7 @@ public class DataBlockViewStateTests
     [Fact]
     public void DataBlockViewState_Clear_ReleasesTheLocalLocks()
     {
-        var state = new RadarDataBlockViewState();
+        var state = new ScopeDataBlockViewState();
         state.ToggleDwellLock("UAL238");
         state.ToggleDwellLock("DAL55");
 

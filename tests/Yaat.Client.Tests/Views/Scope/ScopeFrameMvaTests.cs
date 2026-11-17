@@ -14,7 +14,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// off, on the ground, established on an approach, VFR) and its ±100 ft at-band, and that the frame carries the relation
 /// onto the Altitude field's token.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeFrameMvaTests
 {
     /// <summary>KOAK, inside a 2,000 ft MVA sector.</summary>

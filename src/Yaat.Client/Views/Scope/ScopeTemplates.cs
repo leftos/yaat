@@ -90,7 +90,7 @@ public static class ScopeTemplates
     /// <summary>
     /// The STARS full datablock: callsign (with the VFR mark and the student-level marker), then altitude, ground speed, cwt/type and the
     /// ident, then the squawk-mismatch, status, ATPA, ModeC, warning, conflict and note lines. Limited and Partial draw the
-    /// Radar's collapsed blocks (<see cref="Radar.RadarDatablockLayout.BuildCollapsedLines"/>): the beacon code (in the squawk
+    /// Radar's collapsed blocks (<see cref="Map.DatablockText.BuildCollapsedLines"/>): the beacon code (in the squawk
     /// slot), altitude and ident; or the altitude, handoff, ground speed and ident, then scratchpad 1. Dwell adds the ERAM
     /// altitude's line under line 2 while the two sides differ. Ground draws the ground target's block in top-down mode.
     /// </summary>

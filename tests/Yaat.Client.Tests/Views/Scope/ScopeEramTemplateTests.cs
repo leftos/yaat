@@ -11,7 +11,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// The ERAM template: line 1 as STARS, line 2 the ERAM altitude then the STARS right side, and the ERAM altitude field as
 /// <see cref="TrackPresenter.EramAltitudeText"/> formats it from the aircraft, in the block colour.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeEramTemplateTests
 {
     [Fact]

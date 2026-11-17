@@ -1,6 +1,7 @@
 using System.Globalization;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
@@ -507,7 +508,7 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The Radar's collapsed LDB (<see cref="RadarDatablockLayout.BuildCollapsedLines"/>): the beacon code in the squawk slot
+    /// The Radar's collapsed LDB (<see cref="DatablockText.BuildCollapsedLines"/>): the beacon code in the squawk slot
     /// (empty when none), the altitude and the ident.
     /// </summary>
     private static List<ScopeField> StarsLimitedFields(TrackPresenterInput input)
@@ -522,7 +523,7 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The Radar's collapsed PDB (<see cref="RadarDatablockLayout.BuildCollapsedLines"/>): the altitude, the handoff peer, the
+    /// The Radar's collapsed PDB (<see cref="DatablockText.BuildCollapsedLines"/>): the altitude, the handoff peer, the
     /// ground speed and the ident, then scratchpad 1.
     /// </summary>
     private static List<ScopeField> StarsPartialFields(TrackPresenterInput input)
@@ -534,7 +535,7 @@ public static class TrackPresenter
             Steady(ScopeFieldSlot.Handoff, ac.HandoffDisplay, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.GroundSpeed, GroundSpeedTens(ac), ScopeColorToken.Default),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.Scratchpad1, RadarDatablockLayout.EffectiveScratchpad1(ac) ?? "", ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Scratchpad1, DatablockText.EffectiveScratchpad1(ac) ?? "", ScopeColorToken.Default),
         ];
     }
 
@@ -669,7 +670,7 @@ public static class TrackPresenter
         AircraftModel ac = input.Aircraft;
         bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
         string cwt = string.IsNullOrEmpty(ac.CwtCode) ? "" : ac.CwtCode;
-        string levelMark = input.Display.MarkStudentLevel ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        string levelMark = input.Display.MarkStudentLevel ? DatablockText.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         bool typeMismatch = input.Display.ShowTypeMismatchHints && ac.HasFiledTypeMismatch;
         ScopeColorToken typeToken = typeMismatch ? ScopeColorToken.TypeMismatch : ScopeColorToken.Default;
         return
@@ -679,12 +680,12 @@ public static class TrackPresenter
             Steady(ScopeFieldSlot.StudentLevelMark, levelMark, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
             Steady(ScopeFieldSlot.GroundSpeed, GroundSpeedTens(ac), ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.CwtType, RadarDatablockLayout.FormatCwtType(cwt, ac.DisplayAircraftType), typeToken),
+            Steady(ScopeFieldSlot.CwtType, DatablockText.FormatCwtType(cwt, ac.DisplayAircraftType), typeToken),
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
             new(
                 ScopeFieldSlot.StatusLine3,
-                RadarDatablockLayout.BuildOwnerScratchpadLine(ac, showHandoff: input.FlashOn) ?? "",
-                RadarDatablockLayout.BuildOwnerScratchpadLine(ac, showHandoff: true) ?? "",
+                DatablockText.BuildOwnerScratchpadLine(ac, showHandoff: input.FlashOn) ?? "",
+                DatablockText.BuildOwnerScratchpadLine(ac, showHandoff: true) ?? "",
                 ScopeColorToken.Default,
                 ScopeFieldAction.None,
                 ScopeFieldStyle.None
@@ -764,7 +765,7 @@ public static class TrackPresenter
     private static List<ScopeField> EuroScopeFields(TrackPresenterInput input)
     {
         AircraftModel ac = input.Aircraft;
-        string? sp1 = RadarDatablockLayout.EffectiveScratchpad1(ac);
+        string? sp1 = DatablockText.EffectiveScratchpad1(ac);
         string handoff = string.IsNullOrEmpty(ac.HandoffDisplay) ? "" : $">{ac.HandoffDisplay}";
         return
         [
@@ -791,8 +792,8 @@ public static class TrackPresenter
     private static IEnumerable<ScopeField> AlertFields(TrackPresenterInput input)
     {
         AircraftModel ac = input.Aircraft;
-        string noLandingClearance = NoLandingClearanceActive(input) ? RadarDatablockLayout.NoLandingClearanceText : "";
-        string conflict = ConflictActive(input) ? RadarDatablockLayout.BuildConflictLine(ac, input.ConflictPeer) : "";
+        string noLandingClearance = NoLandingClearanceActive(input) ? DatablockText.NoLandingClearanceText : "";
+        string conflict = ConflictActive(input) ? DatablockText.BuildConflictLine(ac, input.ConflictPeer) : "";
         string squawk = SquawkText(ac);
         // The mismatch line keeps its whole text in both phases; only its assigned-code tail dims on the off-phase.
         ScopeFieldStyle squawkStyle = ((squawk.Length > 0) && !input.FlashOn) ? ScopeFieldStyle.DimTail : ScopeFieldStyle.None;
@@ -811,7 +812,7 @@ public static class TrackPresenter
     {
         AircraftModel ac = input.Aircraft;
         bool paired = input.Alerts.ShowAtpa && !string.IsNullOrEmpty(ac.AtpaLeadCallsign);
-        string text = paired ? RadarDatablockLayout.BuildAtpaLine(ac, input.AtpaLead) : "";
+        string text = paired ? DatablockText.BuildAtpaLine(ac, input.AtpaLead) : "";
         ScopeColorToken token = ac.AtpaConeState switch
         {
             AtpaConeState.Warning => ScopeColorToken.AtpaWarning,
@@ -842,7 +843,7 @@ public static class TrackPresenter
             _ => ScopeColorToken.Default,
         };
 
-    private static string IdentText(AircraftModel ac) => ac.IsIdenting ? RadarDatablockLayout.IdentText : "";
+    private static string IdentText(AircraftModel ac) => ac.IsIdenting ? DatablockText.IdentText : "";
 
     private static string RunwayText(AircraftModel ac) =>
         string.IsNullOrEmpty(ac.AssignedRunway) ? "" : $"R{RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}";

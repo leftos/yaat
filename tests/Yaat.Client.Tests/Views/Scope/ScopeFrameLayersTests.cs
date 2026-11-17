@@ -15,7 +15,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// viewer; ALL on every track; history dots draw on every track whatever OWN or ALL says; 0 minutes and a count of 0 draw
 /// nothing.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeFrameLayersTests
 {
     private static readonly ScopeViewer EramViewer = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");

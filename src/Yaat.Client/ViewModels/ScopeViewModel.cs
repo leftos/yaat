@@ -119,7 +119,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     public UserPreferences Preferences => Main.Preferences;
 
     /// <summary>The scope's own per-callsign datablock state; the scope places each block from it.</summary>
-    public RadarDataBlockViewState DataBlockState { get; } = new();
+    public ScopeDataBlockViewState DataBlockState { get; } = new();
 
     /// <summary>Selects the aircraft with <paramref name="callsign"/>, as a left click on it does; an unknown callsign changes nothing.</summary>
     public void SelectAircraft(string callsign)

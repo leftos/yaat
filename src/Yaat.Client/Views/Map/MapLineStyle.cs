@@ -1,6 +1,6 @@
 using SkiaSharp;
 
-namespace Yaat.Client.Views.Radar;
+namespace Yaat.Client.Views.Map;
 
 /// <summary>
 /// Strokes radar vector lines the way CRC's STARS engine does: analytic anti-aliasing off, and widths
@@ -10,7 +10,7 @@ namespace Yaat.Client.Views.Radar;
 /// at the top of every frame, so it is the single source of truth for those paints' anti-aliasing and
 /// stroke width — the values in the paint initializers are placeholders it overwrites.
 /// </summary>
-internal static class RadarLineStyle
+internal static class MapLineStyle
 {
     /// <summary>
     /// Device-independent-pixel → physical-pixel scale of the leased canvas (the DPI factor Avalonia

@@ -73,5 +73,7 @@
          tools/speech_telemetry.py promote. Audio, CIDs and session files never reach it, so the
          whole corpus travels with the repo and is read at test time. -->
     <None Include="TestData\speech-transcripts\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Frozen STARS full-datablock text lines the Scope's STARS template is held to. -->
+    <None Include="Views\Scope\Golden\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

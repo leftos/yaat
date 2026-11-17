@@ -10,7 +10,7 @@ How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the sa
 - Re-running a guide scene with no `--out` rewrites its tracked PNG byte-identically, so it is a safe check that a change did not move the picture.
 - A fresh worktree's first capture downloads CIFP, which adds to that run's time.
 - Output is deterministic, from four pins set in `Program.cs` and `Capture/Runner.cs`:
-  - The clocks: `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server's terminal stamps, the terminal and every wall-clock view; the live-traffic sync reads `SimLockedClock` (that instant plus the bound room's elapsed sim seconds, through yaat-server's `LiveTrafficClock`), which is also the clock `LiveTrafficScene` stamps its samples with; and blinking radar tokens are pinned on (`RadarBlink.Clock`), so they are always drawn.
+  - The clocks: `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server's terminal stamps, the terminal and every wall-clock view; the live-traffic sync reads `SimLockedClock` (that instant plus the bound room's elapsed sim seconds, through yaat-server's `LiveTrafficClock`), which is also the clock `LiveTrafficScene` stamps its samples with; and blinking radar tokens are pinned on (`MapBlink.Clock`), so they are always drawn.
   - The scenario seed (`CaptureRngSeed`).
   - The navigation data, loaded once before any window opens (`CaptureStartupLoads`), so no window's radar races its own load against the scenario bootstrap.
   - A full redraw before each capture (`Runner.ForceFullRedraw`): the retained frame is redrawn with the background swapped, so no pixel depends on the redraw history.

@@ -7,7 +7,6 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using Yaat.Sim.Data;
@@ -47,7 +46,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         nameof(ShowMvaAltitudeTint)
     );
 
-    /// <summary>The facility whose MVA chart wins where charts overlap (the Radar's <c>MvaFacilityId</c>); null for none.</summary>
+    /// <summary>The facility whose MVA chart wins where charts overlap (the Scope map source's <c>MvaFacilityId</c>); null for none.</summary>
     public static readonly StyledProperty<string?> MvaFacilityIdProperty = AvaloniaProperty.Register<ScopeCanvas, string?>(nameof(MvaFacilityId));
 
     /// <summary>Id of the datablock template the scope draws (see <see cref="ScopeTemplates"/>).</summary>
@@ -372,7 +371,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     public UserPreferences? Preferences { get; set; }
 
     /// <summary>The scope's datablock state; each block is placed from its manual offsets. Null places every block at the default offset.</summary>
-    public RadarDataBlockViewState? DataBlockState { get; set; }
+    public ScopeDataBlockViewState? DataBlockState { get; set; }
 
     /// <summary>Video maps to draw.</summary>
     public IReadOnlyList<VideoMapData> VideoMaps { get; set; } = [];
@@ -1065,7 +1064,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     private ScopeFrame BuildFrame(ScopePalette palette)
     {
-        IReadOnlyList<AircraftModel> visible = RadarCanvas.FilterAircraft(Aircraft, ShowTopDown, false, false, null, DateTime.UtcNow);
+        IReadOnlyList<AircraftModel> visible = AircraftVisibility.FilterAircraft(Aircraft, ShowTopDown, false, false, null, DateTime.UtcNow);
         ScopeAlertOptions alerts = BuildAlertOptions();
         ScopeDisplayOptions display = BuildDisplayOptions(palette);
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));

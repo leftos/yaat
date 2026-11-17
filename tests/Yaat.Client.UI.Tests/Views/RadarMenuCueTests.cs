@@ -39,7 +39,7 @@ public class RadarMenuCueTests
     [AvaloniaFact]
     public void RadarCanvas_RepaintsOnHighlightsChanged()
     {
-        var state = new RadarDataBlockViewState();
+        var state = new ScopeDataBlockViewState();
         var canvas = new RadarCanvas { DataBlockState = state };
         var window = new Window
         {

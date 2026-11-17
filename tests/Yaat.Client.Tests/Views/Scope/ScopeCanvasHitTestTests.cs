@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// frame carries hit-tests back to itself. A flashing field keeps its reserved rect; the STARS template hit-tests it in
 /// both blink phases, the EuroScope template only in the on phase, as today's EuroScope tag does.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeCanvasHitTestTests
 {
     public static TheoryData<string, float> TemplatesBySize
@@ -117,7 +117,7 @@ public class ScopeCanvasHitTestTests
         }
 
         ScopeFrame frame;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             frame = Build(templateId, fontSize, other.Callsign, busy, other);
         }
@@ -153,11 +153,11 @@ public class ScopeCanvasHitTestTests
         AircraftModel ac = HandingOff();
         ScopeFrame on;
         ScopeFrame off;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             on = Build(ScopeTemplates.StarsId, 12f, ac);
         }
-        using (RadarBlinkPin.Phase(false))
+        using (MapBlinkPin.Phase(false))
         {
             off = Build(ScopeTemplates.StarsId, 12f, ac);
         }
@@ -178,11 +178,11 @@ public class ScopeCanvasHitTestTests
         AircraftModel ac = HandingOff();
         ScopeFrame on;
         ScopeFrame off;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             on = Build(ScopeTemplates.EuroScopeId, 12f, ac);
         }
-        using (RadarBlinkPin.Phase(false))
+        using (MapBlinkPin.Phase(false))
         {
             off = Build(ScopeTemplates.EuroScopeId, 12f, ac);
         }
@@ -232,7 +232,7 @@ public class ScopeCanvasHitTestTests
         AircraftModel ac = HandingOff();
         ac.EramAssignedHeading = "270";
         ScopeFrame frame;
-        using (RadarBlinkPin.Phase(flashOn))
+        using (MapBlinkPin.Phase(flashOn))
         {
             frame = Build(ScopeTemplates.EramId, 12f, ac);
         }
@@ -314,7 +314,7 @@ public class ScopeCanvasHitTestTests
         ac.OwnerSectorCode = "C45";
         ac.EramOnFrequencySectorIds = ["44"];
         ScopeFrame frame;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             frame = BuildViewedFrom(new ScopeViewer(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44"), ac);
         }

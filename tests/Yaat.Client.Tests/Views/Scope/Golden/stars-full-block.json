@@ -1,0 +1,228 @@
+[
+  {
+    "case": "Vfr",
+    "flashOn": true,
+    "lines": [
+      "UAL238*",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "Vfr",
+    "flashOn": false,
+    "lines": [
+      "UAL238*",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "NoCwtIdenting",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 B738 ID"
+    ]
+  },
+  {
+    "case": "NoCwtIdenting",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 B738"
+    ]
+  },
+  {
+    "case": "AtpaLead",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "3.2"
+    ]
+  },
+  {
+    "case": "AtpaLead",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "3.2"
+    ]
+  },
+  {
+    "case": "LongCallsign",
+    "flashOn": true,
+    "lines": [
+      "N1234567890AB",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "LongCallsign",
+    "flashOn": false,
+    "lines": [
+      "N1234567890AB",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "OwnedWithScratchpads",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "[AB] 2S 3E* .ABC +XY"
+    ]
+  },
+  {
+    "case": "OwnedWithScratchpads",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "[AB] 2S 3E* .ABC +XY"
+    ]
+  },
+  {
+    "case": "SquawkMismatchWithNote",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "1200 0301",
+      "Watch wake"
+    ]
+  },
+  {
+    "case": "SquawkMismatchWithNote",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "1200 0301",
+      "Watch wake"
+    ]
+  },
+  {
+    "case": "StandbyModeC",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "ModeC"
+    ]
+  },
+  {
+    "case": "StandbyModeC",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "ModeC"
+    ]
+  },
+  {
+    "case": "Handoff",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "2S >3E"
+    ]
+  },
+  {
+    "case": "Handoff",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "2S"
+    ]
+  },
+  {
+    "case": "NoLandingClearance",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "NoLndgClnc"
+    ]
+  },
+  {
+    "case": "NoLandingClearance",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      ""
+    ]
+  },
+  {
+    "case": "ConflictWithPeer",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "AB",
+      "CA 2.0/800"
+    ]
+  },
+  {
+    "case": "ConflictWithPeer",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738",
+      "AB",
+      ""
+    ]
+  },
+  {
+    "case": "Ldb",
+    "flashOn": true,
+    "lines": [
+      "UAL238 (LDB)",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "Ldb",
+    "flashOn": false,
+    "lines": [
+      "UAL238 (LDB)",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "Pdb",
+    "flashOn": true,
+    "lines": [
+      "UAL238 (PDB)",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "Pdb",
+    "flashOn": false,
+    "lines": [
+      "UAL238 (PDB)",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "LdbMarkerOff",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738"
+    ]
+  },
+  {
+    "case": "LdbMarkerOff",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738"
+    ]
+  }
+]

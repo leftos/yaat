@@ -313,98 +313,6 @@ public class RadarDatablockLayoutTests
     }
 
     [Fact]
-    public void ConflictAlert_ListsHorizontalNmAndVerticalFeet()
-    {
-        AircraftModel ac = CreateModel();
-        ac.Owner = "AB";
-        AircraftModel peer = CreateConflictPeer();
-        peer.Owner = "CD";
-
-        // Horizontal to one decimal in nm; vertical to the nearest 100 ft, matching Mode C reporting
-        // granularity. 23000 - 22200 = 800. Both tracked, so this is CA rather than MCI.
-        Assert.Equal("CA 2.0/800", RadarDatablockLayout.BuildConflictLine(ac, peer));
-    }
-
-    [Fact]
-    public void ConflictAlert_VerticalMatchesTheTruncatedAltitudeReadouts()
-    {
-        // 5099 ft displays as "050" on line 2 and 4900 ft as "049" — one hundred apart. Differencing
-        // the raw altitudes and then rounding gives 199 -> 200, contradicting the two readouts directly
-        // above. Quantizing each altitude first keeps the field consistent with what's on the scope.
-        AircraftModel ac = CreateModel();
-        ac.Altitude = 5099;
-        ac.Owner = "AB";
-        AircraftModel peer = CreateConflictPeer();
-        peer.Altitude = 4900;
-        peer.Owner = "CD";
-
-        Assert.Equal("CA 2.0/100", RadarDatablockLayout.BuildConflictLine(ac, peer));
-    }
-
-    [Fact]
-    public void ConflictAlert_CoAltitudePairPadsVerticalToThreeDigits()
-    {
-        AircraftModel ac = CreateModel();
-        ac.Owner = "AB";
-        AircraftModel peer = CreateConflictPeer();
-        peer.Altitude = ac.Altitude;
-        peer.Owner = "CD";
-
-        // "000" rather than a bare "0" — matches the D3 altitude convention and reads as a measured
-        // zero (the most alarming case) rather than a missing value.
-        Assert.Equal("CA 2.0/000", RadarDatablockLayout.BuildConflictLine(ac, peer));
-    }
-
-    [Fact]
-    public void ModeCIntruder_WhenPeerIsUntrackedAndUncorrelated()
-    {
-        // P/CG: a conflict between a tracked target and an untracked one is a Mode C Intruder alert,
-        // not a conflict alert. 7110.65 §5-14-6 treats CA and MCI as distinct alert types.
-        AircraftModel ac = CreateModel();
-        ac.Owner = "AB";
-        AircraftModel peer = CreateConflictPeer();
-
-        Assert.StartsWith("MCI ", RadarDatablockLayout.BuildConflictLine(ac, peer), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ModeCIntruder_ShowsOnBothMembers_SinceItClassifiesThePair()
-    {
-        // The tracked side of the pair must read MCI too — the alert type is a property of the pair,
-        // so the two datablocks can't disagree about what kind of alert is active.
-        AircraftModel ac = CreateModel();
-        ac.Owner = "AB";
-        AircraftModel peer = CreateConflictPeer();
-
-        Assert.StartsWith("MCI ", RadarDatablockLayout.BuildConflictLine(ac, peer), StringComparison.Ordinal);
-        Assert.StartsWith("MCI ", RadarDatablockLayout.BuildConflictLine(peer, ac), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ConflictAlert_WhenUntrackedPeerIsCorrelatedByFlightPlan()
-    {
-        // An untracked target that still correlates to a flight plan is a known aircraft, so the pair
-        // is a CA, not an MCI.
-        AircraftModel ac = CreateModel();
-        ac.Owner = "AB";
-        AircraftModel peer = CreateConflictPeer();
-        peer.Destination = "KSFO";
-
-        Assert.StartsWith("CA ", RadarDatablockLayout.BuildConflictLine(ac, peer), StringComparison.Ordinal);
-        Assert.StartsWith("CA ", RadarDatablockLayout.BuildConflictLine(peer, ac), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ConflictAlert_FallsBackToBareCa_WhenPeerUnresolved()
-    {
-        AircraftModel ac = CreateModel();
-
-        // The peer can be absent when it has left the scope or its first position update hasn't
-        // landed yet — the alert must still show rather than vanishing.
-        Assert.Equal("CA", RadarDatablockLayout.BuildConflictLine(ac, peer: null));
-    }
-
-    [Fact]
     public void ConflictAlert_RectReservesSpaceEvenDuringOffPhase()
     {
         AircraftModel ac = CreateModel();
@@ -460,60 +368,6 @@ public class RadarDatablockLayoutTests
         Assert.Equal("", layout.ConflictLine);
     }
 
-    // --- Student-scope collapsed datablock content (mirrors CRC BuildLdb/BuildPdb) ---
-
-    [Fact]
-    public void CollapsedLdb_ShowsBeaconThenAltitude()
-    {
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Limited;
-        ac.BeaconCode = 1200;
-        ac.Altitude = 3500;
-
-        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
-
-        // LDB default = beacon code + altitude; ground speed is hidden unless queried.
-        Assert.Equal(["1200 035"], lines);
-    }
-
-    [Fact]
-    public void CollapsedPdb_ShowsAltitudeHandoffGroundSpeed()
-    {
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
-        ac.Altitude = 3500;
-        ac.GroundSpeed = 120;
-        ac.HandoffPeerSectorCode = "2S";
-
-        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
-
-        // PDB mirrors the FDB altitude line: altitude, receiving sector during handoff, ground-speed tens.
-        Assert.Equal(["035 2S 12"], lines);
-    }
-
-    [Fact]
-    public void CollapsedPdb_OmitsHandoffAndAddsScratchpadLine()
-    {
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
-        ac.Altitude = 3500;
-        ac.GroundSpeed = 120;
-        ac.Scratchpad1 = "CCR";
-
-        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
-
-        Assert.Equal(["035 12", "CCR"], lines);
-    }
-
-    [Fact]
-    public void StudentLevelMarker_MapsEachLevel()
-    {
-        Assert.Equal(" (LDB)", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Limited));
-        Assert.Equal(" (PDB)", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Partial));
-        Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Full));
-        Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(null));
-    }
-
     // --- Automatic primary scratchpad (destination fallback, GitHub issue #303) ---
 
     [Fact]
@@ -565,48 +419,6 @@ public class RadarDatablockLayoutTests
         var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, CreateStyle(), false), overlays: None, callsignMarker: "");
 
         Assert.Contains("3Y(1)", layout.Line3, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void OwnerWithStudentSymbol_DuringAHandoff_RendersOwnerSymbolThenHandoff()
-    {
-        AircraftModel ac = CreateModel();
-        ac.OwnerSectorCode = "3Y";
-        ac.StudentOwnerSymbol = "1";
-        ac.HandoffPeerSectorCode = "1F";
-
-        // The flash's on phase, which shows the handoff target after the owner.
-        string? line = RadarDatablockLayout.BuildOwnerScratchpadLine(ac, showHandoff: true);
-
-        Assert.NotNull(line);
-        Assert.Contains("3Y(1) >1F", line, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AutoScratchpad1_AppearsOnCollapsedPdb()
-    {
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
-        ac.Altitude = 3500;
-        ac.GroundSpeed = 120;
-        ac.AutoScratchpad1 = "SFO";
-
-        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
-
-        Assert.Equal(["035 12", "SFO"], lines);
-    }
-
-    [Fact]
-    public void EffectiveScratchpad1_PrefersRealThenAuto()
-    {
-        AircraftModel ac = CreateModel();
-        Assert.Null(RadarDatablockLayout.EffectiveScratchpad1(ac));
-
-        ac.AutoScratchpad1 = "OAK";
-        Assert.Equal("OAK", RadarDatablockLayout.EffectiveScratchpad1(ac));
-
-        ac.Scratchpad1 = "ABC";
-        Assert.Equal("ABC", RadarDatablockLayout.EffectiveScratchpad1(ac));
     }
 
     // --- Pending outgoing point-out indicator (e.g. 3E*) on the owner/scratchpad line ---
@@ -664,94 +476,6 @@ public class RadarDatablockLayoutTests
         Assert.Equal(baseline.LineCount + 1, withNote.LineCount);
         float delta = withNote.Rect.Bottom - baseline.Rect.Bottom;
         Assert.Equal(baseline.LineHeight, delta, precision: 3);
-    }
-
-    // --- Offset precedence (datablock deconfliction): manual > deconflict > leader-dir > default ---
-
-    [Fact]
-    public void ResolveBlockOffset_ManualBeatsDeconflict()
-    {
-        AircraftModel ac = CreateModel();
-        TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
-        var manual = new SKPoint(5, 5);
-
-        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(
-            ac,
-            syncLeader: true,
-            hasManual: true,
-            manual,
-            rectAtOrigin,
-            deconflictOffset: new SKPoint(99, 99)
-        );
-
-        Assert.Equal(manual, result);
-    }
-
-    [Fact]
-    public void ResolveBlockOffset_DeconflictBeatsLeaderDirection()
-    {
-        AircraftModel ac = CreateModel();
-        ac.StudentLeaderDirection = 8; // North, non-default
-        TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
-        var deconflict = new SKPoint(99, 99);
-
-        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: true, hasManual: false, default, rectAtOrigin, deconflict);
-
-        Assert.Equal(deconflict, result);
-    }
-
-    [Fact]
-    public void ResolveBlockOffset_DeconflictBeatsDefault()
-    {
-        AircraftModel ac = CreateModel();
-        TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
-        var deconflict = new SKPoint(99, 99);
-
-        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflict);
-
-        Assert.Equal(deconflict, result);
-    }
-
-    [Fact]
-    public void ResolveBlockOffset_NullDeconflict_ReproducesLeaderDirection()
-    {
-        AircraftModel ac = CreateModel();
-        ac.StudentLeaderDirection = 8; // North
-        TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
-
-        SKPoint leaderResult = RadarDatablockLayout.ResolveBlockOffset(
-            ac,
-            syncLeader: true,
-            hasManual: false,
-            default,
-            rectAtOrigin,
-            deconflictOffset: null
-        );
-
-        Assert.NotEqual(RadarDatablockLayout.DefaultOffset, leaderResult);
-    }
-
-    [Fact]
-    public void ResolveBlockOffset_NullDeconflict_NoLeader_ReturnsDefault()
-    {
-        AircraftModel ac = CreateModel();
-        TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
-
-        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(
-            ac,
-            syncLeader: false,
-            hasManual: false,
-            default,
-            rectAtOrigin,
-            deconflictOffset: null
-        );
-
-        Assert.Equal(RadarDatablockLayout.DefaultOffset, result);
     }
 
     /// <summary>
@@ -1068,45 +792,6 @@ public class RadarDatablockLayoutTests
         var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("230 25 ID", layout.Line2);
-    }
-
-    [Fact]
-    public void CollapsedLimited_AppendsId_WhileIdenting()
-    {
-        // CRC's BuildLdb appends "ID" after the beacon-code/altitude text on the same line.
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Limited;
-        ac.BeaconCode = 301;
-
-        Assert.Equal(["0301 230"], RadarDatablockLayout.BuildCollapsedLines(ac));
-
-        ac.IsIdenting = true;
-        Assert.Equal(["0301 230 ID"], RadarDatablockLayout.BuildCollapsedLines(ac));
-    }
-
-    [Fact]
-    public void CollapsedPartial_AppendsId_WhileIdenting()
-    {
-        // CRC's BuildPdb appends "ID" after the altitude/ground-speed line.
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
-
-        Assert.Equal(["230 25"], RadarDatablockLayout.BuildCollapsedLines(ac));
-
-        ac.IsIdenting = true;
-        Assert.Equal(["230 25 ID"], RadarDatablockLayout.BuildCollapsedLines(ac));
-    }
-
-    [Fact]
-    public void CollapsedPartial_KeepsScratchpadLine_WhileIdenting()
-    {
-        // The ident rides on line 0 only; a scratchpad line 1 must survive untouched.
-        AircraftModel ac = CreateModel();
-        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
-        ac.Scratchpad1 = "OAK";
-        ac.IsIdenting = true;
-
-        Assert.Equal(["230 25 ID", "OAK"], RadarDatablockLayout.BuildCollapsedLines(ac));
     }
 
     [Fact]

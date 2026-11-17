@@ -12,7 +12,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// The frame's per-track PTL layer: a callsign in the Scope's PTL set draws its vector whatever the global VECTOR ownership
 /// says, at the global length; 0 minutes and a stationary track draw none, and an empty set changes nothing.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeFramePtlTests
 {
     private static readonly ScopeViewer EramViewer = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");

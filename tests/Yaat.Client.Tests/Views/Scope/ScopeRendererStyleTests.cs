@@ -4,7 +4,6 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
@@ -13,25 +12,25 @@ namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
 /// Pins how <see cref="ScopeRenderer"/> draws the field styles and the type-mismatch token: the dim squawk tail draws
-/// pixel for pixel as today's <see cref="TargetRenderer.DrawSquawkMismatchLine"/>, a struck-through field gets a line of
+/// pixel for pixel as today's <see cref="TargetColors.DrawSquawkMismatchLine"/>, a struck-through field gets a line of
 /// the block colour at the font's strikeout position, and the type-mismatch token draws in today's amber.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeRendererStyleTests
 {
     private const float FontSize = 12f;
     private const int Width = 1000;
     private const int Height = 800;
 
-    // Today's renderer's block colour and TargetRenderer.TypeMismatchColor, duplicated rather than exposed.
+    // Today's renderer's block colour, and the Scope's own copy of TargetColors.TypeMismatchColor; the tests pin they match.
     private static readonly SKColor BlockColor = SKColors.White;
     private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
 
-    // Today's TargetRenderer.MvaBelowColor / MvaAtColor, duplicated rather than exposed.
+    // The Scope's own copies of TargetColors.MvaBelowColor and TargetRenderer.MvaAtColor; the tests pin they match.
     private static readonly SKColor MvaBelowColor = new(255, 90, 90);
     private static readonly SKColor MvaAtColor = new(255, 200, 60);
 
-    // Today's TargetRenderer.StarsUnownedColor and StaleAlpha, duplicated rather than exposed.
+    // The Scope's own copies of TargetColors.StarsUnownedColor and StaleAlpha; the tests pin they match.
     private static readonly SKColor StarsUnownedColor = new(50, 205, 50);
     private const byte StaleAlpha = 128;
 
@@ -114,7 +113,7 @@ public class ScopeRendererStyleTests
     [InlineData(false)]
     public void DimTail_DrawsAsTodaysSquawkMismatchLine(bool flashOn)
     {
-        using var pin = RadarBlinkPin.Phase(flashOn);
+        using var pin = MapBlinkPin.Phase(flashOn);
         ScopeFrame frame = Frame(ScopeTestAircraft.CreateSquawkMismatch());
         FieldRect squawk = FieldOf(frame, ScopeFieldSlot.Squawk);
 
@@ -125,7 +124,7 @@ public class ScopeRendererStyleTests
         using (var paint = new SKPaint { IsAntialias = true })
         {
             canvas.Clear(SKColors.Black);
-            TargetRenderer.DrawSquawkMismatchLine(canvas, squawk.Text, squawk.Rect.Left, squawk.Rect.Bottom, font, paint, BlockColor);
+            TargetColors.DrawSquawkMismatchLine(canvas, squawk.Text, squawk.Rect.Left, squawk.Rect.Bottom, font, paint, BlockColor);
             canvas.Flush();
         }
 
@@ -152,7 +151,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void Strikethrough_BrightensEveryColumnOfModeCAtTheStrikeoutPosition()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.TransponderMode = "Standby";
         ScopeFrame frame = Frame(ac);
@@ -167,7 +166,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void Strikethrough_ModeCOn_DrawsNoModeCField()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.TransponderMode = "C";
 
@@ -180,7 +179,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void TypeMismatchToken_DrawsTodaysAmber()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.FiledAircraftType = "B744";
         ScopeFrame frame = Frame(ac);
@@ -195,7 +194,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void MvaBelowToken_DrawsTodaysRed()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         (FieldRect altitude, SKBitmap bitmap) = RenderAtKoak(1800);
         using (bitmap)
         {
@@ -207,7 +206,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void MvaAtToken_DrawsTodaysAmber()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         (FieldRect altitude, SKBitmap bitmap) = RenderAtKoak(2000);
         using (bitmap)
         {
@@ -219,7 +218,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void UnownedBlock_DrawsItsDefaultTextAndLeaderInLimeGreen()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.StudentDatablockColor = StarsDatablockColor.Unowned;
         ScopeFrame frame = Frame(ac, selected: false, ScopeTestAircraft.AllDisplay);
@@ -235,7 +234,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void AssignedToMeBlock_DrawsItsTextLeaderAndSymbolInThePaletteTint()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.AssignedTo = "AB";
         ScopeDisplayOptions display = ScopeTestAircraft.AllDisplay with { UserInitials = "AB", AssignmentTint = true };
@@ -254,7 +253,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void SelectedDefaultBlock_KeepsWhiteText_AndItsSymbolTakesTheSelectedColor()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Frame(ScopeTestAircraft.CreateModel(), selected: true, ScopeTestAircraft.AllDisplay);
         var selectedSymbol = new SKColor(0x00, 0xFF, 0x00);
 
@@ -271,7 +270,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void StaleTrack_HalvesTheAlphaOfItsSymbolLeaderAndDefaultText_ButNotItsNote()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.LiveTrafficStale = true;
         ac.Note = "Watch wake";
@@ -290,7 +289,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void HighlightedAssignedToMeTrack_DrawsACyanBlock_AndATintedSymbol()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.AssignedTo = "AB";
         ScopeDisplayOptions display = ScopeTestAircraft.AllDisplay with { UserInitials = "AB", AssignmentTint = true };
@@ -309,7 +308,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void AssignedToOtherTrack_DrawsItsSymbolInTheUnassignedTint()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.AssignedTo = "XX";
         ScopeDisplayOptions display = ScopeTestAircraft.AllDisplay with { UserInitials = "AB", UnassignedTint = true };
@@ -355,7 +354,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void HsfIndicator_DrawsInItsCellInTheBlockColour()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.EramAssignedHeading = "270";
         using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
@@ -476,7 +475,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void IntentShape_HeadingVector_DrawsAFilledArrowheadAtItsTip()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
 
         using SKBitmap bitmap = RenderShape(NavRouteShapeKind.HeadingVector);
 
@@ -486,7 +485,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void IntentShape_FinalApproachCourse_DrawsNoArrowhead()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
 
         using SKBitmap bitmap = RenderShape(NavRouteShapeKind.FinalApproachCourse);
 
@@ -529,7 +528,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void CrrReadout_DrawsItsDistanceInTheGroupColourAtFdb_BesideTheSymbol()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = CrrFrame(hovered: false);
         SKRect rect = Assert.IsType<ScopeCrrReadoutView>(Assert.Single(frame.Tracks).CrrReadout).Rect;
 
@@ -542,7 +541,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void CrrReadout_FdbZero_DrawsNothing()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = CrrFrame(hovered: false);
         var area = SKRectI.Ceiling(Assert.IsType<ScopeCrrReadoutView>(Assert.Single(frame.Tracks).CrrReadout).Rect, true);
 
@@ -561,7 +560,7 @@ public class ScopeRendererStyleTests
     [Fact]
     public void CrrReadout_ADwelledTrack_DrawsAtFdbLiftedByDwell()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = CrrFrame(hovered: true);
         ScopeTrack track = Assert.Single(frame.Tracks);
         Assert.True(track.IsDwelled);

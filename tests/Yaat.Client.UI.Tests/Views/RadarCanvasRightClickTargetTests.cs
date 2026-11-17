@@ -77,7 +77,7 @@ public class RadarCanvasRightClickTargetTests
         (RadarCanvas canvas, Window window) = ShowCanvas();
         try
         {
-            var state = new RadarDataBlockViewState();
+            var state = new ScopeDataBlockViewState();
             canvas.DataBlockState = state;
             AircraftModel blockOwner = MakeAircraft(canvas, "SWA12", "B737", 300, 300);
             canvas.Aircraft = [blockOwner];

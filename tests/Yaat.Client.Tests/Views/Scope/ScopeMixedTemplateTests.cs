@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// a STARS position's track the STARS block, an unowned track or one with no sector code the ERAM block), resolved per track
 /// when the frame is built; it has no layout of its own.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeMixedTemplateTests
 {
     [Theory]
@@ -78,7 +78,7 @@ public class ScopeMixedTemplateTests
         unowned.Callsign = "SKW5410";
         unowned.Position = new LatLon(36.95, -122.05);
 
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame mixed = Build(ScopeTemplates.MixedId, eram, stars, unowned);
 
         Assert.Equal(ScopeTemplates.MixedId, mixed.TemplateId);

@@ -23,7 +23,6 @@ public sealed class TargetRenderer : IDisposable
     // pointout=yellow, highlighted=cyan. Applied to the datablock (and its leader) when the student
     // STARS color sync is enabled, reflecting how the student's scope colors the track.
     private static readonly SKColor StarsOwnedColor = SKColors.White;
-    private static readonly SKColor StarsUnownedColor = new(50, 205, 50);
     private static readonly SKColor StarsPointoutColor = SKColors.Yellow;
     private static readonly SKColor StarsHighlightColor = SKColors.Cyan;
 
@@ -31,26 +30,12 @@ public sealed class TargetRenderer : IDisposable
     // NoLndgClnc, green ground/SAY, and cyan highlight.
     private static readonly SKColor NoteColor = new(255, 200, 60);
 
-    // MVA datablock altitude tint: red when below the charted sector floor, amber within the "at" band.
-    private static readonly SKColor MvaBelowColor = new(255, 90, 90);
+    // MVA datablock altitude tint: amber within the "at" band (the red below-floor tint is TargetColors.MvaBelowColor).
     private static readonly SKColor MvaAtColor = new(255, 200, 60);
     private const int MvaAtBandFt = 100;
 
-    // Filed-vs-actual aircraft type hint: a deeper amber than the MVA "at" tint, which sits on the
-    // altitude token at the other end of the same line.
-    private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
-
-    // STARS TPA graphics color (CRC's TCW value, DisplayElementTracks: Color.FromArgb(90, 180, 255)) —
-    // used for the instructor J-Ring / Cone overlay so it reads like the TPA graphics a controller sees.
-    internal static readonly SKColor TpaColor = new(90, 180, 255);
-
     private const int TpaJRing = 1;
     private const int TpaCone = 2;
-
-    // Automatic ATPA cone / in-trail line, escalating off the TPA blue: yellow once the pair is inside
-    // the warning band, red-orange once it is in alert — CRC's STARS ATPA cone palette.
-    private static readonly SKColor AtpaWarningColor = SKColors.Yellow;
-    private static readonly SKColor AtpaAlertColor = new(255, 55, 0);
 
     // Conflict alert: red, matching the NoLndgClnc warning line, and deliberately distinct from the
     // blue TPA overlay so an automatic alert never reads as an instructor-placed graphic.
@@ -137,7 +122,7 @@ public sealed class TargetRenderer : IDisposable
 
     private readonly SKPaint _tpaPaint = new()
     {
-        Color = TpaColor,
+        Color = TargetColors.TpaColor,
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -151,7 +136,7 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _tpaTextPaint = new() { Color = TpaColor, IsAntialias = true };
+    private readonly SKPaint _tpaTextPaint = new() { Color = TargetColors.TpaColor, IsAntialias = true };
 
     private readonly SKFont _tpaTextFont = Services.PlatformHelper.MonospaceFontBold(11);
 
@@ -371,7 +356,7 @@ public sealed class TargetRenderer : IDisposable
 
     private const float SymbolSize = 5f;
 
-    // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each
+    // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by MapLineStyle.Apply each
     // frame; the tuple carries each paint's base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
@@ -405,7 +390,7 @@ public sealed class TargetRenderer : IDisposable
         IReadOnlySet<string>? hiddenCallsigns = null
     )
     {
-        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+        MapLineStyle.Apply(_strokePaints, MapLineStyle.GetScale(canvas));
         _hiddenCallsigns = hiddenCallsigns;
 
         // Draw history trails first (behind position symbols)
@@ -585,16 +570,13 @@ public sealed class TargetRenderer : IDisposable
         bool IsStale
     );
 
-    /// <summary>Alpha applied to a coasting live-traffic shadow's symbol and datablock (feed sweeps missed, position dead-reckoned).</summary>
-    internal const byte StaleAlpha = 128;
-
     /// <summary>
     /// Resolves the position-symbol and datablock (text + leader) colors for one target. Selection
     /// brightens the position symbol to <see cref="TargetColorInputs.SelectedColor"/> but leaves the
     /// datablock text and leader at their unselected color — the white rectangular border is the
     /// datablock's selection cue. An RPO tint outranks the student-scope color, which outranks the
     /// ground/white defaults; a middle-click highlight overrides the datablock color entirely. A stale
-    /// (coasting) live-traffic shadow keeps whatever color it resolved to at <see cref="StaleAlpha"/>.
+    /// (coasting) live-traffic shadow keeps whatever color it resolved to at <see cref="TargetColors.StaleAlpha"/>.
     /// </summary>
     internal static (SKColor Symbol, SKColor DataBlock) ResolveTargetColors(TargetColorInputs i)
     {
@@ -602,14 +584,14 @@ public sealed class TargetRenderer : IDisposable
         SKColor baseDbColor = i.TintColor ?? i.StudentColor ?? (i.IsOnGround ? GroundColor : DataBlockColor);
         SKColor symbolColor = i.IsSelected ? i.SelectedColor : baseSymbolColor;
         SKColor dbColor = i.IsHighlighted ? SKColors.Cyan : baseDbColor;
-        return i.IsStale ? (symbolColor.WithAlpha(StaleAlpha), dbColor.WithAlpha(StaleAlpha)) : (symbolColor, dbColor);
+        return i.IsStale ? (symbolColor.WithAlpha(TargetColors.StaleAlpha), dbColor.WithAlpha(TargetColors.StaleAlpha)) : (symbolColor, dbColor);
     }
 
     private static SKColor? StudentDatablockColorFor(AircraftModel ac) =>
         ac.StudentDatablockColor switch
         {
             StarsDatablockColor.Owned => StarsOwnedColor,
-            StarsDatablockColor.Unowned => StarsUnownedColor,
+            StarsDatablockColor.Unowned => TargetColors.StarsUnownedColor,
             StarsDatablockColor.Pointout => StarsPointoutColor,
             StarsDatablockColor.Highlighted => StarsHighlightColor,
             _ => null,
@@ -690,20 +672,6 @@ public sealed class TargetRenderer : IDisposable
     }
 
     /// <summary>
-    /// The colour of an ATPA cone and its in-trail distance line for a pairing's advisory state:
-    /// Monitor keeps the STARS TPA blue, Warning goes yellow, Alert goes red-orange (CRC's STARS ATPA
-    /// palette). A Monitor datablock line uses the block's own colour instead — see
-    /// <c>DrawLeaderAndDataBlock</c>.
-    /// </summary>
-    internal static SKColor AtpaConeColorFor(AtpaConeState state) =>
-        state switch
-        {
-            AtpaConeState.Warning => AtpaWarningColor,
-            AtpaConeState.Alert => AtpaAlertColor,
-            _ => TpaColor,
-        };
-
-    /// <summary>
     /// Draws the automatic ATPA cone: a wedge from the trailing aircraft along the true bearing to the
     /// aircraft ahead, as long as the pairing's required in-trail separation and as wide as the manual
     /// TPA cone (±<see cref="TpaConeHalfAngleDegrees"/>), labelled with that required separation at its
@@ -725,7 +693,7 @@ public sealed class TargetRenderer : IDisposable
         (float lx, float ly) = vp.LatLonToScreen(leftLat, leftLon);
         (float rx, float ry) = vp.LatLonToScreen(rightLat, rightLon);
 
-        SKColor coneColor = AtpaConeColorFor(ac.AtpaConeState);
+        SKColor coneColor = TargetColors.AtpaConeColorFor(ac.AtpaConeState);
         using var path = new SKPath();
         path.MoveTo(sx, sy);
         path.LineTo(lx, ly);
@@ -733,13 +701,13 @@ public sealed class TargetRenderer : IDisposable
         path.Close();
         _tpaPaint.Color = coneColor;
         canvas.DrawPath(path, _tpaPaint);
-        _tpaPaint.Color = TpaColor;
+        _tpaPaint.Color = TargetColors.TpaColor;
 
         (double midLat, double midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), lengthNm / 2.0);
         (float mx, float my) = vp.LatLonToScreen(midLat, midLon);
         _tpaTextPaint.Color = coneColor;
         DrawTpaSizeLabel(canvas, mx, my, lengthNm);
-        _tpaTextPaint.Color = TpaColor;
+        _tpaTextPaint.Color = TargetColors.TpaColor;
     }
 
     private void DrawTpaJRing(SKCanvas canvas, MapViewport vp, AircraftModel ac)
@@ -839,7 +807,7 @@ public sealed class TargetRenderer : IDisposable
         (MvaRelation relation, MvaSector? _) = MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt, MvaFacilityId);
         return relation switch
         {
-            MvaRelation.Below => MvaBelowColor,
+            MvaRelation.Below => TargetColors.MvaBelowColor,
             MvaRelation.At => MvaAtColor,
             _ => null,
         };
@@ -849,7 +817,8 @@ public sealed class TargetRenderer : IDisposable
     /// Amber tint for the datablock type token when the aircraft is physically a different type than its
     /// flight plan files, or null when the hint is off or the types agree.
     /// </summary>
-    private SKColor? ResolveTypeMismatchTint(AircraftModel ac) => (ShowTypeMismatchHints && ac.HasFiledTypeMismatch) ? TypeMismatchColor : null;
+    private SKColor? ResolveTypeMismatchTint(AircraftModel ac) =>
+        (ShowTypeMismatchHints && ac.HasFiledTypeMismatch) ? TargetColors.TypeMismatchColor : null;
 
     /// <summary>
     /// Draws a datablock line, tinting the leading altitude token (everything before the first space)
@@ -903,7 +872,7 @@ public sealed class TargetRenderer : IDisposable
             cursor = DrawSpan(canvas, line[headLength..tailStart], cursor, baseline, blockColor);
         }
 
-        bool blinkOff = !RadarBlink.IsOn;
+        bool blinkOff = !MapBlink.IsOn;
         if (!blinkOff)
         {
             DrawSpan(canvas, line[tailStart..], cursor, baseline, blockColor);
@@ -925,37 +894,7 @@ public sealed class TargetRenderer : IDisposable
     }
 
     private void DrawSquawkMismatchLine(SKCanvas canvas, string line, float x, float baseline, SKColor color) =>
-        DrawSquawkMismatchLine(canvas, line, x, baseline, _dataBlockFont, _dataBlockPaint, color);
-
-    /// <summary>
-    /// Draws the beacon-code mismatch line <c>"{reported} {assigned}"</c>: the reported code solid in the
-    /// block color, then the assigned code dim-pulsing to its right on the 500 ms off-phase — emulating
-    /// CRC STARS (reported solid, assigned blinking via <c>ApplyColorBrightness(color, 25)</c>). Shared
-    /// with the ground datablock so both views give the identical indication; <paramref name="paint"/>
-    /// is left in <paramref name="color"/> on return.
-    /// </summary>
-    internal static void DrawSquawkMismatchLine(SKCanvas canvas, string line, float x, float baseline, SKFont font, SKPaint paint, SKColor color)
-    {
-        int space = line.IndexOf(' ');
-        string reported = space < 0 ? line : line[..space];
-        paint.Color = color;
-        canvas.DrawText(reported, x, baseline, SKTextAlign.Left, font, paint);
-        if (space < 0)
-        {
-            return;
-        }
-
-        float reportedWidth = font.MeasureText(reported);
-        bool blinkOff = !RadarBlink.IsOn;
-        paint.Color = blinkOff ? DimColor(color, 0.25f) : color;
-        canvas.DrawText(line[space..], x + reportedWidth, baseline, SKTextAlign.Left, font, paint);
-        paint.Color = color;
-    }
-
-    /// <summary>Scales a color's RGB toward black by <paramref name="factor"/> (alpha preserved), matching
-    /// CRC's <c>RenderUtils.ApplyColorBrightness</c> used for the dim-pulse of a blinking datablock token.</summary>
-    private static SKColor DimColor(SKColor color, float factor) =>
-        new((byte)(color.Red * factor), (byte)(color.Green * factor), (byte)(color.Blue * factor), color.Alpha);
+        TargetColors.DrawSquawkMismatchLine(canvas, line, x, baseline, _dataBlockFont, _dataBlockPaint, color);
 
     private SKRect DrawLeaderAndDataBlock(
         SKCanvas canvas,
@@ -985,7 +924,7 @@ public sealed class TargetRenderer : IDisposable
         if (EuroScopeMode && !isMinified)
         {
             // EuroScope tags keep manual/default placement; student-scope sync targets STARS tags only.
-            SKPoint esOffset = hasManualOffset ? manualOffset : RadarDatablockLayout.DefaultOffset;
+            SKPoint esOffset = hasManualOffset ? manualOffset : DatablockText.DefaultOffset;
             return DrawEuroScopeBlock(canvas, cx, cy, cx + esOffset.X, cy + esOffset.Y, ac, color, isSelected);
         }
 
@@ -996,17 +935,17 @@ public sealed class TargetRenderer : IDisposable
 
         if (isMinified || collapse)
         {
-            IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
+            IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : DatablockText.BuildCollapsedLines(ac);
             return DrawReducedBlock(canvas, cx, cy, ac, color, lines, ac.IsIdenting, isSelected, hasManualOffset, manualOffset, deconflictOffset);
         }
 
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
-        string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        string marker = MarkStudentLimitedDatablocks ? DatablockText.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         var overlays = new DatablockOverlays(ShowConflictAlerts, ResolveConflictPeer(ac), ShowAtpa, ResolveAtpaLead(ac));
         SKRect rectAtOrigin = RadarDatablockLayout
             .Compute(ac, new DatablockPlacement(0, 0, DataBlockStyle, FlashNoLandingClearance), overlays, marker)
             .Rect;
-        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(
+        SKPoint offset = DatablockText.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
             hasManualOffset,
@@ -1077,7 +1016,7 @@ public sealed class TargetRenderer : IDisposable
             SKColor prev = _dataBlockPaint.Color;
             if (ac.AtpaConeState != AtpaConeState.Monitor)
             {
-                _dataBlockPaint.Color = AtpaConeColorFor(ac.AtpaConeState);
+                _dataBlockPaint.Color = TargetColors.AtpaConeColorFor(ac.AtpaConeState);
             }
             canvas.DrawText(layout.AtpaLine, layout.TextX, layout.TextY + row * layout.LineHeight, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
             _dataBlockPaint.Color = prev;
@@ -1162,7 +1101,7 @@ public sealed class TargetRenderer : IDisposable
     )
     {
         SKRect rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, 0, 0);
-        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(
+        SKPoint offset = DatablockText.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
             hasManualOffset,
@@ -1298,7 +1237,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 // Flashes on the 500 ms cycle. The field rect is emitted either way, so the tag bounds
                 // and the click target stay put while the text blinks.
-                if (RadarBlink.IsOn)
+                if (MapBlink.IsOn)
                 {
                     canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 }

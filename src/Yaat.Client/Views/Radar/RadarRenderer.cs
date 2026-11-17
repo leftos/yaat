@@ -127,7 +127,7 @@ public sealed class RadarRenderer : IDisposable
     // around it instead of restarting at every chord.
     private readonly SKPath _shownShapePath = new();
 
-    // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each
+    // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by MapLineStyle.Apply each
     // frame; the tuple carries each paint's base width in DIPs.
     private readonly List<(SKPaint Paint, float BaseWidth)> _strokePaints = [];
 
@@ -408,7 +408,7 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlySet<string>? hiddenCallsigns = null
     )
     {
-        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+        MapLineStyle.Apply(_strokePaints, MapLineStyle.GetScale(canvas));
         canvas.Clear(BackgroundColor);
 
         // Video maps

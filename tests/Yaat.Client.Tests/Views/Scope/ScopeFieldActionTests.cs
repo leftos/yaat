@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// takes its owner kind's action, a ground target's fields stay inert, and the laid-out <see cref="FieldRect"/> carries the
 /// action the presenter gave its field, on a block line and in ERAM column 0.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeFieldActionTests
 {
     [Theory]
@@ -86,7 +86,7 @@ public class ScopeFieldActionTests
         ac.OwnerSectorCode = ownerSectorCode;
         ac.Note = "Watch wake";
         ScopeFrame frame;
-        using (RadarBlinkPin.Phase(true))
+        using (MapBlinkPin.Phase(true))
         {
             frame = BuildMixed(ac);
         }

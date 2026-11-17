@@ -9,7 +9,7 @@ namespace Yaat.Client.ViewModels;
 /// Paints the Aircraft List's filed-type marker amber when the aircraft is physically a different type
 /// than its flight plan files (<see cref="Yaat.Client.Models.AircraftModel.HasFiledTypeMismatch"/>), and
 /// leaves the inherited foreground alone otherwise. Matches the amber the radar datablock tints the type
-/// token with (<c>TargetRenderer.TypeMismatchColor</c>).
+/// token with (<c>TargetColors.TypeMismatchColor</c>).
 /// </summary>
 public class TypeMismatchBrushConverter : IValueConverter
 {

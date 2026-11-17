@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// level, <c>partial</c> being ERAM's Partial (the LDB) and STARS' Limited, while EuroScope keeps its full tag. Dwell comes
 /// first, the viewer's own track is Full, and with no viewer every track is Full.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeOthersLevelTests
 {
     private static readonly ScopeViewer EramViewer = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");

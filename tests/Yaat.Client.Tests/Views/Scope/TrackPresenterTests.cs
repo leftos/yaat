@@ -3,7 +3,6 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
@@ -13,7 +12,7 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>Pins the pure <see cref="TrackPresenter"/>: field texts, tokens and the flash/reservation contract.</summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class TrackPresenterTests
 {
     private static ScopeField Field(TrackPresentation p, ScopeFieldSlot slot) => Assert.Single(p.Fields, f => f.Slot == slot);
@@ -105,7 +104,7 @@ public class TrackPresenterTests
         long reads = 0;
         TrackPresentation first;
         TrackPresentation second;
-        using (RadarBlinkPin.To(() => reads++ * RadarBlinkPin.OffPhaseMs))
+        using (MapBlinkPin.To(() => reads++ * MapBlinkPin.OffPhaseMs))
         {
             first = TrackPresenter.Present(input);
             second = TrackPresenter.Present(input);
@@ -744,32 +743,32 @@ internal static class ScopeTestAircraft
 }
 
 /// <summary>
-/// Classes that pin the process-wide <see cref="RadarBlink.Clock"/>. Parallelization is off so no other test class
+/// Classes that pin the process-wide <see cref="MapBlink.Clock"/>. Parallelization is off so no other test class
 /// reads the blink while a pin is in place.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class RadarBlinkClockCollection
+public sealed class MapBlinkClockCollection
 {
-    public const string Name = "RadarBlinkClock";
+    public const string Name = "MapBlinkClock";
 }
 
-/// <summary>Pins <see cref="RadarBlink.Clock"/> for a <c>using</c> scope and restores the previous clock on dispose.</summary>
-internal sealed class RadarBlinkPin : IDisposable
+/// <summary>Pins <see cref="MapBlink.Clock"/> for a <c>using</c> scope and restores the previous clock on dispose.</summary>
+internal sealed class MapBlinkPin : IDisposable
 {
     public const long OnPhaseMs = 0;
     public const long OffPhaseMs = 500;
 
     private readonly Func<long> _previous;
 
-    private RadarBlinkPin(Func<long> clock)
+    private MapBlinkPin(Func<long> clock)
     {
-        _previous = RadarBlink.Clock;
-        RadarBlink.Clock = clock;
+        _previous = MapBlink.Clock;
+        MapBlink.Clock = clock;
     }
 
-    public static RadarBlinkPin To(Func<long> clock) => new(clock);
+    public static MapBlinkPin To(Func<long> clock) => new(clock);
 
-    public static RadarBlinkPin Phase(bool on) => To(on ? static () => OnPhaseMs : static () => OffPhaseMs);
+    public static MapBlinkPin Phase(bool on) => To(on ? static () => OnPhaseMs : static () => OffPhaseMs);
 
-    public void Dispose() => RadarBlink.Clock = _previous;
+    public void Dispose() => MapBlink.Clock = _previous;
 }

@@ -14,7 +14,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// nothing; ATPA cones draw with ATPA DIST on and not off, hide the track's manual cone and leave its J-ring; RINGS dims
 /// every ring and ATPA cone, 0 drawing no ring pixel, and nothing else.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeFrameRingsTests
 {
     private const int Width = 1000;
@@ -196,7 +196,7 @@ public class ScopeFrameRingsTests
     [Fact]
     public void AJRing_LightsItsPixels_InTheTpaBlue_AndRings0DrawsNone()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Frame(NoAtpa, Rings("UAL238", new ScopeTrackRings(3.0, null, null)), Plain("UAL238"));
         ScopeTrack track = Assert.Single(frame.Tracks);
         ScopeRingCircle ring = Assert.IsType<ScopeRingCircle>(track.Rings.JRing);
@@ -213,7 +213,7 @@ public class ScopeFrameRingsTests
     [Fact]
     public void Rings_DimsTheRingOnly_NotTheSymbol()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Frame(NoAtpa, Rings("UAL238", new ScopeTrackRings(3.0, null, ScopeDriKind.Standard)), Plain("UAL238"));
         ScopeTrack track = Assert.Single(frame.Tracks);
 
@@ -227,7 +227,7 @@ public class ScopeFrameRingsTests
     [Fact]
     public void AWarningAtpaCone_DrawsYellow_AndRings0DrawsNone()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Frame(
             ScopeTestAircraft.AllAlerts,
             new Dictionary<string, ScopeTrackRings>(),

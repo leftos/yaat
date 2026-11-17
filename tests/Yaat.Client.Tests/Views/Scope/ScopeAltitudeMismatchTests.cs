@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// and the filed (STARS) altitude are both set and differ on a plan that is neither VFR nor OTP, on the ERAM Full, Dwell and
 /// Partial blocks; the STARS template carries none. On dwell each template lists the other side's altitude under line 2.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeAltitudeMismatchTests
 {
     private const float FontSize = 12f;
@@ -232,7 +232,7 @@ public class ScopeAltitudeMismatchTests
     [Fact]
     public void Mark_DrawsInItsCellInTheBlockColour_AndNothingElse()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = Aircraft();
         ScopeFrame frame = Frame(ac);
         FieldRect mark = Assert.Single(Assert.Single(frame.Tracks).Block.Fields, f => f.Slot == ScopeFieldSlot.AltitudeMismatch);

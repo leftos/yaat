@@ -13,7 +13,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// Pins how <see cref="ScopeRenderer"/> draws the BRITE groups: each group scales only the layer it names, DWELL lifts a
 /// dwelled track toward full brightness, and the selection border never dims.
 /// </summary>
-[Collection(RadarBlinkClockCollection.Name)]
+[Collection(MapBlinkClockCollection.Name)]
 public class ScopeRendererBrightnessTests
 {
     private const float FontSize = 12f;
@@ -195,7 +195,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Fdb50_HalvesTheLeaderAndTheDefaultText_AndLeavesTheSymbol()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Stars(ScopeTestAircraft.CreateModel());
         ScopeTrack track = Assert.Single(frame.Tracks);
 
@@ -212,7 +212,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Targets50_HalvesTheSymbolOnly()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Stars(ScopeTestAircraft.CreateModel());
         ScopeTrack track = Assert.Single(frame.Tracks);
 
@@ -227,7 +227,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Alerts50_HalvesTheConflictToken_AndLeavesTheText()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.ConflictPeerCallsign = "SWA1234";
         ScopeFrame frame = Frame(ScopeTemplates.StarsId, null, null, ac, ScopeTestAircraft.CreateConflictPeer());
@@ -244,7 +244,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Line4Minus10_AtFdb100_DrawsLine4At90_AndNoOtherField()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ScopeFrame frame = Frame(ScopeTemplates.EramId, null, null, ac);
         ScopeTrack track = Assert.Single(frame.Tracks);
@@ -260,7 +260,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Line4Minus20_AtFdb0_ClampsToNothingDrawn()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Frame(ScopeTemplates.EramId, null, null, ScopeTestAircraft.CreateModel());
         ScopeTrack track = Assert.Single(frame.Tracks);
 
@@ -321,7 +321,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void DwelledLine4_AtFdb0Line4Minus20Dwell10_DrawsAt50()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ScopeFrame frame = Frame(ScopeTemplates.EramId, ac.Callsign, null, ac);
         ScopeTrack track = Assert.Single(frame.Tracks);
@@ -339,7 +339,7 @@ public class ScopeRendererBrightnessTests
     [InlineData(0, 127)]
     public void DwelledBlock_AtFdb50_DrawsAtTheDwellLift(int dwell, byte expected)
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Stars(ScopeTestAircraft.CreateModel(), dwelled: true);
         ScopeTrack track = Assert.Single(frame.Tracks);
         var color = new SKColor(expected, expected, expected);
@@ -359,7 +359,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void DwelledSymbol_AtTargets50Dwell20_DrawsAtFull()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeFrame frame = Stars(ScopeTestAircraft.CreateModel(), dwelled: true);
         ScopeTrack track = Assert.Single(frame.Tracks);
 
@@ -371,7 +371,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void SelectionBorder_AtFdb0_IsUnchanged()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ScopeFrame frame = Frame(ScopeTemplates.StarsId, null, ac, ac);
         ScopeTrack track = Assert.Single(frame.Tracks);
@@ -386,7 +386,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void DwelledStaleBlock_KeepsFullAlpha()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.LiveTrafficStale = true;
         ScopeFrame frame = Stars(ac, dwelled: true);
@@ -401,7 +401,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Vector0_DrawsNoVectorLine_WhileVector100Does()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeTrack track = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
         ScopeFrame frame = new(ScopeTemplates.StarsId, [track]);
 
@@ -415,7 +415,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Hist0_DrawsNoHistoryDots_WhileHist100Does()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeTrack track = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
         ScopeFrame frame = new(ScopeTemplates.StarsId, [track]);
 
@@ -433,7 +433,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Lens0_DrawsNoQueueBadgeNorItsLines_WhileLens100Does()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = SouthboundWithHistory();
         ac.PendingCommands = "[Active] FH 270\n[1] AT BRIXX DM 040\n[2] WAIT 30 SPD 210";
         ScopeTrack track = Assert.Single(Frame(ScopeTemplates.StarsId, null, null, new Layers(1, 0, QueueHovered: true), [ac]).Tracks);
@@ -458,7 +458,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Lens0_DrawsNoCheckInTag_WhileLens100Does()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel ac = SouthboundWithHistory();
         ac.PendingPilotRequest = new PendingPilotRequestDto("Release", "Pending", "ready for release", 1.0, 1.0);
         ScopeTrack track = Assert.Single(Frame(ScopeTemplates.StarsId, null, null, new Layers(0, 0, CheckIn: true), [ac]).Tracks);
@@ -479,7 +479,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Symbol_DrawsOverTheVectorLineThatCrossesIt()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeTrack track = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
         int x = (int)MathF.Round(track.Symbol.X);
         int y = (int)MathF.Round(track.Symbol.Y);
@@ -494,7 +494,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void StaleTrack_DrawsItsVectorAtHalfAlpha()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         AircraftModel stale = SouthboundWithHistory();
         stale.LiveTrafficStale = true;
         ScopeTrack freshTrack = Assert.Single(StarsWithLayers(SouthboundWithHistory()).Tracks);
@@ -513,7 +513,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Dwell_LiftsNeitherTheHistNorTheVectorGroup()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeBrightness brightness = ScopeBrightness.Default with { Hist = 50, Vector = 50, Dwell = 20 };
         ScopeFrame plain = StarsWithLayers(SouthboundWithHistory());
         ScopeFrame dwelled = StarsWithLayers(SouthboundWithHistory(), dwelled: true);
@@ -556,7 +556,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Lens_ScalesTheIntentPath_AndLens0DrawsNone()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeTrack track = TrackWithALegIntoItsSymbol();
         var frame = new ScopeFrame(ScopeTemplates.StarsId, [track]);
 
@@ -573,7 +573,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void IntentPath_DrawsOverTheSymbol()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeTrack track = TrackWithALegIntoItsSymbol();
 
         using SKBitmap bitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, [track]), ScopeBrightness.Default);
@@ -584,7 +584,7 @@ public class ScopeRendererBrightnessTests
     [Fact]
     public void Lens0_LeavesTheSymbolAsWithNoPath()
     {
-        using var pin = RadarBlinkPin.Phase(true);
+        using var pin = MapBlinkPin.Phase(true);
         ScopeTrack track = TrackWithALegIntoItsSymbol();
         ScopeBrightness lens0 = ScopeBrightness.Default with { Lens = 0 };
 

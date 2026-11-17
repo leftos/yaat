@@ -153,9 +153,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         DatablockDeconflictMode
     >(nameof(DeconflictMode));
 
-    public static readonly StyledProperty<RadarDataBlockViewState?> DataBlockStateProperty = AvaloniaProperty.Register<
+    public static readonly StyledProperty<ScopeDataBlockViewState?> DataBlockStateProperty = AvaloniaProperty.Register<
         RadarCanvas,
-        RadarDataBlockViewState?
+        ScopeDataBlockViewState?
     >(nameof(DataBlockState));
 
     public static readonly StyledProperty<RadarCue?> MenuCueProperty = AvaloniaProperty.Register<RadarCanvas, RadarCue?>(nameof(MenuCue));
@@ -168,15 +168,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     // Unbound fallback (bare-canvas tests, detached windows). The bound view-model state is the
     // session-persistent store; the binding may churn to null on tab detach, so reads always go
     // through State and nothing is ever cleared from a property change.
-    private readonly RadarDataBlockViewState _localDataBlockState = new();
-    private RadarDataBlockViewState State => DataBlockState ?? _localDataBlockState;
+    private readonly ScopeDataBlockViewState _localDataBlockState = new();
+    private ScopeDataBlockViewState State => DataBlockState ?? _localDataBlockState;
 
     // The state whose offset changes (a drag, the reset menu item, an app tool) and menu highlights repaint this canvas:
     // State while the canvas is in the visual tree, null otherwise, so a view-model state never holds a detached canvas.
-    private RadarDataBlockViewState? _watchedDataBlockState;
+    private ScopeDataBlockViewState? _watchedDataBlockState;
 
     /// <summary>The datablock state whose offset and highlight changes repaint this canvas now, or null while detached. Test seam.</summary>
-    internal RadarDataBlockViewState? WatchedDataBlockState => _watchedDataBlockState;
+    internal ScopeDataBlockViewState? WatchedDataBlockState => _watchedDataBlockState;
 
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing. Persists across
@@ -599,8 +599,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(DeconflictModeProperty, value);
     }
 
-    /// <summary>Session-persistent datablock state shared with the owning view-model (see <see cref="RadarDataBlockViewState"/>).</summary>
-    public RadarDataBlockViewState? DataBlockState
+    /// <summary>Session-persistent datablock state shared with the owning view-model (see <see cref="ScopeDataBlockViewState"/>).</summary>
+    public ScopeDataBlockViewState? DataBlockState
     {
         get => GetValue(DataBlockStateProperty);
         set => SetValue(DataBlockStateProperty, value);
@@ -865,7 +865,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         base.OnDetachedFromVisualTree(e);
     }
 
-    private void WatchDataBlockState(RadarDataBlockViewState? state)
+    private void WatchDataBlockState(ScopeDataBlockViewState? state)
     {
         _watchedDataBlockState?.ManualOffsetsChanged -= OnDataBlockStateChanged;
         _watchedDataBlockState?.HighlightsChanged -= OnDataBlockStateChanged;
@@ -1175,7 +1175,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         IReadOnlyList<AircraftModel> sorted = SortByZOrder(
-            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
+            AircraftVisibility.FilterAircraft(
+                Aircraft,
+                ShowTopDown,
+                ShowSpeechBubbles,
+                AlwaysShowGroundBubblesOnRadar,
+                GroundShownAirportId,
+                DateTime.UtcNow
+            ),
             State.DataBlockZOrder
         );
         IReadOnlyDictionary<string, SKPoint> deconflictOffsets = RunDeconfliction(sorted);
@@ -1852,7 +1859,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         IReadOnlyDictionary<string, EuroScopeTagResult> tags = LastEuroScopeTags;
         IReadOnlyList<AircraftModel> sorted = SortByZOrder(
-            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
+            AircraftVisibility.FilterAircraft(
+                Aircraft,
+                ShowTopDown,
+                ShowSpeechBubbles,
+                AlwaysShowGroundBubblesOnRadar,
+                GroundShownAirportId,
+                DateTime.UtcNow
+            ),
             State.DataBlockZOrder
         );
         AircraftModel? bestAc = null;
@@ -1978,7 +1992,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     /// <summary>The aircraft the radar draws, which are the ones a click can land on.</summary>
     private IReadOnlyList<AircraftModel> HitTestableAircraft() =>
-        FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow);
+        AircraftVisibility.FilterAircraft(
+            Aircraft,
+            ShowTopDown,
+            ShowSpeechBubbles,
+            AlwaysShowGroundBubblesOnRadar,
+            GroundShownAirportId,
+            DateTime.UtcNow
+        );
 
     /// <summary>
     /// Every aircraft a right-click at <paramref name="screenPos"/> lands on, in the order the picker lists them: those whose
@@ -2047,13 +2068,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // hit testing always matches what's actually on screen.
         if (TryGetEuroScopeTag(ac, out EuroScopeTagResult esResult))
         {
-            return (hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset, esResult.Bounds);
+            return (hasManual ? manualOffset : DatablockText.DefaultOffset, esResult.Bounds);
         }
 
         (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         SKRect rectAtOrigin = ComputeStableRectAtOrigin(ac);
         SKPoint? deconflict = includeNudge ? DeconflictOffsetFor(ac, rectAtOrigin) : BaseDeconflictOffsetFor(ac.Callsign);
-        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin, deconflict);
+        SKPoint offset = DatablockText.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin, deconflict);
         var rect = new SKRect(
             rectAtOrigin.Left + sx + offset.X,
             rectAtOrigin.Top + sy + offset.Y,
@@ -2079,7 +2100,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         if (isMinified || collapse)
         {
-            IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
+            IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : DatablockText.BuildCollapsedLines(ac);
             return RadarDatablockLayout.ReducedRect(lines, HitTestStyle, 0, 0);
         }
 
@@ -2091,7 +2112,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // Single source of truth with the draw path: RadarDatablockLayout.Compute reserves the handoff
         // slot/width stably (and includes the assigned-to + pointout tokens), so the hit-test rect always
         // matches the drawn block — no hand-mirrored line-string re-derivation.
-        string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        string marker = MarkStudentLimitedDatablocks ? DatablockText.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         var overlays = new DatablockOverlays(ShowConflictAlerts, ResolveConflictPeer(ac), ShowAtpa, ResolveAtpaLead(ac));
         return RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, HitTestStyle, FlashNoLandingClearance), overlays, marker).Rect;
     }
@@ -2113,7 +2134,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// aircraft isn't bound, or it would be filtered out of the draw. The hit-test path has no
     /// per-frame callsign index (that lives on the renderer, built from the already-filtered draw
     /// list), so this is a linear scan over the small bound list — but it must apply the same
-    /// <see cref="IsDrawable"/> gate the renderer's index does, or a peer the draw omitted (e.g. an
+    /// <see cref="AircraftVisibility.IsDrawable"/> gate the renderer's index does, or a peer the draw omitted (e.g. an
     /// ATPA lead that has just landed) would still add its in-trail row to the hit-test/deconfliction
     /// rect while the drawn block has none.
     /// </summary>
@@ -2129,7 +2150,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             if (
                 string.Equals(candidate.Callsign, callsign, StringComparison.Ordinal)
-                && IsDrawable(candidate, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, nowUtc)
+                && AircraftVisibility.IsDrawable(
+                    candidate,
+                    ShowTopDown,
+                    ShowSpeechBubbles,
+                    AlwaysShowGroundBubblesOnRadar,
+                    GroundShownAirportId,
+                    nowUtc
+                )
             )
             {
                 return candidate;
@@ -2146,7 +2174,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>
     /// The offset the deconfliction layer gives a block, plus its measurement-readout nudge when it has one: with a
     /// nudge and no deconfliction offset (mode Off), the default placement plus the nudge. Null when neither applies.
-    /// A manual offset still wins over this in <see cref="RadarDatablockLayout.ResolveBlockOffset"/>; manual blocks
+    /// A manual offset still wins over this in <see cref="DatablockText.ResolveBlockOffset"/>; manual blocks
     /// are never nudged.
     /// </summary>
     private SKPoint? DeconflictOffsetFor(AircraftModel ac, SKRect rectAtOrigin)
@@ -2159,7 +2187,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         SKPoint from =
             deconflict
-            ?? RadarDatablockLayout.ResolveBlockOffset(
+            ?? DatablockText.ResolveBlockOffset(
                 ac,
                 SyncStudentLeaderDirection,
                 hasManual: false,
@@ -2241,7 +2269,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 && LastEuroScopeTags.TryGetValue(ac.Callsign, out EuroScopeTagResult es)
             )
             {
-                SKPoint esOffset = hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset;
+                SKPoint esOffset = hasManual ? manualOffset : DatablockText.DefaultOffset;
                 float ox = sx + esOffset.X;
                 float oy = sy + esOffset.Y;
                 var esAtOrigin = new SKRect(es.Bounds.Left - ox, es.Bounds.Top - oy, es.Bounds.Right - ox, es.Bounds.Bottom - oy);
@@ -2262,7 +2290,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             SKRect rectAtOrigin = ComputeStableRectAtOrigin(ac);
             SKPoint preferred = hasManual
                 ? manualOffset
-                : RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, false, default, rectAtOrigin, null);
+                : DatablockText.ResolveBlockOffset(ac, SyncStudentLeaderDirection, false, default, rectAtOrigin, null);
             items.Add(
                 new DatablockDeconfliction.Item
                 {
@@ -2583,105 +2611,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
         );
         return sorted;
-    }
-
-    /// <summary>
-    /// Selects which aircraft the radar draws. Delayed aircraft are always hidden. On-ground
-    /// aircraft are hidden in the normal (non-top-down) view, except when an aircraft has an
-    /// active speech bubble whose airport isn't currently shown on the user's ground view — those
-    /// are surfaced so a SAY / pilot / WARN prompt for a taxiing aircraft isn't missed (#169).
-    /// Pure and static so it can be unit-tested without an Avalonia control instance.
-    /// </summary>
-    public static IReadOnlyList<AircraftModel> FilterAircraft(
-        IReadOnlyList<AircraftModel>? aircraft,
-        bool showTopDown,
-        bool showSpeechBubbles,
-        bool alwaysShowGroundBubbles,
-        string? groundShownAirportId,
-        DateTime nowUtc
-    )
-    {
-        if (aircraft is null || aircraft.Count == 0)
-        {
-            return [];
-        }
-
-        var result = new List<AircraftModel>(aircraft.Count);
-        foreach (AircraftModel ac in aircraft)
-        {
-            if (IsDrawable(ac, showTopDown, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc))
-            {
-                result.Add(ac);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// The per-aircraft predicate behind <see cref="FilterAircraft"/>: true when this aircraft is drawn
-    /// on the radar under the given view settings. Split out so both the visibility filter and the
-    /// conflict/ATPA peer resolution (<see cref="ResolveByCallsign"/>) apply the exact same rule — a
-    /// peer the draw pass filters out must not be resolved for the hit-test/deconfliction rect either,
-    /// or the block's rect no longer matches what is drawn.
-    /// </summary>
-    private static bool IsDrawable(
-        AircraftModel ac,
-        bool showTopDown,
-        bool showSpeechBubbles,
-        bool alwaysShowGroundBubbles,
-        string? groundShownAirportId,
-        DateTime nowUtc
-    )
-    {
-        if (ac.IsDelayed)
-        {
-            return false;
-        }
-
-        if (ac.IsOnGround && !showTopDown && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc))
-        {
-            return false;
-        }
-
-        // Airborne but the displayed altitude still rounds to 000 (below the acquisition floor):
-        // withhold the target from the radar so it matches CRC STARS' coast/skip. The aircraft
-        // remains on the ground view until it climbs above the floor. Top-down (ground) mode keeps
-        // showing low traffic.
-        if (!ac.IsOnGround && ac.BelowDisplayFloor && !showTopDown)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// True when a ground aircraft carries an active speech bubble the radar should surface. With
-    /// <paramref name="alwaysShowGroundBubbles"/> on, any active bubble surfaces; otherwise only
-    /// when no open ground view is already showing the aircraft's airport — i.e. its airport
-    /// differs from <paramref name="groundShownAirportId"/> (or is unknown).
-    /// </summary>
-    private static bool ShouldSurfaceGroundBubble(
-        AircraftModel ac,
-        bool showSpeechBubbles,
-        bool alwaysShowGroundBubbles,
-        string? groundShownAirportId,
-        DateTime nowUtc
-    )
-    {
-        if (!showSpeechBubbles || ac.SpeechBubble is not { } bubble || bubble.ExpiresAt <= nowUtc)
-        {
-            return false;
-        }
-
-        if (alwaysShowGroundBubbles)
-        {
-            return true;
-        }
-
-        return string.IsNullOrEmpty(ac.GroundAirportId)
-            || !string.Equals(ac.GroundAirportId, groundShownAirportId, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose()
