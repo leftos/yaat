@@ -82,6 +82,7 @@ public class MenuGoldenTests
         main.Preferences.SetShowQuickCommandIcons(false);
         // A fix to name the point by, so Direct to, Append direct to and the holds have their FRD.
         main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
+        main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
         LatLon point = new(fixture.Aircraft.Position.Lat - 0.1, fixture.Aircraft.Position.Lon + 0.1);
 
         ContextMenu menu = MenuHostHarness.BuildRadarPointMenu(main, fixture.Aircraft, point);

@@ -317,7 +317,7 @@ public class ScopePrefMenuTests : IDisposable
     {
         MainViewModel main = await ScopeTestFixture.MainAsync();
         main.SetActivePositionFromServer(EramConfig());
-        SeedRadar(main);
+        SeedSource(main);
         var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
@@ -329,14 +329,22 @@ public class ScopePrefMenuTests : IDisposable
 
     private static PositionDisplayConfigDto EramConfig() => new([], [], [], "C44", Sector44, 3, NoStarsDisplay: true);
 
-    /// <summary>Gives the radar what a scenario load gives it, so the Scope seeds and a load adds no waiting note.</summary>
-    private static void SeedRadar(MainViewModel main)
-    {
-        RadarMapToggles.Add(main.Radar, 31, 2, 10);
-        main.Radar.RangeNm = 60;
-        main.Radar.CenterLat = 37.62;
-        main.Radar.CenterLon = -122.38;
-    }
+    /// <summary>Loads the Scope's map source as a scenario load does, so the Scope seeds and a load adds no waiting note.</summary>
+    private static void SeedSource(MainViewModel main) =>
+        main.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto(
+                "ZOA",
+                "NCT",
+                [new StarsAreaDto("A", "Area A", 37.62, -122.38, 60, [])],
+                [MapInfo(31), MapInfo(2), MapInfo(10)],
+                []
+            ),
+            null,
+            null
+        );
+
+    private static VideoMapInfoDto MapInfo(int starsId) =>
+        new($"m{starsId}", $"Map {starsId}", $"MAP{starsId}", [], "A", starsId, AlwaysVisible: false, TdmOnly: false);
 
     /// <summary>The text <paramref name="button"/> draws, read as one line (<see cref="ScopeToolbarTests.DrawnText"/>).</summary>
     private static string DrawnText(Button button) => ScopeToolbarTests.DrawnText(button);

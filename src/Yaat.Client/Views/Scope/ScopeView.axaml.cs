@@ -96,7 +96,7 @@ public partial class ScopeView : UserControl
     /// </summary>
     internal ContextMenu BuildAircraftMenu(ScopeViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
     {
-        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId);
+        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.ScopeMaps.MvaFacilityId);
         return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, _ => []);
     }
 
@@ -117,7 +117,7 @@ public partial class ScopeView : UserControl
         PushMaps(_vm);
     }
 
-    // The maps arrive later when the scope opened before the radar had any (its one-time seed).
+    // The maps arrive later, at each seed from the Scope's map source.
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if ((sender is ScopeViewModel vm) && (e.PropertyName is nameof(ScopeViewModel.VideoMaps) or nameof(ScopeViewModel.BrightnessLookup)))
@@ -290,7 +290,7 @@ public partial class ScopeView : UserControl
     {
         if (action == ScopeFieldAction.OpenNoteBox)
         {
-            ScopeFieldMenus.ShowNoteBox(ac, new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId));
+            ScopeFieldMenus.ShowNoteBox(ac, new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.ScopeMaps.MvaFacilityId));
         }
         else if (action == ScopeFieldAction.OpenEramAltitudeMenu)
         {
@@ -319,7 +319,10 @@ public partial class ScopeView : UserControl
 
     // The host a field menu's pilot rows send through: while Shift is held on a row it stages the command in the entry instead.
     private ClientMenuHost FieldMenuHost(ScopeViewModel vm, AircraftModel ac) =>
-        new(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId) { Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command) };
+        new(vm.Main, ac, Canvas, vm.Main.ScopeMaps.MvaFacilityId)
+        {
+            Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command),
+        };
 
     // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them.
     private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
@@ -486,9 +489,9 @@ public partial class ScopeView : UserControl
         }
     }
 
-    // The point's FRD from the primary radar's fixes, as the aircraft menu names a point; null before they load.
+    // The point's FRD from the Scope map source's fixes, as the aircraft menu names a point; null before they load.
     private string? DescribePoint(ScopeViewModel vm, LatLon point) =>
-        new ClientMenuHost(vm.Main, null, Canvas, vm.Main.Radar.MvaFacilityId).DescribePoint(point);
+        new ClientMenuHost(vm.Main, null, Canvas, vm.Main.ScopeMaps.MvaFacilityId).DescribePoint(point);
 
     private void OnAircraftDwellLockToggleRequested(string callsign)
     {

@@ -441,34 +441,7 @@ public partial class RadarViewModel(
         );
     }
 
-    private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes()
-    {
-        if (!_navDbReady)
-        {
-            return [];
-        }
-
-        string[] names = NavigationDatabase.Instance.AllFixNames;
-        var result = new List<(string, double, double)>(names.Length);
-        foreach (string name in names)
-        {
-            // vNAS publishes thousands of adapted fixes whose identifiers are themselves FRD strings
-            // (OAK169001). They stay typeable in the command bar, but they aren't chartable waypoints, so
-            // they neither paint on the scope nor anchor a deduced FRD.
-            if (FrdResolver.IsFrdIdentifier(name))
-            {
-                continue;
-            }
-
-            (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(name);
-            if (pos.HasValue)
-            {
-                result.Add((name, pos.Value.Lat, pos.Value.Lon));
-            }
-        }
-
-        return result;
-    }
+    private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes() => ScopeMapSource.BuildChartFixes(_navDbReady);
 
     // --- Scope-marker pins (CRC ".ff" / ".marker" / ".markers" / ".nomarkers") ---
 
@@ -641,33 +614,7 @@ public partial class RadarViewModel(
         return (_areaFallbackCenter is not null) && (CenterLat == fallback.Lat) && (CenterLon == fallback.Lon) && (RangeNm == DefaultRangeNm);
     }
 
-    public double GetFieldElevation(string? destination)
-    {
-        if (_getAirportElevation is null)
-        {
-            return 0;
-        }
-
-        if (!string.IsNullOrEmpty(destination))
-        {
-            double? elev = _getAirportElevation(destination);
-            if (elev.HasValue)
-            {
-                return elev.Value;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(PrimaryAirportId))
-        {
-            double? elev = _getAirportElevation(PrimaryAirportId);
-            if (elev.HasValue)
-            {
-                return elev.Value;
-            }
-        }
-
-        return 0;
-    }
+    public double GetFieldElevation(string? destination) => ScopeMapSource.ResolveFieldElevation(_getAirportElevation, destination, PrimaryAirportId);
 
     public async Task LoadVideoMapsForArtccAsync(string artccId, string? airportId = null, string? scenarioId = null)
     {
@@ -1412,7 +1359,7 @@ public partial class RadarViewModel(
     /// the fixes or the nav database are not loaded yet, or no fix is in range.
     /// </summary>
     public static string? TryToFrd(IReadOnlyList<(string Name, double Lat, double Lon)>? fixes, double lat, double lon) =>
-        (fixes is not null) && (NavigationDatabase.InstanceOrNull is { } navDb) ? FrdResolver.ToFrd(lat, lon, fixes, navDb) : null;
+        ScopeMapSource.ToFrd(fixes, lat, lon);
 
     public void PlaceRouteWaypoint(double lat, double lon)
     {

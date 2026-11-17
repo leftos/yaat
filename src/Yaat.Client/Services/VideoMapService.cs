@@ -30,10 +30,33 @@ public sealed class VideoMapService
     /// <summary>
     /// Returns a cached parsed video map, or null if not yet loaded.
     /// </summary>
-    public VideoMapData? GetCached(string mapId) => _cache.GetValueOrDefault(mapId)?.Data;
+    public VideoMapData? GetCached(string mapId)
+    {
+        lock (_cache)
+        {
+            return _cache.GetValueOrDefault(mapId)?.Data;
+        }
+    }
 
     /// <summary>Puts <paramref name="data"/> in the in-memory cache as a fresh load would, with no download. Test seam.</summary>
-    internal void CacheForTesting(VideoMapData data) => _cache[data.MapId] = new CachedVideoMap(data, DateTime.UtcNow);
+    internal void CacheForTesting(VideoMapData data)
+    {
+        lock (_cache)
+        {
+            _cache[data.MapId] = new CachedVideoMap(data, DateTime.UtcNow);
+        }
+    }
+
+    /// <summary>The cached map for <paramref name="mapId"/> when it is still within <see cref="CacheTtl"/>, else null.</summary>
+    private VideoMapData? GetFresh(string mapId)
+    {
+        lock (_cache)
+        {
+            return (_cache.TryGetValue(mapId, out CachedVideoMap? cached) && ((DateTime.UtcNow - cached.FetchedUtc) <= CacheTtl))
+                ? cached.Data
+                : null;
+        }
+    }
 
     /// <summary>
     /// Loads a batch of video maps for an ARTCC. Downloads any
@@ -49,9 +72,9 @@ public sealed class VideoMapService
 
         foreach (VideoMapInfoDto map in maps)
         {
-            if (_cache.TryGetValue(map.Id, out CachedVideoMap? cached) && (DateTime.UtcNow - cached.FetchedUtc <= CacheTtl))
+            if (GetFresh(map.Id) is { } fresh)
             {
-                results.Add(cached.Data);
+                results.Add(fresh);
                 continue;
             }
 
@@ -107,7 +130,13 @@ public sealed class VideoMapService
     /// <summary>
     /// Clears all cached parsed maps (does not delete disk cache).
     /// </summary>
-    public void ClearMemoryCache() => _cache.Clear();
+    public void ClearMemoryCache()
+    {
+        lock (_cache)
+        {
+            _cache.Clear();
+        }
+    }
 
     private sealed record CachedVideoMap(VideoMapData Data, DateTime FetchedUtc);
 }

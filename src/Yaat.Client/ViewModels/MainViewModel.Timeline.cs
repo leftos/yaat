@@ -1002,6 +1002,7 @@ public partial class MainViewModel
         _lastRadarPrimaryAirportId = result.PrimaryAirportId;
         // Primary only: an extra Radar View keeps the airport it was opened with (re-seeded below).
         Radar.SetPrimaryAirportId(result.PrimaryAirportId);
+        ScopeMaps.SetPrimaryAirportId(result.PrimaryAirportId);
         SetRadarAirportPosition(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate, result.ElapsedSeconds, result.IsPlayback, result.TapeEnd);
         // A recording replaces the scenario, so a prompt asking about the one before it closes.
@@ -1034,6 +1035,8 @@ public partial class MainViewModel
             radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
         }
 
+        ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
+
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {
@@ -1056,6 +1059,7 @@ public partial class MainViewModel
         if (!string.IsNullOrEmpty(artccId))
         {
             _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
+            _ = ScopeMaps.LoadAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
 
             if (!string.IsNullOrEmpty(result.PrimaryAirportId))
             {

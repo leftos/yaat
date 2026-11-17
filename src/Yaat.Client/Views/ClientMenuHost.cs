@@ -79,10 +79,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, onSubmit);
 
     /// <summary>
-    /// The point as the primary radar view model's fixes name it (<see cref="FrdResolver.ToFrd"/>); null before the fixes and the
+    /// The point as the map source's fixes name it (<see cref="ScopeMapSource.DescribePoint"/>); null before the fixes and the
     /// nav database load.
     /// </summary>
-    public string? DescribePoint(LatLon position) => RadarViewModel.TryToFrd(main.Radar.Fixes, position.Lat, position.Lon);
+    public string? DescribePoint(LatLon position) => main.ScopeMaps.DescribePoint(position.Lat, position.Lon);
 
     /// <summary>
     /// The primary ground view model's routes from the aircraft's nearest node to <paramref name="node"/>, with the
@@ -450,10 +450,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     }
 
     /// <summary>
-    /// The navdata elevation of <paramref name="destination"/>, else of the scenario's primary airport, from the primary
-    /// radar view model.
+    /// The navdata elevation of <paramref name="destination"/>, else of the scenario's primary airport, from the map source.
     /// </summary>
-    public double GetFieldElevation(string? destination) => main.Radar.GetFieldElevation(destination);
+    public double GetFieldElevation(string? destination) => main.ScopeMaps.GetFieldElevation(destination);
 
     public void ShowCommandFlyout(string callsign, string initials) =>
         MenuPopups.ShowCommand(anchor, callsign, command => main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials));

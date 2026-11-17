@@ -184,37 +184,59 @@ public class ScopeTdmTests : IDisposable
         }
     }
 
-    /// <summary>Centres the radar with two maps on: <paramref name="ordinary"/> (STARS id 2), the TDM-only <paramref name="diagram"/> (3).</summary>
-    private static void CentreRadarWithMaps(MainViewModel main, VideoMapData ordinary, VideoMapData diagram)
+    /// <summary>
+    /// Loads the map source with two maps, both in the video-map cache: <paramref name="ordinary"/> (STARS id 2) and the
+    /// TDM-only <paramref name="diagram"/> (3).
+    /// </summary>
+    private static void LoadSourceWithMaps(MainViewModel main, VideoMapData ordinary, VideoMapData diagram)
     {
-        main.Radar.MapToggles.Add(MapToggle(ordinary.MapId, 2, tdmOnly: false));
-        main.Radar.MapToggles.Add(MapToggle(diagram.MapId, 3, tdmOnly: true));
-        main.Radar.RangeNm = 60;
-        main.Radar.ActiveVideoMaps = [ordinary, diagram];
-        main.Radar.CenterLat = 37.62;
-        main.Radar.CenterLon = -122.38;
+        main.CacheVideoMapForTesting(ordinary);
+        main.CacheVideoMapForTesting(diagram);
+        main.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto(
+                "ZOA",
+                "NCT",
+                [new StarsAreaDto("A", "Area A", 37.62, -122.38, 60, [])],
+                [MapInfo(ordinary.MapId, 2, tdmOnly: false), MapInfo(diagram.MapId, 3, tdmOnly: true)],
+                []
+            ),
+            null,
+            null
+        );
     }
 
-    private static VideoMapToggleItem MapToggle(string mapId, int starsId, bool tdmOnly) =>
-        new()
+    private static VideoMapInfoDto MapInfo(string mapId, int starsId, bool tdmOnly) =>
+        new(mapId, $"Map {starsId}", $"MAP{starsId}", [], "A", starsId, AlwaysVisible: false, TdmOnly: tdmOnly);
+
+    [AvaloniaFact]
+    public async Task ScopeView_HandsTheSourcesMvaFacility_ToItsCanvas()
+    {
+        VideoMapData ordinary = new() { MapId = "m2", Lines = [] };
+        VideoMapData diagram = new() { MapId = "m3", Lines = [] };
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeWith(m => LoadSourceWithMaps(m, ordinary, diagram));
+        try
         {
-            MapId = mapId,
-            ShortName = $"MAP{starsId}",
-            Name = $"Map {starsId}",
-            BrightnessCategory = "A",
-            StarsId = starsId,
-            TdmOnly = tdmOnly,
-            IsEnabled = true,
-        };
+            Assert.Null(main.Radar.MvaFacilityId);
+            Assert.Equal("NCT", view.Canvas.MvaFacilityId);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
 
     [AvaloniaFact]
     public async Task ATdmOnlyMap_IsDrawnOnlyWhileTdmIsOn()
     {
         VideoMapData ordinary = new() { MapId = "m2", Lines = [] };
         VideoMapData diagram = new() { MapId = "m3", Lines = [] };
-        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeWith(main => CentreRadarWithMaps(main, ordinary, diagram));
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeWith(main => LoadSourceWithMaps(main, ordinary, diagram));
         try
         {
+            scope.SetMapOn(2, true);
+            scope.SetMapOn(3, true);
+            Dispatcher.UIThread.RunJobs();
             Assert.All(scope.MapToggles, t => Assert.True(t.IsOn));
             Assert.Equal([ordinary], view.Canvas.RenderSnapshotForTesting().VideoMaps);
 

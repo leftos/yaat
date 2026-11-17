@@ -176,7 +176,9 @@ three:
 - sets `ActiveScenarioId`/`Name`/`PrimaryAirportId`, `SessionStartUtc` and `_commandInput.PrimaryAirportId`,
 - rebuilds the `Aircraft` collection from the DTOs (recomputing `InitialDelayedSpawnCount` /
   `PendingDelayedSpawnCount`),
-- fans out to `Radar.ApplyScenarioBootstrap` / `Ground.ApplyScenarioBootstrap`, `VStrips.ApplyBayConfig`, and the
+- fans out to `Radar.ApplyScenarioBootstrap` / `Ground.ApplyScenarioBootstrap`, `ScopeMaps.ApplyScenarioBootstrap` (the
+  YAAT Scope's facility source, `Services/ScopeMapSource.cs`, which fetches the facility's maps itself and is also fed
+  on the timeline/recording load, room position config, nav-db ready and scenario clear), `VStrips.ApplyBayConfig`, and the
   vTDLS bootstrap (`BootstrapStudentTdlsAsync`),
 - ends in `StartRichPresence(bootstrap.ElapsedSeconds)`, which stamps the Discord start time (now minus the elapsed
   seconds, so a joiner's timer matches the room's) and publishes through `RefreshRichPresence` — see

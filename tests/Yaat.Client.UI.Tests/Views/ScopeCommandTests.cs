@@ -1,6 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
-using Yaat.Client.UI.Tests.Helpers;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
@@ -339,17 +339,22 @@ public class ScopeCommandTests
 
     private const string DbUsage = "Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>";
 
-    /// <summary>A Scope seeded from a centred radar with map toggles 2 and 10, every map off.</summary>
+    /// <summary>A Scope seeded from a loaded map source with maps 2 and 10, every map off.</summary>
     private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeWithMapsAsync()
     {
         MainViewModel main = await MainAsync();
-        RadarMapToggles.Add(main.Radar, 2, 10);
-        main.Radar.CenterLat = 37.62;
-        main.Radar.CenterLon = -122.38;
+        main.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto("ZOA", "NCT", [new StarsAreaDto("A", "Area A", 37.62, -122.38, 60, [])], [MapInfo(2), MapInfo(10)], []),
+            null,
+            null
+        );
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         return (main, scope);
     }
+
+    private static VideoMapInfoDto MapInfo(int starsId) =>
+        new($"m{starsId}", $"Map {starsId}", $"MAP{starsId}", [], "A", starsId, AlwaysVisible: false, TdmOnly: false);
 
     [AvaloniaFact]
     public async Task Map_OnAndOff_SetsTheToggle_AndEchoes()
@@ -364,7 +369,6 @@ public class ScopeCommandTests
             main.RunScopeCommand(".SCOPE MAP 10 OFF");
             Assert.Equal(".scope map 10 off", main.StatusText);
             Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
-            Assert.All(main.Radar.MapToggles, t => Assert.False(t.IsEnabled));
         }
         finally
         {

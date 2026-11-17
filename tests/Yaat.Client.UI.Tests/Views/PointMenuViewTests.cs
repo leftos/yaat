@@ -374,11 +374,12 @@ public class PointMenuViewTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (RadarView view, MainViewModel main) = RadarHarness();
         main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
+        main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
         AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
         main.Aircraft.Add(ac);
         main.Radar.SelectedAircraft = ac;
         var position = new LatLon(37.80, -122.20);
-        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.Radar.Fixes!, NavigationDatabase.Instance)!;
+        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.ScopeMaps.Fixes!, NavigationDatabase.Instance)!;
 
         ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
 
@@ -394,8 +395,9 @@ public class PointMenuViewTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (RadarView view, MainViewModel main) = RadarHarness();
         main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
+        main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
         var position = new LatLon(37.80, -122.20);
-        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.Radar.Fixes!, NavigationDatabase.Instance)!;
+        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.ScopeMaps.Fixes!, NavigationDatabase.Instance)!;
 
         ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
 

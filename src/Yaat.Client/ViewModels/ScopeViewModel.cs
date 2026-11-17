@@ -14,13 +14,14 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The YAAT Scope window's view model. It keeps its own centre, range, map toggles, brightness and datablock state; nothing
-/// is shared with <see cref="RadarViewModel"/>. It starts from the radar's centre, range, map toggles, video maps and
-/// MVA-tint flag once, the first time the radar has a centre and map toggles or active maps, and is independent of the radar
-/// after that. The selection is the app-wide one: a pick here sets <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
+/// is shared with the main radar. At every facility load of the Scope's map source (<see cref="MainViewModel.ScopeMaps"/>) it
+/// takes the facility's map toggles, brightness categories, centre and MVA-tint default, and opens at
+/// <see cref="DefaultRangeNm"/>, keeping on the maps that were on. The selection is the app-wide one: a pick here sets
+/// <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
 /// </summary>
 public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 {
-    /// <summary>The range the scope opens at until the radar gives it one.</summary>
+    /// <summary>The range the scope opens at, and returns to at every facility load.</summary>
     public const double DefaultRangeNm = 40;
 
     private bool _isSyncingSelection;
@@ -28,11 +29,11 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>Whether <see cref="Dispose"/> has run; a second call changes nothing and saves nothing.</summary>
     private bool _disposed;
 
-    /// <summary>
-    /// The radar the scope takes its first centre, map toggles and maps from, while it still waits for a centre and toggles or
-    /// maps; null once seeded.
-    /// </summary>
-    private RadarViewModel? _seedSource;
+    /// <summary>True from a seed by the map source's catalogue until the source is cleared.</summary>
+    private bool _isSeeded;
+
+    /// <summary>The centre the latest seed put the scope at, or where a late recentre moved it since; null before the first seed.</summary>
+    private (double Lat, double Lon)? _seededCenter;
 
     [ObservableProperty]
     private double _centerLat;
@@ -47,8 +48,8 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     private AircraftModel? _selectedAircraft;
 
     /// <summary>
-    /// The video maps the scope draws: the radar's active maps at the seed, then the maps of the scope's own on toggles
-    /// (<see cref="MapToggles"/>), in toggle order.
+    /// The video maps the scope draws: the maps of the scope's own on toggles (<see cref="MapToggles"/>), in toggle order,
+    /// each from the video-map cache.
     /// </summary>
     [ObservableProperty]
     private IReadOnlyList<VideoMapData> _videoMaps = [];
@@ -57,7 +58,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private IReadOnlyDictionary<string, string> _brightnessLookup = new Dictionary<string, string>();
 
-    /// <summary>Whether the scope tints altitudes against the MVA, copied from the radar when the scope is seeded.</summary>
+    /// <summary>Whether the scope tints altitudes against the MVA, set to the map source's default at every seed.</summary>
     [ObservableProperty]
     private bool _showMvaHints;
 
@@ -78,8 +79,8 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     private ScopeViewer _viewer;
 
     /// <summary>
-    /// Seeds the scope from the radar now when the radar has a centre and map toggles or active maps; otherwise waits for
-    /// the radar's first centre and toggles or maps, takes them once and stops listening.
+    /// Seeds the scope from the map source now when its latest load is over, otherwise at its next load; it then reseeds at
+    /// every load, empties its maps when the source is cleared and follows a late recentre while the user has not moved it.
     /// </summary>
     /// <param name="main">The main view model.</param>
     /// <param name="prefStore">The pref-set store <c>.scope pref</c> reads and writes, or null when prefs are unavailable.</param>
@@ -95,10 +96,12 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         _viewer = BuildViewer(main);
         main.PropertyChanged += OnMainPropertyChanged;
         main.Measure.PropertyChanged += OnMeasurePropertyChanged;
-        if (!TrySeedFrom(main.Radar))
+        main.ScopeMaps.Loaded += OnMapSourceLoaded;
+        main.ScopeMaps.Cleared += OnMapSourceCleared;
+        main.ScopeMaps.PropertyChanged += OnMapSourcePropertyChanged;
+        if ((main.ScopeMaps.IsReady) && (main.ScopeMaps.HasCatalogue))
         {
-            _seedSource = main.Radar;
-            _seedSource.PropertyChanged += OnSeedSourcePropertyChanged;
+            SeedFromMapSource();
         }
 
         InitViews();
@@ -106,8 +109,11 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         InitProfile();
     }
 
-    /// <summary>Whether the scope is still waiting for the radar's first centre and maps. Test seam.</summary>
-    internal bool IsWaitingForRadarSeed => _seedSource is not null;
+    /// <summary>
+    /// Whether a pref set or saved state applied now would be held until the next seed: the map source has not seeded the
+    /// scope yet, or it has a load in flight whose seed would overwrite the set.
+    /// </summary>
+    internal bool IsWaitingForMapSource => (!_isSeeded) || Main.ScopeMaps.IsLoading;
 
     /// <summary>The main view model: the traffic, the preferences and the app-wide selection.</summary>
     public MainViewModel Main { get; }
@@ -168,7 +174,9 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         Main.PropertyChanged -= OnMainPropertyChanged;
         Main.Measure.PropertyChanged -= OnMeasurePropertyChanged;
         ClearMinSep();
-        StopWaitingForSeed();
+        Main.ScopeMaps.Loaded -= OnMapSourceLoaded;
+        Main.ScopeMaps.Cleared -= OnMapSourceCleared;
+        Main.ScopeMaps.PropertyChanged -= OnMapSourcePropertyChanged;
         StopViews();
     }
 
@@ -189,42 +197,86 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Copies the radar's centre, range, map toggles, video maps, their brightness categories and its MVA-tint flag when the
-    /// radar has a centre (both coordinates set) and at least one map toggle or active map.
+    /// Takes the map source's maps (keeping on the maps that were on, by map id), brightness categories, MVA-tint default and
+    /// centre, opens at <see cref="DefaultRangeNm"/>, then applies a pref set held while the scope waited.
     /// </summary>
-    /// <returns>True when the scope was seeded.</returns>
-    private bool TrySeedFrom(RadarViewModel radar)
+    private void SeedFromMapSource()
     {
-        IReadOnlyList<VideoMapData> maps = radar.ActiveVideoMaps ?? [];
-        if ((radar.CenterLat == 0) || (radar.CenterLon == 0) || ((radar.MapToggles.Count == 0) && (maps.Count == 0)))
-        {
-            return false;
-        }
-
-        BrightnessLookup = new Dictionary<string, string>(radar.BrightnessLookup);
-        SeedMaps(radar.MapToggles, maps);
-        ShowMvaHints = radar.ShowMvaHints;
-        RangeNm = radar.RangeNm > 0 ? radar.RangeNm : DefaultRangeNm;
-        CenterLat = radar.CenterLat;
-        CenterLon = radar.CenterLon;
+        ScopeMapSource source = Main.ScopeMaps;
+        _isSeeded = true;
+        BrightnessLookup = new Dictionary<string, string>(source.BrightnessLookup);
+        SeedMaps(source.Maps);
+        ShowMvaHints = source.ShowMvaHintsDefault;
+        RangeNm = DefaultRangeNm;
+        CenterLat = source.CenterLat;
+        CenterLon = source.CenterLon;
+        _seededCenter = (CenterLat, CenterLon);
         ApplyPendingPrefSet();
-        return true;
     }
 
-    private void OnSeedSourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnMapSourceLoaded(object? sender, EventArgs e) => SeedFromMapSource();
+
+    /// <summary>
+    /// Empties the scope's maps and makes it unseeded again, so a set applied before the next load holds its maps, range
+    /// and centre for that load's seed.
+    /// </summary>
+    private void OnMapSourceCleared(object? sender, EventArgs e)
     {
-        bool seedInput =
-            e.PropertyName is nameof(RadarViewModel.CenterLat) or nameof(RadarViewModel.CenterLon) or nameof(RadarViewModel.ActiveVideoMaps);
-        if (seedInput && (_seedSource is { } radar) && TrySeedFrom(radar))
+        _isSeeded = false;
+        ClearSeededMaps();
+    }
+
+    private void OnMapSourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
         {
-            StopWaitingForSeed();
+            case nameof(ScopeMapSource.CenterLat) or nameof(ScopeMapSource.CenterLon):
+                FollowLateRecentre();
+                break;
+            case nameof(ScopeMapSource.IsLoading):
+                OnMapSourceLoadEnded();
+                break;
         }
     }
 
-    private void StopWaitingForSeed()
+    /// <summary>
+    /// Once a load ends with no new catalogue (no maps, or the fetch failed) while an older one stands: a scope opened
+    /// during the load seeds from the standing catalogue, and a seeded one applies the part of a set held during the load
+    /// against its current toggles. A load that seeded did both already; a cleared source keeps the held part for the next
+    /// seed.
+    /// </summary>
+    private void OnMapSourceLoadEnded()
     {
-        _seedSource?.PropertyChanged -= OnSeedSourcePropertyChanged;
-        _seedSource = null;
+        ScopeMapSource source = Main.ScopeMaps;
+        if ((source.IsLoading) || (!source.HasCatalogue))
+        {
+            return;
+        }
+
+        if (_isSeeded)
+        {
+            ApplyPendingPrefSet();
+        }
+        else if (source.IsReady)
+        {
+            SeedFromMapSource();
+        }
+    }
+
+    /// <summary>
+    /// Follows the map source's late recentre while the scope is still at its seeded centre and range; a scope the user
+    /// panned or zoomed since stays where it is.
+    /// </summary>
+    private void FollowLateRecentre()
+    {
+        if ((_seededCenter is not { } seeded) || (CenterLat != seeded.Lat) || (CenterLon != seeded.Lon) || (RangeNm != DefaultRangeNm))
+        {
+            return;
+        }
+
+        CenterLat = Main.ScopeMaps.CenterLat;
+        CenterLon = Main.ScopeMaps.CenterLon;
+        _seededCenter = (CenterLat, CenterLon);
     }
 
     private void OnMainPropertyChanged(object? sender, PropertyChangedEventArgs e)

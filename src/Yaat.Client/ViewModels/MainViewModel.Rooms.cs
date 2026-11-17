@@ -948,6 +948,8 @@ public partial class MainViewModel
 
         if (state.ScenarioId is not null)
         {
+            // Before the bootstrap, so a Scope seeded by the load it starts takes this student's MVA-tint default.
+            ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(state.StudentPositionType);
             ApplyScenarioBootstrap(
                 new ScenarioBootstrap
                 {
@@ -1179,6 +1181,8 @@ public partial class MainViewModel
                 {
                     radar.ApplyPositionDisplayConfig(config);
                 }
+
+                ScopeMaps.ApplyPositionDisplayConfig(config);
             }
 
             if (HasActiveWeather)

@@ -15,9 +15,6 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public sealed partial class ScopeViewModel
 {
-    /// <summary>The seeded maps' data by map id: a map the video-map cache lacks draws from it.</summary>
-    private readonly Dictionary<string, VideoMapData> _seededMaps = new(StringComparer.Ordinal);
-
     /// <summary>Set while <see cref="ClearMaps"/> turns every toggle off, so the maps are recomputed once.</summary>
     private bool _isClearingMaps;
 
@@ -38,7 +35,7 @@ public sealed partial class ScopeViewModel
     private bool _isTdm;
 
     /// <summary>
-    /// The scope's own video-map toggles, in STARS id order, copied once from the radar's when the scope is seeded. A change
+    /// The scope's own video-map toggles, in STARS id order, rebuilt from the map source's maps at every seed. A change
     /// to the list or to a toggle's state raises <see cref="ObservableObject.PropertyChanged"/> for this property.
     /// </summary>
     public ObservableCollection<ScopeMapToggle> MapToggles { get; } = [];
@@ -126,35 +123,50 @@ public sealed partial class ScopeViewModel
             : throw new ArgumentOutOfRangeException(nameof(size), size, "Outside the CHAR size range");
 
     /// <summary>
-    /// Copies <paramref name="radarToggles"/> into <see cref="MapToggles"/> in STARS id order, each on when its map is in
-    /// <paramref name="activeMaps"/>, and draws <paramref name="activeMaps"/> as the radar does.
+    /// Rebuilds <see cref="MapToggles"/> from <paramref name="maps"/> in STARS id order, each on only when a toggle with its
+    /// map id was on before, and redraws.
     /// </summary>
-    private void SeedMaps(IEnumerable<VideoMapToggleItem> radarToggles, IReadOnlyList<VideoMapData> activeMaps)
+    private void SeedMaps(IReadOnlyList<ScopeMapInfo> maps)
     {
-        foreach (VideoMapData map in activeMaps)
-        {
-            _seededMaps.TryAdd(map.MapId, map);
-        }
-
-        foreach (VideoMapToggleItem item in radarToggles.OrderBy(t => t.StarsId))
+        var wasOn = MapToggles.Where(t => t.IsOn).Select(t => t.MapId).ToHashSet(StringComparer.Ordinal);
+        RemoveMapToggles();
+        foreach (ScopeMapInfo map in maps.OrderBy(m => m.StarsId))
         {
             var toggle = new ScopeMapToggle
             {
-                MapId = item.MapId,
-                StarsId = item.StarsId,
-                ShortName = item.ShortName,
-                Name = item.Name,
-                BrightnessCategory = item.BrightnessCategory,
-                TdmOnly = item.TdmOnly,
-                IsOn = _seededMaps.ContainsKey(item.MapId),
+                MapId = map.MapId,
+                StarsId = map.StarsId,
+                ShortName = map.ShortName,
+                Name = map.Name,
+                BrightnessCategory = map.BrightnessCategory,
+                TdmOnly = map.TdmOnly,
+                IsOn = wasOn.Contains(map.MapId),
             };
             toggle.PropertyChanged += OnMapTogglePropertyChanged;
             MapToggles.Add(toggle);
         }
 
         TdmOnlyMapIds = MapToggles.Where(t => t.TdmOnly).Select(t => t.MapId).ToHashSet(StringComparer.Ordinal);
-        VideoMaps = [.. activeMaps];
+        OnMapsChanged();
+    }
+
+    /// <summary>Drops every map toggle and the maps they draw, as a cleared map source leaves the scope.</summary>
+    private void ClearSeededMaps()
+    {
+        RemoveMapToggles();
+        TdmOnlyMapIds = new HashSet<string>(StringComparer.Ordinal);
+        VideoMaps = [];
         OnPropertyChanged(nameof(MapToggles));
+    }
+
+    private void RemoveMapToggles()
+    {
+        foreach (ScopeMapToggle toggle in MapToggles)
+        {
+            toggle.PropertyChanged -= OnMapTogglePropertyChanged;
+        }
+
+        MapToggles.Clear();
     }
 
     private void OnMapTogglePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -166,15 +178,15 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Redraws the on toggles' maps in toggle order, each from the video-map cache, else from the seed; a map in neither is
-    /// skipped. Then tells the toolbar.
+    /// Redraws the on toggles' maps in toggle order, each from the video-map cache; a map the cache lacks is skipped. Then
+    /// tells the toolbar.
     /// </summary>
     private void OnMapsChanged()
     {
         var maps = new List<VideoMapData>();
         foreach (ScopeMapToggle toggle in MapToggles.Where(t => t.IsOn))
         {
-            if ((Main.GetCachedVideoMap(toggle.MapId) ?? _seededMaps.GetValueOrDefault(toggle.MapId)) is { } map)
+            if (Main.GetCachedVideoMap(toggle.MapId) is { } map)
             {
                 maps.Add(map);
             }

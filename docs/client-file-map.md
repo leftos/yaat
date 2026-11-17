@@ -115,6 +115,7 @@ Services/
   (UpdateService.cs lives in Yaat.Client.Core; MainViewModel constructs it with channel: null)
   ScenarioDifficultyHelper.cs   # Scenario difficulty classification
   VideoMapService.cs            # Video map download/cache/parse (conditional HTTP freshness check)
+  ScopeMapSource.cs             # MainViewModel.ScopeMaps: the main facility's video-map catalogue (ScopeMapInfo), MVA facility, fixes, primary airport, centre, MVA-tint default and position-display data for the YAAT Scope; fetches the maps itself, fed by MainViewModel beside the Radar; Loaded/Cleared events
   VnasConfigService.cs          # Fetches vNAS configuration (base URLs for video maps, tower cab images)
   TowerCabImageService.cs       # Downloads/caches tower cab JPEG backgrounds with EXIF geo-referencing
   TowerCabMapParser.cs          # Parses tower cab GeoJSON video maps into filled polygons + colored lines

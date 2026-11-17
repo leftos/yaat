@@ -1983,6 +1983,7 @@ public partial class MainViewModel : ObservableObject
         // windows (MainViewModel.ViewInstances.cs), so a window opened later is wired identically.
         Ground = CreateGroundViewModel(isPrimary: true, settingsKeySuffix: "");
         Radar = CreateRadarViewModel(isPrimary: true, settingsKeySuffix: "");
+        ScopeMaps = new ScopeMapSource(_connection, _videoMapService, _preferences);
         Measure = new RangeBearingViewState(_rangeBearingStore);
         Measure.StatusReported += status => StatusText = status;
         Ground.SetMeasureState(Measure);
@@ -2158,6 +2159,9 @@ public partial class MainViewModel : ObservableObject
                 radar.SetNavDbReady();
             }
 
+            ScopeMaps.SetElevationLookup(navDb.GetAirportElevation);
+            ScopeMaps.SetNavDbReady();
+
             foreach (GroundViewModel ground in AllGroundViews)
             {
                 ground.SetElevationLookup(navDb.GetAirportElevation);
@@ -2178,6 +2182,7 @@ public partial class MainViewModel : ObservableObject
             if ((_radarAirportId is { } radarAirportId) && (navDb.GetAirportPosition(radarAirportId) is { } primaryPosition))
             {
                 Radar.RecenterOnPrimaryAirport(primaryPosition.Lat, primaryPosition.Lon);
+                ScopeMaps.RecenterOnPrimaryAirport(primaryPosition.Lat, primaryPosition.Lon);
             }
 
             _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
@@ -3330,6 +3335,7 @@ public partial class MainViewModel : ObservableObject
             // Primary only: an extra Radar View is centred on the airport it was opened with, not on the
             // scenario's — SeedRadarAirport pushes each extra its own.
             Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
+            ScopeMaps.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
         }
     }
 

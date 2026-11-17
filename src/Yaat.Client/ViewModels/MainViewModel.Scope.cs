@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -72,6 +73,12 @@ public partial class MainViewModel
     /// when it arrives.
     /// </summary>
     private bool _isScopeProfileProvisional;
+
+    /// <summary>
+    /// The main facility's map and display source for the Scope: video maps, map group, weather airports, primary airport,
+    /// centre, fixes and MVA facility, fed on the same scenario, recording and room paths as the main radar.
+    /// </summary>
+    public ScopeMapSource ScopeMaps { get; }
 
     /// <summary>The open YAAT Scope's view model, or null when no Scope window is open.</summary>
     public ScopeViewModel? OpenScope { get; set; }
@@ -829,7 +836,7 @@ public partial class MainViewModel
     /// <summary>The note a load adds when some of the set's maps did not reach this scope.</summary>
     private static string PrefLoadNote(ScopeViewModel scope, int missing)
     {
-        if ((scope.IsWaitingForRadarSeed) && (scope.MapToggles.Count == 0))
+        if (scope.IsWaitingForMapSource)
         {
             return " (its maps apply once the scope's maps load)";
         }

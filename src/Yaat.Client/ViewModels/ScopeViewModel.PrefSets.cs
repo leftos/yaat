@@ -18,7 +18,10 @@ public sealed partial class ScopeViewModel
 {
     private static readonly ILogger Log = AppLog.CreateLogger<ScopeViewModel>();
 
-    /// <summary>The set loaded before the radar gave the scope its maps, waiting to be applied once it does.</summary>
+    /// <summary>
+    /// The pref set or saved state applied while the scope waited for the map source (<see cref="IsWaitingForMapSource"/>),
+    /// whose maps, range and centre are held and applied right after the next seed.
+    /// </summary>
     private ScopePrefSet? _pendingPrefSet;
 
     /// <summary>The facility the scope's state was last saved or restored for, or null when it has none.</summary>
@@ -70,7 +73,25 @@ public sealed partial class ScopeViewModel
     /// (not its toggled tracks). Bands, and the values that follow them, live only in the profile's file.
     /// </summary>
     /// <param name="name">The set's uppercase name, or null for the scope's unnamed current state.</param>
-    internal ScopePrefSet CapturePrefSet(string? name) =>
+    /// <remarks>
+    /// While a set's maps, range and centre are held for the next seed, those are what the scope is about to show, so they
+    /// are captured in place of the live ones.
+    /// </remarks>
+    internal ScopePrefSet CapturePrefSet(string? name)
+    {
+        ScopePrefSet shown = CaptureShownState(name);
+        return (_pendingPrefSet is { } held)
+            ? shown with
+            {
+                RangeNm = held.RangeNm,
+                CenterLat = held.CenterLat,
+                CenterLon = held.CenterLon,
+                Maps = [.. held.Maps],
+            }
+            : shown;
+    }
+
+    private ScopePrefSet CaptureShownState(string? name) =>
         new()
         {
             Name = name,
@@ -102,10 +123,16 @@ public sealed partial class ScopeViewModel
     /// unknown, and logs a warning for each one. The set's profile is not applied here: the saved-state restore never
     /// changes the profile, and <c>.scope pref load</c> applies it first (<see cref="ApplyPrefSetProfile"/>).
     /// </summary>
-    /// <returns>The number of the set's maps this scope lacks.</returns>
+    /// <remarks>
+    /// While the scope waits for the map source (<see cref="IsWaitingForMapSource"/>) everything but the set's maps, range
+    /// and centre applies at once; those three, which the next seed would overwrite, are held and applied right after it.
+    /// </remarks>
+    /// <returns>The number of the set's maps this scope lacks; 0 while they are held.</returns>
     internal int ApplyPrefSet(ScopePrefSet set)
     {
         ArgumentNullException.ThrowIfNull(set);
+        bool hold = IsWaitingForMapSource;
+        _pendingPrefSet = hold ? set : null;
         ApplyTemplate(set.TemplateId);
         ApplyBrightness(set.Brightness);
         ApplyDb(set.Db);
@@ -113,12 +140,19 @@ public sealed partial class ScopeViewModel
         ApplyVectorOwnership(set.VectorOwnership);
         IsTdm = set.Tdm;
         Lens = (set.Lens is { } lens) ? new ScopeLensSettings(lens.Enabled, lens.Path, lens.Queue, lens.CheckIn) : ScopeLensSettings.Off;
-        ApplyRange(set.RangeNm);
-        ApplyCentre(set.CenterLat, set.CenterLon);
         WarnUnknownOpenViews(set.OpenViews);
         ApplyOpenViews(set.OpenViews);
         ApplyViewPlaces(set.ViewPlaces);
         ApplyTearoffs(set.Tearoffs);
+        return hold ? 0 : ApplySeededParts(set);
+    }
+
+    /// <summary>Applies the parts of <paramref name="set"/> a seed overwrites: its range, centre and maps.</summary>
+    /// <returns>The number of the set's maps this scope lacks.</returns>
+    private int ApplySeededParts(ScopePrefSet set)
+    {
+        ApplyRange(set.RangeNm);
+        ApplyCentre(set.CenterLat, set.CenterLon);
         return ApplyMaps(set);
     }
 
@@ -145,6 +179,9 @@ public sealed partial class ScopeViewModel
         }
 
         SaveStateFor(_stateFacility);
+
+        // A held set belongs to the facility the scope leaves; it was saved with that facility's state just now.
+        _pendingPrefSet = null;
         RestoreStateFor(facility);
         _stateFacility = facility;
     }
@@ -192,9 +229,8 @@ public sealed partial class ScopeViewModel
     /// <summary><paramref name="facility"/> when it can name a facility's files, else null.</summary>
     private static string? SafeFacility(string? facility) => ScopePrefSetStore.IsSafeFacility(facility) ? facility : null;
 
-    /// <summary>The maps a set saves: a pending set's, since its own have not been applied, else the on toggles' STARS ids.</summary>
-    private IReadOnlyList<int> CaptureMaps() =>
-        _pendingPrefSet is { } pending ? [.. pending.Maps] : [.. MapToggles.Where(toggle => toggle.IsOn).Select(toggle => toggle.StarsId)];
+    /// <summary>The maps a set saves: the on toggles' STARS ids.</summary>
+    private IReadOnlyList<int> CaptureMaps() => [.. MapToggles.Where(toggle => toggle.IsOn).Select(toggle => toggle.StarsId)];
 
     private static ScopePrefView CaptureViewPlace(ScopeDockViewModel view) =>
         new(view.Name, view.Place is { } place ? ScopePlacement.NameOf(place.Corner) : null, view.Place?.Dx ?? 0, view.Place?.Dy ?? 0);
@@ -356,21 +392,11 @@ public sealed partial class ScopeViewModel
         PlaceTearoff(key, new ScopePlacement(corner, Math.Max(0, entry.Dx), Math.Max(0, entry.Dy)));
     }
 
-    private int ApplyMaps(ScopePrefSet set)
-    {
-        if (MapToggles.Count == 0)
-        {
-            if (IsWaitingForRadarSeed)
-            {
-                _pendingPrefSet = set;
-                return 0;
-            }
-
-            return set.Maps.Count;
-        }
-
-        return ApplyMapsOver(set.Maps);
-    }
+    /// <summary>
+    /// Turns the set's maps on and the rest off. A scope with no map toggles has nothing to turn on, so its maps are left
+    /// alone rather than cleared, and every map of the set counts as missing.
+    /// </summary>
+    private int ApplyMaps(ScopePrefSet set) => (MapToggles.Count == 0) ? set.Maps.Count : ApplyMapsOver(set.Maps);
 
     /// <summary>Turns the maps with <paramref name="maps"/>' STARS ids on and the rest off.</summary>
     /// <returns>How many of them this scope has no toggle for.</returns>
@@ -390,8 +416,9 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Applies a held set's range, centre and maps after the seed, which has just overwritten them. A radar with no map
-    /// toggles has nothing to turn on, so its maps are left alone rather than cleared. It adds no echo.
+    /// Applies the held set's range, centre and maps, after the seed that has just overwritten them, or after a load that
+    /// ended with no new catalogue. A scope with no map toggles has nothing to turn on, so its maps are left alone. It adds
+    /// no echo.
     /// </summary>
     private void ApplyPendingPrefSet()
     {
@@ -401,11 +428,6 @@ public sealed partial class ScopeViewModel
         }
 
         _pendingPrefSet = null;
-        ApplyRange(set.RangeNm);
-        ApplyCentre(set.CenterLat, set.CenterLon);
-        if (MapToggles.Count > 0)
-        {
-            ApplyMapsOver(set.Maps);
-        }
+        _ = ApplySeededParts(set);
     }
 }

@@ -719,6 +719,8 @@ public partial class MainViewModel
             radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
         }
 
+        ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
+
         ApplyScenarioBootstrap(
             new ScenarioBootstrap
             {
@@ -769,6 +771,8 @@ public partial class MainViewModel
             {
                 radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
             }
+
+            ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
 
             ApplyScenarioBootstrap(
                 new ScenarioBootstrap
@@ -849,6 +853,7 @@ public partial class MainViewModel
         _lastRadarPrimaryAirportId = bootstrap.PrimaryAirportId;
         _lastScenarioId = bootstrap.ScenarioId;
         Radar.ApplyScenarioBootstrap(bootstrap, artccId);
+        ScopeMaps.ApplyScenarioBootstrap(bootstrap, artccId);
         foreach (RadarViewInstance instance in ExtraRadarViews)
         {
             // An extra window stays on the airport it was opened with — the scenario's airport is the
@@ -1078,6 +1083,8 @@ public partial class MainViewModel
         {
             radar.ClearVideoMaps();
         }
+
+        ScopeMaps.Clear();
 
         // Clearing the maps drops each position's airport filter, so the weather readout has to be re-derived
         // from it: without this the last position's "No METAR for …" note outlives the filter that justified it.

@@ -2,7 +2,6 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -113,7 +112,7 @@ public class ScopeSavedStateTests : IDisposable
     {
         MainViewModel nctMain = await MainAsync();
         nctMain.SetActivePositionFromServer(Config(NctSector1));
-        SeedRadar(nctMain, 40.0, -100.0, "m2");
+        SeedSource(nctMain, 40.0, -100.0, "m2");
         var nctScope = new ScopeViewModel(nctMain, Store(), profileStore: null);
         nctMain.OpenScope = nctScope;
         nctMain.RunScopeCommand(".scope range 80");
@@ -215,13 +214,13 @@ public class ScopeSavedStateTests : IDisposable
         saverScope.Dispose();
 
         MainViewModel main = await MainAsync();
-        SeedRadar(main, 30.0, -90.0, "m2");
+        SeedSource(main, 30.0, -90.0, "m2");
         var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
         try
         {
             Assert.Null(scope.Viewer.EramFacilityId);
-            Assert.Equal(60, scope.RangeNm);
+            Assert.Equal(40, scope.RangeNm);
 
             main.SetActivePositionFromServer(Config(Sector44));
 
@@ -240,7 +239,7 @@ public class ScopeSavedStateTests : IDisposable
     {
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
-        SeedRadar(main, 40.0, -100.0, "m2");
+        SeedSource(main, 40.0, -100.0, "m2");
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         try
@@ -280,7 +279,7 @@ public class ScopeSavedStateTests : IDisposable
         File.WriteAllText(Path.Combine(_root, "current"), "");
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
-        SeedRadar(main, 40.0, -100.0, "m2");
+        SeedSource(main, 40.0, -100.0, "m2");
         ScopeViewModel scope = Reopen(main);
         long mark = new FileInfo(AppLog.LogPath).Length;
 
@@ -292,7 +291,7 @@ public class ScopeSavedStateTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Restore_WhileWaitingForTheRadar_AppliesTheSavedStateAfterTheSeed()
+    public async Task Restore_WhileWaitingForTheMapSource_AppliesTheSavedStateAfterTheSeed()
     {
         (MainViewModel saver, ScopeViewModel saverScope) = await SeededScopeAsync();
         saver.RunScopeCommand(".scope range 25");
@@ -306,11 +305,11 @@ public class ScopeSavedStateTests : IDisposable
         main.OpenScope = scope;
         try
         {
-            Assert.True(scope.IsWaitingForRadarSeed);
+            Assert.True(scope.IsWaitingForMapSource);
 
-            SeedRadar(main, 30.0, -90.0, "m2");
+            SeedSource(main, 30.0, -90.0, "m2");
 
-            Assert.False(scope.IsWaitingForRadarSeed);
+            Assert.False(scope.IsWaitingForMapSource);
             Assert.Equal(25, scope.RangeNm);
             Assert.Equal((40.0, -100.0), (scope.CenterLat, scope.CenterLon));
             Assert.True(scope.MapToggles.Single(t => t.StarsId == 31).IsOn);
@@ -437,29 +436,137 @@ public class ScopeSavedStateTests : IDisposable
 
     private static VideoMapData Map(string id) => new() { MapId = id, Lines = [] };
 
-    /// <summary>Gives the radar what a scenario load gives it, its centre last so a waiting scope seeds at once.</summary>
-    private static void SeedRadar(MainViewModel main, double lat, double lon, params string[] activeMaps)
+    /// <summary>
+    /// Loads the Scope's map source as a scenario load does: maps 31, 2 and 10 (in that list order), centred at
+    /// <paramref name="lat"/>/<paramref name="lon"/>. <paramref name="cachedMaps"/> go in the video-map cache, so they draw
+    /// once turned on; every map starts off.
+    /// </summary>
+    private static void SeedSource(MainViewModel main, double lat, double lon, params string[] cachedMaps)
     {
-        RadarMapToggles.Add(main.Radar, 31, 2, 10);
-        foreach (VideoMapToggleItem toggle in main.Radar.MapToggles)
+        foreach (string id in cachedMaps)
         {
-            toggle.IsEnabled = activeMaps.Contains(toggle.MapId);
+            main.CacheVideoMapForTesting(Map(id));
         }
 
-        main.Radar.RangeNm = 60;
-        main.Radar.ActiveVideoMaps = [.. activeMaps.Select(Map)];
-        main.Radar.CenterLat = lat;
-        main.Radar.CenterLon = lon;
+        main.ScopeMaps.ApplyVideoMapsDtoForTesting(Facility(lat, lon), null, null);
     }
 
-    /// <summary>A scope at ZOA with maps 31, 2 and 10, map 2 on, at 40/-100 and 60 NM.</summary>
+    /// <summary>A facility with maps 31, 2 and 10 (in that list order) and one STARS area at <paramref name="lat"/>/<paramref name="lon"/>.</summary>
+    private static FacilityVideoMapsDto Facility(double lat, double lon) =>
+        new("ZOA", "NCT", [new StarsAreaDto("A", "Area A", lat, lon, 60, [])], [MapInfo(31), MapInfo(2), MapInfo(10)], []);
+
+    private static VideoMapInfoDto MapInfo(int starsId) =>
+        new($"m{starsId}", $"Map {starsId}", $"MAP{starsId}", [], "A", starsId, AlwaysVisible: false, TdmOnly: false);
+
+    [AvaloniaFact]
+    public async Task SavedState_RestoredByAViewerChangeMidLoad_SurvivesTheReseed()
+    {
+        (MainViewModel saver, ScopeViewModel saverScope) = await SeededScopeAsync();
+        saver.RunScopeCommand(".scope range 25");
+        saver.RunScopeCommand(".scope map 2 off");
+        saver.RunScopeCommand(".scope map 31 on");
+        saverScope.CenterLat = 41.0;
+        saverScope.CenterLon = -101.0;
+        saverScope.Dispose();
+
+        // A scope seeded with no facility; then a scenario load starts the source's load and names the position mid-load.
+        MainViewModel main = await MainAsync();
+        SeedSource(main, 30.0, -90.0);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        main.OpenScope = scope;
+        try
+        {
+            int load = main.ScopeMaps.BeginLoadForTesting();
+            main.SetActivePositionFromServer(Config(Sector44));
+            Assert.True(scope.IsWaitingForMapSource);
+
+            main.ScopeMaps.FinishLoadForTesting(load, Facility(35.0, -95.0), null);
+
+            Assert.False(scope.IsWaitingForMapSource);
+            Assert.Equal(25, scope.RangeNm);
+            Assert.Equal((41.0, -101.0), (scope.CenterLat, scope.CenterLon));
+            Assert.Equal([31], scope.MapToggles.Where(t => t.IsOn).Select(t => t.StarsId));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>Saves ZOA's state as 25 NM at 41/-101 with only map 31 on, from a scope that is then closed.</summary>
+    private async Task SaveZoaStateAsync()
+    {
+        (MainViewModel saver, ScopeViewModel saverScope) = await SeededScopeAsync();
+        saver.RunScopeCommand(".scope range 25");
+        saver.RunScopeCommand(".scope map 2 off");
+        saver.RunScopeCommand(".scope map 31 on");
+        saverScope.CenterLat = 41.0;
+        saverScope.CenterLon = -101.0;
+        saverScope.Dispose();
+    }
+
+    [AvaloniaFact]
+    public async Task SavedState_RestoredAfterAClear_SurvivesTheNextSeed()
+    {
+        await SaveZoaStateAsync();
+        MainViewModel main = await MainAsync();
+        SeedSource(main, 30.0, -90.0);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        main.OpenScope = scope;
+        try
+        {
+            main.ScopeMaps.Clear();
+            main.SetActivePositionFromServer(Config(Sector44));
+            Assert.True(scope.IsWaitingForMapSource);
+
+            SeedSource(main, 35.0, -95.0);
+
+            Assert.Equal(25, scope.RangeNm);
+            Assert.Equal((41.0, -101.0), (scope.CenterLat, scope.CenterLon));
+            Assert.Equal([31], scope.MapToggles.Where(t => t.IsOn).Select(t => t.StarsId));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ViewerChange_MidLoad_DropsTheHeldPart()
+    {
+        await SaveZoaStateAsync();
+        MainViewModel main = await MainAsync();
+        SeedSource(main, 30.0, -90.0);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        main.OpenScope = scope;
+        try
+        {
+            int load = main.ScopeMaps.BeginLoadForTesting();
+            main.SetActivePositionFromServer(Config(Sector44));
+
+            // NCT has no saved state, so ZOA's held maps, range and centre must not reach it.
+            main.SetActivePositionFromServer(Config(NctSector1));
+            main.ScopeMaps.FinishLoadForTesting(load, Facility(35.0, -95.0), null);
+
+            Assert.Equal(40, scope.RangeNm);
+            Assert.Equal((35.0, -95.0), (scope.CenterLat, scope.CenterLon));
+            Assert.DoesNotContain(scope.MapToggles, t => t.IsOn);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>A scope at ZOA with maps 31, 2 and 10, map 2 on, at 40/-100 and 40 NM.</summary>
     private async Task<(MainViewModel Main, ScopeViewModel Scope)> SeededScopeAsync()
     {
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
-        SeedRadar(main, 40.0, -100.0, "m2");
+        SeedSource(main, 40.0, -100.0, "m2");
         var scope = new ScopeViewModel(main, Store(), profileStore: null);
         main.OpenScope = scope;
+        scope.SetMapOn(2, true);
         return (main, scope);
     }
 

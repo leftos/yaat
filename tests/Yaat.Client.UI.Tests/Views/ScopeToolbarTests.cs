@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Logging;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -31,7 +32,7 @@ public class ScopeToolbarTests
         OpenScopeAsync(size, _ => { });
 
     /// <summary>Opens the Scope at <paramref name="size"/> after <paramref name="beforeScope"/> has set the radar up.</summary>
-    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenWithRadarAsync(
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenWithSourceAsync(
         Size size,
         Action<MainViewModel> beforeScope
     ) => OpenScopeAsync(size, beforeScope);
@@ -527,14 +528,20 @@ public class ScopeToolbarTests
         }
     }
 
-    /// <summary>Gives the radar a centre and one map toggle per STARS id, in the order given, every map off.</summary>
-    private static Action<MainViewModel> RadarWithToggles(params int[] starsIds) =>
+    /// <summary>Loads the Scope's map source with one map per STARS id, in the order given, centred at 37.62/-122.38.</summary>
+    private static Action<MainViewModel> SourceWithToggles(params int[] starsIds) =>
         main =>
-        {
-            RadarMapToggles.Add(main.Radar, starsIds);
-            main.Radar.CenterLat = 37.62;
-            main.Radar.CenterLon = -122.38;
-        };
+            main.ScopeMaps.ApplyVideoMapsDtoForTesting(
+                new FacilityVideoMapsDto(
+                    "ZOA",
+                    "NCT",
+                    [new StarsAreaDto("A", "Area A", 37.62, -122.38, 60, [])],
+                    [.. starsIds.Select(id => new VideoMapInfoDto($"m{id}", $"Map {id}", $"MAP{id}", [], "A", id, false, false))],
+                    []
+                ),
+                null,
+                null
+            );
 
     /// <summary>The shown tray button labelled <paramref name="label"/>; map toggles share one id, so they are found by label.</summary>
     private static Button TrayButton(Window window, string label) => TrayButtons(window).Single(b => Label(b) == label);
@@ -542,7 +549,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task MapsTray_ShowsClearAllThenTheToggles_AndAToggleClickTurnsItsMapOn()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWithRadarAsync(new Size(900, 600), RadarWithToggles(31, 2, 10));
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWithSourceAsync(new Size(900, 600), SourceWithToggles(31, 2, 10));
         try
         {
             Assert.Equal("MAPS ▸", DrawnText(ButtonOf(window, ScopeButtonId.Maps)));
@@ -573,7 +580,7 @@ public class ScopeToolbarTests
     [AvaloniaFact]
     public async Task MapsTray_ClearAll_TurnsEveryMapOff()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWithRadarAsync(new Size(900, 600), RadarWithToggles(2, 10));
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWithSourceAsync(new Size(900, 600), SourceWithToggles(2, 10));
         try
         {
             main.RunScopeCommand(".scope map 2 on");
@@ -717,7 +724,7 @@ public class ScopeToolbarTests
     public async Task ATrayWiderThanTheWindow_WrapsIntoMoreTwoRowBlocks_AndNeverResizesTheScope()
     {
         int[] ids = [.. Enumerable.Range(1, 30)];
-        (_, _, ScopeWindow window) = await OpenWithRadarAsync(new Size(600, 800), RadarWithToggles(ids));
+        (_, _, ScopeWindow window) = await OpenWithSourceAsync(new Size(600, 800), SourceWithToggles(ids));
         try
         {
             ScopeCanvas canvas = window.GetVisualDescendants().OfType<ScopeCanvas>().Single();
@@ -745,7 +752,7 @@ public class ScopeToolbarTests
     public async Task ATrayBlockNarrowerThanTheFirst_LeavesTheTrayBackgroundBesideIt()
     {
         int[] ids = [.. Enumerable.Range(1, 20)];
-        (_, _, ScopeWindow window) = await OpenWithRadarAsync(new Size(600, 800), RadarWithToggles(ids));
+        (_, _, ScopeWindow window) = await OpenWithSourceAsync(new Size(600, 800), SourceWithToggles(ids));
         try
         {
             Click(ButtonOf(window, ScopeButtonId.Maps));
