@@ -235,6 +235,16 @@ Two Task Index rows land in `docs/architecture.md`, the first with M1.1 and the 
 | M4.5 Live graph validation | As the author edits, the canvas shows the graph YAAT builds, its issues, and a taxi route between two picked points. | `src/Yaat.Sim/Authoring/AirportMap/AirportMapValidation.cs`, `src/Yaat.Client/Views/Authoring/AirportEditorRenderer.cs` |
 | M4.6 Gate tags, movement areas and save | The author tags stands with airlines and size and marks movement-area taxiways, exports the map as GeoJSON for vNAS data-admin, writes the sidecar into the sidecar checkout for a pull request, and is asked before closing unsaved work; USER_GUIDE gains its Airport Editor section. | `src/Yaat.Sim/Authoring/AirportMap/AirportSidecarWriter.cs`, `src/Yaat.Sim/Data/AirportSidecarDefinition.cs`, the Settings window and `SettingsSearchCatalog`, `src/Yaat.Sim/Data/ARTCCs/README.md`, `ARTCC_CUSTOMIZATION.md`, `USER_GUIDE.md` |
 
+## Fillet overrides
+
+The Airport Editor previews the fillets YAAT generates at each taxiway corner and lets the author override them per corner: remove a corner's fillet, change its radius, force one where the generator skipped the corner, and pin its tangent points on each taxiway. The simulation uses the overrides: the ground graph it builds, and with it taxi paths, turns and conflict geometry, follows them.
+
+Overrides are stored in the airport's `Data/ARTCCs` sidecar, in their own section, keyed by the corner's pre-fillet apex position plus its two taxiway names and arm bearings, and resolved against the pre-fillet layout as `blockedTurns` is (`BlockedTurnResolver`). Node and corner ids renumber on every load, so they are never the key. An override whose apex no longer matches a corner after a vNAS map update is reported as orphaned and never applied elsewhere.
+
+`Yaat.Sim` passes the overrides through `LayoutInputs` into the fillet generator: suppress and radius apply where corners are planned (`CornerSpec.RequestedRadiusFt` is the radius ceiling), a forced corner bypasses the generator's skips, and pinned tangent cuts are fixed points the shared-arm pass and the stable-anchor redirect never move. A public per-corner report gives each corner's outcome (built, skipped with its reason, overridden, orphaned), its achieved radius and its warnings, including the skips that raise no warning today. The sidecar section joins `AirportSidecarHash`, so the precompute layout cache invalidates when overrides change.
+
+Built as YAAT-2519 (the `Yaat.Sim` half) and YAAT-2520 (the editor tools), after M4.3, M4.5 and M4.6.
+
 ## 7. Tests that matter
 
 Tests follow `tests/CLAUDE.md` and [`docs/test-harness.md`](../../test-harness.md): real navdata through `TestVnasData.EnsureInitialized()`, `YAAT_APPDATA_DIR` pointed at a per-test folder for anything under `YaatPaths`, HTTP stubbed at the `HttpMessageHandler` (the only mocked boundary), seeded `Random` for every random choice, and no wall-clock assertion.
