@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT Scope: where the map tools and the weather text go (YAAT-2465)</title>
+<style>
+  @font-face { font-family: "JetBrains Mono"; src: url("JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+  @font-face { font-family: "JetBrains Mono"; src: url("JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+  :root { --new: #ff9f1a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 30px 40px; background: #1a1f24; color: #d8dee4; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; width: 1520px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  h2 { font-size: 18px; margin: 34px 0 4px; padding-top: 14px; border-top: 1px solid #39424b; }
+  p.lead { margin: 0 0 6px; max-width: 1400px; color: #b6c0c9; }
+  .legend { display: flex; gap: 22px; margin: 10px 0 0; font-size: 13px; color: #b6c0c9; align-items: center; }
+  .swatch { display: inline-block; width: 26px; height: 14px; vertical-align: -2px; margin-right: 6px; }
+  .lane { margin: 18px 0 0; }
+  .lane-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .tag { font: 700 18px "Segoe UI", sans-serif; background: #e7f6fb; color: #0a1015; padding: 1px 10px; border-radius: 3px; }
+  .rec { font-size: 12px; font-weight: 700; color: #0a1015; background: #7fd67f; padding: 2px 8px; border-radius: 3px; letter-spacing: .04em; }
+  .lane-title { font-size: 16px; font-weight: 600; }
+  .cap { margin: 0 0 8px; color: #b6c0c9; max-width: 1460px; }
+  .cap b { color: #e9eef2; }
+  .measure { font-size: 12.5px; color: #8fd0ea; margin: 6px 0 0; font-family: Consolas, monospace; }
+
+  /* The Scope window: toolbar over the black scope, as ScopeToolbar.axaml and ScopeToolbarStyles.axaml draw it. */
+  .win { width: 1460px; background: #000; border: 1px solid #3b4650; box-shadow: 0 2px 10px #0008; position: relative; }
+  .bar { height: 45px; background: #0a1015; display: flex; font: 12px/14px "JetBrains Mono", monospace; }
+  .viewport { flex: 1 1 auto; overflow: hidden; min-width: 0; }
+  .row { display: inline-flex; gap: 1px; background: #22313b; height: 45px; }
+  .chev { display: none; }
+  .bar.overflow .chev { display: flex; }
+  .tile { position: relative; height: 45px; padding: 0 8px 0 5px; border: 1px solid #10181e; background: #10181e; color: #c9d4dc;
+          display: flex; align-items: center; justify-content: center; text-align: center; white-space: pre; font: 12px/14px "JetBrains Mono", monospace; }
+  .tile.half { height: 22px; }
+  .tile.active { border-color: #58c4e6; color: #e7f6fb; }
+  .tile.disabled { color: #4a5660; }
+  .tile .txt { display: block; white-space: pre; }
+  .tile b { font-weight: 700; }
+  .tile .ph { color: #5f6b75; }
+  .tile .mark { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 11px; color: #8fa3b1; }
+  .tile.active .mark { color: #58c4e6; }
+  .tile.new::after { content: ""; position: absolute; inset: -1px; outline: 2px dashed var(--new); outline-offset: -2px; pointer-events: none; }
+  .pair { display: flex; flex-direction: column; gap: 1px; }
+  .chev .tile { padding: 0 6px; }
+  .tray { background: #0a1015; border-bottom: 1px solid #22313b; display: flex; flex-wrap: wrap; row-gap: 1px; }
+  .win > .tray { position: absolute; left: 0; right: 0; top: 45px; z-index: 3; }
+  .body { display: flex; }
+  .dock { width: 360px; flex: none; background: #070b0f; border-left: 1px solid #22313b; }
+  .dock .card { margin: 6px 6px 0; border: 1px solid #22313b; background: #0a1015; font: 12px/16px "JetBrains Mono", monospace; }
+  .dock .card .hd { background: #10181e; display: flex; justify-content: space-between; color: #c9d4dc; padding: 2px 2px 2px 8px; }
+  .dock .card .hd span:last-child { padding: 0 6px; }
+  .dock .card .bd { padding: 6px 8px; min-height: 12px; }
+  .narrow { margin-top: 10px; display: flex; gap: 24px; align-items: flex-start; }
+  .narrow .win { width: auto; }
+  .narrow .lbl { font: 12px Consolas, monospace; color: #8fd0ea; margin-bottom: 4px; }
+  .col { background: #22313b; border-right: 1px solid #22313b; display: flex; flex-direction: column; gap: 1px; }
+  .scope { position: relative; overflow: hidden; background: #000; flex: 1 1 auto; }
+  .scope svg { position: absolute; left: 0; top: 0; }
+
+  /* The SSA card (ScopeViewCard.axaml), torn off at the scope's top-left (8, 8). */
+  .ssa { position: absolute; left: 8px; top: 8px; border: 1px solid #22313b; background: #0a1015; font: 12px/16px "JetBrains Mono", monospace; }
+  .ssa .hd { background: #10181e; display: flex; justify-content: space-between; color: #c9d4dc; padding: 2px 2px 2px 8px; }
+  .ssa .hd span:last-child { padding: 0 6px; }
+  .ssa .bd { padding: 6px 8px; color: #32cd32; white-space: pre; }
+
+  /* The weather readout, as RadarRenderer.DrawWeatherLines draws it: Consolas 14, rgb(0,200,0), 18 px apart. */
+  .wx { position: absolute; left: 10px; font: 14px/18px Consolas, monospace; color: rgb(0,200,0); white-space: pre; }
+  .stars-entry { position: absolute; left: 16px; top: 86px; font: 19px/24px "JetBrains Mono", monospace; color: #2fe02f; white-space: pre; }
+  .ghost { position: absolute; border: 1.5px dashed #c86ad899; border-left: none; border-bottom: none; background: #c86ad80f; color: #d9a3e3; font: 12px/15px "Segoe UI", sans-serif; padding: 4px 6px; }
+  .note { position: absolute; font: 12px/15px "Segoe UI", sans-serif; color: var(--new); white-space: nowrap; }
+  .inset { position: absolute; right: 12px; bottom: 12px; border: 1px solid #58c4e6; background: #05080b; padding: 8px 10px 10px; box-shadow: 0 2px 12px #000c; }
+  .inset h4 { margin: 0 0 6px; font: 600 12px "Segoe UI", sans-serif; color: #8fd0ea; }
+  .inset .sub { font: 11.5px/1.35 "Segoe UI", sans-serif; color: #9aa7b2; margin-top: 7px; max-width: 330px; }
+  .ruler { position: relative; margin-top: 10px; }
+  .ruler .edge { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px solid #ff5050; }
+  .ruler .edge span { position: absolute; left: 6px; top: -18px; color: #ff8080; font: 12px Consolas, monospace; white-space: nowrap; }
+  .ruler .past { position: absolute; top: 0; height: 45px; background: repeating-linear-gradient(135deg, #ff505026 0 6px, transparent 6px 12px); pointer-events: none; }
+</style>
+</head>
+<body>
+<h1>YAAT Scope: where the map tools and the weather text go (YAAT-2465)</h1>
+<p class="lead">Two questions for the owner. <b>A</b>: where the new map tools sit on the toolbar (MVA toggle, pan/zoom LOCK, OFF CNTR, FIX overlay, WX weather toggle, DCNF deconfliction, and the range ring RR with SHOW, PLACE RR, size 2&ndash;20 and RR CNTR). <b>B</b>: where the weather (METAR) text sits on the scope, now that the SSA card holds the top-left corner the Radar used.</p>
+<p class="lead">Each lane is the default 1460 px Scope window under the STARS profile (the SSA floating at the top-left, LA/CA/MCI in the 360 px dock), drawn at 1:1 in the toolbar's own font, tiles and colours (<code>ScopeToolbarStyles.axaml</code>, the half-tile pairing rule of <code>ScopeToolbar.HalfTiles</code>). Bar widths are measured from this page's render.</p>
+<div class="legend">
+  <span><span class="swatch" style="outline:2px dashed var(--new);outline-offset:-2px"></span>new tile (mock annotation, not drawn in the app)</span>
+  <span><span class="swatch" style="border:1px solid #58c4e6;background:#10181e"></span>lit tile (open menu, toggle on)</span>
+  <span><span class="swatch" style="border:1.5px dashed #c86ad8"></span>what else uses that corner</span>
+</div>
+
+<h2>Question A: where the new map tools go</h2>
+
+<section class="lane" id="lane-a1">
+  <div class="lane-head"><span class="tag">A1</span><span class="rec">RECOMMENDED</span><span class="lane-title">MVA tile + DISPLAY menu + RR tile, inserted after TDM</span></div>
+  <p class="cap">Three new tiles after TDM. <b>MVA</b> and <b>DISPLAY &#9656;</b> pair up as one half-tile column; <b>RR &#9656;</b> shows its size, so it is a full tile (<b>RR OFF</b> when hidden). DB/VIEWS, BRITE, PREF and DEL TEAROFF keep their shapes. Shown with DISPLAY open: its tray (FIX, WX, LOCK, DCNF, OFF CNTR) hangs from the window's left edge over the top of the scope, like every tray, so it covers the SSA card while open. The inset shows the RR tray, which takes the same place when RR is pressed instead.</p>
+  <div class="win" data-bar="a1" data-tray="display" data-scope="a" data-inset="rr"></div>
+  <div class="measure" data-measure="a1"></div>
+</section>
+
+<section class="lane" id="lane-a2">
+  <div class="lane-head"><span class="tag">A2</span><span class="lane-title">One bar tile per feature, appended after the existing tiles</span></div>
+  <p class="cap">Seven new tiles (MVA, LOCK, OFF CNTR, FIX, WX, DCNF, RR) named after DEL TEAROFF in the profile; PILOT LENS, which the STARS profile does not name, stays last. The pairing rule now pairs <b>DEL TEAROFF with MVA</b> as half tiles, and DCNF is left a lone full tile. At the default 1460 px window the bar still fits (measured below), so nothing scrolls there; the strips under the window show the same bar in a window narrowed to 700 px, where the chevrons appear: at its left end, and scrolled to its right end.</p>
+  <div class="win" data-bar="a2" data-scope="a"></div>
+  <div class="narrow" data-narrow="a2"></div>
+  <div class="measure" data-measure="a2"></div>
+</section>
+
+<section class="lane" id="lane-a3">
+  <div class="lane-head"><span class="tag">A3</span><span class="lane-title">Everything inside the existing TOOLS tray, beside the Rings tool</span></div>
+  <p class="cap">The bar is unchanged. TOOLS' tray holds the Rings tool (J-RING, CONE, DRI 5, DRI 3, SIZE) and then the ten new controls. Opening TOOLS arms the band's ring tool at once (<b>J-RING</b> lit, <code>ScopeViewModel.OnOpenMenuChanged</code>), so reaching for WX or LOCK leaves a click on a track placing a J-ring until the tray closes.</p>
+  <div class="win" data-bar="today" data-tray="tools" data-scope="a"></div>
+  <div class="measure" data-measure="today"></div>
+</section>
+
+<h2>Question B: where the weather (METAR) text sits</h2>
+
+<section class="lane" id="lane-b1">
+  <div class="lane-head"><span class="tag">B1</span><span class="rec">RECOMMENDED</span><span class="lane-title">Bottom-left, green mono 14 px, lines growing upward</span></div>
+  <p class="cap">Both B lanes show the bar as A1 would leave it. The Radar's lines (Consolas 14, rgb(0,200,0), 18 px apart, 10 px from the left), anchored to the bottom so a new station adds a line above. The SSA card and the STARS entry area keep the top-left. Under the ERAM and MIXED profiles the Response Area and MCA sit in this corner (dashed outline, drawn from <code>ScopeEntryLayer.axaml</code>), so the text would need to sit above them there.</p>
+  <div class="win" data-bar="a1plain" data-scope="b1"></div>
+</section>
+
+<section class="lane" id="lane-b2">
+  <div class="lane-head"><span class="tag">B2</span><span class="lane-title">Top-left, directly under the SSA card</span></div>
+  <p class="cap">The same lines placed under the SSA card at the scope's top-left. The STARS entry and response area also sits under the SSA's default place (16, 86, JetBrains Mono 19, <code>ScopeEntryLayer.axaml</code>), shown here with a sample response: the two share the corner whenever an entry is typed.</p>
+  <div class="win" data-bar="a1plain" data-scope="b2"></div>
+</section>
+
+<script>
+"use strict";
+// Bar buttons in the STARS profile's order (stars.json), each as ScopeToolbarButtons and ScopeViewModel.SpinnerValue draw it.
+const T = (label, o = {}) => ({ label, ...o });
+const TODAY = [
+  T("PROFILE", { value: "STARS", menu: true }),
+  T("TEMPLATE", { menu: true }),
+  T("RANGE", { value: "40" }),
+  T("OTHERS", { value: "FULL" }),
+  T("VECTOR", { value: "1m OWN" }),
+  T("HIST", { value: "5" }),
+  T("TOOLS", { menu: true }),
+  T("AUTO"),
+  T("MAPS", { menu: true }),
+  T("TDM"),
+  T("DB", { menu: true }),
+  T("VIEWS", { menu: true }),
+  T("BRITE", { menu: true }),
+  T("PREF", { menu: true, pref: true }),
+  T("DEL TEAROFF"),
+  T("PILOT LENS", { menu: true, always: true }),
+];
+const idx = (bar, label) => bar.findIndex(b => b.label === label);
+function withInserted(bar, after, items) { const i = idx(bar, after) + 1; return [...bar.slice(0, i), ...items, ...bar.slice(i)]; }
+const BARS = {
+  today: TODAY,
+  a1: withInserted(TODAY, "TDM", [T("MVA", { isNew: true }), T("DISPLAY", { menu: true, isNew: true }), T("RR", { value: "5", menu: true, isNew: true })]),
+  a2: withInserted(TODAY, "DEL TEAROFF", [
+    T("MVA", { isNew: true }), T("LOCK", { isNew: true }), T("OFF CNTR", { isNew: true }), T("FIX", { isNew: true }),
+    T("WX", { isNew: true, active: true }), T("DCNF", { isNew: true }), T("RR", { value: "5", isNew: true }),
+  ]),
+};
+BARS.a1plain = BARS.a1.map(b => ({ ...b, isNew: false }));
+const TRAYS = {
+  display: { menu: "DISPLAY", items: [T("FIX"), T("WX", { active: true }), T("LOCK"), T("DCNF"), T("OFF CNTR")] },
+  rr: { menu: "RR", items: [T("SHOW", { active: true }), T("PLACE RR"), T("SIZE", { value: "5" }), T("RR CNTR")] },
+  tools: { menu: "TOOLS", activeExtra: ["J-RING"], items: [
+    T("J-RING"), T("CONE"), T("DRI 5"), T("DRI 3"), T("SIZE", { value: "3" }),
+    T("MVA", { isNew: true }), T("FIX", { isNew: true }), T("WX", { isNew: true }), T("LOCK", { isNew: true }), T("DCNF", { isNew: true }),
+    T("OFF CNTR", { isNew: true }), T("RR", { isNew: true, active: true }), T("PLACE RR", { isNew: true }), T("RR SIZE", { value: "5", isNew: true }),
+    T("RR CNTR", { isNew: true }),
+  ] },
+};
+
+// ScopeToolbar.HalfTiles: a button showing a value is a full tile; two consecutive without one pair as half tiles.
+function halfTiles(bar) {
+  const values = bar.map(b => (b.value !== undefined) || !!b.pref || !!b.always);
+  const half = bar.map(() => false);
+  let i = 0;
+  while (i + 1 < bar.length) {
+    const pairs = !values[i] && !values[i + 1];
+    half[i] = pairs; half[i + 1] = pairs;
+    i += pairs ? 2 : 1;
+  }
+  return half;
+}
+
+// ScopeButtonControl.LinesOf: one line on a half tile; label over bold value on a full one; a two-word label without a value over two lines.
+function tile(b, isHalf, lit) {
+  const el = document.createElement("div");
+  el.className = "tile" + (isHalf ? " half" : "") + (lit ? " active" : "") + (b.isNew ? " new" : "");
+  const sp = b.label.indexOf(" ");
+  let html;
+  if (b.value !== undefined) html = esc(b.label) + (isHalf ? " " : "\n") + "<b>" + esc(b.value) + "</b>";
+  else if (b.pref) html = esc(b.label) + "\n" + '<span class="ph">—</span>';
+  else if (!isHalf && sp > 0) html = esc(b.label.slice(0, sp)) + "\n" + esc(b.label.slice(sp + 1));
+  else html = esc(b.label);
+  el.innerHTML = "<span class=\"txt\">" + html + "</span>";
+  if (b.menu) { const m = document.createElement("span"); m.className = "mark"; m.textContent = "▸"; el.appendChild(m); }
+  return el;
+}
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+
+function buildRow(bar, openMenu) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const half = halfTiles(bar);
+  let i = 0;
+  while (i < bar.length) {
+    const lit = b => !!b.active || (b.label === openMenu);
+    if (!half[i]) { row.appendChild(tile(bar[i], false, lit(bar[i]))); i++; continue; }
+    const pair = document.createElement("div");
+    pair.className = "pair";
+    pair.appendChild(tile(bar[i], true, lit(bar[i])));
+    pair.appendChild(tile(bar[i + 1], true, lit(bar[i + 1])));
+    row.appendChild(pair);
+    i += 2;
+  }
+  return row;
+}
+
+function buildBar(bar, openMenu) {
+  const el = document.createElement("div");
+  el.className = "bar";
+  const left = document.createElement("div"); left.className = "chev"; left.appendChild(tile(T("‹"), false, false));
+  const right = document.createElement("div"); right.className = "chev"; right.appendChild(tile(T("›"), false, false));
+  left.firstChild.classList.add("disabled");
+  const vp = document.createElement("div"); vp.className = "viewport";
+  vp.appendChild(buildRow(bar, openMenu));
+  el.append(left, vp, right);
+  return el;
+}
+
+// ScopeToolbar.RebuildTray: half tiles two to a column, column by column, left-aligned under the bar.
+function buildTray(spec) {
+  const el = document.createElement("div");
+  el.className = "tray";
+  const items = spec.items;
+  for (let i = 0; i < items.length; i += 2) {
+    const col = document.createElement("div");
+    col.className = "col";
+    for (const b of items.slice(i, i + 2)) col.appendChild(tile(b, true, !!b.active || (spec.activeExtra || []).includes(b.label)));
+    el.appendChild(col);
+  }
+  return el;
+}
+
+// The scope: faint map lines, three STARS tracks with history dots, leaders and blocks (ScopeRenderer colours).
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(name, attrs) { const e = document.createElementNS(SVGNS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function drawScope(scope, w, h, tracks) {
+  const svg = svgEl("svg", { width: w, height: h, viewBox: "0 0 " + w + " " + h });
+  const map = "rgba(150,150,150,0.38)";
+  const cx = w * 0.52, cy = h * 0.55;
+  // Runways (two parallels and a crossing pair) and a few airway / boundary lines.
+  [[-46, -6, 46, -24], [-44, 4, 48, -14], [-12, -40, 6, 36], [-2, -42, 16, 34]].forEach(([x1, y1, x2, y2]) =>
+    svg.appendChild(svgEl("line", { x1: cx + x1, y1: cy + y1, x2: cx + x2, y2: cy + y2, stroke: map, "stroke-width": 1.4 })));
+  const coast = [[0.06, 0.0], [0.12, 0.22], [0.1, 0.44], [0.18, 0.62], [0.16, 0.86], [0.24, 1.0]].map(([x, y]) => (w * x) + "," + (h * y)).join(" ");
+  svg.appendChild(svgEl("polyline", { points: coast, fill: "none", stroke: map, "stroke-width": 1 }));
+  [[[0.52, 0.55], [0.86, 0.06]], [[0.52, 0.55], [0.97, 0.78]], [[0.52, 0.55], [0.3, 1.0]], [[0.52, 0.55], [0.7, 0.0]]].forEach(([[a, b], [c, d]]) =>
+    svg.appendChild(svgEl("line", { x1: w * a, y1: h * b, x2: w * c, y2: h * d, stroke: "rgba(150,150,150,0.22)", "stroke-width": 1, "stroke-dasharray": "6 6" })));
+  const boundary = [[0.38, 0.0], [0.33, 0.3], [0.4, 0.62], [0.36, 1.0]].map(([x, y]) => (w * x) + "," + (h * y)).join(" ");
+  svg.appendChild(svgEl("polyline", { points: boundary, fill: "none", stroke: "rgba(150,150,150,0.25)", "stroke-width": 1 }));
+  for (const t of tracks) drawTrack(svg, t.x * w, t.y * h, t);
+  scope.appendChild(svg);
+}
+function drawTrack(svg, x, y, t) {
+  const sym = "rgb(0,176,255)";
+  const [dx, dy] = t.dir;
+  for (let k = 1; k <= 5; k++) svg.appendChild(svgEl("circle", { cx: x - dx * k * 9, cy: y - dy * k * 9, r: 1.8, fill: sym, opacity: 0.85 - k * 0.12 }));
+  if (t.owned) svg.appendChild(svgEl("line", { x1: x, y1: y, x2: x + dx * 40, y2: y + dy * 40, stroke: "#fff", "stroke-width": 1 }));
+  svg.appendChild(svgEl("circle", { cx: x, cy: y, r: 4, fill: sym }));
+  const color = t.owned ? "#ffffff" : "rgb(50,205,50)";
+  svg.appendChild(svgEl("line", { x1: x + 5, y1: y - 5, x2: x + 20, y2: y - 20, stroke: color, "stroke-width": 1 }));
+  t.block.forEach((line, i) => {
+    const txt = svgEl("text", { x: x + 23, y: y - 26 + i * 15, fill: color, "font-family": "Consolas, monospace", "font-size": 13, "font-weight": 700 });
+    txt.textContent = line;
+    svg.appendChild(txt);
+  });
+}
+const TRACKS_A = [
+  { x: 0.4, y: 0.4, dir: [0.92, 0.39], block: ["UAL1592", "110 28"], owned: true },
+  { x: 0.57, y: 0.56, dir: [-0.8, -0.6], block: ["SWA2316", "080 25"] },
+  { x: 0.24, y: 0.78, dir: [0.2, -0.98], block: ["N731QR", "045 12"] },
+];
+const TRACKS_B = [
+  { x: 0.5, y: 0.4, dir: [0.92, 0.39], block: ["UAL1592", "110 28"], owned: true },
+  { x: 0.66, y: 0.66, dir: [-0.8, -0.6], block: ["SWA2316", "080 25"] },
+  { x: 0.42, y: 0.66, dir: [0.2, -0.98], block: ["N731QR", "045 12"] },
+];
+const WX_LINES = ["KOAK 30.02 290 08KT", "KSFO 30.01 280 12G18KT 250V310"];
+function ssaCard() {
+  const el = document.createElement("div");
+  el.className = "ssa";
+  el.innerHTML = '<div class="hd"><span>SSA</span><span>–</span></div><div class="bd">1626/19 30.01 KSFO\nOK/OK/NA FUSED 40NM</div>';
+  return el;
+}
+
+function buildWindow(win) {
+  const bar = BARS[win.dataset.bar];
+  const tray = win.dataset.tray ? TRAYS[win.dataset.tray] : null;
+  win.appendChild(buildBar(bar, tray ? tray.menu : null));
+  // ScopeWindow.axaml: the tray hangs below the bar over the scope; the views dock is a 360 px column right of the scope.
+  if (tray) win.appendChild(buildTray(tray));
+  const kind = win.dataset.scope;
+  const h = kind === "a" ? 340 : 430;
+  const body = document.createElement("div");
+  body.className = "body";
+  body.style.height = h + "px";
+  const scope = document.createElement("div");
+  scope.className = "scope";
+  const w = 1460 - 360;
+  drawScope(scope, w, h, kind === "a" ? TRACKS_A : TRACKS_B);
+  const ssa = ssaCard();
+  scope.appendChild(ssa);
+  body.append(scope, dockColumn());
+  win.appendChild(body);
+  if (win.dataset.inset) scope.appendChild(rrInset());
+  if (kind === "b1") placeWxBottom(scope, h);
+  if (kind === "b2") placeWxUnderSsa(scope, ssa);
+}
+
+// The STARS profile opens the SSA (floating, top-left) and LA/CA/MCI, which sits in the dock.
+function dockColumn() {
+  const el = document.createElement("div");
+  el.className = "dock";
+  el.innerHTML = '<div class="card"><div class="hd"><span>LA/CA/MCI</span><span>\u2013</span></div><div class="bd"></div></div>';
+  return el;
+}
+
+function rrInset() {
+  const el = document.createElement("div");
+  el.className = "inset";
+  el.innerHTML = "<h4>Inset: RR pressed instead of DISPLAY</h4>";
+  const strip = document.createElement("div");
+  strip.style.display = "flex"; strip.style.gap = "10px"; strip.style.alignItems = "flex-start";
+  const rrTile = document.createElement("div"); rrTile.className = "row";
+  rrTile.appendChild(tile(T("RR", { value: "5", menu: true }), false, true));
+  const lab = document.createElement("div");
+  lab.style.cssText = "font:11.5px/45px 'Segoe UI',sans-serif;color:#9aa7b2";
+  lab.textContent = "lit on the bar; its tray:";
+  strip.append(rrTile, lab);
+  el.appendChild(strip);
+  const tray = buildTray(TRAYS.rr);
+  tray.style.marginTop = "6px"; tray.style.display = "inline-flex";
+  el.appendChild(tray);
+  const sub = document.createElement("div");
+  sub.className = "sub";
+  sub.textContent = "SHOW turns the ring on or off, PLACE RR arms a click that sets its centre, SIZE steps 2/5/10/15/20 NM with the wheel (the bar tile follows), RR CNTR returns it to the home centre.";
+  el.appendChild(sub);
+  return el;
+}
+
+function placeWxBottom(scope, h) {
+  const wx = document.createElement("div");
+  wx.className = "wx";
+  wx.textContent = WX_LINES.join("\n");
+  wx.style.bottom = "8px";
+  scope.appendChild(wx);
+  const ghost = document.createElement("div");
+  ghost.className = "ghost";
+  ghost.style.cssText += "left:16px;bottom:16px;width:374px;height:183px;";
+  ghost.innerHTML = "ERAM / MIXED profiles only:<br>Response Area (372 &times; 70) over the MCA (374 &times; 105+),<br>16 px from the bottom-left";
+  scope.appendChild(ghost);
+}
+
+function placeWxUnderSsa(scope, ssa) {
+  const entry = document.createElement("div");
+  entry.className = "stars-entry";
+  entry.textContent = "ACCEPT\nN731QR";
+  scope.appendChild(entry);
+  const wx = document.createElement("div");
+  wx.className = "wx";
+  wx.textContent = WX_LINES.join("\n");
+  wx.style.top = (ssa.offsetTop + ssa.offsetHeight + 6) + "px";
+  scope.appendChild(wx);
+  const n = document.createElement("div");
+  n.className = "note";
+  n.style.color = "#d9a3e3";
+  n.style.left = "330px"; n.style.top = "96px";
+  n.textContent = "← STARS entry / response area (16, 86) draws over the weather lines here";
+  scope.appendChild(n);
+}
+
+function rowWidth(bar) {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;left:-99999px;top:0";
+  const row = buildRow(bar, null);
+  probe.appendChild(row);
+  document.body.appendChild(probe);
+  const w = row.getBoundingClientRect().width;
+  probe.remove();
+  return Math.round(w);
+}
+
+const NARROW = 700;
+function finish() {
+  document.querySelectorAll(".win").forEach(buildWindow);
+  // Chevrons show only while the row is wider than the bar (ScopeToolbar.UpdateChevrons).
+  document.querySelectorAll(".bar").forEach(bar => {
+    const row = bar.querySelector(".row");
+    if (row.getBoundingClientRect().width > bar.getBoundingClientRect().width + 0.5) bar.classList.add("overflow");
+  });
+  const today = rowWidth(BARS.today), a1 = rowWidth(BARS.a1), a2 = rowWidth(BARS.a2);
+  const say = (sel, text) => { const el = document.querySelector('[data-measure="' + sel + '"]'); if (el) el.textContent = text; };
+  const fit = w => (w <= 1460 ? "fits, " + (1460 - w) + " px spare" : (w - 1460) + " px past the window edge");
+  say("today", "Bar today: " + today + " px of the 1460 px window (" + fit(today) + "). A3 leaves it as it is.");
+  say("a1", "Bar: " + a1 + " px of 1460 (" + fit(a1) + "); today's bar is " + today + " px.");
+  say("a2", "Bar: " + a2 + " px of 1460 (" + fit(a2) + "); today's bar is " + today + " px.");
+  // A2's bar in a narrowed window: at its left end, and scrolled to its right end (ScopeToolbar.UpdateChevrons, ScrollBar).
+  const narrow = document.querySelector('[data-narrow="a2"]');
+  for (const end of [false, true]) {
+    const box = document.createElement("div");
+    const lbl = document.createElement("div"); lbl.className = "lbl";
+    lbl.textContent = "Window narrowed to " + NARROW + " px (example), " + (end ? "scrolled to the right end with \u203A" : "at the left end") + ":";
+    const win = document.createElement("div"); win.className = "win"; win.style.width = NARROW + "px";
+    const b = buildBar(BARS.a2, null);
+    win.appendChild(b);
+    box.append(lbl, win);
+    narrow.appendChild(box);
+    b.classList.add("overflow");
+    const vp = b.querySelector(".viewport");
+    const [left, right] = b.querySelectorAll(".chev .tile");
+    left.classList.toggle("disabled", !end);
+    right.classList.toggle("disabled", end);
+    if (end) vp.scrollLeft = vp.scrollWidth;
+  }
+  document.body.dataset.ready = "1";
+}
+Promise.all([document.fonts.load('12px "JetBrains Mono"'), document.fonts.load('bold 12px "JetBrains Mono"')]).then(finish);
+</script>
+</body>
+</html>
