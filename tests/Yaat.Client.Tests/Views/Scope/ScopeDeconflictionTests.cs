@@ -69,6 +69,20 @@ public class ScopeDeconflictionTests
     /// <summary>Two tracks a hair apart, so their default blocks all but cover each other.</summary>
     private static AircraftModel[] OverlappingPair() => OverlappingPair(secondLon: -122.0005);
 
+    // The second track's longitude that sets the pair's anchors 12 px past the engine's close-pair limit (block width less
+    // twice its height), measured on a plain frame.
+    private static double PartingSecondLon()
+    {
+        const double probeDeltaLon = 0.0075;
+        AircraftModel[] probe = OverlappingPair(secondLon: -122.0 - probeDeltaLon);
+        ScopeFrame plain = Plain(probe);
+        ScopeTrack first = TrackOf(plain, probe[0].Callsign);
+        float pxPerDegree = Math.Abs(first.Symbol.X - TrackOf(plain, probe[1].Callsign).Symbol.X) / (float)probeDeltaLon;
+        SKRect block = first.Block.Bounds;
+        float dx = block.Width - (2 * block.Height) + 12f;
+        return -122.0 - (dx / pxPerDegree);
+    }
+
     private static AircraftModel[] OverlappingPair(double secondLon)
     {
         AircraftModel first = ScopeTestAircraft.CreateModel();
@@ -152,9 +166,9 @@ public class ScopeDeconflictionTests
     [Fact]
     public void FreeForm_TwoOverlappingBlocks_PartOneAboveTheOther()
     {
-        // 30 px apart: past the ~28 px (block width less twice its height) under which the shared engine's pair settles
-        // crossed with a sliver.
-        AircraftModel[] pair = OverlappingPair(secondLon: -122.0075);
+        // Past the block width less twice its height, under which the shared engine's pair settles crossed with a sliver; the
+        // spacing comes from the measured block, since the block's width follows the platform's font metrics.
+        AircraftModel[] pair = OverlappingPair(secondLon: PartingSecondLon());
         Assert.True(PairOverlap(Plain(pair)) > 0);
         var deconfliction = new ScopeDeconfliction();
 
