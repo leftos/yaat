@@ -3,15 +3,15 @@ using Avalonia.Input;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The radar cue a flyout's traffic rows drive: the row under the pointer, else the row holding keyboard focus, else none,
-/// has its cue shown (<see cref="IMenuHost.SetRadarCue"/>, with the cue <paramref name="cueFor"/> builds for its key, null
+/// The map cue a flyout's traffic rows drive: the row under the pointer, else the row holding keyboard focus, else none,
+/// has its cue shown (<see cref="IMenuHost.SetMapCue"/>, with the cue <paramref name="cueFor"/> builds for its key, null
 /// for none) and the aircraft its cue rings solid highlighted (<see cref="IMenuHost.HighlightAircraft"/>). The two rows are
 /// tracked apart, as <see cref="ScopeFeedbackTracker"/> tracks them: the pointer leaving a row hands the cue back to the
 /// focused row, and focus passing through another row leaves the pointed row's cue in place.
 /// </summary>
 /// <param name="host">The host the cue and the highlight go to.</param>
 /// <param name="cueFor">The cue for a row's key; null shows none for it.</param>
-internal sealed class RadarCueTracker(IMenuHost host, Func<string, RadarCue?> cueFor)
+internal sealed class MapCueTracker(IMenuHost host, Func<string, MapCue?> cueFor)
 {
     private string? _pointed;
     private string? _focused;
@@ -71,8 +71,8 @@ internal sealed class RadarCueTracker(IMenuHost host, Func<string, RadarCue?> cu
 
     private void Apply()
     {
-        RadarCue? cue = ((_pointed ?? _focused) is { } shown) ? cueFor(shown) : null;
+        MapCue? cue = ((_pointed ?? _focused) is { } shown) ? cueFor(shown) : null;
         host.HighlightAircraft(cue?.TargetCallsign);
-        host.SetRadarCue(cue);
+        host.SetMapCue(cue);
     }
 }

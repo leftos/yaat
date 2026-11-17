@@ -143,7 +143,7 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public void SetScopePreview(ScopePreview? preview) => inner.SetScopePreview(preview);
 
-    public void SetRadarCue(RadarCue? cue) => inner.SetRadarCue(cue);
+    public void SetMapCue(MapCue? cue) => inner.SetMapCue(cue);
 
     public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => inner.GetPushbackFaceChoices(callsign);
 

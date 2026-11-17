@@ -64,7 +64,7 @@ public static class AircraftMenuBuilder
         {
             host.HighlightAircraft(null);
             host.SetScopePreview(null);
-            host.SetRadarCue(null);
+            host.SetMapCue(null);
             host.SetRoutePreview(null);
         };
         SharedMenuGroups.AddHeader(menu.Items, aircraft, context);

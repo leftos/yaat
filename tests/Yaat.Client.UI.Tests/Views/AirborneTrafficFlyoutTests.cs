@@ -311,12 +311,12 @@ public class AirborneTrafficFlyoutTests
 
         RaisePointer(panel.Rows[1], InputElement.PointerEnteredEvent);
 
-        Assert.Equal(new RadarCue(Callsign, "AC02", null, true), host.RadarCues[^1]);
+        Assert.Equal(new MapCue(Callsign, "AC02", null, true), host.MapCues[^1]);
         Assert.Equal("AC02", host.Highlights[^1]);
 
         RaisePointer(panel.Rows[1], InputElement.PointerExitedEvent);
 
-        Assert.Null(host.RadarCues[^1]);
+        Assert.Null(host.MapCues[^1]);
         Assert.Null(host.Highlights[^1]);
     }
 
@@ -328,11 +328,11 @@ public class AirborneTrafficFlyoutTests
 
         panel.Rows[0].RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
 
-        Assert.Equal((new RadarCue(Callsign, "AC01", null, true), "AC01"), (host.RadarCues[^1], host.Highlights[^1]));
+        Assert.Equal((new MapCue(Callsign, "AC01", null, true), "AC01"), (host.MapCues[^1], host.Highlights[^1]));
 
         panel.Rows[0].RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
 
-        Assert.Equal(((RadarCue?)null, (string?)null), (host.RadarCues[^1], host.Highlights[^1]));
+        Assert.Equal(((MapCue?)null, (string?)null), (host.MapCues[^1], host.Highlights[^1]));
     }
 
     /// <summary>A row the filter takes away under the pointer raises no PointerExited; its cue still goes.</summary>
@@ -342,12 +342,12 @@ public class AirborneTrafficFlyoutTests
         RecordingMenuHost host = HostWith([Row("AC01", 1), Row("BB02", 2)]);
         AirborneTrafficPanel panel = PanelOf(Report(Pilot(), Rpo(), host));
         RaisePointer(panel.Rows[1], InputElement.PointerEnteredEvent);
-        Assert.Equal("BB02", host.RadarCues[^1]?.TargetCallsign);
+        Assert.Equal("BB02", host.MapCues[^1]?.TargetCallsign);
 
         panel.Box.Text = "ac";
 
         Assert.Equal(["AC01"], Callsigns(panel));
-        Assert.Null(host.RadarCues[^1]);
+        Assert.Null(host.MapCues[^1]);
         Assert.Null(host.Highlights[^1]);
     }
 
@@ -358,12 +358,12 @@ public class AirborneTrafficFlyoutTests
         (ContextMenu menu, MenuFlyout flyout) = OpenStripFlyout(host, MenuIds.ApproachReportTrafficInSight);
         AirborneTrafficPanel panel = FlyoutPanel(flyout);
         RaisePointer(panel.Rows[1], InputElement.PointerEnteredEvent);
-        Assert.Equal("AC02", host.RadarCues[^1]?.TargetCallsign);
+        Assert.Equal("AC02", host.MapCues[^1]?.TargetCallsign);
 
         flyout.Hide();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(host.RadarCues[^1]);
+        Assert.Null(host.MapCues[^1]);
         Assert.Null(host.Highlights[^1]);
         menu.Close();
     }

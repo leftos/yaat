@@ -148,7 +148,7 @@ public class SoloAdvisoryFlyoutTests
         Assert.False(panel.IsCheckVisible);
         Assert.Equal("", panel.CheckText);
         Assert.All(panel.Rows, row => Assert.Equal("", row.CommandColumn));
-        Assert.All(host.RadarCues, cue => Assert.Null(cue?.ResolvedCallsign));
+        Assert.All(host.MapCues, cue => Assert.Null(cue?.ResolvedCallsign));
     }
 
     [AvaloniaFact]
@@ -177,7 +177,7 @@ public class SoloAdvisoryFlyoutTests
         panel.Box.Text = "5 6 nw c182 020";
         host.Clock.Advance(SoloAdvisoryPanel.CheckDelay);
 
-        Assert.Equal(new RadarCue(Callsign, "N811CP", "N4417Q", true), host.RadarCues[^1]);
+        Assert.Equal(new MapCue(Callsign, "N811CP", "N4417Q", true), host.MapCues[^1]);
         Assert.Equal("N811CP", host.Highlights[^1]);
         Assert.True(RowOf(panel, "N811CP").IsPointed);
         Assert.Equal(SoloAdvisoryPanel.YourCall, RowOf(panel, "N4417Q").CommandColumn);
@@ -193,7 +193,7 @@ public class SoloAdvisoryFlyoutTests
         panel.Box.Text = "2 4 w sr22 035";
         host.Clock.Advance(SoloAdvisoryPanel.CheckDelay);
 
-        Assert.Equal(new RadarCue(Callsign, null, "N22RX", true), host.RadarCues[^1]);
+        Assert.Equal(new MapCue(Callsign, null, "N22RX", true), host.MapCues[^1]);
         Assert.Null(host.Highlights[^1]);
     }
 
@@ -331,7 +331,7 @@ public class SoloAdvisoryFlyoutTests
         Click(RowOf(blank, "N22RX"));
 
         Assert.Equal("1,500 above · find it on the scope", RowOf(blank, "N22RX").Where);
-        Assert.False(blankHost.RadarCues[^1]!.ShowBearingLabel);
+        Assert.False(blankHost.MapCues[^1]!.ShowBearingLabel);
         Assert.Equal("next: ‹clock›", blank.GhostText.Text);
 
         RecordingMenuHost trueHost = HostWith(N22Rx);
@@ -340,7 +340,7 @@ public class SoloAdvisoryFlyoutTests
         Click(RowOf(shown, "N22RX"));
 
         Assert.Equal("2 o'clock · 4 nm · 1,500 above · westbound", RowOf(shown, "N22RX").Where);
-        Assert.True(trueHost.RadarCues[^1]!.ShowBearingLabel);
+        Assert.True(trueHost.MapCues[^1]!.ShowBearingLabel);
     }
 
     [AvaloniaFact]

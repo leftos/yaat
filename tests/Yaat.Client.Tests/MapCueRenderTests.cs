@@ -2,23 +2,29 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
+using Yaat.Client.Tests.Views.Scope;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
 namespace Yaat.Client.Tests;
 
 /// <summary>
-/// Draws a menu row's radar cue (<see cref="RadarRenderer.DrawMenuCue"/>) on a black offscreen bitmap and probes it: the
-/// solid ring in the highlight blue on the target, the dashed ring in teal on another aircraft the call resolves to, the
-/// dashed bearing line from the commanded aircraft to the target, and the clock and miles label at the line's midpoint,
-/// which the cue leaves out when told to; with no cue, nothing is drawn.
+/// Draws a menu row's map cue (<see cref="MapCueRenderer.Draw"/>) on a black offscreen bitmap and probes it: the solid ring
+/// in the highlight blue on the target, the dashed ring in teal on another aircraft the call resolves to, the dashed
+/// bearing line from the commanded aircraft to the target, and the clock and miles label at the line's midpoint, which the
+/// cue leaves out when told to; with no cue, nothing is drawn. The Scope draws the same cue from a frame's overlays.
 /// </summary>
-public class RadarCueRenderTests
+[Collection(MapBlinkClockCollection.Name)]
+public class MapCueRenderTests
 {
     private const double CenterLat = 37.72;
     private const double CenterLon = -122.22;
     private const int SurfacePx = 400;
+    private const float FontSize = 12f;
 
     /// <summary>The commanded aircraft, 2 nm south of the centre, heading north.</summary>
     private static readonly LatLon FromPosition = new(CenterLat - (2.0 / 60), CenterLon);
@@ -32,7 +38,7 @@ public class RadarCueRenderTests
         MapViewport vp = Viewport();
         (float tx, float ty) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
 
-        using SKBitmap bitmap = Render(vp, new ResolvedRadarCue(TargetPosition, null, null, null));
+        using SKBitmap bitmap = Render(vp, new ResolvedMapCue(TargetPosition, null, null, null));
 
         AssertSolidRing(bitmap, tx, ty);
         Assert.True(IsBackground(PixelAt(bitmap, new SKPoint(tx, ty))), "the ring's centre should stay clear");
@@ -45,7 +51,7 @@ public class RadarCueRenderTests
         (float tx, float ty) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
         (double otherLat, double otherLon) = vp.ScreenToLatLon(tx + 100, ty);
 
-        using SKBitmap bitmap = Render(vp, new ResolvedRadarCue(TargetPosition, new LatLon(otherLat, otherLon), null, null));
+        using SKBitmap bitmap = Render(vp, new ResolvedMapCue(TargetPosition, new LatLon(otherLat, otherLon), null, null));
 
         AssertSolidRing(bitmap, tx, ty);
         List<SKColor> other = [.. RingSamples(tx + 100, ty).Select(point => PixelAt(bitmap, point))];
@@ -62,7 +68,7 @@ public class RadarCueRenderTests
         (float tx, float ty) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
         Assert.True(fy - ty > 100, $"the test zoom must put the pair well apart, was {fy - ty} px");
 
-        using SKBitmap bitmap = Render(vp, new ResolvedRadarCue(TargetPosition, null, FromPosition, null));
+        using SKBitmap bitmap = Render(vp, new ResolvedMapCue(TargetPosition, null, FromPosition, null));
 
         // The line runs straight up from the commanded aircraft; past the target ring it is dashed.
         List<SKColor> line = [.. Enumerable.Range((int)(ty + 20), (int)(fy - ty - 20)).Select(y => PixelAt(bitmap, new SKPoint(fx, y)))];
@@ -79,7 +85,7 @@ public class RadarCueRenderTests
         AircraftModel target = Airborne("SWA1", TargetPosition);
         MapViewport vp = Viewport();
 
-        ResolvedRadarCue? cue = new RadarCue(from.Callsign, target.Callsign, null, ShowBearingLabel: true).ResolveAgainst([from, target]);
+        ResolvedMapCue? cue = new MapCue(from.Callsign, target.Callsign, null, ShowBearingLabel: true).ResolveAgainst([from, target]);
 
         Assert.NotNull(cue);
         MenuTrafficRow row = RelativeGeometry.TrafficRow(from, target);
@@ -97,9 +103,9 @@ public class RadarCueRenderTests
         MapViewport vp = Viewport();
         (float rx, float ry) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
 
-        ResolvedRadarCue? cue = new RadarCue(from.Callsign, null, resolved.Callsign, ShowBearingLabel: true).ResolveAgainst([from, resolved]);
+        ResolvedMapCue? cue = new MapCue(from.Callsign, null, resolved.Callsign, ShowBearingLabel: true).ResolveAgainst([from, resolved]);
 
-        Assert.Equal(new ResolvedRadarCue(null, TargetPosition, null, null), cue);
+        Assert.Equal(new ResolvedMapCue(null, TargetPosition, null, null), cue);
         using SKBitmap bitmap = Render(vp, cue);
         List<SKColor> ring = [.. RingSamples(rx, ry).Select(point => PixelAt(bitmap, point))];
         Assert.Contains(ring, IsTeal);
@@ -114,7 +120,7 @@ public class RadarCueRenderTests
         AircraftModel target = Airborne("SWA1", TargetPosition);
         MapViewport vp = Viewport();
 
-        ResolvedRadarCue? cue = new RadarCue(from.Callsign, target.Callsign, null, ShowBearingLabel: false).ResolveAgainst([from, target]);
+        ResolvedMapCue? cue = new MapCue(from.Callsign, target.Callsign, null, ShowBearingLabel: false).ResolveAgainst([from, target]);
 
         Assert.NotNull(cue);
         Assert.Equal((FromPosition, (string?)null), (cue.From, cue.BearingLabel));
@@ -128,6 +134,36 @@ public class RadarCueRenderTests
         using SKBitmap bitmap = Render(Viewport(), null);
 
         Assert.All(bitmap.Pixels, pixel => Assert.Equal(SKColors.Black, pixel));
+    }
+
+    [Fact]
+    public void Scope_DrawsTheCueFromTheFramesOverlays()
+    {
+        MapViewport vp = Viewport();
+        AircraftModel target = ScopeTestAircraft.CreateModel();
+        target.Callsign = "SWA1";
+        target.Position = TargetPosition;
+        ScopeFrame frame = ScopeFrameFor(target, vp);
+        ScopeTrack track = Assert.Single(frame.Tracks);
+
+        using SKBitmap bitmap = RenderScope(frame, vp, new ResolvedMapCue(TargetPosition, null, null, null));
+
+        AssertSolidRing(bitmap, track.Symbol.X, track.Symbol.Y);
+    }
+
+    [Fact]
+    public void RadarRenderer_DrawsTheCueThroughTheSharedRenderer()
+    {
+        MapViewport vp = Viewport();
+        (float tx, float ty) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
+        using var bitmap = new SKBitmap(SurfacePx, SurfacePx);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Black);
+        using var renderer = new RadarRenderer();
+
+        renderer.DrawMenuCue(canvas, vp, new ResolvedMapCue(TargetPosition, null, null, null));
+
+        AssertSolidRing(bitmap, tx, ty);
     }
 
     private static MapViewport Viewport() =>
@@ -152,22 +188,75 @@ public class RadarCueRenderTests
             IsOnGround = false,
         };
 
-    private static SKBitmap Render(MapViewport vp, ResolvedRadarCue? cue)
+    private static SKBitmap Render(MapViewport vp, ResolvedMapCue? cue)
     {
         var bitmap = new SKBitmap(SurfacePx, SurfacePx);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Black);
-        using var renderer = new RadarRenderer();
-        renderer.DrawMenuCue(canvas, vp, cue);
+        using var renderer = new MapCueRenderer();
+        renderer.Draw(canvas, vp, cue);
         return bitmap;
     }
 
-    /// <summary>Points every 10° on a ring of <see cref="RadarRenderer.MenuCueRingRadiusPx"/> around the given centre.</summary>
+    /// <summary>A STARS-template frame holding <paramref name="ac"/>, measured at <see cref="FontSize"/>.</summary>
+    private static ScopeFrame ScopeFrameFor(AircraftModel ac, MapViewport vp)
+    {
+        using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
+        using var paint = new SKPaint();
+        var metrics = ScopeTextMetrics.FromStyle(new TextStyle(font, paint));
+        var input = new ScopeFrameInput(
+            [ac],
+            null,
+            vp,
+            ScopeTemplates.StarsId,
+            metrics,
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay,
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>(),
+            MvaFacilityId: null,
+            OthersLevel: ScopeProfile.OthersFull,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
+        );
+        return ScopeFrame.Build(input);
+    }
+
+    private static SKBitmap RenderScope(ScopeFrame frame, MapViewport vp, ResolvedMapCue? cue)
+    {
+        var bitmap = new SKBitmap(SurfacePx, SurfacePx);
+        using var canvas = new SKCanvas(bitmap);
+        using var renderer = new ScopeRenderer();
+        var snapshot = new ScopeRenderSnapshot(
+            frame,
+            [],
+            new Dictionary<string, string>(),
+            ScopeBrightness.Default,
+            FontSize,
+            new ScopePalette(null, null, SKColors.White),
+            [],
+            null,
+            new Dictionary<int, SKRect>(),
+            null,
+            new ScopeOverlays { MenuCue = cue }
+        );
+        renderer.Render(canvas, vp, snapshot);
+        canvas.Flush();
+        return bitmap;
+    }
+
+    /// <summary>Points every 10° on a ring of <see cref="MapCueRenderer.MenuCueRingRadiusPx"/> around the given centre.</summary>
     private static IEnumerable<SKPoint> RingSamples(float x, float y) =>
         Enumerable
             .Range(0, 36)
             .Select(i => i * 10 * MathF.PI / 180)
-            .Select(a => new SKPoint(x + (RadarRenderer.MenuCueRingRadiusPx * MathF.Cos(a)), y + (RadarRenderer.MenuCueRingRadiusPx * MathF.Sin(a))));
+            .Select(a => new SKPoint(
+                x + (MapCueRenderer.MenuCueRingRadiusPx * MathF.Cos(a)),
+                y + (MapCueRenderer.MenuCueRingRadiusPx * MathF.Sin(a))
+            ));
 
     /// <summary>The pixels right of the bearing line's midpoint, where its label is written.</summary>
     private static List<SKColor> LabelBox(MapViewport vp, SKBitmap bitmap)

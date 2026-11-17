@@ -3,7 +3,7 @@ using Yaat.Sim;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// What a menu row shows on the radar views while it is pointed at or focused (<see cref="IMenuHost.SetRadarCue"/>): a solid
+/// What a menu row shows on the map views while it is pointed at or focused (<see cref="IMenuHost.SetMapCue"/>): a solid
 /// ring on the aircraft the row names, a dashed bearing line to it from the aircraft the menu commands, labelled with the
 /// clock and miles between them, and a dashed ring on the aircraft the call resolves to when that is another one.
 /// </summary>
@@ -16,14 +16,14 @@ namespace Yaat.Client.ContextMenus;
 /// The aircraft the call resolves to, ringed dashed when it is not <paramref name="TargetCallsign"/>; null for none.
 /// </param>
 /// <param name="ShowBearingLabel">Whether the bearing line carries its <c>{clock} o'clock · {nm} nm</c> label.</param>
-public sealed record RadarCue(string FromCallsign, string? TargetCallsign, string? ResolvedCallsign, bool ShowBearingLabel)
+public sealed record MapCue(string FromCallsign, string? TargetCallsign, string? ResolvedCallsign, bool ShowBearingLabel)
 {
     /// <summary>
-    /// Where each end of the cue is among <paramref name="aircraft"/>, the aircraft a radar view draws: an end whose
+    /// Where each end of the cue is among <paramref name="aircraft"/>, the aircraft a map view draws: an end whose
     /// callsign is not among them draws nothing (no ring, and no bearing line when it is the target or the commanded
     /// aircraft). Null when neither ring has an aircraft to draw on.
     /// </summary>
-    public ResolvedRadarCue? ResolveAgainst(IReadOnlyList<IMenuAircraft> aircraft)
+    public ResolvedMapCue? ResolveAgainst(IReadOnlyList<IMenuAircraft> aircraft)
     {
         IMenuAircraft? target = (TargetCallsign is null) ? null : Find(aircraft, TargetCallsign);
         IMenuAircraft? resolvedOther = ((ResolvedCallsign is { } resolved) && (resolved != TargetCallsign)) ? Find(aircraft, resolved) : null;
@@ -34,7 +34,7 @@ public sealed record RadarCue(string FromCallsign, string? TargetCallsign, strin
 
         IMenuAircraft? from = ((target is not null) && (FromCallsign != TargetCallsign)) ? Find(aircraft, FromCallsign) : null;
         string? label = ((target is not null) && (from is not null) && ShowBearingLabel) ? BearingLabel(from, target) : null;
-        return new ResolvedRadarCue(target?.Position, resolvedOther?.Position, from?.Position, label);
+        return new ResolvedMapCue(target?.Position, resolvedOther?.Position, from?.Position, label);
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ public sealed record RadarCue(string FromCallsign, string? TargetCallsign, strin
 }
 
 /// <summary>
-/// A <see cref="RadarCue"/> with its ends placed, as a radar frame draws it: the solid ring at <paramref name="Target"/>, the
+/// A <see cref="MapCue"/> with its ends placed, as a map frame draws it: the solid ring at <paramref name="Target"/>, the
 /// dashed ring at <paramref name="ResolvedOther"/>, the bearing line from <paramref name="From"/> to
 /// <paramref name="Target"/> with <paramref name="BearingLabel"/> at its midpoint. A part left null is not drawn; the line
 /// needs both of its ends.
@@ -61,4 +61,4 @@ public sealed record RadarCue(string FromCallsign, string? TargetCallsign, strin
 /// <param name="ResolvedOther">Where the aircraft the call resolves to is, when it is another aircraft.</param>
 /// <param name="From">Where the commanded aircraft is, when the bearing line is drawn.</param>
 /// <param name="BearingLabel">The line's label, <c>{clock} o'clock · {nm} nm</c>; null for none.</param>
-public sealed record ResolvedRadarCue(LatLon? Target, LatLon? ResolvedOther, LatLon? From, string? BearingLabel);
+public sealed record ResolvedMapCue(LatLon? Target, LatLon? ResolvedOther, LatLon? From, string? BearingLabel);

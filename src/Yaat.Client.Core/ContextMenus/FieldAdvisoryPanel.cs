@@ -21,7 +21,7 @@ namespace Yaat.Client.ContextMenus;
 /// name and where it is. The true clock and miles are pre-filled in RPO mode and in solo with true values, and follow the
 /// aircraft until the user types or touches the dial or stepper; with values left for the student the box starts empty and the
 /// row says to find the field on the scope. Enter sends <c>RFIS {clock} {miles}</c>: the flyout closes when the sim takes it, and
-/// a refusal, or a send that never reached the sim, keeps it open with the reply and the values as sent. No radar cue: the field
+/// a refusal, or a send that never reached the sim, keeps it open with the reply and the values as sent. No map cue: the field
 /// is no aircraft target.
 /// </summary>
 public sealed class FieldAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel

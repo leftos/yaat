@@ -158,7 +158,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         ScopeDataBlockViewState?
     >(nameof(DataBlockState));
 
-    public static readonly StyledProperty<RadarCue?> MenuCueProperty = AvaloniaProperty.Register<RadarCanvas, RadarCue?>(nameof(MenuCue));
+    public static readonly StyledProperty<MapCue?> MenuCueProperty = AvaloniaProperty.Register<RadarCanvas, MapCue?>(nameof(MenuCue));
 
     private const float DataBlockPad = 3f;
     private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
@@ -606,8 +606,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(DataBlockStateProperty, value);
     }
 
-    /// <summary>The radar cue a pointed or focused menu row shows (<see cref="RadarViewModel.MenuCue"/>); null for none.</summary>
-    public RadarCue? MenuCue
+    /// <summary>The map cue a pointed or focused menu row shows (<see cref="RadarViewModel.MenuCue"/>); null for none.</summary>
+    public MapCue? MenuCue
     {
         get => GetValue(MenuCueProperty);
         set => SetValue(MenuCueProperty, value);
@@ -1069,7 +1069,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine,
         IReadOnlyDictionary<int, SKRect> RblReadoutRects,
-        ResolvedRadarCue? MenuCue,
+        ResolvedMapCue? MenuCue,
         IReadOnlySet<string> HiddenCallsigns
     );
 
@@ -1372,7 +1372,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>Builds one render snapshot, as a frame does, and returns the menu cue it ships to the draw. Test seam.</summary>
-    internal ResolvedRadarCue? CaptureMenuCue() => ((RenderSnapshot)CreateRenderSnapshot()!).MenuCue;
+    internal ResolvedMapCue? CaptureMenuCue() => ((RenderSnapshot)CreateRenderSnapshot()!).MenuCue;
 
     private string? FindHoveredFixName(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, Point mousePos)
     {

@@ -1012,17 +1012,17 @@ A quick command's strip flyout built from rows with their own layout (glyph or b
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.
 
+**Map cue**:
+What a pointed or focused menu row draws on the radar and Scope views (`MapCue`, sent through `IMenuHost.SetMapCue`): a solid ring on the aircraft the row names, a dashed bearing line to it from the commanded aircraft labelled with its clock position and miles, and a dashed ring on the aircraft the call resolves to when that is another one, with the named aircraft's datablock highlighted. It clears when the menu closes; the radar and Scope counterpart of the **scope preview**, which only the ground views draw.
+
 **Point menu**:
 The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: on the ground, an icon strip of the taxi items that apply, then the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to runway, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
 
 **Primary verb**:
 The first alias of a command in the controller's command scheme (`CommandPattern.PrimaryVerb`), the verb the command bar completes to and a menu row shows as its **alias**.
 
-**Radar cue**:
-What a pointed or focused menu row draws on the radar views (`RadarCue`, sent through `IMenuHost.SetRadarCue`): a solid ring on the aircraft the row names, a dashed bearing line to it from the commanded aircraft labelled with its clock position and miles, and a dashed ring on the aircraft the call resolves to when that is another one. It clears when the menu closes; the radar's counterpart of the **scope preview**, which the radar does not draw.
-
 **Scope preview**:
-What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. A pointed or focused Hold short of… stop draws the bar boxed and the aircraft's route solid to it, with no ring. It clears when the menu closes and is not drawn on the radar.
+What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. A pointed or focused Hold short of… stop draws the bar boxed and the aircraft's route solid to it, with no ring. It clears when the menu closes and is not drawn on the radar or the Scope.
 
 **Staffed position**:
 A position in the room's controller list that has a controller signed on (a live CRC client or a scenario auto-connect position, `OnlineControllerDto.IsActive`), as against a standby one. The Initiate handoff… and Point out… flyouts list only staffed positions.

@@ -33,7 +33,7 @@ public enum AirborneTrafficVerb
 /// type and the pattern leg, the in sight, not in sight and following notes, then the clock, miles, altitude difference and
 /// direction of flight, and sends <c>RTIS {callsign}</c> or <c>FOLLOW {callsign}</c>. Follow lists the aircraft reported in
 /// sight first and greys the rest, which send nothing until Force turns them into <c>FOLLOWF {callsign}</c>. A row pointed at
-/// or focused shows its radar cue (<see cref="RadarCue"/>) and highlights its aircraft. While the strip's flyout is open the list
+/// or focused shows its map cue (<see cref="MapCue"/>) and highlights its aircraft. While the strip's flyout is open the list
 /// refills once a second, its order held while the pointer is inside, an aircraft that left staying as a dimmed gone row; the
 /// list catches up when the pointer leaves. With no other aircraft airborne the entry is disabled with the reason beside its
 /// label and the strip's button is faded and inert.
@@ -538,7 +538,7 @@ public sealed class AirborneTrafficPanel : StackPanel
     private readonly IMenuAircraft? _aircraft;
     private readonly MenuContext _context;
     private readonly Func<string, Task> _choose;
-    private readonly RadarCueTracker _cue;
+    private readonly MapCueTracker _cue;
     private readonly TextBlock _titleNow = new();
     private readonly TextBlock _groupCount = new() { FontSize = 11, Foreground = FlyoutPanelParts.TitleBrush };
     private readonly Grid _groupLine;
@@ -556,7 +556,7 @@ public sealed class AirborneTrafficPanel : StackPanel
         _aircraft = aircraft;
         _context = context;
         _choose = choose;
-        _cue = new RadarCueTracker(host, CueFor);
+        _cue = new MapCueTracker(host, CueFor);
         _list.Styles.Add(
             new Style(x =>
                 x.OfType<Button>().Class(AirborneTrafficFlyout.NewcomerClass).Template().OfType<ContentPresenter>().Name("PART_ContentPresenter")
@@ -663,7 +663,7 @@ public sealed class AirborneTrafficPanel : StackPanel
     /// <summary>Holds the rows' order while <paramref name="inside"/> (the pointer is over the flyout), or lets it go.</summary>
     internal void Hold(bool inside) => _held = inside ? [.. _shown] : null;
 
-    /// <summary>Puts the flyout back as it opens: the order let go, Force off, the box empty, no radar cue.</summary>
+    /// <summary>Puts the flyout back as it opens: the order let go, Force off, the box empty, no map cue.</summary>
     internal void Reset()
     {
         _held = null;
@@ -953,9 +953,9 @@ public sealed class AirborneTrafficPanel : StackPanel
     private Task SendRowAsync(AirborneTrafficRowButton row) => row.Entry.SendsCommand ? _choose(row.Entry.Command) : Task.CompletedTask;
 
     /// <summary>The cue for the row of <paramref name="callsign"/>: the bearing line to it from this aircraft; none once gone.</summary>
-    private RadarCue? CueFor(string callsign) =>
+    private MapCue? CueFor(string callsign) =>
         (_buttons.TryGetValue(callsign, out AirborneTrafficRowButton? row) && !row.Entry.IsGone)
-            ? new RadarCue(_context.Callsign, callsign, null, true)
+            ? new MapCue(_context.Callsign, callsign, null, true)
             : null;
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)

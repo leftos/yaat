@@ -188,8 +188,8 @@ public interface IMenuHost
     bool IsOnTaxiRoute(string callsign, string otherCallsign);
 
     /// <summary>
-    /// Highlights <paramref name="callsign"/>'s datablock on the ground and radar views while a traffic row under the pointer
-    /// names it, replacing the aircraft highlighted before; null clears it. A highlight the controller set by hand stays.
+    /// Highlights <paramref name="callsign"/>'s datablock on the ground, radar and scope views while a traffic row under the
+    /// pointer names it, replacing the aircraft highlighted before; null clears it. A highlight the controller set by hand stays.
     /// </summary>
     void HighlightAircraft(string? callsign);
 
@@ -221,15 +221,15 @@ public interface IMenuHost
 
     /// <summary>
     /// Shows <paramref name="preview"/> on the ground views, replacing the one shown before; null clears it. The radar
-    /// views draw no scope preview; a row's radar cue goes through <see cref="SetRadarCue"/>.
+    /// views draw no scope preview; a row's map cue goes through <see cref="SetMapCue"/>.
     /// </summary>
     void SetScopePreview(ScopePreview? preview);
 
     /// <summary>
-    /// Shows <paramref name="cue"/> on the radar views, replacing the one shown before; null clears it. Each view places
+    /// Shows <paramref name="cue"/> on the map views, replacing the one shown before; null clears it. Each view places
     /// its ends against the aircraft it draws, so an aircraft it does not draw gets nothing.
     /// </summary>
-    void SetRadarCue(RadarCue? cue);
+    void SetMapCue(MapCue? cue);
 
     /// <summary>
     /// The pushback facings at <paramref name="callsign"/>'s stand, one per taxiway leaving it: each item's text and

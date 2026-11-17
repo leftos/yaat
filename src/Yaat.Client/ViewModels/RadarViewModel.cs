@@ -110,9 +110,9 @@ public partial class RadarViewModel(
     [ObservableProperty]
     private double _rangeNm = DefaultRangeNm;
 
-    /// <summary>The radar cue a pointed or focused menu row shows (<see cref="IMenuHost.SetRadarCue"/>); null for none.</summary>
+    /// <summary>The map cue a pointed or focused menu row shows (<see cref="IMenuHost.SetMapCue"/>); null for none.</summary>
     [ObservableProperty]
-    private RadarCue? _menuCue;
+    private MapCue? _menuCue;
 
     /// <summary>
     /// The facility whose video maps the radar loaded (<see cref="FacilityVideoMapsDto.FacilityId"/>): every MVA readout on this

@@ -550,8 +550,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     }
 
     /// <summary>
-    /// Highlights <paramref name="callsign"/> on every ground and radar view (<see cref="DataBlockViewState.SetMenuHighlight"/>),
-    /// or clears it with null.
+    /// Highlights <paramref name="callsign"/> on every ground, radar and scope view
+    /// (<see cref="DataBlockViewState.SetMenuHighlight"/>), or clears it with null.
     /// </summary>
     public void HighlightAircraft(string? callsign)
     {
@@ -563,6 +563,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         foreach (RadarViewModel radar in main.AllRadarViews)
         {
             radar.DataBlockState.SetMenuHighlight(callsign);
+        }
+
+        foreach (ScopeViewModel scope in main.AllScopeViews)
+        {
+            scope.DataBlockState.SetMenuHighlight(callsign);
         }
     }
 
@@ -610,7 +615,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>
     /// Shows <paramref name="preview"/> on every ground view, so it shows on whichever ground window is open; the radar's
-    /// cue is <see cref="SetRadarCue"/>.
+    /// cue is <see cref="SetMapCue"/>.
     /// </summary>
     public void SetScopePreview(ScopePreview? preview)
     {
@@ -620,12 +625,17 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         }
     }
 
-    /// <summary>Shows <paramref name="cue"/> on every radar view, so it shows on whichever radar window is open.</summary>
-    public void SetRadarCue(RadarCue? cue)
+    /// <summary>Shows <paramref name="cue"/> on every map view, so it shows on whichever radar or scope window is open.</summary>
+    public void SetMapCue(MapCue? cue)
     {
         foreach (RadarViewModel radar in main.AllRadarViews)
         {
             radar.MenuCue = cue;
+        }
+
+        foreach (ScopeViewModel scope in main.AllScopeViews)
+        {
+            scope.MenuCue = cue;
         }
     }
 

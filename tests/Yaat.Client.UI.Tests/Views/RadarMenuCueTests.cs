@@ -16,7 +16,7 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The radar side of a menu row's scope feedback: the host's highlight reaches every radar view and the radar canvas
-/// repaints when it changes; the host's radar cue reaches every radar view, whose canvas places its ends against the
+/// repaints when it changes; the host's map cue reaches every radar view, whose canvas places its ends against the
 /// aircraft it draws; a row's pointer and focus drive the cue, which clears when the row loses both and when the flyout
 /// closes.
 /// </summary>
@@ -58,7 +58,7 @@ public class RadarMenuCueTests
     }
 
     [AvaloniaFact]
-    public void SetRadarCue_ResolvesBothEndsOnTheUiThread()
+    public void SetMapCue_ResolvesBothEndsOnTheUiThread()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
@@ -66,18 +66,18 @@ public class RadarMenuCueTests
         AircraftModel from = Airborne(From, new LatLon(37.70, -122.20));
         AircraftModel target = Airborne(Target, new LatLon(37.75, -122.20));
         canvas.Aircraft = [from, target];
-        var cue = new RadarCue(From, Target, null, ShowBearingLabel: true);
+        var cue = new MapCue(From, Target, null, ShowBearingLabel: true);
 
-        host.SetRadarCue(cue);
+        host.SetMapCue(cue);
         Dispatcher.UIThread.RunJobs();
 
         Assert.All(main.AllRadarViews, radar => Assert.Same(cue, radar.MenuCue));
         Assert.Same(cue, canvas.MenuCue);
-        ResolvedRadarCue? resolved = canvas.CaptureMenuCue();
+        ResolvedMapCue? resolved = canvas.CaptureMenuCue();
         Assert.NotNull(resolved);
         Assert.Equal((target.Position, (LatLon?)null, from.Position), (resolved.Target, resolved.ResolvedOther, resolved.From));
 
-        host.SetRadarCue(null);
+        host.SetMapCue(null);
         Dispatcher.UIThread.RunJobs();
 
         Assert.Null(canvas.MenuCue);
@@ -86,63 +86,63 @@ public class RadarMenuCueTests
     }
 
     [AvaloniaFact]
-    public void SetRadarCue_UnknownCallsign_DrawsNothing()
+    public void SetMapCue_UnknownCallsign_DrawsNothing()
     {
         AircraftModel from = Airborne(From, new LatLon(37.70, -122.20));
         AircraftModel target = Airborne(Target, new LatLon(37.75, -122.20));
         // A target the view does not draw: no ring and no line.
-        var canvas = new RadarCanvas { Aircraft = [from, target], MenuCue = new RadarCue(From, "NOPE1", null, ShowBearingLabel: true) };
+        var canvas = new RadarCanvas { Aircraft = [from, target], MenuCue = new MapCue(From, "NOPE1", null, ShowBearingLabel: true) };
         Assert.Null(canvas.CaptureMenuCue());
 
         // A commanded aircraft the view does not draw: the ring stays, the line and its label go.
-        canvas.MenuCue = new RadarCue("NOPE1", Target, null, ShowBearingLabel: true);
-        ResolvedRadarCue? noFrom = canvas.CaptureMenuCue();
+        canvas.MenuCue = new MapCue("NOPE1", Target, null, ShowBearingLabel: true);
+        ResolvedMapCue? noFrom = canvas.CaptureMenuCue();
         Assert.NotNull(noFrom);
         Assert.Equal((target.Position, (LatLon?)null, (string?)null), (noFrom.Target, noFrom.From, noFrom.BearingLabel));
 
         // A resolved aircraft the view does not draw: no dashed ring.
-        canvas.MenuCue = new RadarCue(From, Target, "NOPE1", ShowBearingLabel: true);
+        canvas.MenuCue = new MapCue(From, Target, "NOPE1", ShowBearingLabel: true);
         Assert.Null(canvas.CaptureMenuCue()?.ResolvedOther);
 
         // A target the view does not draw beside a resolved aircraft it does: the dashed ring alone.
-        canvas.MenuCue = new RadarCue(From, "NOPE1", Target, ShowBearingLabel: true);
-        Assert.Equal(new ResolvedRadarCue(null, target.Position, null, null), canvas.CaptureMenuCue());
+        canvas.MenuCue = new MapCue(From, "NOPE1", Target, ShowBearingLabel: true);
+        Assert.Equal(new ResolvedMapCue(null, target.Position, null, null), canvas.CaptureMenuCue());
     }
 
     [AvaloniaFact]
     public void Cue_ClearsWhenRowLosesPointerAndFocus()
     {
         var host = new RecordingMenuHost("");
-        var tracker = new RadarCueTracker(host, key => new RadarCue(From, key, null, ShowBearingLabel: true));
+        var tracker = new MapCueTracker(host, key => new MapCue(From, key, null, ShowBearingLabel: true));
         var row = new Button();
         tracker.Track(row, Target);
 
         RaisePointer(row, InputElement.PointerEnteredEvent);
-        Assert.Equal((Target, Target), (host.RadarCues[^1]?.TargetCallsign, host.Highlights[^1]));
+        Assert.Equal((Target, Target), (host.MapCues[^1]?.TargetCallsign, host.Highlights[^1]));
 
         // Focus on the row keeps its cue once the pointer leaves.
         row.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
         RaisePointer(row, InputElement.PointerExitedEvent);
-        Assert.Equal((Target, Target), (host.RadarCues[^1]?.TargetCallsign, host.Highlights[^1]));
+        Assert.Equal((Target, Target), (host.MapCues[^1]?.TargetCallsign, host.Highlights[^1]));
 
         row.RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
-        Assert.Equal(((RadarCue?)null, (string?)null), (host.RadarCues[^1], host.Highlights[^1]));
+        Assert.Equal(((MapCue?)null, (string?)null), (host.MapCues[^1], host.Highlights[^1]));
     }
 
     [AvaloniaFact]
     public void Cue_ClearsWhenFlyoutCloses()
     {
         var host = new RecordingMenuHost("");
-        var tracker = new RadarCueTracker(host, key => new RadarCue(From, key, null, ShowBearingLabel: true));
+        var tracker = new MapCueTracker(host, key => new MapCue(From, key, null, ShowBearingLabel: true));
         var row = new Button();
         tracker.Track(row, Target);
         RaisePointer(row, InputElement.PointerEnteredEvent);
         row.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
-        Assert.Equal(Target, host.RadarCues[^1]?.TargetCallsign);
+        Assert.Equal(Target, host.MapCues[^1]?.TargetCallsign);
 
         tracker.Clear();
 
-        Assert.Equal(((RadarCue?)null, (string?)null), (host.RadarCues[^1], host.Highlights[^1]));
+        Assert.Equal(((MapCue?)null, (string?)null), (host.MapCues[^1], host.Highlights[^1]));
     }
 
     [AvaloniaFact]
@@ -160,12 +160,12 @@ public class RadarMenuCueTests
         window.Show();
         menu.Open(window);
         Dispatcher.UIThread.RunJobs();
-        host.SetRadarCue(new RadarCue(From, Target, null, ShowBearingLabel: true));
+        host.SetMapCue(new MapCue(From, Target, null, ShowBearingLabel: true));
 
         menu.Close();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(host.RadarCues[^1]);
+        Assert.Null(host.MapCues[^1]);
         window.Close();
     }
 

@@ -1438,7 +1438,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   Each row shows the callsign, type, pattern leg, a note (`in sight`, `not in sight`, `following`), then clock position, miles, relative altitude and direction of flight as seen from the aircraft you are commanding. Picking a row sends `RTIS {callsign}` or `FOLLOW {callsign}`. Follow lists the traffic the aircraft reported in sight on top and greys the rest (tooltip `Traffic not in sight — issue RTIS first`) until Force is on, when a row sends `FOLLOWF {callsign}`.
 
-  The list refreshes each second and holds its order while the pointer is inside it; an aircraft that departs reads `gone`, and newcomers join the bottom with a blue left edge. Pointing at or focusing a row rings that aircraft on the radar, draws a bearing line labelled with the clock position and miles, and highlights its data block.
+  The list refreshes each second and holds its order while the pointer is inside it; an aircraft that departs reads `gone`, and newcomers join the bottom with a blue left edge. Pointing at or focusing a row rings that aircraft on the radar, draws a bearing line labelled with the clock position and miles, and highlights its data block. The YAAT Scope shows the same cue.
 
   If nothing in the list matches, Enter sends the verb with everything you typed, e.g. `RTIS 2 4 W SR22 35`, or `FOLLOWF` with Force on.
 

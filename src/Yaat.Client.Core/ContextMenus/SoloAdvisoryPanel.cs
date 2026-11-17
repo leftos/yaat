@@ -311,7 +311,7 @@ public sealed class SoloAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
     }
 
     /// <summary>
-    /// Puts the flyout back as it opens: no updates followed, no timers, the box empty, nothing pointed at, no radar cue; a send
+    /// Puts the flyout back as it opens: no updates followed, no timers, the box empty, nothing pointed at, no map cue; a send
     /// still in flight is answered to nobody.
     /// </summary>
     internal void Reset()
@@ -334,7 +334,7 @@ public sealed class SoloAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
         _candidates = [];
         _pointsNear.Clear();
         _host.HighlightAircraft(null);
-        _host.SetRadarCue(null);
+        _host.SetMapCue(null);
     }
 
     /// <summary>Focuses the box once laid out and while <paramref name="isOpen"/> still holds.</summary>
@@ -855,7 +855,7 @@ public sealed class SoloAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
     }
 
     /// <summary>
-    /// The radar cue: the pointed aircraft ringed solid and highlighted, with the bearing line to it, and the aircraft the live
+    /// The map cue: the pointed aircraft ringed solid and highlighted, with the bearing line to it, and the aircraft the live
     /// check resolves the call to ringed dashed when it is another; with none pointed, the resolved aircraft's dashed ring alone.
     /// The bearing label shows only with true values pre-filled.
     /// </summary>
@@ -863,10 +863,10 @@ public sealed class SoloAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
     {
         string? resolved = LiveCheck ? _check?.ResolvedCallsign : null;
         string? pointed = Pointed;
-        RadarCue? cue =
-            ((pointed ?? resolved) is null) ? null : new RadarCue(_context.Callsign, pointed, resolved, Prefill == SoloAdvisoryPrefill.TrueValues);
+        MapCue? cue =
+            ((pointed ?? resolved) is null) ? null : new MapCue(_context.Callsign, pointed, resolved, Prefill == SoloAdvisoryPrefill.TrueValues);
         _host.HighlightAircraft(pointed);
-        _host.SetRadarCue(cue);
+        _host.SetMapCue(cue);
         foreach (SoloTrafficRowButton row in _rowOrder)
         {
             row.Light(row.Callsign == pointed);
