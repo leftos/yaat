@@ -56,7 +56,7 @@ public class ScopeVectorHistTests : IDisposable
 
     private ScopeViewModel Reopen(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return scope;
     }

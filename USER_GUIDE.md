@@ -83,7 +83,7 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-The **View** menu has three submenus: **Windows** (the pop-outs, new Ground window, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
+The **View** menu has three submenus: **Windows** (the pop-outs, new Ground window, new Scope window, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
 
 Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Scope / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** Scope, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item).
 
@@ -106,6 +106,10 @@ The **Scope** tab of the main window (the third tab, where the Radar View used t
 **View > Windows > Scope** (**Ctrl+Shift+R** by default; rebindable in **Settings › Keys** as "Pop out Scope") pops the Scope out into its own window, or docks it back into the tab. Closing the Scope window docks it back with the same state. Whether it is popped out is remembered across sessions, and the Scope's state is saved when its window closes, when your position changes facility and when YAAT exits.
 
 Docked in the main window, **Esc**, **Ctrl+M** and **Ctrl+Shift+T** reach the Scope only while keyboard focus is in it; Esc and Ctrl+T in the command box keep their own meaning. In the pop-out window they always reach the Scope.
+
+**View > Windows > New Scope window…** (after New ground window…) opens another Scope of the same facility, with no airport prompt, titled "YAAT Scope #2", "#3" and so on; a closed window's number is reused. Each extra window keeps its own range, centre, template, maps, markers and tools, saved per window when it closes and when YAAT exits, and opens with defaults the first time. Open extra windows are not reopened at startup.
+
+Typed `.scope`, `.view`, map-tool and marker commands act on the Scope whose canvas last took the focus; closing that window sends them back to the main window's Scope. Unload, restart, rewind, per-aircraft clears and the weather lines reach every open Scope. Measuring lines show in every Scope window, and the next typed `.rbl` places on the Scope that took the focus last.
 
 The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on.
 
@@ -3230,7 +3234,7 @@ Where an import lands depends on where you opened the window. Opened from inside
 | **Discord → Show the scenario I'm running as my Discord status** | While a scenario is loaded, your Discord profile shows its name, the ARTCC and the airport, with a timer counting from when the scenario started (someone who joins a running room gets the room's elapsed time, not a fresh zero). Nothing is shown when no scenario is loaded, and the room and the other people in it are never shown. Needs the Discord desktop app running on the same computer — without it the setting does nothing. Uncheck it and press **Apply** or **OK** to remove the status straight away. | On |
 | **Settings Files → Import / Export...** | Opens the [Import / Export](#importing-and-exporting-settings) window with nothing ticked. An import from it waits for **Apply** or **OK**, and **Cancel** drops it. | — |
 | **Windows → Bring all windows to front together** | Clicking any YAAT window raises all YAAT windows above other apps, like CRC — no more clicking each window individually after Discord or a browser covered them. Minimized windows stay minimized, and the window you clicked keeps focus. | On |
-| **Windows → Always on Top** (Main Window, Ground View, Scope, Aircraft List, Terminal, Flight Strips, Favorites) | Pins that window above all others. Also toggled with the [Always on Top key](#keys) while a window is focused. | Off |
+| **Windows → Always on Top** (Main Window, Ground View, Scope, Aircraft List, Terminal, Flight Strips, Favorites) | Pins that window above all others; the Scope and Ground View settings also apply to their extra windows. Also toggled with the [Always on Top key](#keys) while a window is focused. | Off |
 
 Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** when you connect — they are not entered by hand. See [Signing in with VATSIM](#signing-in-with-vatsim).
 

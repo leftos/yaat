@@ -6,6 +6,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -35,7 +36,7 @@ public class ScopeViewModelViewerTests
     public void ServerActivePosition_SetsTheViewer_AndRaisesItsChange()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.Equal(ScopeViewer.None, scope.Viewer);
         var changed = new List<string?>();
         scope.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
@@ -53,7 +54,7 @@ public class ScopeViewModelViewerTests
     public void ActiveTcpChange_RebuildsTheViewer()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.SetActivePositionFromServer(EramConfig("C44", Sector44));
 
         main.SetActiveTcpFromServer("C14");
@@ -65,7 +66,7 @@ public class ScopeViewModelViewerTests
     public void DropdownPick_ThenTheServersAnswerForTheSameTcp_SetsTheSector()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.SetActivePositionFromServer(EramConfig("C14", Sector44 with { Callsign = "OAK_14_CTR", EramSectorId = "14" }));
 
         // The dropdown pick sets the TCP and drops the old position until the server answers.

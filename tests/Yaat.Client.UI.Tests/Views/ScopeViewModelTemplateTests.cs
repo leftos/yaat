@@ -5,6 +5,7 @@ using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -21,13 +22,13 @@ public class ScopeViewModelTemplateTests
         // The assembly's [PreferencesFilePerTest] gives this test its own preferences file.
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetEuroScopeMode(false);
-        using (var stars = new ScopeViewModel(main, prefStore: null, profileStore: null))
+        using (var stars = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot))
         {
             Assert.Equal(ScopeTemplates.StarsId, stars.TemplateId);
         }
 
         main.Preferences.SetEuroScopeMode(true);
-        using var euroScope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var euroScope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.Equal(ScopeTemplates.EuroScopeId, euroScope.TemplateId);
 
         // A later preference change leaves the open scope's template alone.
@@ -40,7 +41,7 @@ public class ScopeViewModelTemplateTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         bool before = main.Preferences.EuroScopeMode;
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
         Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
@@ -59,7 +60,7 @@ public class ScopeViewModelTemplateTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         bool before = main.Preferences.EuroScopeMode;
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
 
@@ -73,7 +74,7 @@ public class ScopeViewModelTemplateTests
     public void ScopeWindow_TemplateMenu_ClickingMixedSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try
@@ -99,7 +100,7 @@ public class ScopeViewModelTemplateTests
     public void ScopeWindow_TemplateMenu_ClickingEramSwitchesTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         try

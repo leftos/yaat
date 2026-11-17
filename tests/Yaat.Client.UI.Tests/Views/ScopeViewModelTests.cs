@@ -8,6 +8,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 
@@ -54,7 +55,7 @@ public class ScopeViewModelTests
     public void Scope_OpenedBeforeTheSourceLoads_SeedsOnItsFirstLoad()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.True(scope.IsWaitingForMapSource);
         Assert.Empty(scope.MapToggles);
 
@@ -73,7 +74,7 @@ public class ScopeViewModelTests
     public void Scope_DoesNotFollowTheRadar()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         LoadSource(main);
 
         // A radar pan, zoom, toggle or map change leaves the scope where it is.
@@ -96,7 +97,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.ScopeMaps.ShowMvaHintsDefault = true;
         LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.True(scope.ShowMvaHints);
 
         scope.ShowMvaHints = false;
@@ -116,7 +117,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         LoadSource(main);
 
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         Assert.False(scope.IsWaitingForMapSource);
         Assert.Equal([2, 10, 31], scope.MapToggles.Select(t => t.StarsId));
@@ -131,7 +132,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.ScopeMaps.ApplyVideoMapsDtoForTesting(Facility(AreaLat, AreaLon, MapInfo(6), MapInfo(5, tdmOnly: true)), null, null);
 
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         Assert.Equal([("m5", true), ("m6", false)], scope.MapToggles.Select(t => (t.MapId, t.TdmOnly)));
         Assert.Equal(["m5"], scope.TdmOnlyMapIds);
@@ -146,7 +147,7 @@ public class ScopeViewModelTests
         main.Radar.ActiveVideoMaps = [Map("m10")];
         IReadOnlyList<VideoMapData>? radarMaps = main.Radar.ActiveVideoMaps;
         LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         scope.MapToggles[0].IsOn = true;
         scope.MapToggles[1].IsOn = true;
@@ -165,7 +166,7 @@ public class ScopeViewModelTests
         main.CacheVideoMapForTesting(m31);
         main.CacheVideoMapForTesting(m2);
         LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         scope.SetMapOn(31, true);
         scope.SetMapOn(2, true);
         Assert.Equal([m2, m31], scope.VideoMaps);
@@ -192,7 +193,7 @@ public class ScopeViewModelTests
         LoadSource(main);
         VideoMapData m10 = Map("m10");
         main.CacheVideoMapForTesting(m10);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         scope.SetMapOn(10, true);
 
@@ -204,7 +205,7 @@ public class ScopeViewModelTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         scope.SetMapOn(2, true);
         scope.SetMapOn(31, true);
         scope.RangeNm = 25;
@@ -226,7 +227,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.ScopeMaps.ApplyVideoMapsDtoForTesting(Facility(AreaLat, AreaLon, MapInfo(2), MapInfo(5, tdmOnly: true)), null, null);
         main.CacheVideoMapForTesting(Map("m2"));
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         scope.SetMapOn(2, true);
         scope.CenterLat = 40.0;
         scope.CenterLon = -100.0;
@@ -250,7 +251,7 @@ public class ScopeViewModelTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         if (userChange == "pan")
         {
             scope.CenterLat = 38.5;
@@ -276,7 +277,7 @@ public class ScopeViewModelTests
 
         // A newer load has begun: the source still lists the old facility's maps, which are not the ones coming.
         int load = main.ScopeMaps.BeginLoadForTesting();
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.True(scope.IsWaitingForMapSource);
         Assert.Empty(scope.MapToggles);
         int rebuilds = 0;
@@ -301,7 +302,7 @@ public class ScopeViewModelTests
         var main = new MainViewModel(new FakeFilePickerService());
         LoadSource(main);
         int load = main.ScopeMaps.BeginLoadForTesting();
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.True(scope.IsWaitingForMapSource);
 
         main.ScopeMaps.FinishLoadForTesting(load, null, null);
@@ -319,7 +320,7 @@ public class ScopeViewModelTests
         main.ScopeMaps.FinishLoadForTesting(load, null, null);
         Assert.True(main.ScopeMaps.IsReady);
 
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         Assert.True(scope.IsWaitingForMapSource);
         Assert.Empty(scope.MapToggles);
@@ -335,7 +336,7 @@ public class ScopeViewModelTests
     public void MainSelection_FollowsIntoTheScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         AircraftModel ac = Aircraft("UAL238");
         main.Aircraft.Add(ac);
 
@@ -350,7 +351,7 @@ public class ScopeViewModelTests
     public void ScopeWindow_Closed_StopsFollowingMainSelection()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Dispatcher.UIThread.RunJobs();

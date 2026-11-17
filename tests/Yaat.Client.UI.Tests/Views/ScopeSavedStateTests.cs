@@ -113,7 +113,7 @@ public class ScopeSavedStateTests : IDisposable
         MainViewModel nctMain = await MainAsync();
         nctMain.SetActivePositionFromServer(Config(NctSector1));
         SeedSource(nctMain, 40.0, -100.0, "m2");
-        var nctScope = new ScopeViewModel(nctMain, Store(), profileStore: null);
+        var nctScope = new ScopeViewModel(nctMain, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         nctMain.OpenScope = nctScope;
         nctMain.RunScopeCommand(".scope range 80");
         nctScope.Dispose();
@@ -126,7 +126,7 @@ public class ScopeSavedStateTests : IDisposable
             main.SetActivePositionFromServer(Config(NctSector1));
 
             Assert.Equal("NCT", scope.Viewer.EramFacilityId);
-            Assert.Equal(25, Store().LoadCurrent("ZOA")!.RangeNm);
+            Assert.Equal(25, Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
             Assert.Equal(80, scope.RangeNm);
         }
         finally
@@ -149,7 +149,7 @@ public class ScopeSavedStateTests : IDisposable
             Assert.Equal("NCT", scope.Viewer.EramFacilityId);
             Assert.Equal(25, scope.RangeNm);
             Assert.Null(scope.ActivePrefSet);
-            Assert.Equal(25, Store().LoadCurrent("ZOA")!.RangeNm);
+            Assert.Equal(25, Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {
@@ -174,7 +174,7 @@ public class ScopeSavedStateTests : IDisposable
 
             Assert.Equal("ZOA", scope.Viewer.EramFacilityId);
             Assert.Equal(50, scope.RangeNm);
-            Assert.Equal(25, Store().LoadCurrent("ZOA")!.RangeNm);
+            Assert.Equal(25, Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {
@@ -198,7 +198,7 @@ public class ScopeSavedStateTests : IDisposable
 
             Assert.Null(scope.Viewer.EramFacilityId);
             Assert.Equal(50, scope.RangeNm);
-            Assert.Equal(50, Store().LoadCurrent("ZOA")!.RangeNm);
+            Assert.Equal(50, Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {
@@ -215,7 +215,7 @@ public class ScopeSavedStateTests : IDisposable
 
         MainViewModel main = await MainAsync();
         SeedSource(main, 30.0, -90.0, "m2");
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -240,7 +240,7 @@ public class ScopeSavedStateTests : IDisposable
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
         SeedSource(main, 40.0, -100.0, "m2");
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -258,7 +258,7 @@ public class ScopeSavedStateTests : IDisposable
     public async Task NoFacility_SavesAndRestoresNothing()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -301,7 +301,7 @@ public class ScopeSavedStateTests : IDisposable
 
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -373,8 +373,8 @@ public class ScopeSavedStateTests : IDisposable
 
         scope.Dispose();
 
-        Assert.Equal(25, Store().LoadCurrent("ZOA")!.RangeNm);
-        Assert.Equal(80, Store().LoadCurrent("NCT")!.RangeNm);
+        Assert.Equal(25, Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+        Assert.Equal(80, Store().LoadCurrent("NCT", ScopePrefSetStore.PrimarySlot)!.RangeNm);
     }
 
     [AvaloniaFact]
@@ -411,13 +411,13 @@ public class ScopeSavedStateTests : IDisposable
 
         scope.Dispose();
 
-        Assert.Equal(25, Store().LoadCurrent("ZOA")!.RangeNm);
+        Assert.Equal(25, Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
     }
 
     /// <summary>Opens a scope on <paramref name="main"/> for its facility and this test's store, as the window's constructor does.</summary>
     private ScopeViewModel Reopen(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return scope;
     }
@@ -472,7 +472,7 @@ public class ScopeSavedStateTests : IDisposable
         // A scope seeded with no facility; then a scenario load starts the source's load and names the position mid-load.
         MainViewModel main = await MainAsync();
         SeedSource(main, 30.0, -90.0);
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -511,7 +511,7 @@ public class ScopeSavedStateTests : IDisposable
         await SaveZoaStateAsync();
         MainViewModel main = await MainAsync();
         SeedSource(main, 30.0, -90.0);
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -537,7 +537,7 @@ public class ScopeSavedStateTests : IDisposable
         await SaveZoaStateAsync();
         MainViewModel main = await MainAsync();
         SeedSource(main, 30.0, -90.0);
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         try
         {
@@ -564,7 +564,7 @@ public class ScopeSavedStateTests : IDisposable
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(Config(Sector44));
         SeedSource(main, 40.0, -100.0, "m2");
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         scope.SetMapOn(2, true);
         return (main, scope);

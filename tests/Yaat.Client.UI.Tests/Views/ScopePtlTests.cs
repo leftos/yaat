@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
@@ -51,7 +52,7 @@ public class ScopePtlTests
     {
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "C44", Sector44, 3, NoStarsDisplay: true));
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = templateId };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot) { TemplateId = templateId };
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

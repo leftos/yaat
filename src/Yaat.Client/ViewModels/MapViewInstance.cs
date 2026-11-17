@@ -69,6 +69,9 @@ public static class ViewInstanceOrdinals
     /// <summary>Key prefix for an extra Ground View instance.</summary>
     public const string GroundPrefix = "GroundView#";
 
+    /// <summary>Key prefix for an extra YAAT Scope window.</summary>
+    public const string ScopePrefix = MainViewModel.ScopeViewKey + "#";
+
     /// <summary>
     /// The lowest instance number ≥ 2 that is not already in <paramref name="taken"/>. #1 is the docked
     /// primary view, so a first extra window is #2 and a gap left by a closed window is reused.
@@ -90,4 +93,7 @@ public static class ViewInstanceOrdinals
 
     /// <summary>The geometry/preference key for extra Ground View instance <paramref name="ordinal"/>.</summary>
     public static string GroundKey(int ordinal) => GroundPrefix + ordinal.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>The geometry/preference key for extra YAAT Scope window <paramref name="ordinal"/>.</summary>
+    public static string ScopeKey(int ordinal) => ScopePrefix + ordinal.ToString(CultureInfo.InvariantCulture);
 }

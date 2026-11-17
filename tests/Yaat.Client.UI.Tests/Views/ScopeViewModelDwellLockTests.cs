@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
@@ -19,7 +20,7 @@ public class ScopeViewModelDwellLockTests
     public async Task ToggleDwellLock_AddsThenRemovesTheCallsign_WithNoViewerEramSector()
     {
         MainViewModel main = await MainAsync();
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         Assert.Equal(ScopeViewer.None, scope.Viewer);
         string? status = main.StatusText;
 
@@ -37,7 +38,7 @@ public class ScopeViewModelDwellLockTests
     public async Task ToggleDwellLock_NotConnected_SendsNothing_AndSetsNoStatus()
     {
         MainViewModel main = await MainAsync();
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         var sector44 = new ActivePositionDto(
             Callsign: "OAK_44_CTR",
             Name: "Sector 44",
@@ -90,7 +91,7 @@ public class ScopeViewModelDwellLockTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope)> ScopeWithCrcLockedAircraft()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         var sector44 = new ActivePositionDto(
             Callsign: "OAK_44_CTR",
             Name: "Sector 44",

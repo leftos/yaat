@@ -1,6 +1,8 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Logging;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 
@@ -8,8 +10,8 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// Where the YAAT Scope lives: the primary Scope, built with this view model and alive until the app exits, shows as the
-/// main window's Scope tab or, popped out, in its own window; the Scope a typed verb acts on is the one whose canvas last
-/// took the focus.
+/// main window's Scope tab or, popped out, in its own window; extra Scope windows (#2, #3, …) open beside it, each with its
+/// own state; the Scope a typed verb acts on is the one whose canvas last took the focus.
 /// </summary>
 public partial class MainViewModel
 {
@@ -52,8 +54,80 @@ public partial class MainViewModel
         set => ActiveScope = value;
     }
 
-    /// <summary>Every Scope driven by this view model: the one Scope there is, <see cref="OpenScope"/>.</summary>
-    public IEnumerable<ScopeViewModel> AllScopeViews => [OpenScope];
+    /// <summary>
+    /// The extra Scope windows (#2, #3, …) open now. The primary Scope is the implicit #1 and has no entry here. Each
+    /// instance owns its own <see cref="ScopeViewModel"/>, with its own state; the traffic and the selection stay app-wide.
+    /// </summary>
+    public ObservableCollection<ScopeViewInstance> ExtraScopeViews { get; } = [];
+
+    /// <summary>
+    /// Every Scope driven by this view model: the primary first, then the extra windows. A stand-alone Scope set as the
+    /// active one (a test's Scope, which no window hosts) stands in for the primary.
+    /// </summary>
+    public IEnumerable<ScopeViewModel> AllScopeViews
+    {
+        get
+        {
+            // The primary is null only while the constructor builds the views it comes after.
+            ScopeViewModel? first = ((ActiveScope is { } active) && !IsHostedScope(active)) ? active : PrimaryScope;
+            if (first is not null)
+            {
+                yield return first;
+            }
+
+            foreach (ScopeViewInstance instance in ExtraScopeViews)
+            {
+                yield return instance.Vm;
+            }
+        }
+    }
+
+    /// <summary>Opens another Scope window on the lowest free number, a view of the same facility with its own state.</summary>
+    public ScopeViewInstance OpenExtraScopeView()
+    {
+        int ordinal = ViewInstanceOrdinals.NextFree(ExtraScopeViews.Select(i => i.Ordinal));
+        (ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore) = ScopeStoreFactory();
+        var instance = new ScopeViewInstance { Ordinal = ordinal, Vm = new ScopeViewModel(this, prefStore, profileStore, ordinal) };
+        ExtraScopeViews.Add(instance);
+        return instance;
+    }
+
+    /// <summary>
+    /// Drops an extra Scope window and disposes its view model, which saves its state in its slot. The typed verbs go back
+    /// to the primary when it was the active Scope. A no-op when it was already removed.
+    /// </summary>
+    public void CloseExtraScopeView(ScopeViewInstance instance)
+    {
+        if (!ExtraScopeViews.Remove(instance))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(ActiveScope, instance.Vm))
+        {
+            ActiveScope = null;
+        }
+
+        // The view model keeps no disposed Scope: the measuring surface it held falls back to the Radar.
+        if (ReferenceEquals(_activeMeasureScope, instance.Vm))
+        {
+            SetActiveMeasureView(RblView.Radar);
+        }
+
+        instance.Vm.Dispose();
+    }
+
+    /// <summary>Disposes every Scope, saving each one's state, as the app exits.</summary>
+    public void DisposeScopes()
+    {
+        foreach (ScopeViewModel scope in AllScopeViews.ToList())
+        {
+            scope.Dispose();
+        }
+    }
+
+    private bool IsHostedScope(ScopeViewModel scope) =>
+        ReferenceEquals(scope, PrimaryScope) || ExtraScopeViews.Any(instance => ReferenceEquals(instance.Vm, scope));
 
     partial void OnIsScopePoppedOutChanged(bool value)
     {
@@ -64,7 +138,7 @@ public partial class MainViewModel
     private ScopeViewModel CreatePrimaryScope()
     {
         (ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore) = ScopeStoreFactory();
-        return new ScopeViewModel(this, prefStore, profileStore);
+        return new ScopeViewModel(this, prefStore, profileStore, ScopePrefSetStore.PrimarySlot);
     }
 
     private static (ScopePrefSetStore?, ScopeProfileStore?) DiskScopeStores() =>

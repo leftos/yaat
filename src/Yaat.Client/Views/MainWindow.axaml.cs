@@ -205,6 +205,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         MenuItem? newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
         newGroundWindowItem?.Click += OnNewGroundWindowClick;
 
+        MenuItem? newScopeWindowItem = this.FindControl<MenuItem>("NewScopeWindowMenuItem");
+        newScopeWindowItem?.Click += OnNewScopeWindowClick;
+
         MenuItem? layoutItem = this.FindControl<MenuItem>("LayoutMenuItem");
         if (layoutItem is not null)
         {
@@ -294,6 +297,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         WireStripsEntryWindows(vm);
         WireTdlsEntryWindows(vm);
         WireViewInstanceWindows(vm);
+        WireScopeInstanceWindows(vm);
 
         // Sync the content grid's row heights to the initial pop-out state
         // since the partial methods fired before we subscribed above. Without
@@ -4093,7 +4097,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (_isMainWindowClosing)
         {
-            DisposePrimaryScopeAtExit();
+            DisposeScopesAtExit();
             Log.LogInformation("MainWindow closing: teardown complete, close proceeding");
         }
 

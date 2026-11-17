@@ -8,6 +8,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
@@ -81,7 +82,7 @@ public class ScopeFixOverlayTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         Assert.Null(main.ScopeMaps.Fixes);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { ShowFixes = true };
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot) { ShowFixes = true };
 
         Assert.Null(scope.ShownFixes);
 
@@ -150,7 +151,7 @@ public class ScopeFixOverlayTests
     private static async Task<(MainViewModel Main, ScopeView View, Window Window)> ShowScopeAsync()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null)
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot)
         {
             CenterLat = CenterLat,
             CenterLon = CenterLon,

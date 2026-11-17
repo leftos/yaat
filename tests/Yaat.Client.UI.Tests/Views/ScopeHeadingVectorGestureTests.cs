@@ -10,6 +10,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
@@ -40,7 +41,10 @@ public class ScopeHeadingVectorGestureTests
     {
         MainViewModel main = await MainAsync();
         await main.CrcAliasLoad;
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = ScopeTemplates.EuroScopeId };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot)
+        {
+            TemplateId = ScopeTemplates.EuroScopeId,
+        };
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

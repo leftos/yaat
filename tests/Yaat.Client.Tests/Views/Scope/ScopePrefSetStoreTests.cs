@@ -117,11 +117,11 @@ public class ScopePrefSetStoreTests : IDisposable
     public void Current_RoundTrips_TheSavedStateAndTheActiveSet()
     {
         ScopePrefSetStore store = NewStore();
-        store.SaveCurrent("ZOA", Set(null, 37.5));
-        store.SaveCurrent("NCT", Set("SR-DAY", 22));
+        store.SaveCurrent("ZOA", ScopePrefSetStore.PrimarySlot, Set(null, 37.5));
+        store.SaveCurrent("NCT", ScopePrefSetStore.PrimarySlot, Set("SR-DAY", 22));
 
-        ScopePrefSet? unsaved = NewStore().LoadCurrent("ZOA");
-        ScopePrefSet? active = NewStore().LoadCurrent("NCT");
+        ScopePrefSet? unsaved = NewStore().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot);
+        ScopePrefSet? active = NewStore().LoadCurrent("NCT", ScopePrefSetStore.PrimarySlot);
 
         Assert.NotNull(unsaved);
         Assert.Null(unsaved.Name);
@@ -137,7 +137,7 @@ public class ScopePrefSetStoreTests : IDisposable
         ScopePrefSetStore store = NewStore();
 
         Assert.Empty(store.LoadSets("ZOA"));
-        Assert.Null(store.LoadCurrent("ZOA"));
+        Assert.Null(store.LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot));
         Assert.Null(store.FindSet("ZOA", "SR-DAY"));
         Assert.Empty(_log.Warnings);
     }
@@ -170,7 +170,7 @@ public class ScopePrefSetStoreTests : IDisposable
         byte[] corrupt = "{not json"u8.ToArray();
         WriteFile(path, corrupt);
 
-        Assert.Null(NewStore().LoadCurrent("ZOA"));
+        Assert.Null(NewStore().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot));
 
         Assert.Contains(_log.Warnings, warning => warning.Contains("not valid JSON"));
         Assert.Contains(_log.Warnings, warning => warning.Contains("Kept the corrupt"));
@@ -284,7 +284,7 @@ public class ScopePrefSetStoreTests : IDisposable
             """
         );
 
-        ScopePrefSet? loaded = NewStore().LoadCurrent("ZOA");
+        ScopePrefSet? loaded = NewStore().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot);
 
         Assert.NotNull(loaded);
         Assert.Equal("SR-DAY", loaded.Name);
@@ -473,9 +473,9 @@ public class ScopePrefSetStoreTests : IDisposable
 
         ScopePrefSetStore store = NewStore();
         Assert.Empty(store.LoadSets("ZOA"));
-        Assert.Null(store.LoadCurrent("ZOA"));
+        Assert.Null(store.LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot));
         Assert.Throws<IOException>(() => store.SaveSet("ZOA", Set("SR-DAY")));
-        Assert.Throws<IOException>(() => store.SaveCurrent("ZOA", Set(null)));
+        Assert.Throws<IOException>(() => store.SaveCurrent("ZOA", ScopePrefSetStore.PrimarySlot, Set(null)));
         Assert.Contains(_log.Warnings, warning => warning.Contains("Could not back up"));
     }
 
@@ -500,7 +500,7 @@ public class ScopePrefSetStoreTests : IDisposable
         Exception? failure;
         using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
         {
-            failure = Record.Exception(() => NewStore().SaveCurrent("ZOA", Set("SR-NIGHT", 33)));
+            failure = Record.Exception(() => NewStore().SaveCurrent("ZOA", ScopePrefSetStore.PrimarySlot, Set("SR-NIGHT", 33)));
         }
 
         Assert.True((failure is null) || (failure is IOException) || (failure is UnauthorizedAccessException), failure?.ToString());
@@ -508,7 +508,7 @@ public class ScopePrefSetStoreTests : IDisposable
         Assert.DoesNotContain(_log.Warnings, warning => warning.Contains("Refusing to write"));
         if (failure is null)
         {
-            Assert.Equal("SR-NIGHT", NewStore().LoadCurrent("ZOA")!.Name);
+            Assert.Equal("SR-NIGHT", NewStore().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.Name);
         }
     }
 
@@ -617,8 +617,8 @@ public class ScopePrefSetStoreTests : IDisposable
             "SaveSet" => Assert.Throws<ArgumentException>(() => store.SaveSet(unsafeId, Set("SR-DAY"))),
             "RenameSet" => Assert.Throws<ArgumentException>(() => store.RenameSet(unsafeId, "SR-DAY", "SR-NIGHT")),
             "DeleteSet" => Assert.Throws<ArgumentException>(() => store.DeleteSet(unsafeId, "SR-DAY")),
-            "LoadCurrent" => Assert.Throws<ArgumentException>(() => store.LoadCurrent(unsafeId)),
-            "SaveCurrent" => Assert.Throws<ArgumentException>(() => store.SaveCurrent(unsafeId, Set(null))),
+            "LoadCurrent" => Assert.Throws<ArgumentException>(() => store.LoadCurrent(unsafeId, ScopePrefSetStore.PrimarySlot)),
+            "SaveCurrent" => Assert.Throws<ArgumentException>(() => store.SaveCurrent(unsafeId, ScopePrefSetStore.PrimarySlot, Set(null))),
             _ => throw new ArgumentOutOfRangeException(nameof(call), call, "unknown call"),
         };
 

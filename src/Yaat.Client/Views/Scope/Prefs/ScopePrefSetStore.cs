@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -24,6 +25,9 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
 {
     /// <summary>The file format version this build writes.</summary>
     public const int CurrentVersion = 1;
+
+    /// <summary>The current-state slot of the primary Scope; an extra Scope window #n keeps its state in slot n.</summary>
+    public const int PrimarySlot = 1;
 
     // Serializes file IO across instances (parallel tests share processes).
     private static readonly Lock FileLock = new();
@@ -256,13 +260,15 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         }
     }
 
-    /// <summary>The facility's saved current state, or null when it has none or it cannot be read.</summary>
+    /// <summary>The current state saved in the facility's <paramref name="slot"/>, or null when it has none or it cannot be read.</summary>
     /// <param name="facility">The facility whose current state to load.</param>
+    /// <param name="slot">The Scope window's slot: <see cref="PrimarySlot"/> for the primary Scope, n for extra window #n.</param>
     /// <exception cref="ArgumentException"><paramref name="facility"/> is not a safe facility id.</exception>
-    public ScopePrefSet? LoadCurrent(string facility)
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is below <see cref="PrimarySlot"/>.</exception>
+    public ScopePrefSet? LoadCurrent(string facility, int slot)
     {
         EnsureSafeFacility(facility);
-        string path = CurrentPath(facility);
+        string path = CurrentPath(facility, slot);
         lock (FileLock)
         {
             RootRead read = ReadRoot(path);
@@ -295,16 +301,18 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         }
     }
 
-    /// <summary>Saves <paramref name="state"/> as the facility's current state, text and name as given.</summary>
+    /// <summary>Saves <paramref name="state"/> as the current state in the facility's <paramref name="slot"/>, text and name as given.</summary>
     /// <param name="facility">The facility to save the state for.</param>
+    /// <param name="slot">The Scope window's slot: <see cref="PrimarySlot"/> for the primary Scope, n for extra window #n.</param>
     /// <param name="state">The Scope's state; its name is the active set's, or null.</param>
     /// <exception cref="ArgumentException"><paramref name="facility"/> is not a safe facility id.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is below <see cref="PrimarySlot"/>.</exception>
     /// <exception cref="IOException">The file is corrupt with no backup, or its version is unknown, so writing would lose its contents.</exception>
-    public void SaveCurrent(string facility, ScopePrefSet state)
+    public void SaveCurrent(string facility, int slot, ScopePrefSet state)
     {
         ArgumentNullException.ThrowIfNull(state);
         EnsureSafeFacility(facility);
-        string path = CurrentPath(facility);
+        string path = CurrentPath(facility, slot);
         lock (FileLock)
         {
             RootRead read = ReadRoot(path);
@@ -343,7 +351,13 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
 
     private string SetsPath(string facility) => Path.Combine(rootDir, "prefsets", $"{facility}.json");
 
-    private string CurrentPath(string facility) => Path.Combine(rootDir, "current", $"{facility}.json");
+    // The primary Scope's slot keeps the file name it always had; extra window #n's is "{facility}#n.json".
+    private string CurrentPath(string facility, int slot)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(slot, PrimarySlot);
+        string name = (slot == PrimarySlot) ? facility : $"{facility}#{slot.ToString(CultureInfo.InvariantCulture)}";
+        return Path.Combine(rootDir, "current", $"{name}.json");
+    }
 
     /// <summary>
     /// The root a mutating call rewrites, and the version number it writes: a fresh object for a missing or backed-up

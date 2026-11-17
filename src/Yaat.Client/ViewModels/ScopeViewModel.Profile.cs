@@ -147,5 +147,5 @@ public sealed partial class ScopeViewModel
 
     /// <summary>Whether the viewer's facility has a saved state, whose template a profile leaves alone.</summary>
     private bool HasSavedState() =>
-        (PrefStore is { } store) && (SafeFacility(Viewer.EramFacilityId) is { } facility) && (store.LoadCurrent(facility) is not null);
+        (PrefStore is { } store) && (SafeFacility(Viewer.EramFacilityId) is { } facility) && (store.LoadCurrent(facility, Ordinal) is not null);
 }

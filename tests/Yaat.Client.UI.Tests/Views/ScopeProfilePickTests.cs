@@ -80,7 +80,7 @@ public class ScopeProfilePickTests : IDisposable
 
     private static ScopeViewModel OpenScope(MainViewModel main, ScopePrefSetStore? store)
     {
-        var scope = new ScopeViewModel(main, store, profileStore: null);
+        var scope = new ScopeViewModel(main, store, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return scope;
     }
@@ -196,8 +196,8 @@ public class ScopeProfilePickTests : IDisposable
     public async Task TwoScopes_ShareTheProfile()
     {
         MainViewModel main = await NewMain();
-        using var first = new ScopeViewModel(main, prefStore: null, profileStore: null);
-        using var second = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var first = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
+        using var second = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = first;
         main.SetStudentPositionType("APP");
 
@@ -374,7 +374,12 @@ public class ScopeProfilePickTests : IDisposable
     public async Task CapturedPrefSet_RecordsTheKindWord_NotTheFilesName()
     {
         MainViewModel main = await NewMain();
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: ProfileStoreWith("stars", p => p["name"] = "My STARS"));
+        using var scope = new ScopeViewModel(
+            main,
+            prefStore: null,
+            profileStore: ProfileStoreWith("stars", p => p["name"] = "My STARS"),
+            ScopePrefSetStore.PrimarySlot
+        );
         main.OpenScope = scope;
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
@@ -420,7 +425,8 @@ public class ScopeProfilePickTests : IDisposable
         using var scope = new ScopeViewModel(
             main,
             prefStore: null,
-            profileStore: ProfileStoreWith("mixed", p => p["views"] = new JsonArray("ca", "ssa"))
+            profileStore: ProfileStoreWith("mixed", p => p["views"] = new JsonArray("ca", "ssa")),
+            ScopePrefSetStore.PrimarySlot
         );
 
         scope.SetViewOpen("ca", true);
@@ -435,6 +441,7 @@ public class ScopeProfilePickTests : IDisposable
         Store()
             .SaveCurrent(
                 "NCT",
+                ScopePrefSetStore.PrimarySlot,
                 new ScopePrefSet
                 {
                     TemplateId = "euroscope",

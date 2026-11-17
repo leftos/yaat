@@ -100,7 +100,7 @@ public class ScopePanZoomLockTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         ScopeMapToolsCommandTests.LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         scope.IsPanZoomLocked = true;
         scope.ShowMvaHints = true;
 
@@ -121,7 +121,7 @@ public class ScopePanZoomLockTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.ScopeMaps.ShowMvaHintsDefault = true;
         ScopeMapToolsCommandTests.LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         ScopePrefSet older = scope.CapturePrefSet("OLDER") with { MapTools = null };
         scope.IsPanZoomLocked = true;
 
@@ -144,7 +144,11 @@ public class ScopePanZoomLockTests
     private static (MainViewModel Main, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { CenterLat = 37.62, CenterLon = -122.38 };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot)
+        {
+            CenterLat = 37.62,
+            CenterLon = -122.38,
+        };
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

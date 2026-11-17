@@ -10,13 +10,13 @@ namespace Yaat.Client.Views.Scope;
 /// </summary>
 public partial class ScopeWindow : Window, IAlwaysOnTopToggle
 {
-    /// <summary>Window-geometry key.</summary>
+    /// <summary>Window-geometry key of the primary Scope's window.</summary>
     public const string GeometryKey = MainViewModel.ScopeViewKey;
 
     private readonly WindowGeometryHelper _geometryHelper;
 
     public ScopeWindow()
-        : this(new UserPreferences(), null) { }
+        : this(new UserPreferences(), (ScopeViewModel?)null) { }
 
     public ScopeWindow(UserPreferences preferences, ScopeViewModel? viewModel)
         : this(preferences, viewModel, ownsViewModel: true) { }
@@ -25,13 +25,32 @@ public partial class ScopeWindow : Window, IAlwaysOnTopToggle
     /// <param name="viewModel">The Scope the window shows.</param>
     /// <param name="ownsViewModel">Whether closing the window disposes <paramref name="viewModel"/>.</param>
     public ScopeWindow(UserPreferences preferences, ScopeViewModel? viewModel, bool ownsViewModel)
+        : this(preferences, viewModel, ownsViewModel, GeometryKey) { }
+
+    /// <summary>
+    /// An extra Scope window, #2 and up: titled and keyed by its number. The main view model owns its view model and
+    /// disposes it when the window closes for good.
+    /// </summary>
+    /// <param name="preferences">The preferences the window's geometry is kept in.</param>
+    /// <param name="instance">The extra Scope the window shows.</param>
+    public ScopeWindow(UserPreferences preferences, ScopeViewInstance instance)
+        : this(preferences, instance.Vm, ownsViewModel: false, instance.GeometryKey)
+    {
+        Title = instance.Title;
+    }
+
+    private ScopeWindow(UserPreferences preferences, ScopeViewModel? viewModel, bool ownsViewModel, string geometryKey)
     {
         InitializeComponent();
         DataContext = viewModel;
-        _geometryHelper = new WindowGeometryHelper(this, preferences, GeometryKey, 1460, 800);
+        WindowGeometryKey = geometryKey;
+        _geometryHelper = new WindowGeometryHelper(this, preferences, geometryKey, 1460, 800);
         _geometryHelper.Restore();
         Closed += (_, _) => Release(viewModel, ownsViewModel);
     }
+
+    /// <summary>The key the window's geometry is saved under: <see cref="GeometryKey"/>, or <c>ScopeView#n</c> for extra window #n.</summary>
+    public string WindowGeometryKey { get; }
 
     // A closed window drops its binding to the Scope first, so a view model that outlives it (the primary) keeps no
     // subscriber from it; only a window that owns the view model then disposes it.

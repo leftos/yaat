@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -19,7 +20,10 @@ public class ScopeCrrTests
     private static async Task<(MainViewModel Main, ScopeView View, Window Window)> ShowEramScope()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = ScopeTemplates.EramId };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot)
+        {
+            TemplateId = ScopeTemplates.EramId,
+        };
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

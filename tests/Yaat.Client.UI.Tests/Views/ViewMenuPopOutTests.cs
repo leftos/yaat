@@ -67,6 +67,7 @@ public class ViewMenuPopOutTests
                 "_METAR",
                 "-",
                 "New gr_ound window…",
+                MainWindow.NewScopeWindowMenuHeader,
                 "-",
                 "_Strips",
                 "v_TDLS",

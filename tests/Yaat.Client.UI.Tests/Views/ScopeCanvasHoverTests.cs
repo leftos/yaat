@@ -10,6 +10,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -115,7 +116,7 @@ public class ScopeCanvasHoverTests
     private static (MainViewModel Main, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         var view = new ScopeView { DataContext = scope };
         var side = new Border { Width = SideWidth };
         DockPanel.SetDock(side, Dock.Left);

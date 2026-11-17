@@ -1017,7 +1017,7 @@ public partial class MainViewModel
             radar.WeatherNote = RadarWeatherNote(_allWeatherInfo, radar.WeatherAirports);
         }
 
-        OpenScope?.RefreshWeather();
+        RefreshScopeWeather();
     }
 
     /// <summary>
@@ -1039,7 +1039,16 @@ public partial class MainViewModel
             ground.WeatherNote = GroundWeatherNote(allInfo, ground.Layout?.AirportId);
         }
 
-        OpenScope?.RefreshWeather();
+        RefreshScopeWeather();
+    }
+
+    /// <summary>Re-reads the weather lines of every Scope window.</summary>
+    private void RefreshScopeWeather()
+    {
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.RefreshWeather();
+        }
     }
 
     /// <summary>

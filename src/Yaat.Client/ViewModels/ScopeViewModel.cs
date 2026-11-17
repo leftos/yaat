@@ -81,12 +81,16 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Seeds the scope from the map source now when its latest load is over, otherwise at its next load; it then reseeds at
     /// every load, empties its maps when the source is cleared and follows a late recentre while the user has not moved it.
+    /// The scope saves and restores its state in the slot <paramref name="ordinal"/> of its facility.
     /// </summary>
     /// <param name="main">The main view model.</param>
     /// <param name="prefStore">The pref-set store <c>.scope pref</c> reads and writes, or null when prefs are unavailable.</param>
     /// <param name="profileStore">The profile files the scope reads its profiles from, or null to use the shipped profiles.</param>
-    public ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore)
+    /// <param name="ordinal">The Scope window's number: 1 for the primary Scope, n for extra window #n.</param>
+    public ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore, int ordinal)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, ScopePrefSetStore.PrimarySlot);
+        Ordinal = ordinal;
         Main = main;
         PrefStore = prefStore;
         ProfileStore = profileStore;
@@ -118,6 +122,15 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     /// <summary>The main view model: the traffic, the preferences and the app-wide selection.</summary>
     public MainViewModel Main { get; }
+
+    /// <summary>
+    /// The Scope window's number: 1 for the primary Scope, n for extra window #n. It names the slot of the facility the
+    /// Scope's current state saves in, so each window keeps its own.
+    /// </summary>
+    public int Ordinal { get; }
+
+    /// <summary>Whether the Scope was disposed: its window closed for good, or the app exited.</summary>
+    public bool IsDisposed => _disposed;
 
     /// <summary>The traffic the scope draws.</summary>
     public ObservableCollection<AircraftModel> Aircraft => Main.Aircraft;

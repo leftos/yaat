@@ -124,7 +124,7 @@ public class ScopeMarkerTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         Assert.Null(main.ScopeMaps.Fixes);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
 
         scope.ApplyPrefSet(SetWith(new ScopePrefMapTools(false, false, FixesAndMarkers: new ScopePrefFixesAndMarkers(false, ["SUNOL"]))));
@@ -156,7 +156,7 @@ public class ScopeMarkerTests
     {
         MainViewModel main = await MainAsync();
         ScopeMapToolsCommandTests.LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         scope.AddMarker("SUNOL");
         scope.ShowFixes = true;

@@ -34,7 +34,7 @@ public class ScopeRingsToolTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string? templateId = null)
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         if (templateId is not null)
         {
             scope.TemplateId = templateId;

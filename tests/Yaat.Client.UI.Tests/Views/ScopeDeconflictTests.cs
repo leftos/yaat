@@ -44,7 +44,7 @@ public class ScopeDeconflictTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetRadarDeconflictMode(DatablockDeconflictMode.FreeForm);
         ScopeMapToolsCommandTests.LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
 
         Assert.Equal(DatablockDeconflictMode.FreeForm, scope.DeconflictMode);
@@ -236,7 +236,7 @@ public class ScopeDeconflictTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         ScopeMapToolsCommandTests.LoadSource(main);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return (main, scope);
     }

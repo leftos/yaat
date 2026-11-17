@@ -11,6 +11,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
 
@@ -113,7 +114,7 @@ public class ScopeTearoffLayerTests
     public async Task EveryTearableKey_ResolvesThroughButtonFor()
     {
         MainViewModel main = await ScopeTestFixture.MainAsync();
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
         foreach (
             ScopeButtonId id in Enum.GetValues<ScopeButtonId>().Where(id => (id != ScopeButtonId.MapToggle) && ScopeToolbarButtons.CanTearOff(id))

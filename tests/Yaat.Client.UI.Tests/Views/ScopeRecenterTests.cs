@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -24,7 +25,7 @@ public class ScopeRecenterTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         ScopeMapToolsCommandTests.LoadSource(main, HomeLat, HomeLon);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return (main, scope);
     }

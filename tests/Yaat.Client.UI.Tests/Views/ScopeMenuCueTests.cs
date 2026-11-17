@@ -9,6 +9,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -27,7 +28,7 @@ public class ScopeMenuCueTests
     public void HighlightAircraft_ReachesScopeViews()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
         scope.DataBlockState.ToggleHighlight("KEEP1");
@@ -156,7 +157,7 @@ public class ScopeMenuCueTests
         try
         {
             oldScope.DataBlockState.ToggleHighlight("KEEP1");
-            var newScope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+            var newScope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
             main.OpenScope = newScope;
             view.DataContext = newScope;
             Dispatcher.UIThread.RunJobs();
@@ -179,7 +180,7 @@ public class ScopeMenuCueTests
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

@@ -480,7 +480,11 @@ public partial class MainViewModel
         }
 
         // A rewind re-adds the same callsigns: the Scope's per-track state belongs to the timeline that just went away.
-        OpenScope?.ClearTrackState();
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.ClearTrackState();
+        }
+
         Aircraft.Clear();
 
         int delayed = 0;
@@ -558,9 +562,12 @@ public partial class MainViewModel
         // A measurement latched to this aircraft has nothing left to follow; drop it rather than leave a
         // line frozen at the last known position (CRC drops RBLs on a dropped track the same way).
         Measure.PruneMissing(FindAircraft);
-        OpenScope?.ClearRings(ac.Callsign);
-        OpenScope?.ClearPtl(ac.Callsign);
-        OpenScope?.ClearLensPath(ac.Callsign);
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.ClearRings(ac.Callsign);
+            scope.ClearPtl(ac.Callsign);
+            scope.ClearLensPath(ac.Callsign);
+        }
     }
 
     private void OnAircraftSpawned(AircraftDto dto)

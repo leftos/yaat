@@ -318,7 +318,7 @@ public class ScopePrefMenuTests : IDisposable
         MainViewModel main = await ScopeTestFixture.MainAsync();
         main.SetActivePositionFromServer(EramConfig());
         SeedSource(main);
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();

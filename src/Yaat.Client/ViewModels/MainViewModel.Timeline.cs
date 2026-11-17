@@ -230,7 +230,11 @@ public partial class MainViewModel
     /// </summary>
     private void ApplyRewindResult(RewindResultDto result, double targetSeconds, string status, ICommandTextSink sink)
     {
-        OpenScope?.ClearTrackState();
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.ClearTrackState();
+        }
+
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {

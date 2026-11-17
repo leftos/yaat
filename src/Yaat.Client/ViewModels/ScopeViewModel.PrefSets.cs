@@ -202,7 +202,7 @@ public sealed partial class ScopeViewModel
 
         try
         {
-            store.SaveCurrent(facility, CapturePrefSet(ActivePrefSet));
+            store.SaveCurrent(facility, Ordinal, CapturePrefSet(ActivePrefSet));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -222,7 +222,7 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        if (store.LoadCurrent(facility) is not { } state)
+        if (store.LoadCurrent(facility, Ordinal) is not { } state)
         {
             ActivePrefSet = null;
             return;

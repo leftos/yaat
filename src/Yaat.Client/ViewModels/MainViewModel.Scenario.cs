@@ -1059,7 +1059,11 @@ public partial class MainViewModel
         _lastScenarioId = null;
         _lastRadarPrimaryAirportId = null;
         _lastPositionDisplayConfig = null;
-        OpenScope?.ClearTrackState();
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.ClearTrackState();
+        }
+
         Aircraft.Clear();
         // The server drops its ATPA/conflict caches on unload without broadcasting an empty set, so the
         // client's mirrors have to be dropped here too: an aircraft added incrementally in the next

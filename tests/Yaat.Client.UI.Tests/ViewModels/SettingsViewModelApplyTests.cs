@@ -444,4 +444,19 @@ public class SettingsViewModelApplyTests
 
         Assert.Single(fired);
     }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ScopeAlwaysOnTop_AppliesToTheExtraScopeWindowsToo()
+    {
+        var preferences = new UserPreferences();
+        preferences.SetWindowGeometry(ViewInstanceOrdinals.ScopeKey(2), new SavedWindowGeometry());
+        var vm = new SettingsViewModel(preferences);
+        bool topmost = !vm.ScopeTopmost;
+
+        vm.ScopeTopmost = topmost;
+        vm.ApplyCommand.Execute(null);
+
+        Assert.Equal(topmost, preferences.GetWindowGeometry(MainViewModel.ScopeViewKey)?.IsTopmost);
+        Assert.Equal(topmost, preferences.GetWindowGeometry("ScopeView#2")?.IsTopmost);
+    }
 }

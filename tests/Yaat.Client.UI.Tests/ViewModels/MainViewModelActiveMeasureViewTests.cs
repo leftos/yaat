@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Scope.Prefs;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -70,7 +71,7 @@ public class MainViewModelActiveMeasureViewTests
 
         Assert.Equal(RblView.Radar, main.ActiveMeasureView);
 
-        using var reopened = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var reopened = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = reopened;
 
         Assert.Equal(RblView.Radar, main.ActiveMeasureView);

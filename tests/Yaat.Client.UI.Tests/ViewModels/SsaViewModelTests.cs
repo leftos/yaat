@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Prefs;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -23,7 +24,7 @@ public class SsaViewModelTests
         RunWithWallClock(main =>
         {
             main.ApplyRoomState(RoomNinetySecondsIn());
-            using var scope = new ScopeViewModel(main, null, profileStore: null);
+            using var scope = new ScopeViewModel(main, null, profileStore: null, ScopePrefSetStore.PrimarySlot);
             var ssa = new SsaViewModel(scope);
 
             ssa.Refresh();
@@ -37,7 +38,7 @@ public class SsaViewModelTests
     {
         RunWithWallClock(main =>
         {
-            using var scope = new ScopeViewModel(main, null, profileStore: null);
+            using var scope = new ScopeViewModel(main, null, profileStore: null, ScopePrefSetStore.PrimarySlot);
             var ssa = new SsaViewModel(scope);
 
             ssa.Refresh();

@@ -60,7 +60,7 @@ public class ScopeTdmTests : IDisposable
 
     private ScopeViewModel Reopen(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return scope;
     }
@@ -76,7 +76,7 @@ public class ScopeTdmTests : IDisposable
     {
         MainViewModel main = await MainAsync();
         beforeScope(main);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

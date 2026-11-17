@@ -72,6 +72,7 @@
             <MenuItem Header="_METAR" x:Name="PopOutMetarMenuItem" ToggleType="CheckBox" IsChecked="{Binding IsMetarPoppedOut, Mode=TwoWay}" />
             <Separator />
             <MenuItem Header="New gr_ound window…" x:Name="NewGroundWindowMenuItem" />
+            <MenuItem Header="{x:Static views:MainWindow.NewScopeWindowMenuHeader}" x:Name="NewScopeWindowMenuItem" />
             <Separator />
             <!-- Strips submenu is populated from code-behind to mirror
                      MainViewModel.StripsEntries. Each entry gets a checkable

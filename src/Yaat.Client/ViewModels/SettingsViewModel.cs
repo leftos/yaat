@@ -1204,11 +1204,11 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
         _preferences.SetDiscordRichPresenceEnabled(DiscordRichPresenceEnabled);
         _preferences.SetClearTerminalOnScenarioLoad(ClearTerminalOnScenarioLoad);
-        // Extra Ground windows (GroundView#2, GroundView#3, …) follow their view's single
+        // Extra Ground and Scope windows (GroundView#2, ScopeView#2, …) follow their view's single
         // always-on-top setting, the same way the per-facility Strips windows do.
         ApplyTopmostIfChanged("Main", MainWindowTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("GroundView", GroundViewTopmost, ViewInstanceOrdinals.GroundPrefix);
-        ApplyTopmostIfChanged(MainViewModel.ScopeViewKey, ScopeTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged(MainViewModel.ScopeViewKey, ScopeTopmost, ViewInstanceOrdinals.ScopePrefix);
         ApplyTopmostIfChanged("DataGrid", DataGridTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("Terminal", TerminalTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("VStripsView", VStripsTopmost, "VStripsView:");

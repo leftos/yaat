@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
@@ -69,7 +70,7 @@ public class ScopeMapToolsCommandTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.ScopeMaps.ShowMvaHintsDefault = false;
         LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
 
         scope.Press(Button(ScopeButtonId.Mva));

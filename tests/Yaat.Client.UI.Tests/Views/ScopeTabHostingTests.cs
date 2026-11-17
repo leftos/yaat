@@ -194,7 +194,7 @@ public class ScopeTabHostingTests
             main.ScopeWindow!.Close();
             MainWindowHost.Pump();
 
-            Assert.Equal(33, Store(root).LoadCurrent("ZOA")!.RangeNm);
+            Assert.Equal(33, Store(root).LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {
@@ -218,7 +218,7 @@ public class ScopeTabHostingTests
 
             MainWindowHost.CloseAll(main);
 
-            Assert.Equal(44, Store(root).LoadCurrent("ZOA")!.RangeNm);
+            Assert.Equal(44, Store(root).LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {

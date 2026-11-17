@@ -28,10 +28,10 @@ public sealed partial class ScopeViewModel
     private ScopeEntryResponse? _measureResponse;
 
     /// <summary>Whether this Scope is the surface the measuring tool acts on now.</summary>
-    public bool IsActiveMeasureSurface => Main.ActiveMeasureView == MeasureView;
+    public bool IsActiveMeasureSurface => ReferenceEquals(Main.ActiveMeasureScope, this);
 
     /// <summary>Makes this Scope the active measure surface, as the canvas taking the focus does.</summary>
-    public void ActivateMeasureSurface() => Main.SetActiveMeasureView(MeasureView);
+    public void ActivateMeasureSurface() => Main.SetActiveMeasureScope(this);
 
     /// <summary>
     /// Ctrl+M (Cmd+M on macOS): makes the Scope the active surface and arms the tool, which is global, as the main window's

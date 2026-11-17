@@ -799,6 +799,9 @@ _Avoid_: scope alone (the router's **Scope** is a different thing)
 **Primary Scope (YAAT Scope)**:
 The one `ScopeViewModel` the main view model builds at startup (`MainViewModel.PrimaryScope`) and keeps until the app exits: shown as the main window's Scope tab, or in its own window while popped out.
 
+**Extra Scope window (YAAT Scope)**:
+Another Scope window ("YAAT Scope #2", "#3", …; View › Windows › New Scope window…) over a `ScopeViewInstance` with its own `ScopeViewModel` and state, saved in its own slot of the facility's current state; the primary Scope is the implicit #1, and extra windows are not reopened at startup.
+
 **Profile**:
 A YAAT Scope display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mixed}.json`) that sets the datablock template, the zoom bands, the toolbar order and the views order; picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`; a pref set is the same shape with one user's values.
 

@@ -442,7 +442,7 @@ The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewM
 
 ### Extra view instances (`New Radar Window` / `New Ground Window`)
 
-The docked Ground view and its pop-out are the implicit instance #1 and keep today's `IsGroundViewPoppedOut` semantics. The main window's tab 2 is the Scope (`IsScopePoppedOut`, `MainViewModel.ScopeHosting.cs`; `MainWindow.ScopeHosting.cs` opens and closes its `ScopeWindow`), not the Radar View; **View → Windows** no longer offers New Radar Window.
+The docked Ground view and its pop-out are the implicit instance #1 and keep today's `IsGroundViewPoppedOut` semantics. The main window's tab 2 is the Scope (`IsScopePoppedOut`, `MainViewModel.ScopeHosting.cs`; `MainWindow.ScopeHosting.cs` opens and closes its `ScopeWindow`), not the Radar View; **View → Windows** no longer offers New Radar Window but offers **New Scope window…**: `OpenExtraScopeView` adds a `ScopeViewInstance` (ordinal ≥ 2, lowest free, its own `ScopeViewModel` saving to its own slot of the facility's current state) to `ExtraScopeViews`, `MainWindow.ScopeHosting.cs` opens its window, and `CloseExtraScopeView` disposes it. Traffic and selection stay app-wide; unload, restart, rewind, per-aircraft clears and the weather lines loop `AllScopeViews`; extra Scope windows are not restored at startup.
 
 **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own** `RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target).
 

@@ -9,6 +9,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
 
@@ -172,7 +173,7 @@ public class ScopeDbSettingsTests
 
     private static (ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

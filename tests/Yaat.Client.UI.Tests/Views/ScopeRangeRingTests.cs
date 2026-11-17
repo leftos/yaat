@@ -345,7 +345,7 @@ public class ScopeRangeRingTests
     public void APrefSetAppliedWhileWaiting_KeepsItsPlacedRing_AfterTheSeed()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        using ScopeViewModel scope = new(main, prefStore: null, profileStore: null);
+        using ScopeViewModel scope = new(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         Assert.True(scope.IsWaitingForMapSource);
         var at = new LatLon(37.5, -122.1);
@@ -440,7 +440,7 @@ public class ScopeRangeRingTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         ScopeMapToolsCommandTests.LoadSource(main, HomeLat, HomeLon);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return (main, scope);
     }

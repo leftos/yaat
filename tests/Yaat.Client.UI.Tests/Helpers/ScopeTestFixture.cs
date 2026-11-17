@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Helpers;
@@ -21,7 +22,7 @@ internal static class ScopeTestFixture
     public static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return (main, scope);
     }

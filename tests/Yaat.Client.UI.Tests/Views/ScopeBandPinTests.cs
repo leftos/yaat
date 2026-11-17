@@ -58,7 +58,7 @@ public class ScopeBandPinTests : IDisposable
 
     private ScopeViewModel Reopen(MainViewModel main)
     {
-        var scope = new ScopeViewModel(main, Store(), profileStore: null);
+        var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return scope;
     }
@@ -166,7 +166,7 @@ public class ScopeBandPinTests : IDisposable
     {
         MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], Sector44.HandoffCode, Sector44, 3, NoStarsDisplay: true));
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         (ScopeView view, Window window) = ShowScope(scope);
         try
@@ -370,6 +370,6 @@ public class ScopeBandPinTests : IDisposable
             reopened.Dispose();
         }
 
-        Assert.Null(Store().LoadCurrent("ZOA")!.PinOthersLevel);
+        Assert.Null(Store().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.PinOthersLevel);
     }
 }

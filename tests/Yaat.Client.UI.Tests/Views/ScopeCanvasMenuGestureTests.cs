@@ -13,6 +13,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -390,7 +391,7 @@ public class ScopeCanvasMenuGestureTests
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         var view = new ScopeView { DataContext = scope };
         var window = new Window
         {

@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Prefs;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -110,7 +111,7 @@ public class MainViewModelScopeSinkTests
     public async Task ViewDotCommandWithAnUnknownView_ReportsToTheSink()
     {
         MainViewModel vm = await NewVmAsync();
-        using var scope = new ScopeViewModel(vm, prefStore: null, profileStore: null);
+        using var scope = new ScopeViewModel(vm, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         vm.OpenScope = scope;
         string statusBefore = vm.StatusText;
 

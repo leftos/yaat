@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
@@ -347,7 +348,7 @@ public class ScopeCommandTests
             null,
             null
         );
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return (main, scope);
     }

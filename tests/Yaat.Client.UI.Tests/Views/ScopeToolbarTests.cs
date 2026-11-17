@@ -17,6 +17,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
@@ -44,7 +45,7 @@ public class ScopeToolbarTests
     {
         MainViewModel main = await ScopeTestFixture.MainAsync();
         beforeScope(main);
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         if (size is { } s)
@@ -222,7 +223,7 @@ public class ScopeToolbarTests
         edited["toolbar"] = new JsonArray("maps", "range", "wx");
         File.WriteAllText(mixedFile, edited.ToJsonString());
         MainViewModel main = await ScopeTestFixture.MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: store);
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: store, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
