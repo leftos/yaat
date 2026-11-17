@@ -1089,7 +1089,9 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                 LensQueue: Lens.DrawsQueue,
                 QueueHoveredCallsign: _hoveredQueueCallsign,
                 LensCheckIn: Lens.DrawsCheckIn,
-                CrrGroups: CrrGroups
+                CrrGroups: CrrGroups,
+                HiddenCallsigns: DataBlockState?.HiddenCallsigns,
+                SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false
             )
         );
     }

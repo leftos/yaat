@@ -209,12 +209,62 @@ public sealed class ScopeDataBlockViewState : DataBlockViewState
         }
     }
 
+    /// <summary>
+    /// Raised when <see cref="Hide"/>, <see cref="Show"/>, <see cref="ShowAll"/> or <see cref="ToggleHidden"/> changes
+    /// <see cref="HiddenCallsigns"/>, so the canvas showing it repaints. <see cref="Clear"/> does not raise it, as with
+    /// <see cref="DataBlockViewState.ManualOffsetsChanged"/>.
+    /// </summary>
+    public event Action? HiddenChanged;
+
+    /// <summary>Hides <paramref name="callsign"/>'s datablock and leader line; a selected aircraft still shows its block.</summary>
+    /// <returns>True when the block was shown.</returns>
+    public bool Hide(string callsign)
+    {
+        if (!HiddenCallsigns.Add(callsign))
+        {
+            return false;
+        }
+
+        HiddenChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>Shows <paramref name="callsign"/>'s datablock again.</summary>
+    /// <returns>True when the block was hidden.</returns>
+    public bool Show(string callsign)
+    {
+        if (!HiddenCallsigns.Remove(callsign))
+        {
+            return false;
+        }
+
+        HiddenChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>Shows every hidden datablock.</summary>
+    /// <returns>True when any block was hidden.</returns>
+    public bool ShowAll()
+    {
+        if (HiddenCallsigns.Count == 0)
+        {
+            return false;
+        }
+
+        HiddenCallsigns.Clear();
+        HiddenChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>Hides <paramref name="callsign"/>'s datablock when it is drawn, shows it when it is hidden.</summary>
     public void ToggleHidden(string callsign)
     {
         if (!HiddenCallsigns.Remove(callsign))
         {
             HiddenCallsigns.Add(callsign);
         }
+
+        HiddenChanged?.Invoke();
     }
 
     public override void Clear()

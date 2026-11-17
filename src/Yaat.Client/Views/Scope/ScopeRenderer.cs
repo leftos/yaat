@@ -81,6 +81,15 @@ namespace Yaat.Client.Views.Scope;
 /// The room's ERAM CRR groups (<c>MainViewModel.CrrGroups</c>), copied on the UI thread; null is none. A track drawn with an
 /// FDB-level ERAM block whose group is among them carries its range data block (<see cref="ScopeCrrReadout"/>).
 /// </param>
+/// <param name="HiddenCallsigns">
+/// The callsigns whose block and leader the instructor hid (<c>ScopeDataBlockViewState.HiddenCallsigns</c>); null is none. A
+/// hidden track's block lays out nothing unless the track is selected.
+/// </param>
+/// <param name="SyncLeaderDirection">
+/// Whether a block drawn with the STARS template takes the student's leader direction
+/// (<c>UserPreferences.SyncStudentLeaderDirection</c>): its block sits on that side of the symbol until a drag moves it. A block
+/// drawn with the ERAM or EuroScope template keeps the default offset.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -109,7 +118,9 @@ public sealed record ScopeFrameInput(
     bool LensQueue = false,
     string? QueueHoveredCallsign = null,
     bool LensCheckIn = false,
-    IReadOnlyList<EramCrrGroupHubDto>? CrrGroups = null
+    IReadOnlyList<EramCrrGroupHubDto>? CrrGroups = null,
+    IReadOnlySet<string>? HiddenCallsigns = null,
+    bool SyncLeaderDirection = false
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -174,9 +185,15 @@ public sealed record ScopeTrack(
 
     /// <summary>
     /// The track's range data block (<see cref="ScopeCrrReadout"/>), or null when its block is no FDB-level ERAM block or its
-    /// aircraft is in no existing CRR group.
+    /// aircraft is in no existing CRR group, or while the block is hidden.
     /// </summary>
     public ScopeCrrReadoutView? CrrReadout { get; init; }
+
+    /// <summary>
+    /// The offset from <see cref="Symbol"/> the block was placed at, whatever placed it there: a drag starts from it, so a block
+    /// the student's leader direction drew does not jump when it is first moved.
+    /// </summary>
+    public SKPoint BlockOffset { get; init; }
 
     /// <summary>The text bounds inflated <see cref="DwellBoxInflatePx"/>; the hover hit-test and the emphasis both read it.</summary>
     public SKRect DwellBox
@@ -229,8 +246,8 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
 
     /// <summary>
     /// Lays every track out for this frame, reading the blink phase from <see cref="MapBlink"/> once so the whole frame
-    /// shares one phase. Each block sits at the default leader offset; dwelled tracks come last, so they draw on top and
-    /// hit-test first: the dwell-locked ones, then the hovered one.
+    /// shares one phase. Each block sits where <see cref="PlaceBlock"/> puts it; dwelled tracks come last, so they draw on top
+    /// and hit-test first: the dwell-locked ones, then the hovered one.
     /// </summary>
     public static ScopeFrame Build(ScopeFrameInput input)
     {
@@ -349,8 +366,9 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         bool isSelected = ReferenceEquals(ac, input.Selected);
         string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
         AircraftModel? atpaLead = Peer(byCallsign, ac.AtpaLeadCallsign);
+        bool hidden = IsBlockHidden(input, ac, isSelected);
         bool locked = IsDwellLockedTrack(ac, templateId, input);
-        bool dwelled = IsHovered(ac, input) || locked;
+        bool dwelled = (IsHovered(ac, input) || locked) && !hidden;
         var presenterInput = new TrackPresenterInput(
             ac,
             templateId,
@@ -367,10 +385,8 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         );
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
         ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
-        bool hasManual = input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
-        SKPoint offset = DatablockText.ResolveBlockOffset(ac, false, hasManual, manual, atOrigin.Bounds, null);
         (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        ScopeBlockLayout placed = atOrigin.At(sx + offset.X, sy + offset.Y);
+        (ScopeBlockLayout placed, SKPoint offset) = PlaceBlock(new ScopeBlockSeed(input, ac, atOrigin, new SKPoint(sx, sy), hidden, templateId));
         if (!EramDwellLock.HasEramSector(input.Display.Viewer))
         {
             // With no viewer ERAM sector the VCI can never light, so its cell takes no hover.
@@ -391,7 +407,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             ScopeTrackLayers.HistoryDots(ac, input.HistoryCount, input.Viewport),
             RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset),
             presentation.Level,
-            presentation.ShowsLeader,
+            presentation.ShowsLeader && !hidden,
             dwelled,
             IntentPathFor(ac, input, isSelected),
             QueueBadgeFor(ac, input, sx, sy),
@@ -399,9 +415,11 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         )
         {
             IsDwellLocked = locked,
-            CrrReadout = CrrReadoutFor(ac, templateId, presentation.Level, input) is { } crr
-                ? ScopeCrrReadout.Place(crr, new SKPoint(sx, sy), offset, input.Metrics)
-                : null,
+            BlockOffset = offset,
+            CrrReadout =
+                (!hidden) && (CrrReadoutFor(ac, templateId, presentation.Level, input) is { } crr)
+                    ? ScopeCrrReadout.Place(crr, new SKPoint(sx, sy), offset, input.Metrics)
+                    : null,
         };
     }
 
