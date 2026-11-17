@@ -7,7 +7,6 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -32,9 +31,9 @@ public class ScopeRingsToolTests
 
     private static ScopeButton Button(ScopeButtonId id) => ScopeToolbarButtons.Find(id)!;
 
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(string? templateId = null)
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string? templateId = null)
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         if (templateId is not null)
         {
@@ -190,7 +189,7 @@ public class ScopeRingsToolTests
     [AvaloniaFact]
     public async Task ArmedClick_PlacesTheRing_AndDoesNotSelect_ThenEscDisarms()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope();
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
@@ -229,7 +228,7 @@ public class ScopeRingsToolTests
     [AvaloniaFact]
     public async Task ArmedClick_OnAnEramFieldA_PlacesTheRing_AndTogglesNoDwellLock()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(ScopeTemplates.EramId);
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope(ScopeTemplates.EramId);
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);

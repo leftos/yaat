@@ -6,7 +6,6 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
@@ -26,9 +25,9 @@ public class ScopeLensTests
 
     private const string PendingTwo = "[Active] FH 270\n[1] AT BRIXX DM 040\n[2] WAIT 30 SPD 210";
 
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope()
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
@@ -85,7 +84,7 @@ public class ScopeLensTests
     [AvaloniaFact]
     public async Task LensAndPathOn_DrawTheSelectedPath_AndAToggledTrackAddsItsOwn()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope();
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
@@ -123,7 +122,7 @@ public class ScopeLensTests
     [InlineData(".scope lens path off")]
     public async Task EitherSwitchOff_DrawsNoPath(string command)
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope();
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
@@ -301,9 +300,9 @@ public class ScopeLensTests
     }
 
     [AvaloniaFact]
-    public void LensAndQueueOn_DrawABadge_ForAnAircraftWithPendingLines()
+    public async Task LensAndQueueOn_DrawABadge_ForAnAircraftWithPendingLines()
     {
-        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope();
         try
         {
             AddRouted(main, view.Canvas, "N123AB", 300, 300).PendingCommands = PendingTwo;
@@ -328,9 +327,9 @@ public class ScopeLensTests
     [AvaloniaTheory]
     [InlineData(".scope lens off")]
     [InlineData(".scope lens queue off")]
-    public void EitherSwitchOff_DrawsNoBadge(string command)
+    public async Task EitherSwitchOff_DrawsNoBadge(string command)
     {
-        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope();
         try
         {
             AddRouted(main, view.Canvas, "N123AB", 300, 300).PendingCommands = PendingTwo;
@@ -457,9 +456,9 @@ public class ScopeLensTests
     }
 
     [AvaloniaFact]
-    public void LensAndCheckInOn_TagAnOwnedAircraftWhosePilotHasNotCalled()
+    public async Task LensAndCheckInOn_TagAnOwnedAircraftWhosePilotHasNotCalled()
     {
-        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope();
         try
         {
             ViewFromSector44(main);
@@ -483,9 +482,9 @@ public class ScopeLensTests
     [AvaloniaTheory]
     [InlineData(".scope lens off")]
     [InlineData(".scope lens checkin off")]
-    public void EitherSwitchOff_DrawsNoCheckInTag(string command)
+    public async Task EitherSwitchOff_DrawsNoCheckInTag(string command)
     {
-        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope();
         try
         {
             ViewFromSector44(main);

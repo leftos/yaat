@@ -4,7 +4,6 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
@@ -48,9 +47,9 @@ public class ScopePtlTests
         await scope.LastEntryRun;
     }
 
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScopeWithAViewer(string templateId)
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScopeWithAViewer(string templateId)
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "C44", Sector44, 3, NoStarsDisplay: true));
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = templateId };
         main.OpenScope = scope;
@@ -193,7 +192,7 @@ public class ScopePtlTests
     [AvaloniaFact]
     public async Task PtlDraws_OnAnOtherTrack_OnTheCanvas()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScopeWithAViewer(ScopeTemplates.EramId);
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeWithAViewer(ScopeTemplates.EramId);
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);

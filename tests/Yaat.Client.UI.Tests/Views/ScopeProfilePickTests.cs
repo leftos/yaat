@@ -4,12 +4,12 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.ViewModels;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -67,9 +67,9 @@ public class ScopeProfilePickTests : IDisposable
         new([], [], [], position.HandoffCode, position, 3, NoStarsDisplay: true);
 
     /// <summary>A main view model whose preferences hold no profile override, whatever an earlier test saved.</summary>
-    private static MainViewModel NewMain()
+    private static async Task<MainViewModel> NewMain()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         foreach (string type in PositionTypes)
         {
             main.Preferences.ClearScopeProfileOverride(type);
@@ -88,9 +88,9 @@ public class ScopeProfilePickTests : IDisposable
     private ScopePrefSetStore Store() => new(_root, AppLog.CreateLogger<ScopePrefSetStore>());
 
     [AvaloniaFact]
-    public void FirstPosition_TraconWithTypeApp_PicksStars()
+    public async Task FirstPosition_TraconWithTypeApp_PicksStars()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetStudentPositionType("APP");
 
         main.SetActivePositionFromServer(Config(Tracon));
@@ -99,9 +99,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void LaterPositionChange_ToAnEramSector_KeepsStars()
+    public async Task LaterPositionChange_ToAnEramSector_KeepsStars()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
 
@@ -111,9 +111,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void Override_BeatsTheKindTest()
+    public async Task Override_BeatsTheKindTest()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.Preferences.SetScopeProfileOverride("APP", "eram");
         main.SetStudentPositionType("APP");
 
@@ -123,9 +123,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PositionBeforeType_PicksByKind_ThenThePositionTypesOverride()
+    public async Task PositionBeforeType_PicksByKind_ThenThePositionTypesOverride()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.Preferences.SetScopeProfileOverride("APP", "eram");
 
         main.SetActivePositionFromServer(Config(Tracon));
@@ -136,9 +136,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PositionBeforeType_WithAPickByHandBetween_KeepsTheHandPick()
+    public async Task PositionBeforeType_WithAPickByHandBetween_KeepsTheHandPick()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.Preferences.SetScopeProfileOverride("APP", "eram");
         using ScopeViewModel scope = OpenScope(main, store: null);
         main.SetActivePositionFromServer(Config(Tracon));
@@ -151,9 +151,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PickByHand_WithTypeTwr_SavesTheOverride_AndEchoes()
+    public async Task PickByHand_WithTypeTwr_SavesTheOverride_AndEchoes()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
         main.SetStudentPositionType("TWR");
 
@@ -165,9 +165,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PickByHand_WithNoType_SavesNoOverride()
+    public async Task PickByHand_WithNoType_SavesNoOverride()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
 
         main.RunScopeCommand(".scope profile eram");
@@ -177,9 +177,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void Unload_ThenANewLoad_PicksAgain()
+    public async Task Unload_ThenANewLoad_PicksAgain()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
 
@@ -193,9 +193,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void TwoScopes_ShareTheProfile()
+    public async Task TwoScopes_ShareTheProfile()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using var first = new ScopeViewModel(main, prefStore: null, profileStore: null);
         using var second = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = first;
@@ -211,9 +211,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void CapturedPrefSet_RecordsTheProfileName_AndNoBands()
+    public async Task CapturedPrefSet_RecordsTheProfileName_AndNoBands()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
@@ -225,9 +225,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PrefLoad_OfASetWithKindEram_SwitchesTheProfile_AndSavesNoOverride()
+    public async Task PrefLoad_OfASetWithKindEram_SwitchesTheProfile_AndSavesNoOverride()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, Store());
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
@@ -260,9 +260,9 @@ public class ScopeProfilePickTests : IDisposable
         new(true, null, [], [], null, [], "scenario-3", "OAK Ground", "OAK", StudentPositionType: studentPositionType);
 
     [AvaloniaFact]
-    public void RoomJoinOrder_PositionThenANullType_KeepsTheProfile_AndALaterAsKeepsIt()
+    public async Task RoomJoinOrder_PositionThenANullType_KeepsTheProfile_AndALaterAsKeepsIt()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetActivePositionFromServer(Config(Tracon));
 
         main.SetStudentPositionType(null);
@@ -273,9 +273,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void RecordingWithANullType_ThenAPosition_PicksAndKeepsTheProfile()
+    public async Task RecordingWithANullType_ThenAPosition_PicksAndKeepsTheProfile()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.ApplyRecordingResult(RecordingResult(null));
         main.SetActivePositionFromServer(Config(Tracon));
 
@@ -285,9 +285,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void RecordingLoad_KeepsTheRoomsProfile()
+    public async Task RecordingLoad_KeepsTheRoomsProfile()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
 
@@ -297,9 +297,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void ScenarioLoadResult_ClearsTheProfile_SoItsPositionPicksAgain()
+    public async Task ScenarioLoadResult_ClearsTheProfile_SoItsPositionPicksAgain()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
 
@@ -314,9 +314,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void ScenarioLoadedByAnotherClient_ClearsTheProfile_SoItsPositionPicksAgain()
+    public async Task ScenarioLoadedByAnotherClient_ClearsTheProfile_SoItsPositionPicksAgain()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
 
@@ -341,9 +341,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PickByHand_BeforeAnyPosition_IsKeptWhenThePositionArrives()
+    public async Task PickByHand_BeforeAnyPosition_IsKeptWhenThePositionArrives()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
         main.RunScopeCommand(".scope profile eram");
 
@@ -354,9 +354,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void Unload_BringsBackMixed_AndKeepsTheTemplate()
+    public async Task Unload_BringsBackMixed_AndKeepsTheTemplate()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
         main.SetStudentPositionType("CTR");
         main.SetActivePositionFromServer(Config(Sector44));
@@ -371,9 +371,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void CapturedPrefSet_RecordsTheKindWord_NotTheFilesName()
+    public async Task CapturedPrefSet_RecordsTheKindWord_NotTheFilesName()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: ProfileStoreWith("stars", p => p["name"] = "My STARS"));
         main.OpenScope = scope;
         main.SetStudentPositionType("APP");
@@ -383,9 +383,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PrefLoad_OfKindEram_IntoAStarsRoom_SwitchesToEramAndEchoesIt()
+    public async Task PrefLoad_OfKindEram_IntoAStarsRoom_SwitchesToEramAndEchoesIt()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, Store());
         main.SetActivePositionFromServer(Config(Tracon));
         Assert.Equal(ScopeProfileKind.Stars, main.ScopeProfile);
@@ -398,9 +398,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void PrefLoad_OfTheCurrentProfile_EchoesNoProfileNote()
+    public async Task PrefLoad_OfTheCurrentProfile_EchoesNoProfileNote()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, Store());
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
@@ -414,9 +414,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void ProfileViewsOrder_OrdersTheOpenViews()
+    public async Task ProfileViewsOrder_OrdersTheOpenViews()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         using var scope = new ScopeViewModel(
             main,
             prefStore: null,
@@ -429,9 +429,9 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void SavedStateRestore_KeepsTheProfile_AndItsTemplateStands()
+    public async Task SavedStateRestore_KeepsTheProfile_AndItsTemplateStands()
     {
-        MainViewModel main = NewMain();
+        MainViewModel main = await NewMain();
         Store()
             .SaveCurrent(
                 "NCT",

@@ -7,7 +7,6 @@ using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -68,12 +67,14 @@ public class ScopeTdmTests : IDisposable
 
     private ScopePrefSetStore Store() => new(_root, AppLog.CreateLogger<ScopePrefSetStore>());
 
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope() => ShowScopeWith(_ => { });
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope() => ShowScopeWith(_ => { });
 
     /// <summary>Shows a scope in a window, running <paramref name="beforeScope"/> on the main view model before the scope opens.</summary>
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScopeWith(Action<MainViewModel> beforeScope)
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScopeWith(
+        Action<MainViewModel> beforeScope
+    )
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         beforeScope(main);
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         main.OpenScope = scope;
@@ -153,7 +154,7 @@ public class ScopeTdmTests : IDisposable
     [AvaloniaFact]
     public async Task Tdm_ShowsGroundTargets_OnlyWhileOn()
     {
-        (MainViewModel main, _, ScopeView view, Window window) = ShowScope();
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope();
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
@@ -207,11 +208,11 @@ public class ScopeTdmTests : IDisposable
         };
 
     [AvaloniaFact]
-    public void ATdmOnlyMap_IsDrawnOnlyWhileTdmIsOn()
+    public async Task ATdmOnlyMap_IsDrawnOnlyWhileTdmIsOn()
     {
         VideoMapData ordinary = new() { MapId = "m2", Lines = [] };
         VideoMapData diagram = new() { MapId = "m3", Lines = [] };
-        (_, ScopeViewModel scope, ScopeView view, Window window) = ShowScopeWith(main => CentreRadarWithMaps(main, ordinary, diagram));
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeWith(main => CentreRadarWithMaps(main, ordinary, diagram));
         try
         {
             Assert.All(scope.MapToggles, t => Assert.True(t.IsOn));

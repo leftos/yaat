@@ -9,7 +9,6 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -17,6 +16,7 @@ using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -27,9 +27,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeFieldMenuTests
 {
-    private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScope(string templateId)
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string templateId)
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null) { TemplateId = templateId };
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
@@ -98,7 +98,7 @@ public class ScopeFieldMenuTests
         Action<ScopeViewModel> beforeClick
     )
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(templateId);
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope(templateId);
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         beforeClick(scope);
         Dispatcher.UIThread.RunJobs();
@@ -674,7 +674,7 @@ public class ScopeFieldMenuTests
     [AvaloniaFact]
     public async Task RightClickMenu_ShiftClickOnARow_StillSends()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope(ScopeTemplates.StarsId);
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope(ScopeTemplates.StarsId);
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);

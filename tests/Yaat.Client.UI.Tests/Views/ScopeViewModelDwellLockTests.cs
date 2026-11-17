@@ -2,10 +2,10 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Sim;
+using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -16,9 +16,9 @@ namespace Yaat.Client.UI.Tests.Views;
 public class ScopeViewModelDwellLockTests
 {
     [AvaloniaFact]
-    public void ToggleDwellLock_AddsThenRemovesTheCallsign_WithNoViewerEramSector()
+    public async Task ToggleDwellLock_AddsThenRemovesTheCallsign_WithNoViewerEramSector()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         Assert.Equal(ScopeViewer.None, scope.Viewer);
         string? status = main.StatusText;
@@ -34,9 +34,9 @@ public class ScopeViewModelDwellLockTests
     }
 
     [AvaloniaFact]
-    public void ToggleDwellLock_NotConnected_SendsNothing_AndSetsNoStatus()
+    public async Task ToggleDwellLock_NotConnected_SendsNothing_AndSetsNoStatus()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         var sector44 = new ActivePositionDto(
             Callsign: "OAK_44_CTR",
@@ -61,9 +61,9 @@ public class ScopeViewModelDwellLockTests
     }
 
     [AvaloniaFact]
-    public void ToggleDwellLock_OnACrcLockedBlock_AddsNoLocalLock()
+    public async Task ToggleDwellLock_OnACrcLockedBlock_AddsNoLocalLock()
     {
-        (_, ScopeViewModel scope) = ScopeWithCrcLockedAircraft();
+        (_, ScopeViewModel scope) = await ScopeWithCrcLockedAircraft();
         using (scope)
         {
             scope.ToggleDwellLock("UAL238");
@@ -73,9 +73,9 @@ public class ScopeViewModelDwellLockTests
     }
 
     [AvaloniaFact]
-    public void ToggleDwellLock_LocalLockOnACrcLockedBlock_IsReleased()
+    public async Task ToggleDwellLock_LocalLockOnACrcLockedBlock_IsReleased()
     {
-        (_, ScopeViewModel scope) = ScopeWithCrcLockedAircraft();
+        (_, ScopeViewModel scope) = await ScopeWithCrcLockedAircraft();
         using (scope)
         {
             scope.DataBlockState.DwellLockedCallsigns.Add("UAL238");
@@ -87,9 +87,9 @@ public class ScopeViewModelDwellLockTests
     }
 
     // A scope viewed from ZOA sector 44, with UAL238 in the traffic, its block dwell-locked by the student's CRC for that sector.
-    private static (MainViewModel Main, ScopeViewModel Scope) ScopeWithCrcLockedAircraft()
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> ScopeWithCrcLockedAircraft()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        MainViewModel main = await MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null);
         var sector44 = new ActivePositionDto(
             Callsign: "OAK_44_CTR",
