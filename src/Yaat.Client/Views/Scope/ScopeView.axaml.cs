@@ -96,12 +96,20 @@ public partial class ScopeView : UserControl
 
     /// <summary>
     /// The aircraft menu for <paramref name="callsign"/>: the shared aircraft menu, with relative actions aimed at
-    /// <paramref name="prevSelected"/>, with the Scope's own view section (<see cref="BuildViewSection"/>) after the shared groups.
+    /// <paramref name="prevSelected"/>, with the Scope's own view section (<see cref="BuildViewSection"/>) after the shared
+    /// groups and "Settings for this view…" at its end.
     /// </summary>
     internal ContextMenu BuildAircraftMenu(ScopeViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
     {
         var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.ScopeMaps.MvaFacilityId);
-        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, context => BuildViewSection(vm, ac, context));
+        ContextMenu menu = AircraftMenuBuilder.Build(
+            ac,
+            new MenuClick(callsign, prevSelected, null, []),
+            host,
+            context => BuildViewSection(vm, ac, context)
+        );
+        AppendViewSettings(menu, vm);
+        return menu;
     }
 
     protected override void OnDataContextChanged(EventArgs e)
