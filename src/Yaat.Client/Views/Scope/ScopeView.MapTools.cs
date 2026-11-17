@@ -9,7 +9,8 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The view's map-tools wiring: Control for the MVA readout, the view model's LOCK on the canvas's pan and zoom, its range
-/// ring and PLACE RR's click, and its weather lines, set above the ERAM entry boxes while they show.
+/// ring and PLACE RR's click, its FIX overlay and pinned markers, and its weather lines, set above the ERAM entry boxes while
+/// they show.
 /// </summary>
 public partial class ScopeView
 {
@@ -57,19 +58,42 @@ public partial class ScopeView
     partial void AttachMapTools(ScopeViewModel vm)
     {
         vm.PropertyChanged += OnMapToolsPropertyChanged;
+        vm.PropertyChanged += OnFixesAndMarkersPropertyChanged;
         SyncPanZoomLock(vm);
         SyncRangeRing(vm);
         Canvas.IsPlacingRangeRing = vm.IsPlacingRangeRing;
         SyncWeather(vm);
+        Canvas.ShownFixes = vm.ShownFixes;
+        Canvas.PinnedMarkers = vm.Markers;
     }
 
     partial void DetachMapTools(ScopeViewModel vm)
     {
         vm.PropertyChanged -= OnMapToolsPropertyChanged;
+        vm.PropertyChanged -= OnFixesAndMarkersPropertyChanged;
         Canvas.IsPanZoomEnabled = true;
         Canvas.RangeRing = null;
         Canvas.IsPlacingRangeRing = false;
         Canvas.Weather = null;
+        Canvas.ShownFixes = null;
+        Canvas.PinnedMarkers = [];
+    }
+
+    private void OnFixesAndMarkersPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ScopeViewModel vm)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(ScopeViewModel.ShownFixes))
+        {
+            Canvas.ShownFixes = vm.ShownFixes;
+        }
+        else if (e.PropertyName == nameof(ScopeViewModel.Markers))
+        {
+            Canvas.PinnedMarkers = vm.Markers;
+        }
     }
 
     private void OnMapToolsPropertyChanged(object? sender, PropertyChangedEventArgs e)

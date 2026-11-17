@@ -3,11 +3,16 @@ using System.Globalization;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// The map tools' <c>.scope</c> verbs: <c>.scope mva</c>, <c>.scope lock</c>, <c>.scope center</c>, <c>.scope rr</c> and
-/// <c>.scope wx</c>; and the weather lines the Scope's overlay draws.
+/// The map tools' <c>.scope</c> verbs: <c>.scope mva</c>, <c>.scope lock</c>, <c>.scope center</c>, <c>.scope rr</c>,
+/// <c>.scope wx</c> and <c>.scope fix</c>; the marker verbs <c>.ff</c>, <c>.marker</c>, <c>.markers</c> and
+/// <c>.nomarkers</c> on the open Scope; and the weather lines the Scope's overlay draws.
 /// </summary>
 public partial class MainViewModel
 {
+    private const string ScopeFixUsage = "Usage: .scope fix <on|off>";
+
+    private const string NoScopeOpen = "No YAAT Scope is open";
+
     private const string ScopeMvaUsage = "Usage: .scope mva <on|off>";
 
     private const string ScopeLockUsage = "Usage: .scope lock <on|off>";
@@ -29,7 +34,56 @@ public partial class MainViewModel
         ["CENTER"] = RecenterScope,
         ["RR"] = SetScopeRr,
         ["WX"] = SetScopeWx,
+        ["FIX"] = SetScopeFix,
     };
+
+    /// <summary>Runs a marker verb as typed into the command line would. Test seam.</summary>
+    internal void RunScopeMarkerCommand(string text) => TryHandleScopeMarkerCommand(text, new CommandLineSink(this));
+
+    /// <summary>
+    /// Handles the client-only marker dot commands (CRC parity) on the open Scope: <c>.ff</c>, <c>.marker</c> and
+    /// <c>.markers</c> toggle one or more fix, NAVAID or FRD markers, and <c>.nomarkers</c> clears them all; with no Scope
+    /// open, an error. Never sent to the server.
+    /// </summary>
+    /// <returns>False when the verb is none of these, so the caller can fall through to CRC aliases.</returns>
+    private bool TryHandleScopeMarkerCommand(string text, ICommandTextSink sink)
+    {
+        string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string verb = parts[0].ToUpperInvariant();
+        if (verb is not (".NOMARKERS" or ".FF" or ".MARKER" or ".MARKERS"))
+        {
+            return false;
+        }
+
+        if (OpenScope is not { } scope)
+        {
+            sink.ReportError(NoScopeOpen);
+        }
+        else if (verb == ".NOMARKERS")
+        {
+            scope.ClearMarkers();
+            sink.ReportStatus("Scope markers cleared");
+        }
+        else
+        {
+            ToggleScopeMarkers(scope, parts, sink);
+        }
+
+        return true;
+    }
+
+    /// <summary>Toggles the markers <paramref name="parts"/> name after the verb, naming those no point answers to.</summary>
+    private static void ToggleScopeMarkers(ScopeViewModel scope, string[] parts, ICommandTextSink sink)
+    {
+        if (parts.Length < 2)
+        {
+            sink.ReportError($"Usage: {parts[0]} <fix> [fix ...]");
+            return;
+        }
+
+        List<string> unresolved = [.. parts.Skip(1).Where(token => !scope.ToggleMarker(token)).Select(token => token.ToUpperInvariant())];
+        sink.ReportStatus(unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated");
+    }
 
     /// <summary>
     /// The Scope's weather lines: one per METAR of the map source's position airports (every station when no position is
@@ -50,7 +104,7 @@ public partial class MainViewModel
     {
         if ((result is null) && MapToolVerbs.TryGetValue(verb, out Func<ScopeViewModel, string[], string>? handler))
         {
-            result = OpenScope is { } scope ? handler(scope, parts) : "No YAAT Scope is open";
+            result = OpenScope is { } scope ? handler(scope, parts) : NoScopeOpen;
         }
     }
 
@@ -99,6 +153,18 @@ public partial class MainViewModel
 
         scope.ShowWeather = on;
         return on ? "Scope WX ON" : "Scope WX OFF";
+    }
+
+    /// <summary><c>.scope fix on|off</c>: turns the FIX overlay on or off.</summary>
+    private static string SetScopeFix(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length != 3) || (ParseOnOff(parts[2]) is not { } on))
+        {
+            return ScopeFixUsage;
+        }
+
+        scope.ShowFixes = on;
+        return on ? "Scope FIX ON" : "Scope FIX OFF";
     }
 
     /// <summary><c>.scope rr on|off|place|center</c> and <c>.scope rr size 2|5|10|15|20</c>: the range ring.</summary>

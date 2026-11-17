@@ -184,8 +184,11 @@ public enum ScopeButtonId
     /// <summary>MVA: turns the MVA altitude tint on or off; lit while it is on.</summary>
     Mva,
 
-    /// <summary>The DISPLAY menu; its tray holds WX, LOCK and OFF CNTR.</summary>
+    /// <summary>The DISPLAY menu; its tray holds FIX, WX, LOCK and OFF CNTR.</summary>
     Display,
+
+    /// <summary>The DISPLAY menu's FIX: turns the overlay of the chart's fixes on or off; lit while it is on.</summary>
+    DisplayFix,
 
     /// <summary>The DISPLAY menu's LOCK: turns wheel zoom and right-drag pan off; lit while locked.</summary>
     DisplayLock,
@@ -316,6 +319,7 @@ public static class ScopeToolbarButtons
             "DISPLAY",
             ScopeButtonKind.Menu,
             [
+                new(ScopeButtonId.DisplayFix, "FIX", ScopeButtonKind.Toggle, [], null, FixCommandStem),
                 new(ScopeButtonId.DisplayWx, "WX", ScopeButtonKind.Toggle, [], null, WxCommandStem),
                 new(ScopeButtonId.DisplayLock, "LOCK", ScopeButtonKind.Toggle, [], null, LockCommandStem),
                 new(ScopeButtonId.DisplayOffCntr, "OFF CNTR", ScopeButtonKind.Command, [], null, CenterCommand),
@@ -529,6 +533,9 @@ public static class ScopeToolbarButtons
 
     /// <summary>The verb that turns the weather overlay on or off, without its <c>on</c> or <c>off</c>.</summary>
     public const string WxCommandStem = ".scope wx";
+
+    /// <summary>The verb that turns the FIX overlay on or off, without its <c>on</c> or <c>off</c>.</summary>
+    public const string FixCommandStem = ".scope fix";
 
     /// <summary>The verb that turns the range ring on or off, without its <c>on</c> or <c>off</c>.</summary>
     public const string RrCommandStem = ".scope rr";

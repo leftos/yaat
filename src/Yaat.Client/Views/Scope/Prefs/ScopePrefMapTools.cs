@@ -2,7 +2,7 @@ namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
 /// The Scope's map-tool settings as a pref set stores them; mva and lock are required, so a file missing either is skipped as
-/// unreadable, and the range ring's and weather's defaults let a file written without them load.
+/// unreadable, and the range ring's, weather's and fixes and markers' defaults let a file written without them load.
 /// </summary>
 /// <param name="Mva">Whether the MVA altitude tint is on.</param>
 /// <param name="Lock">Whether pan and zoom are locked.</param>
@@ -11,7 +11,16 @@ namespace Yaat.Client.Views.Scope.Prefs;
 /// build has none.
 /// </param>
 /// <param name="Weather">Whether the weather overlay is on, or null for on, the default; a set from an older build has none.</param>
-public sealed record ScopePrefMapTools(bool Mva, bool Lock, ScopePrefRangeRing? RangeRing = null, bool? Weather = null);
+/// <param name="FixesAndMarkers">
+/// The FIX overlay and the pinned markers, or null for the default: FIX off and no marker. A set from an older build has none.
+/// </param>
+public sealed record ScopePrefMapTools(
+    bool Mva,
+    bool Lock,
+    ScopePrefRangeRing? RangeRing = null,
+    bool? Weather = null,
+    ScopePrefFixesAndMarkers? FixesAndMarkers = null
+);
 
 /// <summary>
 /// The Scope's range ring as a pref set stores it; all four keys are required (an unplaced centre is written as null), so a file
@@ -22,3 +31,11 @@ public sealed record ScopePrefMapTools(bool Mva, bool Lock, ScopePrefRangeRing? 
 /// <param name="CenterLat">The latitude of the centre PLACE RR placed, or null for the facility's home centre.</param>
 /// <param name="CenterLon">The longitude of the centre PLACE RR placed, or null for the facility's home centre.</param>
 public sealed record ScopePrefRangeRing(bool Show, int SizeNm, double? CenterLat, double? CenterLon);
+
+/// <summary>
+/// The Scope's FIX overlay and pinned markers as a pref set stores them; both keys are required, so a file missing one is
+/// skipped as unreadable.
+/// </summary>
+/// <param name="ShowFixes">Whether the FIX overlay is on.</param>
+/// <param name="Markers">The pinned markers' fix names or FRDs, upper-cased, in the order they were pinned.</param>
+public sealed record ScopePrefFixesAndMarkers(bool ShowFixes, IReadOnlyList<string> Markers);

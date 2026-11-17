@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Input;
 using SkiaSharp;
+using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data.Mva;
 
@@ -8,7 +9,8 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The canvas's map tools: the Ctrl-hover MVA readout, which shows the MVA floor under the pointer while raw Control is
-/// held over the canvas, on every platform; the range ring and PLACE RR's click; and the weather lines.
+/// held over the canvas, on every platform; the range ring and PLACE RR's click; the FIX overlay, labelling the fix under the
+/// pointer and the selected aircraft's programmed fixes; the pinned markers; and the weather lines.
 /// </summary>
 public sealed partial class ScopeCanvas
 {
@@ -21,6 +23,63 @@ public sealed partial class ScopeCanvas
     private ScopeRangeRing? _rangeRing;
 
     private ScopeWeatherText? _weather;
+
+    private IReadOnlyList<(string Name, double Lat, double Lon)>? _shownFixes;
+
+    private IReadOnlyList<ScopeMarker> _pinnedMarkers = [];
+
+    // The selected aircraft's programmed fixes, and the aircraft and route fields they were resolved from.
+    private ProgrammedFixesKey? _programmedKey;
+    private IReadOnlySet<string> _programmedFixes = EmptyFixNames;
+
+    private static readonly IReadOnlySet<string> EmptyFixNames = new HashSet<string>();
+
+    /// <summary>How far from a fix the pointer may sit for the FIX overlay to label it, in pixels.</summary>
+    internal const float FixHoverRadiusPx = 20f;
+
+    /// <summary>The fixes the FIX overlay draws, or null while it is off; the view sets it from its view model.</summary>
+    internal IReadOnlyList<(string Name, double Lat, double Lon)>? ShownFixes
+    {
+        get => _shownFixes;
+        set
+        {
+            _shownFixes = value;
+            MarkDirty();
+        }
+    }
+
+    /// <summary>The pinned markers the canvas draws under the tracks; the view sets them from its view model.</summary>
+    internal IReadOnlyList<ScopeMarker> PinnedMarkers
+    {
+        get => _pinnedMarkers;
+        set
+        {
+            _pinnedMarkers = value;
+            MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// The name of the fix of <paramref name="fixes"/> nearest <paramref name="pointer"/> on <paramref name="vp"/>, within
+    /// <see cref="FixHoverRadiusPx"/>; null when none lies that near.
+    /// </summary>
+    internal static string? NearestFix(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, MapViewport vp, SKPoint pointer)
+    {
+        string? nearest = null;
+        float best = FixHoverRadiusPx;
+        foreach ((string name, double lat, double lon) in fixes)
+        {
+            (float x, float y) = vp.LatLonToScreen(lat, lon);
+            float distance = SKPoint.Distance(pointer, new SKPoint(x, y));
+            if (distance <= best)
+            {
+                best = distance;
+                nearest = name;
+            }
+        }
+
+        return nearest;
+    }
 
     /// <summary>Raised when a left click places the range ring's centre while PLACE RR is armed, with the clicked point.</summary>
     internal event EventHandler<LatLon>? RangeRingPlaced;
@@ -85,15 +144,67 @@ public sealed partial class ScopeCanvas
         _mapToolsPointer = move.Pos;
         bool wasHeld = _mvaKeyHeld;
         SetMvaKeyHeld(move.Event.KeyModifiers.HasFlag(KeyModifiers.Control));
-        if (wasHeld)
+        if (wasHeld || (_shownFixes is not null))
         {
-            // The label follows the pointer.
+            // The MVA label follows the pointer, and the FIX overlay labels the fix under it.
             MarkDirty();
         }
     }
 
     partial void CollectMapTools(ScopeFrame frame, ref ScopeOverlays overlays) =>
-        overlays = overlays with { MvaHover = MvaHoverAtPointer(), RangeRing = _rangeRing, Weather = _weather };
+        overlays = overlays with
+        {
+            MvaHover = MvaHoverAtPointer(),
+            RangeRing = _rangeRing,
+            Weather = _weather,
+            Fixes = FixLayer(),
+            Markers = (_pinnedMarkers.Count > 0) ? _pinnedMarkers : null,
+        };
+
+    /// <summary>The FIX overlay with its programmed and hovered fixes, or null while it is off.</summary>
+    private ScopeFixLayer? FixLayer()
+    {
+        if (_shownFixes is not { } fixes)
+        {
+            return null;
+        }
+
+        string? hovered =
+            ((_mapToolsPointer is { } pointer) && IsPointerOver && (Viewport.PixelWidth >= 1))
+                ? NearestFix(fixes, Viewport, new SKPoint((float)pointer.X, (float)pointer.Y))
+                : null;
+        return new ScopeFixLayer(fixes, ProgrammedFixes(), hovered);
+    }
+
+    /// <summary>
+    /// The selected aircraft's programmed fixes, resolved again only when the aircraft or its route, approach, airports, STAR or
+    /// runway change.
+    /// </summary>
+    private IReadOnlySet<string> ProgrammedFixes()
+    {
+        if (SelectedAircraft is not { } ac)
+        {
+            _programmedKey = null;
+            return EmptyFixNames;
+        }
+
+        ProgrammedFixesKey key = new(ac.Callsign, ac.Route, ac.ExpectedApproach, ac.Destination, ac.Departure, ac.ActiveStarId, ac.DestinationRunway);
+        if (key != _programmedKey)
+        {
+            _programmedKey = key;
+            _programmedFixes = ProgrammedFixResolver.Resolve(
+                ac.Route,
+                ac.ExpectedApproach,
+                ac.Destination,
+                ac.Departure,
+                null,
+                ac.ActiveStarId,
+                ac.DestinationRunway
+            );
+        }
+
+        return _programmedFixes;
+    }
 
     private void SetMvaKeyHeld(bool held)
     {
@@ -118,4 +229,15 @@ public sealed partial class ScopeCanvas
         string? text = ScopeMvaReadout.TextAt(MvaDatabase.Default, new LatLon(lat, lon), MvaFacilityId);
         return text is null ? null : new ScopeMvaHover(text, new SKPoint((float)pointer.X, (float)pointer.Y));
     }
+
+    /// <summary>The selected aircraft's fields its programmed fixes are computed from; a change to any recomputes them.</summary>
+    private readonly record struct ProgrammedFixesKey(
+        string? Callsign,
+        string? Route,
+        string? Approach,
+        string? Destination,
+        string? Departure,
+        string? Star,
+        string? Runway
+    );
 }

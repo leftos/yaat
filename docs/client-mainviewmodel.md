@@ -469,7 +469,7 @@ Invariants:
 - **Fan-out sites loop `AllRadarViews` / `AllGroundViews`**: nav-db push, selection, weather, MVA hints, primary airport
   id/position, position display config, scenario bootstrap (ground extras get only `SetScenarioId`), recording load,
   `ClearScenarioState`, the coalesced shown-route refresh (one Background post for all instances), manifest replacement,
-  aircraft deletion. **Primary-only by design**: the `.ff` / `.markers` / `.nomarkers` scope markers, `.rbl`
+  aircraft deletion. **Primary-only by design**: `.rbl`
   (the `Measure` store is shared, so the line still renders everywhere), every `Ground.DomainLayout` reader (speech
   context, taxiway/spot/parking name providers), the Apply Layout dialog's scenario-views source.
 - Per-tick cost: nothing per-aircraft touches an instance; N instances add N coalesced refreshes per update burst and N

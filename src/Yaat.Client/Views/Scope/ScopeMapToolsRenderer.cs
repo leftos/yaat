@@ -5,9 +5,10 @@ using Yaat.Client.Views.Map;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// Draws the map tools on the Scope: the range ring under the tracks, gray at the RINGS brightness group; and over every other
-/// layer the weather lines, STARS green mono 14 at the bottom left growing upward, and the Ctrl-hover MVA label, white on a
-/// dark rounded box beside the pointer.
+/// Draws the map tools on the Scope: under the tracks the range ring, gray at the RINGS brightness group, and at the MAP B
+/// brightness the FIX overlay's crosses (teal for the selected aircraft's programmed fixes, labelled with the hovered one) and
+/// the pinned markers' yellow diamonds with their names; and over every other layer the weather lines, STARS green mono 14
+/// at the bottom left growing upward, and the Ctrl-hover MVA label, white on a dark rounded box beside the pointer.
 /// </summary>
 internal sealed class ScopeMapToolsRenderer : IDisposable
 {
@@ -32,7 +33,50 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
     private const float Gap = 14f;
     private const float CornerRadius = 3f;
 
+    // How far outside the viewport a fix or a marker may sit and still be drawn, so a label reaching into the view shows.
+    private const float CullMargin = 50f;
+
+    private const float FixCrossSize = 4f;
+    private const float ProgrammedFixCrossSize = 6f;
+    private const float FixLabelOffset = 6f;
+    private const float LabelRise = 2f;
+    private const float FixFontSize = 14f;
+    private const float MarkerSize = 6f;
+
     private static readonly SKColor RangeRingColor = new(100, 100, 100);
+
+    private static readonly SKColor FixColor = new(100, 100, 100);
+
+    private static readonly SKColor ProgrammedFixColor = new(0, 220, 200);
+
+    // Yellow, apart from the gray fixes and the teal programmed ones.
+    private static readonly SKColor MarkerColor = new(255, 220, 0);
+
+    private readonly SKPaint _fixPaint = new()
+    {
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 1,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _programmedFixPaint = new()
+    {
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 2,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _markerPaint = new()
+    {
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 2,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _fixLabelPaint = new() { IsAntialias = true };
+    private readonly SKPaint _programmedFixLabelPaint = new() { IsAntialias = true };
+    private readonly SKPaint _markerLabelPaint = new() { IsAntialias = true };
+    private readonly SKFont _fixFont = PlatformHelper.MonospaceFont(FixFontSize);
 
     private readonly SKPaint _textPaint = new() { Color = SKColors.White, IsAntialias = true };
     private readonly SKPaint _backgroundPaint = new() { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
@@ -51,7 +95,7 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
     // The stroke paints put in the radar's line style each frame; each carries its base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
-    public ScopeMapToolsRenderer() => _strokePaints = [(_ringPaint, 1f)];
+    public ScopeMapToolsRenderer() => _strokePaints = [(_ringPaint, 1f), (_fixPaint, 1f), (_programmedFixPaint, 2f), (_markerPaint, 2f)];
 
     /// <summary>
     /// The radii of the range ring's circles <paramref name="stepPx"/> apart around <paramref name="center"/> that cross a
@@ -95,17 +139,35 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws the map tools under the tracks: the range ring of <paramref name="overlays"/> at <paramref name="ringPercent"/>, in
-    /// the radar's line style like every other map stroke.
+    /// Draws the map tools under the tracks, in the radar's line style like every other map stroke: the range ring of
+    /// <paramref name="overlays"/> at the RINGS brightness of <paramref name="brightness"/>, then its fixes and its pinned
+    /// markers at the MAP B brightness.
     /// </summary>
-    public void DrawUnder(SKCanvas canvas, ScopeOverlays overlays, MapViewport vp, int ringPercent)
+    public void DrawUnder(SKCanvas canvas, ScopeOverlays overlays, MapViewport vp, ScopeBrightness brightness)
     {
         MapLineStyle.Apply(_strokePaints, MapLineStyle.GetScale(canvas));
         if (overlays.RangeRing is { } ring)
         {
-            DrawRangeRing(canvas, ring, vp, ringPercent);
+            DrawRangeRing(canvas, ring, vp, brightness.Rings);
+        }
+
+        if (overlays.Fixes is { } fixes)
+        {
+            DrawFixes(canvas, fixes, vp, brightness.MapB);
+        }
+
+        if (overlays.Markers is { } markers)
+        {
+            DrawMarkers(canvas, markers, vp, brightness.MapB);
         }
     }
+
+    /// <summary>
+    /// Whether a point drawn at (<paramref name="x"/>, <paramref name="y"/>) lies within <see cref="CullMargin"/> of a
+    /// <paramref name="width"/> by <paramref name="height"/> viewport, so its symbol or label may show.
+    /// </summary>
+    internal static bool IsNearView(float x, float y, float width, float height) =>
+        (x >= -CullMargin) && (x <= width + CullMargin) && (y >= -CullMargin) && (y <= height + CullMargin);
 
     /// <summary>Draws the map tools' overlays of <paramref name="overlays"/>, over every other layer.</summary>
     public void DrawOverlay(SKCanvas canvas, ScopeOverlays overlays, MapViewport vp)
@@ -129,6 +191,13 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
         _ringPaint.Dispose();
         _weatherPaint.Dispose();
         _weatherFont.Dispose();
+        _fixPaint.Dispose();
+        _programmedFixPaint.Dispose();
+        _markerPaint.Dispose();
+        _fixLabelPaint.Dispose();
+        _programmedFixLabelPaint.Dispose();
+        _markerLabelPaint.Dispose();
+        _fixFont.Dispose();
     }
 
     private void DrawRangeRing(SKCanvas canvas, ScopeRangeRing ring, MapViewport vp, int percent)
@@ -139,6 +208,61 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
         foreach (float radius in RingRadii(new SKPoint(cx, cy), MathF.Abs(cy - edgeY), vp.PixelWidth, vp.PixelHeight))
         {
             canvas.DrawCircle(cx, cy, radius, _ringPaint);
+        }
+    }
+
+    private void DrawFixes(SKCanvas canvas, ScopeFixLayer layer, MapViewport vp, int percent)
+    {
+        _fixPaint.Color = ScopeBrightness.Apply(FixColor, percent);
+        _fixLabelPaint.Color = ScopeBrightness.Apply(SKColors.White, percent);
+        _programmedFixPaint.Color = ScopeBrightness.Apply(ProgrammedFixColor, percent);
+        _programmedFixLabelPaint.Color = _programmedFixPaint.Color;
+        foreach ((string name, double lat, double lon) in layer.Fixes)
+        {
+            (float x, float y) = vp.LatLonToScreen(lat, lon);
+            if (IsNearView(x, y, vp.PixelWidth, vp.PixelHeight))
+            {
+                DrawFix(canvas, name, new SKPoint(x, y), layer);
+            }
+        }
+    }
+
+    // A cross per fix, larger and teal for a programmed one; a programmed or the hovered fix is labelled.
+    private void DrawFix(SKCanvas canvas, string name, SKPoint at, ScopeFixLayer layer)
+    {
+        bool programmed = layer.Programmed.Contains(name);
+        SKPaint paint = programmed ? _programmedFixPaint : _fixPaint;
+        float size = programmed ? ProgrammedFixCrossSize : FixCrossSize;
+        canvas.DrawLine(at.X - size, at.Y, at.X + size, at.Y, paint);
+        canvas.DrawLine(at.X, at.Y - size, at.X, at.Y + size, paint);
+        if (programmed || (name == layer.Hovered))
+        {
+            SKPaint labelPaint = programmed ? _programmedFixLabelPaint : _fixLabelPaint;
+            canvas.DrawText(name, at.X + FixLabelOffset, at.Y - LabelRise, SKTextAlign.Left, _fixFont, labelPaint);
+        }
+    }
+
+    private void DrawMarkers(SKCanvas canvas, IReadOnlyList<ScopeMarker> markers, MapViewport vp, int percent)
+    {
+        _markerPaint.Color = ScopeBrightness.Apply(MarkerColor, percent);
+        _markerLabelPaint.Color = _markerPaint.Color;
+        foreach (ScopeMarker marker in markers)
+        {
+            (float x, float y) = vp.LatLonToScreen(marker.Position.Lat, marker.Position.Lon);
+            if (!IsNearView(x, y, vp.PixelWidth, vp.PixelHeight))
+            {
+                continue;
+            }
+
+            // A diamond, to read apart from the fixes' crosses.
+            using var path = new SKPath();
+            path.MoveTo(x, y - MarkerSize);
+            path.LineTo(x + MarkerSize, y);
+            path.LineTo(x, y + MarkerSize);
+            path.LineTo(x - MarkerSize, y);
+            path.Close();
+            canvas.DrawPath(path, _markerPaint);
+            canvas.DrawText(marker.Name, x + MarkerSize + 2, y - LabelRise, SKTextAlign.Left, _fixFont, _markerLabelPaint);
         }
     }
 

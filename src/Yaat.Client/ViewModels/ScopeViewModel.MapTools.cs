@@ -183,11 +183,12 @@ public sealed partial class ScopeViewModel
         handled = true;
     }
 
-    /// <summary>Whether the map-tool toggle with <paramref name="id"/> is on: MVA, WX, LOCK or the range ring's SHOW.</summary>
+    /// <summary>Whether the map-tool toggle with <paramref name="id"/> is on: MVA, FIX, WX, LOCK or the range ring's SHOW.</summary>
     private bool IsMapToolToggleOn(ScopeButtonId id) =>
         id switch
         {
             ScopeButtonId.Mva => ShowMvaHints,
+            ScopeButtonId.DisplayFix => ShowFixes,
             ScopeButtonId.DisplayWx => ShowWeather,
             ScopeButtonId.RrShow => ShowRangeRing,
             _ => IsPanZoomLocked,
@@ -219,8 +220,12 @@ public sealed partial class ScopeViewModel
         }
     }
 
-    /// <summary>The map tools' settings a pref set keeps; the range ring and WX are left null while at their defaults.</summary>
-    private ScopePrefMapTools CaptureMapTools() => new(ShowMvaHints, IsPanZoomLocked, CaptureRangeRing(), ShowWeather ? null : false);
+    /// <summary>
+    /// The map tools' settings a pref set keeps; the range ring, WX and the fixes and markers are left null while at their
+    /// defaults.
+    /// </summary>
+    private ScopePrefMapTools CaptureMapTools() =>
+        new(ShowMvaHints, IsPanZoomLocked, CaptureRangeRing(), ShowWeather ? null : false, CaptureFixesAndMarkers());
 
     private ScopePrefRangeRing? CaptureRangeRing() =>
         (ShowRangeRing && (RangeRingSizeNm == DefaultRangeRingSizeNm) && (RangeRingCenter is null))
@@ -228,13 +233,14 @@ public sealed partial class ScopeViewModel
             : new ScopePrefRangeRing(ShowRangeRing, RangeRingSizeNm, RangeRingCenter?.Lat, RangeRingCenter?.Lon);
 
     /// <summary>
-    /// Applies the map-tool settings a seed leaves alone; a set from an older build unlocks pan and zoom, turns WX on and
-    /// takes the range ring's defaults.
+    /// Applies the map-tool settings a seed leaves alone; a set from an older build unlocks pan and zoom, turns WX on, turns
+    /// FIX off with no marker and takes the range ring's defaults.
     /// </summary>
     private void ApplyMapTools(ScopePrefMapTools? tools)
     {
         IsPanZoomLocked = tools?.Lock ?? false;
         ShowWeather = tools?.Weather ?? true;
+        ApplyFixesAndMarkers(tools?.FixesAndMarkers);
         ScopePrefRangeRing? ring = tools?.RangeRing;
         ShowRangeRing = ring?.Show ?? true;
         ApplyRangeRingSize(ring?.SizeNm ?? DefaultRangeRingSizeNm);

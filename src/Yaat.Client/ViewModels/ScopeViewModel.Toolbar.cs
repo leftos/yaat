@@ -296,7 +296,8 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.DbDwell => DbSettings.HoverDwell,
             ScopeButtonId.DbAtpa => DbSettings.Atpa,
             ScopeButtonId.LensOn or ScopeButtonId.LensPath or ScopeButtonId.LensQueue or ScopeButtonId.LensCheckIn => IsLensToggleOn(button.Id),
-            ScopeButtonId.Mva or ScopeButtonId.DisplayLock or ScopeButtonId.DisplayWx or ScopeButtonId.RrShow => IsMapToolToggleOn(button.Id),
+            ScopeButtonId.Mva or ScopeButtonId.DisplayFix or ScopeButtonId.DisplayLock or ScopeButtonId.DisplayWx or ScopeButtonId.RrShow =>
+                IsMapToolToggleOn(button.Id),
             _ => (button.Value is { } view) && IsViewOpen(view),
         };
 

@@ -238,6 +238,9 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
             case nameof(ScopeMapSource.IsLoading):
                 OnMapSourceLoadEnded();
                 break;
+            case nameof(ScopeMapSource.Fixes):
+                OnMapSourceFixesChanged();
+                break;
         }
     }
 

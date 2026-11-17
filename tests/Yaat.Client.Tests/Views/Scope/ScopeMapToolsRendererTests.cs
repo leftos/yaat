@@ -1,6 +1,8 @@
 using SkiaSharp;
 using Xunit;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
@@ -55,5 +57,68 @@ public class ScopeMapToolsRendererTests
         Assert.Equal(baselines[1] - 18, baselines[0]);
         Assert.True(baselines[2] <= 590, $"the last line sits above the inset ({baselines[2]})");
         Assert.True(baselines[2] >= 580, $"the last line sits on the inset ({baselines[2]})");
+    }
+
+    [Fact]
+    public void AMarker_DrawsAYellowDiamondAndItsLabel_AtItsPoint()
+    {
+        MapViewport vp = Viewport();
+        (double lat, double lon) = vp.ScreenToLatLon(200, 150);
+
+        using SKBitmap bitmap = DrawMarker(vp, new ScopeMarker("SUNOL", new LatLon(lat, lon)));
+
+        // The diamond's upper right edge runs from (200, 144) to (206, 150).
+        Assert.True(IsYellow(bitmap.GetPixel(203, 147)), $"the diamond's edge is yellow ({bitmap.GetPixel(203, 147)})");
+        Assert.True(AnyYellow(bitmap, new SKRectI(208, 134, 260, 152)), "the label sits right of the diamond");
+    }
+
+    [Fact]
+    public void AMarkerPastTheCullMargin_IsNotDrawn()
+    {
+        MapViewport vp = Viewport();
+        (double lat, double lon) = vp.ScreenToLatLon(-60, 150);
+
+        // The long label would reach into the view were the marker drawn.
+        using SKBitmap bitmap = DrawMarker(vp, new ScopeMarker("SUNOLSUNOLSUNOL", new LatLon(lat, lon)));
+
+        Assert.False(AnyYellow(bitmap, new SKRectI(0, 0, 400, 300)), "nothing is drawn");
+    }
+
+    private static MapViewport Viewport() =>
+        new()
+        {
+            PixelWidth = 400,
+            PixelHeight = 300,
+            CenterLat = 37.6,
+            CenterLon = -121.9,
+        };
+
+    private static SKBitmap DrawMarker(MapViewport vp, ScopeMarker marker)
+    {
+        var bitmap = new SKBitmap(400, 300);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Black);
+        using var renderer = new ScopeMapToolsRenderer();
+        renderer.DrawUnder(canvas, new ScopeOverlays { Markers = [marker] }, vp, ScopeBrightness.Default with { MapB = 100 });
+        canvas.Flush();
+        return bitmap;
+    }
+
+    private static bool IsYellow(SKColor c) => (c.Red > 120) && (c.Green > 100) && (c.Blue < 60);
+
+    private static bool AnyYellow(SKBitmap bitmap, SKRectI rect)
+    {
+        for (int x = rect.Left; x < rect.Right; x++)
+        {
+            for (int y = rect.Top; y < rect.Bottom; y++)
+            {
+                if (IsYellow(bitmap.GetPixel(x, y)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

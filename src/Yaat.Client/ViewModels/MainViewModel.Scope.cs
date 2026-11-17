@@ -29,7 +29,7 @@ public partial class MainViewModel
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
         + " | .scope mva <on|off> | .scope lock <on|off> | .scope center"
-        + " | .scope rr <on|off|place|center> | .scope rr size <2|5|10|15|20> | .scope wx <on|off>";
+        + " | .scope rr <on|off|place|center> | .scope rr size <2|5|10|15|20> | .scope wx <on|off> | .scope fix <on|off>";
 
     private const string ScopeLensUsage = "Usage: .scope lens <on|off> | .scope lens <path|queue|checkin> <on|off> | .scope lens path <callsign>";
 

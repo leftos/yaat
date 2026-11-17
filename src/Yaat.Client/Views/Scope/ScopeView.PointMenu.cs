@@ -75,7 +75,7 @@ public partial class ScopeView
         if (frd is not null)
         {
             AddFrdItems(items, frd, withFrdRow);
-            AddMarkerItems(items, position, frd);
+            AddMarkerItems(items, vm, position, frd);
             items.Add(new Separator());
         }
 
@@ -118,10 +118,24 @@ public partial class ScopeView
     }
 
     /// <summary>
-    /// The pinned-marker rows this point offers (pin one here, remove the one near the click, clear them all), added by the
-    /// partial part that implements this method; without one, the point menu has no marker rows.
+    /// The pinned-marker rows the point offers: Pin marker here, always, which pins <paramref name="frd"/>; Remove marker, only
+    /// while a marker lies within the pick radius of <paramref name="position"/> (4% of the range, at least 0.5 NM), which
+    /// removes the nearest one; and Clear pinned markers, only while any marker is pinned.
     /// </summary>
-    partial void AddMarkerItems(List<Control> items, LatLon position, string frd);
+    private static void AddMarkerItems(List<Control> items, ScopeViewModel vm, LatLon position, string frd)
+    {
+        double pickNm = vm.MarkerPickRadiusNm;
+        items.Add(CreateMenuItem("Pin marker here", () => vm.AddMarker(frd)));
+        if (vm.HasMarkerNear(position, pickNm))
+        {
+            items.Add(CreateMenuItem("Remove marker", () => vm.RemoveNearestMarker(position, pickNm)));
+        }
+
+        if (vm.HasMarkers)
+        {
+            items.Add(CreateMenuItem("Clear pinned markers", vm.ClearMarkers));
+        }
+    }
 
     /// <summary>
     /// Adds the distance measuring tool's items: start or finish a measurement at <paramref name="endpoint"/>, remove the one

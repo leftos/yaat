@@ -2793,52 +2793,6 @@ public partial class MainViewModel : ObservableObject
     // --- Commands ---
 
     /// <summary>
-    /// Handles the client-only scope-marker dot commands (CRC parity): <c>.ff</c>/<c>.marker</c>/
-    /// <c>.markers</c> toggle one or more fix/NAVAID (or FRD) markers on this instructor's radar;
-    /// <c>.nomarkers</c> clears them all. Never sent to the server.
-    /// </summary>
-    /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleScopeMarkerCommand(string text, ICommandTextSink sink)
-    {
-        string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        string verb = parts[0].ToUpperInvariant();
-
-        // Scope markers are deliberately primary-only: they belong to the docked radar the commands are
-        // typed against, not to every extra Radar View window.
-        switch (verb)
-        {
-            case ".NOMARKERS":
-                Radar.ClearMarkers();
-                sink.ReportStatus("Scope markers cleared");
-                return true;
-            case ".FF":
-            case ".MARKER":
-            case ".MARKERS":
-                if (parts.Length < 2)
-                {
-                    sink.ReportError($"Usage: {parts[0]} <fix> [fix ...]");
-                    return true;
-                }
-
-                var unresolved = new List<string>();
-                for (int i = 1; i < parts.Length; i++)
-                {
-                    if (!Radar.ToggleMarker(parts[i]))
-                    {
-                        unresolved.Add(parts[i].ToUpperInvariant());
-                    }
-                }
-
-                sink.ReportStatus(
-                    unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated"
-                );
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    /// <summary>
     /// Handles the client-only distance measuring commands: <c>.rbl</c> (alias <c>*T</c>, CRC STARS'
     /// name for the tool) arms the tool on every map view, <c>.rbl N</c> removes measurement N,
     /// <c>.rbl A B</c> draws a line on the active measure surface (<see cref="ActiveMeasureView"/>) between two

@@ -25,7 +25,7 @@ public class ScopeCommandTests
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
         + " | .scope mva <on|off> | .scope lock <on|off> | .scope center"
-        + " | .scope rr <on|off|place|center> | .scope rr size <2|5|10|15|20> | .scope wx <on|off>";
+        + " | .scope rr <on|off|place|center> | .scope rr size <2|5|10|15|20> | .scope wx <on|off> | .scope fix <on|off>";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 

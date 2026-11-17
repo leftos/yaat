@@ -201,6 +201,7 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.IsPanZoomLocked)
                 or nameof(ScopeViewModel.IsOffCenter)
                 or nameof(ScopeViewModel.ShowWeather)
+                or nameof(ScopeViewModel.ShowFixes)
                 or nameof(ScopeViewModel.ShowRangeRing)
                 or nameof(ScopeViewModel.RangeRingSizeNm)
                 or nameof(ScopeViewModel.IsPlacingRangeRing);

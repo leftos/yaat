@@ -192,6 +192,42 @@ public class ScopePrefSetTests
         Assert.Null(loaded.MapTools.Weather);
     }
 
+    [Fact]
+    public void MapToolsWrittenWithoutFixesAndMarkers_LoadsWithNone()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "mapTools": { "mva": true, "lock": false }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.Null(loaded.MapTools!.FixesAndMarkers);
+    }
+
+    [Fact]
+    public void FixesAndMarkers_RoundTrip()
+    {
+        ScopePrefSet set = FullSet() with
+        {
+            MapTools = new ScopePrefMapTools(false, false, FixesAndMarkers: new ScopePrefFixesAndMarkers(true, ["SUNOL", "OAK090010"])),
+        };
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(
+            JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions),
+            ScopePrefSet.JsonOptions
+        )!;
+
+        ScopePrefFixesAndMarkers? fixesAndMarkers = loaded.MapTools!.FixesAndMarkers;
+        Assert.NotNull(fixesAndMarkers);
+        Assert.True(fixesAndMarkers.ShowFixes);
+        Assert.Equal(["SUNOL", "OAK090010"], fixesAndMarkers.Markers);
+    }
+
     private static ScopePrefSet FullSet() =>
         new()
         {
