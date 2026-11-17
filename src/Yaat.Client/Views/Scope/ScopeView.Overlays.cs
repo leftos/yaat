@@ -14,6 +14,7 @@ public partial class ScopeView
         vm.PropertyChanged += OnOverlayPropertyChanged;
         vm.DataBlockState.HighlightsChanged += OnHighlightsChanged;
         Canvas.MenuCue = vm.MenuCue;
+        Canvas.GroundShownAirportIdProvider = () => vm.Main.GroundShownAirportId;
     }
 
     partial void DetachOverlays(ScopeViewModel vm)
@@ -21,6 +22,7 @@ public partial class ScopeView
         vm.PropertyChanged -= OnOverlayPropertyChanged;
         vm.DataBlockState.HighlightsChanged -= OnHighlightsChanged;
         Canvas.MenuCue = null;
+        Canvas.GroundShownAirportIdProvider = null;
     }
 
     private void OnOverlayPropertyChanged(object? sender, PropertyChangedEventArgs e)

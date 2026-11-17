@@ -184,6 +184,11 @@ public sealed record ScopeTrack(
     public bool IsDwellLocked { get; init; }
 
     /// <summary>
+    /// Whether the track is a live-traffic shadow — a target the sim does not own — whose symbol outline draws dashed.
+    /// </summary>
+    public bool IsShadow { get; init; }
+
+    /// <summary>
     /// The track's range data block (<see cref="ScopeCrrReadout"/>), or null when its block is no FDB-level ERAM block or its
     /// aircraft is in no existing CRR group, or while the block is hidden.
     /// </summary>
@@ -415,6 +420,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         )
         {
             IsDwellLocked = locked,
+            IsShadow = ac.IsLiveTraffic,
             BlockOffset = offset,
             CrrReadout =
                 (!hidden) && (CrrReadoutFor(ac, templateId, presentation.Level, input) is { } crr)
@@ -714,7 +720,8 @@ public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOthe
 /// </summary>
 public sealed partial class ScopeRenderer : IDisposable
 {
-    private const float SymbolRadius = 5f;
+    /// <summary>The radius the position symbol's outline draws at; a hidden block's speech bubble anchors on the symbol.</summary>
+    internal const float SymbolRadius = 5f;
 
     private static readonly SKColor SymbolColor = new(0, 176, 255);
 
@@ -776,6 +783,19 @@ public sealed partial class ScopeRenderer : IDisposable
         StrokeWidth = 1.5f,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
+    };
+
+    // The shadow symbol's dash, shared by every renderer for the life of the process (a paint does not dispose its effect).
+    private static readonly SKPathEffect ShadowSymbolDash = SKPathEffect.CreateDash([2.5f, 2.5f], 0);
+
+    // A live-traffic shadow's symbol: the same outline dashed, so a target the sim does not own reads as "not mine" at a
+    // glance without changing its colour or its block.
+    private readonly SKPaint _shadowSymbolPaint = new()
+    {
+        StrokeWidth = 1.5f,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = ShadowSymbolDash,
     };
 
     private readonly SKPaint _leaderPaint = new()
@@ -889,6 +909,7 @@ public sealed partial class ScopeRenderer : IDisposable
         _strokePaints =
         [
             (_symbolPaint, 1.5f),
+            (_shadowSymbolPaint, 1.5f),
             (_leaderPaint, 2f),
             (_selectedBorderPaint, 1f),
             (_dwellBoxPaint, 1f),
@@ -1079,6 +1100,7 @@ public sealed partial class ScopeRenderer : IDisposable
         _ringTextPaint.Dispose();
         _ringLabelFont.Dispose();
         _symbolPaint.Dispose();
+        _shadowSymbolPaint.Dispose();
         _leaderPaint.Dispose();
         _selectedBorderPaint.Dispose();
         _dwellBoxPaint.Dispose();
@@ -1344,14 +1366,18 @@ public sealed partial class ScopeRenderer : IDisposable
         return _font;
     }
 
+    // A live-traffic shadow's symbol draws dashed; every other track's draws solid.
+    private SKPaint SymbolPaintFor(ScopeTrack track) => track.IsShadow ? _shadowSymbolPaint : _symbolPaint;
+
     /// <summary>
     /// Draws <paramref name="track"/>: its symbol at TARGETS, its leader, dwell box and fields at their groups (see
     /// <see cref="FieldPercent"/>), each lifted by DWELL when the track is dwelled; the selection border never dims.
     /// </summary>
     private void DrawTrack(SKCanvas canvas, ScopeTrack track, SKFont font, ScopePalette palette, ScopeBrightness brightness)
     {
-        _symbolPaint.Color = ScopeBrightness.Apply(SymbolColorOf(track, palette), Lifted(track, brightness.Targets, brightness.Dwell));
-        canvas.DrawCircle(track.Symbol.X, track.Symbol.Y, SymbolRadius, _symbolPaint);
+        SKPaint symbolPaint = SymbolPaintFor(track);
+        symbolPaint.Color = ScopeBrightness.Apply(SymbolColorOf(track, palette), Lifted(track, brightness.Targets, brightness.Dwell));
+        canvas.DrawCircle(track.Symbol.X, track.Symbol.Y, SymbolRadius, symbolPaint);
 
         if (track.IsSelected)
         {

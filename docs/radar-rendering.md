@@ -84,7 +84,12 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Scope/ScopeCanvas.Cue.cs` | Partial of `ScopeCanvas`: `MenuCue` (the row's `MapCue`) and `CollectMenuCue`, which resolves it against the frame's tracks into `ScopeOverlays.MenuCue` |
 | `Views/Scope/ScopeOverlays.Cue.cs` | Partial of `ScopeOverlays`: `MenuCue`, the `ResolvedMapCue` the frame draws |
 | `Views/Scope/ScopeRenderer.Cue.cs` | Partial of `ScopeRenderer`: the `DrawMenuCue` slot, drawn by a `MapCueRenderer` it disposes with the renderer |
-| `Views/Scope/ScopeView.Overlays.cs` | Partial of `ScopeView`: `AttachOverlays` and `DetachOverlays` carry `ScopeViewModel.MenuCue` to the canvas and repaint it on a cue or datablock-highlight change |
+| `Views/Scope/ScopeView.Overlays.cs` | Partial of `ScopeView`: `AttachOverlays` and `DetachOverlays` carry `ScopeViewModel.MenuCue` and the shown ground airport (`GroundShownAirportIdProvider`) to the canvas and repaint on a cue or datablock-highlight change |
+| `Views/Scope/ScopeCanvas.Bubbles.cs` | Partial of `ScopeCanvas`: the speech bubbles — `FilterVisible` (the visibility rule with the bubble preferences), `OrderBubbledLast` (bubbled tracks drawn above plain ones, dwelled last), `CollectBubbles`, `FindBubbleAt`, and the `PressBubble` / `ReleaseBubble` rungs: a left press on a bubble is recorded and a release within 5 px dismisses it (`SpeechBubble` cleared), a farther release is a pan; `PressEmptyMap` skips `EmptySpaceClicked` on a bubble so the selection stays |
+| `Views/Scope/ScopeBubbles.cs` | Pure: `ScopeBubbles.Place` wraps each active bubble (`MaxLineChars`, `MaxLines`) and lays it below its block, at the symbol when the block is hidden, into `ScopeBubble` records measured on the UI thread so the hit test and the renderer share the rects; `ScopeBubbleOptions` |
+| `Views/Scope/ScopeOverlays.Bubbles.cs` | Partial of `ScopeOverlays`: `Bubbles`, the placed `ScopeBubble` list |
+| `Views/Scope/ScopeBubbleRenderer.cs` | Draws the bubbles: a green pill for SAY / pilot, an amber one for WARN, wrapped monospace lines |
+| `Views/Scope/ScopeRenderer.Bubbles.cs` | Partial of `ScopeRenderer`: the `DrawBubbles` slot, over every block and under the menu cue and the measure layer, and its disposal |
 | `ViewModels/ScopeViewModel.MapCue.cs` | Partial: `MenuCue`, the `MapCue` `IMenuHost.SetMapCue` sets |
 | `ViewModels/MainViewModel.ScopeViews.cs` | Partial of `MainViewModel`: `AllScopeViews`, the open Scope (none while closed), which `ClientMenuHost` loops over beside `AllRadarViews` |
 | `Views/Scope/ScopeView.Features.cs` | Partial of `ScopeView`: per-feature `Wire*`, `Attach*` and `Detach*` hooks, `BuildViewSection` (the Scope's rows of the aircraft menu), `RunKeyHooks` and the Esc chain `HandleEscape` |
@@ -707,7 +712,7 @@ visibility change goes in one place — but you must preserve that draw/hit symm
 | Surface | Filter | Rule |
 |---|---|---|
 | Radar / STARS | `AircraftVisibility.FilterAircraft` | Hides airborne below the acquisition floor via server-stamped `BelowDisplayFloor`; otherwise shows ghosts. |
-| YAAT Scope | `ScopeCanvas.BuildFrame` calling `AircraftVisibility.FilterAircraft` | Same rule as Radar with `showTopDown` taken from `ScopeCanvas.ShowTopDown` (the Scope's TDM; `ScopeCanvas.DrawnVideoMaps` drops TDM-only maps the same way); never surfaces speech bubbles. |
+| YAAT Scope | `ScopeCanvas.BuildFrame` calling `AircraftVisibility.FilterAircraft` | Same rule as Radar with `showTopDown` taken from `ScopeCanvas.ShowTopDown` (the Scope's TDM; `ScopeCanvas.DrawnVideoMaps` drops TDM-only maps the same way); the speech-bubble switches come from the preferences through `ScopeCanvas.FilterVisible`, so a ground aircraft carrying a bubble surfaces by the Radar's rule against `GroundShownAirportIdProvider`. |
 | Ground / Tower-Cab | `GroundCanvas.FilterActiveAircraft` (render + both hit-testers) | Out-the-window picture: shows real aircraft, drops **only** pure phantoms (`IsUnsupported && !IsGhostOverlay`). An overlay is a real aircraft → shown airborne or on-ground (no `IsOnGround` coupling, so no flicker at rotation); the ≤10 nm / ≤ min(ceiling, 6000 ft) AGL bound lives in `GroundRenderer.IsAirborneVisible`, not the filter. |
 | Aircraft List | `MainViewModel.IsAircraftVisible` | Hides pure phantoms, keeps overlays. |
 

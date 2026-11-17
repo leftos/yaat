@@ -138,8 +138,8 @@ public sealed partial class ScopeCanvas
     }
 
     // A right press no rung above took landed on the map: the gesture is recorded so its release may open the map menu, and
-    // the base canvas starts the pan. A left press no rung above took and no aircraft, block or indicator under it clears
-    // the selection.
+    // the base canvas starts the pan. A left press no rung above took and no aircraft, block, indicator or bubble under it
+    // clears the selection.
     partial void PressEmptyMap(in ScopePress press, ref bool handled)
     {
         if (handled)
@@ -153,7 +153,8 @@ public sealed partial class ScopeCanvas
             return;
         }
 
-        if (press.Props.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+        // A press on a bubble dismisses it on release, so it must not clear the selection first.
+        if ((press.Props.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed) && (FindBubbleAt(press.Pos) is null))
         {
             EmptySpaceClicked?.Invoke();
         }

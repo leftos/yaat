@@ -1054,45 +1054,47 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
     private ScopeFrame BuildFrame(ScopePalette palette)
     {
-        IReadOnlyList<AircraftModel> visible = AircraftVisibility.FilterAircraft(Aircraft, ShowTopDown, false, false, null, DateTime.UtcNow);
+        IReadOnlyList<AircraftModel> visible = FilterVisible();
         ScopeAlertOptions alerts = BuildAlertOptions();
         ScopeDisplayOptions display = BuildDisplayOptions(palette);
         var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoCallsigns;
-        return ScopeFrame.Build(
-            new ScopeFrameInput(
-                visible,
-                SelectedAircraft,
-                Viewport,
-                TemplateId,
-                metrics,
-                alerts,
-                display,
-                offsets,
-                highlighted,
-                MvaFacilityId,
-                OthersLevel,
-                VectorMinutes,
-                VectorOwnership,
-                HistoryCount,
-                LocalRings,
-                _intentPaths,
-                _hoveredCallsign,
-                VciHoveredCallsign: _hoveredVciCallsign,
-                LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns,
-                ShowTopDown: ShowTopDown,
-                LocalPtlCallsigns: LocalPtlCallsigns,
-                LensPath: Lens.DrawsPath,
-                LensPathCallsigns: LensPathCallsigns,
-                // Only while the lens draws a path, and null until the navigation data loads, as the Radar's nav route waits for it.
-                NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null,
-                LensQueue: Lens.DrawsQueue,
-                QueueHoveredCallsign: _hoveredQueueCallsign,
-                LensCheckIn: Lens.DrawsCheckIn,
-                CrrGroups: CrrGroups,
-                HiddenCallsigns: DataBlockState?.HiddenCallsigns,
-                SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false
+        return OrderBubbledLast(
+            ScopeFrame.Build(
+                new ScopeFrameInput(
+                    visible,
+                    SelectedAircraft,
+                    Viewport,
+                    TemplateId,
+                    metrics,
+                    alerts,
+                    display,
+                    offsets,
+                    highlighted,
+                    MvaFacilityId,
+                    OthersLevel,
+                    VectorMinutes,
+                    VectorOwnership,
+                    HistoryCount,
+                    LocalRings,
+                    _intentPaths,
+                    _hoveredCallsign,
+                    VciHoveredCallsign: _hoveredVciCallsign,
+                    LocalDwellLockedCallsigns: DataBlockState?.DwellLockedCallsigns ?? NoCallsigns,
+                    ShowTopDown: ShowTopDown,
+                    LocalPtlCallsigns: LocalPtlCallsigns,
+                    LensPath: Lens.DrawsPath,
+                    LensPathCallsigns: LensPathCallsigns,
+                    // Only while the lens draws a path, and null until the navigation data loads, as the Radar's nav route waits for it.
+                    NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null,
+                    LensQueue: Lens.DrawsQueue,
+                    QueueHoveredCallsign: _hoveredQueueCallsign,
+                    LensCheckIn: Lens.DrawsCheckIn,
+                    CrrGroups: CrrGroups,
+                    HiddenCallsigns: DataBlockState?.HiddenCallsigns,
+                    SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false
+                )
             )
         );
     }

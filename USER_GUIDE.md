@@ -271,7 +271,7 @@ On STARS blocks the Scope follows the Radar's preferences: with "mark student li
 
 In both styles a squawk mismatch keeps the reported code solid while the assigned code dims on the blink off-phase, a standby transponder's altitude is struck through, and an airborne IFR aircraft's altitude draws red below the MVA for its position and amber within 100 ft of it (not on an approach), as the Radar's [datablock altitude tint](#minimum-vectoring-altitude-awareness) does.
 
-Block, leader and symbol colours follow the Radar: the RPO assignment tints apply when enabled, the student scope's colours show with student colour sync on, selection is the white border (the block text keeps its colour), and a coasting live-traffic shadow draws at half strength. The Scope takes the MVA hints default for the student's position type each time the facility's maps load; it has no MVA toggle of its own.
+Block, leader and symbol colours follow the Radar: the RPO assignment tints apply when enabled, the student scope's colours show with student colour sync on, selection is the white border (the block text keeps its colour), and a coasting live-traffic shadow draws at half strength. A live-traffic shadow's symbol draws dashed, as on the Radar. The Scope takes the MVA hints default for the student's position type each time the facility's maps load; it has no MVA toggle of its own.
 
 Moving the pointer within 8 px of a track's symbol, or onto its block, dwells the block: it draws on top at full strength with a thin box in the block's colour around it, and releases when the pointer moves off it or leaves the Scope; panning keeps it. Clicks select as before (an ERAM callsign click also toggles your hold, below). When the ERAM and STARS altitudes differ, the dwelled block also shows the other side's altitude on a line under line 2: `STARS 350` on an ERAM block, `ERAM 240` on a STARS block (EuroScope tags show none).
 
@@ -1683,6 +1683,7 @@ The bubble auto-clears after a few seconds — duration scales with text length 
 - **Render order** — aircraft with an active bubble are drawn on top of neighbors, so the bubble and its datablock are never obscured by overlapping datablocks.
 - **Off by default** (opt-in). SAY and pilot bubbles are disabled entirely in solo-training mode, where the pilot voice TTS already plays the transmission audibly.
 - **Works on the Ground view too** — same pref, same rendering.
+- **Works on the YAAT Scope too** — the same five preferences (the toggle, always show ground bubbles, duration multiplier, keep until clicked, amber WARN) apply, SAY and pilot bubbles draw green and WARN bubbles amber, below the block (at the symbol when the block is hidden). Clicking a bubble dismisses it and leaves the selection alone; dragging pans as usual. Ground aircraft surface on the Scope on the same rule as the Radar.
 - **Ground aircraft surface on the Radar view** when no Ground view is currently showing their airport. Taxiing aircraft are normally hidden on the radar, but if one makes a transmission while no visible Ground view is presenting its airport — you're on the radar, on a Ground view for a different airport, or the Ground view is docked behind another tab (Aircraft List, Strips, …) — its bubble pops onto the radar so the prompt isn't missed.
 
   When a Ground view is already showing that airport, the bubble stays there and isn't duplicated onto the radar.
@@ -3317,12 +3318,12 @@ Links at the top: **Font sizes → Appearance**, **Always on top → General**.
 | **Show taxi route when hovering an aircraft** | Hovering an aircraft temporarily draws its taxi route. | On |
 | **Show all taxiing aircraft's routes** | Draws every taxiing aircraft's route by default. Opt an aircraft out with right-click > Display > Taxi route > Always hide. | Off |
 
-**Overlays** — the speech bubbles and scroll sensitivity here apply to the Ground view too:
+**Overlays** — the speech bubbles and scroll sensitivity here apply to the Ground view too, and the speech bubbles to the YAAT Scope:
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Tint datablock altitude by MVA** (GND / TWR / APP / CTR) | Draws an airborne IFR aircraft's datablock altitude red below its charted Minimum Vectoring Altitude and amber within 100 ft. Defaults seed each scenario by the student's position type; toggle live with the MVA button on the Radar DCB. | Off / Off / On / On |
-| **Show speech bubbles for SAY and pilot transmissions** | `SAY`-family verbs and RPO pilot transmissions briefly overlay the aircraft with a transient bubble on the Radar and Ground views. See [Speech Bubbles](#speech-bubbles). | Off |
+| **Show speech bubbles for SAY and pilot transmissions** | `SAY`-family verbs and RPO pilot transmissions briefly overlay the aircraft with a transient bubble on the Radar, Ground and YAAT Scope views. See [Speech Bubbles](#speech-bubbles). | Off |
 | **Keep bubbles on screen until clicked to dismiss** *(when bubbles on)* | Bubbles ignore the duration timer and stay until you click them. | Off |
 | **Duration multiplier** *(when not stay-until-clicked)* | Scales how long a bubble stays up (0.25–4.00); base length is derived from the message length. | 1.00 |
 | **Also show WARN messages as speech bubbles (amber)** | Warning-channel messages overlay the aircraft as an amber bubble, distinct from green pilot/SAY bubbles. | Off |
