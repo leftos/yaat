@@ -251,6 +251,12 @@ public partial class ScopeView : UserControl
             return;
         }
 
+        if (action is ScopeFieldAction.ToggleHsf or ScopeFieldAction.ToggleVci)
+        {
+            _ = vm.RunEramText(callsign, ScopeDataEntries.Toggle(action, callsign));
+            return;
+        }
+
         if (vm.FindAircraft(callsign) is not { } ac)
         {
             return;

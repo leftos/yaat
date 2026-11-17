@@ -419,7 +419,8 @@ public static class TrackPresenter
             _ => ScopeFieldAction.None,
         };
 
-    // Field A keeps the canvas's dwell-lock click; the scope-data column of these menus is a later step's.
+    // Field A keeps the canvas's dwell-lock click; the scope-data column of these menus is a later step's. The HSF indicator
+    // and the VCI cell run their ERAM toggles directly, as CRC's datablock does.
     private static ScopeFieldAction EramActionFor(ScopeFieldSlot slot) =>
         slot switch
         {
@@ -427,6 +428,8 @@ public static class TrackPresenter
             ScopeFieldSlot.GroundSpeed => ScopeFieldAction.OpenSpeedMenu,
             ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
             ScopeFieldSlot.StatusLine3 => ScopeFieldAction.OpenHandoffMenu,
+            ScopeFieldSlot.HsfIndicator => ScopeFieldAction.ToggleHsf,
+            ScopeFieldSlot.Vci => ScopeFieldAction.ToggleVci,
             _ => ScopeFieldAction.None,
         };
 

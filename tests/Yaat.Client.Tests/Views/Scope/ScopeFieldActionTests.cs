@@ -37,8 +37,8 @@ public class ScopeFieldActionTests
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.StatusLine3, ScopeFieldAction.OpenHandoffMenu)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.Callsign, ScopeFieldAction.None)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.Line4Notes, ScopeFieldAction.None)]
-    [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.HsfIndicator, ScopeFieldAction.None)]
-    [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.Vci, ScopeFieldAction.None)]
+    [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.HsfIndicator, ScopeFieldAction.ToggleHsf)]
+    [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.Vci, ScopeFieldAction.ToggleVci)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.NotYourControl, ScopeFieldAction.None)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.AltitudeMismatch, ScopeFieldAction.None)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.InstructorNote, ScopeFieldAction.None)]
@@ -120,7 +120,8 @@ public class ScopeFieldActionTests
     }
 
     /// <summary>
-    /// Column 0's marks are inert today, so the presented VCI field is given an action here to show the column-0 path carries it.
+    /// The presented VCI field is given an action other than its own here, to show the column-0 path carries whatever action the
+    /// presenter gave it.
     /// </summary>
     [Fact]
     public void Layout_Column0Path_FieldRectCarriesThePresentedAction()

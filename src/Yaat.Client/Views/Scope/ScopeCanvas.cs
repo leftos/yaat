@@ -853,10 +853,18 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         }
     }
 
-    // A left or right press on an aircraft: the right opens its menu, the left selects it (OnLeftPressed). False off any aircraft.
+    // A left or right press on an aircraft: the right opens its menu, the left selects it (OnLeftPressed), or on a VCI cell, lit
+    // or not, runs its toggle, or that of an HSF indicator over it in the same tier or above (ScopeFrame.IndicatorPickAt, which
+    // leaves a plain track's cell under a dwell-locked block to the block). False off any aircraft.
     private bool PressAircraft(bool right, Point pos)
     {
         ScopeFrame frame = CurrentFrame;
+        if (!right && (frame.IndicatorPickAt((float)pos.X, (float)pos.Y) is { } pick))
+        {
+            FieldClicked?.Invoke(pick.Aircraft.Callsign, pick.Action, pos);
+            return true;
+        }
+
         if (HitAt(frame, pos) is not { } hit)
         {
             return false;

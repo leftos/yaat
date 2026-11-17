@@ -161,6 +161,12 @@ public enum ScopeFieldAction
 
     /// <summary>Takes control of the track.</summary>
     TakeControl,
+
+    /// <summary>Toggles the track's HSF display, as an ERAM QS entry.</summary>
+    ToggleHsf,
+
+    /// <summary>Toggles the track's VCI, as an ERAM QN // entry.</summary>
+    ToggleVci,
 }
 
 /// <summary>

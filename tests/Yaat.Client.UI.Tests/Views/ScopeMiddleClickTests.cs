@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
+using SkiaSharp;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -19,7 +20,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>
 /// A middle click on a Scope block runs a typed ERAM entry for the track, or toggles a STARS block's highlight whatever the
 /// preview holds; a left click with text in the preview fills the track into it, opening no menu and toggling no lock; with
-/// an empty preview a left click still opens the field's menu.
+/// an empty preview a left click still opens the field's menu, and on an ERAM block's HSF indicator or VCI cell runs its toggle.
 /// </summary>
 public class ScopeMiddleClickTests
 {
@@ -49,17 +50,17 @@ public class ScopeMiddleClickTests
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();
 
-        AircraftModel ac = AddAt(main, view.Canvas, "UAL238", 300f);
+        AircraftModel ac = AddAt(main, view.Canvas, "UAL238", 300f, 300f);
         main.SelectedAircraft = null;
         scope.TypeEntryText(entry);
         Dispatcher.UIThread.RunJobs();
         return (scope, view, window, ac);
     }
 
-    // A B738 at 5000 ft drawn at (x, 300) on the canvas.
-    private static AircraftModel AddAt(MainViewModel main, ScopeCanvas canvas, string callsign, float x)
+    // A B738 at 5000 ft drawn at (x, y) on the canvas.
+    private static AircraftModel AddAt(MainViewModel main, ScopeCanvas canvas, string callsign, float x, float y)
     {
-        (double lat, double lon) = canvas.Viewport.ScreenToLatLon(x, 300f);
+        (double lat, double lon) = canvas.Viewport.ScreenToLatLon(x, y);
         var ac = new AircraftModel
         {
             Callsign = callsign,
@@ -137,7 +138,7 @@ public class ScopeMiddleClickTests
                 return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
             };
             eram.OwnerSectorCode = "C36";
-            AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f);
+            AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f, 300f);
             stars.OwnerSectorCode = "1A";
             scope.Main.SelectedAircraft = stars;
             Dispatcher.UIThread.RunJobs();
@@ -169,7 +170,7 @@ public class ScopeMiddleClickTests
                 return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
             };
             eram.OwnerSectorCode = "C36";
-            AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f);
+            AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f, 300f);
             stars.OwnerSectorCode = "1A";
             scope.Main.SelectedAircraft = stars;
             Dispatcher.UIThread.RunJobs();
@@ -250,7 +251,7 @@ public class ScopeMiddleClickTests
             Assert.Same(ac, scope.Main.SelectedAircraft);
 
             // Field A of another track: the fill names it in place of UAL238, and its dwell lock is not toggled.
-            AircraftModel other = AddAt(scope.Main, view.Canvas, "DAL1", 550f);
+            AircraftModel other = AddAt(scope.Main, view.Canvas, "DAL1", 550f, 300f);
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "DAL1");
 
             Assert.Equal("DAL1 FH 270", scope.EntryText);
@@ -544,6 +545,394 @@ public class ScopeMiddleClickTests
 
             Assert.Equal("HND", scope.EntryText);
             Assert.Null(scope.EntryResponse);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // A left click on an ERAM FDB's HSF indicator or VCI cell runs its ERAM toggle straight through, as CRC's datablock does.
+
+    private static readonly ActivePositionDto Sector44 = new(
+        Callsign: "OAK_44_CTR",
+        Name: "Sector 44",
+        RadioName: null,
+        Frequency: "135.100",
+        FacilityId: "ZOA",
+        FacilityName: "Oakland Center",
+        PositionType: "Artcc",
+        HandoffCode: "C44",
+        EramSectorId: "44"
+    );
+
+    // Sector 44 views UAL238 as a full block with its VCI lit (on 44's frequency) and an HSF heading, so both marks are drawn.
+    private static List<ScopeEramEntryDto> LightHsfAndVci(ScopeViewModel scope, AircraftModel ac, ScopeEramEntryResultDto answer, bool onFrequency)
+    {
+        var sends = new List<ScopeEramEntryDto>();
+        scope.EramEntrySender = dto =>
+        {
+            sends.Add(dto);
+            return Task.FromResult(answer);
+        };
+        scope.Main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "C44", Sector44, 3, NoStarsDisplay: true));
+        scope.PinOthersLevel(ScopeProfile.OthersFull);
+        ac.EramOnFrequencySectorIds = onFrequency ? ["44"] : [];
+        ac.EramAssignedHeading = "H270";
+        Dispatcher.UIThread.RunJobs();
+        return sends;
+    }
+
+    [AvaloniaFact]
+    public async Task EramBlockLeftClick_OnTheHsfIndicator_RunsQsWithThePick_AndShowsTheAnswer()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.HsfIndicator, MouseButton.Left, "UAL238");
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QS", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "UAL238")], sent.Picks);
+            Assert.Equal("", scope.EntryText);
+            ScopeEntryResponse response = Assert.IsType<ScopeEntryResponse>(scope.EntryResponse);
+            Assert.Equal(ScopeResponseKind.Accept, response.Kind);
+            Assert.Equal("ACCEPT", response.Message);
+            Assert.Equal("QS UAL238", response.Echo);
+            Assert.Null(view.ActiveContextMenu);
+            // As CRC's, the click adds nothing to the entry history, so Up has nothing to recall.
+            Assert.False(scope.WalkEntryHistory(older: true));
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // CRC picks the on-frequency indicator's bounds whether or not the VCI is lit, so a click on an unlit cell (previewed by
+    // the hover that precedes it, which places no click target in the block) still sends the toggle.
+    [AvaloniaFact]
+    public async Task EramBlockLeftClick_OnAnUnlitVciCell_RunsQnSlashSlashWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: false);
+            ScopeTrack track = Assert.Single(view.Canvas.CurrentFrame.Tracks);
+            Assert.DoesNotContain(track.Block.Fields, f => f.Slot == ScopeFieldSlot.Vci);
+            SKRect cell = Assert.NotNull(track.Block.VciCell);
+            Point? onCell = view.Canvas.TranslatePoint(new Point(cell.Left - 4f, cell.Top - 2f), window);
+            Assert.NotNull(onCell);
+            window.MouseMove(onCell.Value);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("UAL238", view.Canvas.HoveredVciCallsign);
+
+            window.MouseDown(onCell.Value, MouseButton.Left);
+            window.MouseUp(onCell.Value, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QN", "//", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent.Picks);
+            Assert.Equal("ACCEPT", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Message);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // CRC ranks picks in two tiers, a dwell-locked block above a plain one (a hover alone ranks nothing: CRC's move walk resets
+    // the dwell first), and within one tier the HSF indicator, then the VCI indicator, beat a block's fields; the instructor's
+    // selection is no tier. DAL238's Field A is placed over UAL238's unlit VCI box: only a dwell-locked DAL238 over a plain
+    // UAL238 keeps the press (its Field A click toggles its lock off) and sends nothing; a plain, hovered or selected DAL238, or
+    // one over a dwell-locked UAL238, loses it to the VCI toggle.
+    [AvaloniaTheory]
+    [InlineData("plain")]
+    [InlineData("locked")]
+    [InlineData("hovered")]
+    [InlineData("selected")]
+    [InlineData("ownerLocked")]
+    public async Task EramLeftClick_OnAFieldAOverAnotherBlocksVciBox_GoesByDwellLockTier(string tier)
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel vciOwner) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, vciOwner, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: false);
+            if (tier == "ownerLocked")
+            {
+                scope.ToggleDwellLock("UAL238");
+                Dispatcher.UIThread.RunJobs();
+            }
+
+            // DAL238's symbol is placed so its callsign's centre lands inside UAL238's VCI hover box.
+            AircraftModel fieldOwner = AddOverVciBox(scope, view.Canvas, ScopeFieldSlot.Callsign);
+            ApplyTier(scope, window, view.Canvas, tier, fieldOwner);
+            ScopeFrame frame = view.Canvas.CurrentFrame;
+            FieldRect fieldA = Assert
+                .Single(frame.Tracks, t => t.Aircraft.Callsign == "DAL238")
+                .Block.Fields.First(f => f.Slot == ScopeFieldSlot.Callsign);
+            bool blockWins = tier == "locked";
+            // The hover previews the VCI exactly where the press toggles it.
+            Assert.Same(blockWins ? null : vciOwner, frame.HoverAt(fieldA.Rect.MidX, fieldA.Rect.MidY).VciPreviewed);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "DAL238");
+            await scope.LastEntryRun;
+
+            if (blockWins)
+            {
+                Assert.Empty(sends);
+                Assert.Same(fieldOwner, scope.Main.SelectedAircraft);
+                // The press went to DAL238's Field A, which toggles its dwell lock off.
+                Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
+            }
+            else
+            {
+                AssertVciToggled(sends, "UAL238");
+                string[] locks = tier == "ownerLocked" ? ["UAL238"] : [];
+                Assert.Equal(locks, scope.DataBlockState.DwellLockedCallsigns);
+            }
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // Puts DAL238 in the row's tier: the instructor's local dwell lock, the pointer on its symbol (dwelled, not locked), or the
+    // instructor's selection; plain and ownerLocked leave it plain.
+    private static void ApplyTier(ScopeViewModel scope, Window window, ScopeCanvas canvas, string tier, AircraftModel fieldOwner)
+    {
+        switch (tier)
+        {
+            case "locked":
+                scope.ToggleDwellLock("DAL238");
+                break;
+            case "hovered":
+                ScopeTrack track = Assert.Single(canvas.CurrentFrame.Tracks, t => t.Aircraft.Callsign == "DAL238");
+                Point? onSymbol = canvas.TranslatePoint(new Point(track.Symbol.X, track.Symbol.Y), window);
+                Assert.NotNull(onSymbol);
+                window.MouseMove(onSymbol.Value);
+                break;
+            case "selected":
+                scope.Main.SelectedAircraft = fieldOwner;
+                break;
+        }
+
+        Dispatcher.UIThread.RunJobs();
+        if (tier == "hovered")
+        {
+            Assert.Equal("DAL238", canvas.HoveredCallsign);
+            Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
+        }
+    }
+
+    // DAL238, placed so the centre of its field in `slot` lands inside UAL238's unlit VCI hover box, at UAL238's VciTarget.
+    private static AircraftModel AddOverVciBox(ScopeViewModel scope, ScopeCanvas canvas, ScopeFieldSlot slot)
+    {
+        ScopeTrack b = Assert.Single(canvas.CurrentFrame.Tracks);
+        SKRect field = b.Block.Fields.First(f => f.Slot == slot).Rect;
+        return AddWithPointAt(scope, canvas, b, new SKPoint(field.MidX, field.MidY));
+    }
+
+    // DAL238, placed so the point `onBlock` of a block laid out as `b`'s lands on b's VCI target.
+    private static AircraftModel AddWithPointAt(ScopeViewModel scope, ScopeCanvas canvas, ScopeTrack b, SKPoint onBlock)
+    {
+        SKPoint symbol = VciTarget(b) - (onBlock - b.Symbol);
+        return AddAt(scope.Main, canvas, "DAL238", symbol.X, symbol.Y);
+    }
+
+    // A point inside the track's VCI hover box, off its cell: 4 px left of it and 2 px above it.
+    private static SKPoint VciTarget(ScopeTrack track)
+    {
+        SKRect cell = Assert.NotNull(track.Block.VciCell);
+        return new SKPoint(cell.Left - 4f, cell.Top - 2f);
+    }
+
+    private static void AssertVciToggled(List<ScopeEramEntryDto> sends, string callsign)
+    {
+        ScopeEramEntryDto sent = Assert.Single(sends);
+        Assert.Equal(["QN", "//", callsign], sent.Tokens);
+        Assert.Equal([new ScopeEramPickDto(2, callsign)], sent.Picks);
+    }
+
+    // The emphasised area of a dwell-locked block is its dwell box, the fields without column 0: a press in the locked block's
+    // column 0, outside that box, over a plain block's VCI box toggles that VCI.
+    [AvaloniaFact]
+    public async Task EramLeftClick_InALockedBlocksColumn0OutsideItsDwellBox_OverAPlainVciBox_TogglesTheVci()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel vciOwner) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, vciOwner, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: false);
+            ScopeTrack b = Assert.Single(view.Canvas.CurrentFrame.Tracks);
+            SKRect bCallsign = b.Block.Fields.First(f => f.Slot == ScopeFieldSlot.Callsign).Rect;
+            // Beside Field A in column 0 (widened by the R): inside the block bounds, left of the dwell box, above the VCI cell.
+            var inColumn0 = new SKPoint((b.Block.Bounds.Left + b.DwellBox.Left) / 2f, bCallsign.MidY);
+            SKPoint target = VciTarget(b);
+            AddWithPointAt(scope, view.Canvas, b, inColumn0);
+            scope.ToggleDwellLock("DAL238");
+            Dispatcher.UIThread.RunJobs();
+
+            ScopeFrame frame = view.Canvas.CurrentFrame;
+            ScopeTrack locked = Assert.Single(frame.Tracks, t => t.Aircraft.Callsign == "DAL238");
+            Assert.True(locked.Block.Bounds.Contains(target.X, target.Y));
+            Assert.False(locked.DwellBox.Contains(target.X, target.Y));
+            Assert.Same(vciOwner, frame.HoverAt(target.X, target.Y).VciPreviewed);
+
+            ClickCanvas(window, view.Canvas, new Point(target.X, target.Y), MouseButton.Left);
+            await scope.LastEntryRun;
+
+            AssertVciToggled(sends, "UAL238");
+            Assert.Equal(["DAL238"], scope.DataBlockState.DwellLockedCallsigns);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // Within one tier CRC picks the HSF indicator before the on-frequency indicator: DAL238's HSF indicator over plain UAL238's
+    // VCI box takes the press, QS with DAL238 as the pick.
+    [AvaloniaFact]
+    public async Task EramLeftClick_OnAnHsfIndicatorOverAnotherBlocksVciBox_SameTier_RunsQsWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel vciOwner) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, vciOwner, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: false);
+            SKPoint target = VciTarget(Assert.Single(view.Canvas.CurrentFrame.Tracks));
+            AircraftModel hsfOwner = AddOverVciBox(scope, view.Canvas, ScopeFieldSlot.HsfIndicator);
+            hsfOwner.EramAssignedHeading = "H270";
+            Dispatcher.UIThread.RunJobs();
+
+            ScopeFrame frame = view.Canvas.CurrentFrame;
+            FieldRect hsf = Assert
+                .Single(frame.Tracks, t => t.Aircraft.Callsign == "DAL238")
+                .Block.Fields.First(f => f.Slot == ScopeFieldSlot.HsfIndicator);
+            Assert.True(hsf.Rect.Contains(target.X, target.Y));
+            // The HSF indicator takes the point from the VCI box under it: the hover previews no VCI where the press runs the HSF.
+            Assert.Null(frame.HoverAt(target.X, target.Y).VciPreviewed);
+
+            ClickCanvas(window, view.Canvas, new Point(target.X, target.Y), MouseButton.Left);
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QS", "DAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "DAL238")], sent.Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // Both blocks dwell-locked, one tier: DAL238's HSF indicator over UAL238's VCI box takes the hover and the press from it.
+    [AvaloniaFact]
+    public async Task EramLeftClick_OnALockedHsfIndicatorOverALockedBlocksVciBox_RunsQsWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel vciOwner) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, vciOwner, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: false);
+            scope.ToggleDwellLock("UAL238");
+            Dispatcher.UIThread.RunJobs();
+            // Both blocks are laid out at Dwell, so the locked UAL238's layout places DAL238's HSF indicator.
+            SKPoint target = VciTarget(Assert.Single(view.Canvas.CurrentFrame.Tracks));
+            AircraftModel hsfOwner = AddOverVciBox(scope, view.Canvas, ScopeFieldSlot.HsfIndicator);
+            hsfOwner.EramAssignedHeading = "H270";
+            scope.ToggleDwellLock("DAL238");
+            Dispatcher.UIThread.RunJobs();
+
+            ScopeFrame frame = view.Canvas.CurrentFrame;
+            FieldRect hsf = Assert
+                .Single(frame.Tracks, t => t.Aircraft.Callsign == "DAL238")
+                .Block.Fields.First(f => f.Slot == ScopeFieldSlot.HsfIndicator);
+            Assert.True(hsf.Rect.Contains(target.X, target.Y));
+            Assert.Null(frame.HoverAt(target.X, target.Y).VciPreviewed);
+
+            ClickCanvas(window, view.Canvas, new Point(target.X, target.Y), MouseButton.Left);
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QS", "DAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "DAL238")], sent.Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The HSF indicator wins only in the VCI owner's tier or above: a plain DAL238's HSF indicator over a dwell-locked UAL238's
+    // VCI box loses the press, and the hover, to the VCI.
+    [AvaloniaFact]
+    public async Task EramLeftClick_OnAPlainHsfIndicatorOverALockedBlocksVciBox_TogglesTheVci()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel vciOwner) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, vciOwner, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: false);
+            // The HSF indicator's place in a plain block, taken before the lock relays UAL238's block out at Dwell.
+            SKRect plainHsf = Assert.Single(view.Canvas.CurrentFrame.Tracks).Block.Fields.First(f => f.Slot == ScopeFieldSlot.HsfIndicator).Rect;
+            scope.ToggleDwellLock("UAL238");
+            Dispatcher.UIThread.RunJobs();
+            ScopeTrack locked = Assert.Single(view.Canvas.CurrentFrame.Tracks);
+            SKPoint target = VciTarget(locked);
+            AircraftModel hsfOwner = AddWithPointAt(scope, view.Canvas, locked, new SKPoint(plainHsf.MidX, plainHsf.MidY));
+            hsfOwner.EramAssignedHeading = "H270";
+            Dispatcher.UIThread.RunJobs();
+
+            ScopeFrame frame = view.Canvas.CurrentFrame;
+            FieldRect hsf = Assert
+                .Single(frame.Tracks, t => t.Aircraft.Callsign == "DAL238")
+                .Block.Fields.First(f => f.Slot == ScopeFieldSlot.HsfIndicator);
+            Assert.True(hsf.Rect.Contains(target.X, target.Y));
+            Assert.Same(vciOwner, frame.HoverAt(target.X, target.Y).VciPreviewed);
+
+            ClickCanvas(window, view.Canvas, new Point(target.X, target.Y), MouseButton.Left);
+            await scope.LastEntryRun;
+
+            AssertVciToggled(sends, "UAL238");
+            Assert.Equal(["UAL238"], scope.DataBlockState.DwellLockedCallsigns);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // As CRC's on-frequency indicator pick: QN // with the clicked track as a pick.
+    [AvaloniaFact]
+    public async Task EramBlockLeftClick_OnTheVciCell_RunsQnSlashSlashWithThePick_AndShowsTheRefusal()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(
+                scope,
+                ac,
+                new ScopeEramEntryResultDto(false, ["NOT YOUR CONTROL"], null),
+                onFrequency: true
+            );
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Vci, MouseButton.Left, "UAL238");
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QN", "//", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent.Picks);
+            Assert.Equal("", scope.EntryText);
+            ScopeEntryResponse response = Assert.IsType<ScopeEntryResponse>(scope.EntryResponse);
+            Assert.Equal(ScopeResponseKind.Error, response.Kind);
+            Assert.Equal("NOT YOUR CONTROL", response.Message);
+            Assert.Equal("QN // UAL238", response.Echo);
+            Assert.False(scope.WalkEntryHistory(older: true));
         }
         finally
         {

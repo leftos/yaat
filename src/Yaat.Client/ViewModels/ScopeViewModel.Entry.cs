@@ -424,6 +424,19 @@ public sealed partial class ScopeViewModel
         EntryResponse = sink.ResponseTo(entry);
     }
 
+    /// <summary>
+    /// Runs the ERAM <paramref name="entry"/> a click on <paramref name="callsign"/>'s block produced: to the server's ERAM
+    /// dispatch with <paramref name="callsign"/> as the clicked track (sent as a pick where it is a token of its own), its
+    /// answer the response. As CRC's automatic entries, it joins no Scope entry recall (Up, Down, Ctrl+R), though the terminal
+    /// log still records it, and the preview text is left as it is.
+    /// </summary>
+    internal Task RunEramText(string callsign, string entry)
+    {
+        Task run = RunEramEntryAsync(entry, callsign);
+        LastEntryRun = run;
+        return run;
+    }
+
     // An ERAM entry: in the history as typed, then to the server's ERAM dispatch with ERAM's own characters where its keys
     // typed them, its answer the response. Only this path maps: a pilot command typed on an ERAM Scope sends as typed. The
     // clicked track's callsign, when still in the entry, goes as a pick of that aircraft.

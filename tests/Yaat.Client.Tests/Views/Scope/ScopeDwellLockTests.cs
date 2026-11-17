@@ -278,7 +278,7 @@ public class ScopeDwellLockTests
     }
 
     [Fact]
-    public void VciPreview_NotOnFrequency_AddsNoBoundsAndNoClickTarget()
+    public void VciPreview_NotOnFrequency_AddsNoBounds_AndIsNoBlockHit()
     {
         // The viewer's own track: no R shows, so nothing else widens the bounds over column 0.
         AircraftModel ac = Named("UAL238", -122.0);

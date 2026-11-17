@@ -161,6 +161,13 @@ public sealed record ScopeTrack(
     /// </summary>
     public bool IsDwelled => Dwelled;
 
+    /// <summary>
+    /// Whether the block is dwell-locked, by the instructor on this scope or by the student's CRC: the pick tier above a plain
+    /// block (<see cref="ScopeFrame.IndicatorPickAt"/>). A pointer hover alone does not set it, as CRC's move walk resets the
+    /// dwell first.
+    /// </summary>
+    public bool IsDwellLocked { get; init; }
+
     /// <summary>The text bounds inflated <see cref="DwellBoxInflatePx"/>; the hover hit-test and the emphasis both read it.</summary>
     public SKRect DwellBox
     {
@@ -181,6 +188,11 @@ public sealed record ScopeTrack(
 /// <param name="VciPreviewed">The aircraft whose VCI cell the pointer is on, or null.</param>
 /// <param name="QueueHovered">The aircraft whose queued-commands badge the pointer is on, or null.</param>
 public readonly record struct ScopeHoverHit(AircraftModel? Dwelled, AircraftModel? VciPreviewed, AircraftModel? QueueHovered);
+
+/// <summary>An ERAM direct-action indicator a left press picks ahead of the block fields: whose it is and the action it runs.</summary>
+/// <param name="Aircraft">The aircraft whose indicator the press is on.</param>
+/// <param name="Action"><see cref="ScopeFieldAction.ToggleHsf"/> or <see cref="ScopeFieldAction.ToggleVci"/>.</param>
+public readonly record struct ScopeIndicatorPick(AircraftModel Aircraft, ScopeFieldAction Action);
 
 /// <summary>A field a point landed on, and whose block it is.</summary>
 public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
@@ -244,7 +256,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>
     /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Ground"/> for a ground target
     /// (<see cref="IsGroundTarget"/>), dwelled or not; else <see cref="ScopeBlockLevel.Dwell"/> while it is
-    /// <paramref name="dwelled"/> (<see cref="IsDwelledTrack"/>); else Full for the viewer's own track and for every track
+    /// <paramref name="dwelled"/> (hovered, or <see cref="IsDwellLockedTrack"/>); else Full for the viewer's own track and for every track
     /// when there is no viewer; else the others' level for the track's template (<see cref="OthersLevelFor"/>).
     /// </summary>
     private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input, bool dwelled)
@@ -269,17 +281,13 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     }
 
     /// <summary>
-    /// Whether the pointer dwells on <paramref name="ac"/>, or it is drawn with the ERAM template and dwell-locked, by the
-    /// instructor on this scope (<see cref="ScopeFrameInput.LocalDwellLockedCallsigns"/>) or by the student's CRC for the
-    /// viewer's ERAM sector.
+    /// Whether <paramref name="ac"/> is drawn with the ERAM template and dwell-locked, by the instructor on this scope
+    /// (<see cref="ScopeFrameInput.LocalDwellLockedCallsigns"/>) or by the student's CRC for the viewer's ERAM sector. A track
+    /// is dwelled while the pointer dwells on it or it is locked.
     /// </summary>
-    private static bool IsDwelledTrack(AircraftModel ac, string templateId, ScopeFrameInput input)
-    {
-        bool locked =
-            (templateId == ScopeTemplates.EramId)
-            && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, input.Display.Viewer));
-        return IsHovered(ac, input) || locked;
-    }
+    private static bool IsDwellLockedTrack(AircraftModel ac, string templateId, ScopeFrameInput input) =>
+        (templateId == ScopeTemplates.EramId)
+        && ((input.LocalDwellLockedCallsigns?.Contains(ac.Callsign) ?? false) || EramDwellLock.IsDwellLocked(ac, input.Display.Viewer));
 
     /// <summary>
     /// Whether <paramref name="ac"/> is a ground target: on the ground while top-down mode is on, drawn with the STARS or ERAM
@@ -331,7 +339,8 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         bool isSelected = ReferenceEquals(ac, input.Selected);
         string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
         AircraftModel? atpaLead = Peer(byCallsign, ac.AtpaLeadCallsign);
-        bool dwelled = IsDwelledTrack(ac, templateId, input);
+        bool locked = IsDwellLockedTrack(ac, templateId, input);
+        bool dwelled = IsHovered(ac, input) || locked;
         var presenterInput = new TrackPresenterInput(
             ac,
             templateId,
@@ -377,7 +386,10 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
             IntentPathFor(ac, input, isSelected),
             QueueBadgeFor(ac, input, sx, sy),
             CheckInTagFor(ac, input)
-        );
+        )
+        {
+            IsDwellLocked = locked,
+        };
     }
 
     /// <summary>
@@ -478,26 +490,90 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// What the pointer at (<paramref name="x"/>, <paramref name="y"/>) hovers, by CRC's pick precedence, each pass topmost block
     /// first (<c>ViewDataBlocks.HandleMouseMove</c>): within <see cref="DwellSymbolRadiusPx"/> of a symbol dwells its block;
     /// else inside a track's queued-commands badge, inflated <see cref="QueueBadgeHoverInflatePx"/>, shows its pending lines;
-    /// else inside a block's VCI cell, inflated as CRC's <c>OnFrequencyIndicatorBounds</c>, previews its VCI; else inside a
-    /// block's <see cref="ScopeTrack.DwellBox"/> dwells it. Separate from the click rule (<see cref="BlockAt"/>,
-    /// <see cref="TargetAt"/>).
+    /// else inside a block's VCI cell, inflated as CRC's <c>OnFrequencyIndicatorBounds</c>, previews its VCI, unless a plain
+    /// track's cell lies under a dwell-locked block or an HSF indicator takes the point (<see cref="IndicatorsAt"/>); else
+    /// inside a block's <see cref="ScopeTrack.DwellBox"/> dwells it. Separate from the click rule (<see cref="BlockAt"/>,
+    /// <see cref="TargetAt"/>), save for the VCI it previews, which a left press toggles (<see cref="IndicatorPickAt"/>).
     /// </summary>
     public ScopeHoverHit HoverAt(float x, float y)
     {
-        var point = new SKPoint(x, y);
-        if (Topmost(t => SKPoint.Distance(t.Symbol, point) <= DwellSymbolRadiusPx) is { } symbol)
+        if (SymbolAt(x, y) is { } symbol)
         {
             return new ScopeHoverHit(symbol, null, null);
         }
-        if (Topmost(t => (t.QueueBadge is { } badge) && QueueHoverBox(badge.Rect).Contains(x, y)) is { } queued)
+        if (QueueBadgeAt(x, y) is { } queued)
         {
             return new ScopeHoverHit(null, null, queued);
         }
-        if (Topmost(t => (t.Block.VciCell is { } cell) && VciHoverBox(cell).Contains(x, y)) is { } vci)
+        if (IndicatorsAt(x, y).Vci is { } vci)
         {
             return new ScopeHoverHit(null, vci, null);
         }
         return new ScopeHoverHit(Topmost(t => t.DwellBox.Contains(x, y)), null, null);
+    }
+
+    private AircraftModel? SymbolAt(float x, float y)
+    {
+        var point = new SKPoint(x, y);
+        return Topmost(t => SKPoint.Distance(t.Symbol, point) <= DwellSymbolRadiusPx);
+    }
+
+    private AircraftModel? QueueBadgeAt(float x, float y) => Topmost(t => (t.QueueBadge is { } badge) && QueueHoverBox(badge.Rect).Contains(x, y));
+
+    /// <summary>
+    /// The indicator under (<paramref name="x"/>, <paramref name="y"/>), at most one set, by CRC's two pick tiers
+    /// (<c>ViewDataBlocks.IsDwelled</c>: a dwell-locked block, then a plain one) and its order within a tier
+    /// (<c>PickPrecedenceManager</c>: the HSF indicator, then the on-frequency indicator, then the block's fields). The VCI
+    /// owner is the topmost track whose inflated VCI cell holds the point, a plain track's cell skipped where a dwell-locked
+    /// track's <see cref="ScopeTrack.DwellBox"/> holds it; then an HSF indicator of a block in that owner's tier or above,
+    /// topmost first, takes the point from the VCI. A hover alone ranks nothing, and selection is no tier. Both null off every
+    /// VCI cell.
+    /// </summary>
+    private (AircraftModel? Vci, AircraftModel? Hsf) IndicatorsAt(float x, float y)
+    {
+        bool underLockedBlock = Tracks.Any(t => t.IsDwellLocked && t.DwellBox.Contains(x, y));
+        if (TopmostTrack(t => OwnsVciAt(t, x, y, underLockedBlock)) is not { } owner)
+        {
+            return (null, null);
+        }
+
+        AircraftModel? hsf = Topmost(t => HsfIndicatorWinsAt(t, owner, x, y));
+        return (hsf is null) ? (owner.Aircraft, null) : (null, hsf);
+    }
+
+    // Whether the track's inflated VCI cell holds the point in a tier it may pick in: a plain track's cell not under a locked
+    // block's dwell box.
+    private static bool OwnsVciAt(ScopeTrack t, float x, float y, bool underLockedBlock) =>
+        (t.Block.VciCell is { } cell) && VciHoverBox(cell).Contains(x, y) && (t.IsDwellLocked || !underLockedBlock);
+
+    // Whether the track's HSF indicator holds the point in the VCI owner's tier or above. A plain owner already implies that no
+    // locked dwell box holds the point, so a plain HSF block qualifies with it.
+    private static bool HsfIndicatorWinsAt(ScopeTrack t, ScopeTrack owner, float x, float y) =>
+        (t.IsDwellLocked || !owner.IsDwellLocked)
+        && t.Block.Fields.Any(f =>
+            (f.Action == ScopeFieldAction.ToggleHsf) && f.Style.HasFlag(ScopeFieldStyle.HsfIndicator) && f.Rect.Contains(x, y)
+        );
+
+    /// <summary>
+    /// The ERAM indicator a left press at (<paramref name="x"/>, <paramref name="y"/>) picks ahead of the block fields
+    /// (<see cref="IndicatorsAt"/>): an HSF indicator over a VCI cell in the owner's tier or above toggles the HSF; else the VCI
+    /// cell, the one <see cref="HoverAt"/> previews, lit or not, toggles the VCI, as CRC picks <c>OnFrequencyIndicatorBounds</c>.
+    /// Null near a symbol, on a queued-commands badge (which <see cref="HoverAt"/> ranks first) and off every VCI cell, so the
+    /// press goes on to the block.
+    /// </summary>
+    public ScopeIndicatorPick? IndicatorPickAt(float x, float y)
+    {
+        if ((SymbolAt(x, y) is not null) || (QueueBadgeAt(x, y) is not null))
+        {
+            return null;
+        }
+
+        (AircraftModel? vci, AircraftModel? hsf) = IndicatorsAt(x, y);
+        if (hsf is not null)
+        {
+            return new ScopeIndicatorPick(hsf, ScopeFieldAction.ToggleHsf);
+        }
+        return (vci is not null) ? new ScopeIndicatorPick(vci, ScopeFieldAction.ToggleVci) : null;
     }
 
     private static SKRect QueueHoverBox(SKRect rect) =>
@@ -511,13 +587,15 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
     /// <summary>The VCI cell's hover box: CRC's <c>OnFrequencyIndicatorBounds</c>, 5 px out left and down, 3 px up and right.</summary>
     private static SKRect VciHoverBox(SKRect cell) => new(cell.Left - 5f, cell.Top - 3f, cell.Right + 3f, cell.Bottom + 5f);
 
-    private AircraftModel? Topmost(Func<ScopeTrack, bool> hit)
+    private AircraftModel? Topmost(Func<ScopeTrack, bool> hit) => TopmostTrack(hit)?.Aircraft;
+
+    private ScopeTrack? TopmostTrack(Func<ScopeTrack, bool> hit)
     {
         for (int i = Tracks.Count - 1; i >= 0; i--)
         {
             if (hit(Tracks[i]))
             {
-                return Tracks[i].Aircraft;
+                return Tracks[i];
             }
         }
         return null;

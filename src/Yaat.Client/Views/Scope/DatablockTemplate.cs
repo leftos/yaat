@@ -24,7 +24,8 @@ public sealed record ScopeTextMetrics(Func<string, float> Measure, float Size, f
 /// <paramref name="Bounds"/> when the template has no column 0 or no mark shows.
 /// </param>
 /// <param name="VciCell">
-/// The ERAM FDB's VCI cell in column 0, lit or not, for the hover preview; null on a block with no VCI slot. Not part of
+/// The ERAM FDB's VCI cell in column 0, lit or not: the cell the hover previews (<see cref="ScopeFrame.HoverAt"/>) and the VCI
+/// click target (<see cref="ScopeFrame.IndicatorPickAt"/>); null on a block with no VCI slot. Not part of
 /// <paramref name="Bounds"/> or <paramref name="TextBounds"/>.
 /// </param>
 public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fields, SKRect TextBounds, SKRect? VciCell = null)
