@@ -63,8 +63,20 @@ public enum ScopeFieldSlot
     /// <summary>The ERAM HSF indicator after the line-3 status, drawn as a path in its <see cref="TrackPresenter.EramArrowCell"/>.</summary>
     HsfIndicator,
 
-    /// <summary>The ERAM line 4: the HSF free text or heading/speed, else the aircraft type or destination fallback.</summary>
+    /// <summary>The ERAM line 4's type or destination fallback, shown while no HSF value shows.</summary>
     Line4Notes,
+
+    /// <summary>The ERAM line 4's HSF free text, shown alone whatever heading or speed is also set.</summary>
+    Line4FreeText,
+
+    /// <summary>The ERAM line 4's HSF heading, padded to four characters when a speed follows it.</summary>
+    Line4Heading,
+
+    /// <summary>The ERAM line 4's blank heading column before a speed shown alone; never clicked.</summary>
+    Line4Pad,
+
+    /// <summary>The ERAM line 4's HSF speed, in the column after the heading's.</summary>
+    Line4Speed,
 
     /// <summary>
     /// Beacon-code mismatch: reported code then assigned code; the beacon code alone on the STARS LDB and on a ground target's
@@ -113,4 +125,17 @@ public enum ScopeFieldSlot
 
     /// <summary>EuroScope tag: the flashing handoff target.</summary>
     Handoff,
+}
+
+/// <summary>Questions about a <see cref="ScopeFieldSlot"/>.</summary>
+public static class ScopeFieldSlotExtensions
+{
+    /// <summary>Whether <paramref name="slot"/> is on the ERAM line 4: its fallback, free text, heading, pad or speed.</summary>
+    public static bool IsLine4(this ScopeFieldSlot slot) =>
+        slot
+            is ScopeFieldSlot.Line4Notes
+                or ScopeFieldSlot.Line4FreeText
+                or ScopeFieldSlot.Line4Heading
+                or ScopeFieldSlot.Line4Pad
+                or ScopeFieldSlot.Line4Speed;
 }

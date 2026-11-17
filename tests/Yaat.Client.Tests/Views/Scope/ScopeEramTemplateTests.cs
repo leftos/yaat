@@ -101,7 +101,16 @@ public class ScopeEramTemplateTests
         Assert.True(line3.Slots[0].Reserved);
         Assert.Equal("", line3.Slots[1].Separator);
         Assert.False(line3.AlwaysShown);
-        Assert.Equal([ScopeFieldSlot.Line4Notes], line4.Slots.Select(s => s.Slot));
+        Assert.Equal(
+            [
+                ScopeFieldSlot.Line4FreeText,
+                ScopeFieldSlot.Line4Heading,
+                ScopeFieldSlot.Line4Pad,
+                ScopeFieldSlot.Line4Speed,
+                ScopeFieldSlot.Line4Notes,
+            ],
+            line4.Slots.Select(s => s.Slot)
+        );
         Assert.False(line4.AlwaysShown);
         Assert.Equal(
             [ScopeFieldSlot.ModeC, ScopeFieldSlot.NoLandingClearance, ScopeFieldSlot.ConflictAlert, ScopeFieldSlot.InstructorNote],
@@ -270,7 +279,112 @@ public class ScopeEramTemplateTests
         ac.FiledAircraftType = "";
         ac.Destination = "";
 
-        Assert.DoesNotContain(LayOut(ac).Fields, f => f.Slot == ScopeFieldSlot.Line4Notes);
+        Assert.DoesNotContain(LayOut(ac).Fields, f => f.Slot.IsLine4());
+    }
+
+    private static readonly SKFont Line4Font = new() { Size = 12f };
+
+    private static ScopeTextMetrics Line4Metrics() => ScopeTextMetrics.FromStyle(new TextStyle(Line4Font, new SKPaint()));
+
+    private static List<FieldRect> Line4Rects(AircraftModel ac) => [.. LayOut(ac, Line4Metrics()).Fields.Where(f => f.Slot.IsLine4())];
+
+    private static AircraftModel WithLine4(string? heading, string? speed, string? freeText)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.EramAssignedHeading = heading;
+        ac.EramAssignedSpeed = speed;
+        ac.EramFreeText = freeText;
+        return ac;
+    }
+
+    [Fact]
+    public void EramLayout_HeadingAndSpeed_AreTwoAdjacentTokens_DrawingTheLine4Text()
+    {
+        AircraftModel ac = WithLine4("H270", "S250", null);
+        ScopeTextMetrics metrics = Line4Metrics();
+
+        List<FieldRect> line4 = Line4Rects(ac);
+
+        Assert.Equal([ScopeFieldSlot.Line4Heading, ScopeFieldSlot.Line4Speed], line4.Select(f => f.Slot));
+        Assert.Equal(["H270", "S250"], line4.Select(f => f.Text));
+        Assert.Equal(0f, line4[0].Rect.Left);
+        Assert.Equal(metrics.Measure("H270 "), line4[1].Rect.Left, 3);
+        Assert.True(line4[0].Rect.Right <= line4[1].Rect.Left);
+        Assert.Equal(EramLine4.Text(ac, true, true, false), $"{line4[0].Text} {line4[1].Text}");
+    }
+
+    [Fact]
+    public void EramLayout_ShortHeadingBeforeASpeed_SpeedFollowsThePaddedHeadingRun()
+    {
+        AircraftModel ac = WithLine4("20L", "S250", null);
+
+        List<FieldRect> line4 = Line4Rects(ac);
+
+        Assert.Equal(["20L ", "S250"], line4.Select(f => f.Text));
+        Assert.Equal(Line4Metrics().Measure("20L " + " "), line4[1].Rect.Left, 3);
+        Assert.Equal(EramLine4.Text(ac, true, true, false), $"{line4[0].Text} {line4[1].Text}");
+    }
+
+    [Fact]
+    public void EramLayout_SpeedAlone_SpeedFollowsTheInertPadRun()
+    {
+        AircraftModel ac = WithLine4(null, "S250", null);
+
+        List<FieldRect> line4 = Line4Rects(ac);
+
+        FieldRect pad = Assert.Single(line4, f => f.Slot == ScopeFieldSlot.Line4Pad);
+        FieldRect speed = Assert.Single(line4, f => f.Slot == ScopeFieldSlot.Line4Speed);
+        Assert.Equal("    ", pad.Text);
+        Assert.Equal(ScopeFieldAction.None, pad.Action);
+        Assert.Equal(ScopeFieldAction.OpenEramSpeedMenu, speed.Action);
+        Assert.Equal(0f, pad.Rect.Left);
+        Assert.Equal(Line4Metrics().Measure("    " + " "), speed.Rect.Left, 3);
+        Assert.Equal(EramLine4.Text(ac, true, true, false), $"{pad.Text} {speed.Text}");
+    }
+
+    [Fact]
+    public void EramLayout_HeadingAlone_IsOneHeadingToken()
+    {
+        FieldRect heading = Assert.Single(Line4Rects(WithLine4("H270", null, null)));
+
+        Assert.Equal(ScopeFieldSlot.Line4Heading, heading.Slot);
+        Assert.Equal("H270", heading.Text);
+        Assert.Equal(ScopeFieldAction.OpenEramHeadingMenu, heading.Action);
+    }
+
+    [Fact]
+    public void EramLayout_FreeText_IsOneFreeTextToken_WhateverElseIsSet()
+    {
+        FieldRect text = Assert.Single(Line4Rects(WithLine4("H270", "S250", "LOWALT")));
+
+        Assert.Equal(ScopeFieldSlot.Line4FreeText, text.Slot);
+        Assert.Equal("LOWALT", text.Text);
+        Assert.Equal(ScopeFieldAction.OpenEramFreeTextMenu, text.Action);
+    }
+
+    [Fact]
+    public void EramLayout_NoHsf_IsOneFallbackRect()
+    {
+        FieldRect fallback = Assert.Single(Line4Rects(WithLine4(null, null, null)));
+
+        Assert.Equal(ScopeFieldSlot.Line4Notes, fallback.Slot);
+        Assert.Equal(ScopeFieldAction.OpenEramHsfMenu, fallback.Action);
+    }
+
+    [Fact]
+    public void EramLayout_SuppressedForTheViewer_IsOneFallbackRect()
+    {
+        AircraftModel ac = WithLine4("H270", "S250", null);
+        ac.EramFourthLineSuppressedSectors = [new Yaat.Sim.EramSectorKey("ZOA", "44")];
+        TrackPresenterInput input = ScopeTestAircraft.Input(ac, ScopeTemplates.EramId) with
+        {
+            Display = ScopeTestAircraft.AllDisplay with { Viewer = Viewer },
+        };
+
+        FieldRect fallback = Assert.Single(DatablockTemplate.Layout(TrackPresenter.Present(input), Line4Metrics()).Fields, f => f.Slot.IsLine4());
+
+        Assert.Equal(ScopeFieldSlot.Line4Notes, fallback.Slot);
+        Assert.Equal(ScopeFieldAction.OpenEramHsfMenu, fallback.Action);
     }
 
     [Fact]
@@ -283,7 +397,7 @@ public class ScopeEramTemplateTests
         ScopeBlockLayout layout = LayOut(ac);
 
         FieldRect status = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.StatusLine3);
-        FieldRect line4 = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.Line4Notes);
+        FieldRect line4 = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.Line4Heading);
         Assert.Equal("270", line4.Text);
         Assert.True(line4.Rect.Top > status.Rect.Top);
         Assert.Equal(0f, line4.Rect.Left);

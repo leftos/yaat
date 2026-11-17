@@ -142,9 +142,10 @@ public static class ScopeTemplates
     /// <summary>
     /// The ERAM datablock: line 1 as STARS; line 2 the ERAM altitude (Field B, its character 4 and Field C) and the
     /// altitude-mismatch cell flush after it, followed by the STARS right side (ground speed, cwt/type, the ATPA in-trail
-    /// distance, then the ident); line 3 the status text and the HSF indicator; line 4 the HSF notes or the type/destination
-    /// fallback; then the ModeC, warning, conflict and note lines. Column 0 holds the VCI mark on row 2 and the
-    /// not-your-control <c>R</c> on row 3. Limited draws CRC's paired LDB (the aircraft id, the padded CERA or Mode C altitude,
+    /// distance, then the ident); line 3 the status text and the HSF indicator; line 4 one of the HSF free text, the HSF
+    /// heading and speed tokens (a blank pad before a speed shown alone), or the type/destination fallback; then the ModeC,
+    /// warning, conflict and note lines. Column 0 holds the VCI mark on row 2 and the not-your-control <c>R</c> on row 3.
+    /// Limited draws CRC's paired LDB (the aircraft id, the padded CERA or Mode C altitude,
     /// the special-purpose code) and Partial its enhanced paired LDB (the aircraft id, the ERAM altitude and its mismatch cell,
     /// the special-purpose code); every placement is reserved, since the whole LDB blinks while a special code shows. Dwell
     /// adds the STARS altitude's line under line 2 while the two sides differ. Ground draws the ground target's block in
@@ -173,7 +174,14 @@ public static class ScopeTemplates
                     Flashing(ScopeFieldSlot.Ident)
                 ),
                 Line(false, Flashing(ScopeFieldSlot.StatusLine3), new ScopeSlotPlacement(ScopeFieldSlot.HsfIndicator, "", false)),
-                Line(false, Steady(ScopeFieldSlot.Line4Notes)),
+                Line(
+                    false,
+                    Steady(ScopeFieldSlot.Line4FreeText),
+                    Steady(ScopeFieldSlot.Line4Heading),
+                    new ScopeSlotPlacement(ScopeFieldSlot.Line4Pad, "", false),
+                    new ScopeSlotPlacement(ScopeFieldSlot.Line4Speed, " ", false),
+                    Steady(ScopeFieldSlot.Line4Notes)
+                ),
                 Line(false, Steady(ScopeFieldSlot.ModeC)),
                 Line(false, Flashing(ScopeFieldSlot.NoLandingClearance)),
                 Line(false, Flashing(ScopeFieldSlot.ConflictAlert)),

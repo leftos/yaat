@@ -470,6 +470,55 @@ public class ScopeMiddleClickTests
         }
     }
 
+    // Gives UAL238 an HSF speed alone, so line 4 draws the speed token, and lets the canvas build its next frame.
+    private static void SetHsfSpeed(ScopeView view, AircraftModel ac)
+    {
+        ac.EramAssignedSpeed = "S250";
+        view.Canvas.MarkDirty();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task EramMiddleClickOnTheSpeedToken_WithAnEmptyPreview_OpensTheSpeedPopup()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            SetHsfSpeed(view, ac);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Line4Speed, MouseButton.Middle, "UAL238");
+
+            ScopeDataHsfPopup popup = Assert.IsType<ScopeDataHsfPopup>(view.ActiveFieldPopup);
+            Assert.Equal(HsfPopupKind.Speed, popup.Kind);
+            Assert.True(popup.IsOpen);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramMiddleClickOnTheSpeedToken_WithQq250InThePreview_FillsTheTrackAndExecutes()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "QQ 250");
+        try
+        {
+            SetHsfSpeed(view, ac);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Line4Speed, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            Assert.Equal("QQ 250 UAL238", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Echo);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
     [AvaloniaFact]
     public async Task EramLeftClick_WithAnEmptyPreview_StillOpensTheFieldMenu()
     {

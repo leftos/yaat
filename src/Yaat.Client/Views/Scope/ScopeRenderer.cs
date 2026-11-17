@@ -1366,7 +1366,7 @@ public sealed class ScopeRenderer : IDisposable
     /// </summary>
     internal static int FieldPercent(FieldRect field, ScopeBrightness brightness)
     {
-        if (field.Slot == ScopeFieldSlot.Line4Notes)
+        if (field.Slot.IsLine4())
         {
             return Math.Clamp(brightness.Fdb + brightness.Line4, 0, 100);
         }

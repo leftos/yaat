@@ -240,7 +240,18 @@ public class ScopeDbSettingsTests
 
     private static string AtpaText(ScopeCanvas canvas) => FieldText(canvas, "UAL238", ScopeFieldSlot.Atpa);
 
-    private static string Line4Of(ScopeCanvas canvas, string callsign) => FieldText(canvas, callsign, ScopeFieldSlot.Line4Notes);
+    // Line 4's tokens, their texts joined in their order on the line without the space the template puts before the speed:
+    // the drawn line for a line of one token.
+    private static string Line4Of(ScopeCanvas canvas, string callsign) => string.Concat(Line4Slots.Select(slot => FieldText(canvas, callsign, slot)));
+
+    private static readonly ScopeFieldSlot[] Line4Slots =
+    [
+        ScopeFieldSlot.Line4FreeText,
+        ScopeFieldSlot.Line4Heading,
+        ScopeFieldSlot.Line4Pad,
+        ScopeFieldSlot.Line4Speed,
+        ScopeFieldSlot.Line4Notes,
+    ];
 
     private static float TrailerBlockWidth(ScopeCanvas canvas) => TrackOf(canvas, "UAL238").Block.TextBounds.Width;
 

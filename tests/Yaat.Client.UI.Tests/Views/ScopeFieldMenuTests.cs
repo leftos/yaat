@@ -407,7 +407,7 @@ public class ScopeFieldMenuTests
     [AvaloniaFact]
     public async Task OpeningTheEramAltitudePopup_ClosesAnOpenContextMenu()
     {
-        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.EramId, ScopeFieldSlot.GroundSpeed, Speedy, _ => { });
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.EramId, ScopeFieldSlot.Ident, Identing, _ => { });
         try
         {
             ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
@@ -562,6 +562,661 @@ public class ScopeFieldMenuTests
 
         (string callsign, string command, _) = Assert.Single(host.Sent);
         Assert.Equal(("UAL238", $"CM {altitude}"), (callsign, command));
+    }
+
+    // The ERAM fourth-line popups: a SCOPE DATA section per HSF value beside the PILOT panel that matches it.
+
+    private static void WithHsf(AircraftModel ac)
+    {
+        ac.EramAssignedHeading = "H270";
+        ac.EramAssignedSpeed = "S250";
+    }
+
+    private static void WithFreeText(AircraftModel ac) => ac.EramFreeText = "LOWALT";
+
+    // An identing jet, so the ERAM ident field draws and its click opens the squawk menu.
+    private static void Identing(AircraftModel ac)
+    {
+        Speedy(ac);
+        ac.IsIdenting = true;
+    }
+
+    // A canvas left click on a fourth-line token, or on Field E, opens the popup its action names.
+    [AvaloniaTheory]
+    [InlineData(ScopeFieldSlot.Line4Heading, nameof(HsfPopupKind.Heading))]
+    [InlineData(ScopeFieldSlot.Line4Speed, nameof(HsfPopupKind.Speed))]
+    [InlineData(ScopeFieldSlot.GroundSpeed, nameof(HsfPopupKind.Speed))]
+    public async Task EramTokenClick_OpensItsPopup(ScopeFieldSlot slot, string kindName)
+    {
+        HsfPopupKind kind = Enum.Parse<HsfPopupKind>(kindName);
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.EramId, slot, WithHsf, _ => { });
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(kind, popup.Kind);
+            Assert.Null(view.ActiveContextMenu);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramFreeTextClick_OpensTheFreeTextPopup()
+    {
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.EramId, ScopeFieldSlot.Line4FreeText, WithFreeText, _ => { });
+        try
+        {
+            Assert.Equal(HsfPopupKind.FreeText, OpenHsf(view).Kind);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramLine4FallbackClick_OpensTheCombinedPopup()
+    {
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.EramId, ScopeFieldSlot.Line4Notes, _ => { }, _ => { });
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(HsfPopupKind.Combined, popup.Kind);
+            Assert.Equal("", popup.HeadingBox?.Text ?? "");
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task StarsGroundSpeedClick_StillOpensTheSpeedMenu()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(_ => { });
+        try
+        {
+            Assert.Equal(MenuCatalog.Get(MenuIds.SpeedAssign).Label, OpenEntry(view).Header);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_ADisabledClearRow_ReadsNoneSet_AndAnEnabledOneKeepsItsNote()
+    {
+        ScopeDataHsfPopup empty = NewHsf(HsfPopupKind.Combined, _ => { });
+        Assert.Equal(ScopeDataPopupBase.NoneSet, empty.NoteShownFor("Clear heading"));
+        Assert.Equal(ScopeDataPopupBase.NoneSet, empty.NoteShownFor("Clear speed"));
+        Assert.Equal("", empty.NoteShownFor("Set heading"));
+
+        Assert.Equal("", NewHsf(HsfPopupKind.Combined, WithHsf).NoteShownFor("Clear heading"));
+        Assert.Equal("heading, speed, text", NewHsf(HsfPopupKind.FreeText, WithFreeText).NoteShownFor("Clear all HSF"));
+        Assert.Equal(ScopeDataPopupBase.NoneSet, NewHsf(HsfPopupKind.FreeText, _ => { }).NoteShownFor("Clear all HSF"));
+    }
+
+    // Opens the popup over a bare window on the host, as ScopeView would over its canvas.
+    private static Window OpenInWindow(ScopeDataHsfPopup popup)
+    {
+        var anchor = new Border();
+        var window = new Window
+        {
+            Width = 800,
+            Height = 600,
+            Content = anchor,
+        };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(popup.Open(anchor));
+        Dispatcher.UIThread.RunJobs();
+        return window;
+    }
+
+    private static void Tick(RecordingMenuHost host)
+    {
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public void EramFreeTextPopup_ClearAllHsf_FollowsTheStoredText_OnTheClock_AndCloseStopsTheTick()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = Jet();
+        var popup = new ScopeDataHsfPopup(ac, host, _ => { }, _ => { }, HsfPopupKind.FreeText);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            Assert.False(popup.RowFor("Clear all HSF").IsEnabled);
+
+            ac.EramFreeText = "LOWALT";
+            Tick(host);
+
+            Assert.True(popup.RowFor("Clear all HSF").IsEnabled);
+            Assert.Equal(1, host.Clock.LiveTimerCount);
+            popup.Close();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, host.Clock.LiveTimerCount);
+        }
+        finally
+        {
+            popup.Close();
+            CloseWindow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramHeadingPopup_AHeadingStoredWhileOpen_ShowsInTheCaption_AndEnablesClearHeading_OnTheClock()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = Jet();
+        var popup = new ScopeDataHsfPopup(ac, host, _ => { }, _ => { }, HsfPopupKind.Heading);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            Assert.Contains("none", HsfTexts(popup));
+
+            ac.EramAssignedHeading = "H270";
+            Tick(host);
+
+            Assert.Contains("now H270", HsfTexts(popup));
+            Assert.True(popup.RowFor("Clear heading").IsEnabled);
+        }
+        finally
+        {
+            popup.Close();
+            CloseWindow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramSpeedPopup_APilotAssignSpeedChoice_SendsItsCommandForTheAircraft_AndClosesThePopup()
+    {
+        var host = new RecordingMenuHost("");
+        var popup = new ScopeDataHsfPopup(Jet(), host, _ => { }, _ => { }, HsfPopupKind.Speed);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            SpeedFlyoutPanel panel = Assert.IsType<SpeedFlyoutPanel>(popup.SpeedPanel);
+
+            panel.KnotChip(250).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            (string callsign, string command, _) = Assert.Single(host.Sent);
+            Assert.Equal(("UAL238", "SPD 250"), (callsign, command));
+            Assert.False(popup.IsOpen);
+        }
+        finally
+        {
+            popup.Close();
+            CloseWindow(window);
+        }
+    }
+
+    // The popup's first box opens focused, its stored value selected so typing replaces it.
+    private static async Task AssertOpensFocusedAndSelectedAsync(ScopeFieldAction action, Func<ScopeDataHsfPopup, TextBox?> boxOf, string stored)
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(
+            action,
+            ac =>
+            {
+                WithHsf(ac);
+                WithFreeText(ac);
+            }
+        );
+        try
+        {
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            TextBox box = Assert.IsType<TextBox>(boxOf(OpenHsf(view)));
+
+            Assert.True(box.IsFocused, "the box does not have the focus");
+            Assert.Equal(stored, box.SelectedText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public Task EramHeadingPopup_OpensWithTheHeadingBoxFocused_AndItsValueSelected() =>
+        AssertOpensFocusedAndSelectedAsync(ScopeFieldAction.OpenEramHeadingMenu, p => p.HeadingBox, "H270");
+
+    [AvaloniaFact]
+    public Task EramSpeedPopup_OpensWithTheSpeedBoxFocused_AndItsValueSelected() =>
+        AssertOpensFocusedAndSelectedAsync(ScopeFieldAction.OpenEramSpeedMenu, p => p.SpeedBox, "S250");
+
+    [AvaloniaFact]
+    public Task EramFreeTextPopup_OpensWithTheFreeTextBoxFocused_AndItsValueSelected() =>
+        AssertOpensFocusedAndSelectedAsync(ScopeFieldAction.OpenEramFreeTextMenu, p => p.FreeTextBox, "LOWALT");
+
+    [AvaloniaFact]
+    public async Task EramSpeedPopup_ASpeedTypedWithItsSlash_RunsOneSlash()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramSpeedMenu, WithHsf);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.IsType<TextBox>(popup.SpeedBox).Text = "/250-";
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("QS /250- UAL238", popup.EntryShownFor("Set speed"));
+
+            ClickInPopup(popup.RowFor("Set speed"), RawInputModifiers.None);
+            await scope.LastEntryRun;
+
+            Assert.Equal("QS /250- UAL238", string.Join(' ', Assert.Single(sends).Tokens));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_ClearHeading_FollowsTheStoredHeading_OnRefresh()
+    {
+        AircraftModel ac = Jet();
+        var popup = new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, _ => { }, HsfPopupKind.Combined);
+        Assert.False(popup.RowFor("Clear heading").IsEnabled);
+
+        ac.EramAssignedHeading = "H270";
+        popup.Refresh();
+
+        Assert.True(popup.RowFor("Clear heading").IsEnabled);
+        ac.EramAssignedHeading = null;
+        popup.Refresh();
+        Assert.False(popup.RowFor("Clear heading").IsEnabled);
+    }
+
+    // Shows the ERAM scope with UAL238 at (300, 300) as setUp leaves it, and clicks a field of the action with no pointer press.
+    private static async Task<(ScopeViewModel Scope, ScopeView View, Window Window)> OpenHsfAsync(
+        ScopeFieldAction action,
+        Action<AircraftModel> setUp
+    )
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope(ScopeTemplates.EramId);
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        AddAt(main, view.Canvas, setUp);
+        view.OnFieldClicked("UAL238", action, default, KeyModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        return (scope, view, window);
+    }
+
+    private static ScopeDataHsfPopup OpenHsf(ScopeView view)
+    {
+        ScopeDataHsfPopup popup = Assert.IsType<ScopeDataHsfPopup>(view.ActiveFieldPopup);
+        Assert.True(popup.IsOpen);
+        return popup;
+    }
+
+    private static List<string> HsfTexts(ScopeDataHsfPopup popup) =>
+        [.. Assert.IsAssignableFrom<Control>(popup.Popup.Child).GetLogicalDescendants().OfType<TextBlock>().Select(t => t.Text ?? "")];
+
+    private static ScopeDataHsfPopup NewHsf(HsfPopupKind kind, Action<AircraftModel> setUp)
+    {
+        AircraftModel ac = Jet();
+        setUp(ac);
+        return new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, _ => { }, kind);
+    }
+
+    [AvaloniaFact]
+    public async Task EramHeadingToken_OpensTheHeadingSection_BesideFlyHeading()
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramHeadingMenu, WithHsf);
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(HsfPopupKind.Heading, popup.Kind);
+            Assert.NotNull(popup.HeadingBox);
+            Assert.Null(popup.SpeedBox);
+            Assert.Null(popup.FreeTextBox);
+            Assert.NotNull(popup.HeadingPanel);
+            Assert.Null(popup.SpeedPanel);
+            List<string> texts = HsfTexts(popup);
+            Assert.Contains(ScopeDataPopupBase.ScopeDataHead, texts);
+            Assert.Contains(ScopeDataPopupBase.PilotHead, texts);
+            Assert.Contains(ScopeDataHsfPopup.HeadingCaption, texts);
+            Assert.DoesNotContain(ScopeDataHsfPopup.SpeedCaption, texts);
+            Assert.Contains("now H270", texts);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramSpeedToken_OpensTheSpeedSection_BesideAssignSpeed()
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramSpeedMenu, WithHsf);
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(HsfPopupKind.Speed, popup.Kind);
+            Assert.Null(popup.HeadingBox);
+            Assert.NotNull(popup.SpeedBox);
+            Assert.Null(popup.FreeTextBox);
+            Assert.Null(popup.HeadingPanel);
+            Assert.NotNull(popup.SpeedPanel);
+            List<string> texts = HsfTexts(popup);
+            Assert.Contains(ScopeDataPopupBase.PilotHead, texts);
+            Assert.Contains(ScopeDataHsfPopup.SpeedCaption, texts);
+            Assert.DoesNotContain(ScopeDataHsfPopup.HeadingCaption, texts);
+            Assert.Contains("now S250", texts);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramFreeText_OpensTheFreeTextSectionAlone_WithNoPilotColumn()
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramFreeTextMenu, WithFreeText);
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(HsfPopupKind.FreeText, popup.Kind);
+            Assert.Null(popup.HeadingBox);
+            Assert.Null(popup.SpeedBox);
+            Assert.NotNull(popup.FreeTextBox);
+            Assert.Null(popup.HeadingPanel);
+            Assert.Null(popup.SpeedPanel);
+            List<string> texts = HsfTexts(popup);
+            Assert.Contains(ScopeDataPopupBase.ScopeDataHead, texts);
+            Assert.DoesNotContain(ScopeDataPopupBase.PilotHead, texts);
+            Assert.Contains(ScopeDataHsfPopup.FreeTextCaption, texts);
+            Assert.Equal("LOWALT", popup.FreeTextBox.Text);
+            Assert.Equal("QS `LOWALT UAL238", popup.EntryShownFor("Set free text"));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramLine4Fallback_OpensHeadingAndSpeed_BesideFlyHeadingAboveAssignSpeed()
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramHsfMenu, WithHsf);
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(HsfPopupKind.Combined, popup.Kind);
+            Assert.Null(popup.FreeTextBox);
+            HeadingFlyoutPanel heading = Assert.IsType<HeadingFlyoutPanel>(popup.HeadingPanel);
+            SpeedFlyoutPanel speed = Assert.IsType<SpeedFlyoutPanel>(popup.SpeedPanel);
+            Panel column = Assert.IsAssignableFrom<Panel>(heading.Parent);
+            Assert.Same(column, speed.Parent);
+            Assert.True(column.Children.IndexOf(heading) < column.Children.IndexOf(speed), "Fly heading is not above Assign speed");
+            Assert.Equal("H270", popup.HeadingBox?.Text);
+            Assert.Equal("S250", popup.SpeedBox?.Text);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_NothingStored_OpensWithEmptyBoxes_AndTheClearRowsDisabled()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, _ => { });
+
+        Assert.Equal("", popup.HeadingBox?.Text ?? "");
+        Assert.Equal("", popup.SpeedBox?.Text ?? "");
+        Assert.False(popup.RowFor("Clear heading").IsEnabled);
+        Assert.False(popup.RowFor("Clear speed").IsEnabled);
+        Assert.False(popup.RowFor("Set heading").IsEnabled);
+        Assert.Equal("QS ··· UAL238", popup.EntryShownFor("Set heading"));
+        Assert.Equal("QS /··· UAL238", popup.EntryShownFor("Set speed"));
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_SetHeading_IsEnabledOnlyForAHeadingTheServerTakes()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Heading, _ => { });
+        TextBox box = Assert.IsType<TextBox>(popup.HeadingBox);
+
+        box.Text = "H300";
+        Assert.True(popup.RowFor("Set heading").IsEnabled);
+        Assert.Equal("QS H300 UAL238", popup.EntryShownFor("Set heading"));
+        box.Text = "20L";
+        Assert.True(popup.RowFor("Set heading").IsEnabled);
+        box.Text = "H999";
+        Assert.False(popup.RowFor("Set heading").IsEnabled);
+        Assert.Equal("QS ··· UAL238", popup.EntryShownFor("Set heading"));
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_SetSpeed_IsEnabledOnlyForASpeedTheServerTakes()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Speed, _ => { });
+        TextBox box = Assert.IsType<TextBox>(popup.SpeedBox);
+
+        box.Text = "250-";
+        Assert.True(popup.RowFor("Set speed").IsEnabled);
+        Assert.Equal("QS /250- UAL238", popup.EntryShownFor("Set speed"));
+        box.Text = "S0";
+        Assert.False(popup.RowFor("Set speed").IsEnabled);
+        box.Text = "FAST";
+        Assert.False(popup.RowFor("Set speed").IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_SetFreeText_IsEnabledForOneToEightAcceptedCharacters()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.FreeText, _ => { });
+        TextBox box = Assert.IsType<TextBox>(popup.FreeTextBox);
+
+        Assert.False(popup.RowFor("Set free text").IsEnabled);
+        box.Text = "low alt";
+        Assert.Equal("LOWALT", box.Text);
+        Assert.True(popup.RowFor("Set free text").IsEnabled);
+        box.Text = "ABCDEFGHIJ";
+        Assert.Equal("ABCDEFGH", box.Text);
+        box.Text = "a#b/1";
+        Assert.Equal("AB/1", box.Text);
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_ClearHeading_IsEnabledOnlyWhileAHeadingIsStored()
+    {
+        Assert.True(NewHsf(HsfPopupKind.Combined, ac => ac.EramAssignedHeading = "H270").RowFor("Clear heading").IsEnabled);
+        Assert.False(NewHsf(HsfPopupKind.Combined, ac => ac.EramAssignedSpeed = "S250").RowFor("Clear heading").IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_ClearSpeed_IsEnabledOnlyWhileASpeedIsStored()
+    {
+        Assert.True(NewHsf(HsfPopupKind.Combined, ac => ac.EramAssignedSpeed = "S250").RowFor("Clear speed").IsEnabled);
+        Assert.False(NewHsf(HsfPopupKind.Combined, ac => ac.EramAssignedHeading = "H270").RowFor("Clear speed").IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_ClearAllHsf_IsEnabledWhileAnyHsfValueIsStored()
+    {
+        Assert.True(NewHsf(HsfPopupKind.FreeText, ac => ac.EramAssignedHeading = "H270").RowFor("Clear all HSF").IsEnabled);
+        Assert.True(NewHsf(HsfPopupKind.FreeText, ac => ac.EramAssignedSpeed = "S250").RowFor("Clear all HSF").IsEnabled);
+        Assert.True(NewHsf(HsfPopupKind.FreeText, WithFreeText).RowFor("Clear all HSF").IsEnabled);
+        Assert.False(NewHsf(HsfPopupKind.FreeText, _ => { }).RowFor("Clear all HSF").IsEnabled);
+        Assert.Equal("QS * UAL238", NewHsf(HsfPopupKind.FreeText, WithFreeText).EntryShownFor("Clear all HSF"));
+    }
+
+    [AvaloniaFact]
+    public async Task EramHeadingPopup_TypedH300_PlainClickOnSetHeading_RunsTheEntry_AndClosesThePopup()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramHeadingMenu, WithHsf);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal("H270", popup.HeadingBox?.Text);
+            Assert.IsType<TextBox>(popup.HeadingBox).Text = "H300";
+            Dispatcher.UIThread.RunJobs();
+
+            ClickInPopup(popup.RowFor("Set heading"), RawInputModifiers.None);
+            await scope.LastEntryRun;
+
+            Assert.Equal("QS H300 UAL238", string.Join(' ', Assert.Single(sends).Tokens));
+            Assert.False(popup.IsOpen);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramHeadingPopup_TypedH300_ShiftClickOnSetHeading_StagesTheEntry_AndSendsNothing()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramHeadingMenu, WithHsf);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.IsType<TextBox>(popup.HeadingBox).Text = "H300";
+            Dispatcher.UIThread.RunJobs();
+
+            ClickInPopup(popup.RowFor("Set heading"), RawInputModifiers.Shift);
+
+            Assert.Equal("QS H300 UAL238", scope.EntryText);
+            Assert.Empty(sends);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramSpeedPopup_TypedSpeed_RunsSetSpeed()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramSpeedMenu, WithHsf);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal("S250", popup.SpeedBox?.Text);
+            Assert.IsType<TextBox>(popup.SpeedBox).Text = "250-";
+            Dispatcher.UIThread.RunJobs();
+
+            ClickInPopup(popup.RowFor("Set speed"), RawInputModifiers.None);
+            await scope.LastEntryRun;
+
+            Assert.Equal("QS /250- UAL238", string.Join(' ', Assert.Single(sends).Tokens));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramSpeedPopup_ClearSpeed_RunsTheClear()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramSpeedMenu, WithHsf);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ScopeDataHsfPopup popup = OpenHsf(view);
+
+            ClickInPopup(popup.RowFor("Clear speed"), RawInputModifiers.None);
+            await scope.LastEntryRun;
+
+            Assert.Equal("QS /* UAL238", string.Join(' ', Assert.Single(sends).Tokens));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramHeadingPopup_APilotFlyHeadingChoice_SendsItsCommandForTheAircraft()
+    {
+        var host = new RecordingMenuHost("");
+        var popup = new ScopeDataHsfPopup(Jet(), host, _ => { }, _ => { }, HsfPopupKind.Heading);
+        HeadingFlyoutPanel panel = Assert.IsType<HeadingFlyoutPanel>(popup.HeadingPanel);
+
+        panel.PresentRow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        (string callsign, string command, _) = Assert.Single(host.Sent);
+        Assert.Equal(("UAL238", "FPH"), (callsign, command));
+    }
+
+    [AvaloniaFact]
+    public async Task OpeningAnEramHsfPopup_ClosesTheAltitudePopup()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            ScopeDataAltitudePopup altitude = OpenPopup(view);
+
+            view.OnFieldClicked("UAL238", ScopeFieldAction.OpenEramHeadingMenu, default, KeyModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(altitude.IsOpen);
+            Assert.Equal(HsfPopupKind.Heading, OpenHsf(view).Kind);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OpeningAnEramHsfPopup_ClosesAnOpenContextMenu()
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenSpeedMenu, Speedy);
+        try
+        {
+            ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
+
+            view.OnFieldClicked("UAL238", ScopeFieldAction.OpenEramSpeedMenu, default, KeyModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(menu.IsOpen);
+            Assert.Null(view.ActiveContextMenu);
+            Assert.Equal(HsfPopupKind.Speed, OpenHsf(view).Kind);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EscInsideAnEramHsfPopup_ClosesIt()
+    {
+        (_, ScopeView view, Window window) = await OpenHsfAsync(ScopeFieldAction.OpenEramFreeTextMenu, WithFreeText);
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            TextBox box = Assert.IsType<TextBox>(popup.FreeTextBox);
+            Assert.True(box.Focus());
+            TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(box));
+
+            top.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(popup.IsOpen);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
     }
 
     [AvaloniaFact]

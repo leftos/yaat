@@ -1173,7 +1173,8 @@ public static partial class EramEntryEngine
         return new CommandResult(true, $"QS {text} {ac.Callsign}");
     }
 
-    private static bool IsQsFreeTextCharacter(char c) =>
+    /// <summary>Whether HSF free text (QS) accepts <paramref name="c"/>: A-Z, 0-9 and <c>- + = * / _ . ,</c>.</summary>
+    public static bool IsQsFreeTextCharacter(char c) =>
         char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || (c is '-' or '+' or '=' or '*' or '/' or '_' or '.' or ',');
 
     /// <summary>

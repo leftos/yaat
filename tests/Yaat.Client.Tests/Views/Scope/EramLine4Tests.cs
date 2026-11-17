@@ -228,7 +228,7 @@ public class EramLine4Tests
 
         TrackPresentation p = TrackPresenter.Present(ViewedFrom(ac, Viewer44));
 
-        Assert.Equal("270", Assert.Single(p.Fields, f => f.Slot == ScopeFieldSlot.Line4Notes).Text);
+        Assert.Equal("270", Assert.Single(p.Fields, f => f.Slot == ScopeFieldSlot.Line4Heading).Text);
     }
 
     private static TrackPresenterInput ViewedFrom(AircraftModel ac, ScopeViewer viewer) =>

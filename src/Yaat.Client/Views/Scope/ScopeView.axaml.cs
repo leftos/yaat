@@ -54,7 +54,7 @@ public partial class ScopeView : UserControl
     private static readonly ILogger Log = AppLog.CreateLogger("ScopeView");
 
     private ContextMenu? _activeContextMenu;
-    private ScopeDataAltitudePopup? _activeFieldPopup;
+    private ScopeDataPopupBase? _activeFieldPopup;
     private ScopeViewModel? _vm;
     private TopLevel? _topLevel;
 
@@ -87,8 +87,8 @@ public partial class ScopeView : UserControl
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
     internal ContextMenu? ActiveContextMenu => _activeContextMenu;
 
-    /// <summary>The ERAM altitude popup a field click opened, while it is open. Test seam.</summary>
-    internal ScopeDataAltitudePopup? ActiveFieldPopup => _activeFieldPopup;
+    /// <summary>The ERAM altitude or fourth-line popup a field click opened, while it is open. Test seam.</summary>
+    internal ScopeDataPopupBase? ActiveFieldPopup => _activeFieldPopup;
 
     /// <summary>
     /// The aircraft menu for <paramref name="callsign"/>: the shared aircraft menu, with relative actions aimed at
@@ -284,7 +284,8 @@ public partial class ScopeView : UserControl
         }
     }
 
-    // The surface a field with a menu opens: the note box, the ERAM altitude popup or the field's pick menu.
+    // The surface a field with a menu opens: the note box, the ERAM altitude popup, an ERAM fourth-line popup or the field's
+    // pick menu.
     private void OpenFieldSurface(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
     {
         if (action == ScopeFieldAction.OpenNoteBox)
@@ -295,11 +296,26 @@ public partial class ScopeView : UserControl
         {
             OpenEramAltitudePopup(vm, ac);
         }
+        else if (HsfKindFor(action) is { } kind)
+        {
+            OpenEramHsfPopup(vm, ac, kind);
+        }
         else
         {
             OpenFieldMenu(vm, ac, action);
         }
     }
+
+    // The fourth-line popup an ERAM HSF action opens; null for any other action.
+    private static HsfPopupKind? HsfKindFor(ScopeFieldAction action) =>
+        action switch
+        {
+            ScopeFieldAction.OpenEramHeadingMenu => HsfPopupKind.Heading,
+            ScopeFieldAction.OpenEramSpeedMenu => HsfPopupKind.Speed,
+            ScopeFieldAction.OpenEramFreeTextMenu => HsfPopupKind.FreeText,
+            ScopeFieldAction.OpenEramHsfMenu => HsfPopupKind.Combined,
+            _ => null,
+        };
 
     // The host a field menu's pilot rows send through: while Shift is held on a row it stages the command in the entry instead.
     private ClientMenuHost FieldMenuHost(ScopeViewModel vm, AircraftModel ac) =>
@@ -328,11 +344,32 @@ public partial class ScopeView : UserControl
             shift => _fieldMenuShift = shift,
             entry => PickScopeData(vm, callsign, entry)
         );
+        ShowFieldPopup(popup, callsign);
+    }
+
+    // An ERAM fourth-line popup of the kind: its rows run or stage as the altitude popup's do.
+    private void OpenEramHsfPopup(ScopeViewModel vm, AircraftModel ac, HsfPopupKind kind)
+    {
+        _fieldMenuShift = false;
+        string callsign = ac.Callsign;
+        var popup = new ScopeDataHsfPopup(
+            ac,
+            FieldMenuHost(vm, ac),
+            shift => _fieldMenuShift = shift,
+            entry => PickScopeData(vm, callsign, entry),
+            kind
+        );
+        ShowFieldPopup(popup, callsign);
+    }
+
+    // Closes any open aircraft menu or field popup, then opens the popup as the one open, until it closes.
+    private void ShowFieldPopup(ScopeDataPopupBase popup, string callsign)
+    {
         _activeContextMenu?.Close();
         _activeFieldPopup?.Close();
         if (!popup.Open(Canvas))
         {
-            Log.LogWarning("ScopeView: no overlay layer for the canvas; the ERAM altitude popup for {Callsign} is not shown", callsign);
+            Log.LogWarning("ScopeView: no overlay layer for the canvas; the ERAM field popup for {Callsign} is not shown", callsign);
             return;
         }
 

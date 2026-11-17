@@ -134,7 +134,7 @@ public static class MenuCatalog
         HostLeaf(MenuIds.AircraftCommand, "Command…", Always, BuildCommand),
         HostLeaf(MenuIds.AircraftNote, "Note…", Always, BuildNote),
         Leaf(MenuIds.HeadingPresent, "Present heading", "FPH", Always),
-        HeadingEntry(MenuIds.HeadingFly, new HeadingFlyoutPreset("Fly heading", HeadingVerb.FlyHeading, HeadingFlyoutFocus.Box)),
+        HeadingEntry(MenuIds.HeadingFly, HeadingFlyout.FlyHeadingPreset),
         HeadingEntry(MenuIds.HeadingTurnLeft, new HeadingFlyoutPreset("Turn left", HeadingVerb.TurnLeft, HeadingFlyoutFocus.Box)),
         HeadingEntry(MenuIds.HeadingTurnRight, new HeadingFlyoutPreset("Turn right", HeadingVerb.TurnRight, HeadingFlyoutFocus.Box)),
         HeadingEntry(

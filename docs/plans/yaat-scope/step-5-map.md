@@ -18,7 +18,7 @@ Root: X:/dev/yaat.wt/feat-yaat-scope/yaat (all paths below are under it unless t
 ### What a "field" is
 `ScopeFieldSlot` (`ScopeFieldSlot.cs:7-110`) is the field vocabulary; each template places a subset (`ScopeTemplates.cs`):
 - STARS (`ScopeTemplates.cs:100-117,120`): L1 Callsign (+VfrMark, StudentLevelMark); L2 Altitude, GroundSpeed, CwtType, Ident; then Squawk, StatusLine3 (owner/handoff/point-out/scratchpads), Atpa, ModeC, NoLandingClearance, ConflictAlert, InstructorNote. Limited = Squawk, Altitude, Ident.
-- ERAM (`:154-179`): L1 Callsign (= CRC Field A); L2 EramAltitude (Fields B+C+char 4 in ONE slot), AltitudeMismatch, GroundSpeed, CwtType, Atpa, Ident; L3 StatusLine3 (= Field E status) + HsfIndicator; L4 Line4Notes; Column0 Vci (row 2), NotYourControl (row 3). There is no Field D (CID) slot and no separate Field E speed slot.
+- ERAM (`:154-179`): L1 Callsign (= CRC Field A); L2 EramAltitude (Fields B+C+char 4 in ONE slot), AltitudeMismatch, GroundSpeed, CwtType, Atpa, Ident; L3 StatusLine3 (= Field E status) + HsfIndicator; L4 Line4Notes; Column0 Vci (row 2), NotYourControl (row 3). There is no Field D (CID) slot; the ERAM GroundSpeed slot is Field E (since 5i-3, L4 is Line4FreeText, Line4Heading, Line4Pad, Line4Speed and the Line4Notes fallback).
 - EuroScope (`:196-216`): Owner, Callsign, TypeCwt, Destination, Ident, Altitude, AssignedAltitude, AssignedSpeed, AssignedHeading, AssignedRunway, Scratchpad1, Scratchpad2, Handoff, plus Squawk/ModeC/warnings/InstructorNote. This is the template whose flyouts "become the field menus" (plan README:44).
 - Mixed is a per-track router to STARS or ERAM (`ScopeOwnerKind.Resolve`).
 
@@ -160,10 +160,12 @@ Open decisions: D4, D11.
 
 ### 5i. Field menus, scope-data column
 User sees: the altitude menu gains the SCOPE DATA column (FP, interim/local/procedure T L P, CERA `R`), heading and speed menus their LT·PH·RT and KT/M·+·− halves, line-4 free text and the HSF toggle, VCI toggle, point-out clear; click sends the scope entry, Shift+click stages it in the Scope preview area.
-Files: 5b's `FieldMenus/` builders + `EramEntryParser` text from 5h; presenter inputs for what the menu highlights (current interim tier etc. from the `Eram*` wire fields, `TrackPresenter.cs:533`); `ScopeFieldSlot` additions only if hit regions need splitting (B vs C vs char 4; there is no Field D/E slot).
+Files: 5b's `FieldMenus/` builders + `EramEntryParser` text from 5h; presenter inputs for what the menu highlights (current interim tier etc. from the `Eram*` wire fields, `TrackPresenter.cs:533`); `ScopeFieldSlot` additions only if hit regions need splitting (B vs C vs char 4; there is no Field D slot, and the ERAM ground-speed slot is Field E).
 Tests: `ScopeFieldMenuScopeDataTests.cs` (each menu row → the exact entry text), UI test of the two columns.
 Depends on 5b, 5h. Open decisions: D2, D3.
-Settled by 5i-2 (YAAT-2442): the ERAM altitude opens one two-column popup (`FieldMenus/ScopeDataAltitudePopup.cs`: SCOPE DATA beside the PILOT Maintain altitude panel; mocks in `docs/plans/canvases/scope-data-menu/`), a SCOPE DATA row click runs its entry and Shift+click stages it, `ClearCera` (`QR 000 {callsign}`) joins the altitude entries, Shift+click on the HSF indicator or VCI cell stages its entry, and a middle click on an ERAM field with an empty preview does what a left click does. The fourth-line menus are YAAT-2454 (mocks in `docs/plans/canvases/scope-line4-menu/`).
+Settled by 5i-2 (YAAT-2442): the ERAM altitude opens one two-column popup (`FieldMenus/ScopeDataAltitudePopup.cs`: SCOPE DATA beside the PILOT Maintain altitude panel; mocks in `docs/plans/canvases/scope-data-menu/`), a SCOPE DATA row click runs its entry and Shift+click stages it, `ClearCera` (`QR 000 {callsign}`) joins the altitude entries, Shift+click on the HSF indicator or VCI cell stages its entry, and a middle click on an ERAM field with an empty preview does what a left click does.
+
+Settled by 5i-3 (YAAT-2454, mocks in `docs/plans/canvases/scope-line4-menu/`): each ERAM line-4 token has its own click region and popup (heading, speed, free text, and the type or destination fallback as one combined Heading and Speed popup), Field E opens the Speed popup, and a middle click with an empty preview does what a left click does.
 
 Dependency graph: 5a → {5b, 5c, 5d, 5g}; 5d → 5e; 5g, 5h → 5i; 5h → 5f; 5b → 5i; 5c needs 5a (preview) and benefits from 5g/5h for what Enter runs. Parallel-safe pair: 5b ∥ 5d after 5a. 5e can fold into 5d if the implementer budget is short; 5f is the first to defer if the server DTO work grows.
 

@@ -822,7 +822,7 @@ A named ERAM continuous range readout group (`LF`): a point and its member aircr
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
 **Field menu (YAAT Scope)**:
-The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held. A middle click on an ERAM block with an empty preview opens it too. An ERAM altitude opens the two-column popup (Scope data column beside PILOT column) instead.
+The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held. A middle click on an ERAM block with an empty preview opens it too. An ERAM altitude, ground speed (Field E) and each line-4 token open a popup (Scope data column beside PILOT column) instead.
 
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
@@ -849,7 +849,7 @@ ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
 **PILOT column (YAAT Scope)**:
-The right column of the ERAM altitude popup (gold, "sends a pilot command"): the Maintain altitude panel, whose row click sends for the clicked aircraft and whose Shift+click stages `PILOT {callsign} CM nnnn`; beside the Scope data column.
+The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain altitude panel on the altitude popup, Fly heading and Assign speed on the fourth-line ones (none on the free-text popup); a row click sends for the clicked aircraft and Shift+click stages `PILOT {callsign} {command}`; beside the Scope data column.
 
 **Pin (YAAT Scope)**:
 A value set by hand over the zoom band's default (others' level, vector minutes, history, rings) that stands until AUTO or `.scope auto` clears every pin; kept in pref sets and the saved state (`pinOthersLevel`, `pinVectorMin`, `pinHistory`, `pinRings`) and across a profile change.
@@ -867,7 +867,9 @@ The small text beside an ERAM full data block's target giving the track's distan
 ERAM's message area above the MCA; in YAAT Scope on ERAM and Mixed an empty box above the MCA, kept for readouts.
 
 **Scope data column (YAAT Scope)**:
-The left column of the ERAM altitude popup (cyan, "runs an ERAM entry"; `ScopeDataAltitudePopup`): an altitude box and rows for the FP altitude, interim, local interim, procedure, interim plus CERA and CERA-only entries and the three clears, each showing its entry; a row click runs it at once, Shift+click stages the bare entry in the Preview area. Beside the PILOT column.
+The left column of an ERAM popup (cyan, "runs an ERAM entry"). On the altitude popup (`ScopeDataAltitudePopup`) it is an altitude box and rows for the FP altitude, interim, local interim, procedure, interim plus CERA and CERA-only entries and the three clears. On the fourth-line popups (`ScopeDataHsfPopup`) it is a Heading, Speed or Free text section: a box opening on the stored value, a Set row and a Clear row (Clear all HSF for free text).
+
+Each row shows its entry; a row click runs it at once, Shift+click stages the bare entry in the Preview area. Beside the PILOT column.
 
 **SSA (YAAT Scope)**:
 The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).

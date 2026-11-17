@@ -53,16 +53,22 @@ public static class SpeedFlyout
     /// <param name="host">The host the flyout sends through and whose clock it refreshes on.</param>
     public static MenuItem Build(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        MenuCatalog.SpeedChoices choices = MenuCatalog.SpeedValues(aircraft);
+        Func<Func<string, Task>, Action, SpeedFlyoutPanel> panel = AssignPanelFactory(aircraft);
         var entry = new MenuItem { Header = label };
-        PanelFlyoutContent.Attach(
-            entry,
-            new SpeedFlyoutHost(),
-            context,
-            host,
-            (choose, close) => new SpeedFlyoutPanel(choices, aircraft, choose, close)
-        );
+        PanelFlyoutContent.Attach(entry, new SpeedFlyoutHost(), context, host, panel);
         return entry;
+    }
+
+    /// <summary>
+    /// Builds the Assign speed panel over <paramref name="aircraft"/>'s speeds, chosen once here, each chip, row and the box
+    /// calling the choose action it is given with the command, and the close action closing what holds it. The catalog entry's
+    /// flyout and the Scope's ERAM speed popups both build their panel through it.
+    /// </summary>
+    /// <param name="aircraft">The aircraft whose speed the panel follows.</param>
+    internal static Func<Func<string, Task>, Action, SpeedFlyoutPanel> AssignPanelFactory(IMenuAircraft? aircraft)
+    {
+        MenuCatalog.SpeedChoices choices = MenuCatalog.SpeedValues(aircraft);
+        return (choose, close) => new SpeedFlyoutPanel(choices, aircraft, choose, close);
     }
 
     /// <summary>A knots chip's command: <c>SPD 250</c>.</summary>

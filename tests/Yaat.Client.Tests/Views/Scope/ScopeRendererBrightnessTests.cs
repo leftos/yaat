@@ -284,6 +284,18 @@ public class ScopeRendererBrightnessTests
         Assert.Equal(expected, ScopeRenderer.FieldPercent(FieldIn(ScopeFieldSlot.Line4Notes, ScopeColorToken.ConflictAlert), brightness));
     }
 
+    [Theory]
+    [InlineData(ScopeFieldSlot.Line4Heading)]
+    [InlineData(ScopeFieldSlot.Line4Speed)]
+    [InlineData(ScopeFieldSlot.Line4FreeText)]
+    [InlineData(ScopeFieldSlot.Line4Pad)]
+    public void FieldPercent_EveryLine4Token_IsTheLine4Group(ScopeFieldSlot slot)
+    {
+        ScopeBrightness brightness = ScopeBrightness.Default with { Fdb = 100, Line4 = -10 };
+
+        Assert.Equal(90, ScopeRenderer.FieldPercent(FieldIn(slot, ScopeColorToken.Default), brightness));
+    }
+
     [Fact]
     public void FieldPercent_OffLine4_IsAlertsForTheAlertTokens_AndFdbForEveryOther()
     {

@@ -91,9 +91,24 @@ public static partial class HeadingFlyout
     public static MenuItem Build(HeadingFlyoutPreset preset, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var entry = new MenuItem { Header = preset.Label };
-        PanelFlyoutContent.Attach(entry, new HeadingFlyoutHost(), context, host, (choose, _) => new HeadingFlyoutPanel(preset, aircraft, choose));
+        Func<Func<string, Task>, HeadingFlyoutPanel> panel = PanelFactory(preset, aircraft);
+        PanelFlyoutContent.Attach(entry, new HeadingFlyoutHost(), context, host, (choose, _) => panel(choose));
         return entry;
     }
+
+    /// <summary>
+    /// Builds the Fly heading panel over <paramref name="aircraft"/>'s heading, the rose, the chips and the box calling the choose
+    /// action it is given with the command. The Scope's ERAM heading popups build their PILOT panel through it.
+    /// </summary>
+    /// <param name="aircraft">The aircraft whose heading the panel follows.</param>
+    internal static Func<Func<string, Task>, HeadingFlyoutPanel> FlyPanelFactory(IMenuAircraft? aircraft) => PanelFactory(FlyHeadingPreset, aircraft);
+
+    /// <summary>The Fly heading entry's preset: the catalog's entry and the Scope's ERAM heading popups share it.</summary>
+    public static readonly HeadingFlyoutPreset FlyHeadingPreset = new("Fly heading", HeadingVerb.FlyHeading, HeadingFlyoutFocus.Box);
+
+    // The panel of the preset over the aircraft, for the choose action it is given.
+    private static Func<Func<string, Task>, HeadingFlyoutPanel> PanelFactory(HeadingFlyoutPreset preset, IMenuAircraft? aircraft) =>
+        choose => new HeadingFlyoutPanel(preset, aircraft, choose);
 
     /// <summary>The verb's command text: <c>FH</c>, <c>TL</c> or <c>TR</c>.</summary>
     public static string VerbText(HeadingVerb verb) =>

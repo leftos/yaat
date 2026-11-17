@@ -420,12 +420,17 @@ public static class TrackPresenter
         };
 
     // Field A keeps the canvas's dwell-lock click; the altitude opens the two-column popup (scope data beside the pilot's
-    // Maintain altitude). The HSF indicator and the VCI cell run their ERAM toggles directly, as CRC's datablock does.
+    // Maintain altitude). Each line-4 token opens its own popup, the fallback the heading and speed one, and Field E the speed
+    // one, as CRC opens its Speed Menu from either; the pad before a speed shown alone is inert. The HSF indicator and the VCI
+    // cell run their ERAM toggles directly, as CRC's datablock does.
     private static ScopeFieldAction EramActionFor(ScopeFieldSlot slot) =>
         slot switch
         {
             ScopeFieldSlot.EramAltitude => ScopeFieldAction.OpenEramAltitudeMenu,
-            ScopeFieldSlot.GroundSpeed => ScopeFieldAction.OpenSpeedMenu,
+            ScopeFieldSlot.GroundSpeed or ScopeFieldSlot.Line4Speed => ScopeFieldAction.OpenEramSpeedMenu,
+            ScopeFieldSlot.Line4Heading => ScopeFieldAction.OpenEramHeadingMenu,
+            ScopeFieldSlot.Line4FreeText => ScopeFieldAction.OpenEramFreeTextMenu,
+            ScopeFieldSlot.Line4Notes => ScopeFieldAction.OpenEramHsfMenu,
             ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
             ScopeFieldSlot.StatusLine3 => ScopeFieldAction.OpenHandoffMenu,
             ScopeFieldSlot.HsfIndicator => ScopeFieldAction.ToggleHsf,
@@ -743,12 +748,16 @@ public static class TrackPresenter
         string text = blank ? new string(' ', stable.Length) : stable;
         // A bare QS from the viewer's sector suppresses only the HSF data; the indicator above stays, as in CRC.
         bool suppressed = EramDwellLock.IsFourthLineSuppressed(ac, input.Display.Viewer);
-        string line4 = EramLine4.Text(ac, input.Display.EramLine4Type, input.Display.EramLine4Destination, suppressed);
+        Line4Parts line4 = EramLine4.Parts(ac, input.Display.EramLine4Type, input.Display.EramLine4Destination, suppressed);
         return
         [
             new(ScopeFieldSlot.StatusLine3, text, stable, ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
             Styled(ScopeFieldSlot.HsfIndicator, hsf ? EramArrowCell : "", hsf ? ScopeFieldStyle.HsfIndicator : ScopeFieldStyle.None),
-            Steady(ScopeFieldSlot.Line4Notes, line4, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Line4FreeText, line4.FreeText, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Line4Heading, line4.Heading, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Line4Pad, line4.Pad, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Line4Speed, line4.Speed, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.Line4Notes, line4.Fallback, ScopeColorToken.Default),
         ];
     }
 

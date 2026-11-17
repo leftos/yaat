@@ -170,6 +170,18 @@ public enum ScopeFieldAction
 
     /// <summary>Opens the ERAM altitude popup: its scope-data entries beside the pilot's Maintain altitude panel.</summary>
     OpenEramAltitudeMenu,
+
+    /// <summary>Opens the ERAM heading popup: its HSF heading entries beside the pilot's Fly heading panel.</summary>
+    OpenEramHeadingMenu,
+
+    /// <summary>Opens the ERAM speed popup: its HSF speed entries beside the pilot's Assign speed panel.</summary>
+    OpenEramSpeedMenu,
+
+    /// <summary>Opens the ERAM free-text popup: its HSF free-text entries alone, with no pilot panel.</summary>
+    OpenEramFreeTextMenu,
+
+    /// <summary>Opens the ERAM heading and speed popup: both HSF sections beside Fly heading above Assign speed.</summary>
+    OpenEramHsfMenu,
 }
 
 /// <summary>
