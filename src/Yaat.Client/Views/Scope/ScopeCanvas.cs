@@ -394,15 +394,16 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>
     /// Fired in place of <see cref="AircraftLeftClicked"/> when the left click lands on a field of the clicked aircraft's own
-    /// block whose action is not <see cref="ScopeFieldAction.None"/>, with the callsign, the action and the click point.
+    /// block whose action is not <see cref="ScopeFieldAction.None"/>, or on an HSF indicator or VCI cell, with the callsign, the
+    /// action, the click point and the keyboard modifiers held at the press.
     /// </summary>
-    public event Action<string, ScopeFieldAction, Point>? FieldClicked;
+    public event Action<string, ScopeFieldAction, Point, KeyModifiers>? FieldClicked;
 
     /// <summary>
-    /// Fired when an aircraft's symbol or block is middle-clicked, with the callsign and whether the click is on the callsign field
-    /// (Field A) of its block drawn with the ERAM template.
+    /// Fired when an aircraft's symbol or block, or an ERAM HSF indicator or VCI cell, is middle-clicked, with the callsign and
+    /// what the press landed on (<see cref="ScopeMiddleHit"/>).
     /// </summary>
-    public event Action<string, bool>? AircraftMiddleClicked;
+    public event Action<string, ScopeMiddleHit>? AircraftMiddleClicked;
 
     /// <summary>Fired when the map, where no block or target is, is middle-clicked, with the point under the pointer.</summary>
     public event Action<LatLon>? MapMiddleClicked;
@@ -766,7 +767,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        if ((props.IsLeftButtonPressed || props.IsRightButtonPressed) && PressAircraft(props.IsRightButtonPressed, pos))
+        if ((props.IsLeftButtonPressed || props.IsRightButtonPressed) && PressAircraft(props.IsRightButtonPressed, pos, e.KeyModifiers))
         {
             e.Handled = true;
             return;
@@ -884,13 +885,14 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
 
     // A left or right press on an aircraft: the right opens its menu, the left selects it (OnLeftPressed), or on a VCI cell, lit
     // or not, runs its toggle, or that of an HSF indicator over it in the same tier or above (ScopeFrame.IndicatorPickAt, which
-    // leaves a plain track's cell under a dwell-locked block to the block). False off any aircraft.
-    private bool PressAircraft(bool right, Point pos)
+    // leaves a plain track's cell under a dwell-locked block to the block). False off any aircraft. A left press carries its
+    // modifiers to FieldClicked.
+    private bool PressAircraft(bool right, Point pos, KeyModifiers modifiers)
     {
         ScopeFrame frame = CurrentFrame;
         if (!right && (frame.IndicatorPickAt((float)pos.X, (float)pos.Y) is { } pick))
         {
-            FieldClicked?.Invoke(pick.Aircraft.Callsign, pick.Action, pos);
+            FieldClicked?.Invoke(pick.Aircraft.Callsign, pick.Action, pos, modifiers);
             return true;
         }
 
@@ -905,20 +907,27 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         }
         else
         {
-            OnLeftPressed(frame, hit, pos);
+            OnLeftPressed(frame, hit, pos, modifiers);
         }
 
         return true;
     }
 
-    // A middle press: on an aircraft, with whether it is on its ERAM Field A; else on the map. The frame is rebuilt, as the
-    // press may toggle a highlight it draws.
+    // A middle press: on an HSF indicator or VCI cell (ScopeFrame.IndicatorPickAt, consulted first as the left press does), else
+    // on an aircraft, with whether it is on its ERAM Field A and the action of its own field under the press; else on the map.
+    // The frame is rebuilt, as the press may toggle a highlight it draws.
     private void OnMiddlePressed(Point pos)
     {
         ScopeFrame frame = CurrentFrame;
-        if (HitAt(frame, pos) is { } hit)
+        float x = (float)pos.X;
+        float y = (float)pos.Y;
+        if (frame.IndicatorPickAt(x, y) is { } pick)
         {
-            AircraftMiddleClicked?.Invoke(hit.Callsign, IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y));
+            AircraftMiddleClicked?.Invoke(pick.Aircraft.Callsign, new ScopeMiddleHit(false, pick.Action));
+        }
+        else if (HitAt(frame, pos) is { } hit)
+        {
+            AircraftMiddleClicked?.Invoke(hit.Callsign, new ScopeMiddleHit(IsEramCallsignOf(frame, hit, x, y), FieldActionOf(frame, hit, x, y)));
         }
         else
         {
@@ -962,8 +971,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     // A left press on an aircraft: an ERAM Field A asks for the dwell-lock toggle first; then a field with an action fires
-    // FieldClicked, anything else AircraftLeftClicked.
-    private void OnLeftPressed(ScopeFrame frame, AircraftModel hit, Point pos)
+    // FieldClicked, with the press's modifiers, anything else AircraftLeftClicked.
+    private void OnLeftPressed(ScopeFrame frame, AircraftModel hit, Point pos, KeyModifiers modifiers)
     {
         if (IsEramCallsignOf(frame, hit, (float)pos.X, (float)pos.Y))
         {
@@ -976,7 +985,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         ScopeFieldAction action = FieldActionOf(frame, hit, (float)pos.X, (float)pos.Y);
         if (action != ScopeFieldAction.None)
         {
-            FieldClicked?.Invoke(hit.Callsign, action, pos);
+            FieldClicked?.Invoke(hit.Callsign, action, pos, modifiers);
         }
         else
         {

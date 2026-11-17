@@ -419,12 +419,12 @@ public static class TrackPresenter
             _ => ScopeFieldAction.None,
         };
 
-    // Field A keeps the canvas's dwell-lock click; the scope-data column of these menus is a later step's. The HSF indicator
-    // and the VCI cell run their ERAM toggles directly, as CRC's datablock does.
+    // Field A keeps the canvas's dwell-lock click; the altitude opens the two-column popup (scope data beside the pilot's
+    // Maintain altitude). The HSF indicator and the VCI cell run their ERAM toggles directly, as CRC's datablock does.
     private static ScopeFieldAction EramActionFor(ScopeFieldSlot slot) =>
         slot switch
         {
-            ScopeFieldSlot.EramAltitude => ScopeFieldAction.OpenAltitudeMenu,
+            ScopeFieldSlot.EramAltitude => ScopeFieldAction.OpenEramAltitudeMenu,
             ScopeFieldSlot.GroundSpeed => ScopeFieldAction.OpenSpeedMenu,
             ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
             ScopeFieldSlot.StatusLine3 => ScopeFieldAction.OpenHandoffMenu,
@@ -716,7 +716,8 @@ public static class TrackPresenter
         ScopeViewer viewer = input.Display.Viewer;
         bool onFrequency = EramColumn0.VciLit(ac, viewer);
         bool vci = onFrequency || (input.VciPreview && EramDwellLock.HasEramSector(viewer));
-        // A VCI lit only by the preview carries no stable text, so it widens no bounds and adds no click target.
+        // A VCI lit only by the preview carries no stable text, so it widens no bounds and adds no field rect; its click target is
+        // the block's VCI cell, there lit or not (ScopeBlockLayout.VciCell).
         var vciField = new ScopeField(
             ScopeFieldSlot.Vci,
             vci ? EramArrowCell : "",

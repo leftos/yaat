@@ -31,7 +31,7 @@ public class ScopeFieldActionTests
     [InlineData(ScopeTemplates.StarsId, ScopeFieldSlot.ConflictAlert, ScopeFieldAction.None)]
     [InlineData(ScopeTemplates.StarsId, ScopeFieldSlot.Handoff, ScopeFieldAction.None)]
     // ERAM
-    [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.EramAltitude, ScopeFieldAction.OpenAltitudeMenu)]
+    [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.EramAltitude, ScopeFieldAction.OpenEramAltitudeMenu)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.GroundSpeed, ScopeFieldAction.OpenSpeedMenu)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.Ident, ScopeFieldAction.OpenSquawkMenu)]
     [InlineData(ScopeTemplates.EramId, ScopeFieldSlot.StatusLine3, ScopeFieldAction.OpenHandoffMenu)]

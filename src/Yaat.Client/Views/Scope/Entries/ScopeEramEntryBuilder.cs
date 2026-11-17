@@ -8,7 +8,8 @@ namespace Yaat.Client.Views.Scope.Entries;
 /// token per whitespace run, uppercase, as CRC's ERAM keyboard sends it; the server parses it, never the client), and the
 /// Scope's response to its answer (<see cref="ResponseTo"/>). A clicked track or map point is already text in the entry; a
 /// clicked track's callsign is also sent as a pick of that aircraft, as CRC sends one, while its text stays intact, except in
-/// free text (an SM, SW or WX entry, or after the free-text marker), where it goes as plain text.
+/// free text (an SM, SW or WX entry, or after the free-text marker), where it goes as plain text; a QS entry's last token, its
+/// flight ID, is picked even after its free text.
 /// </summary>
 internal static class ScopeEramEntryBuilder
 {
@@ -33,7 +34,8 @@ internal static class ScopeEramEntryBuilder
     }
 
     // The index of the last token equal to pickedCallsign ahead of any free text, or -1: none in an SM, SW or WX entry, whose
-    // operands are free text, and none at or after the first token holding the free-text marker, where a callsign is text.
+    // operands are free text, and none at or after the first token holding the free-text marker, where a callsign is text,
+    // except a QS entry's last token, its flight ID after the HSF free text.
     private static int PickIndex(List<string> tokens, string? pickedCallsign)
     {
         if ((pickedCallsign is null) || (tokens.Count == 0) || FreeTextVerbs.Contains(tokens[0]))
@@ -42,6 +44,11 @@ internal static class ScopeEramEntryBuilder
         }
 
         int freeText = tokens.FindIndex(token => token.IndexOfAny(FreeTextMarkers) >= 0);
+        if (IsQsFlightIdAfterFreeText(tokens, freeText, pickedCallsign))
+        {
+            return tokens.Count - 1;
+        }
+
         for (int i = ((freeText < 0) ? tokens.Count : freeText) - 1; i >= 0; i--)
         {
             if (string.Equals(tokens[i], pickedCallsign, StringComparison.OrdinalIgnoreCase))
@@ -52,6 +59,14 @@ internal static class ScopeEramEntryBuilder
 
         return -1;
     }
+
+    // Whether the entry is a QS with free text whose last token, after the marker, is the clicked callsign: QS takes its flight
+    // ID last, after the HSF free text, as the server reads it.
+    private static bool IsQsFlightIdAfterFreeText(List<string> tokens, int freeText, string pickedCallsign) =>
+        (freeText >= 0)
+        && ((tokens.Count - 1) > freeText)
+        && string.Equals(tokens[0], "QS", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(tokens[^1], pickedCallsign, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The Scope's response to <paramref name="result"/>, echoing <paramref name="entry"/>: an acceptance shows every feedback

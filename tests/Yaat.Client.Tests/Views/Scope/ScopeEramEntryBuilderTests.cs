@@ -77,6 +77,11 @@ public class ScopeEramEntryBuilderTests
     public void AClickedTrack_AfterTheMappedFreeTextMarker_IsNotPicked() =>
         Assert.Null(ScopeEramEntryBuilder.Build($"QQ {ScopeEramKeys.ClearWeather}TEXT UAL238", "UAL238").Picks);
 
+    // A QS entry's flight ID is its last token, after the HSF free text, so a clicked track there is still picked.
+    [Fact]
+    public void AClickedTrack_AtTheEndOfAQsFreeTextEntry_IsPicked() =>
+        Assert.Equal([new ScopeEramPickDto(2, "UAL238")], ScopeEramEntryBuilder.Build("QS `HOLD UAL238", "UAL238").Picks);
+
     [Fact]
     public void AClickedTrack_BeforeTheFreeTextMarker_IsStillPicked() =>
         Assert.Equal(

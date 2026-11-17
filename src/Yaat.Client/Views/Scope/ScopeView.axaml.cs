@@ -3,7 +3,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -20,14 +22,18 @@ namespace Yaat.Client.Views.Scope;
 /// with an action (<see cref="ScopeFieldAction"/>) selects the aircraft and opens that field's pick menu at the pointer
 /// (<see cref="FieldMenus.ScopeFieldMenus"/>), the note box, or takes control (the EuroScope owner); a row of the menu sends,
 /// or, picked with Shift held, stages <c>PILOT {callsign} {command}</c> in the entry (<see cref="ScopeViewModel.StageEntry"/>)
-/// and gives the canvas the focus, so Enter runs it.
+/// and gives the canvas the focus, so Enter runs it. On an ERAM block the altitude opens the two-column popup
+/// (<see cref="ScopeDataAltitudePopup"/>): a SCOPE DATA row runs its ERAM entry at once, or with Shift stages the bare entry
+/// (<see cref="ScopeViewModel.StageEramText"/>); a PILOT row sends or stages as a menu row does. The HSF indicator and VCI cell
+/// run their toggle, or with Shift stage it. Only one field menu, popup or aircraft menu is open at a time.
 /// While the Rings tool is armed a left click places a ring instead (<see cref="ScopeViewModel.PlaceRing"/>), selecting
 /// nothing, opening no menu and toggling no lock. With text in the preview (and the Rings tool not armed) a left click on a
 /// target or block fills that track into the entry and selects it (<see cref="ScopeViewModel.FillTrack"/>), opening no menu
 /// and toggling no lock, unless the entry already names that track (its pilot entry first, or any entry last), where the
 /// click acts as with an empty preview (<see cref="ScopeViewModel.FillsOnLeftClick"/>); a left click on the map fills the
 /// point (<see cref="ScopeViewModel.FillPoint"/>). A middle click takes the row <see cref="ScopeMiddleClick"/> picks: on an
-/// ERAM block it fills the track into a non-empty preview and runs it, or on Field A with an empty preview runs <c>QF</c>;
+/// ERAM block it fills the track into a non-empty preview and runs it, or with an empty preview runs <c>QF</c> on Field A and
+/// acts as a plain left click on the HSF indicator, the VCI cell or a field with a menu;
 /// on a STARS or EuroScope block it toggles the highlight; on the map with the ERAM layout it fills the point into a
 /// non-empty preview and runs it. The measuring tool comes before every left-click rung above: Alt+left-drag measures between
 /// the press and the release whether or not the tool is armed (an Alt-click anchors and arms it); while it is armed (Ctrl+M,
@@ -45,7 +51,10 @@ namespace Yaat.Client.Views.Scope;
 /// </summary>
 public partial class ScopeView : UserControl
 {
+    private static readonly ILogger Log = AppLog.CreateLogger("ScopeView");
+
     private ContextMenu? _activeContextMenu;
+    private ScopeDataAltitudePopup? _activeFieldPopup;
     private ScopeViewModel? _vm;
     private TopLevel? _topLevel;
 
@@ -77,6 +86,9 @@ public partial class ScopeView : UserControl
 
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
     internal ContextMenu? ActiveContextMenu => _activeContextMenu;
+
+    /// <summary>The ERAM altitude popup a field click opened, while it is open. Test seam.</summary>
+    internal ScopeDataAltitudePopup? ActiveFieldPopup => _activeFieldPopup;
 
     /// <summary>
     /// The aircraft menu for <paramref name="callsign"/>: the shared aircraft menu, with relative actions aimed at
@@ -132,6 +144,8 @@ public partial class ScopeView : UserControl
     {
         _topLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         _topLevel = null;
+        _activeFieldPopup?.Close();
+        _activeContextMenu?.Close();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -146,7 +160,13 @@ public partial class ScopeView : UserControl
             return;
         }
 
-        if (e.Key == Key.Escape)
+        if ((e.Key == Key.Escape) && (_activeFieldPopup is { IsOpen: true } popup))
+        {
+            // The popup's keys tunnel through the window first: Esc closes the popup, leaving the preview's text.
+            popup.Close();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
         {
             e.Handled =
                 (!TearoffLayer.IsMoving)
@@ -230,8 +250,9 @@ public partial class ScopeView : UserControl
     }
 
     // A field with an action: the armed Rings tool places a ring as on any click; else the track is selected and the field's
-    // action runs, its menu sending through the same host as the right-click menu.
-    private void OnFieldClicked(string callsign, ScopeFieldAction action, Point __)
+    // action runs, its menu sending through the same host as the right-click menu. Shift stages an HSF or VCI toggle in the
+    // preview instead of running it, and changes no menu's opening. Internal so a test can open a surface with no pointer press.
+    internal void OnFieldClicked(string callsign, ScopeFieldAction action, Point __, KeyModifiers modifiers)
     {
         if (DataContext is not ScopeViewModel vm)
         {
@@ -253,18 +274,26 @@ public partial class ScopeView : UserControl
 
         if (action is ScopeFieldAction.ToggleHsf or ScopeFieldAction.ToggleVci)
         {
-            _ = vm.RunEramText(callsign, ScopeDataEntries.Toggle(action, callsign));
+            RunOrStageEramText(vm, callsign, ScopeDataEntries.Toggle(action, callsign), modifiers.HasFlag(KeyModifiers.Shift));
             return;
         }
 
-        if (vm.FindAircraft(callsign) is not { } ac)
+        if (vm.FindAircraft(callsign) is { } ac)
         {
-            return;
+            OpenFieldSurface(vm, ac, action);
         }
+    }
 
+    // The surface a field with a menu opens: the note box, the ERAM altitude popup or the field's pick menu.
+    private void OpenFieldSurface(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
         if (action == ScopeFieldAction.OpenNoteBox)
         {
             ScopeFieldMenus.ShowNoteBox(ac, new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId));
+        }
+        else if (action == ScopeFieldAction.OpenEramAltitudeMenu)
+        {
+            OpenEramAltitudePopup(vm, ac);
         }
         else
         {
@@ -272,19 +301,71 @@ public partial class ScopeView : UserControl
         }
     }
 
+    // The host a field menu's pilot rows send through: while Shift is held on a row it stages the command in the entry instead.
+    private ClientMenuHost FieldMenuHost(ScopeViewModel vm, AircraftModel ac) =>
+        new(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId) { Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command) };
+
     // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them.
     private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
     {
         _fieldMenuShift = false;
-        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.Radar.MvaFacilityId)
-        {
-            Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command),
-        };
-        if (ScopeFieldMenus.Build(action, ac, host) is { } menu)
+        if (ScopeFieldMenus.Build(action, ac, FieldMenuHost(vm, ac)) is { } menu)
         {
             ScopeFieldMenus.RecordShift(menu, shift => _fieldMenuShift = shift);
             ShowContextMenu(menu);
         }
+    }
+
+    // The ERAM altitude popup: a SCOPE DATA row runs its entry, or with Shift stages it; a PILOT row sends, or with Shift stages,
+    // as a field menu's row does.
+    private void OpenEramAltitudePopup(ScopeViewModel vm, AircraftModel ac)
+    {
+        _fieldMenuShift = false;
+        string callsign = ac.Callsign;
+        var popup = new ScopeDataAltitudePopup(
+            ac,
+            FieldMenuHost(vm, ac),
+            shift => _fieldMenuShift = shift,
+            entry => PickScopeData(vm, callsign, entry)
+        );
+        _activeContextMenu?.Close();
+        _activeFieldPopup?.Close();
+        if (!popup.Open(Canvas))
+        {
+            Log.LogWarning("ScopeView: no overlay layer for the canvas; the ERAM altitude popup for {Callsign} is not shown", callsign);
+            return;
+        }
+
+        _activeFieldPopup = popup;
+        popup.Closed += (_, _) =>
+        {
+            if (_activeFieldPopup == popup)
+            {
+                _activeFieldPopup = null;
+            }
+        };
+    }
+
+    // A SCOPE DATA row picked: the popup closes, then the entry runs, or with Shift is staged in the preview.
+    private void PickScopeData(ScopeViewModel vm, string callsign, string entry)
+    {
+        bool stage = _fieldMenuShift;
+        _activeFieldPopup?.Close();
+        RunOrStageEramText(vm, callsign, entry, stage);
+    }
+
+    // A bare ERAM entry a click on the track produced: run at once, or with Shift staged in the preview with the track as the
+    // pick, the canvas given the focus so Enter sends it.
+    private void RunOrStageEramText(ScopeViewModel vm, string callsign, string entry, bool stage)
+    {
+        if (!stage)
+        {
+            _ = vm.RunEramText(callsign, entry);
+            return;
+        }
+
+        vm.StageEramText(callsign, entry);
+        Canvas.Focus();
     }
 
     // Stages the row's command in the entry, closes the menu and gives the canvas the focus, so Enter runs the entry.
@@ -292,19 +373,21 @@ public partial class ScopeView : UserControl
     {
         vm.StageEntry(callsign, command);
         _activeContextMenu?.Close();
+        _activeFieldPopup?.Close();
         Canvas.Focus();
         return true;
     }
 
-    // A middle click on a track: the row its resolved block kind picks (ScopeMiddleClick).
-    private void OnAircraftMiddleClicked(string callsign, bool onEramFieldA)
+    // A middle click on a track: the row its resolved block kind picks (ScopeMiddleClick). A field or indicator cell click acts
+    // as a plain left click, Shift or not.
+    private void OnAircraftMiddleClicked(string callsign, ScopeMiddleHit hit)
     {
         if ((DataContext is not ScopeViewModel vm) || (vm.FindAircraft(callsign) is not { } ac))
         {
             return;
         }
 
-        switch (ScopeMiddleClick.OnTrack(vm.TemplateId, ac, onEramFieldA, vm.EntryText.Length > 0, vm.IsRingToolArmed))
+        switch (ScopeMiddleClick.OnTrack(vm.TemplateId, ac, hit, vm.EntryText.Length > 0, vm.IsRingToolArmed))
         {
             case ScopeMiddleClickAction.ToggleHighlight:
                 vm.ToggleHighlight(callsign);
@@ -314,6 +397,9 @@ public partial class ScopeView : UserControl
                 break;
             case ScopeMiddleClickAction.RunQuickFlight:
                 vm.RunQuickFlight(callsign);
+                break;
+            case ScopeMiddleClickAction.ClickField:
+                OnFieldClicked(callsign, hit.Action, default, KeyModifiers.None);
                 break;
             default:
                 break;
@@ -387,8 +473,10 @@ public partial class ScopeView : UserControl
         ShowContextMenu(BuildAircraftMenu(vm, ac, prevSelected, callsign));
     }
 
+    // One menu or popup at a time: opening one closes the other.
     private void ShowContextMenu(ContextMenu menu)
     {
+        _activeFieldPopup?.Close();
         _activeContextMenu?.Close();
         _activeContextMenu = menu;
         menu.Closed += (_, _) =>

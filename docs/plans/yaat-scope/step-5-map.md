@@ -163,6 +163,7 @@ User sees: the altitude menu gains the SCOPE DATA column (FP, interim/local/proc
 Files: 5b's `FieldMenus/` builders + `EramEntryParser` text from 5h; presenter inputs for what the menu highlights (current interim tier etc. from the `Eram*` wire fields, `TrackPresenter.cs:533`); `ScopeFieldSlot` additions only if hit regions need splitting (B vs C vs char 4; there is no Field D/E slot).
 Tests: `ScopeFieldMenuScopeDataTests.cs` (each menu row → the exact entry text), UI test of the two columns.
 Depends on 5b, 5h. Open decisions: D2, D3.
+Settled by 5i-2 (YAAT-2442): the ERAM altitude opens one two-column popup (`FieldMenus/ScopeDataAltitudePopup.cs`: SCOPE DATA beside the PILOT Maintain altitude panel; mocks in `docs/plans/canvases/scope-data-menu/`), a SCOPE DATA row click runs its entry and Shift+click stages it, `ClearCera` (`QR 000 {callsign}`) joins the altitude entries, Shift+click on the HSF indicator or VCI cell stages its entry, and a middle click on an ERAM field with an empty preview does what a left click does. The fourth-line menus are YAAT-2454 (mocks in `docs/plans/canvases/scope-line4-menu/`).
 
 Dependency graph: 5a → {5b, 5c, 5d, 5g}; 5d → 5e; 5g, 5h → 5i; 5h → 5f; 5b → 5i; 5c needs 5a (preview) and benefits from 5g/5h for what Enter runs. Parallel-safe pair: 5b ∥ 5d after 5a. 5e can fold into 5d if the implementer budget is short; 5f is the first to defer if the server DTO work grows.
 

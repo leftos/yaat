@@ -191,6 +191,19 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
+    /// Stages the bare ERAM <paramref name="entry"/> a Shift+click on <paramref name="callsign"/>'s block produced, in place of
+    /// whatever the preview holds (never appended), with <paramref name="callsign"/> as the clicked track, so Enter sends it as a
+    /// pick; the shown response clears.
+    /// </summary>
+    internal void StageEramText(string callsign, string entry)
+    {
+        EntryResponse = null;
+        SetEntry(entry);
+        _pickedCallsign = callsign;
+        _entryHistoryIndex = -1;
+    }
+
+    /// <summary>
     /// Fills the track <paramref name="callsign"/> into the entry (<see cref="ScopeEntryFill.Track"/>), as a click on it with text
     /// in the preview does: first in a pilot entry, else appended, the entry read in the clicked track's dialect on Mixed.
     /// </summary>

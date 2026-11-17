@@ -33,6 +33,9 @@ internal static class ScopeDataEntries
     /// <summary>Clears the local interim altitude: <c>QQ L FLID</c>.</summary>
     public static string ClearLocal(string flid) => $"QQ L {flid}";
 
+    /// <summary>Clears the controller-entered reported altitude: <c>QR 000 FLID</c>.</summary>
+    public static string ClearCera(string flid) => $"QR 000 {flid}";
+
     /// <summary>Sets the HSF heading: <c>QS heading FLID</c>.</summary>
     public static string HsfHeading(string heading, string flid) => $"QS {heading} {flid}";
 

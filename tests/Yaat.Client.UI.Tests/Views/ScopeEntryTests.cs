@@ -166,6 +166,87 @@ public class ScopeEntryTests
         Assert.False(scope.WalkEntryHistory(older: false));
     }
 
+    // A bare ERAM entry staged from a field click (a Shift+click on a scope-data row, the HSF indicator or the VCI cell).
+
+    /// <summary>The bare entry replaces the preview, never appends, even to a pilot entry for the same aircraft.</summary>
+    [AvaloniaFact]
+    public async Task StageEramText_ReplacesAPilotEntryForTheSameAircraft_WithExactlyTheEntry()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.ProfileKind = ScopeProfileKind.Eram;
+        AddAircraft(main, "UAL238", 5000);
+        Assert.True(scope.TypeEntryText("PILOT UAL238 CM 80"));
+
+        scope.StageEramText("UAL238", "QQ 110 UAL238");
+
+        Assert.Equal("QQ 110 UAL238", scope.EntryText);
+    }
+
+    [AvaloniaFact]
+    public async Task StageEramText_ReplacesATypedEntry_WithExactlyTheEntry()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.ProfileKind = ScopeProfileKind.Eram;
+        AddAircraft(main, "UAL238", 5000);
+        Assert.True(scope.TypeEntryText("QU KSFO"));
+
+        scope.StageEramText("UAL238", "QS UAL238");
+
+        Assert.Equal("QS UAL238", scope.EntryText);
+    }
+
+    [AvaloniaFact]
+    public async Task StageEramText_AfterARecall_ResetsTheHistoryIndex()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.ProfileKind = ScopeProfileKind.Eram;
+        scope.EramEntrySender = _ => Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+        AddAircraft(main, "UAL238", 5000);
+        await RunEntryAsync(scope, "QQ 250 UAL238");
+        Assert.True(scope.WalkEntryHistory(older: true));
+
+        scope.StageEramText("UAL238", "QQ 110 UAL238");
+
+        Assert.False(scope.WalkEntryHistory(older: false));
+    }
+
+    [AvaloniaFact]
+    public async Task StageEramText_ClearsTheShownResponse()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.ProfileKind = ScopeProfileKind.Eram;
+        scope.EramEntrySender = _ => Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+        AddAircraft(main, "UAL238", 5000);
+        await RunEntryAsync(scope, "QQ 250 UAL238");
+        Assert.NotNull(scope.EntryResponse);
+
+        scope.StageEramText("UAL238", "QQ 110 UAL238");
+
+        Assert.Null(scope.EntryResponse);
+    }
+
+    [AvaloniaFact]
+    public async Task StageEramText_ThenEnter_SendsTheEntryWithTheTrackAsThePick()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.ProfileKind = ScopeProfileKind.Eram;
+        var sent = new List<ScopeEramEntryDto>();
+        scope.EramEntrySender = dto =>
+        {
+            sent.Add(dto);
+            return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+        };
+        AddAircraft(main, "UAL238", 5000);
+
+        scope.StageEramText("UAL238", "QQ 110 UAL238");
+        Assert.True(scope.ExecuteEntry());
+        await scope.LastEntryRun;
+
+        ScopeEramEntryDto dto = Assert.Single(sent);
+        Assert.Equal(["QQ", "110", "UAL238"], dto.Tokens);
+        Assert.Equal([new ScopeEramPickDto(2, "UAL238")], dto.Picks);
+    }
+
     [AvaloniaFact]
     public async Task Enter_RunsTheEntry_AndShowsTheResponse()
     {

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-2454 mock: one fourth-line popup, or a popup per token</title>
+<style>
+
+
+
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 32px 48px; min-width: 1680px; background: #181c21; color: #d4dbe2; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+h2 { font-size: 18px; margin: 0 0 2px; color: #eef3f7; }
+.lede { max-width: 1600px; margin: 0 0 8px; color: #b8c2cb; }
+code { font-family: "JBM", Consolas, monospace; font-size: 12.5px; color: #9fd8ea; }
+.lanes { display: flex; gap: 40px; margin-top: 22px; }
+.lane { width: 782px; }
+.how { margin: 4px 0 0; color: #d4dbe2; }
+.how b { color: #eef3f7; }
+.cost { margin: 2px 0 0; color: #f0c98a; }
+.cap { font-size: 12.5px; color: #8e9aa5; margin: 16px 0 4px; }
+.cap b { color: #d4dbe2; font-weight: 600; }
+.win { position: relative; width: 780px; height: 600px; background: #000; overflow: hidden; outline: 1px solid #56616c; }
+.map { position: absolute; left: 0; top: 0; }
+.fdb, .otherdb { position: absolute; font: 13px/15px Consolas, "JBM", monospace; color: #fff; white-space: pre; }
+.fdb { outline: 1px solid #fff; outline-offset: 2px; }
+.fdb .clicked { background: rgba(255,255,255,.18); }
+.cursor { position: absolute; z-index: 9; }
+/* Fluent dark (compact) ContextMenu and flyout presenter, Inter in the app (Segoe UI here) */
+.menu, .panel { position: absolute; z-index: 5; background: #2b2b2b; border: 1px solid #464646; border-radius: 7px; padding: 4px 0;
+  box-shadow: 0 8px 18px rgba(0,0,0,.55); color: #fff; font: 14px "Segoe UI", system-ui, sans-serif; }
+.mi { height: 30px; margin: 0 4px; padding: 0 8px 0 10px; display: flex; align-items: center; justify-content: space-between; border-radius: 4px; }
+.mi.on { background: #3d3d3d; }
+.tl { display: flex; justify-content: space-between; margin: 6px 11px 2px; font-size: 11px; color: #a4adb8; }
+.mono11 { font: 11px "JBM", Consolas, monospace; }
+.boxrow { display: flex; align-items: center; gap: 8px; margin: 4px 11px 4px; height: 30px; }
+.tb { width: 150px; height: 26px; border: 1px solid #5a5a5a; border-radius: 4px; background: #1e1e1e; padding: 0 7px; display: flex; align-items: center;
+  font: 13px "Segoe UI", sans-serif; color: #fff; }
+.tb.ph { color: #8a8a8a; }
+.tb.val { font-family: "JBM", Consolas, monospace; }
+.tb.focus { border: 2px solid #4a9eff; }
+.caret, .caretE { display: inline-block; width: 1px; height: 15px; background: #fff; margin-left: 1px; }
+.caretE { height: 19px; background: #e6e6e6; vertical-align: -3px; }
+.boxrow .c { margin-left: auto; }
+.hsep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+.list { position: relative; }
+.sb { position: absolute; right: 2px; top: 64px; width: 2px; height: 80px; background: #8a8a8a; border-radius: 1px; }
+.row { height: 28px; margin: 0 4px; padding: 0 12px 0 7px; display: flex; align-items: center; gap: 6px; border-radius: 3px; border: 1px solid transparent; }
+.row.now { background: #2f4a6e; border-color: #5b8def; }
+.row.hover { background: rgba(255,255,255,.12); outline: 1px dashed #8fc1ff; outline-offset: -1px; }
+.row .g { width: 16px; font-size: 12px; text-align: center; color: #ccc; }
+.row .g.up { color: #7fd1b9; }
+.row .g.dn { color: #f2b880; }
+.row .v { font: 13px "JBM", Consolas, monospace; color: #e8e8e8; }
+.row .v.b { font-weight: 700; }
+.row .lbl { font-size: 13px; color: #e8e8e8; padding-left: 4px; white-space: nowrap; }
+.row .note { font-size: 11.5px; color: #a4adb8; margin-left: auto; white-space: nowrap; }
+.c { font: 12px "JBM", Consolas, monospace; color: #9aa3ad; white-space: nowrap; }
+.row .c { margin-left: 10px; }
+.c.faded { color: #5d636b; }
+.kindchip { font: 700 11px/14px "JBM", Consolas, monospace; padding: 1px 4px; border: 1px solid #58c4e6; color: #58c4e6; width: 40px; text-align: center; }
+.panel.two { display: flex; padding: 0; }
+.panel.two .col { width: 319px; padding: 4px 0; }
+.vsep { width: 1px; background: #3d3d3d; margin: 8px 0; }
+.colhead { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 11px 2px; padding-bottom: 4px; border-bottom: 1px solid #3d3d3d; }
+.colhead .hint { font-size: 11px; color: #a4adb8; }
+.kindP { font: 700 12px "JBM", Consolas, monospace; color: #e0b84a; letter-spacing: .5px; }
+.kindS { font: 700 12px "JBM", Consolas, monospace; color: #58c4e6; letter-spacing: .5px; }
+.eramBox { position: absolute; z-index: 4; background: #000; border: 1px solid #8a8a8a; font: 400 19px/22px "JBM", Consolas, monospace; color: #e6e6e6; white-space: pre; min-width: 220px; }
+.eramBox .pa { padding: 3px 6px; min-height: 30px; }
+.eramBox .fb { border-top: 1px solid #8a8a8a; padding: 3px 6px; }
+.ok { color: #3fd06a; }
+.callout { position: absolute; z-index: 6; font: 11.5px/1.35 "Segoe UI", sans-serif; color: #f0c98a; background: rgba(24,28,33,.92); border: 1px solid #6b5a3a; padding: 2px 7px; white-space: nowrap; }
+.callout b { color: #fff; }
+.dim { position: absolute; z-index: 6; font: 11px "Segoe UI", sans-serif; color: #9fd8ea; white-space: nowrap; }
+.notes { margin-top: 30px; max-width: 1600px; padding: 10px 14px; background: #10141a; border: 1px solid #2a333c; font-size: 13px; color: #aab5bf; }
+.notes li { margin: 2px 0; }
+
+.win.tall { height: auto; }
+.fdb .region { outline: 1px dashed #8fc1ff; outline-offset: 0; }
+.fdb .hsf { color: #fff; }
+.sec { margin: 6px 11px 0; font: 700 11px "Segoe UI", sans-serif; color: #cfd5dc; letter-spacing: .4px; text-transform: uppercase; display: flex; justify-content: space-between; }
+.sec .mono11 { font-weight: 400; text-transform: none; letter-spacing: 0; color: #a4adb8; }
+.secsep { height: 1px; background: #4a4a4a; margin: 8px 2px 2px; }
+.row.dis { opacity: .4; }
+.row.dis .note { color: #a4adb8; }
+.boxrow .hint2 { font-size: 11px; color: #8a8a8a; }
+.tb.wide { width: 170px; }
+.seg { display: flex; margin: 4px 11px; border: 1px solid #4a4a4a; border-radius: 4px; overflow: hidden; height: 24px; }
+.seg span { flex: 1; text-align: center; font-size: 12px; line-height: 22px; color: #cfd5dc; border-right: 1px solid #4a4a4a; }
+.seg span:last-child { border-right: 0; }
+.seg span.on { background: #2f4a6e; color: #fff; }
+.rosewrap { display: flex; justify-content: space-between; align-items: center; margin: 4px 11px 2px; }
+.chips { display: flex; flex-direction: column; gap: 2px; }
+.chip { width: 38px; height: 15px; font: 10.5px/13px "JBM", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #33383f; border-radius: 3px; text-align: center; }
+.readout { margin: 2px 11px 6px; font-size: 11px; color: #8a8a8a; }
+.glabel { margin: 4px 11px 2px; font-size: 11px; color: #a4adb8; }
+.grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin: 0 11px 4px; }
+.grid .chip { width: auto; height: 20px; line-height: 18px; font-size: 11px; }
+.grid .chip.now { background: #2f4a6e; border-color: #5b8def; color: #fff; }
+.pgap { height: 6px; }
+.colnote { margin: 10px 11px; font-size: 11.5px; color: #a4adb8; }
+.panel.one .col { width: 319px; padding: 4px 0; }
+.tag { position: absolute; z-index: 6; font: 700 11px "Segoe UI", sans-serif; color: #8fc1ff; white-space: nowrap; }
+</style>
+</head>
+<body>
+<h1>YAAT-2454: the SCOPE DATA column of the ERAM fourth-line menus. One popup, or one per token?</h1>
+<p class="lede">An ERAM full data block's fourth line is one field showing the <b>HSF</b> data (heading, speed, free text) set with <code>QS</code>: free text when set (<code>LOWALT</code>), else heading then speed (<code>H270 S250</code>); with none set it falls back to type or destination (<code>B738</code>). A ↴ at the end of line 2 marks that HSF data exists. Today a click on line 4 does nothing. YAAT-2454 makes it open the same two-column popup the altitude field got (YAAT-2442, lane B): <span class="kindS">SCOPE DATA</span> rows that run <code>QS</code> entries beside <span class="kindP">PILOT</span> rows that send pilot commands. The question is <b>how many popups line 4 opens</b>: one for the whole line, or one per token, as CRC's menus split it.</p>
+<p class="lede">CRC (docs/crc/eram.md): the Heading Menu opens on <i>"Field D (CID) or the fourth line assigned heading"</i>, the Speed Menu on <i>"Field E (ground speed) or the fourth line assigned speed"</i>, and the Free Form Text Box Menu on <i>"free form text in the fourth line"</i>, with <i>"The Free Form Text Box Menu cannot be opened if the aircraft does not have any assigned fourth line free form text."</i> Its Delete FDB Fourth Line pick <i>"clears the aircraft's fourth line data"</i>, which is <code>QS * UAL238</code>.</p>
+<p class="lede">Same rule in both lanes, as approved for altitude: a <b>click</b> on a row sends it (pilot) or runs its ERAM entry at once, with ACCEPT or the refusal in the feedback area; a <b>Shift+click</b> stages it in the preview area (<code>QS H300 UAL238</code> bare, or <code>PILOT UAL238 FH 300</code>). Each row's faded monospace text is its exact entry for UAL238; <code>ⵔ</code> is the clear-weather symbol, typed with the <code>`</code> key.</p>
+<div class="lanes">
+  <section class="lane">
+    <h2>Lane A: One fourth-line popup</h2>
+    <p class="how">A click <b>anywhere on line 4</b> opens one popup. <span class="kindS">SCOPE DATA</span> stacks three sections, <b>Heading</b>, <b>Speed</b> and <b>Free text</b>, each a box and its rows; <span class="kindP">PILOT</span> stacks <b>Fly heading</b> over <b>Assign speed</b>.</p>
+    <p class="cost">One hit region, whatever line 4 shows, so it always opens. Every HSF entry is one click away, free text included. The popup is tall, about 600 px, and the PILOT side holds two of today's flyouts at once.</p>
+    <p class="cap"><b>A1</b>: line 4 reads <code>H270 S250</code>; a click on it, then H300 typed in the Heading box</p>
+    <div class="win" style="height:860px">
+  <svg class="map" width="780" height="860" viewBox="0 0 780 860">
+    <path d="M-10 520 L210 360 L470 300 L800 240" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <path d="M520 -10 L560 230 L640 870" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <circle cx="700" cy="520" r="160" stroke="#2c2c2c" stroke-width="1" fill="none"/>
+    <g fill="none" stroke="#00b0ff" stroke-width="1.4"><path d="M690 100 l5 -5 l5 5 l-5 5 z"/></g>
+    <line x1="700" y1="95" x2="714" y2="80" stroke="#fff" stroke-width="1"/>
+    <path d="M58 168 l6 -6 l6 6 l-6 6 z" fill="none" stroke="#00b0ff" stroke-width="1.6"/>
+    <line x1="68" y1="160" x2="84" y2="138" stroke="#fff" stroke-width="1"/>
+  </svg>
+  <div class="otherdb" style="left:716px;top:44px">DAL412<br>310C<br>412 470</div>
+  <div class="fdb" style="left:86px;top:72px">UAL238<br>250C <span class="hsf">↴</span><br>238 450<br><span class="clicked">H270 S250</span></div>
+  <div class="panel two" style="left:124px;top:142px;width:640px">
+    <div class="col"><div class="colhead"><span class="kindS">SCOPE DATA</span><span class="hint">runs an ERAM entry</span></div><div class="sec"><span>Heading</span><span class="mono11">now H270</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb val focus">H300<span class="caret"></span></div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd hover"><span class="lbl">Set heading</span><span class="note"></span><span class="c">QS H300 UAL238</span></div>
+  <div class="row sd"><span class="lbl">Clear heading</span><span class="note"></span><span class="c">QS */ UAL238</span></div><div class="secsep"></div><div class="sec"><span>Speed</span><span class="mono11">now S250</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. S230, 250-, M78</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set speed</span><span class="note"></span><span class="c faded">QS /··· UAL238</span></div>
+  <div class="row sd"><span class="lbl">Clear speed</span><span class="note"></span><span class="c">QS /* UAL238</span></div><div class="secsep"></div><div class="sec"><span>Free text</span><span class="mono11">none</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. LOWALT</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set free text</span><span class="note"></span><span class="c faded">QS ⵔ··· UAL238</span></div>
+  <div class="row sd"><span class="lbl">Clear all HSF</span><span class="note">heading, speed, text</span><span class="c">QS * UAL238</span></div></div>
+    <div class="vsep"></div>
+    <div class="col"><div class="colhead"><span class="kindP">PILOT</span><span class="hint">sends a pilot command</span></div><div class="tl"><span>Fly heading</span><span class="mono11">now 270</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Present heading</span><span class="note">270</span><span class="c">FPH</span></div>
+  <div class="seg"><span class="on">Fly heading</span><span>Turn left</span><span>Turn right</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250, or L180</div><span class="c faded">FH ···</span></div>
+  <div class="hsep"></div>
+  <div class="rosewrap"><div class="chips"><div class="chip">L5</div><div class="chip">L10</div><div class="chip">L15</div><div class="chip">L20</div><div class="chip">L30</div><div class="chip">L45</div><div class="chip">L60</div><div class="chip">L90</div></div><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="#1e1e1e" stroke="#5a5a5a"/><line x1="75.0" y1="22.0" x2="75.0" y2="13.0" stroke="#cfd5dc" stroke-width="1"/><line x1="84.9" y1="18.9" x2="85.8" y2="13.9" stroke="#6b737c" stroke-width="1"/><line x1="94.5" y1="21.4" x2="96.2" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="29.1" x2="106.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="111.6" y1="31.3" x2="114.9" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="118.7" y1="38.4" x2="122.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="48.5" x2="128.7" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="128.6" y1="55.5" x2="133.3" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="131.1" y1="65.1" x2="136.1" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="128.0" y1="75.0" x2="137.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="131.1" y1="84.9" x2="136.1" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="128.6" y1="94.5" x2="133.3" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="101.5" x2="128.7" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="118.7" y1="111.6" x2="122.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="111.6" y1="118.7" x2="114.9" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="120.9" x2="106.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="94.5" y1="128.6" x2="96.2" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="84.9" y1="131.1" x2="85.8" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="75.0" y1="128.0" x2="75.0" y2="137.0" stroke="#cfd5dc" stroke-width="1"/><line x1="65.1" y1="131.1" x2="64.2" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="55.5" y1="128.6" x2="53.8" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="120.9" x2="44.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="38.4" y1="118.7" x2="35.1" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="31.3" y1="111.6" x2="27.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="101.5" x2="21.3" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="21.4" y1="94.5" x2="16.7" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="18.9" y1="84.9" x2="13.9" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="22.0" y1="75.0" x2="13.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="18.9" y1="65.1" x2="13.9" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="21.4" y1="55.5" x2="16.7" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="48.5" x2="21.3" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="31.3" y1="38.4" x2="27.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="38.4" y1="31.3" x2="35.1" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="29.1" x2="44.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="55.5" y1="21.4" x2="53.8" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="65.1" y1="18.9" x2="64.2" y2="13.9" stroke="#6b737c" stroke-width="1"/><text x="75.0" y="36.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">36</text><text x="118.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">09</text><text x="75.0" y="122.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">18</text><text x="32.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">27</text><line x1="75" y1="75" x2="25.0" y2="75.0" stroke="#5b8def" stroke-width="2"/><circle cx="75" cy="75" r="3" fill="#5b8def"/></svg><div class="chips"><div class="chip">R5</div><div class="chip">R10</div><div class="chip">R15</div><div class="chip">R20</div><div class="chip">R30</div><div class="chip">R45</div><div class="chip">R60</div><div class="chip">R90</div></div></div>
+  <div class="readout">Point at the rose to pick a heading; ← → step 5°, Shift 30°</div><div class="pgap"></div><div class="hsep"></div><div class="tl"><span>Assign speed</span><span class="mono11">now 300 kt · M.75</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250</div><span class="c faded">SPD ···</span></div>
+  <div class="hsep"></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Resume normal speed</span><span class="note"></span><span class="c">RNS</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Final approach speed</span><span class="note">144 kt</span><span class="c">RFAS</span></div>
+  <div class="hsep"></div>
+  <div class="glabel">Knots</div><div class="grid"><div class="chip">190</div><div class="chip">200</div><div class="chip">210</div><div class="chip">220</div><div class="chip">230</div><div class="chip">240</div><div class="chip">250</div><div class="chip">260</div><div class="chip">270</div><div class="chip">280</div><div class="chip">290</div><div class="chip now">300</div><div class="chip">310</div><div class="chip">320</div><div class="chip">330</div><div class="chip">340</div></div>
+  <div class="glabel">Mach</div><div class="grid"><div class="chip">M.70</div><div class="chip">M.72</div><div class="chip now">M.74</div><div class="chip">M.76</div><div class="chip">M.78</div><div class="chip">M.80</div><div class="chip">M.82</div><div class="chip">M.84</div></div></div>
+  </div>
+  <svg class="cursor" style="left:250px;top:233px" width="14" height="21" viewBox="0 0 14 21"><path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.6 12.2 L13 12.2 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+  <div class="callout" style="left:16px;top:16px">A click anywhere on line 4 (<b>H270 S250</b>) opens this one popup. H300 typed in the Heading box; pointer on <b>Set heading</b>.</div>
+  <div class="callout" style="left:16px;top:742px">Shift+click <b>Set heading</b> stages the bare entry here (no PILOT); a plain click runs it at once:</div>
+  <div class="eramBox" style="left:16px;top:770px"><div class="pa">QS H300 UAL238<span class="caretE"></span></div><div class="fb"><span class="ok">✓</span> ACCEPT</div></div>
+  <div class="dim" style="left:211px;top:840px">← feedback after a plain click (or the ERAM refusal text)</div>
+</div>
+    <p class="cap"><b>A2</b>: what a click on the type/destination fallback does (no HSF data set)</p>
+    <div class="win" style="height:770px">
+  <svg class="map" width="780" height="770" viewBox="0 0 780 770">
+    <path d="M-10 520 L210 360 L470 300 L800 240" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <path d="M520 -10 L560 230 L640 780" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <circle cx="700" cy="520" r="160" stroke="#2c2c2c" stroke-width="1" fill="none"/>
+    <g fill="none" stroke="#00b0ff" stroke-width="1.4"><path d="M690 100 l5 -5 l5 5 l-5 5 z"/></g>
+    <line x1="700" y1="95" x2="714" y2="80" stroke="#fff" stroke-width="1"/>
+    <path d="M58 168 l6 -6 l6 6 l-6 6 z" fill="none" stroke="#00b0ff" stroke-width="1.6"/>
+    <line x1="68" y1="160" x2="84" y2="138" stroke="#fff" stroke-width="1"/>
+  </svg>
+  <div class="otherdb" style="left:716px;top:44px">DAL412<br>310C<br>412 470</div>
+  <div class="fdb" style="left:86px;top:72px">UAL238<br>250C<br>238 450<br><span class="clicked">B738</span></div>
+  <div class="panel two" style="left:124px;top:142px;width:640px">
+    <div class="col"><div class="colhead"><span class="kindS">SCOPE DATA</span><span class="hint">runs an ERAM entry</span></div><div class="sec"><span>Heading</span><span class="mono11">none</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. H300 or 20L</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set heading</span><span class="note"></span><span class="c faded">QS ··· UAL238</span></div>
+  <div class="row sd dis"><span class="lbl">Clear heading</span><span class="note">none set</span><span class="c">QS */ UAL238</span></div><div class="secsep"></div><div class="sec"><span>Speed</span><span class="mono11">none</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. S230, 250-, M78</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set speed</span><span class="note"></span><span class="c faded">QS /··· UAL238</span></div>
+  <div class="row sd dis"><span class="lbl">Clear speed</span><span class="note">none set</span><span class="c">QS /* UAL238</span></div><div class="secsep"></div><div class="sec"><span>Free text</span><span class="mono11">none</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. LOWALT</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set free text</span><span class="note"></span><span class="c faded">QS ⵔ··· UAL238</span></div>
+  <div class="row sd dis"><span class="lbl">Clear all HSF</span><span class="note">none set</span><span class="c">QS * UAL238</span></div></div>
+    <div class="vsep"></div>
+    <div class="col"><div class="colhead"><span class="kindP">PILOT</span><span class="hint">sends a pilot command</span></div><div class="tl"><span>Fly heading</span><span class="mono11">now 270</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Present heading</span><span class="note">270</span><span class="c">FPH</span></div>
+  <div class="seg"><span class="on">Fly heading</span><span>Turn left</span><span>Turn right</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250, or L180</div><span class="c faded">FH ···</span></div>
+  <div class="hsep"></div>
+  <div class="rosewrap"><div class="chips"><div class="chip">L5</div><div class="chip">L10</div><div class="chip">L15</div><div class="chip">L20</div><div class="chip">L30</div><div class="chip">L45</div><div class="chip">L60</div><div class="chip">L90</div></div><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="#1e1e1e" stroke="#5a5a5a"/><line x1="75.0" y1="22.0" x2="75.0" y2="13.0" stroke="#cfd5dc" stroke-width="1"/><line x1="84.9" y1="18.9" x2="85.8" y2="13.9" stroke="#6b737c" stroke-width="1"/><line x1="94.5" y1="21.4" x2="96.2" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="29.1" x2="106.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="111.6" y1="31.3" x2="114.9" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="118.7" y1="38.4" x2="122.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="48.5" x2="128.7" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="128.6" y1="55.5" x2="133.3" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="131.1" y1="65.1" x2="136.1" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="128.0" y1="75.0" x2="137.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="131.1" y1="84.9" x2="136.1" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="128.6" y1="94.5" x2="133.3" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="101.5" x2="128.7" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="118.7" y1="111.6" x2="122.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="111.6" y1="118.7" x2="114.9" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="120.9" x2="106.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="94.5" y1="128.6" x2="96.2" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="84.9" y1="131.1" x2="85.8" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="75.0" y1="128.0" x2="75.0" y2="137.0" stroke="#cfd5dc" stroke-width="1"/><line x1="65.1" y1="131.1" x2="64.2" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="55.5" y1="128.6" x2="53.8" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="120.9" x2="44.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="38.4" y1="118.7" x2="35.1" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="31.3" y1="111.6" x2="27.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="101.5" x2="21.3" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="21.4" y1="94.5" x2="16.7" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="18.9" y1="84.9" x2="13.9" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="22.0" y1="75.0" x2="13.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="18.9" y1="65.1" x2="13.9" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="21.4" y1="55.5" x2="16.7" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="48.5" x2="21.3" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="31.3" y1="38.4" x2="27.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="38.4" y1="31.3" x2="35.1" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="29.1" x2="44.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="55.5" y1="21.4" x2="53.8" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="65.1" y1="18.9" x2="64.2" y2="13.9" stroke="#6b737c" stroke-width="1"/><text x="75.0" y="36.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">36</text><text x="118.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">09</text><text x="75.0" y="122.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">18</text><text x="32.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">27</text><line x1="75" y1="75" x2="25.0" y2="75.0" stroke="#5b8def" stroke-width="2"/><circle cx="75" cy="75" r="3" fill="#5b8def"/></svg><div class="chips"><div class="chip">R5</div><div class="chip">R10</div><div class="chip">R15</div><div class="chip">R20</div><div class="chip">R30</div><div class="chip">R45</div><div class="chip">R60</div><div class="chip">R90</div></div></div>
+  <div class="readout">Point at the rose to pick a heading; ← → step 5°, Shift 30°</div><div class="pgap"></div><div class="hsep"></div><div class="tl"><span>Assign speed</span><span class="mono11">now 300 kt · M.75</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250</div><span class="c faded">SPD ···</span></div>
+  <div class="hsep"></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Resume normal speed</span><span class="note"></span><span class="c">RNS</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Final approach speed</span><span class="note">144 kt</span><span class="c">RFAS</span></div>
+  <div class="hsep"></div>
+  <div class="glabel">Knots</div><div class="grid"><div class="chip">190</div><div class="chip">200</div><div class="chip">210</div><div class="chip">220</div><div class="chip">230</div><div class="chip">240</div><div class="chip">250</div><div class="chip">260</div><div class="chip">270</div><div class="chip">280</div><div class="chip">290</div><div class="chip now">300</div><div class="chip">310</div><div class="chip">320</div><div class="chip">330</div><div class="chip">340</div></div>
+  <div class="glabel">Mach</div><div class="grid"><div class="chip">M.70</div><div class="chip">M.72</div><div class="chip now">M.74</div><div class="chip">M.76</div><div class="chip">M.78</div><div class="chip">M.80</div><div class="chip">M.82</div><div class="chip">M.84</div></div></div>
+  </div>
+  <svg class="cursor" style="left:116px;top:124px" width="14" height="21" viewBox="0 0 14 21"><path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.6 12.2 L13 12.2 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+  <div class="callout" style="left:16px;top:16px">No HSF data: line 4 shows the type, <b>B738</b>, and no ↴ on line 2. A click on it opens the same popup.</div>
+  <div class="callout" style="left:16px;top:730px">Every box is empty, so the Set rows read <b>···</b>; the Clear rows grey out with nothing to clear.</div>
+</div>
+    <p class="cap">The same popup opens with every box empty: Set rows read <code>···</code> and the Clear rows are greyed. Free text can be set from here.</p>
+  </section>
+  <section class="lane">
+    <h2>Lane B: A popup per token</h2>
+    <p class="how">Line 4 gets a click region per token: <b>H270</b> opens Heading, <b>S250</b> opens Speed, and the <b>whole line</b> when it shows free text opens Free text. Each popup is one SCOPE DATA section beside its matching PILOT panel. The dashed outlines mark the regions (not drawn in the app).</p>
+    <p class="cost">Matches CRC's split (Heading / Speed / Free Form Text Box menus) and keeps each popup small. Free text can't be started from a heading/speed line; a heading-only or speed-only line has one region; the fallback needs its own rule (B4).</p>
+    <p class="cap"><b>B1</b>: click on <code>H270</code>: Heading SCOPE DATA | PILOT Fly heading</p>
+    <div class="win" style="height:610px">
+  <svg class="map" width="780" height="610" viewBox="0 0 780 610">
+    <path d="M-10 520 L210 360 L470 300 L800 240" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <path d="M520 -10 L560 230 L640 620" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <circle cx="700" cy="520" r="160" stroke="#2c2c2c" stroke-width="1" fill="none"/>
+    <g fill="none" stroke="#00b0ff" stroke-width="1.4"><path d="M690 100 l5 -5 l5 5 l-5 5 z"/></g>
+    <line x1="700" y1="95" x2="714" y2="80" stroke="#fff" stroke-width="1"/>
+    <path d="M58 168 l6 -6 l6 6 l-6 6 z" fill="none" stroke="#00b0ff" stroke-width="1.6"/>
+    <line x1="68" y1="160" x2="84" y2="138" stroke="#fff" stroke-width="1"/>
+  </svg>
+  <div class="otherdb" style="left:716px;top:44px">DAL412<br>310C<br>412 470</div>
+  <div class="fdb" style="left:86px;top:72px">UAL238<br>250C <span class="hsf">↴</span><br>238 450<br><span class="clicked region">H270</span> <span class="region">S250</span></div>
+  <div class="panel two" style="left:124px;top:142px;width:640px">
+    <div class="col"><div class="colhead"><span class="kindS">SCOPE DATA</span><span class="hint">runs an ERAM entry</span></div><div class="sec"><span>Heading</span><span class="mono11">now H270</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb val focus">H300<span class="caret"></span></div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd hover"><span class="lbl">Set heading</span><span class="note"></span><span class="c">QS H300 UAL238</span></div>
+  <div class="row sd"><span class="lbl">Clear heading</span><span class="note"></span><span class="c">QS */ UAL238</span></div></div>
+    <div class="vsep"></div>
+    <div class="col"><div class="colhead"><span class="kindP">PILOT</span><span class="hint">sends a pilot command</span></div><div class="tl"><span>Fly heading</span><span class="mono11">now 270</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Present heading</span><span class="note">270</span><span class="c">FPH</span></div>
+  <div class="seg"><span class="on">Fly heading</span><span>Turn left</span><span>Turn right</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250, or L180</div><span class="c faded">FH ···</span></div>
+  <div class="hsep"></div>
+  <div class="rosewrap"><div class="chips"><div class="chip">L5</div><div class="chip">L10</div><div class="chip">L15</div><div class="chip">L20</div><div class="chip">L30</div><div class="chip">L45</div><div class="chip">L60</div><div class="chip">L90</div></div><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="#1e1e1e" stroke="#5a5a5a"/><line x1="75.0" y1="22.0" x2="75.0" y2="13.0" stroke="#cfd5dc" stroke-width="1"/><line x1="84.9" y1="18.9" x2="85.8" y2="13.9" stroke="#6b737c" stroke-width="1"/><line x1="94.5" y1="21.4" x2="96.2" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="29.1" x2="106.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="111.6" y1="31.3" x2="114.9" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="118.7" y1="38.4" x2="122.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="48.5" x2="128.7" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="128.6" y1="55.5" x2="133.3" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="131.1" y1="65.1" x2="136.1" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="128.0" y1="75.0" x2="137.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="131.1" y1="84.9" x2="136.1" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="128.6" y1="94.5" x2="133.3" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="101.5" x2="128.7" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="118.7" y1="111.6" x2="122.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="111.6" y1="118.7" x2="114.9" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="120.9" x2="106.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="94.5" y1="128.6" x2="96.2" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="84.9" y1="131.1" x2="85.8" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="75.0" y1="128.0" x2="75.0" y2="137.0" stroke="#cfd5dc" stroke-width="1"/><line x1="65.1" y1="131.1" x2="64.2" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="55.5" y1="128.6" x2="53.8" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="120.9" x2="44.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="38.4" y1="118.7" x2="35.1" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="31.3" y1="111.6" x2="27.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="101.5" x2="21.3" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="21.4" y1="94.5" x2="16.7" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="18.9" y1="84.9" x2="13.9" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="22.0" y1="75.0" x2="13.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="18.9" y1="65.1" x2="13.9" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="21.4" y1="55.5" x2="16.7" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="48.5" x2="21.3" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="31.3" y1="38.4" x2="27.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="38.4" y1="31.3" x2="35.1" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="29.1" x2="44.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="55.5" y1="21.4" x2="53.8" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="65.1" y1="18.9" x2="64.2" y2="13.9" stroke="#6b737c" stroke-width="1"/><text x="75.0" y="36.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">36</text><text x="118.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">09</text><text x="75.0" y="122.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">18</text><text x="32.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">27</text><line x1="75" y1="75" x2="25.0" y2="75.0" stroke="#5b8def" stroke-width="2"/><circle cx="75" cy="75" r="3" fill="#5b8def"/></svg><div class="chips"><div class="chip">R5</div><div class="chip">R10</div><div class="chip">R15</div><div class="chip">R20</div><div class="chip">R30</div><div class="chip">R45</div><div class="chip">R60</div><div class="chip">R90</div></div></div>
+  <div class="readout">Point at the rose to pick a heading; ← → step 5°, Shift 30°</div></div>
+  </div>
+  <svg class="cursor" style="left:250px;top:233px" width="14" height="21" viewBox="0 0 14 21"><path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.6 12.2 L13 12.2 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+  <div class="callout" style="left:16px;top:16px">Click on <b>H270</b> (its own dashed region): Heading only. H300 typed; pointer on <b>Set heading</b>.</div>
+  <div class="callout" style="left:16px;top:492px">Shift+click <b>Set heading</b> stages the bare entry; a plain click runs it at once:</div>
+  <div class="eramBox" style="left:16px;top:520px"><div class="pa">QS H300 UAL238<span class="caretE"></span></div><div class="fb"><span class="ok">✓</span> ACCEPT</div></div>
+  <div class="dim" style="left:211px;top:590px">← feedback after a plain click (or the ERAM refusal text)</div>
+</div>
+    <p class="cap"><b>B2</b>: click on <code>S250</code>: Speed SCOPE DATA | PILOT Assign speed</p>
+    <div class="win" style="height:440px">
+  <svg class="map" width="780" height="440" viewBox="0 0 780 440">
+    <path d="M-10 520 L210 360 L470 300 L800 240" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <path d="M520 -10 L560 230 L640 450" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <circle cx="700" cy="520" r="160" stroke="#2c2c2c" stroke-width="1" fill="none"/>
+    <g fill="none" stroke="#00b0ff" stroke-width="1.4"><path d="M690 100 l5 -5 l5 5 l-5 5 z"/></g>
+    <line x1="700" y1="95" x2="714" y2="80" stroke="#fff" stroke-width="1"/>
+    <path d="M58 168 l6 -6 l6 6 l-6 6 z" fill="none" stroke="#00b0ff" stroke-width="1.6"/>
+    <line x1="68" y1="160" x2="84" y2="138" stroke="#fff" stroke-width="1"/>
+  </svg>
+  <div class="otherdb" style="left:716px;top:44px">DAL412<br>310C<br>412 470</div>
+  <div class="fdb" style="left:86px;top:72px">UAL238<br>250C <span class="hsf">↴</span><br>238 450<br><span class="region">H270</span> <span class="clicked region">S250</span></div>
+  <div class="panel two" style="left:124px;top:142px;width:640px">
+    <div class="col"><div class="colhead"><span class="kindS">SCOPE DATA</span><span class="hint">runs an ERAM entry</span></div><div class="sec"><span>Speed</span><span class="mono11">now S250</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb val focus">250-<span class="caret"></span></div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd hover"><span class="lbl">Set speed</span><span class="note"></span><span class="c">QS /250- UAL238</span></div>
+  <div class="row sd"><span class="lbl">Clear speed</span><span class="note"></span><span class="c">QS /* UAL238</span></div></div>
+    <div class="vsep"></div>
+    <div class="col"><div class="colhead"><span class="kindP">PILOT</span><span class="hint">sends a pilot command</span></div><div class="tl"><span>Assign speed</span><span class="mono11">now 300 kt · M.75</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250</div><span class="c faded">SPD ···</span></div>
+  <div class="hsep"></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Resume normal speed</span><span class="note"></span><span class="c">RNS</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Final approach speed</span><span class="note">144 kt</span><span class="c">RFAS</span></div>
+  <div class="hsep"></div>
+  <div class="glabel">Knots</div><div class="grid"><div class="chip">190</div><div class="chip">200</div><div class="chip">210</div><div class="chip">220</div><div class="chip">230</div><div class="chip">240</div><div class="chip">250</div><div class="chip">260</div><div class="chip">270</div><div class="chip">280</div><div class="chip">290</div><div class="chip now">300</div><div class="chip">310</div><div class="chip">320</div><div class="chip">330</div><div class="chip">340</div></div>
+  <div class="glabel">Mach</div><div class="grid"><div class="chip">M.70</div><div class="chip">M.72</div><div class="chip now">M.74</div><div class="chip">M.76</div><div class="chip">M.78</div><div class="chip">M.80</div><div class="chip">M.82</div><div class="chip">M.84</div></div></div>
+  </div>
+  <svg class="cursor" style="left:250px;top:233px" width="14" height="21" viewBox="0 0 14 21"><path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.6 12.2 L13 12.2 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+  <div class="callout" style="left:16px;top:16px">Click on <b>S250</b>: Speed only. 250- typed; pointer on <b>Set speed</b>.</div>
+</div>
+    <p class="cap"><b>B3</b>: click on free text <code>LOWALT</code>: Free text SCOPE DATA alone; the PILOT column is omitted</p>
+    <div class="win" style="height:330px">
+  <svg class="map" width="780" height="330" viewBox="0 0 780 330">
+    <path d="M-10 520 L210 360 L470 300 L800 240" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <path d="M520 -10 L560 230 L640 340" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <circle cx="700" cy="520" r="160" stroke="#2c2c2c" stroke-width="1" fill="none"/>
+    <g fill="none" stroke="#00b0ff" stroke-width="1.4"><path d="M690 100 l5 -5 l5 5 l-5 5 z"/></g>
+    <line x1="700" y1="95" x2="714" y2="80" stroke="#fff" stroke-width="1"/>
+    <path d="M58 168 l6 -6 l6 6 l-6 6 z" fill="none" stroke="#00b0ff" stroke-width="1.6"/>
+    <line x1="68" y1="160" x2="84" y2="138" stroke="#fff" stroke-width="1"/>
+  </svg>
+  <div class="otherdb" style="left:716px;top:44px">DAL412<br>310C<br>412 470</div>
+  <div class="fdb" style="left:86px;top:72px">UAL238<br>250C <span class="hsf">↴</span><br>238 450<br><span class="clicked region">LOWALT</span></div>
+  <div class="panel one" style="left:124px;top:142px;width:321px"><div class="col"><div class="colhead"><span class="kindS">SCOPE DATA</span><span class="hint">runs an ERAM entry</span></div><div class="sec"><span>Free text</span><span class="mono11">now LOWALT</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb val focus">LOWALT<span class="caret"></span></div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set free text</span><span class="note"></span><span class="c">QS ⵔLOWALT UAL238</span></div>
+  <div class="row sd"><span class="lbl">Clear all HSF</span><span class="note">heading, speed, text</span><span class="c">QS * UAL238</span></div></div></div>
+  <svg class="cursor" style="left:131px;top:124px" width="14" height="21" viewBox="0 0 14 21"><path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.6 12.2 L13 12.2 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+  <div class="callout" style="left:16px;top:16px">Line 4 shows free text <b>LOWALT</b>: the whole line is one region. The box opens holding the text to edit.</div>
+  <div class="callout" style="left:460px;top:152px">PILOT column <b>omitted</b>: free text is a scope<br>annotation with no pilot command behind it.</div>
+</div>
+    <p class="cap"><b>B4</b>: what a click on the type/destination fallback does (no HSF data set)</p>
+    <div class="win" style="height:790px">
+  <svg class="map" width="780" height="790" viewBox="0 0 780 790">
+    <path d="M-10 520 L210 360 L470 300 L800 240" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <path d="M520 -10 L560 230 L640 800" stroke="#3a3a3a" stroke-width="1" fill="none"/>
+    <circle cx="700" cy="520" r="160" stroke="#2c2c2c" stroke-width="1" fill="none"/>
+    <g fill="none" stroke="#00b0ff" stroke-width="1.4"><path d="M690 100 l5 -5 l5 5 l-5 5 z"/></g>
+    <line x1="700" y1="95" x2="714" y2="80" stroke="#fff" stroke-width="1"/>
+    <path d="M58 168 l6 -6 l6 6 l-6 6 z" fill="none" stroke="#00b0ff" stroke-width="1.6"/>
+    <line x1="68" y1="160" x2="84" y2="138" stroke="#fff" stroke-width="1"/>
+  </svg>
+  <div class="otherdb" style="left:716px;top:44px">DAL412<br>310C<br>412 470</div>
+  <div class="fdb" style="left:86px;top:72px">UAL238<br>250C<br>238 450<br><span class="clicked region">B738</span></div>
+  <div class="panel two" style="left:124px;top:142px;width:640px">
+    <div class="col"><div class="colhead"><span class="kindS">SCOPE DATA</span><span class="hint">runs an ERAM entry</span></div><div class="sec"><span>Heading</span><span class="mono11">none</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. H300 or 20L</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set heading</span><span class="note"></span><span class="c faded">QS ··· UAL238</span></div>
+  <div class="row sd dis"><span class="lbl">Clear heading</span><span class="note">none set</span><span class="c">QS */ UAL238</span></div><div class="secsep"></div><div class="sec"><span>Speed</span><span class="mono11">none</span></div>
+  <div class="boxrow"><span class="kindchip">ERAM</span><div class="tb ph">e.g. S230, 250-, M78</div><span class="c faded">→ rows</span></div>
+  <div class="hsep"></div>
+  <div class="row sd"><span class="lbl">Set speed</span><span class="note"></span><span class="c faded">QS /··· UAL238</span></div>
+  <div class="row sd dis"><span class="lbl">Clear speed</span><span class="note">none set</span><span class="c">QS /* UAL238</span></div></div>
+    <div class="vsep"></div>
+    <div class="col"><div class="colhead"><span class="kindP">PILOT</span><span class="hint">sends a pilot command</span></div><div class="tl"><span>Fly heading</span><span class="mono11">now 270</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Present heading</span><span class="note">270</span><span class="c">FPH</span></div>
+  <div class="seg"><span class="on">Fly heading</span><span>Turn left</span><span>Turn right</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><circle cx="9" cy="7" r="5.5" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 7 L13 3" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250, or L180</div><span class="c faded">FH ···</span></div>
+  <div class="hsep"></div>
+  <div class="rosewrap"><div class="chips"><div class="chip">L5</div><div class="chip">L10</div><div class="chip">L15</div><div class="chip">L20</div><div class="chip">L30</div><div class="chip">L45</div><div class="chip">L60</div><div class="chip">L90</div></div><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="#1e1e1e" stroke="#5a5a5a"/><line x1="75.0" y1="22.0" x2="75.0" y2="13.0" stroke="#cfd5dc" stroke-width="1"/><line x1="84.9" y1="18.9" x2="85.8" y2="13.9" stroke="#6b737c" stroke-width="1"/><line x1="94.5" y1="21.4" x2="96.2" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="29.1" x2="106.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="111.6" y1="31.3" x2="114.9" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="118.7" y1="38.4" x2="122.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="48.5" x2="128.7" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="128.6" y1="55.5" x2="133.3" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="131.1" y1="65.1" x2="136.1" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="128.0" y1="75.0" x2="137.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="131.1" y1="84.9" x2="136.1" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="128.6" y1="94.5" x2="133.3" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="120.9" y1="101.5" x2="128.7" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="118.7" y1="111.6" x2="122.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="111.6" y1="118.7" x2="114.9" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="101.5" y1="120.9" x2="106.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="94.5" y1="128.6" x2="96.2" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="84.9" y1="131.1" x2="85.8" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="75.0" y1="128.0" x2="75.0" y2="137.0" stroke="#cfd5dc" stroke-width="1"/><line x1="65.1" y1="131.1" x2="64.2" y2="136.1" stroke="#6b737c" stroke-width="1"/><line x1="55.5" y1="128.6" x2="53.8" y2="133.3" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="120.9" x2="44.0" y2="128.7" stroke="#cfd5dc" stroke-width="1"/><line x1="38.4" y1="118.7" x2="35.1" y2="122.5" stroke="#6b737c" stroke-width="1"/><line x1="31.3" y1="111.6" x2="27.5" y2="114.9" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="101.5" x2="21.3" y2="106.0" stroke="#cfd5dc" stroke-width="1"/><line x1="21.4" y1="94.5" x2="16.7" y2="96.2" stroke="#6b737c" stroke-width="1"/><line x1="18.9" y1="84.9" x2="13.9" y2="85.8" stroke="#6b737c" stroke-width="1"/><line x1="22.0" y1="75.0" x2="13.0" y2="75.0" stroke="#cfd5dc" stroke-width="1"/><line x1="18.9" y1="65.1" x2="13.9" y2="64.2" stroke="#6b737c" stroke-width="1"/><line x1="21.4" y1="55.5" x2="16.7" y2="53.8" stroke="#6b737c" stroke-width="1"/><line x1="29.1" y1="48.5" x2="21.3" y2="44.0" stroke="#cfd5dc" stroke-width="1"/><line x1="31.3" y1="38.4" x2="27.5" y2="35.1" stroke="#6b737c" stroke-width="1"/><line x1="38.4" y1="31.3" x2="35.1" y2="27.5" stroke="#6b737c" stroke-width="1"/><line x1="48.5" y1="29.1" x2="44.0" y2="21.3" stroke="#cfd5dc" stroke-width="1"/><line x1="55.5" y1="21.4" x2="53.8" y2="16.7" stroke="#6b737c" stroke-width="1"/><line x1="65.1" y1="18.9" x2="64.2" y2="13.9" stroke="#6b737c" stroke-width="1"/><text x="75.0" y="36.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">36</text><text x="118.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">09</text><text x="75.0" y="122.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">18</text><text x="32.0" y="79.0" fill="#a4adb8" font-size="10" font-family="JBM, Consolas, monospace" text-anchor="middle">27</text><line x1="75" y1="75" x2="25.0" y2="75.0" stroke="#5b8def" stroke-width="2"/><circle cx="75" cy="75" r="3" fill="#5b8def"/></svg><div class="chips"><div class="chip">R5</div><div class="chip">R10</div><div class="chip">R15</div><div class="chip">R20</div><div class="chip">R30</div><div class="chip">R45</div><div class="chip">R60</div><div class="chip">R90</div></div></div>
+  <div class="readout">Point at the rose to pick a heading; ← → step 5°, Shift 30°</div><div class="pgap"></div><div class="hsep"></div><div class="tl"><span>Assign speed</span><span class="mono11">now 300 kt · M.75</span></div>
+  <div class="boxrow"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg><div class="tb ph">e.g. 250</div><span class="c faded">SPD ···</span></div>
+  <div class="hsep"></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Resume normal speed</span><span class="note"></span><span class="c">RNS</span></div>
+  <div class="row"><span class="g"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M2 12 A7 7 0 0 1 16 12" fill="none" stroke="#cfd5dc" stroke-width="1.3"/><path d="M9 12 L13 5" stroke="#cfd5dc" stroke-width="1.4"/></svg></span><span class="lbl">Final approach speed</span><span class="note">144 kt</span><span class="c">RFAS</span></div>
+  <div class="hsep"></div>
+  <div class="glabel">Knots</div><div class="grid"><div class="chip">190</div><div class="chip">200</div><div class="chip">210</div><div class="chip">220</div><div class="chip">230</div><div class="chip">240</div><div class="chip">250</div><div class="chip">260</div><div class="chip">270</div><div class="chip">280</div><div class="chip">290</div><div class="chip now">300</div><div class="chip">310</div><div class="chip">320</div><div class="chip">330</div><div class="chip">340</div></div>
+  <div class="glabel">Mach</div><div class="grid"><div class="chip">M.70</div><div class="chip">M.72</div><div class="chip now">M.74</div><div class="chip">M.76</div><div class="chip">M.78</div><div class="chip">M.80</div><div class="chip">M.82</div><div class="chip">M.84</div></div></div>
+  </div>
+  <svg class="cursor" style="left:116px;top:124px" width="14" height="21" viewBox="0 0 14 21"><path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.6 12.2 L13 12.2 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+  <div class="callout" style="left:16px;top:16px">No HSF data, so no token to click: <b>B738</b> opens Heading + Speed together.</div>
+  <div class="callout" style="left:16px;top:732px">No Free text section: as in CRC, free text is set only by typing <b>QS ⵔtext UAL238</b>;<br>its menu opens only once the line shows free text (lane B3).</div>
+</div>
+    <p class="cap">With no token to click, the fallback opens a combined Heading + Speed popup with empty boxes. Free text stays typed-only until some is set.</p>
+  </section>
+</div>
+<div class="notes"><b>What is real and what is approximated</b>
+<ul>
+<li>Real, from the code: the entry texts are <code>ScopeDataEntries</code> (<code>QS {heading} FLID</code>, <code>QS /{speed} FLID</code>, <code>QS */ FLID</code>, <code>QS /* FLID</code>, <code>QS * FLID</code>, <code>QS `{text} FLID</code>); the stored forms <code>H300</code>, <code>20L</code>, <code>S250</code>, <code>250-</code>, <code>M78</code>, <code>PS</code> and free text of 1 to 8 characters with no spaces are <code>EramEntryEngine.ParseHsfHeading</code> / <code>ParseHsfSpeed</code> / <code>ApplyQsFreeText</code>. The line 4 text follows <code>EramLine4</code>. The PILOT commands (<code>FPH</code>, <code>FH</code>/<code>TL</code>/<code>TR</code>, <code>LT</code>/<code>RT</code> chips, <code>RNS</code>, <code>RFAS</code>, <code>SPD 250</code>, <code>MACH .78</code>) and the heading box placeholder and readout are today's <code>HeadingFlyout</code> and <code>SpeedFlyout</code>.</li>
+<li>Approximated: the Fly heading and Assign speed panels are simplified (rose, chip sizes and glyphs drawn by eye; the knots and Mach chip ranges are plausible, not <code>MenuCatalog.SpeedValues</code> output). The styling, window, block and panel chrome are copied from the YAAT-2442 altitude mock (lane B). The app's UI font is Inter, drawn here in Segoe UI.</li>
+<li>Not decided by this mock: whether the boxes open empty or holding the current value (here Heading and Speed open empty and Free text opens holding its text, as CRC's text box menu does); greying the Clear rows when nothing is set; whether the HSF indicator ↴ click (<code>QS UAL238</code>, toggle) changes.</li>
+</ul></div>
+</body>
+</html>

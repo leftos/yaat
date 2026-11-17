@@ -6,12 +6,12 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using SkiaSharp;
 using Xunit;
-using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
@@ -98,6 +98,7 @@ public class ScopeMiddleClickTests
     private static void CloseWindow(Window window, ScopeView view)
     {
         view.ActiveContextMenu?.Close();
+        view.ActiveFieldPopup?.Close();
         Dispatcher.UIThread.RunJobs();
         window.Close();
         Dispatcher.UIThread.RunJobs();
@@ -477,9 +478,7 @@ public class ScopeMiddleClickTests
         {
             ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Left, "UAL238");
 
-            ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
-            MenuItem entry = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
-            Assert.Equal(MenuCatalog.Get(MenuIds.AltitudeMaintain).Label, entry.Header);
+            Assert.True(Assert.IsType<ScopeDataAltitudePopup>(view.ActiveFieldPopup).IsOpen);
             Assert.Equal("", scope.EntryText);
         }
         finally
@@ -502,9 +501,7 @@ public class ScopeMiddleClickTests
 
             ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Left, "UAL238");
 
-            ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
-            MenuItem entry = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
-            Assert.Equal(MenuCatalog.Get(MenuIds.AltitudeMaintain).Label, entry.Header);
+            Assert.True(Assert.IsType<ScopeDataAltitudePopup>(view.ActiveFieldPopup).IsOpen);
             Assert.Equal("PILOT UAL238 FH 270", scope.EntryText);
         }
         finally
@@ -933,6 +930,185 @@ public class ScopeMiddleClickTests
             Assert.Equal("NOT YOUR CONTROL", response.Message);
             Assert.Equal("QN // UAL238", response.Echo);
             Assert.False(scope.WalkEntryHistory(older: true));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // A middle click on an ERAM FDB with an empty preview does what a plain left click does on the HSF or VCI cell.
+
+    [AvaloniaFact]
+    public async Task EramBlockMiddleClick_OnTheHsfIndicator_WithAnEmptyPreview_RunsQsWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.HsfIndicator, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QS", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "UAL238")], sent.Picks);
+            Assert.Equal("", scope.EntryText);
+            Assert.Equal("QS UAL238", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Echo);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // A middle click ignores Shift: on the HSF cell it runs the toggle, staging nothing.
+    [AvaloniaFact]
+    public async Task EramBlockMiddleClick_WithShiftHeld_OnTheHsfIndicator_RunsQsWithThePick_AndStagesNothing()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+            FieldRect field = Assert.Single(view.Canvas.CurrentFrame.Tracks).Block.Fields.First(f => f.Slot == ScopeFieldSlot.HsfIndicator);
+            Point? inWindow = view.Canvas.TranslatePoint(new Point(field.Rect.MidX, field.Rect.MidY), window);
+            Assert.NotNull(inWindow);
+
+            window.MouseDown(inWindow.Value, MouseButton.Middle, RawInputModifiers.Shift);
+            window.MouseUp(inWindow.Value, MouseButton.Middle, RawInputModifiers.Shift);
+            Dispatcher.UIThread.RunJobs();
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QS", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "UAL238")], sent.Picks);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramBlockMiddleClick_OnTheVciCell_WithAnEmptyPreview_RunsQnSlashSlashWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Vci, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QN", "//", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent.Picks);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramBlockMiddleClick_OnTheHsfIndicator_WithTextInThePreview_FillsTheTrackAndExecutes()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "QQ 250");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.HsfIndicator, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QQ", "250", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent.Picks);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramBlockMiddleClick_OnTheAltitude_WithAnEmptyPreview_OpensTheAltitudePopup()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Middle, "UAL238");
+
+            Assert.True(Assert.IsType<ScopeDataAltitudePopup>(view.ActiveFieldPopup).IsOpen);
+            Assert.Null(view.ActiveContextMenu);
+            Assert.Same(ac, scope.Main.SelectedAircraft);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // A Shift+left click on the HSF or VCI cell stages its bare toggle in the preview instead of sending it, the track kept as
+    // the pick, so Enter sends it as the plain click would.
+
+    private static void ShiftClickField(Window window, ScopeCanvas canvas, ScopeFieldSlot slot, string callsign)
+    {
+        FieldRect field = Assert.Single(canvas.CurrentFrame.Tracks, t => t.Aircraft.Callsign == callsign).Block.Fields.First(f => f.Slot == slot);
+        Point? inWindow = canvas.TranslatePoint(new Point(field.Rect.MidX, field.Rect.MidY), window);
+        Assert.NotNull(inWindow);
+        window.MouseDown(inWindow.Value, MouseButton.Left, RawInputModifiers.Shift);
+        window.MouseUp(inWindow.Value, MouseButton.Left, RawInputModifiers.Shift);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task EramBlockShiftClick_OnTheHsfIndicator_StagesTheBareToggle_AndEnterSendsItWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+
+            ShiftClickField(window, view.Canvas, ScopeFieldSlot.HsfIndicator, "UAL238");
+
+            Assert.Equal("QS UAL238", scope.EntryText);
+            Assert.Empty(sends);
+
+            await EnterAsync(window, scope);
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QS", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(1, "UAL238")], sent.Picks);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramBlockShiftClick_OnTheVciCell_StagesTheBareToggle_AndEnterSendsItWithThePick()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "");
+        try
+        {
+            List<ScopeEramEntryDto> sends = LightHsfAndVci(scope, ac, new ScopeEramEntryResultDto(true, ["ACCEPT"], null), onFrequency: true);
+
+            ShiftClickField(window, view.Canvas, ScopeFieldSlot.Vci, "UAL238");
+
+            Assert.Equal("QN // UAL238", scope.EntryText);
+            Assert.Empty(sends);
+
+            await EnterAsync(window, scope);
+
+            ScopeEramEntryDto sent = Assert.Single(sends);
+            Assert.Equal(["QN", "//", "UAL238"], sent.Tokens);
+            Assert.Equal([new ScopeEramPickDto(2, "UAL238")], sent.Picks);
         }
         finally
         {

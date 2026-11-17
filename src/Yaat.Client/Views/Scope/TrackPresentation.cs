@@ -167,6 +167,9 @@ public enum ScopeFieldAction
 
     /// <summary>Toggles the track's VCI, as an ERAM QN // entry.</summary>
     ToggleVci,
+
+    /// <summary>Opens the ERAM altitude popup: its scope-data entries beside the pilot's Maintain altitude panel.</summary>
+    OpenEramAltitudeMenu,
 }
 
 /// <summary>

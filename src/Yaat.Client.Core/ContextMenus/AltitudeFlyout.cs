@@ -67,6 +67,25 @@ public static class AltitudeFlyout
     /// <param name="host">The host the flyout sends through, reads the field elevation and the MVA from, and refreshes on.</param>
     public static MenuItem? BuildMaintain(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
+        if (MaintainPanelFactory(aircraft, host) is not { } panel)
+        {
+            return null;
+        }
+
+        var entry = new MenuItem { Header = label };
+        PanelFlyoutContent.Attach(entry, new AltitudeFlyoutHost("maintain altitude flyout"), context, host, (choose, _) => panel(choose));
+        return entry;
+    }
+
+    /// <summary>
+    /// Builds the Maintain altitude panel over <paramref name="aircraft"/>'s altitudes, each row and the box calling the choose
+    /// action it is given with the command; null when no altitude is listed. The catalog entry's flyout and the Scope's ERAM
+    /// altitude popup both build their panel through it.
+    /// </summary>
+    /// <param name="aircraft">The aircraft whose altitude the panel follows.</param>
+    /// <param name="host">The host the panel reads the field elevation and the MVA from.</param>
+    internal static Func<Func<string, Task>, MaintainAltitudePanel>? MaintainPanelFactory(IMenuAircraft? aircraft, IMenuHost host)
+    {
         List<int> altitudes = AltitudeValues(host.GetFieldElevation(aircraft?.Destination), AltitudeCeiling(aircraft));
         if (altitudes.Count == 0)
         {
@@ -74,15 +93,7 @@ public static class AltitudeFlyout
         }
 
         InsertAssignment(altitudes, aircraft?.AssignedAltitude);
-        var entry = new MenuItem { Header = label };
-        PanelFlyoutContent.Attach(
-            entry,
-            new AltitudeFlyoutHost("maintain altitude flyout"),
-            context,
-            host,
-            (choose, _) => new MaintainAltitudePanel(altitudes, () => Read(aircraft, host), choose)
-        );
-        return entry;
+        return choose => new MaintainAltitudePanel(altitudes, () => Read(aircraft, host), choose);
     }
 
     /// <summary>A data-block altitude entry: one menu row holding the one-box flyout of <paramref name="kind"/>.</summary>
@@ -714,7 +725,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IFlyoutPanel
     }
 
     /// <summary>Scrolls the list so the selected row (the assigned one, else the current altitude's) sits in its middle.</summary>
-    private void CentreSelected()
+    internal void CentreSelected()
     {
         if (AltitudeIndex(List.SelectedIndex) is not { } index)
         {

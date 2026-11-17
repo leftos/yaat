@@ -38,10 +38,11 @@ internal static class ScopeFieldMenus
 
     /// <summary>
     /// Calls <paramref name="record"/> with whether Shift is held at each pointer press, pointer release and key press inside
-    /// <paramref name="menu"/>, its submenu popups included, whose input routes through their parent menu. The handlers tunnel,
-    /// so the record is made before the row under the pointer or the focus runs its action.
+    /// <paramref name="menu"/>: a context menu, its submenu popups included, whose input routes through their parent menu, or a
+    /// popup's content, which is its own top level. The handlers tunnel, so the record is made before the row under the pointer
+    /// or the focus runs its action.
     /// </summary>
-    public static void RecordShift(ContextMenu menu, Action<bool> record)
+    public static void RecordShift(Control menu, Action<bool> record)
     {
         menu.AddHandler(
             InputElement.PointerPressedEvent,

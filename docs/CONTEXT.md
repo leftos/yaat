@@ -822,7 +822,7 @@ A named ERAM continuous range readout group (`LF`): a point and its member aircr
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
 **Field menu (YAAT Scope)**:
-The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held.
+The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held. A middle click on an ERAM block with an empty preview opens it too. An ERAM altitude opens the two-column popup (Scope data column beside PILOT column) instead.
 
 **Field style**:
 A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
@@ -848,6 +848,9 @@ ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on
 **Mixed (YAAT Scope template)**:
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
+**PILOT column (YAAT Scope)**:
+The right column of the ERAM altitude popup (gold, "sends a pilot command"): the Maintain altitude panel, whose row click sends for the clicked aircraft and whose Shift+click stages `PILOT {callsign} CM nnnn`; beside the Scope data column.
+
 **Pin (YAAT Scope)**:
 A value set by hand over the zoom band's default (others' level, vector minutes, history, rings) that stands until AUTO or `.scope auto` clears every pin; kept in pref sets and the saved state (`pinOthersLevel`, `pinVectorMin`, `pinHistory`, `pinRings`) and across a profile change.
 
@@ -862,6 +865,9 @@ The small text beside an ERAM full data block's target giving the track's distan
 
 **Response Area (RA)**:
 ERAM's message area above the MCA; in YAAT Scope on ERAM and Mixed an empty box above the MCA, kept for readouts.
+
+**Scope data column (YAAT Scope)**:
+The left column of the ERAM altitude popup (cyan, "runs an ERAM entry"; `ScopeDataAltitudePopup`): an altitude box and rows for the FP altitude, interim, local interim, procedure, interim plus CERA and CERA-only entries and the three clears, each showing its entry; a row click runs it at once, Shift+click stages the bare entry in the Preview area. Beside the PILOT column.
 
 **SSA (YAAT Scope)**:
 The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).
@@ -1020,7 +1026,7 @@ What a pointed or focused Give way to… / Follow… row draws on the ground vie
 A position in the room's controller list that has a controller signed on (a live CRC client or a scenario auto-connect position, `OnlineControllerDto.IsActive`), as against a standby one. The Initiate handoff… and Point out… flyouts list only staffed positions.
 
 **Stage (a menu pick)**:
-To put a Scope field menu row's command in the Scope's Preview area as `PILOT {callsign} {command}` instead of sending it, so Enter runs it; done by Shift+click on the row (`ClientMenuHost.Stage`, `ScopeEntryStaging`). Not the spine's "step".
+To put a Scope field menu row's command in the Scope's Preview area as `PILOT {callsign} {command}` instead of sending it, so Enter runs it; done by Shift+click on the row (`ClientMenuHost.Stage`, `ScopeEntryStaging`). A Shift+click that produces a bare ERAM entry (a Scope data row, the HSF indicator, the VCI cell) stages that text with the track as the pick (`ScopeViewModel.StageEramText`). Not the spine's "step".
 
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.

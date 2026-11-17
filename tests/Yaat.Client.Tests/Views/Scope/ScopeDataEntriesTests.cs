@@ -21,6 +21,7 @@ public class ScopeDataEntriesTests
             { ScopeDataEntries.CeraOnly(70, "UAL238"), "QR 070 UAL238" },
             { ScopeDataEntries.ClearInterimOrProcedure("UAL238"), "QQ UAL238" },
             { ScopeDataEntries.ClearLocal("UAL238"), "QQ L UAL238" },
+            { ScopeDataEntries.ClearCera("UAL238"), "QR 000 UAL238" },
             { ScopeDataEntries.HsfHeading("H270", "UAL238"), "QS H270 UAL238" },
             { ScopeDataEntries.HsfSpeed("S250", "UAL238"), "QS /S250 UAL238" },
             { ScopeDataEntries.HsfClearHeading("UAL238"), "QS */ UAL238" },
