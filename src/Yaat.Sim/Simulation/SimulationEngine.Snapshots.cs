@@ -436,6 +436,9 @@ public sealed partial class SimulationEngine
             CrrGroups[group.Label] = new EramCrrGroup(group.Label, group.Color, group.Latitude, group.Longitude);
         }
 
+        // The restore replaced the set whole, so the host's next drain re-sends it.
+        MarkEramCrrGroupsChanged();
+
         // The conflict-alert settings are likewise wholly the snapshot's: a missing section restores the defaults.
         EramRoomSettings.Replace((snapshot.Server?.EramConflictSettings ?? []).Select(RestoreEramConflictSettings));
 

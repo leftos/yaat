@@ -293,7 +293,8 @@ public class SoloAdvisorySettingsTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     private static SessionSettingsDto SessionSettings(bool soloTrainingMode) =>

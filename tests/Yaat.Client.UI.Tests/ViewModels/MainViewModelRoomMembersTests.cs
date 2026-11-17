@@ -38,7 +38,8 @@ public class MainViewModelRoomMembersTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     private static RoomMemberDto Member(string initials, string kind, string connectionId) =>

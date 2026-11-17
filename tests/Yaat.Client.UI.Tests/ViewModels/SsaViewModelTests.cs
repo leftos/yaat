@@ -79,6 +79,7 @@ public class SsaViewModelTests
             ActiveRunways: [],
             ToweredAirports: [],
             SessionStartUtc: Start,
+            EramCrrGroups: null,
             ElapsedSeconds: 90
         );
 }

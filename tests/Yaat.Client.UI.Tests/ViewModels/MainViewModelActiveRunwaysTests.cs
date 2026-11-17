@@ -70,7 +70,8 @@ public class MainViewModelActiveRunwaysTests
             Positions: [],
             ActiveRunways: activeRunways,
             ToweredAirports: [],
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     [AvaloniaFact]

@@ -37,6 +37,7 @@ public class MainViewModelSessionClockTests
             ActiveRunways: [],
             ToweredAirports: [],
             SessionStartUtc: Start,
+            EramCrrGroups: null,
             ElapsedSeconds: elapsedSeconds
         );
 

@@ -1005,6 +1005,7 @@ public partial class MainViewModel
         // Seed shared timeline bookmarks so a joining/reconnecting client shows the existing bookmarks.
         ApplyBookmarks(state.Bookmarks);
         ApplyConflictAlerts(state.ConflictAlerts);
+        ApplyCrrGroups(state.EramCrrGroups);
         ApplyAtpaResults(state.AtpaResults);
 
         // A member's load may be running: the server refuses load, unload, restart and rewind until it finishes.

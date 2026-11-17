@@ -38,7 +38,8 @@ public class MainViewModelJoinGeneratorStashTests
             Positions: withGenerators ? [new ScenarioPositionDto("01GEAT", "OAK_TWR", "Oakland Tower")] : [],
             ActiveRunways: [],
             ToweredAirports: [],
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     [AvaloniaFact]

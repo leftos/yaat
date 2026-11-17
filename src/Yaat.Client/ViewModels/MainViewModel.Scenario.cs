@@ -1062,6 +1062,8 @@ public partial class MainViewModel
         // pairing from the scenario that just went away.
         _atpaResults = [];
         ReplaceConflictAlerts([]);
+        // The server sends an empty CRR list on unload; a client leaving the room hears nothing, so it drops its own.
+        ApplyCrrGroups([]);
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;

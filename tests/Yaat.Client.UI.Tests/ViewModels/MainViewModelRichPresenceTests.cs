@@ -47,7 +47,8 @@ public class MainViewModelRichPresenceTests
             ActiveRunways: [],
             ToweredAirports: [],
             ElapsedSeconds: elapsedSeconds,
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     /// <summary>A room whose scenario carries no display name yet — the name follows in a member-changed push.</summary>
@@ -70,7 +71,8 @@ public class MainViewModelRichPresenceTests
             ActiveRunways: [],
             ToweredAirports: [],
             ElapsedSeconds: 0,
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     /// <summary>

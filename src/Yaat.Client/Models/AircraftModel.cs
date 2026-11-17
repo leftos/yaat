@@ -95,6 +95,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private IReadOnlyList<EramSectorKey> _eramDwellLockedSectors = [];
 
+    /// <summary>The label of the ERAM CRR group this track is a member of; null when it is in none.</summary>
+    [ObservableProperty]
+    private string? _eramCrrGroup;
+
     /// <summary>The ERAM target is correlated with its flight plan.</summary>
     [ObservableProperty]
     private bool _eramIsCorrelated;
@@ -1577,6 +1581,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced,
             EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE,
             EramDwellLockedSectors = [.. dto.EramDwellLockedSectors ?? []],
+            EramCrrGroup = dto.EramCrrGroup,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
@@ -1755,6 +1760,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         EramRecentHandoffFromFacilityId = dto.EramRecentHandoffFromFacilityId;
         EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced;
         EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE;
+        EramCrrGroup = dto.EramCrrGroup;
         IReadOnlyList<EramSectorKey> dwellLocked = dto.EramDwellLockedSectors ?? [];
         if (!EramDwellLockedSectors.SequenceEqual(dwellLocked))
         {

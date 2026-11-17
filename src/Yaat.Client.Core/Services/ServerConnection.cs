@@ -95,6 +95,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<TimersChangedDto>? TimersChanged;
     public event Action<BookmarksChangedDto>? BookmarksChanged;
     public event Action<ConflictAlertsChangedDto>? ConflictAlertsChanged;
+    public event Action<EramCrrGroupsChangedDto>? EramCrrGroupsChanged;
     public event Action<AtpaResultsChangedDto>? AtpaResultsChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
@@ -248,6 +249,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<TimersChangedDto>("TimersChanged", dto => TimersChanged?.Invoke(dto));
         _connection.On<BookmarksChangedDto>("BookmarksChanged", dto => BookmarksChanged?.Invoke(dto));
         _connection.On<ConflictAlertsChangedDto>("ConflictAlertsChanged", dto => ConflictAlertsChanged?.Invoke(dto));
+        _connection.On<EramCrrGroupsChangedDto>("EramCrrGroupsChanged", dto => EramCrrGroupsChanged?.Invoke(dto));
         _connection.On<AtpaResultsChangedDto>("AtpaResultsChanged", dto => AtpaResultsChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
@@ -1590,6 +1592,10 @@ public record AircraftDto
     // client compares the pairs with its own viewer's ERAM sector. Nullable as the other lists here are.
     public List<EramSectorKey>? EramDwellLockedSectors { get; init; } = null;
 
+    // The label of the ERAM CRR group this track is a member of; null when it is in none. The groups arrive on
+    // EramCrrGroupsChanged and RoomStateDto.EramCrrGroups.
+    public string? EramCrrGroup { get; init; } = null;
+
     // The identities the client compares with the position it acts as (Yaat.Sim.TrackCoordinationView): the owner's and the
     // handoff peer's facility ids, the position that redirected the handoff, and the pending pointout's recipient and sender
     // TCP codes (null unless the pointout is pending). Kept name-for-name in sync with the server's AircraftStateDto.
@@ -1867,6 +1873,9 @@ public record RoomStateDto(
     // The scenario's session start, Kind Utc: session now is it plus the elapsed seconds (MainViewModel.SessionNowUtc).
     // Null with no scenario.
     DateTime? SessionStartUtc,
+    // The room's ERAM CRR groups, ordered by label (MainViewModel.CrrGroups); nullable so a server that omits it binds null,
+    // which reads as none.
+    List<EramCrrGroupHubDto>? EramCrrGroups,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,
@@ -2105,6 +2114,15 @@ public record ConflictAlertDto(string Id, string CallsignA, string CallsignB);
 
 /// <summary>The full set of active conflict alerts, pushed whenever a pair opens or clears.</summary>
 public record ConflictAlertsChangedDto(List<ConflictAlertDto> Conflicts);
+
+/// <summary>
+/// One ERAM Continuous Range Readout group: its label, its CRR colour as the <c>EramCrrColor</c> member name
+/// (<c>White</c>, <c>Coral</c>, ...), and the point ranges are measured from.
+/// </summary>
+public record EramCrrGroupHubDto(string Label, string Color, double Latitude, double Longitude);
+
+/// <summary>The room's whole CRR group list, ordered by label, pushed whenever a group is created, replaced, recolored or deleted.</summary>
+public record EramCrrGroupsChangedDto(List<EramCrrGroupHubDto> Groups);
 
 /// <summary>
 /// One ATPA in-trail pairing: <see cref="Callsign"/> is the trailing (subject) aircraft and

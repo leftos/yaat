@@ -75,6 +75,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.Tdls.ClearSession();
             _engine.TowerListTracker.ClearSession();
             _engine.CrrGroups.Clear();
+            // A clear is a change: the host's next drain re-sends the (now empty) list to clients that still hold the run's.
+            _engine.MarkEramCrrGroupsChanged();
             _engine.EramRoomSettings.Clear();
             _engine.EramSectorMessages.Clear();
             _engine.EramWeatherReports.Clear();

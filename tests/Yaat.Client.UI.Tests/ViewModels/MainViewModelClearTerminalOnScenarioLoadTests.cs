@@ -268,6 +268,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
             ActiveRunways: [],
             ToweredAirports: [],
             ElapsedSeconds: 0,
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 }

@@ -171,7 +171,7 @@ The two archive kinds bundle the pin's airports through one writer path, `Record
 
 A commit that throws after the clear leaves the room empty the way an unload does (`ClearRoomScenarioState`, then `ResyncEngineStateAsync`), and the hub sends `ScenarioUnloaded`.
 
-`ResyncEngineStateAsync` re-pushes what a reconstruction's suppressed broadcasts left stale, among it the ASDE-X hold bars (`ResyncAsdexHoldBarsAsync`: every facility's whole set with the rebuilt statuses, the abandoned run's lit bars set Suppressed), and `ClearRoomScenarioState` sends the engine's lit hold bars Suppressed before it drops the engine. The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's freshly fetched resources, never the calling room's pin.
+`ResyncEngineStateAsync` re-pushes what a reconstruction's suppressed broadcasts left stale, among it the ASDE-X hold bars (`ResyncAsdexHoldBarsAsync`: every facility's whole set with the rebuilt statuses, the abandoned run's lit bars set Suppressed) and the hub's `EramCrrGroupsChanged` list (the rebuilt engine's whole list), and `ClearRoomScenarioState` sends the engine's lit hold bars Suppressed before it drops the engine. The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's freshly fetched resources, never the calling room's pin.
 
 An archive load (`LoadRecordingArchiveGuardedAsync`, and the unguarded `LoadRecordingArchiveAsync`) reads the archive's bundled layouts first, before the prepare and off the gate (`BundledAirportLayouts.FromRecording`, each airport by the manifest's own ID spelling), and hands them to `PrepareResourcesAsync`.
 

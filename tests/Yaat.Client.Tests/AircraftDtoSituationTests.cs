@@ -265,6 +265,28 @@ public class AircraftDtoSituationTests
         Assert.Contains(nameof(AircraftModel.EramDwellLockedSectors), changed);
     }
 
+    [Fact]
+    public void Json_EramCrrGroup_ReadsTheServersWireName_AndMissingDeserializesAsNull()
+    {
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\",\"eramCrrGroup\":\"BOSOX\"}", WireOptions)!;
+
+        Assert.Equal("BOSOX", back.EramCrrGroup);
+        Assert.Null(JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\"}", WireOptions)!.EramCrrGroup);
+    }
+
+    [Fact]
+    public void Model_TakesTheEramCrrGroup_OnCreate_AndOnUpdate()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { EramCrrGroup = "BOSOX" });
+        Assert.Equal("BOSOX", model.EramCrrGroup);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final) with { EramCrrGroup = "REDSOX" });
+        Assert.Equal("REDSOX", model.EramCrrGroup);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        Assert.Null(model.EramCrrGroup);
+    }
+
     private static void AssertEramLine34Inputs(AircraftModel model, AircraftDto dto)
     {
         Assert.Equal(dto.EramAssignedHeading, model.EramAssignedHeading);

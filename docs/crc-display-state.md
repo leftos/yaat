@@ -329,7 +329,7 @@ The CRC entries that write state no typed verb covers record a derived action in
 
 They also include the ERAM keyboard entries QT / QH / HM / QQ / QR / QS / LF (`RecordedEramEntry`, one per aircraft, applied by the Sim's `EramEntryEngine`) and the CRR-group create / recolor / delete (`RecordedEramCrrGroup`, applied by `SimulationEngine.ApplyCrrGroup`). An ERAM entry typed on the YAAT Scope runs through the same dispatch (`SendScopeEramEntry`, see [training-hub-contract.md](training-hub-contract.md)) and writes the same records, marked `EramEntrySource.Scope`; its instructor-terminal echo reads `[SCOPE] {owner} {verb}: {operands}` where a CRC entry's reads `[CRC] …`.
 
-The group definitions are engine state, snapshotted, and the room re-pushes the whole `EramCrrGroups` topic from the engine's dirty flag; a delete is still the handler's own push, and a rewind or restart clears the labels the new engine no longer holds.
+The group definitions are engine state, snapshotted, and the room re-pushes the whole `EramCrrGroups` topic from the engine's dirty flag, and the training hub's `EramCrrGroupsChanged` list beside it; a delete is still the handler's own push, and a rewind or restart clears the labels the new engine no longer holds.
 
 The handler keeps its wire parsing, validation and CRC feedback (`NOT YOUR TRACK`, `FORMAT`, `ALREADY TRACKED`, the FDB check) and calls `ApplyAndRecord` for the write, which applies through the router's one body and records only when it applied. Surface temp data (drawn areas, labels, presets) is facility furniture the `FacilityTempDataStore` persists across rooms and is deliberately not recorded.
 

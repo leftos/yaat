@@ -79,7 +79,8 @@ public class MainViewModelPilotVoiceWarningTests
             ActiveRunways: [],
             ToweredAirports: [],
             SoloTrainingMode: solo,
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     /// <summary>

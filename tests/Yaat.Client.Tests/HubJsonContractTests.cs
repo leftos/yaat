@@ -88,6 +88,20 @@ public class HubJsonContractTests
     public void ConflictAlertsChangedDto_ResolvesThroughYaatHubJsonContext() =>
         Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(ConflictAlertsChangedDto)));
 
+    // The CRR group push and its element type, read through the source-gen context with the server's wire names.
+    [Fact]
+    public void EramCrrGroupsChangedDto_ReadsTheServersWireNamesThroughYaatHubJsonContext()
+    {
+        Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(EramCrrGroupHubDto)));
+        const string json = "{\"groups\":[{\"label\":\"BOSOX\",\"color\":\"Coral\",\"latitude\":37.7,\"longitude\":-122.2}]}";
+
+        var dto = (EramCrrGroupsChangedDto?)
+            JsonSerializer.Deserialize(json, YaatHubJsonContext.Default.GetTypeInfo(typeof(EramCrrGroupsChangedDto))!);
+
+        Assert.NotNull(dto);
+        Assert.Equal(new EramCrrGroupHubDto("BOSOX", "Coral", 37.7, -122.2), Assert.Single(dto.Groups));
+    }
+
     // An aircraft update's nav-route fixes carry restriction tokens (text and latency per token, one list per label line)
     // through the source-gen context and back; a fix from an older server, with lines only, reads with no tokens.
     [Fact]

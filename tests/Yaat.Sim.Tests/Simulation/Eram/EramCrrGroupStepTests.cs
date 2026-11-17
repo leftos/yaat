@@ -142,6 +142,29 @@ public class EramCrrGroupStepTests
         Assert.Equal(2, host.EramCrrGroupChanges);
     }
 
+    /// <summary>
+    /// A replay from zero (the rewind to t=0) empties the groups the run held, and that clear is a change like any other:
+    /// it leaves the dirty flag set, so the host's next drain re-sends the now-empty list to clients that still show the
+    /// abandoned run's groups.
+    /// </summary>
+    [Fact]
+    public void AReplayFromZero_ClearsTheGroups_AndMarksThemChanged()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Assert.True(engine.Actions.ApplyRecorded(Created(0, "Green", 37.5, -122.0), host).Success);
+        engine.DrainEramCrrGroupsChanged();
+
+        engine.ReplayRange(0, 0, []);
+
+        Assert.Empty(engine.CrrGroups);
+        Assert.True(engine.DrainEramCrrGroupsChanged());
+    }
+
     /// <summary>An unknown or missing colour name is the sector default rather than a refusal, as the room's body was.</summary>
     [Fact]
     public void AnUnknownColour_FallsBackToWhite()

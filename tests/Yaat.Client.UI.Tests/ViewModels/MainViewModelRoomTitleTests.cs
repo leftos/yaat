@@ -36,7 +36,8 @@ public class MainViewModelRoomTitleTests
                 ActiveRunways: [],
                 ToweredAirports: [],
                 ArtccId: artccLabel,
-                SessionStartUtc: null
+                SessionStartUtc: null,
+                EramCrrGroups: null
             )
         );
         return vm;

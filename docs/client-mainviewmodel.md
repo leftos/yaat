@@ -58,6 +58,7 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.BugReport.cs` | Partial: Scenario → File Bug Report — BugReportPrompt (view-supplied form), writes a bundle under %LOCALAPPDATA%/yaat/bug-reports/ (recording + logs in a room, client log alone otherwise), opens the prefilled GitHub issue and reveals the bundle via FileReveal. |
 | `MainViewModel.ConflictAlerts.cs` | Partial: terminal conflict-alert pairs (ApplyConflictAlerts from ConflictAlertsChanged broadcast/RoomStateDto seed, projected onto AircraftModel.ConflictPeerCallsign for both members; SeedConflictPeer covers an aircraft appearing after the broadcast; ConflictAlerts and ConflictAlertsApplied expose the pairs to the Scope's LA/CA/MCI list). Not carried on AircraftDto — see docs/radar-rendering.md § Conflict alerts. |
 | `MainViewModel.AtpaResults.cs` | Partial: ATPA in-trail pairs (ApplyAtpaResults from the AtpaResultsChanged broadcast/RoomStateDto seed, projected onto the trailing aircraft's AtpaLeadCallsign/AtpaAllowedSeparationNm/AtpaConeState; SeedAtpaResult for late-added aircraft). Same never-on-AircraftDto rule — see docs/radar-rendering.md § ATPA cones. |
+| `MainViewModel.CrrGroups.cs` | Partial: the room's ERAM CRR groups (`CrrGroups`, replaced whole by ApplyCrrGroups from the EramCrrGroupsChanged broadcast/RoomStateDto seed, emptied when the scenario is cleared). Each member's label rides `AircraftModel.EramCrrGroup`; the groups are not projected onto aircraft. |
 
 ## Threading & marshaling contract
 

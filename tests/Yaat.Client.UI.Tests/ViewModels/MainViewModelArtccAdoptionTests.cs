@@ -32,7 +32,8 @@ public class MainViewModelArtccAdoptionTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         );
 
     [AvaloniaFact]

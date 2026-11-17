@@ -45,7 +45,8 @@ public class MainViewModelLoadOverlayTests
             Positions: [],
             ActiveRunways: [],
             ToweredAirports: [],
-            SessionStartUtc: null
+            SessionStartUtc: null,
+            EramCrrGroups: null
         )
         {
             LoadingBy = loadingBy,
