@@ -90,6 +90,10 @@ namespace Yaat.Client.Views.Scope;
 /// (<c>UserPreferences.SyncStudentLeaderDirection</c>): its block sits on that side of the symbol until a drag moves it. A block
 /// drawn with the ERAM or EuroScope template keeps the default offset.
 /// </param>
+/// <param name="DeconflictOffsets">
+/// The block offsets datablock deconfliction gave, by callsign (<see cref="ScopeDeconfliction"/>); null is none. A callsign
+/// here takes its offset over the student's leader direction and the default; a manual offset still wins.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -120,7 +124,8 @@ public sealed record ScopeFrameInput(
     bool LensCheckIn = false,
     IReadOnlyList<EramCrrGroupHubDto>? CrrGroups = null,
     IReadOnlySet<string>? HiddenCallsigns = null,
-    bool SyncLeaderDirection = false
+    bool SyncLeaderDirection = false,
+    IReadOnlyDictionary<string, SKPoint>? DeconflictOffsets = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>

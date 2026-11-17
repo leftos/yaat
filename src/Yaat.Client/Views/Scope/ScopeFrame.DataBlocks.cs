@@ -27,23 +27,31 @@ public sealed partial record ScopeFrame
     /// Whether <paramref name="ac"/>'s block and leader are not drawn: the instructor hid its block and the track is not
     /// selected, which still shows it.
     /// </summary>
-    private static bool IsBlockHidden(ScopeFrameInput input, AircraftModel ac, bool isSelected) =>
+    internal static bool IsBlockHidden(ScopeFrameInput input, AircraftModel ac, bool isSelected) =>
         (!isSelected) && (input.HiddenCallsigns?.Contains(ac.Callsign) == true);
 
     /// <summary>
-    /// Places <paramref name="seed"/>'s block and returns the offset it took from the symbol: a manual offset wins; else a
-    /// STARS-owned track follows the student's leader direction while the preference is on; else the default offset. A hidden
-    /// block lays out nothing at the symbol, so neither the frame's draw nor its hit-test finds a block there, while the
-    /// symbol keeps its rings and its own hit.
+    /// Places <paramref name="seed"/>'s block and returns the offset it took from the symbol: a manual offset wins; else the
+    /// offset deconfliction gave it; else a STARS-owned track follows the student's leader direction while the preference is
+    /// on; else the default offset. A hidden block lays out nothing at the symbol, so neither the frame's draw nor its
+    /// hit-test finds a block there, while the symbol keeps its rings and its own hit.
     /// </summary>
     private static (ScopeBlockLayout Block, SKPoint Offset) PlaceBlock(in ScopeBlockSeed seed)
     {
         AircraftModel ac = seed.Aircraft;
         bool hasManual = seed.Input.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manual);
         bool syncLeader = seed.Input.SyncLeaderDirection && (seed.TemplateId == ScopeTemplates.StarsId);
-        SKPoint offset = DatablockText.ResolveBlockOffset(ac, syncLeader, hasManual, manual, seed.AtOrigin.Bounds, null);
+        SKPoint? deconflicted = DeconflictedOffset(seed.Input, ac.Callsign);
+        SKPoint offset = DatablockText.ResolveBlockOffset(ac, syncLeader, hasManual, manual, seed.AtOrigin.Bounds, deconflicted);
         return (seed.Hidden ? EmptyBlockAt(seed.Symbol) : seed.AtOrigin.At(seed.Symbol.X + offset.X, seed.Symbol.Y + offset.Y), offset);
     }
+
+    /// <summary>
+    /// The offset deconfliction gave <paramref name="callsign"/>'s block (<see cref="ScopeFrameInput.DeconflictOffsets"/>), or
+    /// null.
+    /// </summary>
+    private static SKPoint? DeconflictedOffset(ScopeFrameInput input, string callsign) =>
+        ((input.DeconflictOffsets is { } offsets) && offsets.TryGetValue(callsign, out SKPoint offset)) ? offset : null;
 
     // A block that draws nothing: no fields, an empty bounds and text box at the symbol, so no block hovers or takes a press
     // where the block would have been.

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Input;
 using SkiaSharp;
+using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data.Mva;
@@ -10,7 +11,7 @@ namespace Yaat.Client.Views.Scope;
 /// <summary>
 /// The canvas's map tools: the Ctrl-hover MVA readout, which shows the MVA floor under the pointer while raw Control is
 /// held over the canvas, on every platform; the range ring and PLACE RR's click; the FIX overlay, labelling the fix under the
-/// pointer and the selected aircraft's programmed fixes; the pinned markers; and the weather lines.
+/// pointer and the selected aircraft's programmed fixes; the pinned markers; the weather lines; and datablock deconfliction.
 /// </summary>
 public sealed partial class ScopeCanvas
 {
@@ -33,6 +34,10 @@ public sealed partial class ScopeCanvas
     private IReadOnlySet<string> _programmedFixes = EmptyFixNames;
 
     private static readonly IReadOnlySet<string> EmptyFixNames = new HashSet<string>();
+
+    private readonly ScopeDeconfliction _deconfliction = new();
+
+    private DatablockDeconflictMode _deconflictMode;
 
     /// <summary>How far from a fix the pointer may sit for the FIX overlay to label it, in pixels.</summary>
     internal const float FixHoverRadiusPx = 20f;
@@ -108,6 +113,33 @@ public sealed partial class ScopeCanvas
 
     /// <summary>Whether PLACE RR is armed, so the next left press on the canvas places the ring's centre instead.</summary>
     internal bool IsPlacingRangeRing { get; set; }
+
+    /// <summary>
+    /// How overlapping datablocks spread apart; the view sets it from its view model. A change lays the frame out again, so
+    /// the hit-test follows the blocks at once.
+    /// </summary>
+    internal DatablockDeconflictMode DeconflictMode
+    {
+        get => _deconflictMode;
+        set
+        {
+            if (value == _deconflictMode)
+            {
+                return;
+            }
+
+            _deconflictMode = value;
+            _lastFrame = null;
+            MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// Lays the frame of <paramref name="input"/> out with its blocks deconflicted by <see cref="DeconflictMode"/>. A render's
+    /// build (<paramref name="step"/>) steps Free-form's slide once more, from the last render's offsets; any other build
+    /// reuses those offsets, so the hit-test and the drawn frame read one store.
+    /// </summary>
+    private ScopeFrame BuildDeconflictedFrame(ScopeFrameInput input, bool step) => _deconfliction.Build(_deconflictMode, input, step);
 
     // A left press while PLACE RR is armed places the ring there, ahead of the entry's fill, the block gestures and the
     // aircraft, so a press on a datablock or a track places too.

@@ -80,21 +80,22 @@ public class ScopeMapToolsCommandTests
     }
 
     [AvaloniaFact]
-    public void Display_IsAMenuOfFixWxLockAndOffCntr()
+    public void Display_IsAMenuOfFixWxLockDcnfAndOffCntr()
     {
         ScopeButton display = Button(ScopeButtonId.Display);
 
         Assert.Equal(("DISPLAY", ScopeButtonKind.Menu), (display.Label, display.Kind));
         Assert.Equal(
-            [ScopeButtonId.DisplayFix, ScopeButtonId.DisplayWx, ScopeButtonId.DisplayLock, ScopeButtonId.DisplayOffCntr],
+            [ScopeButtonId.DisplayFix, ScopeButtonId.DisplayWx, ScopeButtonId.DisplayLock, ScopeButtonId.DisplayDcnf, ScopeButtonId.DisplayOffCntr],
             display.Children.Select(c => c.Id)
         );
-        Assert.Equal(["FIX", "WX", "LOCK", "OFF CNTR"], display.Children.Select(c => c.Label));
+        Assert.Equal(["FIX", "WX", "LOCK", "DCNF", "OFF CNTR"], display.Children.Select(c => c.Label));
         Assert.Equal(
-            [ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Command],
+            [ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Command, ScopeButtonKind.Command],
             display.Children.Select(c => c.Kind)
         );
-        Assert.Equal([".scope fix", ".scope wx", ".scope lock", ".scope center"], display.Children.Select(c => c.Command));
+        // DCNF's press builds the next mode's command (ScopeViewModel.Press), so it carries none.
+        Assert.Equal([".scope fix", ".scope wx", ".scope lock", null, ".scope center"], display.Children.Select(c => c.Command));
     }
 
     [AvaloniaFact]

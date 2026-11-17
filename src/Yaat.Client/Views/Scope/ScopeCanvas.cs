@@ -179,8 +179,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     private readonly SKPaint _measurePaint = new();
     private SKFont? _measureFont;
 
-    // Measure readouts: measured with the shared renderer's font; the spots each slot took last frame, for hysteresis. The
-    // Scope has no datablock deconfliction, so no readout nudges a block and the nudge map stays empty.
+    // Measure readouts: measured with the shared renderer's font; the spots each slot took last frame, for hysteresis. A
+    // readout never nudges a block, deconflicted or not, so the nudge map stays empty.
     private readonly SKFont _rblMeasureFont = PlatformHelper.MonospaceFont(RangeBearingRenderer.LabelFontSize);
     private readonly Dictionary<int, RblReadoutSpot> _rblReadoutSpots = [];
     private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
@@ -460,7 +460,13 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     /// The frame clicks and hover are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
     /// changed since.
     /// </summary>
-    internal ScopeFrame CurrentFrame => _lastFrame ??= BuildFrame(BuildPalette());
+    internal ScopeFrame CurrentFrame => _lastFrame ??= BuildFrame(BuildPalette(), stepDeconfliction: false);
+
+    /// <summary>The frame the last render snapshot drew, or null before the first. Test seam.</summary>
+    internal ScopeFrame? LastRenderedFrame { get; private set; }
+
+    /// <summary>Drops the cached hit-test frame, as a hover change does, so the next <see cref="CurrentFrame"/> builds one. Test seam.</summary>
+    internal void DropCachedFrame() => _lastFrame = null;
 
     /// <summary>The callsign of the track the pointer dwells on, or null. Test seam.</summary>
     internal string? HoveredCallsign => _hoveredCallsign;
@@ -489,8 +495,9 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     protected override object? CreateRenderSnapshot()
     {
         ScopePalette palette = BuildPalette();
-        ScopeFrame frame = BuildFrame(palette);
+        ScopeFrame frame = BuildFrame(palette, stepDeconfliction: true);
         _lastFrame = frame;
+        LastRenderedFrame = frame;
         (IReadOnlyList<ResolvedRbl> lines, ResolvedRbl? pending) = ResolveMeasurements();
         return new ScopeRenderSnapshot(
             frame,
@@ -560,8 +567,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// What a readout avoids on the Scope: every block of <paramref name="frame"/>, fixed (the Scope deconflicts no block, so a
-    /// readout never nudges one), and every symbol.
+    /// What a readout avoids on the Scope: every block of <paramref name="frame"/> where it was placed, deconflicted or not,
+    /// fixed (a readout never nudges one), and every symbol.
     /// </summary>
     internal static RblObstacles BuildRblObstacles(ScopeFrame frame, MapViewport viewport)
     {
@@ -1052,7 +1059,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         MarkDirty();
     }
 
-    private ScopeFrame BuildFrame(ScopePalette palette)
+    /// <summary>
+    /// Lays this frame's tracks out; only the render's build (<paramref name="stepDeconfliction"/>) steps Free-form, so a
+    /// hit-test's build finds each block where the last render drew it.
+    /// </summary>
+    private ScopeFrame BuildFrame(ScopePalette palette, bool stepDeconfliction)
     {
         IReadOnlyList<AircraftModel> visible = FilterVisible();
         ScopeAlertOptions alerts = BuildAlertOptions();
@@ -1061,7 +1072,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoCallsigns;
         return OrderBubbledLast(
-            ScopeFrame.Build(
+            BuildDeconflictedFrame(
                 new ScopeFrameInput(
                     visible,
                     SelectedAircraft,
@@ -1094,7 +1105,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     CrrGroups: CrrGroups,
                     HiddenCallsigns: DataBlockState?.HiddenCallsigns,
                     SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false
-                )
+                ),
+                stepDeconfliction
             )
         );
     }

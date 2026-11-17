@@ -37,7 +37,7 @@ Services/
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme
   CommandHistoryEntry.cs        # Up-arrow recall entry: (Callsign, Command). Callsign-less command text + the aircraft it was sent to (empty = global/untargeted); recall filters by selected aircraft
-  DatablockDeconflictMode.cs    # Per-view datablock-deconfliction setting (Off / Snap / Free-form); persisted per view in UserPreferences
+  DatablockDeconflictMode.cs    # Per-view datablock-deconfliction setting (Off / Snap / Free-form); persisted per view in UserPreferences; the Scope's lives in its pref sets
   GroundColorScheme.cs          # Theme/color scheme for strips
   SttDevice.cs                  # Cpu / Gpu for sherpa STT (UserPreferences.SttDevice, stored as a string like RendererMode); Gpu takes effect only with the CUDA native set installed, on the next start
   RendererMode.cs               # User-selectable GPU backend (Auto/Metal/OpenGl/Software); macOS-only — the default OpenGL path is emulated over Metal and burns CPU on Apple Silicon, so Metal renders directly; ignored on Windows/Linux

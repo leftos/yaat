@@ -217,6 +217,8 @@ A probe run routes like any other: the gate sends a gitignored `.targets` or `.p
 
 A gitignored probe `.targets` that names its `.cs` by `"$(MSBuildThisFileDirectory)…"` routes through the gate as is, with no `--local` needed. Name the `.targets` file by an absolute path, and keep it in a gitignored folder such as `.tmp/`. A relative `-p:CustomAfterMicrosoftCommonTargets=.tmp/...` compiles nothing (MSBuild resolves it beside `Microsoft.Common.targets`): the run reports zero tests, exit 0. An absolute path to an untracked but not ignored folder is routed to a builder where the path does not exist, again zero tests. Check that the run's `total:` is non-zero.
 
+A test run through the gate runs on a builder, so a probe test that writes a file to an `X:` path writes it on the builder, not here. Report probe output through `Assert.Fail` text, which the log captures.
+
 Two local builds, one of a yaat test project and one of a yaat-server test project, cannot run at once: both write `Yaat.Sim.dll` and collide with CS2012. Run them in sequence.
 
 ### Linux runs: CI investigation and cross-platform verification

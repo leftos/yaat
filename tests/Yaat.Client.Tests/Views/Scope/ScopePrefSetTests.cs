@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Views.Scope.Prefs;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -226,6 +227,36 @@ public class ScopePrefSetTests
         Assert.NotNull(fixesAndMarkers);
         Assert.True(fixesAndMarkers.ShowFixes);
         Assert.Equal(["SUNOL", "OAK090010"], fixesAndMarkers.Markers);
+    }
+
+    [Fact]
+    public void TheDeconflictionMode_RoundTrips()
+    {
+        ScopePrefSet set = FullSet() with { MapTools = new ScopePrefMapTools(false, false) { Deconflict = DatablockDeconflictMode.CompassSnap } };
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(
+            JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions),
+            ScopePrefSet.JsonOptions
+        )!;
+
+        Assert.Equal(DatablockDeconflictMode.CompassSnap, loaded.MapTools!.Deconflict);
+    }
+
+    [Fact]
+    public void MapToolsWrittenWithoutTheDeconflictionMode_LoadsWithNone()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "mapTools": { "mva": true, "lock": false }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.Null(loaded.MapTools!.Deconflict);
     }
 
     private static ScopePrefSet FullSet() =>

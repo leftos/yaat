@@ -1,8 +1,11 @@
+using Yaat.Client.Models;
+
 namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
 /// The Scope's map-tool settings as a pref set stores them; mva and lock are required, so a file missing either is skipped as
-/// unreadable, and the range ring's, weather's and fixes and markers' defaults let a file written without them load.
+/// unreadable, and the range ring's, weather's, fixes and markers' and the deconfliction mode's defaults let a file written
+/// without them load.
 /// </summary>
 /// <param name="Mva">Whether the MVA altitude tint is on.</param>
 /// <param name="Lock">Whether pan and zoom are locked.</param>
@@ -20,7 +23,14 @@ public sealed record ScopePrefMapTools(
     ScopePrefRangeRing? RangeRing = null,
     bool? Weather = null,
     ScopePrefFixesAndMarkers? FixesAndMarkers = null
-);
+)
+{
+    /// <summary>
+    /// The datablock deconfliction mode, or null for the mode a new Scope opens with (the Radar's,
+    /// <c>UserPreferences.RadarDeconflictMode</c>). A set from an older build has none.
+    /// </summary>
+    public DatablockDeconflictMode? Deconflict { get; init; }
+}
 
 /// <summary>
 /// The Scope's range ring as a pref set stores it; all four keys are required (an unplaced centre is written as null), so a file

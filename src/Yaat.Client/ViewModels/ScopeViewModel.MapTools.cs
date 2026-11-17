@@ -1,6 +1,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
@@ -11,7 +12,8 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The Scope's map tools: the MVA tile, DISPLAY's WX weather overlay, its LOCK of wheel zoom and right-drag pan and OFF CNTR's
-/// return to the facility's home centre, lit while the scope is off it, and the RR range ring.
+/// return to the facility's home centre, lit while the scope is off it, its DCNF datablock deconfliction, and the RR range
+/// ring.
 /// </summary>
 public sealed partial class ScopeViewModel
 {
@@ -59,6 +61,14 @@ public sealed partial class ScopeViewModel
     /// <summary>Whether the weather overlay is drawn. On by default; kept in a pref set.</summary>
     [ObservableProperty]
     private bool _showWeather = true;
+
+    /// <summary>
+    /// How overlapping datablocks spread apart (DISPLAY's DCNF): a new scope takes the Radar's mode
+    /// (<c>UserPreferences.RadarDeconflictMode</c>, Off unless the user changed it there) and never writes it back. Kept in a
+    /// pref set.
+    /// </summary>
+    [ObservableProperty]
+    private DatablockDeconflictMode _deconflictMode;
 
     /// <summary>The range ring's spacings SIZE steps along, in NM.</summary>
     public static IReadOnlyList<int> RangeRingSizes => RangeRingSizeGrid;
@@ -194,15 +204,36 @@ public sealed partial class ScopeViewModel
             _ => IsPanZoomLocked,
         };
 
-    /// <summary>Whether a map-tool command button draws active: PLACE RR while armed, OFF CNTR while off the home centre.</summary>
-    private bool IsMapToolActive(ScopeButtonId id) => (id == ScopeButtonId.RrPlace) ? IsPlacingRangeRing : IsOffCenter;
+    /// <summary>
+    /// Whether a map-tool command button draws active: PLACE RR while armed, DCNF while deconfliction is on, OFF CNTR while
+    /// off the home centre.
+    /// </summary>
+    private bool IsMapToolActive(ScopeButtonId id) =>
+        id switch
+        {
+            ScopeButtonId.RrPlace => IsPlacingRangeRing,
+            ScopeButtonId.DisplayDcnf => DeconflictMode != DatablockDeconflictMode.Off,
+            _ => IsOffCenter,
+        };
 
-    /// <summary>The value RR (its size, or OFF) and SIZE show after their labels; null for any other id.</summary>
+    /// <summary>
+    /// The value RR (its size, or OFF), SIZE and DCNF (S for Snap, F for Free-form, nothing while off) show after their
+    /// labels; null for any other id.
+    /// </summary>
     private string? MapToolValue(ScopeButtonId id) =>
         id switch
         {
             ScopeButtonId.Rr when !ShowRangeRing => "OFF",
             ScopeButtonId.Rr or ScopeButtonId.RrSize => RangeRingSizeNm.ToString(CultureInfo.InvariantCulture),
+            ScopeButtonId.DisplayDcnf => DeconflictValue(DeconflictMode),
+            _ => null,
+        };
+
+    private static string? DeconflictValue(DatablockDeconflictMode mode) =>
+        mode switch
+        {
+            DatablockDeconflictMode.CompassSnap => "S",
+            DatablockDeconflictMode.FreeForm => "F",
             _ => null,
         };
 
@@ -221,11 +252,14 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// The map tools' settings a pref set keeps; the range ring, WX and the fixes and markers are left null while at their
-    /// defaults.
+    /// The map tools' settings a pref set keeps; the range ring, WX, the fixes and markers and the deconfliction mode are left
+    /// null while at their defaults, the mode's being the one a new scope takes.
     /// </summary>
     private ScopePrefMapTools CaptureMapTools() =>
-        new(ShowMvaHints, IsPanZoomLocked, CaptureRangeRing(), ShowWeather ? null : false, CaptureFixesAndMarkers());
+        new(ShowMvaHints, IsPanZoomLocked, CaptureRangeRing(), ShowWeather ? null : false, CaptureFixesAndMarkers())
+        {
+            Deconflict = (DeconflictMode == Preferences.RadarDeconflictMode) ? null : DeconflictMode,
+        };
 
     private ScopePrefRangeRing? CaptureRangeRing() =>
         (ShowRangeRing && (RangeRingSizeNm == DefaultRangeRingSizeNm) && (RangeRingCenter is null))
@@ -234,10 +268,11 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Applies the map-tool settings a seed leaves alone; a set from an older build unlocks pan and zoom, turns WX on, turns
-    /// FIX off with no marker and takes the range ring's defaults.
+    /// FIX off with no marker, takes the range ring's defaults and the deconfliction mode a new scope takes.
     /// </summary>
     private void ApplyMapTools(ScopePrefMapTools? tools)
     {
+        ApplyDeconflictMode(tools?.Deconflict);
         IsPanZoomLocked = tools?.Lock ?? false;
         ShowWeather = tools?.Weather ?? true;
         ApplyFixesAndMarkers(tools?.FixesAndMarkers);
@@ -245,6 +280,9 @@ public sealed partial class ScopeViewModel
         ShowRangeRing = ring?.Show ?? true;
         ApplyRangeRingSize(ring?.SizeNm ?? DefaultRangeRingSizeNm);
     }
+
+    /// <summary>Takes <paramref name="mode"/> as the deconfliction mode, or the mode a new scope takes for null.</summary>
+    private void ApplyDeconflictMode(DatablockDeconflictMode? mode) => DeconflictMode = mode ?? Preferences.RadarDeconflictMode;
 
     /// <summary>Takes <paramref name="sizeNm"/> as the ring's spacing; a size off the grid keeps the current one, with a warning.</summary>
     private void ApplyRangeRingSize(int sizeNm)

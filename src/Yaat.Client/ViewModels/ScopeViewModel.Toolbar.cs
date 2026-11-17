@@ -59,7 +59,8 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Acts on a click of <paramref name="button"/>: a menu opens its tray, or closes it when it is the open one; a command button closes the
     /// tray and runs its command; a toggle runs its command with the opposite of its state and keeps the tray open; OTHERS flips others' level,
-    /// pinning it, VECTOR flips OWN and ALL and TDM flips top-down mode, each closing the tray; any other spinner does nothing on a click. A
+    /// pinning it, VECTOR flips OWN and ALL and TDM flips top-down mode, each closing the tray; DCNF steps deconfliction to its next mode and
+    /// keeps the tray open; any other spinner does nothing on a click. A
     /// PREF set or SAVE button runs its command and closes the tray; SAVE AS and RENAME type their command into the command box and close it;
     /// DELETE runs the active set's delete. RENAME and DELETE with no active set answer in the status line instead.
     /// </summary>
@@ -205,7 +206,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.ToolJRing or ScopeButtonId.ToolCone or ScopeButtonId.ToolDri5 or ScopeButtonId.ToolDri3 => ArmedRingTool
                 == ScopeToolbarButtons.RingToolOf(button.Id),
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
-            ScopeButtonId.DisplayOffCntr or ScopeButtonId.RrPlace => IsMapToolActive(button.Id),
+            ScopeButtonId.DisplayOffCntr or ScopeButtonId.RrPlace or ScopeButtonId.DisplayDcnf => IsMapToolActive(button.Id),
             _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
             _ => IsActiveByKind(button),
         };
@@ -261,9 +262,10 @@ public sealed partial class ScopeViewModel
         ScopeToolbarButtons.BriteGroupOf(id) is { } group ? group.Get(Brightness).ToString(CultureInfo.InvariantCulture) : null;
 
     /// <summary>
-    /// The press of a button that flips a value, closing the tray: OTHERS runs <c>.scope others</c> with the level other
-    /// than the one in effect, VECTOR runs <c>.scope vector</c> with the other of OWN and ALL, TDM runs <c>.scope tdm</c>
-    /// with the opposite of top-down mode. False for any other id.
+    /// The press of a button that flips a value: OTHERS runs <c>.scope others</c> with the level other than the one in
+    /// effect, VECTOR runs <c>.scope vector</c> with the other of OWN and ALL, TDM runs <c>.scope tdm</c> with the opposite of
+    /// top-down mode, each closing the tray; DCNF runs <c>.scope dcnf</c> with the mode after the one in effect, keeping its
+    /// tray open so the next press steps on. False for any other id.
     /// </summary>
     private bool TryPressFlip(ScopeButtonId id)
     {
@@ -272,6 +274,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Others => ScopeToolbarButtons.OthersCommand(FlippedOthersLevel()),
             ScopeButtonId.Vector => ScopeToolbarButtons.VectorOwnershipCommand(FlippedVectorOwnership()),
             ScopeButtonId.Tdm => ScopeToolbarButtons.TdmCommand(!IsTdm),
+            ScopeButtonId.DisplayDcnf => ScopeToolbarButtons.DcnfCommand(ScopeDeconfliction.Next(DeconflictMode)),
             _ => null,
         };
         if (command is null)
@@ -279,7 +282,11 @@ public sealed partial class ScopeViewModel
             return false;
         }
 
-        OpenMenu = null;
+        if (id != ScopeButtonId.DisplayDcnf)
+        {
+            OpenMenu = null;
+        }
+
         RunCommand(command);
         return true;
     }

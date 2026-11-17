@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 
@@ -9,8 +10,8 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The view's map-tools wiring: Control for the MVA readout, the view model's LOCK on the canvas's pan and zoom, its range
-/// ring and PLACE RR's click, its FIX overlay and pinned markers, and its weather lines, set above the ERAM entry boxes while
-/// they show.
+/// ring and PLACE RR's click, its FIX overlay and pinned markers, its datablock deconfliction mode, and its weather lines, set
+/// above the ERAM entry boxes while they show.
 /// </summary>
 public partial class ScopeView
 {
@@ -59,6 +60,8 @@ public partial class ScopeView
     {
         vm.PropertyChanged += OnMapToolsPropertyChanged;
         vm.PropertyChanged += OnFixesAndMarkersPropertyChanged;
+        vm.PropertyChanged += OnDeconflictPropertyChanged;
+        Canvas.DeconflictMode = vm.DeconflictMode;
         SyncPanZoomLock(vm);
         SyncRangeRing(vm);
         Canvas.IsPlacingRangeRing = vm.IsPlacingRangeRing;
@@ -71,12 +74,22 @@ public partial class ScopeView
     {
         vm.PropertyChanged -= OnMapToolsPropertyChanged;
         vm.PropertyChanged -= OnFixesAndMarkersPropertyChanged;
+        vm.PropertyChanged -= OnDeconflictPropertyChanged;
+        Canvas.DeconflictMode = DatablockDeconflictMode.Off;
         Canvas.IsPanZoomEnabled = true;
         Canvas.RangeRing = null;
         Canvas.IsPlacingRangeRing = false;
         Canvas.Weather = null;
         Canvas.ShownFixes = null;
         Canvas.PinnedMarkers = [];
+    }
+
+    private void OnDeconflictPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if ((sender is ScopeViewModel vm) && (e.PropertyName == nameof(ScopeViewModel.DeconflictMode)))
+        {
+            Canvas.DeconflictMode = vm.DeconflictMode;
+        }
     }
 
     private void OnFixesAndMarkersPropertyChanged(object? sender, PropertyChangedEventArgs e)

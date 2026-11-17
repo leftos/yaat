@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using Yaat.Client.Models;
 using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.Views.Scope.Toolbar;
@@ -184,7 +185,7 @@ public enum ScopeButtonId
     /// <summary>MVA: turns the MVA altitude tint on or off; lit while it is on.</summary>
     Mva,
 
-    /// <summary>The DISPLAY menu; its tray holds FIX, WX, LOCK and OFF CNTR.</summary>
+    /// <summary>The DISPLAY menu; its tray holds FIX, WX, LOCK, DCNF and OFF CNTR.</summary>
     Display,
 
     /// <summary>The DISPLAY menu's FIX: turns the overlay of the chart's fixes on or off; lit while it is on.</summary>
@@ -213,6 +214,12 @@ public enum ScopeButtonId
 
     /// <summary>The RR menu's RR CNTR: returns the ring's centre to the facility's home centre.</summary>
     RrCenter,
+
+    /// <summary>
+    /// The DISPLAY menu's DCNF: steps datablock deconfliction through Off, Snap and Free-form, reading DCNF, DCNF S or
+    /// DCNF F; lit while it is on.
+    /// </summary>
+    DisplayDcnf,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -322,6 +329,8 @@ public static class ScopeToolbarButtons
                 new(ScopeButtonId.DisplayFix, "FIX", ScopeButtonKind.Toggle, [], null, FixCommandStem),
                 new(ScopeButtonId.DisplayWx, "WX", ScopeButtonKind.Toggle, [], null, WxCommandStem),
                 new(ScopeButtonId.DisplayLock, "LOCK", ScopeButtonKind.Toggle, [], null, LockCommandStem),
+                // A press runs .scope dcnf with the mode after the one in effect: ScopeViewModel.Press builds it.
+                new(ScopeButtonId.DisplayDcnf, "DCNF", ScopeButtonKind.Command, [], null, null),
                 new(ScopeButtonId.DisplayOffCntr, "OFF CNTR", ScopeButtonKind.Command, [], null, CenterCommand),
             ],
             null,
@@ -548,6 +557,9 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that sets the range ring's spacing to <paramref name="sizeNm"/> NM.</summary>
     public static string RrSizeCommand(int sizeNm) => $".scope rr size {sizeNm.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>The command that sets datablock deconfliction to <paramref name="mode"/>: <c>.scope dcnf snap</c>.</summary>
+    public static string DcnfCommand(DatablockDeconflictMode mode) => $".scope dcnf {ScopeDeconfliction.NameOf(mode)}";
 
     /// <summary>The command that turns top-down mode on (<paramref name="on"/>) or off.</summary>
     public static string TdmCommand(bool on) => $"{TdmCommandStem} {(on ? "on" : "off")}";

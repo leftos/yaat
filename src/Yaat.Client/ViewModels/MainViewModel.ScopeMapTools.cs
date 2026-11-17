@@ -1,10 +1,11 @@
 using System.Globalization;
+using Yaat.Client.Views.Scope;
 
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The map tools' <c>.scope</c> verbs: <c>.scope mva</c>, <c>.scope lock</c>, <c>.scope center</c>, <c>.scope rr</c>,
-/// <c>.scope wx</c> and <c>.scope fix</c>; the marker verbs <c>.ff</c>, <c>.marker</c>, <c>.markers</c> and
+/// <c>.scope wx</c>, <c>.scope fix</c> and <c>.scope dcnf</c>; the marker verbs <c>.ff</c>, <c>.marker</c>, <c>.markers</c> and
 /// <c>.nomarkers</c> on the open Scope; and the weather lines the Scope's overlay draws.
 /// </summary>
 public partial class MainViewModel
@@ -21,6 +22,8 @@ public partial class MainViewModel
 
     private const string ScopeWxUsage = "Usage: .scope wx <on|off>";
 
+    private const string ScopeDcnfUsage = "Usage: .scope dcnf <off|snap|free>";
+
     /// <summary>The answer of <c>.scope center</c> while the Scope's map source has no centre to return to.</summary>
     internal const string ScopeNoHomeCenter = "The Scope has no home centre yet";
 
@@ -33,6 +36,7 @@ public partial class MainViewModel
         ["RR"] = SetScopeRr,
         ["WX"] = SetScopeWx,
         ["FIX"] = SetScopeFix,
+        ["DCNF"] = SetScopeDcnf,
     };
 
     /// <summary>Runs a marker verb as typed into the command line would. Test seam.</summary>
@@ -160,6 +164,18 @@ public partial class MainViewModel
 
         scope.ShowFixes = on;
         return on ? "Scope FIX ON" : "Scope FIX OFF";
+    }
+
+    /// <summary><c>.scope dcnf off|snap|free</c>: sets datablock deconfliction, as DISPLAY's DCNF steps it.</summary>
+    private static string SetScopeDcnf(ScopeViewModel scope, string[] parts)
+    {
+        if ((parts.Length != 3) || (ScopeDeconfliction.ParseMode(parts[2]) is not { } mode))
+        {
+            return ScopeDcnfUsage;
+        }
+
+        scope.DeconflictMode = mode;
+        return $"Scope DCNF {ScopeDeconfliction.NameOf(mode).ToUpperInvariant()}";
     }
 
     /// <summary><c>.scope rr on|off|place|center</c> and <c>.scope rr size 2|5|10|15|20</c>: the range ring.</summary>

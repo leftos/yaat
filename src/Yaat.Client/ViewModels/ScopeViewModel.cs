@@ -93,6 +93,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         _selectedAircraft = main.SelectedAircraft;
         _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
         _dbSettings = ScopeDbSettings.FromPreferences(main.Preferences);
+        _deconflictMode = main.Preferences.RadarDeconflictMode;
         _viewer = BuildViewer(main);
         main.PropertyChanged += OnMainPropertyChanged;
         main.Measure.PropertyChanged += OnMeasurePropertyChanged;
