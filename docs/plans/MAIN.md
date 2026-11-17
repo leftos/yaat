@@ -88,17 +88,11 @@
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
     - [ ] YAAT-2463 YAAT Scope step 7-3: aircraft and map menus on the Scope · release vNext
-      - [/] YAAT-2483 YAAT Scope step 7-3a: Display submenu and "Settings for this view…" on the Scope aircraft menu · release vNext
-      - [/] YAAT-2485 YAAT Scope step 7-3c: map right-click point menu on the Scope · release vNext
     - [ ] YAAT-2465 YAAT Scope step 7-5: map and display tools on the Scope · release vNext
-      - [/] YAAT-2476 YAAT Scope step 7-5b: range ring and weather overlay on the Scope · release vNext
-      - [ ] YAAT-2477 YAAT Scope step 7-5c: pinned markers and FIX overlay on the Scope · release vNext
-      - [ ] YAAT-2478 YAAT Scope step 7-5d: datablock deconfliction (DCNF) on the Scope · release vNext
     - [ ] YAAT-2466 YAAT Scope step 7-6: draw route and the EuroScope elastic heading vector on the Scope · release vNext
-      - [/] YAAT-2480 YAAT Scope step 7-6b: EuroScope elastic heading vector on the Scope · release vNext
     - [ ] YAAT-2467 YAAT Scope step 7-7: speech bubbles, live-traffic shadow and the menu cue on the Scope · release vNext
-      - [/] YAAT-2482 YAAT Scope step 7-7b: speech bubbles and the dashed live-traffic shadow on the Scope · release vNext
     - [ ] YAAT-2468 YAAT Scope step 7-8: Scope as the docked tab, pop-out and extra windows; automation and layouts · release vNext
+      - [ ] YAAT-2525 YAAT Scope step 7-8c: layouts reopen the Scope windows; per-scenario Radar settings dropped · release vNext
     - [ ] YAAT-2469 YAAT Scope step 7-9: aviation and csharp reviews owed before the Radar is deleted · release vNext
     - [ ] YAAT-2470 YAAT Scope step 7-10: GuideCapture scenes on the new view and regenerated screenshots · release vNext
     - [ ] YAAT-2471 YAAT Scope step 7-11: delete the old Radar view · release vNext
@@ -1650,6 +1644,7 @@
 - [ ] YAAT-2330 Fix malformed XML doc comments (CS1573, CS1574, CS0419, CS1734, CS1570) and drop them from NoWarn
 - [ ] YAAT-2458 Client driver: pointer not moved by pipe clicks, log wait reads nothing, no Scope centre tool
 - [ ] YAAT-2521 Bring the fillet generator docs in line with its skips and warnings
+- [ ] YAAT-2530 Sort the glossary entries in docs/CONTEXT.md alphabetically
 
 ## Backlog
 
@@ -1670,6 +1665,13 @@
 - [ ] YAAT-2353 Test FlightPlanEditorManager's thrown-recycle path
 - [ ] YAAT-2452 Check whether a terminal route-end course overrides AT {lastfix} FH {hdg} on the tick the fix is sequenced
 - [ ] YAAT-2457 Active runways prompt lists no airports for a centre scenario, so OK stays disabled
+- [ ] YAAT-2522 Dispose or share the dashed path effects in the Scope and Radar renderers
+- [ ] YAAT-2527 Free-form deconfliction leaves close same-row datablock pairs crossed with a sliver of overlap
+- [ ] YAAT-2528 Scope deconfliction builds every frame twice; measure blocks without a full frame
+- [ ] YAAT-2529 Scope heading vector: a right press with the left button held confirms instead of cancelling
+- [ ] YAAT-2531 Share the extra-view-window bookkeeping between the Ground and Scope windows
+- [ ] YAAT-2532 Remove the automation copies of the command-line sink and the Scope tab index
+- [ ] YAAT-2533 Scope automation gate: a late viewer change can overwrite a take framing, and no-ARTCC loads never open it
 
 ## Design files
 
