@@ -1316,4 +1316,260 @@ public class NavRouteOverlayProjectorTests
             NavRouteOverlayProjector.BuildPendingShapeKey(ac)
         );
     }
+
+    // ---- Queued DEPART heading, JRADO and JRADI radial: dashed from the fix, as the queued block will fly it ----
+
+    /// <summary>An airborne aircraft north-west of SUNOL with the declination of its position.</summary>
+    private static AircraftState QueuedVectorAircraft()
+    {
+        AircraftState ac = AircraftAt(10000);
+        ac.IsOnGround = false;
+        ac.Declination = MagneticDeclination.GetDeclination(ac.Position, DeclinationDate);
+        return ac;
+    }
+
+    /// <summary>The one command <paramref name="text"/> parses to, its fix resolved from the real navdata.</summary>
+    private static ParsedCommand ParseOne(string text)
+    {
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
+        return Assert.Single(Assert.Single(parsed.Value!.Blocks).Commands);
+    }
+
+    /// <summary>Dispatches a DEPART, JRADO or JRADI, which leaves its follow-up block queued, and returns the command.</summary>
+    private static ParsedCommand QueueVector(AircraftState ac, string text)
+    {
+        ParsedCommand command = ParseOne(text);
+        CommandResult result = command switch
+        {
+            DepartFixCommand depart => NavigationCommandHandler.DispatchDepartFix(depart, ac),
+            JoinRadialOutboundCommand jrado => NavigationCommandHandler.DispatchJrado(jrado, ac),
+            JoinRadialInboundCommand jradi => NavigationCommandHandler.DispatchJradi(jradi, ac),
+            _ => throw new InvalidOperationException($"'{text}' is not a DEPART, JRADO or JRADI"),
+        };
+        Assert.True(result.Success, result.Message);
+        return command;
+    }
+
+    [Fact]
+    public void QueuedDepart_DrawsADashedLineFromTheFixAlongTheTrueDepartHeading()
+    {
+        AircraftState ac = QueuedVectorAircraft();
+        var depart = (DepartFixCommand)QueueVector(ac, "DEPART SUNOL 270");
+        Assert.True(Math.Abs(ac.Declination) > 5.0, $"declination {ac.Declination:F1} too small to tell true from magnetic");
+
+        NavRouteShapeDto shape = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.PendingDepartHeading);
+
+        AssertVectorFrom(new LatLon(depart.FixLat, depart.FixLon), new MagneticHeading(270).ToTrue(ac.Declination), shape);
+    }
+
+    [Theory]
+    [InlineData("JRADO OAK300")]
+    [InlineData("JRADI OAK300")]
+    public void QueuedJoinRadial_DrawsADashedLineFromTheFixOutAlongTheTrueRadial(string text)
+    {
+        AircraftState ac = QueuedVectorAircraft();
+        ParsedCommand command = QueueVector(ac, text);
+        (string fixName, LatLon fix, int radial) = command switch
+        {
+            JoinRadialOutboundCommand o => (o.FixName, new LatLon(o.FixLat, o.FixLon), o.Radial),
+            JoinRadialInboundCommand i => (i.FixName, new LatLon(i.FixLat, i.FixLon), i.Radial),
+            _ => throw new InvalidOperationException(text),
+        };
+        TrueHeading trueRadial = NavigationCommandHandler.RadialToTrueBearing(fixName, fix.Lat, fix.Lon, radial);
+        Assert.True(trueRadial.AbsAngleTo(new TrueHeading(radial)) > 5.0, "the radial must be drawn true, not magnetic");
+
+        NavRouteShapeDto shape = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac));
+
+        Assert.Equal(NavRouteShapeKind.PendingJoinRadial, shape.Kind);
+        AssertVectorFrom(fix, trueRadial, shape);
+    }
+
+    /// <summary>Once the DEPART block fires at the fix the aircraft flies the very heading the dashed line drew, and the line goes.</summary>
+    [Fact]
+    public void FiredDepart_DrawsNoQueuedVector()
+    {
+        AircraftState departing = QueuedVectorAircraft();
+        QueueVector(departing, "DEPART SUNOL 270");
+        NavRouteShapeDto pending = Assert.Single(
+            NavRouteOverlayProjector.BuildShapes(departing),
+            s => s.Kind == NavRouteShapeKind.PendingDepartHeading
+        );
+
+        FlightPhysics.NotifyFixSequenced(departing, "SUNOL");
+
+        Assert.True(departing.Queue.Blocks[^1].IsApplied);
+        TrueHeading flown = Assert.NotNull(departing.Targets.TargetTrueHeading);
+        Assert.True(new TrueHeading(GeoMath.BearingTo(PointOf(pending.Points[0]), PointOf(pending.Points[1]))).AbsAngleTo(flown) < 0.5);
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(departing), s => s.Kind == NavRouteShapeKind.PendingDepartHeading);
+    }
+
+    /// <summary>
+    /// One tick on the radial fires the intercept block, and the dashed radial goes; a JRADO then flies the very bearing
+    /// the dashed line drew.
+    /// </summary>
+    [Theory]
+    [InlineData("JRADO OAK300")]
+    [InlineData("JRADI OAK300")]
+    public void FiredJoinRadial_DrawsNoQueuedVector(string text)
+    {
+        AircraftState ac = QueuedVectorAircraft();
+        QueueVector(ac, text);
+        NavRouteShapeDto pending = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.PendingJoinRadial);
+        LatLon fix = PointOf(pending.Points[0]);
+        var radial = new TrueHeading(GeoMath.BearingTo(fix, PointOf(pending.Points[1])));
+        ac.Position = GeoMath.ProjectPoint(fix, radial, 10.0);
+        ac.TrueHeading = radial;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.True(ac.Queue.Blocks[^1].IsApplied, "one tick on the radial must fire the intercept block");
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.PendingJoinRadial);
+        if (text.StartsWith("JRADO", StringComparison.Ordinal))
+        {
+            Assert.True(Assert.NotNull(ac.Targets.TargetTrueHeading).AbsAngleTo(radial) < 0.5);
+        }
+    }
+
+    /// <summary>A block restored from a snapshot and rehydrated draws the line the live block drew.</summary>
+    [Theory]
+    [InlineData("DEPART SUNOL 270")]
+    [InlineData("JRADO OAK300")]
+    [InlineData("JRADI OAK300")]
+    public void RestoredBlock_DrawsTheSameQueuedVector(string text)
+    {
+        AircraftState ac = QueuedVectorAircraft();
+        QueueVector(ac, text);
+        NavRouteShapeDto live = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), IsQueuedVector);
+        string liveKey = NavRouteOverlayProjector.BuildPendingShapeKey(ac);
+
+        var restored = CommandBlock.FromSnapshot(ac.Queue.Blocks[^1].ToSnapshot());
+        ac.Queue.Blocks[^1] = restored;
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsQueuedVector);
+        Assert.True(CommandDispatcher.RehydrateRestoredBlock(restored, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false)));
+
+        NavRouteShapeDto rehydrated = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), IsQueuedVector);
+        Assert.Equal(live.Kind, rehydrated.Kind);
+        Assert.Equal(live.Points, rehydrated.Points);
+        Assert.Equal(liveKey, NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    private static bool IsQueuedVector(NavRouteShapeDto shape) =>
+        shape.Kind is NavRouteShapeKind.PendingDepartHeading or NavRouteShapeKind.PendingJoinRadial;
+
+    /// <summary>Queuing, editing and cancelling a DEPART, JRADO or JRADI each change the pending-shape key.</summary>
+    [Theory]
+    [InlineData("DEPART SUNOL 270", "DEPART SUNOL 280")]
+    [InlineData("JRADO OAK300", "JRADO OAK310")]
+    [InlineData("JRADI OAK300", "JRADI OAK310")]
+    public void QueuedVectorKey_ChangesWhenQueuedEditedOrCancelled(string queued, string edited)
+    {
+        AircraftState ac = QueuedVectorAircraft();
+        string none = NavRouteOverlayProjector.BuildPendingShapeKey(ac);
+        QueueVector(ac, queued);
+        string queuedKey = NavRouteOverlayProjector.BuildPendingShapeKey(ac);
+
+        AircraftState editedAc = QueuedVectorAircraft();
+        QueueVector(editedAc, edited);
+
+        Assert.NotEqual(none, queuedKey);
+        Assert.NotEqual(queuedKey, NavRouteOverlayProjector.BuildPendingShapeKey(editedAc));
+
+        ac.Queue.Blocks.Clear();
+        Assert.Equal(none, NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>
+    /// A hold queued behind a reach-fix trigger at <paramref name="fix"/>; with <paramref name="isWaitBlock"/>, inside a
+    /// WAIT block (AT fix WAIT n HOLD ...), which fires the hold only once the wait has run out.
+    /// </summary>
+    private static CommandBlock HoldQueuedAt(NavigationTarget fix, bool isWaitBlock = false) =>
+        new()
+        {
+            Trigger = ReachFixTrigger(fix),
+            IsWaitBlock = isWaitBlock,
+            ParsedCommands = [new HoldingPatternCommand(fix.Name, fix.Position.Lat, fix.Position.Lon, 090, null, true, TurnDirection.Right, null)],
+        };
+
+    /// <summary>A WAIT block on its own queued at <paramref name="fix"/>, which holds back the blocks after it.</summary>
+    private static CommandBlock WaitQueuedAt(NavigationTarget fix) =>
+        new()
+        {
+            Trigger = ReachFixTrigger(fix),
+            IsWaitBlock = true,
+            ParsedCommands = [],
+        };
+
+    private static BlockTrigger ReachFixTrigger(NavigationTarget fix) =>
+        new()
+        {
+            Type = BlockTriggerType.ReachFix,
+            FixName = fix.Name,
+            FixLat = fix.Position.Lat,
+            FixLon = fix.Position.Lon,
+        };
+
+    /// <summary>
+    /// A hold queued at the route's last fix fires as that fix is sequenced and takes over before the route end is judged,
+    /// so the terminal course past the fix is never flown: only the racetrack is drawn, and the key carries no course.
+    /// </summary>
+    [Fact]
+    public void HoldQueuedAtTheLastFix_DrawsNoRouteEndCourse_ButStillTheRacetrack()
+    {
+        NavigationTarget hirmo = Oakes3Rw12Targets()[^1];
+        AircraftState ac = Routed([hirmo]);
+        Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+        Assert.Contains("|EHIRMO:", NavRouteOverlayProjector.BuildPendingShapeKey(ac), StringComparison.Ordinal);
+
+        ac.Queue.Blocks.Add(HoldQueuedAt(hirmo));
+
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
+
+        Assert.DoesNotContain(shapes, s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+        Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.PendingHoldRacetrack);
+        Assert.DoesNotContain("|E", NavRouteOverlayProjector.BuildPendingShapeKey(ac), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HoldQueuedAtAnEarlierFix_StillDrawsTheRouteEndCourse()
+    {
+        List<NavigationTarget> targets = Oakes3Rw12Targets();
+        NavigationTarget earlier = targets[0];
+        Assert.NotEqual(targets[^1].Name, earlier.Name);
+        AircraftState ac = Routed(targets);
+        ac.Queue.Blocks.Add(HoldQueuedAt(earlier));
+
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
+
+        Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+        Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.PendingHoldRacetrack);
+    }
+
+    /// <summary>
+    /// A hold at the last fix that a WAIT delays (inside the WAIT block, or behind a WAIT block at that fix) fires only once
+    /// the wait has run out: the route ends first and the terminal course is flown meanwhile, so it stays drawn and keyed.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HoldDelayedByAWaitAtTheLastFix_StillDrawsTheRouteEndCourse(bool holdInsideTheWait)
+    {
+        NavigationTarget hirmo = Oakes3Rw12Targets()[^1];
+        AircraftState ac = Routed([hirmo]);
+        if (holdInsideTheWait)
+        {
+            ac.Queue.Blocks.Add(HoldQueuedAt(hirmo, isWaitBlock: true));
+        }
+        else
+        {
+            ac.Queue.Blocks.Add(WaitQueuedAt(hirmo));
+            ac.Queue.Blocks.Add(HoldQueuedAt(hirmo));
+        }
+
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
+
+        Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+        Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.PendingHoldRacetrack);
+        Assert.Contains("|EHIRMO:", NavRouteOverlayProjector.BuildPendingShapeKey(ac), StringComparison.Ordinal);
+    }
 }

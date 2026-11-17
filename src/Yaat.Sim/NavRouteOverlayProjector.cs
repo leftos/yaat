@@ -15,7 +15,8 @@ namespace Yaat.Sim;
 /// Projects an aircraft's active procedure phase and its queued holds into drawable <see cref="NavRouteShapeDto"/> shapes
 /// for the radar "Show nav route" overlay. Covers the geometry the flat <see cref="NavRouteFixDto"/> route can't express: a
 /// holding pattern's racetrack, a procedure turn's course reversal, the open-ended coded legs (CA/VA/CD/VD/CR/VR) of a SID,
-/// a military route's corridor, the dashed racetrack of each hold queued at a fix ahead, the dashed circle of a VFR
+/// a military route's corridor, the dashed racetrack of each hold queued at a fix ahead, the dashed line of each queued
+/// DEPART heading or JRADO or JRADI radial from its fix, the dashed circle of a VFR
 /// (HFIX) or airspace-boundary orbit, the terminal course flown past the route's last fix, and the heading vector of a
 /// heading-only departure or of a heading flown after the route ended. Pure geometry — no side effects.
 /// </summary>
@@ -46,7 +47,8 @@ public static class NavRouteOverlayProjector
 
     /// <summary>
     /// The current phase's shapes, then the route-end course or the heading vector, then the final approach course of a
-    /// cleared, pending or expected approach, then one dashed racetrack per hold queued at a fix ahead, in queue order.
+    /// cleared, pending or expected approach, then one dashed line per queued DEPART heading, JRADO or JRADI radial, then
+    /// one dashed racetrack per hold queued at a fix ahead, each in queue order.
     /// </summary>
     public static List<NavRouteShapeDto> BuildShapes(AircraftState aircraft)
     {
@@ -63,6 +65,11 @@ public static class NavRouteOverlayProjector
         if (FinalApproachCourse(aircraft) is { } final)
         {
             shapes.Add(BuildFinalApproachCourse(final));
+        }
+
+        foreach (QueuedVector vector in QueuedVectors(aircraft))
+        {
+            shapes.Add(BuildVector(vector.Kind, vector.Fix, QueuedVectorTrueBearing(aircraft, vector)));
         }
 
         foreach ((HoldingPatternCommand hold, double holdAltitudeFt) in QueuedHolds(aircraft))
@@ -86,7 +93,8 @@ public static class NavRouteOverlayProjector
     /// <summary>
     /// The last route target and the true course the sim will fly past it (<see cref="FlightPhysics.ClassifyRouteEnd"/>
     /// judges it a terminal course, converted as the route end converts it), or null: no route, a pending approach
-    /// clearance (activated at route end instead), or any other route-end branch.
+    /// clearance (activated at route end instead), a hold queued at the last fix (<see cref="HoldQueuedAt"/>), or any other
+    /// route-end branch.
     /// </summary>
     private static (NavigationTarget Last, TrueHeading TrueCourse)? RouteEndCourse(AircraftState aircraft)
     {
@@ -100,12 +108,47 @@ public static class NavRouteOverlayProjector
         if (
             (last.TerminalCourseMagnetic is not { } course)
             || (FlightPhysics.ClassifyRouteEnd(aircraft, last) != FlightPhysics.RouteEndLateral.TerminalCourse)
+            || HoldQueuedAt(aircraft, last)
         )
         {
             return null;
         }
 
         return (last, new MagneticHeading(course).ToTrue(aircraft.Declination));
+    }
+
+    /// <summary>
+    /// A hold that fires as <paramref name="last"/> is sequenced (one of the blocks <see cref="QueuedHolds"/> draws): the
+    /// hold's phase puts its fix back on the route before the route end is judged, so the terminal course past it is never
+    /// flown. A hold inside a WAIT block, or behind a WAIT block at the same fix, fires only once the wait has run out
+    /// (<see cref="FlightPhysics.NotifyFixSequenced"/> latches a WAIT and holds back what follows it), so the terminal
+    /// course is flown meanwhile and stays drawn.
+    /// </summary>
+    private static bool HoldQueuedAt(AircraftState aircraft, NavigationTarget last)
+    {
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (
+                block.IsApplied
+                || (block.Trigger is not { Type: BlockTriggerType.ReachFix } trigger)
+                || !string.Equals(trigger.FixName, last.Name, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+
+            if (block.IsWaitBlock)
+            {
+                return false;
+            }
+
+            if (block.ParsedCommands?.OfType<HoldingPatternCommand>().Any() == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -356,9 +399,88 @@ public static class NavRouteOverlayProjector
     }
 
     /// <summary>
+    /// Every queued DEPART heading and JRADO or JRADI radial, from the same unapplied blocks <see cref="QueuedHolds"/> reads:
+    /// a <see cref="DepartFixCommand"/> behind a reach-fix trigger, a <see cref="JoinRadialOutboundCommand"/> or
+    /// <see cref="JoinRadialInboundCommand"/> behind a radial-intercept trigger (as <see cref="NavigationCommandHandler"/>
+    /// builds them). A block whose parsed commands were not recovered is skipped.
+    /// </summary>
+    private static IEnumerable<QueuedVector> QueuedVectors(AircraftState aircraft)
+    {
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (block.IsApplied || (block.Trigger is not { } trigger) || (block.ParsedCommands is not { } commands))
+            {
+                continue;
+            }
+
+            foreach (ParsedCommand command in commands)
+            {
+                if (QueuedVectorOf(trigger.Type, command) is { } vector)
+                {
+                    yield return vector;
+                }
+            }
+        }
+    }
+
+    /// <summary>The queued vector <paramref name="command"/> draws behind a <paramref name="trigger"/> block, or null.</summary>
+    private static QueuedVector? QueuedVectorOf(BlockTriggerType trigger, ParsedCommand command) =>
+        (trigger, command) switch
+        {
+            (BlockTriggerType.ReachFix, DepartFixCommand depart) => new QueuedVector(
+                NavRouteShapeKind.PendingDepartHeading,
+                'D',
+                depart.FixName,
+                new LatLon(depart.FixLat, depart.FixLon),
+                depart.MagneticHeading.Degrees
+            ),
+            (BlockTriggerType.InterceptRadial, JoinRadialOutboundCommand jrado) => new QueuedVector(
+                NavRouteShapeKind.PendingJoinRadial,
+                'O',
+                jrado.FixName,
+                new LatLon(jrado.FixLat, jrado.FixLon),
+                jrado.Radial
+            ),
+            (BlockTriggerType.InterceptRadial, JoinRadialInboundCommand jradi) => new QueuedVector(
+                NavRouteShapeKind.PendingJoinRadial,
+                'I',
+                jradi.FixName,
+                new LatLon(jradi.FixLat, jradi.FixLon),
+                jradi.Radial
+            ),
+            _ => null,
+        };
+
+    /// <summary>
+    /// The true bearing a queued vector is drawn along, as the block flies it: a DEPART heading converted with the aircraft's
+    /// declination (<see cref="NavigationCommandHandler.BuildDepartBlock"/>), a radial with the station's variation of
+    /// record (<see cref="NavigationCommandHandler.RadialToTrueBearing"/>).
+    /// </summary>
+    private static TrueHeading QueuedVectorTrueBearing(AircraftState aircraft, QueuedVector vector) =>
+        vector.Kind == NavRouteShapeKind.PendingDepartHeading
+            ? new MagneticHeading(vector.MagneticDegrees).ToTrue(aircraft.Declination)
+            : NavigationCommandHandler.RadialToTrueBearing(vector.FixName, vector.Fix.Lat, vector.Fix.Lon, (int)vector.MagneticDegrees);
+
+    /// <summary>
+    /// The queued vectors' key, from stored state only (never navdata, which a tick must not read): each one's kind letter
+    /// (D depart, O JRADO, I JRADI), fix and magnetic heading or radial as issued. Empty when none is queued.
+    /// </summary>
+    private static string QueuedVectorKey(AircraftState aircraft) =>
+        string.Concat(
+            QueuedVectors(aircraft).Select(v => string.Create(CultureInfo.InvariantCulture, $"|{v.Letter}{v.FixName}:{v.MagneticDegrees:F1}"))
+        );
+
+    /// <summary>
+    /// A queued DEPART heading (D) or JRADO (O) or JRADI (I) radial: its shape kind, key letter, fix and position, and the
+    /// magnetic heading or radial as issued.
+    /// </summary>
+    private readonly record struct QueuedVector(NavRouteShapeKind Kind, char Letter, string FixName, LatLon Fix, double MagneticDegrees);
+
+    /// <summary>
     /// A key covering every input of the queued-hold racetracks and the orbit circle that the aircraft's position does not
     /// already cover: each queued hold's fix, course, leg, direction and hold altitude, the orbit's centre and direction, and
-    /// the route-end course's fix and true course, and the final approach course's stored state (<see cref="FinalApproachKey"/>).
+    /// the route-end course's fix and true course, the final approach course's stored state (<see cref="FinalApproachKey"/>),
+    /// and each queued DEPART heading or JRADO or JRADI radial (<see cref="QueuedVectorKey"/>).
     /// Empty when there are none, so it leaves an existing fingerprint unchanged.
     /// The heading vector adds nothing: its origin is the aircraft's position and its heading the target heading, both in
     /// the training fingerprint already.
@@ -388,7 +510,7 @@ public static class NavRouteOverlayProjector
             sb.Append(CultureInfo.InvariantCulture, $"|E{routeEnd.Last.Name}:{routeEnd.TrueCourse.Degrees:F1}");
         }
 
-        return (sb?.ToString() ?? "") + FinalApproachKey(aircraft);
+        return (sb?.ToString() ?? "") + FinalApproachKey(aircraft) + QueuedVectorKey(aircraft);
     }
 
     /// <summary>
