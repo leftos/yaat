@@ -139,7 +139,7 @@ By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **VEC
 
 **CHAR** is the datablock point size, 8 to 24; roll the wheel over it, wheel up for larger, and it stops at the limits. ATPA DIST and CHAR start from your preferences when the Scope opens (unless a saved state brings others) and never write back to them, and a later preference change does not reach an open Scope. The other CRC DB items (LDR DIR, LDR, CWT, REQ ALT, PORTAL) are not built.
 
-**VIEWS** is the button after DB. Its tray holds three toggles, **SSA**, **LA/CA/MCI** and **RPO QUEUE**, each lit while its view is open; a press toggles the view and keeps the tray open. The views sit in a dock, a 360 px column down the right of the window under the bar, which is hidden until a view is docked in it. Opening or closing it keeps the scope's scale, so the RANGE shown follows the scope's width, as when you resize the window.
+**VIEWS** is the button after DB. Its tray holds four toggles, **SSA**, **LA/CA/MCI**, **RPO QUEUE** and **CRR**, each lit while its view is open; a press toggles the view and keeps the tray open. The views sit in a dock, a 360 px column down the right of the window under the bar, which is hidden until a view is docked in it. Opening or closing it keeps the scope's scale, so the RANGE shown follows the scope's width, as when you resize the window.
 
 Each view's card has a **–** button that closes it. The window first opens at 1460×800.
 
@@ -150,6 +150,10 @@ Line 2 is `OK/OK/NA FUSED` and the range (`FUSED 40NM`), or `NA/NA/NA` in red wh
 The **LA/CA/MCI** card lists one row per conflict pair, the two callsigns sorted and joined by `*`, then `CA` (`AAL22*UAL1        CA`). YAAT detects conflict alerts only, so there are no LA or MCI rows. It lists the pairs whatever the "show conflict alerts" preference says.
 
 The **RPO QUEUE** card (`.view rpoq on|off|dock`; it starts closed, and sits after the other two in the dock) is titled `PILOT LENS · RPO QUEUE {n}`, n being its row count, and lists what the RPO must answer or watch. Check-in rows come first, by callsign, by the same rules as the pilot lens's CHECKIN tag: `{CS} calling {KIND} !` (an open request), `{CS} not checked in (VCI lit) !`, `{CS} not checked in (no VCI) !` and `{CS} checked in, VCI not set`. Then one row per queued pilot command still waiting on its trigger, by callsign: `{CS} {command} wait`. A left click on a row selects that aircraft; nothing is sent.
+
+The **CRR** card (`.view crr on|off|dock|tear`; ERAM's continuous range readout) starts closed, sits after RPO QUEUE in the dock and is read-only. It lists each CRR group's label in the group's colour, then its member aircraft as callsign and distance to the group's point, nearest first.
+
+A track drawn with a Full or dwelled ERAM block (on Mixed, an ERAM-owned track) whose aircraft is in an existing CRR group also shows a **range data block** beside its target symbol: the distance in NM to the group's point (`>999.9` past 999.9), in the group's colour (green, coral, yellow or white), at FDB brightness lifted by DWELL as the block is. Its side follows CRC's range data block table from the block's leader direction. STARS and EuroScope blocks, limited blocks and ground targets show none.
 
 **PILOT LENS** is the button after VIEWS: overlays drawn from what the simulation is doing rather than from what the controller's display shows, off until you turn them on. The button is lit while the lens is on or its tray is open. Its tray holds four toggles, each lit while on: **ON**, the lens's master switch (`.scope lens on|off`), **PATH**, the intent path (`.scope lens path on|off`), **QUEUE**, the queued-commands badge (`.scope lens queue on|off`), and **CHECKIN**, the check-in tag (`.scope lens checkin on|off`). Each overlay draws only while ON and its own toggle are on.
 

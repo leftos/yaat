@@ -117,7 +117,7 @@ public class MainViewModelScopeSinkTests
         RecordingSink sink = await SendAsync(vm, ".view zzz on");
 
         string message = Assert.Single(sink.Messages);
-        Assert.StartsWith("Usage: .view <ssa|ca|rpoq>", message, StringComparison.Ordinal);
+        Assert.StartsWith("Usage: .view <ssa|ca|rpoq|crr>", message, StringComparison.Ordinal);
         AssertCommandLineUntouched(vm, statusBefore);
     }
 

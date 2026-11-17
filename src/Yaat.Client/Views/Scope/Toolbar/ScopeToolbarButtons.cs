@@ -88,6 +88,9 @@ public enum ScopeButtonId
     /// <summary>The Views menu's RPO QUEUE toggle.</summary>
     ViewRpoQueue,
 
+    /// <summary>The Views menu's CRR toggle.</summary>
+    ViewCrr,
+
     /// <summary>The TOOLS menu; its tray holds the Rings tool.</summary>
     Tools,
 
@@ -298,6 +301,7 @@ public static class ScopeToolbarButtons
                 ViewToggle(ScopeButtonId.ViewSsa, "SSA", ViewSsaName),
                 ViewToggle(ScopeButtonId.ViewCa, "LA/CA/MCI", ViewCaName),
                 ViewToggle(ScopeButtonId.ViewRpoQueue, "RPO QUEUE", ViewRpoQueueName),
+                ViewToggle(ScopeButtonId.ViewCrr, "CRR", ViewCrrName),
             ],
             null,
             null
@@ -348,6 +352,9 @@ public static class ScopeToolbarButtons
 
     /// <summary>The pilot lens's RPO queue view name, as <c>.view</c> takes it.</summary>
     public const string ViewRpoQueueName = "rpoq";
+
+    /// <summary>The ERAM Continuous Range Readout view's name, as <c>.view</c> takes it.</summary>
+    public const string ViewCrrName = "crr";
 
     /// <summary>The DB 4TH LINE item, as <c>.scope db</c> takes it.</summary>
     public const string DbLine4Item = "4thline";

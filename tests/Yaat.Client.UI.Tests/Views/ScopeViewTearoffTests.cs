@@ -26,7 +26,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeViewTearoffTests
 {
-    private const string Usage = "Usage: .view <ssa|ca|rpoq> <on|off|dock> | .view <ssa|ca|rpoq> tear <tl|tr|bl|br> <dx> <dy>";
+    private const string Usage = "Usage: .view <ssa|ca|rpoq|crr> <on|off|dock> | .view <ssa|ca|rpoq|crr> tear <tl|tr|bl|br> <dx> <dy>";
 
     private static readonly ScopePlacement SsaDefault = new(ScopeCorner.TopLeft, 8, 8);
 

@@ -815,6 +815,9 @@ A line in a `.aliases` file that CRC, and YAAT's dot handlers, expand into a com
 **CRC dialect (YAAT Scope)**:
 The typed-entry grammar of the Scope's profile as CRC's own scope reads it (STARS entries such as `+100` or `INIT`, ERAM verbs such as `QQ`); the preview reads it beside YAAT pilot commands and dot commands, and the profile's dialect wins where a token could mean both. Not a CRC alias.
 
+**CRR group (ERAM)**:
+A named ERAM continuous range readout group (`LF`): a point and its member aircraft, each shown its distance to the point in a range data block; listed on the YAAT Scope's CRR view.
+
 **Feedback area (YAAT Scope)**:
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
@@ -853,6 +856,9 @@ A named snapshot of a YAAT Scope's range, centre, template, profile, maps, brigh
 
 **Preview area (YAAT Scope)**:
 The part of the Scope's entry area that shows the entry being typed, with its Kind label and a trailing `_`; on STARS one unboxed area at the top left below the SSA's default place, on ERAM/Mixed the upper half of the MCA.
+
+**Range data block (RDB)**:
+The small text beside an ERAM full data block's target giving the track's distance to its CRR group's point, in the group's colour, placed by CRC's RdbOrientation table.
 
 **Response Area (RA)**:
 ERAM's message area above the MCA; in YAAT Scope on ERAM and Mixed an empty box above the MCA, kept for readouts.

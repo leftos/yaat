@@ -78,6 +78,10 @@ namespace Yaat.Client.Views.Scope;
 /// Whether the pilot lens's check-in tag draws (the lens and its CHECKIN both on), copied on the UI thread; it draws for every
 /// drawn track whose pilot's radio state has a mark (<see cref="ScopeCheckIn.StateOf"/>).
 /// </param>
+/// <param name="CrrGroups">
+/// The room's ERAM CRR groups (<c>MainViewModel.CrrGroups</c>), copied on the UI thread; null is none. A track drawn with an
+/// FDB-level ERAM block whose group is among them carries its range data block (<see cref="ScopeCrrReadout"/>).
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -105,7 +109,8 @@ public sealed record ScopeFrameInput(
     NavigationDatabase? NavDb = null,
     bool LensQueue = false,
     string? QueueHoveredCallsign = null,
-    bool LensCheckIn = false
+    bool LensCheckIn = false,
+    IReadOnlyList<EramCrrGroupHubDto>? CrrGroups = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -167,6 +172,12 @@ public sealed record ScopeTrack(
     /// dwell first.
     /// </summary>
     public bool IsDwellLocked { get; init; }
+
+    /// <summary>
+    /// The track's range data block (<see cref="ScopeCrrReadout"/>), or null when its block is no FDB-level ERAM block or its
+    /// aircraft is in no existing CRR group.
+    /// </summary>
+    public ScopeCrrReadoutView? CrrReadout { get; init; }
 
     /// <summary>The text bounds inflated <see cref="DwellBoxInflatePx"/>; the hover hit-test and the emphasis both read it.</summary>
     public SKRect DwellBox
@@ -389,8 +400,15 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
         )
         {
             IsDwellLocked = locked,
+            CrrReadout = CrrReadoutFor(ac, templateId, presentation.Level, input) is { } crr
+                ? ScopeCrrReadout.Place(crr, new SKPoint(sx, sy), offset, input.Metrics)
+                : null,
         };
     }
+
+    /// <summary>The range data block's text and colour for <paramref name="ac"/>, or null (<see cref="ScopeCrrReadout.Content"/>).</summary>
+    private static (string Text, SKColor Color)? CrrReadoutFor(AircraftModel ac, string templateId, ScopeBlockLevel level, ScopeFrameInput input) =>
+        input.CrrGroups is { Count: > 0 } groups ? ScopeCrrReadout.Content(ac, templateId, level, groups) : null;
 
     /// <summary>
     /// The check-in tag of <paramref name="ac"/> while the lens check-in draws (<see cref="ScopeFrameInput.LensCheckIn"/>):
@@ -892,6 +910,7 @@ public sealed class ScopeRenderer : IDisposable
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
             DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
+            DrawCrrReadout(canvas, track, font, snapshot.Brightness);
         }
 
         // The pilot lens draws over targets and blocks, under the measure layer; a hovered badge's lines over every badge.
@@ -1096,6 +1115,22 @@ public sealed class ScopeRenderer : IDisposable
         _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
         string text = badge.Count.ToString(CultureInfo.InvariantCulture);
         canvas.DrawText(text, badge.Rect.Left, badge.Rect.Bottom, SKTextAlign.Left, font, _lensTextPaint);
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s range data block in its group's colour at FDB, lifted by DWELL when the track is
+    /// dwelled as its block is, its baseline at the bottom of its text box. FDB 0 draws nothing.
+    /// </summary>
+    private void DrawCrrReadout(SKCanvas canvas, ScopeTrack track, SKFont font, ScopeBrightness brightness)
+    {
+        int percent = Lifted(track, brightness.Fdb, brightness.Dwell);
+        if ((track.CrrReadout is not { } crr) || (percent <= 0))
+        {
+            return;
+        }
+
+        _textPaint.Color = ScopeBrightness.Apply(crr.Color, percent);
+        canvas.DrawText(crr.Text, crr.Rect.Left, crr.Rect.Bottom, SKTextAlign.Left, font, _textPaint);
     }
 
     /// <summary>

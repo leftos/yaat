@@ -1,6 +1,7 @@
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
@@ -268,6 +269,93 @@ public class ScopeFrameLayersTests
 
         Assert.NotNull(hit.Dwelled);
         Assert.Null(hit.QueueHovered);
+    }
+
+    /// <summary>
+    /// A frame drawn with <paramref name="templateId"/> of OWN1 (the viewer's, sector C44), STAR1 (a STARS position's) and
+    /// OTH1 (another ERAM sector's), each in CRR group A 12 nm south of it, the others' level <paramref name="othersLevel"/>.
+    /// </summary>
+    private static ScopeFrame CrrFrame(string templateId, string othersLevel, IReadOnlyList<EramCrrGroupHubDto>? groups)
+    {
+        AircraftModel[] tracks = [Track("OWN1", "OAK_44_CTR", "C44"), Track("STAR1", "NCT_A_APP", "1A"), Track("OTH1", "OAK_12_CTR", "C12")];
+        foreach (AircraftModel ac in tracks)
+        {
+            ac.EramCrrGroup = "A";
+        }
+
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            tracks,
+            null,
+            new MapViewport
+            {
+                PixelWidth = 1000,
+                PixelHeight = 800,
+                CenterLat = 37.0,
+                CenterLon = -122.0,
+            },
+            templateId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = EramViewer,
+            },
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>(),
+            MvaFacilityId: null,
+            othersLevel,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.All,
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
+            CrrGroups: groups
+        );
+        return ScopeFrame.Build(input);
+    }
+
+    private static readonly EramCrrGroupHubDto CrrGroupA = new("A", "Yellow", 37.0 - (12.0 / 60.0), -122.0);
+
+    [Fact]
+    public void Crr_AnEramFdbInAnExistingGroup_CarriesItsReadout_SouthWestOfItsSymbol()
+    {
+        ScopeTrack track = TrackOf(CrrFrame(ScopeTemplates.EramId, ScopeProfile.OthersFull, [CrrGroupA]), "OWN1");
+
+        ScopeCrrReadoutView crr = Assert.IsType<ScopeCrrReadoutView>(track.CrrReadout);
+        Assert.Equal("12.0", crr.Text);
+        Assert.Equal(ScopeCrrReadout.Yellow, crr.Color);
+        // The default block leads NE; leader length 1 at D180 puts the readout SW, 4 px out on each axis.
+        Assert.Equal(track.Symbol.X - 4f, crr.Rect.Right, 0.01f);
+        Assert.Equal(track.Symbol.Y + 4f, crr.Rect.Top, 0.01f);
+    }
+
+    [Fact]
+    public void Crr_ALimitedEramBlock_CarriesNoReadout() =>
+        Assert.Null(TrackOf(CrrFrame(ScopeTemplates.EramId, ScopeProfile.OthersPartial, [CrrGroupA]), "OTH1").CrrReadout);
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("B")]
+    public void Crr_NoSuchGroup_CarriesNoReadout(string? otherLabel)
+    {
+        IReadOnlyList<EramCrrGroupHubDto>? groups = otherLabel is null ? null : [CrrGroupA with { Label = otherLabel }];
+
+        Assert.Null(TrackOf(CrrFrame(ScopeTemplates.EramId, ScopeProfile.OthersFull, groups), "OWN1").CrrReadout);
+    }
+
+    [Fact]
+    public void Crr_TheStarsTemplate_CarriesNoReadout() =>
+        Assert.All(CrrFrame(ScopeTemplates.StarsId, ScopeProfile.OthersFull, [CrrGroupA]).Tracks, t => Assert.Null(t.CrrReadout));
+
+    [Fact]
+    public void Crr_Mixed_AnEramOwnedTrackCarriesIt_AStarsOwnedOneDoesNot()
+    {
+        ScopeFrame frame = CrrFrame(ScopeTemplates.MixedId, ScopeProfile.OthersFull, [CrrGroupA]);
+
+        Assert.NotNull(TrackOf(frame, "OWN1").CrrReadout);
+        Assert.Null(TrackOf(frame, "STAR1").CrrReadout);
     }
 
     [Fact]

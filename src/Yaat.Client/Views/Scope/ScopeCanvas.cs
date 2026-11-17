@@ -115,6 +115,15 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlySet<string>
     >(nameof(LocalPtlCallsigns), defaultValue: ScopeViewModel.NoPtl);
 
+    /// <summary>
+    /// The room's ERAM CRR groups (<c>MainViewModel.CrrGroups</c>, replaced whole); read in <see cref="BuildFrame"/>, never on
+    /// the render thread.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<EramCrrGroupHubDto>> CrrGroupsProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        IReadOnlyList<EramCrrGroupHubDto>
+    >(nameof(CrrGroups), defaultValue: []);
+
     /// <summary>The pilot lens's switches; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
     public static readonly StyledProperty<ScopeLensSettings> LensProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeLensSettings>(
         nameof(Lens),
@@ -294,6 +303,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(LocalPtlCallsignsProperty);
         set => SetValue(LocalPtlCallsignsProperty, value);
+    }
+
+    public IReadOnlyList<EramCrrGroupHubDto> CrrGroups
+    {
+        get => GetValue(CrrGroupsProperty);
+        set => SetValue(CrrGroupsProperty, value);
     }
 
     public ScopeLensSettings Lens
@@ -641,11 +656,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Whether <paramref name="property"/> sets the vector, history, ring, PTL, pilot lens or top-down layer (its TDM-only
+    /// Whether <paramref name="property"/> sets the vector, history, ring, PTL, pilot lens, CRR or top-down layer (its TDM-only
     /// maps among them), which the frame lays out.
     /// </summary>
     private static bool IsLayerProperty(AvaloniaProperty property) =>
         (property == VectorMinutesProperty)
+        || (property == CrrGroupsProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
         || (property == LocalRingsProperty)
@@ -1069,7 +1085,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
                 NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null,
                 LensQueue: Lens.DrawsQueue,
                 QueueHoveredCallsign: _hoveredQueueCallsign,
-                LensCheckIn: Lens.DrawsCheckIn
+                LensCheckIn: Lens.DrawsCheckIn,
+                CrrGroups: CrrGroups
             )
         );
     }

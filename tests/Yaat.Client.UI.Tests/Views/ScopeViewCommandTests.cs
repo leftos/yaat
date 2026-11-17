@@ -12,7 +12,29 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeViewCommandTests
 {
-    private const string Usage = "Usage: .view <ssa|ca|rpoq> <on|off|dock> | .view <ssa|ca|rpoq> tear <tl|tr|bl|br> <dx> <dy>";
+    private const string Usage = "Usage: .view <ssa|ca|rpoq|crr> <on|off|dock> | .view <ssa|ca|rpoq|crr> tear <tl|tr|bl|br> <dx> <dy>";
+
+    [AvaloniaFact]
+    public async Task CrrOn_OpensTheCrrView_AndOff_ClosesIt()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewCrrName));
+
+            main.RunViewCommand(".view crr on");
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCrrName));
+            Assert.Equal(".view crr on", main.StatusText);
+
+            main.RunViewCommand(".view crr off");
+            Assert.False(scope.IsViewOpen(ScopeToolbarButtons.ViewCrrName));
+            Assert.Equal(".view crr off", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
 
     [AvaloniaFact]
     public async Task On_OpensTheView_AndOff_ClosesIt_CaseInsensitive()

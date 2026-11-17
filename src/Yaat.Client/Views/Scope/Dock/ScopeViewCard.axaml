@@ -45,6 +45,16 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </DataTemplate>
+    <DataTemplate x:DataType="vm:CrrViewModel">
+      <!-- Read-only: each group's label in its colour, then its members nearest first. -->
+      <ItemsControl Margin="8,6" ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="dock:CrrRow">
+            <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </DataTemplate>
   </UserControl.DataTemplates>
   <UserControl.Styles>
     <Style Selector="TextBlock.ssaStatus">

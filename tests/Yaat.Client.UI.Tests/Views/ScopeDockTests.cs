@@ -380,6 +380,41 @@ public class ScopeDockTests
     }
 
     [AvaloniaFact]
+    public async Task TheCrrCard_ListsEachGroupAndItsMembers_AndFollowsAGroupChange()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel ac = ScopeTestFixture.AddAircraft(main, "UAL1549", 9000);
+            ac.EramCrrGroup = "A";
+            main.ApplyCrrGroups([new EramCrrGroupHubDto("A", "Coral", 37.5, -122.2)]);
+
+            main.RunViewCommand(".view crr on");
+            Settle(window);
+
+            Assert.True(scope.IsViewOpen(ScopeToolbarButtons.ViewCrrName));
+            ScopeViewCard card = CardOf(window, ScopeToolbarButtons.ViewCrrName);
+            Assert.Contains("CRR", Texts(card));
+            Assert.Contains("A", Texts(card));
+            Assert.Contains("UAL1549   12.0", Texts(card));
+
+            main.ApplyCrrGroups([new EramCrrGroupHubDto("A", "Coral", 37.5, -122.2), new EramCrrGroupHubDto("B", "Green", 37.0, -122.0)]);
+            Settle(window);
+
+            Assert.Contains("B", Texts(card));
+
+            main.RunViewCommand(".view crr off");
+            Settle(window);
+
+            Assert.DoesNotContain(Cards(window), c => c.ViewName == ScopeToolbarButtons.ViewCrrName);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ARemovedAircraft_LeavesTheRpoQueue()
     {
         (MainViewModel main, _, ScopeWindow window) = await OpenAsync();

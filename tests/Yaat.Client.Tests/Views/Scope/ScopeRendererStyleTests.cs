@@ -526,6 +526,108 @@ public class ScopeRendererStyleTests
         return false;
     }
 
+    [Fact]
+    public void CrrReadout_DrawsItsDistanceInTheGroupColourAtFdb_BesideTheSymbol()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeFrame frame = CrrFrame(hovered: false);
+        SKRect rect = Assert.IsType<ScopeCrrReadoutView>(Assert.Single(frame.Tracks).CrrReadout).Rect;
+
+        using SKBitmap bitmap = Render(frame, ScopeBrightness.Default);
+
+        SKColor coral = ScopeBrightness.Apply(ScopeCrrReadout.Coral, ScopeBrightness.Default.Fdb);
+        Assert.True(AnyPixel(bitmap, SKRectI.Ceiling(rect, true), coral), "no group-coloured pixel in the range data block");
+    }
+
+    [Fact]
+    public void CrrReadout_FdbZero_DrawsNothing()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeFrame frame = CrrFrame(hovered: false);
+        var area = SKRectI.Ceiling(Assert.IsType<ScopeCrrReadoutView>(Assert.Single(frame.Tracks).CrrReadout).Rect, true);
+
+        using SKBitmap bitmap = Render(frame, ScopeBrightness.Default with { Fdb = 0 });
+
+        for (int y = area.Top; y < area.Bottom; y++)
+        {
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                SKColor c = bitmap.GetPixel(x, y);
+                Assert.False((c.Red > c.Green) && (c.Blue > c.Green), $"a coral-hued pixel at ({x},{y}): {c}");
+            }
+        }
+    }
+
+    [Fact]
+    public void CrrReadout_ADwelledTrack_DrawsAtFdbLiftedByDwell()
+    {
+        using var pin = RadarBlinkPin.Phase(true);
+        ScopeFrame frame = CrrFrame(hovered: true);
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        Assert.True(track.IsDwelled);
+        SKRect rect = Assert.IsType<ScopeCrrReadoutView>(track.CrrReadout).Rect;
+        ScopeBrightness brightness = ScopeBrightness.Default with { Fdb = 50 };
+
+        using SKBitmap bitmap = Render(frame, brightness);
+
+        int lifted = ScopeBrightness.Lift(brightness.Fdb, brightness.Dwell);
+        Assert.NotEqual(brightness.Fdb, lifted);
+        SKColor coral = ScopeBrightness.Apply(ScopeCrrReadout.Coral, lifted);
+        Assert.True(AnyPixel(bitmap, SKRectI.Ceiling(rect, true), coral), "no pixel of the dwell-lifted group colour in the range data block");
+    }
+
+    /// <summary>One ERAM track in CRR group A (coral, 12 nm south), hovered or not.</summary>
+    private static ScopeFrame CrrFrame(bool hovered)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.EramCrrGroup = "A";
+        using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            [ac],
+            null,
+            Viewport(),
+            ScopeTemplates.EramId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay,
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>(),
+            MvaFacilityId: null,
+            OthersLevel: ScopeProfile.OthersFull,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache(),
+            HoveredCallsign: hovered ? ac.Callsign : null,
+            CrrGroups: [new EramCrrGroupHubDto("A", "Coral", 36.8, -122.0)]
+        );
+        return ScopeFrame.Build(input);
+    }
+
+    private static SKBitmap Render(ScopeFrame frame, ScopeBrightness brightness)
+    {
+        var bitmap = new SKBitmap(Width, Height);
+        using var canvas = new SKCanvas(bitmap);
+        using var renderer = new ScopeRenderer();
+        var snapshot = new ScopeRenderSnapshot(
+            frame,
+            [],
+            new Dictionary<string, string>(),
+            brightness,
+            FontSize,
+            NoTints,
+            [],
+            null,
+            new Dictionary<int, SKRect>(),
+            null
+        );
+        renderer.Render(canvas, Viewport(), snapshot);
+        canvas.Flush();
+        return bitmap;
+    }
+
     private static ScopeFrame Frame(AircraftModel ac, bool selected, ScopeDisplayOptions display) =>
         Frame(ac, selected, display, new HashSet<string>());
 
