@@ -62,7 +62,7 @@ public class ScopeDeconflictionTests
     }
 
     private static ScopeFrame Deconflicted(DatablockDeconflictMode mode, IReadOnlyList<AircraftModel> aircraft, FrameSetup setup = default) =>
-        Frame(aircraft, setup, input => new ScopeDeconfliction().Build(mode, input));
+        Frame(aircraft, setup, input => new ScopeDeconfliction().Build(mode, input, step: true));
 
     private static ScopeFrame Plain(IReadOnlyList<AircraftModel> aircraft, FrameSetup setup = default) => Frame(aircraft, setup, ScopeFrame.Build);
 
