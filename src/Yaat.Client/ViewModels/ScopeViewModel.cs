@@ -167,6 +167,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         SaveStateFor(_stateFacility);
         Main.PropertyChanged -= OnMainPropertyChanged;
         Main.Measure.PropertyChanged -= OnMeasurePropertyChanged;
+        ClearMinSep();
         StopWaitingForSeed();
         StopViews();
     }

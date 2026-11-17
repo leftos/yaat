@@ -648,6 +648,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 /// <param name="RangeBearingLines">The measure lines taken on the Scope, resolved for this frame.</param>
 /// <param name="PendingRangeBearingLine">The half-placed measure line picked on the Scope, to the cursor; null for none.</param>
 /// <param name="RblReadoutRects">Each measure readout's placed rect, by slot (0 for the half-placed line).</param>
+/// <param name="MinSep">The STARS min-sep pair and its projection; null for none.</param>
 public sealed record ScopeRenderSnapshot(
     ScopeFrame Frame,
     IReadOnlyList<VideoMapData> VideoMaps,
@@ -657,7 +658,8 @@ public sealed record ScopeRenderSnapshot(
     ScopePalette Palette,
     IReadOnlyList<ResolvedRbl> RangeBearingLines,
     ResolvedRbl? PendingRangeBearingLine,
-    IReadOnlyDictionary<int, SKRect> RblReadoutRects
+    IReadOnlyDictionary<int, SKRect> RblReadoutRects,
+    ScopeMinSep? MinSep
 );
 
 /// <summary>The user-chosen colours a frame draws with; the render thread reads no preferences.</summary>
@@ -729,6 +731,8 @@ public sealed class ScopeRenderer : IDisposable
 
     private readonly VideoMapRenderer _videoMapRenderer = new();
     private readonly RangeBearingRenderer _rangeBearingRenderer = new();
+
+    private readonly MinSepRenderer _minSepRenderer = new();
 
     private readonly SKPaint _symbolPaint = new()
     {
@@ -905,6 +909,7 @@ public sealed class ScopeRenderer : IDisposable
 
         // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE, as on the Radar.
         _rangeBearingRenderer.Draw(canvas, vp, snapshot.RangeBearingLines, snapshot.PendingRangeBearingLine, snapshot.RblReadoutRects);
+        _minSepRenderer.Draw(canvas, vp, snapshot.MinSep);
     }
 
     /// <summary>
@@ -1023,6 +1028,7 @@ public sealed class ScopeRenderer : IDisposable
     {
         _videoMapRenderer.Dispose();
         _rangeBearingRenderer.Dispose();
+        _minSepRenderer.Dispose();
         _ringPaint.Dispose();
         _ringLabelBackingPaint.Dispose();
         _ringTextPaint.Dispose();

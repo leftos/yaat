@@ -290,4 +290,27 @@ public class ScopeEntryClassifierTests
         AssertReads(reading, ScopeEntryKind.Pilot, "PILOT FH");
         Assert.Equal("** FH 270", reading.SendText);
     }
+
+    [Theory]
+    [InlineData(ScopeProfileKind.Stars)]
+    [InlineData(ScopeProfileKind.Mixed)]
+    public void Min_OnStarsOrMixed_ReadsAsTheStarsMinSepEntry(ScopeProfileKind profile) =>
+        Assert.Equal(
+            new ScopeEntryReading(ScopeEntryKind.Stars, "STARS MIN minimum separation", "MIN UAL1 DAL2", true),
+            Read("MIN UAL1 DAL2", profile)
+        );
+
+    [Fact]
+    public void BareMin_OnMixed_ReadsAsStars() => Assert.Equal(ScopeEntryKind.Stars, Read("MIN", ScopeProfileKind.Mixed).Kind);
+
+    [Fact]
+    public void Min_OnMixed_ForAStarsOwnedTrack_ReadsAsStars() =>
+        Assert.Equal(ScopeEntryKind.Stars, ScopeEntryClassifier.Classify("MIN UAL1", ScopeProfileKind.Mixed, ScopeTemplates.StarsId).Kind);
+
+    [Fact]
+    public void Min_OnMixed_ForAnEramOwnedTrack_IsNoStarsEntry() =>
+        Assert.NotEqual(ScopeEntryKind.Stars, ScopeEntryClassifier.Classify("MIN UAL1", ScopeProfileKind.Mixed, ScopeTemplates.EramId).Kind);
+
+    [Fact]
+    public void Min_OnEram_IsNoStarsEntry() => Assert.NotEqual(ScopeEntryKind.Stars, Read("MIN UAL1 DAL2", ScopeProfileKind.Eram).Kind);
 }

@@ -254,6 +254,7 @@ Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, 
 Training/AircraftDebriefCoachingTemplates.cs  # Pure templates: one-line coaching note per completion reason + severity profile, consumed when aggregating per-aircraft debrief blocks from existing findings.
 MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library, memoized on a 0.02° grid (cell-centre eval) per evaluation day; TrueToMagnetic/MagneticToTrue conversion.
                                # Sim state passes the scenario's MagneticModelDateUtc (the day of its SessionStartUtc, recorded with the session so replays never drift); display-only callers use EvaluationDateUtc (the process day, or the day a test process fixed with PinEvaluationDate)
+MinimumSeparation.cs           # Static: Compute(MinSepTrack, MinSepTrack) → MinSepConverging / MinSepDiverging / MinSepInvalid; the STARS min-sep projection (CRC's 5 s steps, at most 760, planar degrees), pure; drawn by the Scope's MinSepRenderer
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Airport visibility envelope AirportVisibilityRangeNm (vis × 0.869 × 1.5 × max(1, AGL/3000ft) — Koschmieder slab; shared by acquire + maintain; traffic keeps the literal cap)

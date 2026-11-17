@@ -21,6 +21,12 @@ internal enum StarsEntryNeed
 
     /// <summary>Bare <c>MF R</c>: the selected aircraft's callsign goes after the translation.</summary>
     SelectedTrack,
+
+    /// <summary>
+    /// <c>MIN</c>: the Scope's own min-sep readout, run on the Scope and never sent: bare it clears the pair, with two tracks it
+    /// shows theirs, and with one it answers that two are needed.
+    /// </summary>
+    MinimumSeparation,
 }
 
 /// <summary>A STARS entry's reading: its first word, the YAAT command it translates to (null when not supported) and its gloss.</summary>
@@ -34,6 +40,9 @@ internal sealed record StarsEntryRead(string FirstWord, string? Translation, str
 
     /// <summary>The callsign typed after the entry, or null when the entry acts on the selected aircraft.</summary>
     public string? Callsign { get; init; }
+
+    /// <summary>The second callsign typed after a <c>MIN</c> entry, or null.</summary>
+    public string? SecondCallsign { get; init; }
 
     /// <summary>The ring kind of a <c>*J</c>/<c>*P</c> entry; <see cref="ScopeRingTool.None"/> otherwise.</summary>
     public ScopeRingTool Ring { get; init; }
@@ -188,10 +197,23 @@ internal static partial class StarsEntryParser
             "MF" => ReadMultiFunc(words),
             "CA" => ReadCa(words),
             "RANGE" => ReadRange(words),
-            "MAPS" or "MIN" => Unsupported(words[0]),
+            "MAPS" => Unsupported(words[0]),
+            "MIN" => ReadMinSep(words),
             "UN" => ReadUn(words),
             _ => null,
         };
+
+    // MIN [callsign [callsign]]: the Scope's min-sep readout. The translation is the entry as typed, upper-cased: it is run on
+    // the Scope, never sent. The gloss is hand-written, as the range row's is: min sep is no YAAT command.
+    private static StarsEntryRead ReadMinSep(string[] words) =>
+        ((words.Length <= 3) && words.Skip(1).All(IsCallsign))
+            ? new StarsEntryRead(words[0], string.Join(' ', words), "minimum separation")
+            {
+                Need = StarsEntryNeed.MinimumSeparation,
+                Callsign = words.ElementAtOrDefault(1),
+                SecondCallsign = words.ElementAtOrDefault(2),
+            }
+            : Unsupported(words[0]);
 
     // TERM ALL has no YAAT command (no drop-all verb).
     private static StarsEntryRead ReadTerm(string[] words) =>

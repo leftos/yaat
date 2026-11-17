@@ -80,9 +80,9 @@ public class ScopeRendererStyleTests
         return ScopeFrame.Build(input);
     }
 
-    private static SKBitmap Render(ScopeFrame frame) => Render(frame, Viewport());
+    private static SKBitmap Render(ScopeFrame frame) => Render(frame, Viewport(), null);
 
-    private static SKBitmap Render(ScopeFrame frame, MapViewport viewport)
+    private static SKBitmap Render(ScopeFrame frame, MapViewport viewport, ScopeMinSep? minSep)
     {
         var bitmap = new SKBitmap(Width, Height);
         using var canvas = new SKCanvas(bitmap);
@@ -96,7 +96,8 @@ public class ScopeRendererStyleTests
             NoTints,
             [],
             null,
-            new Dictionary<int, SKRect>()
+            new Dictionary<int, SKRect>(),
+            minSep
         );
         renderer.Render(canvas, viewport, snapshot);
         canvas.Flush();
@@ -388,6 +389,71 @@ public class ScopeRendererStyleTests
         Assert.False(AnyLit(plain, PixelsOf(indicator)), "the indicator cell is not blank without the style");
     }
 
+    // A point east and north of the viewport's centre, in NM; the default viewport draws about 83 px a NM.
+    private static LatLon MinSepAt(double eastNm, double northNm) =>
+        new(37.0 + (northNm / 60.0), -122.0 + (eastNm / (60.0 * Math.Cos(37.0 * Math.PI / 180.0))));
+
+    private static ScopeMinSep MinSepPair(LatLon a, double trackA, LatLon b, double trackB) =>
+        new("UAL1", "DAL2", a, b, MinimumSeparation.Compute(new MinSepTrack(a, trackA, 240), new MinSepTrack(b, trackB, 240)));
+
+    private static SKRectI Around(SKPoint p, int halfWidth, int top, int bottom) =>
+        new((int)p.X - halfWidth, (int)p.Y + top, (int)p.X + halfWidth, (int)p.Y + bottom);
+
+    private static SKPoint ScreenOf(LatLon p)
+    {
+        (float x, float y) = Viewport().LatLonToScreen(p.Lat, p.Lon);
+        return new SKPoint(x, y);
+    }
+
+    // Any near-white pixel: every channel past 200.
+    private static bool AnyWhite(SKBitmap bitmap, SKRectI area)
+    {
+        for (int y = area.Top; y < area.Bottom; y++)
+        {
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                SKColor c = bitmap.GetPixel(x, y);
+                if ((c.Red > 200) && (c.Green > 200) && (c.Blue > 200))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Reciprocal tracks 2 NM apart laterally: the predicted points are abeam, 2 NM apart, the label box between them.
+    [Fact]
+    public void MinSep_Converging_DrawsBothPredictedPointsAndTheBoxedReadout()
+    {
+        ScopeMinSep pair = MinSepPair(MinSepAt(-3, -1), 90, MinSepAt(3, 1), 270);
+        MinSepConverging converging = Assert.IsType<MinSepConverging>(pair.Result);
+        SKPoint pa = ScreenOf(converging.PointA);
+        SKPoint pb = ScreenOf(converging.PointB);
+        var mid = new SKPoint((pa.X + pb.X) / 2, (pa.Y + pb.Y) / 2);
+
+        using SKBitmap bitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, []), Viewport(), pair);
+
+        Assert.True(AnyWhite(bitmap, Around(pa, 1, -1, 2)), "no white marker at the first predicted point");
+        Assert.True(AnyWhite(bitmap, Around(pb, 1, -1, 2)), "no white marker at the second predicted point");
+        // The readout's text, either side of the line between the points, which the box's fill covers.
+        Assert.True(AnyWhite(bitmap, new SKRectI((int)mid.X - 20, (int)mid.Y - 5, (int)mid.X - 3, (int)mid.Y + 5)), "no readout in the box");
+    }
+
+    // Tracks pointing apart along one line: the line between them runs through the box at its middle row only.
+    [Fact]
+    public void MinSep_Diverging_DrawsTheNoXingBox()
+    {
+        ScopeMinSep pair = MinSepPair(MinSepAt(-2, 0), 270, MinSepAt(2, 0), 90);
+        Assert.IsType<MinSepDiverging>(pair.Result);
+        SKPoint mid = ScreenOf(MinSepAt(0, 0));
+
+        using SKBitmap bitmap = Render(new ScopeFrame(ScopeTemplates.StarsId, []), Viewport(), pair);
+
+        Assert.True(AnyWhite(bitmap, Around(mid, 20, -12, -3)), "no NO XING text above the line in the box");
+        Assert.True(AnyWhite(bitmap, Around(mid, 20, 3, 12)), "no distance text below the line in the box");
+    }
+
     // The pilot lens's colour, duplicated rather than exposed.
     private static readonly SKColor LensMagenta = new(255, 0, 255);
 
@@ -503,7 +569,8 @@ public class ScopeRendererStyleTests
             palette,
             [],
             null,
-            new Dictionary<int, SKRect>()
+            new Dictionary<int, SKRect>(),
+            null
         );
         renderer.Render(canvas, Viewport(), snapshot);
         canvas.Flush();
@@ -538,7 +605,7 @@ public class ScopeRendererStyleTests
         ac.FlightRules = "IFR";
         MapViewport viewport = Viewport(Koak.Lat, Koak.Lon);
         ScopeFrame frame = Frame(ac, viewport);
-        return (FieldOf(frame, ScopeFieldSlot.Altitude), Render(frame, viewport));
+        return (FieldOf(frame, ScopeFieldSlot.Altitude), Render(frame, viewport, null));
     }
 
     private static ScopeFrame WithoutStyle(ScopeFrame frame)

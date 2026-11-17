@@ -91,7 +91,8 @@ public class ScopeDwellTests
                 NoTints,
                 [],
                 null,
-                new Dictionary<int, SKRect>()
+                new Dictionary<int, SKRect>(),
+                null
             )
         );
         canvas.Flush();

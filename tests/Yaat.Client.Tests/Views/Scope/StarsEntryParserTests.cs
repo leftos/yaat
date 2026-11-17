@@ -137,7 +137,8 @@ public class StarsEntryParserTests
     [InlineData("/0", "/0")]
     [InlineData("MAPS 12", "MAPS")]
     [InlineData("MAPS", "MAPS")]
-    [InlineData("MIN", "MIN")]
+    [InlineData("MIN 123", "MIN")]
+    [InlineData("MIN UAL1 DAL2 SWA3", "MIN")]
     [InlineData("RANGE", "RANGE")]
     [InlineData("+ABCDE", "+ABCDE")]
     [InlineData("++000", "++000")]
@@ -152,6 +153,22 @@ public class StarsEntryParserTests
         Assert.False(read.Supported);
         Assert.Null(read.Translation);
         Assert.Equal(firstWord, read.FirstWord);
+    }
+
+    [Theory]
+    [InlineData("MIN", null, null)]
+    [InlineData("MIN UAL1", "UAL1", null)]
+    [InlineData("min ual1 dal2", "UAL1", "DAL2")]
+    public void Min_ReadsAsTheMinSepEntry_WithItsTypedTracks(string entry, string? first, string? second)
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
+
+        Assert.True(read.Supported);
+        Assert.Equal("MIN", read.FirstWord);
+        Assert.Equal("minimum separation", read.Gloss);
+        Assert.Equal(StarsEntryNeed.MinimumSeparation, read.Need);
+        Assert.Equal(first, read.Callsign);
+        Assert.Equal(second, read.SecondCallsign);
     }
 
     [Theory]

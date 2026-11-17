@@ -154,6 +154,9 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<RangeBearingLine>?
     >(nameof(RangeBearingLines));
 
+    /// <summary>The STARS min-sep pair and its projection (<see cref="ScopeViewModel.MinSep"/>), or null when none is shown.</summary>
+    public static readonly StyledProperty<ScopeMinSep?> MinSepProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeMinSep?>(nameof(MinSep));
+
     /// <summary>The first endpoint of a half-placed measurement; its preview draws here only when it was picked on the Scope.</summary>
     public static readonly StyledProperty<RblPendingAnchor?> MeasureAnchorProperty = AvaloniaProperty.Register<ScopeCanvas, RblPendingAnchor?>(
         nameof(MeasureAnchor)
@@ -329,6 +332,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         set => SetValue(RangeBearingLinesProperty, value);
     }
 
+    public ScopeMinSep? MinSep
+    {
+        get => GetValue(MinSepProperty);
+        set => SetValue(MinSepProperty, value);
+    }
+
     public RblPendingAnchor? MeasureAnchor
     {
         get => GetValue(MeasureAnchorProperty);
@@ -477,7 +486,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             palette,
             lines,
             pending,
-            PlaceRblReadouts(frame, lines, pending)
+            PlaceRblReadouts(frame, lines, pending),
+            MinSep
         );
     }
 
@@ -645,9 +655,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         || (property == ShowTopDownProperty)
         || (property == TdmOnlyMapIdsProperty);
 
-    /// <summary>Whether <paramref name="property"/> sets the measuring tool's state, which draws over the frame.</summary>
+    /// <summary>Whether <paramref name="property"/> sets the measuring tool's or the min-sep pair's state, which draws over the frame.</summary>
     private static bool IsMeasureProperty(AvaloniaProperty property) =>
-        (property == IsMeasuringProperty) || (property == RangeBearingLinesProperty) || (property == MeasureAnchorProperty);
+        (property == IsMeasuringProperty)
+        || (property == RangeBearingLinesProperty)
+        || (property == MeasureAnchorProperty)
+        || (property == MinSepProperty);
 
     /// <summary>
     /// Watches the traffic list only while in the visual tree, so a closed scope never stays rooted by the main view

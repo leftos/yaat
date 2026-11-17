@@ -48,6 +48,9 @@ internal static class ScopeEntryClassifier
 
     private const string OverridePrefix = "** ";
 
+    /// <summary>The STARS min-sep entry's word, which reads as STARS on Mixed while no track decides the dialect.</summary>
+    private const string MinSepWord = "MIN";
+
     /// <summary>The leading characters of an implied ERAM VCI toggle: <c>//{FLID}</c>.</summary>
     private const string VciPrefix = "//";
 
@@ -90,15 +93,24 @@ internal static class ScopeEntryClassifier
             return ReadPilot(trimmed[OverridePrefix.Length..].TrimStart(), trimmed);
         }
 
-        return ReadDialect(trimmed, verb, DialectOf(profile, ownerTemplateId));
+        return ReadDialect(trimmed, verb, DialectOf(profile, ownerTemplateId, verb));
     }
 
     /// <summary>
     /// The dialect an entry reads in: on Mixed, the owner kind of the track the entry is for decides it, so a STARS-owned track
-    /// (<paramref name="ownerTemplateId"/> is <see cref="ScopeTemplates.StarsId"/>) reads as STARS; else the profile's own.
+    /// (<paramref name="ownerTemplateId"/> is <see cref="ScopeTemplates.StarsId"/>) reads as STARS; a <c>MIN</c> entry with no
+    /// track yet reads as STARS too, as ERAM has no MIN; else the profile's own.
     /// </summary>
-    private static ScopeProfileKind DialectOf(ScopeProfileKind profile, string? ownerTemplateId) =>
-        ((profile == ScopeProfileKind.Mixed) && (ownerTemplateId == ScopeTemplates.StarsId)) ? ScopeProfileKind.Stars : profile;
+    private static ScopeProfileKind DialectOf(ScopeProfileKind profile, string? ownerTemplateId, string verb) =>
+        (
+            (profile == ScopeProfileKind.Mixed)
+            && (
+                (ownerTemplateId == ScopeTemplates.StarsId)
+                || ((ownerTemplateId is null) && string.Equals(verb, MinSepWord, StringComparison.OrdinalIgnoreCase))
+            )
+        )
+            ? ScopeProfileKind.Stars
+            : profile;
 
     /// <summary>
     /// Reads <paramref name="trimmed"/> in the profile's dialect: a STARS entry on STARS; on ERAM and Mixed, a verb the server

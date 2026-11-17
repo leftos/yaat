@@ -308,7 +308,8 @@ public class ScopeAltitudeMismatchTests
             new ScopePalette(null, null, SKColors.White),
             [],
             null,
-            new Dictionary<int, SKRect>()
+            new Dictionary<int, SKRect>(),
+            null
         );
         renderer.Render(canvas, Viewport(), snapshot);
         canvas.Flush();

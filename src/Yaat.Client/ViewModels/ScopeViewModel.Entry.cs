@@ -207,6 +207,13 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal void FillTrackAndRun(string callsign)
     {
+        // The second track of a MIN entry runs it already, the first track again included.
+        if (CompletesMinSep(callsign))
+        {
+            FillTrackFromClick(callsign);
+            return;
+        }
+
         FillTrack(callsign);
         RunEntry(OwnerTemplateIdOf(callsign));
     }
@@ -238,12 +245,17 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Whether a left click fills the entry: text in the preview, the Rings tool not armed, and, on a track
-    /// (<paramref name="callsign"/> not null), a fill that would change the entry (<see cref="ScopeEntryFill.ChangesTrack"/>).
+    /// (<paramref name="callsign"/> not null), the second track of a <c>MIN</c> entry (<see cref="CompletesMinSep"/>, even the
+    /// first track again) or a fill that would change the entry (<see cref="ScopeEntryFill.ChangesTrack"/>).
     /// </summary>
     internal bool FillsOnLeftClick(string? callsign) =>
         (EntryText.Length > 0)
         && !IsRingToolArmed
-        && ((callsign is null) || ScopeEntryFill.ChangesTrack(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign));
+        && (
+            (callsign is null)
+            || CompletesMinSep(callsign)
+            || ScopeEntryFill.ChangesTrack(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign)
+        );
 
     private bool IsKnownCallsign(string word) => Main.Aircraft.Any(a => string.Equals(a.Callsign, word, StringComparison.OrdinalIgnoreCase));
 
@@ -392,6 +404,12 @@ public sealed partial class ScopeViewModel
         {
             Main.AddHistory("", entry);
             EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, NotSupportedMessage, entry, []);
+            return;
+        }
+
+        // MIN runs on the Scope (ScopeViewModel.MinSep.cs) and sends nothing.
+        if ((reading.Kind == ScopeEntryKind.Stars) && TryRunMinSep(entry))
+        {
             return;
         }
 

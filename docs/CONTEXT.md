@@ -912,6 +912,9 @@ A hold of an ERAM data block at Dwell, toggled by left-clicking its callsign (Fi
 **Pilot lens**:
 YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path (PATH), queued pilot commands (QUEUE, a count badge with the pending lines on hover), actual check-in state (CHECKIN, a tag: an open request, no call, VCI mismatch), the RPO queue view. Off by default; the PILOT LENS menu (`.scope lens`) switches it.
 
+**Min sep**:
+The STARS minimum separation readout on the YAAT Scope (`MIN`): for one pair of tracks, the lateral closest approach their current ground tracks and speeds project, drawn as the predicted points and boxed as `0.00 NM`, or `NO XING` over the current distance when they do not close. One pair at a time, the Scope's own, never saved; not a conflict alert.
+
 **Scope entry**:
 Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.
 

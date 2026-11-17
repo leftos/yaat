@@ -37,6 +37,7 @@
       IsMeasuring="{Binding Measure.IsMeasuring}"
       RangeBearingLines="{Binding Measure.Lines}"
       MeasureAnchor="{Binding Measure.Anchor}"
+      MinSep="{Binding MinSep}"
     />
     <!-- The entry areas: drawn over the canvas, never hit. -->
     <scope:ScopeEntryLayer x:Name="EntryLayer" />

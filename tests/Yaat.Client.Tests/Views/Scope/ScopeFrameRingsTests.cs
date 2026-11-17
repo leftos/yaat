@@ -82,7 +82,8 @@ public class ScopeFrameRingsTests
                 new ScopePalette(null, null, SKColors.White),
                 [],
                 null,
-                new Dictionary<int, SKRect>()
+                new Dictionary<int, SKRect>(),
+                null
             )
         );
         canvas.Flush();

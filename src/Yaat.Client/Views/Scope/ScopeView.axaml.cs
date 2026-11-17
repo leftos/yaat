@@ -336,12 +336,13 @@ public partial class ScopeView : UserControl
         }
     }
 
-    // A left click on a track with text in the preview: the track fills the entry and is selected.
+    // A left click on a track with text in the preview: the track fills the entry (the second track of a MIN entry runs it) and
+    // is selected.
     private void OnAircraftFillRequested(string callsign)
     {
         if (DataContext is ScopeViewModel vm)
         {
-            vm.FillTrack(callsign);
+            vm.FillTrackFromClick(callsign);
             vm.SelectAircraft(callsign);
         }
     }
