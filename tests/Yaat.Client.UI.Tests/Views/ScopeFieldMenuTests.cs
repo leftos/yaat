@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -7,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.ContextMenus;
@@ -925,16 +927,170 @@ public class ScopeFieldMenuTests
     }
 
     [AvaloniaFact]
-    public void EramHsfPopup_ADisabledRow_KeepsItsLabel_AndFadesItsEntryAndNote()
+    public void EramHsfPopup_ADisabledSetRow_KeepsItsLabel_AndFadesItsEntryAndNote()
     {
         ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, _ => { });
-        Assert.False(popup.RowFor("Clear heading").IsEnabled);
+        Button row = popup.RowFor("Set heading");
+        Assert.False(row.IsEnabled);
 
-        (TextBlock label, TextBlock entry, TextBlock note) = popup.RowPartsFor("Clear heading");
+        (TextBlock label, TextBlock entry, TextBlock note) = popup.RowPartsFor("Set heading");
 
+        Assert.Equal(1, row.Opacity);
         Assert.Equal(NormalLabel, ColorOf(label));
         Assert.Equal(Faded, ColorOf(entry));
         Assert.Equal(Faded, ColorOf(note));
+    }
+
+    // Mock B4: a disabled clear row fades whole, its label, note and entry in their own colours at 40% opacity.
+    [AvaloniaFact]
+    public void EramHsfPopup_ADisabledClearRow_FadesWhole()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, _ => { });
+        Button row = popup.RowFor("Clear heading");
+        Assert.False(row.IsEnabled);
+
+        (TextBlock label, TextBlock entry, TextBlock note) = popup.RowPartsFor("Clear heading");
+
+        Assert.Equal(0.4, row.Opacity, 3);
+        Assert.Equal(NormalLabel, ColorOf(label));
+        Assert.Equal(Color.Parse("#9AA3AD"), ColorOf(entry));
+        Assert.Equal(FlyoutPanelParts.TitleBrush.Color, ColorOf(note));
+        Assert.Equal(1, NewHsf(HsfPopupKind.Combined, WithHsf).RowFor("Clear heading").Opacity);
+    }
+
+    // The dashed outline over a row's content, which only the hovered enabled row shows.
+    private static Rectangle OutlineOf(Button row) => Assert.Single(row.GetLogicalDescendants().OfType<Rectangle>());
+
+    // Moves the pointer onto the centre of a control in an open popup.
+    private static void HoverOver(Control control)
+    {
+        TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(control));
+        Point? at = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), top);
+        Assert.NotNull(at);
+        top.MouseMove(at.Value);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public void EramPopup_AHoveredDisabledRow_ShowsNoOutline()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, _ => { });
+        Window window = OpenInWindow(popup);
+        try
+        {
+            Button row = popup.RowFor("Clear heading");
+            Assert.False(row.IsEnabled);
+
+            HoverOver(row);
+
+            Assert.False(OutlineOf(row).IsVisible, "the hovered disabled row shows the outline");
+        }
+        finally
+        {
+            popup.Close();
+            Dispatcher.UIThread.RunJobs();
+            CloseWindow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramPopup_AHoveredEnabledRow_ShowsADashedOutline()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, WithHsf);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            Button row = popup.RowFor("Clear heading");
+            Assert.True(row.IsEnabled);
+            Rectangle outline = OutlineOf(row);
+            Assert.False(outline.IsVisible, "the outline shows before the pointer reaches the row");
+
+            HoverOver(row);
+
+            Assert.True(row.IsPointerOver, "the row is not under the pointer");
+            Assert.True(outline.IsVisible, "the hovered row shows no outline");
+            Assert.Equal(Color.Parse("#8FC1FF"), Assert.IsAssignableFrom<ISolidColorBrush>(outline.Stroke).Color);
+            Assert.Equal(1, outline.StrokeThickness);
+            Assert.NotEmpty(Assert.IsAssignableFrom<IEnumerable<double>>(outline.StrokeDashArray));
+        }
+        finally
+        {
+            popup.Close();
+            Dispatcher.UIThread.RunJobs();
+            CloseWindow(window);
+        }
+    }
+
+    private static Border BorderOf(TextBox box) => box.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_BorderElement");
+
+    private static Color BrushColor(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
+
+    [AvaloniaFact]
+    public void EramPopup_TheBox_HasTheMockBorder_AndABlueBorderWhenFocused()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, WithHsf);
+        Window window = OpenInWindow(popup);
+        try
+        {
+            TextBox focused = Assert.IsType<TextBox>(popup.HeadingBox);
+            TextBox other = Assert.IsType<TextBox>(popup.SpeedBox);
+            Assert.True(focused.IsFocused, "the heading box has no focus");
+            Assert.False(other.IsFocused);
+
+            Border plain = BorderOf(other);
+            Assert.Equal(Color.Parse("#5A5A5A"), BrushColor(plain.BorderBrush));
+            Assert.Equal(new Thickness(1), plain.BorderThickness);
+            Assert.Equal(new CornerRadius(4), plain.CornerRadius);
+            Assert.Equal(Color.Parse("#1E1E1E"), BrushColor(plain.Background));
+
+            HoverOver(other);
+            Assert.True(other.IsPointerOver, "the speed box is not under the pointer");
+            Border hovered = BorderOf(other);
+            Assert.Equal(Color.Parse("#5A5A5A"), BrushColor(hovered.BorderBrush));
+            Assert.Equal(new Thickness(1), hovered.BorderThickness);
+            Assert.Equal(Color.Parse("#1E1E1E"), BrushColor(hovered.Background));
+
+            Border lit = BorderOf(focused);
+            Assert.Equal(Color.Parse("#4A9EFF"), BrushColor(lit.BorderBrush));
+            Assert.Equal(new Thickness(2), lit.BorderThickness);
+            Assert.Equal(new CornerRadius(4), lit.CornerRadius);
+            Assert.Equal(Color.Parse("#1E1E1E"), BrushColor(lit.Background));
+        }
+        finally
+        {
+            popup.Close();
+            Dispatcher.UIThread.RunJobs();
+            CloseWindow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EramHsfPopup_TheChip_TheSectionRule_AndTheCaptions_MatchTheMock()
+    {
+        ScopeDataHsfPopup popup = NewHsf(HsfPopupKind.Combined, _ => { });
+        Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
+        List<Border> borders = [.. content.GetLogicalDescendants().OfType<Border>()];
+
+        Border chip = borders.First(b => b.Child is TextBlock { Text: "ERAM" });
+        Assert.Equal(40, chip.Width);
+        Assert.Equal(18, chip.Height);
+        Assert.Equal(default, chip.CornerRadius);
+
+        Border rule = Assert.Single(
+            borders,
+            b => (b.Height == 1) && (b.Background is ISolidColorBrush { Color: var c }) && (c == Color.Parse("#4A4A4A"))
+        );
+        Assert.Equal(new Thickness(2, 8, 2, 2), rule.Margin);
+
+        foreach (string caption in new[] { "HEADING", "SPEED" })
+        {
+            TextBlock text = Assert.Single(content.GetLogicalDescendants().OfType<TextBlock>(), t => t.Text == caption);
+            Assert.Equal(Color.Parse("#CFD5DC"), ColorOf(text));
+        }
+
+        Control freeText = Assert.IsAssignableFrom<Control>(NewHsf(HsfPopupKind.FreeText, _ => { }).Popup.Child);
+        TextBlock freeTextCaption = Assert.Single(freeText.GetLogicalDescendants().OfType<TextBlock>(), t => t.Text == "FREE TEXT");
+        Assert.Equal(Color.Parse("#CFD5DC"), ColorOf(freeTextCaption));
     }
 
     // Where a control's left and right edges fall in the row's coordinates.
@@ -1122,8 +1278,18 @@ public class ScopeFieldMenuTests
         window.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
+        return Framed(view, window, OpenPopup(view));
+    }
+
+    // The popup's frame, the block and the window, all in the canvas's coordinates.
+    private static (ScopeView View, Window Window, Rect Popup, Rect Block, Rect Bounds) Framed(
+        ScopeView view,
+        Window window,
+        ScopeDataPopupBase popup
+    )
+    {
         SKRect block = Assert.Single(view.Canvas.CurrentFrame.Tracks).Block.Bounds;
-        Control content = Assert.IsAssignableFrom<Control>(OpenPopup(view).Popup.Child);
+        Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
         PixelPoint canvasAt = view.Canvas.PointToScreen(new Point(0, 0));
         PixelPoint contentAt = content.PointToScreen(new Point(0, 0));
         PixelPoint windowAt = window.PointToScreen(new Point(0, 0));
@@ -1177,6 +1343,92 @@ public class ScopeFieldMenuTests
             Assert.True(bounds.Contains(popup), $"the popup {popup} leaves the window {bounds}");
             Assert.True(popup.Top >= block.Bottom, $"the popup's top {popup.Top} is above the block's bottom {block.Bottom}");
             Assert.True(popup.Left < block.Left, $"the popup at {popup.Left} is not shifted left of the block at {block.Left}");
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // Shows the ERAM scope in a 1400 x 800 window, adds UAL238 with its target where `target` puts it on the canvas, opens its
+    // line-4 popup (Heading and Speed, 600 high) at its block, and answers the popup's frame, the block and the window.
+    private static Task<(ScopeView View, Window Window, Rect Popup, Rect Block, Rect Bounds)> OpenCombinedPlacedAsync(Func<Rect, Point> target) =>
+        OpenCombinedPlacedAsync(target, 1400);
+
+    // As the other overload, in a window `width` wide.
+    private static async Task<(ScopeView View, Window Window, Rect Popup, Rect Block, Rect Bounds)> OpenCombinedPlacedAsync(
+        Func<Rect, Point> target,
+        double width
+    )
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope(ScopeTemplates.EramId, width, 800);
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        AddAt(main, view.Canvas, WithHsf, target(view.Canvas.Bounds));
+        view.OnFieldClicked("UAL238", ScopeFieldAction.OpenEramHsfMenu, default, KeyModifiers.None);
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        return Framed(view, window, OpenHsf(view));
+    }
+
+    private static void AssertBesideInside(Rect popup, Rect block, Rect bounds)
+    {
+        Assert.False(popup.Intersects(block), $"the popup {popup} covers the block {block}");
+        Assert.True(popup.Top >= bounds.Top, $"the popup's top {popup.Top} is above the window's {bounds.Top}");
+        Assert.True(popup.Bottom <= bounds.Bottom, $"the popup's bottom {popup.Bottom} is below the window's {bounds.Bottom}");
+    }
+
+    [AvaloniaFact]
+    public async Task EramLine4Click_NoRoomBelowOrAbove_OpensThePopupRightOfTheBlock()
+    {
+        (ScopeView view, Window window, Rect popup, Rect block, Rect bounds) = await OpenCombinedPlacedAsync(c => new Point(300, c.Height / 2));
+        try
+        {
+            Assert.True(popup.Height > bounds.Height - block.Bottom, $"the popup {popup} would fit below the block {block}");
+            Assert.True(popup.Height > block.Top - bounds.Top, $"the popup {popup} would fit above the block {block}");
+            AssertBesideInside(popup, block, bounds);
+            Assert.InRange(popup.Left - block.Right, 3, 5);
+            // Level with the block where the window has room below it, else clamped to the window's bottom.
+            Assert.InRange(popup.Top - Math.Min(block.Top, bounds.Bottom - popup.Height), -1, 1);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramLine4Click_NoRoomBelowAboveOrRight_OpensThePopupLeftOfTheBlock()
+    {
+        (ScopeView view, Window window, Rect popup, Rect block, Rect bounds) = await OpenCombinedPlacedAsync(c => new Point(
+            c.Width - 150,
+            c.Height / 2
+        ));
+        try
+        {
+            AssertBesideInside(popup, block, bounds);
+            Assert.InRange(block.Left - popup.Right, 3, 5);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // A window too narrow for the popup on either side of the block: it opens at the window's left edge, top inside the window.
+    [AvaloniaFact]
+    public async Task EramLine4Click_NoRoomOnAnySide_OpensThePopupAtTheWindowsLeftEdge()
+    {
+        (ScopeView view, Window window, Rect popup, Rect block, Rect bounds) = await OpenCombinedPlacedAsync(
+            c => new Point(c.Width / 2, c.Height / 2),
+            1000
+        );
+        try
+        {
+            Assert.True(popup.Width > bounds.Right - block.Right - 4, $"the popup {popup} would fit right of the block {block}");
+            Assert.True(popup.Width > block.Left - bounds.Left - 4, $"the popup {popup} would fit left of the block {block}");
+            Assert.InRange(popup.Left - bounds.Left, -1, 1);
+            Assert.True(popup.Top >= bounds.Top, $"the popup's top {popup.Top} is above the window's {bounds.Top}");
+            Assert.True(popup.Bottom <= bounds.Bottom, $"the popup's bottom {popup.Bottom} is below the window's {bounds.Bottom}");
         }
         finally
         {

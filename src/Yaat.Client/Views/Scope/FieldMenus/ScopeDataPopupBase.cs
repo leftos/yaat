@@ -4,13 +4,16 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Primitives.PopupPositioning;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Styling;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Views.Scope.Entries;
 
 namespace Yaat.Client.Views.Scope.FieldMenus;
@@ -46,11 +49,22 @@ internal abstract class ScopeDataPopupBase
     private const double PilotRightPadding = 8;
     private const double ScrolledMaxHeight = 600;
     private const double BlockGap = 4;
+    private const double DisabledClearOpacity = 0.4;
     private const string RowClass = "scope-data-row";
+    private const string OutlineClass = "scope-data-outline";
+    private const string BoxClass = "scope-data-box";
+
+    private static readonly ILogger Log = AppLog.CreateLogger("ScopeDataPopupBase");
 
     private static readonly IImmutableSolidColorBrush PanelFill = new ImmutableSolidColorBrush(Color.Parse("#2B2B2B"));
     private static readonly IImmutableSolidColorBrush PanelEdge = new ImmutableSolidColorBrush(Color.Parse("#464646"));
     private static readonly IImmutableSolidColorBrush RuleBrush = new ImmutableSolidColorBrush(Color.Parse("#3D3D3D"));
+    private static readonly IImmutableSolidColorBrush SectionRuleBrush = new ImmutableSolidColorBrush(Color.Parse("#4A4A4A"));
+    private static readonly IImmutableSolidColorBrush SectionCaptionBrush = new ImmutableSolidColorBrush(Color.Parse("#CFD5DC"));
+    private static readonly IImmutableSolidColorBrush OutlineBrush = new ImmutableSolidColorBrush(Color.Parse("#8FC1FF"));
+    private static readonly IImmutableSolidColorBrush BoxFill = new ImmutableSolidColorBrush(Color.Parse("#1E1E1E"));
+    private static readonly IImmutableSolidColorBrush BoxEdge = new ImmutableSolidColorBrush(Color.Parse("#5A5A5A"));
+    private static readonly IImmutableSolidColorBrush BoxFocusEdge = new ImmutableSolidColorBrush(Color.Parse("#4A9EFF"));
     private static readonly IImmutableSolidColorBrush EramBrush = new ImmutableSolidColorBrush(Color.Parse("#58C4E6"));
     private static readonly IImmutableSolidColorBrush PilotBrush = new ImmutableSolidColorBrush(Color.Parse("#E0B84A"));
     private static readonly IImmutableSolidColorBrush LabelBrush = new ImmutableSolidColorBrush(Color.Parse("#E8E8E8"));
@@ -64,6 +78,8 @@ internal abstract class ScopeDataPopupBase
     private readonly List<(string Caption, TextBlock Note, Func<string> NoteNow)> _captionNotes = [];
     private readonly List<IFlyoutPanel> _panels = [];
     private FlyoutLiveTick? _tick;
+    private (Control Anchor, Rect Block)? _placement;
+    private OverlayLayer? _overlay;
 
     /// <param name="flid">The clicked track's callsign, which every entry names last.</param>
     /// <param name="pick">Runs a SCOPE DATA row's entry, or stages it while Shift is held.</param>
@@ -134,7 +150,7 @@ internal abstract class ScopeDataPopupBase
 
     /// <summary>
     /// Opens the popup over <paramref name="anchor"/>, in its overlay layer: below <paramref name="block"/> (in the anchor's
-    /// coordinates) when given, else at the pointer.
+    /// coordinates) when given, or above it, or beside it where neither has room; else at the pointer.
     /// </summary>
     /// <returns>False when the anchor has no overlay layer.</returns>
     public bool Open(Control anchor, Rect? block)
@@ -144,16 +160,27 @@ internal abstract class ScopeDataPopupBase
             return false;
         }
 
+        _placement = null;
         if (block is { } bounds)
         {
             PlaceBelow(bounds);
+            _placement = (anchor, bounds);
         }
 
         Popup.PlacementTarget = anchor;
         overlay.Children.Add(Popup);
-        Popup.Closed += (_, _) => overlay.Children.Remove(Popup);
+        _overlay = overlay;
+        Popup.Closed += LeaveOverlay;
         Popup.IsOpen = true;
         return true;
+    }
+
+    // Once closed, the popup leaves the overlay it opened in, and this handler unsubscribes itself.
+    private void LeaveOverlay(object? sender, EventArgs e)
+    {
+        Popup.Closed -= LeaveOverlay;
+        _overlay?.Children.Remove(Popup);
+        _overlay = null;
     }
 
     /// <summary>Closes the popup.</summary>
@@ -169,6 +196,61 @@ internal abstract class ScopeDataPopupBase
         Popup.PlacementGravity = PopupGravity.BottomRight;
         Popup.PlacementConstraintAdjustment =
             PopupPositionerConstraintAdjustment.FlipY | PopupPositionerConstraintAdjustment.SlideX | PopupPositionerConstraintAdjustment.SlideY;
+    }
+
+    // Decided as the popup opens, before its first frame: its content is measured in the popup, where it is styled and
+    // templated (detached, a ScrollViewer measures empty), against the window in the anchor's coordinates. Where neither below
+    // nor above the block has room, the popup moves beside it (PlaceBeside), so it never covers the block.
+    private void PlaceBesideWhereNoRoom(Control anchor, Rect block)
+    {
+        if (Popup.Child is not { } content)
+        {
+            Log.LogWarning("{Flid} popup has no content to measure; it keeps its below-or-above placement", Flid);
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(anchor) is not { } top)
+        {
+            Log.LogWarning("{Flid} popup's anchor has no TopLevel; it keeps its below-or-above placement", Flid);
+            return;
+        }
+
+        if (anchor.TranslatePoint(default, top) is not { } offset)
+        {
+            Log.LogWarning("{Flid} popup's anchor does not translate to its TopLevel; it keeps its below-or-above placement", Flid);
+            return;
+        }
+
+        content.Measure(Size.Infinity);
+        Size size = content.DesiredSize;
+        var window = new Rect(new Point(-offset.X, -offset.Y), top.ClientSize);
+        bool fitsBelow = (block.Bottom + BlockGap + size.Height) <= window.Bottom;
+        bool fitsAbove = (block.Top - BlockGap - size.Height) >= window.Top;
+        if ((!fitsBelow) && (!fitsAbove))
+        {
+            PlaceBeside(BesideAt(block, size, window));
+        }
+    }
+
+    // The popup's top-left beside the block: its left edge 4 px right of the block where it fits there, else its right edge
+    // 4 px left of it, and at the window's left edge where it fits on neither side; its top level with the block's, clamped
+    // inside the window.
+    private static Point BesideAt(Rect block, Size size, Rect window)
+    {
+        double right = block.Right + BlockGap;
+        double x = ((right + size.Width) <= window.Right) ? right : Math.Max(window.Left, block.Left - BlockGap - size.Width);
+        double y = Math.Max(window.Top, Math.Min(block.Top, window.Bottom - size.Height));
+        return new Point(x, y);
+    }
+
+    // The popup's top-left at `at`, in the anchor's coordinates, slid only up or down, never across the block.
+    private void PlaceBeside(Point at)
+    {
+        Popup.Placement = PlacementMode.AnchorAndGravity;
+        Popup.PlacementRect = new Rect(at, new Size(1, 1));
+        Popup.PlacementAnchor = PopupAnchor.TopLeft;
+        Popup.PlacementGravity = PopupGravity.BottomRight;
+        Popup.PlacementConstraintAdjustment = PopupPositionerConstraintAdjustment.SlideY;
     }
 
     /// <summary>Runs once the focus box has the focus as the popup opens.</summary>
@@ -207,7 +289,8 @@ internal abstract class ScopeDataPopupBase
     }
 
     /// <summary>
-    /// Shows each caption's note, and each row's entry, or its elided text, faded and disabled, while it has none.
+    /// Shows each caption's note, and each row's entry, or its elided text, disabled, while it has none: a clear row then fades
+    /// whole, to 40% opacity; any other row keeps its label and fades its entry and note.
     /// </summary>
     protected void Present()
     {
@@ -219,11 +302,14 @@ internal abstract class ScopeDataPopupBase
         foreach (Row row in _rows)
         {
             string? entry = row.EntryNow();
-            row.Button.IsEnabled = entry is not null;
+            bool disabled = entry is null;
+            bool fadesParts = (disabled) && (!row.FadesWhole);
+            row.Button.IsEnabled = !disabled;
+            row.Button.Opacity = ((disabled) && (row.FadesWhole)) ? DisabledClearOpacity : 1;
             row.Entry.Text = ScopeEramKeys.ToDisplay(ScopeEramKeys.MapTyped(entry ?? row.Elided));
-            row.Entry.Foreground = (entry is null) ? FadedBrush : EntryBrush;
-            row.Note.Foreground = (entry is null) ? FadedBrush : FlyoutPanelParts.TitleBrush;
-            row.Note.Text = (entry is null) ? row.DisabledNote() : row.EnabledNote();
+            row.Entry.Foreground = fadesParts ? FadedBrush : EntryBrush;
+            row.Note.Foreground = fadesParts ? FadedBrush : FlyoutPanelParts.TitleBrush;
+            row.Note.Text = disabled ? row.DisabledNote() : row.EnabledNote();
         }
     }
 
@@ -240,10 +326,11 @@ internal abstract class ScopeDataPopupBase
 
     /// <summary>
     /// Adds a clear row to <paramref name="column"/>: <paramref name="label"/> and <paramref name="note"/> left and
-    /// <paramref name="entry"/> right, enabled while <paramref name="isSet"/> holds; disabled it reads <see cref="NoneSet"/>.
+    /// <paramref name="entry"/> right, enabled while <paramref name="isSet"/> holds; disabled it reads <see cref="NoneSet"/> and
+    /// fades whole.
     /// </summary>
     protected void AddClearRow(StackPanel column, string label, string note, Func<bool> isSet, string entry) =>
-        Add(column, new Row(label, (() => note, () => NoneSet), () => isSet() ? entry : null, entry));
+        Add(column, new Row(label, (() => note, () => NoneSet), () => isSet() ? entry : null, entry) { FadesWhole = true });
 
     private Row RowNamed(string label) => _rows.Find(r => r.Label == label) ?? throw new ArgumentOutOfRangeException(nameof(label), label, "No row.");
 
@@ -254,14 +341,27 @@ internal abstract class ScopeDataPopupBase
         column.Children.Add(row.Button);
     }
 
-    /// <summary>A SCOPE DATA box: its placeholder, 150 wide.</summary>
-    protected static TextBox NewBox(string placeholder) =>
-        new()
+    /// <summary>A SCOPE DATA box: its placeholder, 150 wide, in the mock's frame (the panel's styles).</summary>
+    protected static TextBox NewBox(string placeholder)
+    {
+        var box = new TextBox
         {
             PlaceholderText = placeholder,
             Width = 150,
             Height = 26,
             VerticalAlignment = VerticalAlignment.Center,
+        };
+        box.Classes.Add(BoxClass);
+        return box;
+    }
+
+    /// <summary>The rule between two SCOPE DATA sections.</summary>
+    protected static Border SectionRule() =>
+        new()
+        {
+            Height = 1,
+            Background = SectionRuleBrush,
+            Margin = new Thickness(2, 8, 2, 2),
         };
 
     /// <summary>
@@ -340,7 +440,37 @@ internal abstract class ScopeDataPopupBase
     /// <paramref name="noteNow"/> gives right in the monospace font, read again with the rows; the caption in
     /// <paramref name="weight"/>.
     /// </summary>
-    protected void AddCaption(StackPanel column, string caption, Func<string> noteNow, FontWeight weight)
+    protected void AddCaption(StackPanel column, string caption, Func<string> noteNow, FontWeight weight) =>
+        AddCaptionLine(
+            column,
+            caption,
+            new TextBlock
+            {
+                Text = caption,
+                FontSize = 11,
+                FontWeight = weight,
+                Foreground = FlyoutPanelParts.TitleBrush,
+            },
+            noteNow
+        );
+
+    /// <summary>As <see cref="AddCaption"/> for a section's caption: bold, in the section caption's lighter colour.</summary>
+    protected void AddSectionCaption(StackPanel column, string caption, Func<string> noteNow) =>
+        AddCaptionLine(
+            column,
+            caption,
+            new TextBlock
+            {
+                Text = caption,
+                FontSize = 11,
+                FontWeight = FontWeight.Bold,
+                Foreground = SectionCaptionBrush,
+            },
+            noteNow
+        );
+
+    // The caption line: `title` (which reads `caption`) left, the note `noteNow` gives right.
+    private void AddCaptionLine(StackPanel column, string caption, TextBlock title, Func<string> noteNow)
     {
         var right = new TextBlock
         {
@@ -350,18 +480,7 @@ internal abstract class ScopeDataPopupBase
         };
         FlyoutPanelParts.Mono(right);
         _captionNotes.Add((caption, right, noteNow));
-        column.Children.Add(
-            FlyoutPanelParts.TitleLine(
-                new TextBlock
-                {
-                    Text = caption,
-                    FontSize = 11,
-                    FontWeight = weight,
-                    Foreground = FlyoutPanelParts.TitleBrush,
-                },
-                right
-            )
-        );
+        column.Children.Add(FlyoutPanelParts.TitleLine(title, right));
     }
 
     /// <summary>The ERAM kind chip, <paramref name="box"/> and, right, the faded <see cref="RowsHint"/>.</summary>
@@ -380,10 +499,9 @@ internal abstract class ScopeDataPopupBase
         var chip = new Border
         {
             Width = 40,
-            Height = 22,
+            Height = 18,
             BorderBrush = EramBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
             VerticalAlignment = VerticalAlignment.Center,
             Child = kind,
         };
@@ -416,13 +534,19 @@ internal abstract class ScopeDataPopupBase
         }
     }
 
-    // The PILOT panels reset and follow the aircraft; only the SCOPE DATA box takes the focus, never a panel's own box.
+    // The PILOT panels reset and follow the aircraft; the popup moves beside its block where neither below nor above has room;
+    // only the SCOPE DATA box takes the focus, never a panel's own box.
     private void OnOpened()
     {
         foreach (IFlyoutPanel panel in _panels)
         {
             panel.Reset();
             panel.Refresh();
+        }
+
+        if (_placement is { } placement)
+        {
+            PlaceBesideWhereNoRoom(placement.Anchor, placement.Block);
         }
 
         _tick?.Start();
@@ -469,8 +593,37 @@ internal abstract class ScopeDataPopupBase
         panel.Styles.Add(RowStyle(":pointerover", HoverFill));
         panel.Styles.Add(RowStyle(":pressed", PressedFill));
         panel.Styles.Add(RowStyle(":disabled", Brushes.Transparent));
+        // The hover outline is hidden by a style rather than a local value, which would win over the hover style.
+        panel.Styles.Add(new Style(x => x.OfType<Rectangle>().Class(OutlineClass)) { Setters = { new Setter(Visual.IsVisibleProperty, false) } });
+        panel.Styles.Add(
+            new Style(x => x.OfType<Button>().Class(RowClass).Class(":pointerover").Descendant().OfType<Rectangle>().Class(OutlineClass))
+            {
+                Setters = { new Setter(Visual.IsVisibleProperty, true) },
+            }
+        );
+        panel.Styles.Add(BoxStyle(null, BoxEdge, 1));
+        panel.Styles.Add(BoxStyle(":focus", BoxFocusEdge, 2));
         return panel;
     }
+
+    // The SCOPE DATA box's frame in `state` (none: at rest and hovered), on the template's border, where the Fluent theme sets
+    // its own: the mock's fill and corners, and `edge` `thickness` wide. A style outranks the theme's state setters, so the
+    // rest style holds under the pointer too; a disabled row never gets :pointerover, so the outline style needs no :disabled.
+    private static Style BoxStyle(string? state, IBrush edge, double thickness) =>
+        new(x =>
+        {
+            Selector box = x.OfType<TextBox>().Class(BoxClass);
+            return ((state is null) ? box : box.Class(state)).Template().OfType<Border>().Name("PART_BorderElement");
+        })
+        {
+            Setters =
+            {
+                new Setter(Border.BackgroundProperty, BoxFill),
+                new Setter(Border.BorderBrushProperty, edge),
+                new Setter(Border.BorderThicknessProperty, new Thickness(thickness)),
+                new Setter(Border.CornerRadiusProperty, new CornerRadius(4)),
+            },
+        };
 
     // A column's head: its kind in its colour, bold and monospace, left; its hint right; a rule under both.
     private static Border ColumnHead(string kind, IImmutableSolidColorBrush brush, string hint)
@@ -542,24 +695,40 @@ internal abstract class ScopeDataPopupBase
                 TextAlignment = TextAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
+            var grid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"),
+                Margin = new Thickness(8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
             grid.Children.Add(Name);
             Grid.SetColumn(Note, 2);
             grid.Children.Add(Note);
             Grid.SetColumn(Entry, 3);
             grid.Children.Add(Entry);
+            // The hover outline: a 1 px dashed line just inside the row, shown by the panel's style.
+            var outline = new Rectangle
+            {
+                Stroke = OutlineBrush,
+                StrokeThickness = 1,
+                StrokeDashArray = [3, 3],
+                RadiusX = 3,
+                RadiusY = 3,
+                IsHitTestVisible = false,
+            };
+            outline.Classes.Add(OutlineClass);
             Button = new Button
             {
-                Content = grid,
+                Content = new Panel { Children = { outline, grid } },
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(3),
                 Height = 28,
-                Padding = new Thickness(8, 0),
+                Padding = new Thickness(0),
                 Margin = new Thickness(4, 0),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Stretch,
             };
             Button.Classes.Add(RowClass);
             AutomationProperties.SetName(Button, label);
@@ -574,6 +743,9 @@ internal abstract class ScopeDataPopupBase
         public Func<string> EnabledNote { get; }
 
         public Func<string> DisabledNote { get; }
+
+        // A clear row: disabled, it fades whole rather than only its entry and note.
+        public bool FadesWhole { get; init; }
 
         public TextBlock Name { get; }
 

@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Media;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
@@ -230,7 +229,7 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
         {
             if (HeadingBox is not null)
             {
-                column.Children.Add(FlyoutPanelParts.SeparatorLine());
+                column.Children.Add(SectionRule());
             }
 
             AddSection(column, SpeedCaption, () => _aircraft.EramAssignedSpeed, speed);
@@ -251,7 +250,7 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
     // A section's caption with its stored value, read again with the rows, its box, and the line above its rows.
     private void AddSection(StackPanel column, string caption, Func<string?> stored, TextBox box)
     {
-        AddCaption(column, caption, () => NowNote(stored()), FontWeight.Bold);
+        AddSectionCaption(column, caption, () => NowNote(stored()));
         column.Children.Add(BoxRow(box));
         column.Children.Add(FlyoutPanelParts.SeparatorLine());
     }
