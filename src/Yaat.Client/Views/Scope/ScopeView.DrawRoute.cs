@@ -23,10 +23,10 @@ public partial class ScopeView
     internal ScopeWaypointConditionPopup? ActiveRouteConditionPopup => (_routeConditionPopup is { IsOpen: true } popup) ? popup : null;
 
     /// <summary>
-    /// Whether a route may be drawn for <paramref name="ac"/>: not for a live-traffic shadow on the surface, which is read-only,
-    /// nor for an aircraft whose phase hides the flight commands (on the ground, landing or rolling).
+    /// Whether <paramref name="ac"/>'s fields may start a flight command: not for a live-traffic shadow on the surface, which is
+    /// read-only, nor for an aircraft whose phase hides the flight commands (on the ground, landing or rolling).
     /// </summary>
-    internal static bool CanDrawRoute(AircraftModel? ac) =>
+    internal static bool AcceptsFlightCommands(AircraftModel? ac) =>
         !AircraftCommandApplicability.IsSurfaceShadow(ac) && !AircraftMenuBuilder.HidesFlightCommands(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
     partial void WireDrawRoute()
@@ -54,7 +54,7 @@ public partial class ScopeView
 
     partial void AddDrawRouteSection(List<Control> items, ScopeViewModel vm, AircraftModel? ac, MenuContext context)
     {
-        if (CanDrawRoute(ac))
+        if (AcceptsFlightCommands(ac))
         {
             string callsign = context.Callsign;
             items.Add(CanvasMenuItems.DrawRoute("Draw route", () => vm.EnterDrawRoute(callsign)));
@@ -87,7 +87,7 @@ public partial class ScopeView
     // The EuroScope Destination field: starts the mode for its aircraft, inert for one that may not be commanded.
     private static void StartFieldDrawRoute(ScopeViewModel vm, AircraftModel ac)
     {
-        if (CanDrawRoute(ac))
+        if (AcceptsFlightCommands(ac))
         {
             vm.EnterDrawRoute(ac.Callsign);
         }

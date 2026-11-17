@@ -46,6 +46,9 @@ public sealed partial class ScopeViewModel
         return route;
     }
 
+    /// <summary>Sends "FH {heading}" for <paramref name="callsign"/> with the user's initials.</summary>
+    public Task FlyHeadingAsync(string callsign, int heading) => SendRouteCommand(callsign, $"FH {heading}", Main.Preferences.UserInitials);
+
     private Task SendRouteCommand(string callsign, string command, string initials) =>
         (SendPilotCommand ?? Main.SendCommandForViewAsync)(callsign, command, initials);
 

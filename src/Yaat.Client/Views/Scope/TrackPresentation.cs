@@ -141,9 +141,6 @@ public enum ScopeFieldAction
     /// <summary>Opens the speed pick menu.</summary>
     OpenSpeedMenu,
 
-    /// <summary>Opens the heading rose.</summary>
-    OpenHeadingMenu,
-
     /// <summary>Opens the squawk pick menu.</summary>
     OpenSquawkMenu,
 
@@ -185,6 +182,9 @@ public enum ScopeFieldAction
 
     /// <summary>Starts drawing a route for the track, as the aircraft menu's Draw route does.</summary>
     StartDrawRoute,
+
+    /// <summary>Starts the elastic heading vector for the track, from the field's press point.</summary>
+    StartHeadingVector,
 }
 
 /// <summary>

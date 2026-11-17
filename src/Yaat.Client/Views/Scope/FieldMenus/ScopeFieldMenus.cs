@@ -110,7 +110,6 @@ internal static class ScopeFieldMenus
         {
             ScopeFieldAction.OpenAltitudeMenu => MenuIds.AltitudeMaintain,
             ScopeFieldAction.OpenSpeedMenu => MenuIds.SpeedAssign,
-            ScopeFieldAction.OpenHeadingMenu => MenuIds.HeadingFly,
             ScopeFieldAction.OpenSquawkMenu => MenuIds.SquawkCode,
             ScopeFieldAction.OpenScratchpadMenu => MenuIds.DataBlockScratchpad,
             ScopeFieldAction.OpenHandoffMenu => HandoffIdFor(aircraft, context),

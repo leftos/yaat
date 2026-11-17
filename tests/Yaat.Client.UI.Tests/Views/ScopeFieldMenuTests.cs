@@ -1835,26 +1835,6 @@ public class ScopeFieldMenuTests
         }
     }
 
-    [AvaloniaFact]
-    public async Task EuroScopeAssignedHeadingClick_OpensTheHeadingRose()
-    {
-        (MainViewModel main, _, ScopeView view, Window window, AircraftModel ac) = await ClickFieldAsync(
-            ScopeTemplates.EuroScopeId,
-            ScopeFieldSlot.AssignedHeading,
-            _ => { },
-            _ => { }
-        );
-        try
-        {
-            Assert.Same(ac, main.SelectedAircraft);
-            Assert.Equal(MenuCatalog.Get(MenuIds.HeadingFly).Label, OpenEntry(view).Header);
-        }
-        finally
-        {
-            CloseWindow(window, view);
-        }
-    }
-
     /// <summary>Offline there is no room to take control in, so the take reports why on the status line, as the Radar's does.</summary>
     [AvaloniaFact]
     public async Task EuroScopeOwnerClick_TakesControl_AndOpensNoMenu()

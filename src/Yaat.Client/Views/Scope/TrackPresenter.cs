@@ -445,7 +445,7 @@ public static class TrackPresenter
             ScopeFieldSlot.Owner => ScopeFieldAction.TakeControl,
             ScopeFieldSlot.Altitude or ScopeFieldSlot.AssignedAltitude => ScopeFieldAction.OpenAltitudeMenu,
             ScopeFieldSlot.AssignedSpeed => ScopeFieldAction.OpenSpeedMenu,
-            ScopeFieldSlot.AssignedHeading => ScopeFieldAction.OpenHeadingMenu,
+            ScopeFieldSlot.AssignedHeading => ScopeFieldAction.StartHeadingVector,
             ScopeFieldSlot.AssignedRunway => ScopeFieldAction.OpenRunwayMenu,
             ScopeFieldSlot.Scratchpad1 or ScopeFieldSlot.Scratchpad2 => ScopeFieldAction.OpenScratchpadMenu,
             ScopeFieldSlot.Handoff => ScopeFieldAction.OpenHandoffMenu,

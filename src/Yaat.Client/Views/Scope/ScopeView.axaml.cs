@@ -296,7 +296,7 @@ public partial class ScopeView : UserControl
     // A field with an action: the armed Rings tool places a ring as on any click; else the track is selected and the field's
     // action runs, its menu sending through the same host as the right-click menu. Shift stages an HSF or VCI toggle in the
     // preview instead of running it, and changes no menu's opening. Internal so a test can open a surface with no pointer press.
-    internal void OnFieldClicked(string callsign, ScopeFieldAction action, Point __, KeyModifiers modifiers)
+    internal void OnFieldClicked(string callsign, ScopeFieldAction action, Point pos, KeyModifiers modifiers)
     {
         if (DataContext is not ScopeViewModel vm)
         {
@@ -324,13 +324,13 @@ public partial class ScopeView : UserControl
 
         if (vm.FindAircraft(callsign) is { } ac)
         {
-            OpenFieldSurface(vm, ac, action);
+            OpenFieldSurface(vm, ac, action, pos);
         }
     }
 
-    // The surface a field with a menu opens: the note box, the ERAM altitude popup, an ERAM fourth-line popup or the field's
-    // pick menu.
-    private void OpenFieldSurface(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    // The surface a field with an action opens: the note box, the ERAM altitude popup, an ERAM fourth-line popup, the elastic
+    // heading vector, the draw route or the field's pick menu.
+    private void OpenFieldSurface(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
     {
         if (action == ScopeFieldAction.OpenNoteBox)
         {
@@ -347,6 +347,10 @@ public partial class ScopeView : UserControl
         else if (action == ScopeFieldAction.StartDrawRoute)
         {
             StartFieldDrawRoute(vm, ac);
+        }
+        else if (action == ScopeFieldAction.StartHeadingVector)
+        {
+            StartFieldHeadingVector(vm, ac, pos);
         }
         else
         {

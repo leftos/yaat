@@ -51,7 +51,7 @@ public class ScopeFieldActionTests
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Altitude, ScopeFieldAction.OpenAltitudeMenu)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.AssignedAltitude, ScopeFieldAction.OpenAltitudeMenu)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.AssignedSpeed, ScopeFieldAction.OpenSpeedMenu)]
-    [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.AssignedHeading, ScopeFieldAction.OpenHeadingMenu)]
+    [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.AssignedHeading, ScopeFieldAction.StartHeadingVector)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.AssignedRunway, ScopeFieldAction.OpenRunwayMenu)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Scratchpad1, ScopeFieldAction.OpenScratchpadMenu)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Scratchpad2, ScopeFieldAction.OpenScratchpadMenu)]
