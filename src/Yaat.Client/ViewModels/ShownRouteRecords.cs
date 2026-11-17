@@ -20,4 +20,4 @@ public record DrawnWaypoint(
 /// A heading-vector arrow segment drawn from <see cref="FromLat"/>/<see cref="FromLon"/> on
 /// <see cref="HeadingMag"/> (magnetic) for <see cref="LengthNm"/> nautical miles.
 /// </summary>
-public record VectorTail(double FromLat, double FromLon, double HeadingMag, double LengthNm = 5.0);
+public record VectorTail(double FromLat, double FromLon, double HeadingMag, double LengthNm);

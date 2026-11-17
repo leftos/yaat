@@ -10,15 +10,18 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>One track's intent path in screen points, as the pilot lens draws it.</summary>
-/// <param name="Segments">The route polylines: the flown route first, then a disjoint expected approach when there is one.</param>
-/// <param name="Shapes">The server's active-procedure shapes (holds, procedure turns, coded legs, corridors, orbits).</param>
+/// <param name="Segments">The route polyline: the flown route, or the heading tail of a vectored aircraft; empty for neither.</param>
+/// <param name="Shapes">
+/// The server's shapes (holds, procedure turns, coded legs, corridors, orbits, route-end courses, heading vectors, final
+/// approach courses, queued vectors).
+/// </param>
 public sealed record ScopeIntentPath(IReadOnlyList<ScopeIntentSegment> Segments, IReadOnlyList<ScopeIntentShape> Shapes);
 
 /// <summary>One route polyline of an intent path.</summary>
 /// <param name="LeaderFrom">The symbol's point a dashed leader runs from to the first point; null for no leader.</param>
 /// <param name="Points">The polyline's points, synthetic arc vertices included.</param>
 /// <param name="Fixes">The named fixes on it, each drawn as a diamond with its name and crossing-restriction lines.</param>
-/// <param name="Tail">The vector tail off its end, or from the symbol for a vectored aircraft; null for none.</param>
+/// <param name="Tail">The heading tail from the symbol of a vectored aircraft with no route fixes; null for none.</param>
 public sealed record ScopeIntentSegment(
     SKPoint? LeaderFrom,
     IReadOnlyList<SKPoint> Points,
@@ -49,30 +52,28 @@ public sealed record ScopeIntentTail(SKPoint From, SKPoint To);
 public sealed record ScopeIntentShape(IReadOnlyList<SKPoint> Points, bool Dashed, bool Arrow, SKPoint? LabelAt, IReadOnlyList<string> Labels);
 
 /// <summary>
-/// One route polyline of an intent path, in latitudes and longitudes: what <see cref="ScopeIntentPathCache"/> keeps between
-/// frames.
+/// The route polyline of an intent path, in latitudes and longitudes: what <see cref="ScopeIntentPathCache"/> keeps between
+/// frames. A dashed leader runs from the symbol to its first point.
 /// </summary>
 /// <param name="Waypoints">Its waypoints, synthetic arc vertices included.</param>
-/// <param name="Tail">The vector tail off its end, or from the aircraft for a vectored one; null for none.</param>
-/// <param name="FromAircraft">Whether a dashed leader runs from the symbol to its first point: the flown route's does.</param>
-/// <param name="TailFollowsAircraft">
-/// Whether the tail starts at the aircraft (a vectored aircraft's heading tail), so each projection starts it where the
-/// aircraft is then.
+/// <param name="Tail">
+/// The heading tail of a vectored aircraft with no route fixes; null for none. It starts at the aircraft, so each projection
+/// starts it where the aircraft is then.
 /// </param>
-internal sealed record ScopeIntentRoute(IReadOnlyList<DrawnWaypoint> Waypoints, VectorTail? Tail, bool FromAircraft, bool TailFollowsAircraft);
+internal sealed record ScopeIntentRoute(IReadOnlyList<DrawnWaypoint> Waypoints, VectorTail? Tail);
 
 /// <summary>
-/// Pure: one track's intent path for the pilot lens, from the nav route, its shapes and the vector tail as the Radar's
-/// "Show nav route" builds them (<see cref="ShownRouteBuilder"/>): straight legs and the server's shapes, no predicted
-/// turn arcs. <see cref="Routes"/> builds its routes in latitudes and longitudes and <see cref="Project"/> puts them and
-/// the shapes on screen.
+/// Pure: one track's intent path for the pilot lens, from the nav route and the heading tail as the Radar's "Show nav route"
+/// builds them (<see cref="ShownRouteBuilder"/>) and the shapes the server sends: straight legs, no predicted turn arcs, and
+/// nothing re-derived from CIFP. <see cref="Routes"/> builds its route in latitudes and longitudes and
+/// <see cref="Project"/> puts it and the shapes on screen.
 /// </summary>
 internal static class ScopeIntentPaths
 {
     /// <summary>
-    /// The intent path's routes for <paramref name="ac"/> in latitudes and longitudes: the flown route (with a leader from
-    /// the symbol, or the vector tail of a vectored aircraft) and an expected approach not yet in the route; empty when
-    /// there is neither or no <paramref name="navDb"/> is loaded yet.
+    /// The intent path's route for <paramref name="ac"/> in latitudes and longitudes: the flown route (with a leader from
+    /// the symbol), or the heading tail of a vectored aircraft; empty when there is neither or no <paramref name="navDb"/>
+    /// is loaded yet.
     /// </summary>
     internal static IReadOnlyList<ScopeIntentRoute> Routes(AircraftModel ac, NavigationDatabase? navDb)
     {
@@ -81,22 +82,8 @@ internal static class ScopeIntentPaths
             return [];
         }
 
-        var routes = new List<ScopeIntentRoute>(2);
-        (List<DrawnWaypoint> waypoints, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
-        if ((waypoints.Count > 0) || (tail is not null))
-        {
-            // Mirrors ShownRouteBuilder.BuildPrimary's pure-vector rule: with no fixes and no procedure tail, it starts the
-            // assigned heading's tail at the aircraft's position, so that tail follows the aircraft.
-            bool follows = (waypoints.Count == 0) && (tail is not null) && (tail.FromLat == ac.Position.Lat) && (tail.FromLon == ac.Position.Lon);
-            routes.Add(new ScopeIntentRoute(waypoints, tail, FromAircraft: true, TailFollowsAircraft: follows));
-        }
-
-        if (ShownRouteBuilder.BuildExpectedApproach(ac, navDb) is { } approach)
-        {
-            routes.Add(new ScopeIntentRoute(approach.Waypoints, approach.Tail, FromAircraft: false, TailFollowsAircraft: false));
-        }
-
-        return routes;
+        (List<DrawnWaypoint> waypoints, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac);
+        return ((waypoints.Count > 0) || (tail is not null)) ? [new ScopeIntentRoute(waypoints, tail)] : [];
     }
 
     /// <summary>
@@ -122,30 +109,13 @@ internal static class ScopeIntentPaths
     /// The scalar inputs <see cref="ShownRouteBuilder"/> reads, as the Radar's nav-route cache keys them
     /// (<see cref="RadarViewModel.BuildShownPathFingerprint"/>); the cache keys the fix list by identity beside them.
     /// </summary>
-    internal static string RouteScalars(AircraftModel ac) =>
-        string.Join(
-            "|",
-            ac.ActiveSidId,
-            ac.ActiveStarId,
-            ac.ActiveApproachId,
-            ac.ExpectedApproach,
-            ac.Departure,
-            ac.Destination,
-            ac.DepartureRunway,
-            ac.DestinationRunway,
-            ac.AssignedHeading?.Degrees.ToString("F1", CultureInfo.InvariantCulture) ?? ""
-        );
+    internal static string RouteScalars(AircraftModel ac) => ac.AssignedHeading?.Degrees.ToString("F1", CultureInfo.InvariantCulture) ?? "";
 
     private static ScopeIntentSegment SegmentOf(ScopeIntentRoute route, AircraftModel ac, SKPoint aircraft, MapViewport vp)
     {
         SKPoint[] points = [.. route.Waypoints.Select(wp => Screen(vp, wp.Lat, wp.Lon))];
-        VectorTail? tail = route.Tail;
-        if (route.TailFollowsAircraft && (tail is not null))
-        {
-            tail = tail with { FromLat = ac.Position.Lat, FromLon = ac.Position.Lon };
-        }
-
-        SKPoint? leader = (route.FromAircraft && (points.Length > 0)) ? aircraft : null;
+        VectorTail? tail = route.Tail is { } built ? built with { FromLat = ac.Position.Lat, FromLon = ac.Position.Lon } : null;
+        SKPoint? leader = (points.Length > 0) ? aircraft : null;
         return new ScopeIntentSegment(leader, points, FixesOf(route.Waypoints, points), tail is null ? null : TailOf(tail, vp));
     }
 

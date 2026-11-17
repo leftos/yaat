@@ -1633,11 +1633,19 @@ public partial class RadarViewModel(
                 && cached.Fingerprint == fingerprint
             )
             {
-                // Aircraft position changes every tick — re-emit cached segments with the
-                // current position so the dashed leader and pure-vector tail track the target.
+                // Aircraft position changes every tick — re-emit cached segments with the current
+                // position, and the heading tail re-anchored on it, so the dashed leader and the
+                // vectored aircraft's tail track the target.
                 foreach (ShownPathEntry seg in cached.Segments)
                 {
-                    entries.Add(seg with { AircraftLat = ac.Position.Lat, AircraftLon = ac.Position.Lon });
+                    entries.Add(
+                        seg with
+                        {
+                            AircraftLat = ac.Position.Lat,
+                            AircraftLon = ac.Position.Lon,
+                            Tail = seg.Tail is { } t ? t with { FromLat = ac.Position.Lat, FromLon = ac.Position.Lon } : null,
+                        }
+                    );
                 }
                 continue;
             }
@@ -1647,27 +1655,13 @@ public partial class RadarViewModel(
                 continue;
             }
 
-            NavigationDatabase navDb = NavigationDatabase.Instance;
-            var segments = new List<ShownPathEntry>(2);
-
-            (List<DrawnWaypoint>? primaryWps, VectorTail? primaryTail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
-            if (primaryWps.Count > 0 || primaryTail is not null)
-            {
-                segments.Add(new ShownPathEntry(callsign, primaryWps, color, ac.Position.Lat, ac.Position.Lon, DrawLeader: true, Tail: primaryTail));
-            }
-
-            if (ShownRouteBuilder.BuildExpectedApproach(ac, navDb) is { } approach)
-            {
-                segments.Add(
-                    new ShownPathEntry(callsign, approach.Waypoints, color, ac.Position.Lat, ac.Position.Lon, DrawLeader: false, Tail: approach.Tail)
-                );
-            }
-
-            if (segments.Count == 0)
+            (List<DrawnWaypoint>? primaryWps, VectorTail? primaryTail) = ShownRouteBuilder.BuildPrimary(ac);
+            if ((primaryWps.Count == 0) && (primaryTail is null))
             {
                 continue;
             }
 
+            List<ShownPathEntry> segments = [new ShownPathEntry(callsign, primaryWps, color, ac.Position.Lat, ac.Position.Lon, Tail: primaryTail)];
             _pathCache[callsign] = (segments, fingerprint);
             entries.AddRange(segments);
         }
@@ -1678,10 +1672,10 @@ public partial class RadarViewModel(
 
     internal static string BuildShownPathFingerprint(AircraftModel ac)
     {
-        // Cache key must reflect every field ShownRouteBuilder reads. Otherwise toggling
-        // EA / SID / STAR / DRWY / heading — or a CFIX that only changes a crossing restriction
-        // without changing the fix list — would not invalidate cached segments and the overlay
-        // would stay stuck on stale geometry or labels.
+        // Cache key must reflect every field ShownRouteBuilder reads: the fix list with its
+        // restriction tokens and the assigned heading. Otherwise a new heading — or a CFIX that only
+        // changes a crossing restriction without changing the fix list — would not invalidate cached
+        // segments and the overlay would stay stuck on stale geometry or labels.
         var sb = new System.Text.StringBuilder();
         foreach (NavRouteFixDto fix in ac.NavRouteFixes)
         {
@@ -1706,19 +1700,7 @@ public partial class RadarViewModel(
             sb.Append('>');
         }
 
-        return string.Join(
-            "|",
-            sb.ToString(),
-            ac.ActiveSidId,
-            ac.ActiveStarId,
-            ac.ActiveApproachId,
-            ac.ExpectedApproach,
-            ac.Departure,
-            ac.Destination,
-            ac.DepartureRunway,
-            ac.DestinationRunway,
-            ac.AssignedHeading?.Degrees.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? ""
-        );
+        return string.Join("|", sb.ToString(), ac.AssignedHeading?.Degrees.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "");
     }
 
     public void ClearShownPaths()
@@ -1749,18 +1731,13 @@ public partial class RadarViewModel(
 }
 
 /// <summary>
-/// A flight path segment to render on the radar for a specific aircraft. One aircraft may
-/// produce multiple entries (e.g. current route + expected approach as disjoint polylines).
+/// The flight path segment to render on the radar for a specific aircraft: its route as the
+/// server sent it, with a dashed leader from the aircraft target to the first waypoint. Everything
+/// else the overlay draws arrives as server shapes (<see cref="ShownShapeEntry"/>).
 /// </summary>
-/// <param name="DrawLeader">
-/// True for the segment representing the aircraft's currently-flown route — draws a dashed
-/// leader line from the aircraft target to the first waypoint. False for ancillary segments
-/// (expected approach, etc.) that are not directly connected to the aircraft position.
-/// </param>
 /// <param name="Tail">
-/// Optional vector arrow drawn off the segment's end (or from the aircraft position when
-/// <see cref="Waypoints"/> is empty). Used to visualize the published vector heading off the
-/// last fix of a procedure (e.g. WNDSR2 ending in a VM/VA leg) or a pure-vector aircraft.
+/// The heading arrow of a vectored aircraft with no route fixes, drawn from the aircraft position
+/// along its assigned heading; null otherwise.
 /// </param>
 public record ShownPathEntry(
     string Callsign,
@@ -1768,7 +1745,6 @@ public record ShownPathEntry(
     SKColor Color,
     double AircraftLat,
     double AircraftLon,
-    bool DrawLeader,
     VectorTail? Tail
 );
 

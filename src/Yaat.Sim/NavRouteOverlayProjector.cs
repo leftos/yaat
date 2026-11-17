@@ -39,9 +39,8 @@ public static class NavRouteOverlayProjector
     private const double RouteEndTailNm = 5.0;
 
     /// <summary>
-    /// Shortest final approach course line (nm), drawn back from its anchor along the reciprocal: the client's
-    /// <c>ShownRouteBuilder.FacExtensionNm</c>, which an expected approach's line matches. A cleared or pending approach's
-    /// line reaches further, out to the aircraft.
+    /// Shortest final approach course line (nm), drawn back from its anchor along the reciprocal: the length of an expected
+    /// approach's line. A cleared or pending approach's line reaches further, out to the aircraft.
     /// </summary>
     private const double FinalApproachMinimumNm = 5.0;
 
@@ -257,10 +256,9 @@ public static class NavRouteOverlayProjector
 
     /// <summary>
     /// The expected approach's final, resolved as <see cref="Situation.ExpectedFinalGeometry"/> resolves it (the first
-    /// candidate the expectation names at the destination that has a runway) and drawn as the client's
-    /// <c>ShownRouteBuilder</c> draws it: from <see cref="FinalApproachMinimumNm"/> back along the published course's
-    /// reciprocal from the lateral anchor (else the first common-leg fix), to the anchor (else the threshold). Null with no
-    /// destination, no navdata or no such candidate.
+    /// candidate the expectation names at the destination that has a runway) and drawn from
+    /// <see cref="FinalApproachMinimumNm"/> back along the published course's reciprocal from the lateral anchor (else the
+    /// first common-leg fix), to the anchor (else the threshold). Null with no destination, no navdata or no such candidate.
     /// </summary>
     private static FinalCourse? ExpectedFinal(string destination, string expected)
     {
@@ -304,8 +302,8 @@ public static class NavRouteOverlayProjector
         AnchorOf(fac) ?? new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
     /// <summary>
-    /// The first common-leg fix the client's <c>ShownRouteBuilder</c> draws: the first named leg's fix that resolves, skipping
-    /// course reversals and holds, and none at or past the missed approach point.
+    /// The first drawable common-leg fix: the first named leg's fix that resolves, skipping course reversals and holds, and
+    /// none at or past the missed approach point.
     /// </summary>
     private static LatLon? FirstCommonLegFix(CifpApproachProcedure procedure, NavigationDatabase navDb)
     {
@@ -325,7 +323,7 @@ public static class NavRouteOverlayProjector
         return null;
     }
 
-    /// <summary>A procedure-turn or hold leg, which the client's drawn approach skips.</summary>
+    /// <summary>A procedure-turn or hold leg, which an expected approach's line skips.</summary>
     private static bool IsReversalOrHold(CifpLeg leg) =>
         leg.PathTerminator is CifpPathTerminator.PI or CifpPathTerminator.HM or CifpPathTerminator.HF or CifpPathTerminator.HA;
 

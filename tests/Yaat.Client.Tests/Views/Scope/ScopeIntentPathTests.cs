@@ -113,11 +113,13 @@ public class ScopeIntentPathTests
     {
         AircraftModel ac = Aircraft();
         ac.NavRouteFixes = [new NavRouteFixDto("ALPHA", 37.05, -122.0, null, null)];
+        ac.AssignedHeading = new MagneticHeading(90);
         var builds = new Dictionary<string, int>();
         ScopeIntentPathCache cache = CountingCache(builds);
 
         cache.PathFor(ac, NavDb, Viewport());
-        ac.Destination = new string(ac.Destination.ToCharArray());
+        // An equal heading in a new instance is the same scalar: no rebuild.
+        ac.AssignedHeading = new MagneticHeading(90);
         cache.PathFor(ac, NavDb, Viewport());
         Assert.Equal(1, builds[ac.Callsign]);
 
@@ -126,7 +128,7 @@ public class ScopeIntentPathTests
         cache.PathFor(ac, NavDb, Viewport());
         Assert.Equal(2, builds[ac.Callsign]);
 
-        ac.ExpectedApproach = "ILS 30";
+        ac.AssignedHeading = new MagneticHeading(180);
         cache.PathFor(ac, NavDb, Viewport());
         Assert.Equal(3, builds[ac.Callsign]);
     }
@@ -253,6 +255,27 @@ public class ScopeIntentPathTests
         Assert.Equal(Screen(37.0, -122.0), tail.From);
         Assert.True(tail.To.X > tail.From.X + 20, "the tail does not run east");
         Assert.True(Math.Abs(tail.To.Y - tail.From.Y) < (tail.To.X - tail.From.X) / 2, "the tail is not near level");
+    }
+
+    /// <summary>
+    /// An expected approach the server sends no final-approach shape for draws no approach line of the client's own: only
+    /// the route.
+    /// </summary>
+    [Fact]
+    public void ExpectedApproach_WithNoServerFinalShape_DrawsOnlyTheRoute()
+    {
+        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+        AircraftModel ac = Aircraft();
+        ac.Destination = "OAK";
+        ac.ExpectedApproach = "I28R";
+        ac.ActiveApproachId = "";
+        ac.NavRouteFixes = [new NavRouteFixDto("ALPHA", 37.05, -122.0, null, null)];
+
+        ScopeIntentPath path = Assert.IsType<ScopeIntentPath>(PathOf(ac, NavigationDatabase.Instance));
+
+        ScopeIntentSegment segment = Assert.Single(path.Segments);
+        Assert.Equal([Screen(37.05, -122.0)], segment.Points);
+        Assert.Empty(path.Shapes);
     }
 
     [Fact]

@@ -556,10 +556,8 @@ public sealed class RadarRenderer : IDisposable
             SKPaint leaderPaint = _pathLeaderPaints[paintIdx];
             SKPaint tailPaint = _pathTailPaints[paintIdx];
 
-            // Dashed leader from aircraft to first waypoint — only for the segment that
-            // represents what the aircraft is currently flying (ancillary segments like the
-            // expected approach are deliberately disconnected from the aircraft target).
-            if (entry.DrawLeader && entry.Waypoints.Count > 0)
+            // Dashed leader from the aircraft to the first waypoint of the route it is flying.
+            if (entry.Waypoints.Count > 0)
             {
                 (float ax, float ay) = vp.LatLonToScreen(entry.AircraftLat, entry.AircraftLon);
                 (float fx, float fy) = vp.LatLonToScreen(entry.Waypoints[0].Lat, entry.Waypoints[0].Lon);
@@ -599,8 +597,7 @@ public sealed class RadarRenderer : IDisposable
                 }
             }
 
-            // Optional vector arrow off the end of the segment (or from the aircraft when
-            // the segment has no waypoints — pure-vector aircraft).
+            // The heading arrow from a vectored aircraft with no route fixes.
             if (entry.Tail is { } tail)
             {
                 DrawVectorTail(canvas, vp, tail, tailPaint, _pathArrowPaints[paintIdx]);
