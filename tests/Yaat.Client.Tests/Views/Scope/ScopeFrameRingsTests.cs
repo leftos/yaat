@@ -83,6 +83,7 @@ public class ScopeFrameRingsTests
                 [],
                 null,
                 new Dictionary<int, SKRect>(),
+                null,
                 null
             )
         );

@@ -141,7 +141,7 @@ public class ScopeRendererBrightnessTests
         renderer.Render(
             canvas,
             Viewport(),
-            new ScopeRenderSnapshot(frame, maps, lookup, brightness, FontSize, NoTints, [], null, new Dictionary<int, SKRect>(), null)
+            new ScopeRenderSnapshot(frame, maps, lookup, brightness, FontSize, NoTints, [], null, new Dictionary<int, SKRect>(), null, null)
         );
         canvas.Flush();
         return bitmap;

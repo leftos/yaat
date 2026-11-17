@@ -96,7 +96,8 @@ public class ScopeRendererStyleTests
             [],
             null,
             new Dictionary<int, SKRect>(),
-            minSep
+            minSep,
+            null
         );
         renderer.Render(canvas, viewport, snapshot);
         canvas.Flush();
@@ -620,6 +621,7 @@ public class ScopeRendererStyleTests
             [],
             null,
             new Dictionary<int, SKRect>(),
+            null,
             null
         );
         renderer.Render(canvas, Viewport(), snapshot);
@@ -671,6 +673,7 @@ public class ScopeRendererStyleTests
             [],
             null,
             new Dictionary<int, SKRect>(),
+            null,
             null
         );
         renderer.Render(canvas, Viewport(), snapshot);

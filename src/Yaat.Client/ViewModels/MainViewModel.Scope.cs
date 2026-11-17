@@ -219,7 +219,7 @@ public partial class MainViewModel
         };
         if (handler is null)
         {
-            return ScopeUsage;
+            return RunFeatureVerb(verb, parts) ?? ScopeUsage;
         }
 
         return OpenScope is { } scope ? handler(scope, parts) : "No YAAT Scope is open";

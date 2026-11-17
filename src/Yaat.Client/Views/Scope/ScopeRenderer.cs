@@ -213,7 +213,7 @@ public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
 /// </summary>
 /// <param name="TemplateId">The scope's picked template id (a template id, or <see cref="ScopeTemplates.MixedId"/>, resolved per track).</param>
 /// <param name="Tracks">Tracks in draw order: the last one is drawn on top.</param>
-public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tracks)
+public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tracks)
 {
     /// <summary>How near a symbol a click must land to hit it, as today's radar uses.</summary>
     public const float TargetHitRadiusPx = 28f;
@@ -666,6 +666,7 @@ public sealed record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tra
 /// <param name="PendingRangeBearingLine">The half-placed measure line picked on the Scope, to the cursor; null for none.</param>
 /// <param name="RblReadoutRects">Each measure readout's placed rect, by slot (0 for the half-placed line).</param>
 /// <param name="MinSep">The STARS min-sep pair and its projection; null for none.</param>
+/// <param name="Overlays">The feature overlays' data for this frame; null draws none.</param>
 public sealed record ScopeRenderSnapshot(
     ScopeFrame Frame,
     IReadOnlyList<VideoMapData> VideoMaps,
@@ -676,7 +677,8 @@ public sealed record ScopeRenderSnapshot(
     IReadOnlyList<ResolvedRbl> RangeBearingLines,
     ResolvedRbl? PendingRangeBearingLine,
     IReadOnlyDictionary<int, SKRect> RblReadoutRects,
-    ScopeMinSep? MinSep
+    ScopeMinSep? MinSep,
+    ScopeOverlays? Overlays
 );
 
 /// <summary>The user-chosen colours a frame draws with; the render thread reads no preferences.</summary>
@@ -692,7 +694,7 @@ public sealed record ScopePalette(SKColor? AssignedToMe, SKColor? AssignedToOthe
 /// measure lines and their readouts. Every block field is drawn from its <see cref="FieldRect"/>; the presenter has already
 /// blanked a flashing field's off-phase text, so nothing here flashes.
 /// </summary>
-public sealed class ScopeRenderer : IDisposable
+public sealed partial class ScopeRenderer : IDisposable
 {
     private const float SymbolRadius = 5f;
 
@@ -889,6 +891,7 @@ public sealed class ScopeRenderer : IDisposable
         _videoMapRenderer.BrightnessA = snapshot.Brightness.MapA / 100f;
         _videoMapRenderer.BrightnessB = snapshot.Brightness.MapB / 100f;
         _videoMapRenderer.Render(canvas, vp, snapshot.VideoMaps, snapshot.BrightnessLookup);
+        DrawMapToolsUnder(canvas, snapshot, vp);
 
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
@@ -925,9 +928,15 @@ public sealed class ScopeRenderer : IDisposable
             DrawQueueDetail(canvas, track, font, snapshot.Brightness.Lens);
         }
 
+        DrawRouteOverlay(canvas, snapshot, vp);
+        DrawHeadingVector(canvas, snapshot, vp);
+        DrawBubbles(canvas, snapshot, vp);
+        DrawMenuCue(canvas, snapshot, vp);
+
         // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE, as on the Radar.
         _rangeBearingRenderer.Draw(canvas, vp, snapshot.RangeBearingLines, snapshot.PendingRangeBearingLine, snapshot.RblReadoutRects);
         _minSepRenderer.Draw(canvas, vp, snapshot.MinSep);
+        DrawMapToolsOverlay(canvas, snapshot, vp);
     }
 
     /// <summary>
@@ -1070,6 +1079,7 @@ public sealed class ScopeRenderer : IDisposable
         _lensRestrictionFont.Dispose();
         _lensPath.Dispose();
         _font?.Dispose();
+        DisposeFeatures();
     }
 
     /// <summary>

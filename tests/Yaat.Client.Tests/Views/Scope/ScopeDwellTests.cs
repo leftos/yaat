@@ -92,6 +92,7 @@ public class ScopeDwellTests
                 [],
                 null,
                 new Dictionary<int, SKRect>(),
+                null,
                 null
             )
         );

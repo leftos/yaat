@@ -18,7 +18,7 @@ namespace Yaat.Client.Views.Scope;
 /// <see cref="CreateRenderSnapshot"/>, drawn by <see cref="ScopeRenderer"/> on the render thread, and kept for hit-testing,
 /// so clicks and hover read the same block layouts the user sees.
 /// </summary>
-public sealed class ScopeCanvas : MapCanvasBase, IDisposable
+public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 {
     // Copied from RadarCanvas (ZoomToRange / UpdateViewRangeNm).
     private const double DefaultPixelsPerDeg = 5000.0;
@@ -502,7 +502,8 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             lines,
             pending,
             PlaceRblReadouts(frame, lines, pending),
-            MinSep
+            MinSep,
+            Overlays: CollectOverlays(frame)
         );
     }
 
@@ -747,26 +748,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
             CancelMeasureDrag();
         }
 
-        if (props.IsMiddleButtonPressed)
-        {
-            OnMiddlePressed(pos);
-            e.Handled = true;
-            return;
-        }
-
-        if (TryMeasurePress(props, e.KeyModifiers, pos))
-        {
-            e.Handled = true;
-            return;
-        }
-
-        if (props.IsLeftButtonPressed && TryFillPress(pos))
-        {
-            e.Handled = true;
-            return;
-        }
-
-        if ((props.IsLeftButtonPressed || props.IsRightButtonPressed) && PressAircraft(props.IsRightButtonPressed, pos, e.KeyModifiers))
+        if (RunPressLadder(new ScopePress(e, props, pos)))
         {
             e.Handled = true;
             return;
@@ -850,6 +832,12 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
     {
         Point pos = e.GetPosition(this);
         TrackMeasureCursor(pos);
+        if (RunReleaseLadder(new ScopeRelease(e, pos)))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if ((_measureDragAnchor is not { } anchor) || (e.InitialPressMouseButton != MouseButton.Left))
         {
             base.OnPointerReleased(e);
@@ -1024,6 +1012,7 @@ public sealed class ScopeCanvas : MapCanvasBase, IDisposable
         base.OnPointerMoved(e);
         Point pos = e.GetPosition(this);
         TrackMeasureCursor(pos);
+        RunMoveHooks(new ScopeMove(e, pos));
         if (e.Handled)
         {
             // A pan drag: the map moves with the pointer, so the dwell holds; the next free move re-tests it.

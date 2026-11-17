@@ -102,6 +102,7 @@ public sealed partial class ScopeViewModel
         ClearPtl();
         ClearLensPaths();
         ClearMinSep();
+        ClearFeatureTrackState();
     }
 
     /// <summary>Removes every ring on every track.</summary>

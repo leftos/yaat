@@ -309,6 +309,7 @@ public class ScopeAltitudeMismatchTests
             [],
             null,
             new Dictionary<int, SKRect>(),
+            null,
             null
         );
         renderer.Render(canvas, Viewport(), snapshot);

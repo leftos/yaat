@@ -79,6 +79,7 @@ public partial class ScopeView : UserControl
         Canvas.MeasurePointPicked += endpoint => (DataContext as ScopeViewModel)?.PickMeasurePoint(endpoint);
         Canvas.MeasureDragCompleted += (from, to) => (DataContext as ScopeViewModel)?.PlaceMeasurement(from, to);
         Canvas.MeasureCancelled += () => (DataContext as ScopeViewModel)?.CancelMeasureFromPointer();
+        WireFeatures();
     }
 
     // The canvas taking the focus makes the Scope the active measure surface: a typed .rbl A B places here.
@@ -92,18 +93,22 @@ public partial class ScopeView : UserControl
 
     /// <summary>
     /// The aircraft menu for <paramref name="callsign"/>: the shared aircraft menu, with relative actions aimed at
-    /// <paramref name="prevSelected"/>, with no view section of the scope's own.
+    /// <paramref name="prevSelected"/>, with the Scope's own view section (<see cref="BuildViewSection"/>) after the shared groups.
     /// </summary>
     internal ContextMenu BuildAircraftMenu(ScopeViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
     {
         var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.ScopeMaps.MvaFacilityId);
-        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, _ => []);
+        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, context => BuildViewSection(vm, ac, context));
     }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
         _vm?.PropertyChanged -= OnViewModelPropertyChanged;
+        if (_vm is not null)
+        {
+            DetachFeatures(_vm);
+        }
 
         _vm = DataContext as ScopeViewModel;
         if (_vm is null)
@@ -115,6 +120,7 @@ public partial class ScopeView : UserControl
         Canvas.Preferences = _vm.Preferences;
         Canvas.DataBlockState = _vm.DataBlockState;
         PushMaps(_vm);
+        AttachFeatures(_vm);
     }
 
     // The maps arrive later, at each seed from the Scope's map source.
@@ -149,10 +155,8 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc, unless a tear-off move is on (the tear-off layer cancels it): takes the measure prompt with the measurement (when
-    // nothing is typed), else clears the entry, else drops an Alt-drag in flight, else cancels the Scope's measurement, else
-    // disarms an armed Rings tool. Ctrl+M
-    // arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
+    // Esc, unless a tear-off move is on (the tear-off layer cancels it), runs HandleEscape's chain.
+    // Ctrl+M arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not ScopeViewModel vm)
@@ -168,9 +172,7 @@ public partial class ScopeView : UserControl
         }
         else if (e.Key == Key.Escape)
         {
-            e.Handled =
-                (!TearoffLayer.IsMoving)
-                && (vm.TakeMeasurePrompt() || vm.ClearEntry() || Canvas.CancelMeasureDrag() || vm.CancelMeasure() || vm.DisarmRingTool());
+            e.Handled = (!TearoffLayer.IsMoving) && HandleEscape(vm);
         }
         else if ((e.Key == Key.M) && (e.KeyModifiers == ActionModifier))
         {
@@ -196,6 +198,11 @@ public partial class ScopeView : UserControl
 
     private void OnCanvasKeyDown(object? sender, KeyEventArgs e)
     {
+        if (RunKeyHooks(e))
+        {
+            return;
+        }
+
         if ((DataContext is ScopeViewModel vm) && RunEntryKey(vm, e))
         {
             e.Handled = true;
