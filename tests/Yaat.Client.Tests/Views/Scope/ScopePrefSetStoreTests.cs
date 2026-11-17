@@ -625,6 +625,32 @@ public class ScopePrefSetStoreTests : IDisposable
         Assert.Contains(unsafeId, error.Message);
     }
 
+    [Fact]
+    public void SavedMapTools_RoundTrip_ThePlacedRingAndTheWeatherSwitch()
+    {
+        ScopePrefSet set = Set("SR-DAY") with { MapTools = new ScopePrefMapTools(true, true, new ScopePrefRangeRing(true, 10, 37.5, -122.1), false) };
+
+        NewStore().SaveSet("ZOA", set);
+
+        ScopePrefSet loaded = Assert.Single(NewStore().LoadSets("ZOA"));
+
+        Assert.Equal(set.MapTools, loaded.MapTools);
+        Assert.Equal(new ScopePrefRangeRing(true, 10, 37.5, -122.1), loaded.MapTools!.RangeRing);
+        Assert.False(loaded.MapTools.Weather);
+    }
+
+    [Fact]
+    public void SavedMapTools_RoundTrip_AnUnplacedRingKeepsItsNullCentre()
+    {
+        ScopePrefSet set = Set("SR-DAY") with { MapTools = new ScopePrefMapTools(false, false, new ScopePrefRangeRing(false, 10, null, null), true) };
+
+        NewStore().SaveSet("ZOA", set);
+
+        ScopePrefSet loaded = Assert.Single(NewStore().LoadSets("ZOA"));
+
+        Assert.Equal(new ScopePrefRangeRing(false, 10, null, null), loaded.MapTools!.RangeRing);
+    }
+
     private ScopePrefSetStore NewStore() => new(_root, _log);
 
     private string SetsPath(string facility) => Path.Combine(_root, "prefsets", $"{facility}.json");

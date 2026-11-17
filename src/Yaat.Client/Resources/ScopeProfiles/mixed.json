@@ -7,6 +7,9 @@
     { "maxNm": null, "othersLevel": "partial", "vectorMin": 4, "history": 3, "rings": "dri" }
   ],
   "template": "mixed",
-  "toolbar": ["profile", "template", "range", "others", "vector", "hist", "tools", "auto", "maps", "tdm", "mva", "display", "db", "views", "brite", "pref", "deletetearoff"],
+  "toolbar": [
+    "profile", "template", "range", "others", "vector", "hist", "tools", "auto", "maps",
+    "tdm", "mva", "display", "rr", "db", "views", "brite", "pref", "deletetearoff"
+  ],
   "views": ["ssa", "ca"]
 }

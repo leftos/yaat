@@ -184,7 +184,7 @@ public enum ScopeButtonId
     /// <summary>MVA: turns the MVA altitude tint on or off; lit while it is on.</summary>
     Mva,
 
-    /// <summary>The DISPLAY menu; its tray holds LOCK and OFF CNTR.</summary>
+    /// <summary>The DISPLAY menu; its tray holds WX, LOCK and OFF CNTR.</summary>
     Display,
 
     /// <summary>The DISPLAY menu's LOCK: turns wheel zoom and right-drag pan off; lit while locked.</summary>
@@ -192,6 +192,24 @@ public enum ScopeButtonId
 
     /// <summary>The DISPLAY menu's OFF CNTR: pans back to the facility's home centre; lit while the scope is off it.</summary>
     DisplayOffCntr,
+
+    /// <summary>The DISPLAY menu's WX: turns the weather overlay on or off; lit while it is on.</summary>
+    DisplayWx,
+
+    /// <summary>The RR menu, showing the range ring's size or OFF; its tray holds SHOW, PLACE RR, SIZE and RR CNTR.</summary>
+    Rr,
+
+    /// <summary>The RR menu's SHOW: turns the range ring on or off; lit while it is on.</summary>
+    RrShow,
+
+    /// <summary>The RR menu's PLACE RR: arms the placement, so the next map click places the ring's centre; lit while armed.</summary>
+    RrPlace,
+
+    /// <summary>The RR menu's SIZE: steps the ring's spacing along 2, 5, 10, 15 and 20 NM.</summary>
+    RrSize,
+
+    /// <summary>The RR menu's RR CNTR: returns the ring's centre to the facility's home centre.</summary>
+    RrCenter,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -298,8 +316,23 @@ public static class ScopeToolbarButtons
             "DISPLAY",
             ScopeButtonKind.Menu,
             [
+                new(ScopeButtonId.DisplayWx, "WX", ScopeButtonKind.Toggle, [], null, WxCommandStem),
                 new(ScopeButtonId.DisplayLock, "LOCK", ScopeButtonKind.Toggle, [], null, LockCommandStem),
                 new(ScopeButtonId.DisplayOffCntr, "OFF CNTR", ScopeButtonKind.Command, [], null, CenterCommand),
+            ],
+            null,
+            null
+        ),
+        // RR shows the ring's size, or OFF, so it is a full tile: ScopeViewModel.SpinnerValue builds the value.
+        new(
+            ScopeButtonId.Rr,
+            "RR",
+            ScopeButtonKind.Menu,
+            [
+                new(ScopeButtonId.RrShow, "SHOW", ScopeButtonKind.Toggle, [], null, RrCommandStem),
+                new(ScopeButtonId.RrPlace, "PLACE RR", ScopeButtonKind.Command, [], null, RrPlaceCommand),
+                new(ScopeButtonId.RrSize, "SIZE", ScopeButtonKind.Spinner, [], null, null),
+                new(ScopeButtonId.RrCenter, "RR CNTR", ScopeButtonKind.Command, [], null, RrCenterCommand),
             ],
             null,
             null
@@ -493,6 +526,21 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that pans the scope back to the facility's home centre (OFF CNTR).</summary>
     public const string CenterCommand = ".scope center";
+
+    /// <summary>The verb that turns the weather overlay on or off, without its <c>on</c> or <c>off</c>.</summary>
+    public const string WxCommandStem = ".scope wx";
+
+    /// <summary>The verb that turns the range ring on or off, without its <c>on</c> or <c>off</c>.</summary>
+    public const string RrCommandStem = ".scope rr";
+
+    /// <summary>The command that arms PLACE RR: the next map click places the range ring's centre.</summary>
+    public const string RrPlaceCommand = ".scope rr place";
+
+    /// <summary>The command that returns the range ring to the facility's home centre (RR CNTR).</summary>
+    public const string RrCenterCommand = ".scope rr center";
+
+    /// <summary>The command that sets the range ring's spacing to <paramref name="sizeNm"/> NM.</summary>
+    public static string RrSizeCommand(int sizeNm) => $".scope rr size {sizeNm.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>The command that turns top-down mode on (<paramref name="on"/>) or off.</summary>
     public static string TdmCommand(bool on) => $"{TdmCommandStem} {(on ? "on" : "off")}";

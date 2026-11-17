@@ -211,6 +211,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         CenterLat = source.CenterLat;
         CenterLon = source.CenterLon;
         _seededCenter = (CenterLat, CenterLon);
+        CenterRangeRing();
         ApplyPendingPrefSet();
     }
 

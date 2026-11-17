@@ -1,6 +1,24 @@
 namespace Yaat.Client.Views.Scope.Prefs;
 
-/// <summary>The Scope's map-tool settings as a pref set stores them; a field missing from a file loads as false.</summary>
+/// <summary>
+/// The Scope's map-tool settings as a pref set stores them; mva and lock are required, so a file missing either is skipped as
+/// unreadable, and the range ring's and weather's defaults let a file written without them load.
+/// </summary>
 /// <param name="Mva">Whether the MVA altitude tint is on.</param>
 /// <param name="Lock">Whether pan and zoom are locked.</param>
-public sealed record ScopePrefMapTools(bool Mva, bool Lock);
+/// <param name="RangeRing">
+/// The range ring, or null for the default: on, 5 NM apart, centred on the facility's home centre. A set from an older
+/// build has none.
+/// </param>
+/// <param name="Weather">Whether the weather overlay is on, or null for on, the default; a set from an older build has none.</param>
+public sealed record ScopePrefMapTools(bool Mva, bool Lock, ScopePrefRangeRing? RangeRing = null, bool? Weather = null);
+
+/// <summary>
+/// The Scope's range ring as a pref set stores it; all four keys are required (an unplaced centre is written as null), so a file
+/// missing one is skipped as unreadable.
+/// </summary>
+/// <param name="Show">Whether the ring is on.</param>
+/// <param name="SizeNm">The spacing of its circles, in NM: 2, 5, 10, 15 or 20.</param>
+/// <param name="CenterLat">The latitude of the centre PLACE RR placed, or null for the facility's home centre.</param>
+/// <param name="CenterLon">The longitude of the centre PLACE RR placed, or null for the facility's home centre.</param>
+public sealed record ScopePrefRangeRing(bool Show, int SizeNm, double? CenterLat, double? CenterLon);

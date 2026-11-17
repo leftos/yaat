@@ -25,6 +25,7 @@ public class ScopeProfileTests
         "tdm",
         "mva",
         "display",
+        "rr",
         "db",
         "views",
         "brite",

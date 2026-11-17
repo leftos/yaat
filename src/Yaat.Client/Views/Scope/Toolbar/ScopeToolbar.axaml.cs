@@ -199,7 +199,11 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.RingSizeNm)
                 or nameof(ScopeViewModel.ShowMvaHints)
                 or nameof(ScopeViewModel.IsPanZoomLocked)
-                or nameof(ScopeViewModel.IsOffCenter);
+                or nameof(ScopeViewModel.IsOffCenter)
+                or nameof(ScopeViewModel.ShowWeather)
+                or nameof(ScopeViewModel.ShowRangeRing)
+                or nameof(ScopeViewModel.RangeRingSizeNm)
+                or nameof(ScopeViewModel.IsPlacingRangeRing);
 
     /// <summary>
     /// Fills the tray with the open menu's tray children (<see cref="ScopeViewModel.TrayChildren"/>) as half tiles, two to

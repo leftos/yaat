@@ -958,7 +958,7 @@ public partial class MainViewModel
     /// for any of the position's underlying airports. Null when there is no weather to be missing, when no
     /// position filter is set, or when a station matched.
     /// </summary>
-    private static string? RadarWeatherNote(IReadOnlyList<WeatherDisplayInfo>? allInfo, List<string> weatherAirports)
+    private static string? RadarWeatherNote(IReadOnlyList<WeatherDisplayInfo>? allInfo, IReadOnlyList<string> weatherAirports)
     {
         if (allInfo is not { Count: > 0 } || weatherAirports.Count == 0)
         {
@@ -976,7 +976,7 @@ public partial class MainViewModel
     /// </summary>
     private static IReadOnlyList<WeatherDisplayInfo>? FilterWeatherForPosition(
         IReadOnlyList<WeatherDisplayInfo>? allInfo,
-        List<string> weatherAirports
+        IReadOnlyList<string> weatherAirports
     )
     {
         if (allInfo is null)
@@ -1016,6 +1016,8 @@ public partial class MainViewModel
             radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, radar.WeatherAirports);
             radar.WeatherNote = RadarWeatherNote(_allWeatherInfo, radar.WeatherAirports);
         }
+
+        OpenScope?.RefreshWeather();
     }
 
     /// <summary>
@@ -1036,6 +1038,8 @@ public partial class MainViewModel
             ground.WeatherInfo = PickGroundWeather(allInfo, ground.Layout?.AirportId);
             ground.WeatherNote = GroundWeatherNote(allInfo, ground.Layout?.AirportId);
         }
+
+        OpenScope?.RefreshWeather();
     }
 
     /// <summary>
@@ -1087,7 +1091,7 @@ public partial class MainViewModel
             }
         }
 
-        foreach (string airport in Radar.WeatherAirports)
+        foreach (string airport in Radar.WeatherAirports.Concat(ScopeMaps.WeatherAirports))
         {
             Add(airport);
         }

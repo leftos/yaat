@@ -171,6 +171,27 @@ public class ScopePrefSetTests
         Assert.Null(loaded.MapTools);
     }
 
+    [Fact]
+    public void MapToolsWrittenWithoutTheRingAndWeather_LoadsTheDefaults()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "mapTools": { "mva": true, "lock": false }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.NotNull(loaded.MapTools);
+        Assert.True(loaded.MapTools.Mva);
+        Assert.False(loaded.MapTools.Lock);
+        Assert.Null(loaded.MapTools.RangeRing);
+        Assert.Null(loaded.MapTools.Weather);
+    }
+
     private static ScopePrefSet FullSet() =>
         new()
         {

@@ -27,7 +27,7 @@ public sealed partial class ScopeCanvas
 {
     /// <summary>
     /// Offers <paramref name="press"/> to each rung in turn: the gestures that own the pointer first, then the middle button,
-    /// the measuring tool, the entry's fill, the block and menu gestures, the ring tool, the aircraft, the empty map and the
+    /// the measuring tool, the ring tool, the entry's fill, the block and menu gestures, the aircraft, the empty map and the
     /// bubbles. Returns whether a rung took it.
     /// </summary>
     private bool RunPressLadder(in ScopePress press)
@@ -37,11 +37,11 @@ public sealed partial class ScopeCanvas
         PressDrawRoute(in press, ref handled);
         PressMiddle(in press, ref handled);
         PressMeasure(in press, ref handled);
+        PressRangeRing(in press, ref handled);
         PressFill(in press, ref handled);
         PressBlockHide(in press, ref handled);
         PressMenuGesture(in press, ref handled);
         PressBlockDrag(in press, ref handled);
-        PressRangeRing(in press, ref handled);
         PressAircraftRung(in press, ref handled);
         PressEmptyMap(in press, ref handled);
         PressBubble(in press, ref handled);

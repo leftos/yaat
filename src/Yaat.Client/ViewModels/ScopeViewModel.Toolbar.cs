@@ -136,6 +136,9 @@ public sealed partial class ScopeViewModel
             case ScopeButtonId.ToolSize:
                 StepRingSize(steps);
                 return;
+            case ScopeButtonId.RrSize:
+                StepRangeRingSize(steps);
+                return;
         }
 
         StepBrite(id, steps);
@@ -202,7 +205,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.ToolJRing or ScopeButtonId.ToolCone or ScopeButtonId.ToolDri5 or ScopeButtonId.ToolDri3 => ArmedRingTool
                 == ScopeToolbarButtons.RingToolOf(button.Id),
             ScopeButtonId.PrefSet => (button.Value is { } name) && (name == ActivePrefSet),
-            ScopeButtonId.DisplayOffCntr => IsOffCenter,
+            ScopeButtonId.DisplayOffCntr or ScopeButtonId.RrPlace => IsMapToolActive(button.Id),
             _ when ScopeToolbarButtons.IsProfilePick(button.Id) => button.Value == ScopeProfilePicker.NameOf(ProfileKind),
             _ => IsActiveByKind(button),
         };
@@ -233,7 +236,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Range => Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture),
             ScopeButtonId.DbChar => DbSettings.CharSize.ToString(CultureInfo.InvariantCulture),
             ScopeButtonId.ToolSize => ScopeRingGeometry.FormatSize(RingSizeNm),
-            _ => BandValue(button.Id) ?? BriteValue(button.Id),
+            _ => BandValue(button.Id) ?? MapToolValue(button.Id) ?? BriteValue(button.Id),
         };
 
     /// <summary>The band value in effect OTHERS, VECTOR or HIST shows after its label, or null for any other id.</summary>
@@ -293,7 +296,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.DbDwell => DbSettings.HoverDwell,
             ScopeButtonId.DbAtpa => DbSettings.Atpa,
             ScopeButtonId.LensOn or ScopeButtonId.LensPath or ScopeButtonId.LensQueue or ScopeButtonId.LensCheckIn => IsLensToggleOn(button.Id),
-            ScopeButtonId.Mva or ScopeButtonId.DisplayLock => IsMapToolToggleOn(button.Id),
+            ScopeButtonId.Mva or ScopeButtonId.DisplayLock or ScopeButtonId.DisplayWx or ScopeButtonId.RrShow => IsMapToolToggleOn(button.Id),
             _ => (button.Value is { } view) && IsViewOpen(view),
         };
 

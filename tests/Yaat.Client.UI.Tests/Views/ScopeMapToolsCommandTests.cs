@@ -80,15 +80,15 @@ public class ScopeMapToolsCommandTests
     }
 
     [AvaloniaFact]
-    public void Display_IsAMenuOfLockAndOffCntr()
+    public void Display_IsAMenuOfWxLockAndOffCntr()
     {
         ScopeButton display = Button(ScopeButtonId.Display);
 
         Assert.Equal(("DISPLAY", ScopeButtonKind.Menu), (display.Label, display.Kind));
-        Assert.Equal([ScopeButtonId.DisplayLock, ScopeButtonId.DisplayOffCntr], display.Children.Select(c => c.Id));
-        Assert.Equal(["LOCK", "OFF CNTR"], display.Children.Select(c => c.Label));
-        Assert.Equal([ScopeButtonKind.Toggle, ScopeButtonKind.Command], display.Children.Select(c => c.Kind));
-        Assert.Equal([".scope lock", ".scope center"], display.Children.Select(c => c.Command));
+        Assert.Equal([ScopeButtonId.DisplayWx, ScopeButtonId.DisplayLock, ScopeButtonId.DisplayOffCntr], display.Children.Select(c => c.Id));
+        Assert.Equal(["WX", "LOCK", "OFF CNTR"], display.Children.Select(c => c.Label));
+        Assert.Equal([ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Command], display.Children.Select(c => c.Kind));
+        Assert.Equal([".scope wx", ".scope lock", ".scope center"], display.Children.Select(c => c.Command));
     }
 
     [AvaloniaFact]
