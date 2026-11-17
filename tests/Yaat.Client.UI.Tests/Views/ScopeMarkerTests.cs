@@ -72,15 +72,16 @@ public class ScopeMarkerTests
     }
 
     [AvaloniaFact]
-    public async Task Ff_WithNoScopeOpen_AnswersAnError_AndLeavesTheRadarAlone()
+    public async Task Ff_WithNoOtherScope_PinsOnThePrimaryScope_AndLeavesTheRadarAlone()
     {
         MainViewModel main = await MainAsync();
 
-        foreach (string command in new[] { ".ff SUNOL", ".nomarkers" })
-        {
-            main.RunScopeMarkerCommand(command);
-            Assert.Equal("No YAAT Scope is open", main.StatusText);
-        }
+        main.RunScopeMarkerCommand(".ff SUNOL");
+        Assert.Equal(["SUNOL"], main.PrimaryScope.MarkerTokens);
+
+        main.RunScopeMarkerCommand(".nomarkers");
+        Assert.Empty(main.PrimaryScope.MarkerTokens);
+        Assert.Equal("Scope markers cleared", main.StatusText);
 
         Assert.False(main.Radar.HasMarkers);
     }

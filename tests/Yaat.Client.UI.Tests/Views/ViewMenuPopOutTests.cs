@@ -61,14 +61,12 @@ public class ViewMenuPopOutTests
                 "Pop out",
                 "_Aircraft list",
                 "_Ground view",
-                "_Radar view",
+                MainWindow.ScopePopOutMenuHeader,
                 "T_erminal",
                 "_Controllers",
                 "_METAR",
                 "-",
                 "New gr_ound window…",
-                "New radar _window…",
-                "YAAT _Scope",
                 "-",
                 "_Strips",
                 "v_TDLS",
@@ -91,7 +89,7 @@ public class ViewMenuPopOutTests
             .Select(m => m.Header as string)
             .ToList();
 
-        Assert.Equal(["_Aircraft list", "_Ground view", "_Radar view", "T_erminal", "_Controllers", "_METAR"], popOutHeaders);
+        Assert.Equal(["_Aircraft list", "_Ground view", MainWindow.ScopePopOutMenuHeader, "T_erminal", "_Controllers", "_METAR"], popOutHeaders);
     }
 
     [AvaloniaFact]
@@ -104,7 +102,7 @@ public class ViewMenuPopOutTests
         [
             ("_Aircraft list", prefs.PopOutAircraftListKey),
             ("_Ground view", prefs.PopOutGroundViewKey),
-            ("_Radar view", prefs.PopOutRadarViewKey),
+            (MainWindow.ScopePopOutMenuHeader, prefs.PopOutRadarViewKey),
             ("T_erminal", prefs.PopOutTerminalKey),
             ("_Controllers", prefs.PopOutControllersKey),
             ("_METAR", prefs.PopOutMetarKey),
@@ -124,16 +122,14 @@ public class ViewMenuPopOutTests
     }
 
     [AvaloniaFact]
-    public void ViewMenu_HasNewRadarAndGroundWindowItems()
+    public void ViewMenu_HasNewGroundWindowItem()
     {
         (MainWindow? window, MainViewModel _) = BootMainWindow();
 
-        // Both items open a modal airport picker from code-behind rather than binding a command, so the
-        // menu-level contract is only that they are there and clickable.
-        MenuItem radarItem = ViewMenuItem(window, "New radar _window…");
+        // The item opens a modal airport picker from code-behind rather than binding a command, so the
+        // menu-level contract is only that it is there and clickable.
         MenuItem groundItem = ViewMenuItem(window, "New gr_ound window…");
 
-        Assert.True(radarItem.IsEnabled);
         Assert.True(groundItem.IsEnabled);
     }
 

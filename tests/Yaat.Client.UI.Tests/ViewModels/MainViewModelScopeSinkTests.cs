@@ -100,7 +100,7 @@ public class MainViewModelScopeSinkTests
 
         RecordingSink sink = await SendAsync(vm, ".scope range 40");
 
-        Assert.Equal(["No YAAT Scope is open"], sink.Messages);
+        Assert.Equal([".scope range 40"], sink.Messages);
         Assert.Equal([("", ".scope range 40")], sink.History);
         Assert.Equal(1, sink.Clears);
         AssertCommandLineUntouched(vm, statusBefore);

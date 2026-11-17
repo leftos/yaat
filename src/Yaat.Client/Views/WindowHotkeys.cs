@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 
@@ -13,7 +14,7 @@ namespace Yaat.Client.Views;
 
 /// <summary>
 /// Centralizes app-wide window-level hotkeys so they fire from any YAAT working window — MainWindow,
-/// the main pop-outs (Radar, Ground, Aircraft List, Controllers, METAR, Terminal, Favorites) and the
+/// the main pop-outs (the Scope, Ground, Aircraft List, Controllers, METAR, Terminal, Favorites) and the
 /// per-facility Flight Strips / TDLS windows — instead of each window wiring them in its own
 /// <c>OnKeyDown</c>. A single Avalonia class handler on <see cref="InputElement.KeyDownEvent"/> covers
 /// every <see cref="Window"/>, so new pop-out windows are covered without per-window code.
@@ -21,12 +22,12 @@ namespace Yaat.Client.Views;
 /// Handles:
 /// <list type="bullet">
 /// <item><b>Focus command input</b> — focuses whichever command input is visible (docked or popped-out
-/// terminal). Scoped to <see cref="MainViewModel"/>-backed windows plus Strips/TDLS.</item>
+/// terminal). Scoped to <see cref="MainViewModel"/>-backed windows plus Strips/TDLS and the Scope window.</item>
 /// <item><b>Always on top</b> — toggles the focused window's topmost state via
 /// <see cref="IAlwaysOnTopToggle"/>.</item>
 /// <item><b>Toggle DCB</b> — Ctrl+F8 shows/hides the radar Display Control Bar, mirroring CRC's
 /// <c>StarsSpecialKey.Dcb</c>. Fixed binding, scoped to YAAT working windows.</item>
-/// <item><b>Panel toggles</b> — the pop-out keys (aircraft list, ground, radar, terminal, controllers, METAR)
+/// <item><b>Panel toggles</b> — the pop-out keys (aircraft list, ground, Scope, terminal, controllers, METAR)
 /// and the favorites-bar key flip their flag on the <see cref="MainViewModel"/>, the same flag the View menu's
 /// checkable item binds. Scoped to YAAT working windows.</item>
 /// <item><b>Open Settings</b> — Ctrl+, by default asks the <see cref="MainViewModel"/> for Settings with no section of its
@@ -61,7 +62,7 @@ internal static class WindowHotkeys
     [
         (p => p.PopOutAircraftListKey, vm => vm.IsDataGridPoppedOut = !vm.IsDataGridPoppedOut),
         (p => p.PopOutGroundViewKey, vm => vm.IsGroundViewPoppedOut = !vm.IsGroundViewPoppedOut),
-        (p => p.PopOutRadarViewKey, vm => vm.IsRadarViewPoppedOut = !vm.IsRadarViewPoppedOut),
+        (p => p.PopOutRadarViewKey, vm => vm.IsScopePoppedOut = !vm.IsScopePoppedOut),
         (p => p.PopOutTerminalKey, vm => vm.IsTerminalPoppedOut = !vm.IsTerminalPoppedOut),
         (p => p.PopOutControllersKey, vm => vm.IsControllersPoppedOut = !vm.IsControllersPoppedOut),
         (p => p.PopOutMetarKey, vm => vm.IsMetarPoppedOut = !vm.IsMetarPoppedOut),
@@ -117,8 +118,8 @@ internal static class WindowHotkeys
         }
 
         // Ctrl+F8 toggles the radar Display Control Bar (DCB), mirroring CRC's StarsSpecialKey.Dcb.
-        // Fixed (non-configurable) binding; the focus-input scope guard keeps it off modal dialogs.
-        if (IsFocusInputScope(window) && Matches(DcbChord, e))
+        // Fixed (non-configurable) binding; the focus-input scope guard keeps it off modal dialogs, and the Scope window has no DCB.
+        if (IsFocusInputScope(window) && (window is not ScopeWindow) && Matches(DcbChord, e))
         {
             // An extra Radar window toggles its own DCB; everywhere else the hotkey means the docked view.
             RadarViewModel radar = window is RadarViewWindow { RadarVm: { } instanceVm } ? instanceVm : vm.Radar;
@@ -129,7 +130,7 @@ internal static class WindowHotkeys
 
         // Ctrl+M arms the distance measuring tool. Fixed binding, and deliberately global: the tool is
         // shared by the radar, ground and Scope views, so it arms wherever the instructor clicks next. The
-        // Scope window arms it from its own key handler (ScopeView), as this one does not act there.
+        // Scope arms it from its own key handler (ScopeView), which takes the key first where the Scope has the focus.
         if (IsFocusInputScope(window) && Matches(MeasureChord, e))
         {
             vm.Measure.Arm();
@@ -162,10 +163,11 @@ internal static class WindowHotkeys
     /// <summary>
     /// True for the windows the focus-input hotkey should reach. MainWindow and the main pop-outs
     /// share the single <see cref="MainViewModel"/> as their DataContext; the Strips/TDLS windows
-    /// carry a per-facility view-model, so they're named explicitly. Everything else (modal dialogs)
-    /// is excluded.
+    /// carry a per-facility view-model and the Scope window its Scope's, so they're named explicitly.
+    /// Everything else (modal dialogs) is excluded.
     /// </summary>
-    private static bool IsFocusInputScope(Window window) => window.DataContext is MainViewModel || window is VStripsViewWindow or VTdlsViewWindow;
+    private static bool IsFocusInputScope(Window window) =>
+        (window.DataContext is MainViewModel) || (window is VStripsViewWindow or VTdlsViewWindow or ScopeWindow);
 
     /// <summary>
     /// Resolves the single application <see cref="MainViewModel"/>. The focused window's DataContext
@@ -174,5 +176,6 @@ internal static class WindowHotkeys
     /// </summary>
     internal static MainViewModel? ResolveMainViewModel(TopLevel window) =>
         window.DataContext as MainViewModel
+        ?? (window.DataContext as ScopeViewModel)?.Main
         ?? (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow?.DataContext as MainViewModel;
 }

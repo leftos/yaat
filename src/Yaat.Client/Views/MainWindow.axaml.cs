@@ -23,8 +23,6 @@ using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
-using Yaat.Client.Views.Scope.Prefs;
-using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 using Yaat.Sim.Data;
@@ -40,24 +38,20 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private TerminalWindow? _terminalWindow;
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
-    private RadarViewWindow? _radarViewWindow;
     private ControllersWindow? _controllersWindow;
     private MetarWindow? _metarWindow;
-    private Scope.ScopeWindow? _scopeWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
     private ActiveRunwaysWindow? _activeRunwaysWindow;
 
     // Test hooks — read-only views of the subordinate windows the MainWindow creates
-    // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsRadarViewPoppedOut
+    // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsScopePoppedOut
     // flipping. Not used in production; present so headless lifecycle tests can assert
     // a pop-out actually spawned a window.
     internal DataGridWindow? DataGridWindow => _dataGridWindow;
     internal GroundViewWindow? GroundViewWindow => _groundViewWindow;
-    internal RadarViewWindow? RadarViewWindow => _radarViewWindow;
     internal ControllersWindow? ControllersWindow => _controllersWindow;
     internal MetarWindow? MetarWindow => _metarWindow;
-    internal Scope.ScopeWindow? ScopeWindow => _scopeWindow;
     internal TerminalWindow? TerminalWindow => _terminalWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
@@ -208,11 +202,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             recentWeatherItem.SubmenuOpened += OnRecentWeatherSubmenuOpened;
         }
 
-        MenuItem? newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
-        newRadarWindowItem?.Click += OnNewRadarWindowClick;
-        MenuItem? yaatScopeItem = this.FindControl<MenuItem>("YaatScopeMenuItem");
-        yaatScopeItem?.Click += OnYaatScopeClick;
-
         MenuItem? newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
         newGroundWindowItem?.Click += OnNewGroundWindowClick;
 
@@ -275,9 +264,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             OpenGroundViewWindow(vm);
         }
 
-        if (vm.IsRadarViewPoppedOut)
+        if (vm.IsScopePoppedOut)
         {
-            OpenRadarViewWindow(vm);
+            OpenScopeWindow(vm);
         }
 
         if (vm.IsControllersPoppedOut)
@@ -1170,8 +1159,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             case nameof(MainViewModel.IsGroundViewPoppedOut):
                 HandleGroundViewPopOut(vm);
                 break;
-            case nameof(MainViewModel.IsRadarViewPoppedOut):
-                HandleRadarViewPopOut(vm);
+            case nameof(MainViewModel.IsScopePoppedOut):
+                HandleScopePopOut(vm);
                 break;
             case nameof(MainViewModel.IsControllersPoppedOut):
                 HandleControllersPopOut(vm);
@@ -1277,18 +1266,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         else
         {
             CloseGroundViewWindow();
-        }
-    }
-
-    private void HandleRadarViewPopOut(MainViewModel vm)
-    {
-        if (vm.IsRadarViewPoppedOut)
-        {
-            OpenRadarViewWindow(vm);
-        }
-        else
-        {
-            CloseRadarViewWindow();
         }
     }
 
@@ -1899,24 +1876,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private void OpenRadarViewWindow(MainViewModel vm)
-    {
-        _radarViewWindow = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
-        _radarViewWindow.SetViewModel(vm.Radar);
-        _radarViewWindow.Closing += OnRadarViewWindowClosing;
-        _radarViewWindow.Show();
-    }
-
-    private void CloseRadarViewWindow()
-    {
-        if (_radarViewWindow is not null)
-        {
-            _radarViewWindow.Closing -= OnRadarViewWindowClosing;
-            _radarViewWindow.Close();
-            _radarViewWindow = null;
-        }
-    }
-
     // One window per extra Radar/Ground View instance (#2, #3, …). The docked view and its pop-out are
     // instance #1 and stay in _radarViewWindow / _groundViewWindow. Keyed by the instance record so the
     // collection-changed handler can find the window a removed instance owned.
@@ -2168,15 +2127,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
             vm.IsGroundViewPoppedOut = false;
-        }
-    }
-
-    private void OnRadarViewWindowClosing(object? sender, WindowClosingEventArgs e)
-    {
-        _radarViewWindow = null;
-        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
-        {
-            vm.IsRadarViewPoppedOut = false;
         }
     }
 
@@ -2660,46 +2610,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
             menu.Items.Add(item);
         }
-    }
-
-    private async void OnNewRadarWindowClick(object? sender, RoutedEventArgs e) =>
-        await OpenExtraViewAsync("New Radar Window", (vm, airportId) => vm.OpenExtraRadarView(airportId));
-
-    /// <summary>Opens the YAAT Scope window, or brings the open one forward: the scope has one instance.</summary>
-    private void OnYaatScopeClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        if (_scopeWindow is not null)
-        {
-            _scopeWindow.RestoreAndActivate();
-            return;
-        }
-
-        var prefStore = new ScopePrefSetStore(ScopePrefSetStore.DefaultRootDir, AppLog.CreateLogger<ScopePrefSetStore>());
-        var profileStore = new ScopeProfileStore(ScopeProfileStore.DefaultRootDir, AppLog.CreateLogger<ScopeProfileStore>());
-        var scope = new ScopeViewModel(vm, prefStore, profileStore);
-        vm.OpenScope = scope;
-        _scopeWindow = new Scope.ScopeWindow(vm.Preferences, scope);
-        _scopeWindow.Closing += OnScopeWindowClosing;
-        _scopeWindow.Show();
-    }
-
-    private void OnScopeWindowClosing(object? sender, WindowClosingEventArgs e)
-    {
-        if (sender is Scope.ScopeWindow window)
-        {
-            window.Closing -= OnScopeWindowClosing;
-            if ((DataContext is MainViewModel vm) && ReferenceEquals(vm.OpenScope, window.DataContext))
-            {
-                vm.OpenScope = null;
-            }
-        }
-
-        _scopeWindow = null;
     }
 
     private async void OnNewGroundWindowClick(object? sender, RoutedEventArgs e) =>
@@ -3784,13 +3694,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             rv.SyncAssignmentTint();
         }
 
-        // Pop-out RadarView
-        if (_radarViewWindow is not null)
-        {
-            RadarView? poppedRadar = _radarViewWindow.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
-            poppedRadar?.SyncAssignmentTint();
-        }
-
         // Extra Radar View windows (#2, #3, …) — same preferences, own canvases.
         foreach (RadarViewWindow extra in _extraRadarWindows.Values)
         {
@@ -3857,7 +3760,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         SettingsMenuItem.InputGesture = ToGesture(prefs.OpenSettingsKey);
         PopOutAircraftListMenuItem.InputGesture = ToGesture(prefs.PopOutAircraftListKey);
         PopOutGroundViewMenuItem.InputGesture = ToGesture(prefs.PopOutGroundViewKey);
-        PopOutRadarViewMenuItem.InputGesture = ToGesture(prefs.PopOutRadarViewKey);
+        PopOutScopeMenuItem.InputGesture = ToGesture(prefs.PopOutRadarViewKey);
         PopOutTerminalMenuItem.InputGesture = ToGesture(prefs.PopOutTerminalKey);
         PopOutControllersMenuItem.InputGesture = ToGesture(prefs.PopOutControllersKey);
         PopOutMetarMenuItem.InputGesture = ToGesture(prefs.PopOutMetarKey);
@@ -4190,6 +4093,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (_isMainWindowClosing)
         {
+            DisposePrimaryScopeAtExit();
             Log.LogInformation("MainWindow closing: teardown complete, close proceeding");
         }
 

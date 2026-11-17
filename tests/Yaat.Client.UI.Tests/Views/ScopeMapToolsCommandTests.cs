@@ -124,15 +124,17 @@ public class ScopeMapToolsCommandTests
     }
 
     [AvaloniaFact]
-    public async Task MapToolVerbs_WithNoScopeOpen_SayNoScopeIsOpen()
+    public async Task MapToolVerbs_WithNoOtherScope_ActOnThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
-        foreach (string command in new[] { ".scope mva on", ".scope lock on", ".scope center" })
-        {
-            main.RunScopeCommand(command);
-            Assert.Equal("No YAAT Scope is open", main.StatusText);
-        }
+        main.RunScopeCommand(".scope mva on");
+        Assert.True(main.PrimaryScope.ShowMvaHints);
+        Assert.Equal("Scope MVA ON", main.StatusText);
+
+        main.RunScopeCommand(".scope lock on");
+        Assert.True(main.PrimaryScope.IsPanZoomLocked);
+        Assert.Equal("Scope LOCK ON", main.StatusText);
     }
 
     [AvaloniaFact]

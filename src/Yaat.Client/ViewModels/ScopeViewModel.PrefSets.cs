@@ -189,6 +189,9 @@ public sealed partial class ScopeViewModel
         _stateFacility = facility;
     }
 
+    /// <summary>Saves the scope's state as its facility's current state, as a facility change and <see cref="Dispose"/> do.</summary>
+    public void SaveState() => SaveStateFor(_stateFacility);
+
     /// <summary>Saves the scope's state as <paramref name="facility"/>'s current state, warning when the file cannot be written.</summary>
     private void SaveStateFor(string? facility)
     {

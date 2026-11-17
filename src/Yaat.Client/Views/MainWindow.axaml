@@ -5,7 +5,7 @@
   xmlns:svc="using:Yaat.Client.Services"
   xmlns:views="using:Yaat.Client.Views"
   xmlns:ground="using:Yaat.Client.Views.Ground"
-  xmlns:radar="using:Yaat.Client.Views.Radar"
+  xmlns:scope="using:Yaat.Client.Views.Scope"
   xmlns:vstrips="using:Yaat.Client.Views.VStrips"
   x:Class="Yaat.Client.Views.MainWindow"
   x:DataType="vm:MainViewModel"
@@ -52,10 +52,10 @@
               IsChecked="{Binding IsGroundViewPoppedOut, Mode=TwoWay}"
             />
             <MenuItem
-              Header="_Radar view"
-              x:Name="PopOutRadarViewMenuItem"
+              Header="{x:Static views:MainWindow.ScopePopOutMenuHeader}"
+              x:Name="PopOutScopeMenuItem"
               ToggleType="CheckBox"
-              IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}"
+              IsChecked="{Binding IsScopePoppedOut, Mode=TwoWay}"
             />
             <MenuItem
               Header="T_erminal"
@@ -72,8 +72,6 @@
             <MenuItem Header="_METAR" x:Name="PopOutMetarMenuItem" ToggleType="CheckBox" IsChecked="{Binding IsMetarPoppedOut, Mode=TwoWay}" />
             <Separator />
             <MenuItem Header="New gr_ound window…" x:Name="NewGroundWindowMenuItem" />
-            <MenuItem Header="New radar _window…" x:Name="NewRadarWindowMenuItem" />
-            <MenuItem Header="YAAT _Scope" x:Name="YaatScopeMenuItem" />
             <Separator />
             <!-- Strips submenu is populated from code-behind to mirror
                      MainViewModel.StripsEntries. Each entry gets a checkable
@@ -697,8 +695,8 @@
           <TabItem Header="Ground View" x:Name="GroundViewTab" IsVisible="{Binding !IsGroundViewPoppedOut}">
             <ground:GroundView DataContext="{Binding Ground}" />
           </TabItem>
-          <TabItem Header="Radar View" x:Name="RadarViewTab" IsVisible="{Binding !IsRadarViewPoppedOut}">
-            <radar:RadarView DataContext="{Binding Radar}" />
+          <TabItem Header="{x:Static views:MainWindow.ScopeTabHeader}" x:Name="ScopeTab" IsVisible="{Binding !IsScopePoppedOut}">
+            <scope:ScopeHost x:Name="DockedScopeHost" DataContext="{Binding PrimaryScope}" />
           </TabItem>
           <TabItem Header="Controllers" x:Name="ControllersTab" IsVisible="{Binding !IsControllersPoppedOut}">
             <views:ControllersView />

@@ -103,16 +103,15 @@ public class ScopeViewCommandTests
         }
     }
 
-    [AvaloniaTheory]
-    [InlineData(".view ssa on")]
-    [InlineData(".view bogus")]
-    public async Task NoOpenScope_SaysSo(string command)
+    [AvaloniaFact]
+    public async Task WithNoOtherScope_TheVerbActsOnThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
-        main.RunViewCommand(command);
+        main.RunViewCommand(".view ssa on");
 
-        Assert.Equal("No YAAT Scope is open", main.StatusText);
+        Assert.True(main.PrimaryScope.IsViewOpen(ScopeToolbarButtons.ViewSsaName));
+        Assert.Equal(ScopeToolbarButtons.ViewCommand(ScopeToolbarButtons.ViewSsaName, true), main.StatusText);
     }
 
     [AvaloniaFact]

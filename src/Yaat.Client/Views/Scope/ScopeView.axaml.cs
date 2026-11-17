@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
@@ -85,8 +86,16 @@ public partial class ScopeView : UserControl
         WireFeatures();
     }
 
-    // The canvas taking the focus makes the Scope the active measure surface: a typed .rbl A B places here.
-    private void OnCanvasGotFocus(object? sender, FocusChangedEventArgs e) => (DataContext as ScopeViewModel)?.ActivateMeasureSurface();
+    // The canvas taking the focus makes the Scope the active measure surface, so a typed .rbl A B places here, and the
+    // active Scope, so a typed Scope verb acts on it.
+    private void OnCanvasGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (DataContext is ScopeViewModel vm)
+        {
+            vm.Main.ActiveScope = vm;
+            vm.ActivateMeasureSurface();
+        }
+    }
 
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
     internal ContextMenu? ActiveContextMenu => _activeContextMenu;
@@ -168,9 +177,11 @@ public partial class ScopeView : UserControl
 
     // Esc, unless a tear-off move is on (the tear-off layer cancels it), runs HandleEscape's chain.
     // Ctrl+M arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
+    // Only while the Scope has the keyboard focus (IsKeyFocusInside): docked in the main window, Esc, Ctrl+M and
+    // Ctrl+Shift+T typed in the command box or a grid stay theirs.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
-        if (DataContext is not ScopeViewModel vm)
+        if ((DataContext is not ScopeViewModel vm) || ((_activeFieldPopup is not { IsOpen: true }) && (!IsKeyFocusInside())))
         {
             return;
         }
@@ -195,6 +206,21 @@ public partial class ScopeView : UserControl
             vm.RunCommand(ScopeToolbarButtons.TdmCommand(!vm.IsTdm));
             e.Handled = true;
         }
+    }
+
+    /// <summary>
+    /// Whether the Scope's keys are its own now: always in a window of the Scope's own (its pop-out), else, docked in the
+    /// main window, while the keyboard focus is on the Scope (its toolbar, view or dock) or inside it.
+    /// </summary>
+    internal bool IsKeyFocusInside()
+    {
+        if (_topLevel is not MainWindow)
+        {
+            return true;
+        }
+
+        Visual scope = (Visual?)this.FindAncestorOfType<ScopeHost>() ?? this;
+        return (_topLevel?.FocusManager?.GetFocusedElement() is Visual focused) && ((focused == scope) || scope.IsVisualAncestorOf(focused));
     }
 
     private static KeyModifiers ActionModifier => PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control;

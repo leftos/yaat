@@ -256,7 +256,7 @@ public class TerminalSplitRatioTests
     {
         vm.IsDataGridPoppedOut = poppedOut;
         vm.IsGroundViewPoppedOut = poppedOut;
-        vm.IsRadarViewPoppedOut = poppedOut;
+        vm.IsScopePoppedOut = poppedOut;
         vm.IsControllersPoppedOut = poppedOut;
         vm.IsMetarPoppedOut = poppedOut;
         vm.StripsEntries[0].IsPoppedOut = poppedOut;

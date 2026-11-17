@@ -827,7 +827,7 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            if (!IsDataGridPoppedOut || !IsGroundViewPoppedOut || !IsRadarViewPoppedOut || !IsControllersPoppedOut || !IsMetarPoppedOut)
+            if (!IsDataGridPoppedOut || !IsGroundViewPoppedOut || !IsScopePoppedOut || !IsControllersPoppedOut || !IsMetarPoppedOut)
             {
                 return true;
             }
@@ -886,7 +886,7 @@ public partial class MainViewModel : ObservableObject
 
     private int FindNextVisibleTabIndex(int currentIndex)
     {
-        // Tab 0: Aircraft List, 1: Ground View, 2: Radar View, 3: Controllers, 4: METAR.
+        // Tab 0: Aircraft List, 1: Ground View, 2: Scope, 3: Controllers, 4: METAR.
         // Strips tabs follow at indices 5 .. 5 + StripsEntries.Count - 1, then
         // TDLS tabs at the next block — same order MainWindow.axaml.cs appends
         // them via tabControl.Items.Add. Walk all tabs (wrapping) and pick
@@ -918,7 +918,7 @@ public partial class MainViewModel : ObservableObject
             case 1:
                 return !IsGroundViewPoppedOut;
             case 2:
-                return !IsRadarViewPoppedOut;
+                return !IsScopePoppedOut;
             case 3:
                 return !IsControllersPoppedOut;
             case 4:
@@ -2026,7 +2026,7 @@ public partial class MainViewModel : ObservableObject
         _terminalFontSize = _preferences.TerminalFontSize;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
-        IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
+        IsScopePoppedOut = _preferences.IsScopePoppedOut;
         // Extra Radar/Ground View windows that were open at shutdown. With no scenario active this just
         // constructs and seeds the view-models; the window layer materializes a window per instance.
         ExtraGroundViews.CollectionChanged += OnExtraGroundViewsChanged;
@@ -2104,6 +2104,8 @@ public partial class MainViewModel : ObservableObject
                 NotifyRoomLoadingChanged();
             }
         };
+
+        PrimaryScope = CreatePrimaryScope();
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;

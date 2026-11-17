@@ -213,6 +213,7 @@ public sealed partial class UserPreferences
         ["isDataGridPoppedOut"] = "pop-out state, carried by layouts",
         ["isGroundViewPoppedOut"] = "pop-out state, carried by layouts",
         ["isRadarViewPoppedOut"] = "pop-out state, carried by layouts",
+        ["isScopePoppedOut"] = "pop-out state",
         ["isControllersPoppedOut"] = "pop-out state, carried by layouts",
         ["isMetarPoppedOut"] = "pop-out state, carried by layouts",
         ["isVStripsPoppedOut"] = "pop-out state",

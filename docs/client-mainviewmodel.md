@@ -40,9 +40,10 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.Strips.cs` / `MainViewModel.Tdls.cs` | Multi-facility strips / vTDLS tabs (`StripsEntries`): open/close per-facility entries (the same facility may be opened twice; duplicate tabs are told apart by the `DuplicateOrdinal` " #n" title suffix), split/unsplit (`SplitStripsEntryAsync` creates the entry's `SecondaryVm`; split mode + ratio persist for the student entry), strips zoom fan-out + persistence, the `Subscribe*Entry` / `Unsubscribe*Entry` collection-changed plumbing, per-entry pop-out persistence. |
 | `MainViewModel.ViewInstances.cs` | Extra Radar/Ground windows (#434): `ExtraRadarViews` / `ExtraGroundViews` (`RadarViewInstance` / `GroundViewInstance`, ordinals ≥ 2), the `CreateRadarViewModel` / `CreateGroundViewModel` factories the primaries also use, `OpenExtra*View` / `CloseExtra*View` / `ReconcileExtraViews` (profiles), late seeding from the stashed scenario bootstrap / position config / airport position, and the `AllRadarViews` / `AllGroundViews` enumerators every fan-out site loops over. One app-wide `SelectedAircraft`. See **Extra view instances** below. |
 | `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own: scope markers, `.rbl` / `.norbl`, `.reloadaliases`, `.scope`, `.view`), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings Apply + `.reloadaliases`; each start is kept as the public `CrcAliasLoad` task, which completes once its terminal line is added and which UI tests await), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
-| `MainViewModel.Scope.cs` | YAAT Scope commands: `OpenScope` (the open Scope's `ScopeViewModel`, set and cleared by `MainWindow`) and `TryHandleScopeCommand` (`.scope range <1-256>` / `.scope template <id>` / `.scope brite <group> <value>` / `.scope map <id> <on\|off>` / `.scope db <item> <value>` / `.scope tearoff <button> <corner> <dx> <dy>` / `.scope tearoff delete <button>...` / `.scope pref <save\|saveas\|load\|rename\|delete>` / `.scope profile <stars\|eram\|mixed>`; `No YAAT Scope is open` when none), the room's Scope profile (`ScopeProfile`, picked once when the student position first arrives; `PickScopeProfileByHand`) and `GetCachedVideoMap` (the video-map cache lookup behind the Scope's own map toggles). Client-only. |
+| `MainViewModel.Scope.cs` | YAAT Scope commands: `TryHandleScopeCommand` (`.scope range <1-256>` / `.scope template <id>` / `.scope brite <group> <value>` / `.scope map <id> <on\|off>` / `.scope db <item> <value>` / `.scope tearoff <button> <corner> <dx> <dy>` / `.scope tearoff delete <button>...` / `.scope pref <save\|saveas\|load\|rename\|delete>` / `.scope profile <stars\|eram\|mixed>`; it runs on `OpenScope`, in `MainViewModel.ScopeHosting.cs`), the room's Scope profile (`ScopeProfile`, picked once when the student position first arrives; `PickScopeProfileByHand`) and `GetCachedVideoMap` (the video-map cache lookup behind the Scope's own map toggles). Client-only. |
+| `MainViewModel.ScopeHosting.cs` | Where the YAAT Scope lives: `PrimaryScope` (the `ScopeViewModel`, built with the VM and alive until app exit, shown as the main window's Scope tab or popped out), `IsScopePoppedOut` (pref key `ScopeViewKey` = "ScopeView"; its change calls `OnTabPoppedOutChanged`), `ActiveScope` (the Scope whose canvas last took focus) and `OpenScope` (`ActiveScope` else `PrimaryScope`, never null: typed `.scope` / `.view` verbs always act on it), `AllScopeViews`, and `ScopeStoreFactory` (the pref-set and profile stores; a headless test swaps it). Replaces `MainViewModel.ScopeViews.cs`. Client-only. |
 | `MainViewModel.Measure.cs` | Partial: which map surface the distance measuring tool's typed `.rbl A B` places on — `ActiveMeasureView` (the last Radar, Ground or Scope canvas to take focus or a press; the Radar before any, and again when the Scope that took it closes), `SetActiveMeasureView`, and `MeasureSurface` (the view tag, track lookup and units for a surface). Client-only. |
-| `MainViewModel.Views.cs` | `TryHandleViewCommand` (`.view <ssa\|ca> <on\|off\|dock>` and `.view <ssa\|ca> tear <corner> <dx> <dy>`, after `TryHandleScopeCommand` in the dot-command chain: opens, closes, docks or tears off a view of the Scope's views dock, echoing even when the state is unchanged; `Usage: .view <ssa\|ca> <on\|off\|dock> \| .view <ssa\|ca> tear <tl\|tr\|bl\|br> <dx> <dy>` on bad input, `No YAAT Scope is open` when none) and `RunViewCommand` (the dock and toolbar's entry: runs it without command history). Client-only. |
+| `MainViewModel.Views.cs` | `TryHandleViewCommand` (`.view <ssa\|ca> <on\|off\|dock>` and `.view <ssa\|ca> tear <corner> <dx> <dy>`, after `TryHandleScopeCommand` in the dot-command chain: opens, closes, docks or tears off a view of the Scope's views dock, echoing even when the state is unchanged; `Usage: .view <ssa\|ca> <on\|off\|dock> \| .view <ssa\|ca> tear <tl\|tr\|bl\|br> <dx> <dy>` on bad input) and `RunViewCommand` (the dock and toolbar's entry: runs it without command history). Client-only. |
 | `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel (ground overrides, blank spacers) over `FavoriteStore`. `DisplayFavorites` = the visible sets' favorites (`FavoriteDisplayEntry`: favorite + container id) in the stored bar order (`ComposeDisplayFavorites` → `FavoriteStore.ComposeDisplay`, ordered by `FavoriteSetOrdering.Normalize` over `UserPreferences.FavoriteSetOrder`); `FavoriteSetRows` feeds the Sets flyout (Global/airport/scenario slots + every named set) and `MoveFavoriteSet` swaps a row with its visible neighbour; mutators are container-aware (`FindFavoriteContainer` routes an edit to the base pool or the owning set): membership-based Add/Update/Delete, container-scoped reorder/blank-insert, `FavoriteContainerOption` picker rows (on-demand airport/scenario containers); set load/unload + all-sets bundle import and zip import/export passthroughs. The ctor subscribes `UserPreferences.FavoriteSetsChanged` → `Dispatcher.UIThread.Post(RefreshDisplayFavorites)` so Favorites Editor mutations reach the live bar. |
 | `MainViewModel.ArrivalGenerators.cs` | Live arrival-generator editing: open the editor window, push edits to the sim, Save As. |
 | `ScenarioBootstrap.cs` | The `ScenarioBootstrap` record — the common projection the three activation paths feed `ApplyScenarioBootstrap`. |
@@ -144,7 +145,7 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
 5. **Strips/TDLS student entries** — `StripsEntries[0]` and `TdlsEntries[0]` are created (always element 0), then
    `Subscribe*Entry` + the `CollectionChanged` hooks are attached.
 6. **Pop-out flag restore** — the three fixed views (`IsDataGridPoppedOut`/`IsGroundViewPoppedOut`/
-   `IsRadarViewPoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences, and
+   `IsScopePoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences, and
    `ReconcileExtraViews` recreates the extra Radar/Ground instances from `ExtraRadarViewOrdinals` /
    `ExtraGroundViewOrdinals`.
 7. **~38 `ServerConnection` event subscriptions** (`MainViewModel.cs:1769`-`1810`).
@@ -364,7 +365,7 @@ order:
    refusal (`.ff` / `.marker` / `.markers` / `.nomarkers`), then `TryHandleMeasureCommand` (`.rbl` / `.norbl` /
    `*T`; `.rbl A B` resolves each token via `MeasureEndpointResolver` and places a radar-view line), then
    `TryHandleScopeCommand` (`MainViewModel.Scope.cs`: `.scope range <n>` / `.scope template <id>` / `.scope brite <group> <value>` / `.scope map <id> <on|off>` / `.scope db <item> <value>` drive
-   `OpenScope`, the open YAAT Scope's view model, which `MainWindow` sets and clears; toolbar clicks echo but skip
+   `OpenScope`, the YAAT Scope that last took focus, else the primary Scope (`MainViewModel.ScopeHosting.cs`), never null; toolbar clicks echo but skip
    command history), then `TryHandleViewCommand` (`MainViewModel.Views.cs`: `.view <ssa|ca|rpoq> <on|off>` opens or closes a
    view in the Scope's views dock), then
    `TryHandleCrcAlias` (`MainViewModel.CrcAliases.cs`); none claiming it yields "Unknown command or alias". The
@@ -420,7 +421,7 @@ the canonical command (`"SWA123 FH 270"`) so the `CallsignPrefixResolver` path a
 The main tab control has a fixed-index layout, hard-coded in both the VM arithmetic and the View materialization:
 
 ```
-0 = Aircraft List (DataGrid)   1 = Ground View   2 = Radar View   3 = Controllers   4 = METAR
+0 = Aircraft List (DataGrid)   1 = Ground View   2 = Scope   3 = Controllers   4 = METAR
 5 .. 5+StripsEntries.Count-1   = Strips tabs (student entry first)
 then TdlsEntries               = vTDLS tabs (student entry first)
 ```
@@ -441,7 +442,7 @@ The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewM
 
 ### Extra view instances (`New Radar Window` / `New Ground Window`)
 
-The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` / `IsGroundViewPoppedOut` semantics.
+The docked Ground view and its pop-out are the implicit instance #1 and keep today's `IsGroundViewPoppedOut` semantics. The main window's tab 2 is the Scope (`IsScopePoppedOut`, `MainViewModel.ScopeHosting.cs`; `MainWindow.ScopeHosting.cs` opens and closes its `ScopeWindow`), not the Radar View; **View → Windows** no longer offers New Radar Window.
 
 **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own** `RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target).
 
@@ -562,7 +563,7 @@ The VM cannot reach a control (MVVM), so two parameterless events let it poke th
 
 On the property side, `MainWindow.OnViewModelPropertyChanged` (`MainWindow.axaml.cs:1037`) switches on changed
 property names to drive side effects the bindings can't express: pop-out window create/close (`IsTerminalDocked`,
-`IsDataGridPoppedOut`, `IsGroundViewPoppedOut`, `IsRadarViewPoppedOut`), content-grid row resizing (`IsAnyTabVisible`),
+`IsDataGridPoppedOut`, `IsGroundViewPoppedOut`, `IsScopePoppedOut`), content-grid row resizing (`IsAnyTabVisible`),
 and recent-menu enablement (`ActiveScenarioId` / `ActiveRoomId`).
 
 ## Shutdown protocol

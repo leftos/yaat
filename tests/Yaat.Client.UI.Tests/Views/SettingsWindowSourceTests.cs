@@ -99,7 +99,7 @@ public partial class SettingsWindowSourceTests
         "IsChecked={Binding RaiseWindowsTogether}",
         "IsChecked={Binding MainWindowTopmost}",
         "IsChecked={Binding GroundViewTopmost}",
-        "IsChecked={Binding RadarViewTopmost}",
+        "IsChecked={Binding ScopeTopmost}",
         "IsChecked={Binding DataGridTopmost}",
         "IsChecked={Binding TerminalTopmost}",
         "IsChecked={Binding VStripsTopmost}",

@@ -11,8 +11,6 @@ public partial class MainViewModel
 {
     private const string ScopeFixUsage = "Usage: .scope fix <on|off>";
 
-    private const string NoScopeOpen = "No YAAT Scope is open";
-
     private const string ScopeMvaUsage = "Usage: .scope mva <on|off>";
 
     private const string ScopeLockUsage = "Usage: .scope lock <on|off>";
@@ -55,11 +53,8 @@ public partial class MainViewModel
             return false;
         }
 
-        if (OpenScope is not { } scope)
-        {
-            sink.ReportError(NoScopeOpen);
-        }
-        else if (verb == ".NOMARKERS")
+        ScopeViewModel scope = OpenScope;
+        if (verb == ".NOMARKERS")
         {
             scope.ClearMarkers();
             sink.ReportStatus("Scope markers cleared");
@@ -104,7 +99,7 @@ public partial class MainViewModel
     {
         if ((result is null) && MapToolVerbs.TryGetValue(verb, out Func<ScopeViewModel, string[], string>? handler))
         {
-            result = OpenScope is { } scope ? handler(scope, parts) : NoScopeOpen;
+            result = handler(OpenScope, parts);
         }
     }
 

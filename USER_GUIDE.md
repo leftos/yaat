@@ -65,7 +65,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
 
 The YAAT window has three areas:
 
-1. **Tab area** (top) — three views: Aircraft List, Ground View, Radar View
+1. **Tab area** (top) — three views: Aircraft List, Ground View, Scope
 2. **Terminal panel** (bottom) — scrolling log of commands, responses, warnings, and errors
 3. **Command bar** (bottom edge) — where you type commands
 
@@ -83,17 +83,17 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-The **View** menu has three submenus: **Windows** (the pop-outs, new Radar and Ground windows, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
+The **View** menu has three submenus: **Windows** (the pop-outs, new Ground window, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
 
-Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Radar view / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** radar, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item).
+Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Scope / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** Scope, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item).
 
 The hotkeys work from any YAAT window, pop-outs included. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
 
 All views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
-**View > Windows > New radar window…** and **View > Windows > New ground window…** open additional, independent copies of those views ("Radar View #2 — KSFO", "Ground View #2 — KOAK", …). Because a second view has no obvious target, each asks which airport to base it on first: pick one of the ARTCC's airports (the scenario's primary airport is preselected) or type any airport the navigation database knows.
+**View > Windows > New ground window…** opens an additional, independent copy of the Ground view ("Ground View #2 — KOAK", …). Because a second view has no obvious target, it asks which airport to base it on first: pick one of the ARTCC's airports (the scenario's primary airport is preselected) or type any airport the navigation database knows.
 
-An extra Radar window centres on that airport and loads the video maps favoured for it; an extra Ground window shows that airport's ground layout (choosing the main view's airport simply shows the same layout again).
+An extra Ground window shows that airport's ground layout (choosing the main view's airport simply shows the same layout again).
 
 Each extra window keeps its own centre, range, zoom, rotation, filters, DCB and datablock positions, and remembers them per scenario separately from the main view; the selected aircraft is shared across every window and the Aircraft List, so clicking a target anywhere selects it everywhere.
 
@@ -101,7 +101,11 @@ Close an extra window to remove it; open extras (with their airports) are restor
 
 #### YAAT Scope (preview)
 
-**View > Windows > YAAT Scope** (just after **New radar window…**) opens a preview of the new instructor radar in a window titled "YAAT Scope"; a second click brings the open window forward. Today's Radar stays the main view and is unchanged.
+The **Scope** tab of the main window (the third tab, where the Radar View used to be) is the new instructor radar. It is a preview: the Scope is built with the app and lives until you exit.
+
+**View > Windows > Scope** (**Ctrl+Shift+R** by default; rebindable in **Settings › Keys** as "Pop out Scope") pops the Scope out into its own window, or docks it back into the tab. Closing the Scope window docks it back with the same state. Whether it is popped out is remembered across sessions, and the Scope's state is saved when its window closes, when your position changes facility and when YAAT exits.
+
+Docked in the main window, **Esc**, **Ctrl+M** and **Ctrl+Shift+T** reach the Scope only while keyboard focus is in it; Esc and Ctrl+T in the command box keep their own meaning. In the pop-out window they always reach the Scope.
 
 The Scope shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on.
 
@@ -131,7 +135,7 @@ The **RANGE** button shows the range in nautical miles (**RANGE 40**). Roll the 
 
 By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **VECTOR**, **HIST**, **TOOLS**, **AUTO**, **MAPS**, **TDM**, **MVA**, **DISPLAY**, **RR**, **DB**, **VIEWS**, **PILOT LENS**, **BRITE**, **PREF** and **DEL TEAROFF**.
 
-**TDM** is top-down mode, a toggle with no tray that is lit while it is on; a press closes any open tray and flips it. With TDM on the Scope draws aircraft on the ground and airborne ones below the display floor, with the vector, history and rings, and the video maps marked TDM-only (such as airport diagrams), even when their MAPS toggle is on. On the STARS and ERAM templates (and Mixed where it resolves to them) an aircraft on the ground gets a two-line ground-target block at every zoom level and on hover: line 1 the aircraft ID, line 2 the destination when it has a flight plan (`KATL A321`), else the beacon code (`4521 A321`), else just the type; the type is the one the pilot connected with, not the filed one. Airborne aircraft below the floor and every EuroScope tag keep the ordinary block. With TDM off the aircraft are gone from the drawing and cannot be clicked, and TDM-only maps are not drawn even with their toggle on. The Radar view still ignores TDM-only. TDM is kept in the Scope's saved state and in pref sets; a state saved without it opens with TDM off. In the Scope window **Ctrl+Shift+T** (**Cmd+Shift+T** on macOS) flips TDM the same way and echoes it; plain Ctrl+T does nothing there, so it never clashes with take control.
+**TDM** is top-down mode, a toggle with no tray that is lit while it is on; a press closes any open tray and flips it. With TDM on the Scope draws aircraft on the ground and airborne ones below the display floor, with the vector, history and rings, and the video maps marked TDM-only (such as airport diagrams), even when their MAPS toggle is on. On the STARS and ERAM templates (and Mixed where it resolves to them) an aircraft on the ground gets a two-line ground-target block at every zoom level and on hover: line 1 the aircraft ID, line 2 the destination when it has a flight plan (`KATL A321`), else the beacon code (`4521 A321`), else just the type; the type is the one the pilot connected with, not the filed one. Airborne aircraft below the floor and every EuroScope tag keep the ordinary block. With TDM off the aircraft are gone from the drawing and cannot be clicked, and TDM-only maps are not drawn even with their toggle on. The Radar view still ignores TDM-only. TDM is kept in the Scope's saved state and in pref sets; a state saved without it opens with TDM off. In the Scope (docked with focus in it, or popped out) **Ctrl+Shift+T** (**Cmd+Shift+T** on macOS) flips TDM the same way and echoes it; plain Ctrl+T does nothing there, so it never clashes with take control.
 
 **MVA** is a toggle with no tray, lit while the MVA altitude tint is on; a press closes any open tray and flips it. Holding **Control** over the scope shows the minimum vectoring altitude under the pointer as a label beside it, `MVA <floor> (<sector>)` (for example `MVA 3000 (9)`), whichever way the tint is set; nothing shows where no MVA sector lies under the pointer. The label follows the pointer and goes when Control is released or the scope loses the keyboard.
 
@@ -177,7 +181,7 @@ MAP A and MAP B dim the video maps by their A or B category; TARGETS the positio
 
 DWELL lifts everything drawn for a dwelled block toward full brightness, as CRC does: at DWELL 20 a dwelled block draws at 100 whatever its groups say, and at 0 it keeps their dimming. A brightness scales each colour's red, green and blue by value/100 and leaves its transparency alone. The selection border never dims. The defaults draw the Scope as it looked before BRITE existed.
 
-Brightness belongs to the Scope window and is never sent to the server. It is kept in the Scope's saved state and in pref sets (see **PREF** below), so a Scope with no saved state opens at the defaults.
+Brightness belongs to the Scope and is never sent to the server. It is kept in the Scope's saved state and in pref sets (see **PREF** below), so a Scope with no saved state opens at the defaults.
 
 **PREF** is the button after BRITE. It reads **PREF SR-DAY** while a set is active, or **PREF** alone. Its tray holds one button per saved pref set, the active one lit, then **SAVE**, **SAVE AS**, **RENAME** and **DELETE**. A click on a set loads it.
 
@@ -189,7 +193,7 @@ Loading a set replaces the Scope's state: the profile switches to the set's, the
 
 Sets belong to a facility, the one of your active position's track or listing, and are kept in `%LOCALAPPDATA%/yaat/scope/prefsets/<facility>.json`. Without an active position every PREF action says `No facility: pref sets need an active position`. Pref sets are not part of the settings bundle export.
 
-The Scope also saves its own state per facility, in `%LOCALAPPDATA%/yaat/scope/current/<facility>.json`, when its window closes and for the old facility when your active position changes facility. The state comes back when the Scope opens for that facility, or when your position moves to it, with the active set's name if that set still exists.
+The Scope also saves its own state per facility, in `%LOCALAPPDATA%/yaat/scope/current/<facility>.json`, when its pop-out window closes, when YAAT exits, and for the old facility when your active position changes facility. The state comes back when the Scope starts for that facility, or when your position moves to it, with the active set's name if that set still exists.
 
 A facility with no saved state keeps the screen as it is and clears the active set. A file that cannot be read is left alone and copied to a `.bak`; a bad entry is dropped with a warning in the client log.
 
@@ -229,7 +233,7 @@ Every toolbar action is also a command typed in the command box, and the status 
 
 The pilot lens has `.scope lens <on|off>` (echoes `Scope lens ON` or `Scope lens OFF`), `.scope lens path <on|off>` (echoes `Scope lens path ON` or `Scope lens path OFF`), `.scope lens queue <on|off>` (echoes `Scope lens queue ON` or `Scope lens queue OFF`), `.scope lens checkin <on|off>` (echoes `Scope lens checkin ON` or `Scope lens checkin OFF`) and `.scope lens path <callsign>`, which toggles that track's intent path (echoes `Scope lens path UAL1`, or `Scope lens path UAL1 removed`); a callsign that matches no aircraft answers `Unknown aircraft: <typed>`, and any other shape `Usage: .scope lens <on|off> | .scope lens <path|queue|checkin> <on|off> | .scope lens path <callsign>`.
 
-The same goes for `.scope tdm <on|off>` (echoes `Scope TDM ON` or `Scope TDM OFF`), `.scope mva <on|off>` and `.scope lock <on|off>` (each echoes as typed), `.scope center` (echoes as typed, or answers `The Scope has no home centre yet`; with no Scope open these three answer `No YAAT Scope is open`), `.scope db <4thline|dwell|atpa> <on|off>` and `.scope db char <8-24>` (the DB echo is lowercase), `.view <ssa|ca|rpoq> <on|off|dock>` (any letter case), `.scope tearoff <button> <tl|tr|bl|br> <dx> <dy>` and `.view <ssa|ca|rpoq> tear <tl|tr|bl|br> <dx> <dy>`.
+The same goes for `.scope tdm <on|off>` (echoes `Scope TDM ON` or `Scope TDM OFF`), `.scope mva <on|off>` and `.scope lock <on|off>` (each echoes as typed), `.scope center` (echoes as typed, or answers `The Scope has no home centre yet`), `.scope db <4thline|dwell|atpa> <on|off>` and `.scope db char <8-24>` (the DB echo is lowercase), `.view <ssa|ca|rpoq> <on|off|dock>` (any letter case), `.scope tearoff <button> <tl|tr|bl|br> <dx> <dy>` and `.view <ssa|ca|rpoq> tear <tl|tr|bl|br> <dx> <dy>`.
 
 The pref set verbs are `.scope pref save`, `.scope pref saveas <name>`, `.scope pref load <name>`, `.scope pref rename <old> <new>` and `.scope pref delete <name>`; each echoes its canonical text, with the set's name in capitals.
 
@@ -245,7 +249,7 @@ The pref verbs answer `Usage: .scope pref save | .scope pref saveas <name> | .sc
 
 A load that skips maps appends ` (N maps not on this scope)`, or ` (its maps apply once the scope's maps load)` while the Scope waits for the facility's maps.
 
-A bare `.scope` prints the usage, and with no Scope open you get `No YAAT Scope is open`.
+A bare `.scope` prints the usage. Typed `.scope` and `.view` commands always act on a Scope: the one you last focused, else the main Scope.
 
 `.view` echoes (`.view ssa on`) even when the view is already in that state. Typed `.scope` and `.view` commands go into the command history; toolbar clicks do not. `.scope` and `.view` are YAAT commands, so they win over a CRC alias of the same name; type `CRC .scope` or `CRC .view` to reach the alias.
 
@@ -316,7 +320,7 @@ While drawing, the pointer is a cross. A left click places a waypoint, named by 
 
 If you open it before a scenario or ARTCC is loaded, it takes the Radar's centre, range and video maps the first time the Radar has them, then stays independent. Its window position is remembered.
 
-**Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
+**Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window but the Scope (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
 
 A layout never holds radar, ground or terminal view settings, so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
 
@@ -324,7 +328,7 @@ Applying a layout brings its saved windows to the front (un-minimizing them if n
 
 Window profiles saved by an earlier version appear as layouts with the same names. Useful for keeping separate GC and LC layouts (each with its own favorite sets) and switching between them in one click.
 
-**Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings › Keys) while a pop-out window is focused to pin it above all other windows. You can also toggle this per window in Settings › General › Windows (Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips, Favorites).
+**Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings › Keys) while a pop-out window is focused to pin it above all other windows. You can also toggle this per window in Settings › General › Windows (Main Window, Ground View, Scope, Aircraft List, Terminal, Flight Strips, Favorites).
 
 On Windows, the toggle is also available in the title-bar system menu (right-click the title bar or click the window icon). On macOS, the toggle is in the menu bar under Window → Always on Top while the pop-out is focused. On Linux, your window manager's title-bar context menu typically provides a native "Always on Top" item that reflects the same state.
 
@@ -445,10 +449,10 @@ To the left of the command box, the **active-position selector** shows the [TCP]
 |-----|--------|
 | ~ (tilde) | Focus the command input from anywhere in the app *(default)* |
 | Ctrl+T | Take control of the selected aircraft *(default)* |
-| Ctrl+Shift+T | In the YAAT Scope window (Cmd+Shift+T on macOS): toggle TDM |
+| Ctrl+Shift+T | In the Scope, docked with focus in it or popped out (Cmd+Shift+T on macOS): toggle TDM |
 | Ctrl+Shift+T | Toggle window always-on-top *(default)* |
 | Ctrl+B | Drop a quick timeline bookmark *(default)* |
-| Ctrl+Shift+L / G / R / E / C / M | Pop out or dock the aircraft list / ground view / radar view / terminal / controllers / METAR *(default)* |
+| Ctrl+Shift+L / G / R / E / C / M | Pop out or dock the aircraft list / ground view / Scope / terminal / controllers / METAR *(default)* |
 | Ctrl+Shift+F | Show or hide the favorites bar *(default)* |
 | Ctrl+, | Open Settings *(default)* |
 | Right Ctrl | Push-to-talk for speech recognition *(default)* |
@@ -1503,7 +1507,7 @@ YAAT knows the FAA-charted Minimum Vectoring Altitude (MVA) for every facility t
 
 Pin reference fixes/NAVAIDs or arbitrary points on the radar (matching CRC STARS' "Scope Markers"). Pins draw as yellow diamonds with a label and are **always visible**, independent of the **FIX** overlay toggle. They are saved per radar view, so they return when you reopen the scenario.
 
-- **Commands** (typed in the command box — they act on the open [YAAT Scope](#yaat-scope-preview), local to you and never sent to aircraft; with no Scope open they answer "No YAAT Scope is open", and they no longer pin or clear markers on the Radar):
+- **Commands** (typed in the command box — they act on the [YAAT Scope](#yaat-scope-preview) that last had focus, else the main window's Scope, local to you and never sent to aircraft; they no longer pin or clear markers on the Radar):
   - `.ff <fix>` / `.marker <fix>` — toggle a fix, NAVAID or FRD marker on/off (e.g. `.marker SFO`). `.ff` and `.marker` are interchangeable. They echo "Scope markers updated", or "Scope markers updated; unknown fix: X" for a name no point answers to.
   - `.markers <fix1> <fix2> …` — toggle several at once.
   - `.nomarkers` — remove all markers ("Scope markers cleared").
@@ -1723,7 +1727,7 @@ The same view is also available in any browser at `/vstrips/` on the server (no 
 
 #### Opening the tab
 
-The Strips tab appears next to Aircraft List / Ground View / Radar View as soon as the server tells the client which strip bays the student position can access. There is one **student entry** for the position you connected as, plus optional extra entries for any other facility your position can see.
+The Strips tab appears next to Aircraft List / Ground View / Scope as soon as the server tells the client which strip bays the student position can access. There is one **student entry** for the position you connected as, plus optional extra entries for any other facility your position can see.
 
 A facility is openable when it is your own, a facility below you in the tree (a TRACON working its child towers top-down), **or** a facility your own config links a bay from. That last case is the common one at a tower: KOAK's strips config links NorCal (NCT) and Oakland Bay (O90) bays for scanning strips outward, so both TRACONs can be opened as their own tabs — otherwise a strip you scanned to NorCal would be write-only. A facility's tab shows **all** of its bays, not just the linked ones.
 
@@ -3224,7 +3228,7 @@ Where an import lands depends on where you opened the window. Opened from inside
 | **Discord → Show the scenario I'm running as my Discord status** | While a scenario is loaded, your Discord profile shows its name, the ARTCC and the airport, with a timer counting from when the scenario started (someone who joins a running room gets the room's elapsed time, not a fresh zero). Nothing is shown when no scenario is loaded, and the room and the other people in it are never shown. Needs the Discord desktop app running on the same computer — without it the setting does nothing. Uncheck it and press **Apply** or **OK** to remove the status straight away. | On |
 | **Settings Files → Import / Export...** | Opens the [Import / Export](#importing-and-exporting-settings) window with nothing ticked. An import from it waits for **Apply** or **OK**, and **Cancel** drops it. | — |
 | **Windows → Bring all windows to front together** | Clicking any YAAT window raises all YAAT windows above other apps, like CRC — no more clicking each window individually after Discord or a browser covered them. Minimized windows stay minimized, and the window you clicked keeps focus. | On |
-| **Windows → Always on Top** (Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips, Favorites) | Pins that window above all others. Also toggled with the [Always on Top key](#keys) while a window is focused. | Off |
+| **Windows → Always on Top** (Main Window, Ground View, Scope, Aircraft List, Terminal, Flight Strips, Favorites) | Pins that window above all others. Also toggled with the [Always on Top key](#keys) while a window is focused. | Off |
 
 Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** when you connect — they are not entered by hand. See [Signing in with VATSIM](#signing-in-with-vatsim).
 

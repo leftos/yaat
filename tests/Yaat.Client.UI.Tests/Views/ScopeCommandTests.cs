@@ -303,19 +303,15 @@ public class ScopeCommandTests
         }
     }
 
-    [AvaloniaTheory]
-    [InlineData(".scope range 25")]
-    [InlineData(".scope range abc")]
-    [InlineData(".scope template eram")]
-    [InlineData(".scope brite fdb 85")]
-    [InlineData(".scope brite wx 50")]
-    public async Task NoOpenScope_SaysSo(string command)
+    [AvaloniaFact]
+    public async Task WithNoOtherScope_RangeActsOnThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
-        main.RunScopeCommand(command);
+        main.RunScopeCommand(".scope range 25");
 
-        Assert.Equal("No YAAT Scope is open", main.StatusText);
+        Assert.Equal(25, main.PrimaryScope.RangeNm);
+        Assert.Equal(".scope range 25", main.StatusText);
     }
 
     [AvaloniaFact]
@@ -543,17 +539,16 @@ public class ScopeCommandTests
     }
 
     [AvaloniaTheory]
-    [InlineData(".scope map 10 on")]
     [InlineData(".scope map clear")]
     [InlineData(".scope db char 16")]
-    [InlineData(".scope db ldr 2")]
-    public async Task NoOpenScope_MapAndDb_SaySo(string command)
+    public async Task WithNoOtherScope_MapAndDbActOnThePrimaryScope(string command)
     {
         MainViewModel main = await MainAsync();
 
         main.RunScopeCommand(command);
 
-        Assert.Equal("No YAAT Scope is open", main.StatusText);
+        Assert.Same(main.PrimaryScope, main.OpenScope);
+        Assert.Equal(command, main.StatusText);
     }
 
     private static ScopeTearoff Tearoff(ScopeButtonId id, ScopeCorner corner, int dx, int dy) =>

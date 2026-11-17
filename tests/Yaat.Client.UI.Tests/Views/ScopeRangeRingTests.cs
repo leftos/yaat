@@ -111,15 +111,14 @@ public class ScopeRangeRingTests
     }
 
     [AvaloniaFact]
-    public async Task RrAndWxVerbs_WithNoScopeOpen_SayNoScopeIsOpen()
+    public async Task RrVerb_WithNoOtherScope_ActsOnThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
-        foreach (string command in new[] { ".scope rr on", ".scope wx on" })
-        {
-            main.RunScopeCommand(command);
-            Assert.Equal("No YAAT Scope is open", main.StatusText);
-        }
+        main.RunScopeCommand(".scope rr on");
+
+        Assert.True(main.PrimaryScope.ShowRangeRing);
+        Assert.Equal("Scope RR ON", main.StatusText);
     }
 
     [AvaloniaFact]

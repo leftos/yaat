@@ -34,13 +34,8 @@ public partial class MainViewModel
     /// <summary>Applies the <c>.view</c> command in <paramref name="parts"/> to its view, and returns the status text.</summary>
     private string RunViewVerb(string[] parts)
     {
-        if (OpenScope is not { } scope)
-        {
-            return "No YAAT Scope is open";
-        }
-
         string name = (parts.Length >= 3) ? parts[1].ToLowerInvariant() : "";
-        return ScopeViewModel.IsViewName(name) ? RunViewAction(scope, name, parts) : ViewUsage;
+        return ScopeViewModel.IsViewName(name) ? RunViewAction(OpenScope, name, parts) : ViewUsage;
     }
 
     /// <summary>The action <c>parts[2]</c> on the view named <paramref name="name"/>; an error changes nothing.</summary>

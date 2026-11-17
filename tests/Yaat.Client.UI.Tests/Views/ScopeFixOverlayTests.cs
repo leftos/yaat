@@ -47,13 +47,14 @@ public class ScopeFixOverlayTests
     }
 
     [AvaloniaFact]
-    public async Task FixVerb_WithNoScopeOpen_SaysNoScopeIsOpen()
+    public async Task FixVerb_WithNoOtherScope_ActsOnThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
         main.RunScopeCommand(".scope fix on");
 
-        Assert.Equal("No YAAT Scope is open", main.StatusText);
+        Assert.True(main.PrimaryScope.ShowFixes);
+        Assert.Equal("Scope FIX ON", main.StatusText);
     }
 
     [AvaloniaFact]

@@ -82,9 +82,6 @@ public partial class MainViewModel
     /// </summary>
     public ScopeMapSource ScopeMaps { get; }
 
-    /// <summary>The open YAAT Scope's view model, or null when no Scope window is open.</summary>
-    public ScopeViewModel? OpenScope { get; set; }
-
     /// <summary>
     /// The room's Scope profile, which every Scope window follows: picked once, when the first student position arrives, from
     /// the profile picked by hand for the room's student position type, else by the position's kind
@@ -224,7 +221,7 @@ public partial class MainViewModel
             return RunFeatureVerb(verb, parts) ?? ScopeUsage;
         }
 
-        return OpenScope is { } scope ? handler(scope, parts) : "No YAAT Scope is open";
+        return handler(OpenScope, parts);
     }
 
     /// <summary><c>.scope map &lt;starsId&gt; on|off</c> or <c>.scope map clear</c>.</summary>

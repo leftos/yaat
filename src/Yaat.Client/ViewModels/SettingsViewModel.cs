@@ -408,7 +408,7 @@ public partial class SettingsViewModel : ObservableObject
     private bool _groundViewTopmost;
 
     [ObservableProperty]
-    private bool _radarViewTopmost;
+    private bool _scopeTopmost;
 
     [ObservableProperty]
     private bool _dataGridTopmost;
@@ -924,7 +924,7 @@ public partial class SettingsViewModel : ObservableObject
         _clearTerminalOnScenarioLoad = _preferences.ClearTerminalOnScenarioLoad;
         _mainWindowTopmost = _preferences.MainWindowGeometry?.IsTopmost ?? false;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
-        _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
+        _scopeTopmost = _preferences.GetWindowGeometry(MainViewModel.ScopeViewKey)?.IsTopmost ?? false;
         _dataGridTopmost = _preferences.DataGridWindowGeometry?.IsTopmost ?? false;
         _terminalTopmost = _preferences.TerminalWindowGeometry?.IsTopmost ?? false;
         _vStripsTopmost = _preferences.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
@@ -933,7 +933,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             ["Main"] = _mainWindowTopmost,
             ["GroundView"] = _groundViewTopmost,
-            ["RadarView"] = _radarViewTopmost,
+            [MainViewModel.ScopeViewKey] = _scopeTopmost,
             ["DataGrid"] = _dataGridTopmost,
             ["Terminal"] = _terminalTopmost,
             ["VStripsView"] = _vStripsTopmost,
@@ -1204,11 +1204,11 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
         _preferences.SetDiscordRichPresenceEnabled(DiscordRichPresenceEnabled);
         _preferences.SetClearTerminalOnScenarioLoad(ClearTerminalOnScenarioLoad);
-        // Extra Radar/Ground windows (RadarView#2, GroundView#3, …) follow their view's single
+        // Extra Ground windows (GroundView#2, GroundView#3, …) follow their view's single
         // always-on-top setting, the same way the per-facility Strips windows do.
         ApplyTopmostIfChanged("Main", MainWindowTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("GroundView", GroundViewTopmost, ViewInstanceOrdinals.GroundPrefix);
-        ApplyTopmostIfChanged("RadarView", RadarViewTopmost, ViewInstanceOrdinals.RadarPrefix);
+        ApplyTopmostIfChanged(MainViewModel.ScopeViewKey, ScopeTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("DataGrid", DataGridTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("Terminal", TerminalTopmost, followerPrefix: null);
         ApplyTopmostIfChanged("VStripsView", VStripsTopmost, "VStripsView:");
@@ -1576,8 +1576,8 @@ public partial class SettingsViewModel : ObservableObject
         ),
         new(
             "PopOutRadarView",
-            "Pop out radar view",
-            "Pops the radar view out into its own window, or docks it back, from any YAAT window.",
+            "Pop out Scope",
+            "Pops the Scope out into its own window, or docks it back into the main window's Scope tab.",
             PopOutSearchWords,
             KeybindKind.WindowHotkey,
             p => p.PopOutRadarViewKey,
@@ -2012,7 +2012,7 @@ public partial class SettingsViewModel : ObservableObject
         RaiseWindowsTogether = defaults.RaiseWindowsTogether;
         MainWindowTopmost = defaults.MainWindowGeometry?.IsTopmost ?? false;
         GroundViewTopmost = defaults.GroundViewWindowGeometry?.IsTopmost ?? false;
-        RadarViewTopmost = defaults.RadarViewWindowGeometry?.IsTopmost ?? false;
+        ScopeTopmost = defaults.GetWindowGeometry(MainViewModel.ScopeViewKey)?.IsTopmost ?? false;
         DataGridTopmost = defaults.DataGridWindowGeometry?.IsTopmost ?? false;
         TerminalTopmost = defaults.TerminalWindowGeometry?.IsTopmost ?? false;
         VStripsTopmost = defaults.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;

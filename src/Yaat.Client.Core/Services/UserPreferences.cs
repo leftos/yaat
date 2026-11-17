@@ -382,6 +382,7 @@ public sealed partial class UserPreferences
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
+    public bool IsScopePoppedOut => _data.IsScopePoppedOut;
     public bool IsControllersPoppedOut => _data.IsControllersPoppedOut;
     public bool IsMetarPoppedOut => _data.IsMetarPoppedOut;
 
@@ -944,6 +945,7 @@ public sealed partial class UserPreferences
             "DataGrid" => _data.IsDataGridPoppedOut,
             "GroundView" => _data.IsGroundViewPoppedOut,
             "RadarView" => _data.IsRadarViewPoppedOut,
+            "ScopeView" => _data.IsScopePoppedOut,
             "Controllers" => _data.IsControllersPoppedOut,
             "Metar" => _data.IsMetarPoppedOut,
             "VStrips" => _data.IsVStripsPoppedOut,
@@ -966,6 +968,9 @@ public sealed partial class UserPreferences
                 break;
             case "RadarView":
                 _data.IsRadarViewPoppedOut = poppedOut;
+                break;
+            case "ScopeView":
+                _data.IsScopePoppedOut = poppedOut;
                 break;
             case "Controllers":
                 _data.IsControllersPoppedOut = poppedOut;
@@ -2355,6 +2360,7 @@ public sealed partial class UserPreferences
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
+            IsScopePoppedOut = GetFieldOr(obj, "isScopePoppedOut", false),
             ExtraRadarViews = GetFieldOr<List<SavedExtraView>>(obj, "extraRadarViews", []),
             ExtraGroundViews = GetFieldOr<List<SavedExtraView>>(obj, "extraGroundViews", []),
             IsControllersPoppedOut = GetFieldOr(obj, "isControllersPoppedOut", false),
@@ -2765,6 +2771,7 @@ public sealed partial class UserPreferences
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
+        public bool IsScopePoppedOut { get; set; }
         public bool IsControllersPoppedOut { get; set; }
         public bool IsMetarPoppedOut { get; set; }
         public List<SavedExtraView> ExtraRadarViews { get; set; } = [];

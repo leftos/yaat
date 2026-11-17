@@ -95,7 +95,8 @@ public class MainViewModelCommandLineSendTests
 
         await SendAsync(vm, ".scope range 25");
 
-        Assert.Equal("No YAAT Scope is open", vm.StatusText);
+        Assert.Equal(".scope range 25", vm.StatusText);
+        Assert.Equal(25, vm.PrimaryScope.RangeNm);
         Assert.Equal("", vm.CommandText);
         Assert.Null(vm.LastSubmission);
         CommandHistoryEntry entry = Assert.Single(vm.CommandHistory);

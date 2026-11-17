@@ -70,13 +70,13 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 ## View menu and hotkeys
 
-**Three submenus.** View holds Windows (the pop-outs, New ground window…, New radar window…, YAAT Scope, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).
+**Three submenus.** View holds Windows (the pop-outs, Sco_pe among them, New ground window…, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).
 
-**Hotkeys on the common pop-outs, every one rebindable.** Defaults: Ctrl+Shift+L aircraft list, G ground view, R radar view, E terminal, C controllers, M METAR, F favorites bar, and Ctrl+, for Settings; Ctrl+Shift+T stays always-on-top. Settings › Keys rebinds each and shows a clash when a new binding is already taken. The View menu shows each item's current hotkey (`MainWindow.ShowMenuHotkeys`), and `Views/WindowHotkeys.cs` dispatches them from every window.
+**Hotkeys on the common pop-outs, every one rebindable.** Defaults: Ctrl+Shift+L aircraft list, G ground view, R Scope (the "PopOutRadarView" row, "Pop out Scope"), E terminal, C controllers, M METAR, F favorites bar, and Ctrl+, for Settings; Ctrl+Shift+T stays always-on-top. Settings › Keys rebinds each and shows a clash when a new binding is already taken. The View menu shows each item's current hotkey (`MainWindow.ShowMenuHotkeys`), and `Views/WindowHotkeys.cs` dispatches them from every window.
 
 ## Layouts
 
-**A layout is the window arrangement only.** It holds window geometries, the pop-out windows, extra Radar and Ground windows, the aircraft-list grid layout, favorite sets (loaded ids, bar order and whether Global shows) and bar/panel state, and the open Strips and vTDLS tabs. It holds no radar, ground or terminal view settings, so a layout stays portable across scenarios.
+**A layout is the window arrangement only.** It holds window geometries, the pop-out windows (not the Scope's), extra Radar and Ground windows, the aircraft-list grid layout, favorite sets (loaded ids, bar order and whether Global shows) and bar/panel state, and the open Strips and vTDLS tabs. It holds no radar, ground or terminal view settings, so a layout stays portable across scenarios.
 
 **The docked terminal's size is a window arrangement.** `SavedLayout.TerminalSplitRatio` is the terminal's share of the tabs + terminal height; null on a layout captured before it was recorded, which leaves the current split alone. The live value is `MainViewModel.TerminalSplitRatio`, clamped to 0.15–0.85 and persisted as the `terminalSplitRatio` preference (unbundled: it travels with layouts); `MainWindow` writes it when the splitter drag completes and `UpdateContentGridLayout` lays the rows out from it on every pop-out toggle. The Apply Layout dialog's Terminal row reads "docked · size 25%", "popped out" or "docked" (no saved size); applying it sets the ratio after the pop-out flags and only when the terminal ends up docked, since a popped-out terminal is sized by its own window geometry.
 

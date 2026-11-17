@@ -6,6 +6,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.VStrips;
 using Yaat.Sim.Testing;
 
@@ -53,30 +54,30 @@ public class MainWindowLifecycleTests
     }
 
     [AvaloniaFact]
-    public void GroundAndRadarPopOut_EachCreatesItsOwnWindow()
+    public void GroundAndScopePopOut_EachCreatesItsOwnWindow()
     {
         (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         vm.IsGroundViewPoppedOut = false;
-        vm.IsRadarViewPoppedOut = false;
+        vm.IsScopePoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         vm.IsGroundViewPoppedOut = true;
-        vm.IsRadarViewPoppedOut = true;
+        vm.IsScopePoppedOut = true;
         Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(main.GroundViewWindow);
-        Assert.NotNull(main.RadarViewWindow);
+        Assert.NotNull(main.ScopeWindow);
         Assert.True(main.GroundViewWindow!.IsVisible);
-        Assert.True(main.RadarViewWindow!.IsVisible);
+        Assert.True(main.ScopeWindow!.IsVisible);
 
         vm.IsGroundViewPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         Assert.Null(main.GroundViewWindow);
-        Assert.NotNull(main.RadarViewWindow); // other window untouched
+        Assert.NotNull(main.ScopeWindow); // other window untouched
 
         // Leave the view docked: the main window outlives the test.
-        vm.IsRadarViewPoppedOut = false;
+        vm.IsScopePoppedOut = false;
         Dispatcher.UIThread.RunJobs();
     }
 
@@ -87,7 +88,7 @@ public class MainWindowLifecycleTests
         // Normalise initial state (ignore user's prefs).
         vm.IsDataGridPoppedOut = false;
         vm.IsGroundViewPoppedOut = false;
-        vm.IsRadarViewPoppedOut = false;
+        vm.IsScopePoppedOut = false;
         vm.StripsEntries[0].IsPoppedOut = false;
         vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
@@ -97,7 +98,7 @@ public class MainWindowLifecycleTests
 
         vm.IsDataGridPoppedOut = true;
         vm.IsGroundViewPoppedOut = true;
-        vm.IsRadarViewPoppedOut = true;
+        vm.IsScopePoppedOut = true;
         vm.IsControllersPoppedOut = true;
         vm.IsMetarPoppedOut = true;
         // Student strips entry is index 0 and must also be popped out for the
@@ -119,7 +120,7 @@ public class MainWindowLifecycleTests
         // Re-dock everything: the main window outlives the test.
         vm.IsDataGridPoppedOut = false;
         vm.IsGroundViewPoppedOut = false;
-        vm.IsRadarViewPoppedOut = false;
+        vm.IsScopePoppedOut = false;
         vm.IsControllersPoppedOut = false;
         vm.IsMetarPoppedOut = false;
         vm.StripsEntries[0].IsPoppedOut = false;
@@ -151,26 +152,26 @@ public class MainWindowLifecycleTests
     }
 
     [AvaloniaFact]
-    public void RadarPopOut_ClosedViaWindowChrome_UndocksWithoutReenteringClose()
+    public void ScopePopOut_ClosedViaWindowChrome_UndocksWithoutReenteringClose()
     {
         (MainWindow? main, MainViewModel? vm) = BootMainWindow();
-        vm.IsRadarViewPoppedOut = false;
+        vm.IsScopePoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
-        vm.IsRadarViewPoppedOut = true;
+        vm.IsScopePoppedOut = true;
         Dispatcher.UIThread.RunJobs();
-        RadarViewWindow? popOut = main.RadarViewWindow;
+        ScopeWindow? popOut = main.ScopeWindow;
         Assert.NotNull(popOut);
 
         // Close the pop-out window itself — the native title-bar X path (#347). The Closing
-        // handler flips IsRadarViewPoppedOut, whose PropertyChanged fan-out re-enters
-        // CloseRadarViewWindow on this same call stack; it must no-op instead of calling
+        // handler flips IsScopePoppedOut, whose PropertyChanged fan-out re-enters
+        // CloseScopeWindow on this same call stack; it must no-op instead of calling
         // Close() again on the window that is already inside its own Closing event.
         popOut!.Close();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.False(vm.IsRadarViewPoppedOut);
-        Assert.Null(main.RadarViewWindow);
+        Assert.False(vm.IsScopePoppedOut);
+        Assert.Null(main.ScopeWindow);
     }
 
     [AvaloniaFact]

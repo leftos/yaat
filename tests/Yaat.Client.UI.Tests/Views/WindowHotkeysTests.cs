@@ -12,6 +12,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Find;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Settings;
 using Yaat.Client.Views.VStrips;
 
@@ -128,11 +129,11 @@ public class WindowHotkeysTests
             vm => vm.IsGroundViewPoppedOut,
             (vm, v) => vm.IsGroundViewPoppedOut = v
         ),
-        ["RadarView"] = new(
+        ["ScopeView"] = new(
             p => p.PopOutRadarViewKey,
             (p, k) => p.SetPopOutRadarViewKey(k),
-            vm => vm.IsRadarViewPoppedOut,
-            (vm, v) => vm.IsRadarViewPoppedOut = v
+            vm => vm.IsScopePoppedOut,
+            (vm, v) => vm.IsScopePoppedOut = v
         ),
         ["Terminal"] = new(
             p => p.PopOutTerminalKey,
@@ -155,10 +156,38 @@ public class WindowHotkeysTests
         ),
     };
 
+    // The Scope's pop-out window carries the Scope's own view model, not the main one, so its row presses the chord in the
+    // real pop-out the main window opens, and the chord docks the Scope back.
+    [AvaloniaFact]
+    public void ScopePopOutKey_DefaultKey_FromTheScopePopOut_DocksItBack()
+    {
+        WindowHotkeys.EnsureRegistered();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            Assert.Equal("Ctrl+Shift+R", UserPreferences.CreateDefaults().PopOutRadarViewKey);
+            vm.Preferences.SetPopOutRadarViewKey("Ctrl+Shift+R");
+            vm.IsScopePoppedOut = false;
+            vm.IsScopePoppedOut = true;
+            Dispatcher.UIThread.RunJobs();
+            ScopeWindow popOut = Assert.IsType<ScopeWindow>(main.ScopeWindow);
+
+            PressChord(popOut, "Ctrl+Shift+R");
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(vm.IsScopePoppedOut);
+            Assert.Null(main.ScopeWindow);
+            Assert.False(popOut.IsVisible);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
     [AvaloniaTheory]
     [InlineData("AircraftList", "Ctrl+Shift+L")]
     [InlineData("GroundView", "Ctrl+Shift+G")]
-    [InlineData("RadarView", "Ctrl+Shift+R")]
     [InlineData("Terminal", "Ctrl+Shift+E")]
     [InlineData("Controllers", "Ctrl+Shift+C")]
     [InlineData("Metar", "Ctrl+Shift+M")]
@@ -192,7 +221,7 @@ public class WindowHotkeysTests
     [AvaloniaTheory]
     [InlineData("AircraftList")]
     [InlineData("GroundView")]
-    [InlineData("RadarView")]
+    [InlineData("ScopeView")]
     [InlineData("Terminal")]
     [InlineData("Controllers")]
     [InlineData("Metar")]
@@ -226,21 +255,21 @@ public class WindowHotkeysTests
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Preferences.SetPopOutRadarViewKey("Ctrl+Alt+R");
-        bool before = vm.IsRadarViewPoppedOut;
+        bool before = vm.IsScopePoppedOut;
         var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         try
         {
             PressChord(window, "Ctrl+Shift+R");
-            Assert.Equal(before, vm.IsRadarViewPoppedOut);
+            Assert.Equal(before, vm.IsScopePoppedOut);
 
             PressChord(window, "Ctrl+Alt+R");
-            Assert.Equal(!before, vm.IsRadarViewPoppedOut);
+            Assert.Equal(!before, vm.IsScopePoppedOut);
         }
         finally
         {
-            vm.IsRadarViewPoppedOut = before;
+            vm.IsScopePoppedOut = before;
             window.Close();
         }
     }

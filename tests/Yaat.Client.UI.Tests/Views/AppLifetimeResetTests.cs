@@ -5,7 +5,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -36,18 +36,18 @@ public class AppLifetimeResetTests
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
-            vm.IsRadarViewPoppedOut = false;
+            vm.IsScopePoppedOut = false;
             Dispatcher.UIThread.RunJobs();
-            vm.IsRadarViewPoppedOut = true;
+            vm.IsScopePoppedOut = true;
             Dispatcher.UIThread.RunJobs();
-            RadarViewWindow popOut = main.RadarViewWindow!;
+            ScopeWindow popOut = main.ScopeWindow!;
             Assert.NotNull(popOut);
 
             popOut.Close();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.False(vm.IsRadarViewPoppedOut, "a user close of the pop-out reverts its popped-out flag");
-            Assert.Null(main.RadarViewWindow);
+            Assert.False(vm.IsScopePoppedOut, "a user close of the pop-out reverts its popped-out flag");
+            Assert.Null(main.ScopeWindow);
         }
         finally
         {
