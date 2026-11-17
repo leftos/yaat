@@ -5,13 +5,19 @@
 ## YAAT Scope (feat/yaat-scope)
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
-  - [ ] YAAT-2224 YAAT Scope step 5: field menus, middle-click execute, measure/CRR/speed-to-time, CRC-dialect entries · release vNext
-    - [ ] YAAT-2378 YAAT Scope step 5f: CRR groups on the Scope · release vNext
-    - [ ] YAAT-2381 YAAT Scope step 5i: the scope-data column of the field menus · release vNext
-      - [ ] YAAT-2442 YAAT Scope step 5i-2: scope-data column in the field menus and its clicks · release vNext
-  - [ ] YAAT-2225 YAAT Scope step 6: pilot lens (intent path, queued-commands badge, check-in truth, RPO queue view) · release vNext
-    - [ ] YAAT-2416 Draw the intent path from what the sim flies: route-end course and final approach from the server · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
+    - [ ] YAAT-2461 YAAT Scope step 7-1: the Scope owns its map and display bootstrap · release vNext
+    - [ ] YAAT-2462 YAAT Scope step 7-2: move the shared Radar statics out of Views/Radar and freeze STARS block goldens · release vNext
+    - [ ] YAAT-2463 YAAT Scope step 7-3: aircraft and map menus on the Scope · release vNext
+    - [ ] YAAT-2464 YAAT Scope step 7-4: datablock drag, Shift+click hide and student leader sync on the Scope · release vNext
+    - [ ] YAAT-2465 YAAT Scope step 7-5: map and display tools on the Scope · release vNext
+    - [ ] YAAT-2466 YAAT Scope step 7-6: draw route and the EuroScope elastic heading vector on the Scope · release vNext
+    - [ ] YAAT-2467 YAAT Scope step 7-7: speech bubbles, live-traffic shadow and the menu cue on the Scope · release vNext
+    - [ ] YAAT-2468 YAAT Scope step 7-8: Scope as the docked tab, pop-out and extra windows; automation and layouts · release vNext
+    - [ ] YAAT-2469 YAAT Scope step 7-9: aviation and csharp reviews owed before the Radar is deleted · release vNext
+    - [ ] YAAT-2470 YAAT Scope step 7-10: GuideCapture scenes on the new view and regenerated screenshots · release vNext
+    - [ ] YAAT-2471 YAAT Scope step 7-11: delete the old Radar view · release vNext
+    - [ ] YAAT-2472 YAAT Scope step 7-12: the new view takes the Radar name; docs and USER_GUIDE · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
   - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
   - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
@@ -32,6 +38,7 @@
     - [ ] YAAT-2433 Keep latent restrictions readable on the pilot lens at low LENS brightness
   - [ ] YAAT-2444 Draw the present heading when a route ends with no next instruction (straight-on branch)
   - [ ] YAAT-2445 Start a SID's VM/FM coded-leg vector at the aircraft, not where the leg began
+  - [ ] YAAT-2460 Clear-weather mark draws as a lowercase o in Scope entries and popups
 - [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
 - [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
@@ -1558,6 +1565,7 @@
 - [ ] YAAT-2274 Split DtoConverter.ToTrainingDto under the 100-line limit
 - [ ] YAAT-2316 Split AircraftModel.FromDto, UpdateFromDto and CaptureTrainingDto under the 100-line limit
 - [ ] YAAT-2330 Fix malformed XML doc comments (CS1573, CS1574, CS0419, CS1734, CS1570) and drop them from NoWarn
+- [ ] YAAT-2458 Client driver: pointer not moved by pipe clicks, log wait reads nothing, no Scope centre tool
 
 ## Backlog
 
@@ -1578,6 +1586,7 @@
 - [ ] YAAT-2349 Carry the recording's student position in RewindResultDto so a recording load replaces the old position
 - [ ] YAAT-2353 Test FlightPlanEditorManager's thrown-recycle path
 - [ ] YAAT-2452 Check whether a terminal route-end course overrides AT {lastfix} FH {hdg} on the tick the fix is sequenced
+- [ ] YAAT-2457 Active runways prompt lists no airports for a centre scenario, so OK stays disabled
 
 ## Design files
 
@@ -1605,4 +1614,4 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2224, YAAT-2225, YAAT-2226, YAAT-2277, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2226, YAAT-2277, YAAT Scope (feat/yaat-scope)
