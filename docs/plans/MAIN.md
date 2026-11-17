@@ -6,8 +6,6 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
-    - [ ] YAAT-2461 YAAT Scope step 7-1: the Scope owns its map and display bootstrap · release vNext
-    - [ ] YAAT-2462 YAAT Scope step 7-2: move the shared Radar statics out of Views/Radar and freeze STARS block goldens · release vNext
     - [ ] YAAT-2463 YAAT Scope step 7-3: aircraft and map menus on the Scope · release vNext
     - [ ] YAAT-2464 YAAT Scope step 7-4: datablock drag, Shift+click hide and student leader sync on the Scope · release vNext
     - [ ] YAAT-2465 YAAT Scope step 7-5: map and display tools on the Scope · release vNext
@@ -24,7 +22,6 @@
   - [ ] YAAT-2277 YAAT Scope: draw the RNAV ^ after the CWT category on line 2 (STARS and ERAM)
   - [ ] YAAT-2278 YAAT Scope: bring ScopeCanvas.OnPropertyChanged under the complexity limit
   - [ ] YAAT-2283 YAAT Scope: ERAM Field E handoff text for STARS peers from the neighbour Field E format
-  - [ ] YAAT-2293 YAAT Scope MVA tint passes the radar's facility to MvaDatabase after YAAT-2289
   - [ ] YAAT-2391 YAAT Scope bar pans under a touch or pen drag during a tear-off
   - [ ] YAAT-2392 YAAT Scope shows a .scope or .view usage error as plain text, not red
   - [ ] YAAT-2395 YAAT Scope entry: Up, Backspace, Up, Down brings back the older half-typed text, not the edit
@@ -39,8 +36,6 @@
   - [ ] YAAT-2444 Draw the present heading when a route ends with no next instruction (straight-on branch)
   - [ ] YAAT-2445 Start a SID's VM/FM coded-leg vector at the aircraft, not where the leg began
   - [ ] YAAT-2460 Clear-weather mark draws as a lowercase o in Scope entries and popups
-- [ ] YAAT-2323 Restore the Radar's saved centre and range before its map toggles so a waiting YAAT Scope seeds from the full set
-- [ ] YAAT-2324 YAAT Scope re-seeds its map toggles when the Radar loads a new facility's maps
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
 - [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
 - [ ] YAAT-2412 Show long ERAM readouts on the YAAT Scope without cutting them to five lines
@@ -48,6 +43,7 @@
 - [ ] YAAT-2419 Redraw the Scope entry label when the selected track changes owner kind
 - [ ] YAAT-2420 Test old RecordedAmendFlightPlan and RecordedCommand reads from Yaat.Sim's own suite
 - [ ] YAAT-2422 Test that the Scope PILOT LENS button goes dark when the lens is off and its tray closed
+- [ ] YAAT-2473 Bring the shared map helpers under the five-parameter limit
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
