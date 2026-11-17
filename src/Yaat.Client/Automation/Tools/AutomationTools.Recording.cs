@@ -10,6 +10,9 @@ public sealed partial class AutomationTools
 {
     private static readonly TimeSpan VideoMapPollInterval = TimeSpan.FromMilliseconds(100);
 
+    /// <summary>The main window's Scope tab, the third: Aircraft List, Ground View, Scope.</summary>
+    private const int ScopeTabIndex = 2;
+
     /// <summary>
     /// Loads the recording through the same method as File &gt; Load Recording after its file pick, and answers once the client has
     /// applied it and rebuilt its terminal: the message is the status line, naming the scenario or the failure.
@@ -36,30 +39,31 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// Checks every argument, then loads the recording, waits for its video maps and their saved settings, seeks, pauses, and frames
-    /// the primary radar, so a take starts from the same picture every time; the agent starts it with <c>play</c>. A step that fails
-    /// after the load began is a <see cref="AppToolOutcome.Done"/> naming the step, as <c>load_recording</c> reports a failed load.
+    /// Checks every argument, then loads the recording, waits for the Scope's video maps, seeks, pauses, frames the primary Scope
+    /// and brings its tab to the front, so a take starts from the same picture every time; the agent starts it with <c>play</c>.
+    /// A step that fails after the load began is a <see cref="AppToolOutcome.Done"/> naming the step, as <c>load_recording</c>
+    /// reports a failed load.
     /// </summary>
     // The flat parameter list is what list_app_tools/call_app_tool binding requires: one scalar argument per parameter, by name.
     [AutomationTool(
         "prepare_take",
-        "Loads a recording and frames it for a take: waits for the video maps, seeks, pauses, sets the maps, centre, range, PTL, the "
-            + "primary radar's RBLs and sim rate, and returns the framing. Leaves the sim paused; start the take with play.",
+        "Loads a recording and frames it for a take on the primary Scope: waits for the video maps, seeks, pauses, sets the maps, "
+            + "centre, range, vector, the Scope's RBLs and sim rate, selects the Scope tab, and returns the framing. Leaves the sim "
+            + "paused; start the take with play.",
         nameof(CannotLoadRecording)
     )]
     public async Task<AppToolOutcome> PrepareTake(
         [Description("The recording's full path: a .yaat-recording.zip/.br/.json or a .yaat-bug-report-bundle.zip.")] string path,
-        [Description("The radar centre's latitude in degrees, from -90 to 90.")] double centerLat,
-        [Description("The radar centre's longitude in degrees, from -180 to 180.")] double centerLon,
-        [Description("The radar range to show, in nm, from 1 to 256.")] double rangeNm,
+        [Description("The Scope centre's latitude in degrees, from -90 to 90.")] double centerLat,
+        [Description("The Scope centre's longitude in degrees, from -180 to 180.")] double centerLon,
+        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm,
         [Description("The STARS ids of the video maps to show, comma-separated (e.g. \"5,12\"); every other map is turned off. May be empty.")]
             string videoMaps,
-        [Description("The PTL length in minutes, from 0.5 to 3.0 in 0.5 steps; 0 leaves the length as it is and turns all-tracks PTL off.")]
-            double ptlMinutes,
-        [Description("True to show a PTL on every track; ignored when ptlMinutes is 0.")] bool ptlAll,
+        [Description("The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.")] double ptlMinutes,
+        [Description("True to draw vectors on all tracks (ALL), false on the viewer's own tracks only (OWN).")] bool ptlAll,
         [Description(
-            "The primary radar's RBLs, ';'-separated 'from,to' pairs of callsigns, fixes or FRDs (e.g. \"UAL1,AAL9;OAK,SFO\"); they "
-                + "replace the primary radar's RBLs. May be empty."
+            "The Scope's RBLs, ';'-separated 'from,to' pairs of callsigns, fixes or FRDs (e.g. \"UAL1,AAL9;OAK,SFO\"); they "
+                + "replace the Scope view's RBLs. May be empty."
         )]
             string rbls,
         [Description("The sim rate to set, one the room accepts (e.g. 1, 2, 4, 8).")] int simRate,
@@ -83,8 +87,8 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// Sets the primary radar's maps, centre and range, PTL and RBLs, in that order; returns null, or the failed step's
-    /// <c>prepare_take</c> answer. An unknown STARS id stops it before any map changes.
+    /// Sets the primary Scope's maps, centre and range, vector and RBLs, in that order, then selects the Scope tab; returns
+    /// null, or the failed step's <c>prepare_take</c> answer. An unknown STARS id stops it before any map changes.
     /// </summary>
     public string? FrameTake(TakeFraming framing)
     {
@@ -93,28 +97,28 @@ public sealed partial class AutomationTools
             return TakeStopped("set the video maps", mapError);
         }
 
-        CentreRadar(framing.CenterLat, framing.CenterLon, framing.RangeNm);
-        RadarViewModel radar = _viewModel.Radar;
-        if (framing.PtlMinutes == 0)
-        {
-            radar.PtlAll = false;
-        }
-        else
-        {
-            radar.PtlLengthMinutes = framing.PtlMinutes;
-            radar.PtlAll = framing.PtlAll;
-        }
-
-        ClearPrimaryRadarRbls();
+        CentreScope(framing.CenterLat, framing.CenterLon, framing.RangeNm);
+        SetScopeVector(framing.PtlMinutes, framing.PtlAll);
+        ClearPrimaryScopeRbls();
         foreach ((string from, string to) in framing.Rbls)
         {
-            if (_viewModel.PlaceMeasurementFromText(from, to).Error is { } error)
+            if (PlaceScopeRbl(from, to).Error is { } error)
             {
                 return TakeStopped($"place the RBL {from},{to}", error);
             }
         }
 
+        SelectScopeTab();
         return null;
+    }
+
+    /// <summary>Brings the main window's Scope tab to the front, unless the primary Scope is popped out and has no tab.</summary>
+    private void SelectScopeTab()
+    {
+        if (!_viewModel.IsScopePoppedOut)
+        {
+            _viewModel.SelectedTabIndex = ScopeTabIndex;
+        }
     }
 
     private async Task<string?> RunTakeAsync(string path, TakeFraming framing, int simRate, double seekSeconds)
@@ -128,8 +132,8 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// The <c>prepare_take</c> steps once the recording is loaded: waits up to <paramref name="videoMapWait"/> for the video maps
-    /// and their saved settings, seeks, pauses, frames the radar and sets the sim rate; returns null, or the failed step's answer.
+    /// The <c>prepare_take</c> steps once the recording is loaded: waits up to <paramref name="videoMapWait"/> for the Scope's
+    /// video maps, seeks, pauses, frames the Scope and sets the sim rate; returns null, or the failed step's answer.
     /// </summary>
     public async Task<string?> RunTakeStepsAsync(TakeFraming framing, int simRate, double seekSeconds, TimeSpan videoMapWait)
     {
@@ -166,13 +170,13 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// Waits up to <paramref name="wait"/> for the load's video maps and their saved settings, which would overwrite any
+    /// Waits up to <paramref name="wait"/> for the Scope's map source to end the load, whose seed would overwrite any
     /// framing set sooner.
     /// </summary>
     private async Task<string?> WaitForVideoMapsAsync(TimeSpan wait)
     {
         var waited = Stopwatch.StartNew();
-        while (!_viewModel.Radar.VideoMapsReady)
+        while (!ScopeMapsReady)
         {
             if (waited.Elapsed >= wait)
             {
@@ -213,26 +217,22 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// Turns on exactly the maps in <paramref name="starsIds"/>, each as <c>set_video_map</c> does; returns null, or the ids the
-    /// scenario lacks, before changing any map.
+    /// Turns on exactly the primary Scope's maps in <paramref name="starsIds"/>, as CLR ALL and then a MAPS click for each do;
+    /// returns null, or the ids the scenario lacks, before changing any map.
     /// </summary>
     private string? ApplyTakeMaps(IReadOnlySet<int> starsIds)
     {
-        RadarViewModel radar = _viewModel.Radar;
-        int[] missing = [.. starsIds.Where(starsId => radar.FindToggleByStarsId(starsId) is null).Order()];
+        ScopeViewModel scope = Scope;
+        int[] missing = [.. starsIds.Where(starsId => scope.MapToggles.All(toggle => toggle.StarsId != starsId)).Order()];
         if (missing.Length > 0)
         {
             return $"no video map with STARS id {string.Join(", ", missing)} in this scenario.";
         }
 
-        foreach (VideoMapToggleItem toggle in radar.MapToggles.ToList())
+        scope.ClearMaps();
+        foreach (int starsId in starsIds)
         {
-            bool enabled = starsIds.Contains(toggle.StarsId);
-            if (toggle.IsEnabled != enabled)
-            {
-                toggle.IsEnabled = enabled;
-                radar.SyncShortcutState(toggle.StarsId, enabled);
-            }
+            scope.SetMapOn(starsId, true);
         }
 
         return null;
@@ -281,10 +281,7 @@ public sealed partial class AutomationTools
         ValidateLatitude("centerLat", framing.CenterLat);
         ValidateLongitude("centerLon", framing.CenterLon);
         ValidateRange(framing.RangeNm);
-        if (framing.PtlMinutes != 0)
-        {
-            ValidatePtlLength("ptlMinutes", framing.PtlMinutes);
-        }
+        ValidateVectorMinutes("ptlMinutes", framing.PtlMinutes);
     }
 
     private static HashSet<int> ParseVideoMaps(string videoMaps)
@@ -325,21 +322,24 @@ public sealed partial class AutomationTools
 
         if (lines.Count > RangeBearingLineStore.MaxLines)
         {
-            throw new AppToolArgumentException("rbls", $"'rbls' names {lines.Count} RBLs; the radar holds at most {RangeBearingLineStore.MaxLines}.");
+            throw new AppToolArgumentException(
+                "rbls",
+                $"'rbls' names {lines.Count} RBLs; the measuring tool holds at most {RangeBearingLineStore.MaxLines}."
+            );
         }
 
         return lines;
     }
 }
 
-/// <summary>The primary radar's picture for a take, as <c>prepare_take</c> sets it once the recording is loaded and paused.</summary>
-/// <param name="CenterLat">The radar centre's latitude in degrees.</param>
-/// <param name="CenterLon">The radar centre's longitude in degrees.</param>
-/// <param name="RangeNm">The radar range in nm.</param>
+/// <summary>The primary Scope's picture for a take, as <c>prepare_take</c> sets it once the recording is loaded and paused.</summary>
+/// <param name="CenterLat">The Scope centre's latitude in degrees.</param>
+/// <param name="CenterLon">The Scope centre's longitude in degrees.</param>
+/// <param name="RangeNm">The Scope range in nm.</param>
 /// <param name="VideoMaps">The STARS ids of the maps to show; every other map is turned off.</param>
-/// <param name="PtlMinutes">The PTL length in minutes, or 0 to leave the length and turn all-tracks PTL off.</param>
-/// <param name="PtlAll">Whether every track shows a PTL; ignored when <paramref name="PtlMinutes"/> is 0.</param>
-/// <param name="Rbls">The RBLs that replace the primary radar's, each a pair of callsigns, fixes or FRDs.</param>
+/// <param name="PtlMinutes">The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.</param>
+/// <param name="PtlAll">Whether vectors draw on all tracks (ALL) rather than the viewer's own (OWN).</param>
+/// <param name="Rbls">The RBLs that replace the Scope view's, each a pair of callsigns, fixes or FRDs.</param>
 public sealed record TakeFraming(
     double CenterLat,
     double CenterLon,

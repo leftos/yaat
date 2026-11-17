@@ -56,14 +56,24 @@ public sealed partial class AutomationTools(MainViewModel viewModel, IAutomation
     /// </summary>
     public string? CannotLoadRecording() => NotInRoom() ?? RoomLoadingReason() ?? NonMentorReason();
 
-    /// <summary>Why a tool that needs the scenario's video map list cannot run now, or null.</summary>
-    public string? MapsNotLoaded() => NoScenario() ?? (_viewModel.Radar.VideoMapsReady ? null : "The video maps are still loading.");
+    /// <summary>Why a tool that needs the primary Scope's video map list cannot run now, or null.</summary>
+    public string? MapsNotLoaded() => NoScenario() ?? (ScopeMapsReady ? null : "The video maps are still loading.");
 
     /// <summary>
-    /// Why a tool that frames the primary radar cannot run now, or null: until the radar has restored the scenario's saved settings,
-    /// that restore would overwrite a centre or range set now.
+    /// Why a tool that frames the primary Scope cannot run now, or null: until the Scope's map source has ended its load, the
+    /// seed that load ends with (the area's centre, the default range and the facility's saved state) would overwrite a centre,
+    /// range or map set now.
     /// </summary>
-    public string? RadarNotReady() => NoScenario() ?? (_viewModel.Radar.VideoMapsReady ? null : "The radar is still loading its maps and settings.");
+    public string? ScopeNotReady() => NoScenario() ?? (ScopeMapsReady ? null : "The Scope is still loading its maps.");
+
+    /// <summary>The Scope every framing tool acts on: the primary one, even when another Scope window last had the focus.</summary>
+    private ScopeViewModel Scope => _viewModel.PrimaryScope;
+
+    /// <summary>
+    /// Whether the Scope's map source has ended its latest load (with maps, with none, or failed) and has no other in flight,
+    /// so the primary Scope has taken that load's seed.
+    /// </summary>
+    private bool ScopeMapsReady => _viewModel.ScopeMaps.IsReady && !_viewModel.ScopeMaps.IsLoading;
 
     /// <summary>Why a tool that changes the room cannot run now, or null: a scenario load is in flight, and the server refuses.</summary>
     private string? RoomLoadingReason() => _viewModel.IsRoomLoading ? "A scenario is loading in the room." : null;

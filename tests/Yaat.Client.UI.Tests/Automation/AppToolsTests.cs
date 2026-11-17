@@ -16,6 +16,8 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Testing;
@@ -51,23 +53,42 @@ public sealed class AppToolsTests : AutomationHostFixture
         return viewModel;
     }
 
-    /// <summary><see cref="InScenario"/> with the primary radar's video maps and saved settings applied, as after a finished load.</summary>
-    private static MainViewModel RadarReady()
+    /// <summary>The centre of the facility area <see cref="ScopeReady"/> loads, where the Scope seeds.</summary>
+    private const double AreaLat = 37.62;
+
+    private const double AreaLon = -122.38;
+
+    /// <summary>
+    /// <see cref="InScenario"/> with the Scope's map source loaded with maps 2 (Oakland), 5 (Center map) and 9 (San Francisco),
+    /// every one off, as after a finished load: the primary Scope is seeded at the area's centre and 40 NM.
+    /// </summary>
+    private static MainViewModel ScopeReady()
     {
         MainViewModel viewModel = InScenario();
-        viewModel.Radar.SetVideoMapsReadyForTesting();
+        LoadScopeMaps(viewModel);
         return viewModel;
     }
 
-    private static VideoMapToggleItem MapFive() =>
-        new()
-        {
-            MapId = "map-5",
-            ShortName = "CENTER",
-            Name = "Center map",
-            BrightnessCategory = "A",
-            StarsId = 5,
-        };
+    /// <summary>Runs one load of the Scope's map source to its end, with the maps <see cref="ScopeReady"/> names.</summary>
+    private static void LoadScopeMaps(MainViewModel viewModel) =>
+        viewModel.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto(
+                "ZOA",
+                "NCT",
+                [new StarsAreaDto("A", "Area A", AreaLat, AreaLon, 60, [])],
+                [MapInfo(2, "Oakland", "OAK"), MapInfo(5, "Center map", "CENTER"), MapInfo(9, "San Francisco", "SFO")],
+                []
+            ),
+            null,
+            null
+        );
+
+    private static VideoMapInfoDto MapInfo(int starsId, string name, string shortName) =>
+        new($"map-{starsId}", name, shortName, [], "A", starsId, AlwaysVisible: false, TdmOnly: false);
+
+    /// <summary>The STARS ids of the primary Scope's maps that are on, ascending.</summary>
+    private static int[] ScopeMapsOn(MainViewModel viewModel) =>
+        [.. viewModel.PrimaryScope.MapToggles.Where(toggle => toggle.IsOn).Select(toggle => toggle.StarsId).Order()];
 
     /// <summary>Sends <c>call_app_tool</c> with each raw params JSON in order over one connection, and returns the answers.</summary>
     private async Task<JsonElement[]> CallRaw(Func<AutomationTools?> tools, params string[] paramsJson)
@@ -458,26 +479,55 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
-    public async Task CenterRadar_CentresOnTheAircraftAtTheRange()
+    public async Task CenterRadar_CentresThePrimaryScopeOnTheAircraftAtTheRange()
     {
-        MainViewModel viewModel = RadarReady();
+        MainViewModel viewModel = ScopeReady();
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
+        double radarRangeBefore = viewModel.Radar.RangeNm;
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar", new { callsign = "ual123", rangeNm = 15.5 }));
 
         Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
-        Assert.Equal(37.7213, viewModel.Radar.CenterLat, 6);
-        Assert.Equal(-122.2208, viewModel.Radar.CenterLon, 6);
-        Assert.Equal(15.5, viewModel.Radar.RangeNm, 6);
-        Assert.Contains("UAL123", result.GetProperty("message").GetString(), StringComparison.Ordinal);
+        ScopeViewModel scope = viewModel.PrimaryScope;
+        Assert.Equal(37.7213, scope.CenterLat, 6);
+        Assert.Equal(-122.2208, scope.CenterLon, 6);
+        Assert.Equal(15.5, scope.RangeNm, 6);
+        Assert.Equal(radarRangeBefore, viewModel.Radar.RangeNm);
+        Assert.Equal("Primary Scope centred on UAL123 (37.7213, -122.2208) at 15.5 nm.", result.GetProperty("message").GetString());
+    }
+
+    // The tools frame the primary Scope whatever Scope last had the focus, so an agent's picture does not depend on it.
+    [AvaloniaFact]
+    public async Task CenterRadarAt_AnotherScopeActive_StillCentresThePrimary()
+    {
+        MainViewModel viewModel = ScopeReady();
+        using var other = new ScopeViewModel(viewModel, prefStore: null, profileStore: null);
+        viewModel.ActiveScope = other;
+        double otherRangeBefore = other.RangeNm;
+
+        Result(
+            await CallTool(
+                ToolsOf(viewModel),
+                "center_radar_at",
+                new
+                {
+                    lat = 37.5,
+                    lon = -122.25,
+                    rangeNm = 30,
+                }
+            )
+        );
+
+        Assert.Equal(30, viewModel.PrimaryScope.RangeNm, 6);
+        Assert.Equal(otherRangeBefore, other.RangeNm);
     }
 
     [AvaloniaFact]
     public async Task CenterRadar_RangeOutOfBounds_InvalidParam()
     {
-        MainViewModel viewModel = RadarReady();
+        MainViewModel viewModel = ScopeReady();
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
-        double rangeBefore = viewModel.Radar.RangeNm;
+        double rangeBefore = viewModel.PrimaryScope.RangeNm;
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
@@ -486,13 +536,13 @@ public sealed class AppToolsTests : AutomationHostFixture
         );
 
         Assert.All(responses, response => Assert.Equal("rangeNm", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
-        Assert.Equal(rangeBefore, viewModel.Radar.RangeNm);
+        Assert.Equal(rangeBefore, viewModel.PrimaryScope.RangeNm);
     }
 
     [AvaloniaFact]
     public async Task CenterRadar_UnknownCallsign_Unavailable()
     {
-        JsonElement result = Result(await CallTool(ToolsOf(RadarReady()), "center_radar", new { callsign = "AAL9", rangeNm = 20 }));
+        JsonElement result = Result(await CallTool(ToolsOf(ScopeReady()), "center_radar", new { callsign = "AAL9", rangeNm = 20 }));
 
         Assert.False(result.GetProperty("available").GetBoolean());
         Assert.Contains("AAL9", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
@@ -717,50 +767,86 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(zoomBefore, answer.GetProperty("zoom").GetDouble());
     }
 
-    // Until the load restores the scenario's saved radar settings, a centre set now would be overwritten by them.
+    /// <summary>Every tool that frames, measures on or moves blocks of the primary Scope, with valid arguments.</summary>
+    private static readonly (string Tool, object Arguments)[] ScopeTools =
+    [
+        ("center_radar", new { callsign = "UAL123", rangeNm = 15 }),
+        (
+            "center_radar_at",
+            new
+            {
+                lat = 37.5,
+                lon = -122.25,
+                rangeNm = 30,
+            }
+        ),
+        ("center_radar_on_fix", new { fix = "OAK", rangeNm = 20 }),
+        ("set_ptl", new { lengthMinutes = 2, all = true }),
+        ("get_framing", new { }),
+        ("place_rbl", new { from = "UAL123", to = "AAL9" }),
+        ("remove_rbl", new { slot = 1 }),
+        ("clear_rbls", new { }),
+        (
+            "set_datablock_offset",
+            new
+            {
+                callsign = "UAL123",
+                dxPx = 4,
+                dyPx = 4,
+            }
+        ),
+        ("reset_datablock_offset", new { callsign = "UAL123" }),
+    ];
+
+    // Until the Scope's map source has seeded it, the seed (centre, 40 NM and the facility's saved state) would overwrite
+    // a framing set now.
     [AvaloniaFact]
-    public async Task CenterRadar_BeforeTheRadarIsReady_Unavailable()
+    public async Task ScopeTools_BeforeTheScopesMapsLoad_AreUnavailable()
     {
         MainViewModel viewModel = InScenario();
-        viewModel.Radar.MapToggles.Add(MapFive());
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
-        double latBefore = viewModel.Radar.CenterLat;
+        double rangeBefore = viewModel.PrimaryScope.RangeNm;
 
-        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar", new { callsign = "UAL123", rangeNm = 15 }));
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            [.. ScopeTools.Select(call => (ProtocolMethods.CallAppTool, (object)new { tool = call.Tool, arguments = call.Arguments }))]
+        );
 
-        Assert.False(result.GetProperty("available").GetBoolean());
-        Assert.Equal("The radar is still loading its maps and settings.", result.GetProperty("reason").GetString());
-        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+        Assert.All(
+            responses,
+            response =>
+            {
+                Assert.False(Result(response).GetProperty("available").GetBoolean(), response.GetRawText());
+                Assert.Equal("The Scope is still loading its maps.", Result(response).GetProperty("reason").GetString());
+            }
+        );
+        Assert.Equal(rangeBefore, viewModel.PrimaryScope.RangeNm);
     }
 
-    // A load attempt that ends with no maps leaves nothing to restore over a tool's change. No client test fakes the server, so
-    // the real load runs against the view model's never-connected connection: its facility fetch fails, and the load ends
-    // through the same exit as the no-video-maps answer.
+    // A load that ends with no catalogue leaves nothing to seed over a tool's change, so the tools run.
     [AvaloniaFact]
-    public async Task CenterRadar_ArtccWithNoVideoMaps_Available()
+    public async Task CenterRadar_FacilityWithNoVideoMaps_Available()
     {
         MainViewModel viewModel = InScenario();
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
 
-        await viewModel.Radar.LoadVideoMapsForArtccAsync("ZOA", "OAK", "scenario-1");
+        viewModel.ScopeMaps.FinishLoadForTesting(viewModel.ScopeMaps.BeginLoadForTesting(), null, null);
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
             (ProtocolMethods.CallAppTool, new { tool = "center_radar", arguments = new { callsign = "UAL123", rangeNm = 15 } }),
             (ProtocolMethods.CallAppTool, new { tool = "set_video_map", arguments = new { starsId = 5, enabled = true } })
         );
 
-        Assert.True(viewModel.Radar.VideoMapsReady);
         Assert.True(Result(responses[0]).GetProperty("available").GetBoolean(), responses[0].GetRawText());
-        Assert.Equal(15, viewModel.Radar.RangeNm, 6);
+        Assert.Equal(15, viewModel.PrimaryScope.RangeNm, 6);
         Assert.Equal("No video map with STARS id 5 in this scenario.", Result(responses[1]).GetProperty("reason").GetString());
     }
 
     [AvaloniaFact]
-    public async Task SetVideoMap_SetsToTheStateNotAFlip()
+    public async Task SetVideoMap_SetsThePrimaryScopesMapToTheStateNotAFlip()
     {
-        MainViewModel viewModel = RadarReady();
-        VideoMapToggleItem toggle = MapFive();
-        viewModel.Radar.MapToggles.Add(toggle);
+        MainViewModel viewModel = ScopeReady();
+        ScopeMapToggle toggle = viewModel.PrimaryScope.MapToggles.Single(candidate => candidate.StarsId == 5);
         var on = new { tool = "set_video_map", arguments = new { starsId = 5, enabled = true } };
 
         JsonElement[] responses = await SendAll(
@@ -770,13 +856,14 @@ public sealed class AppToolsTests : AutomationHostFixture
             (ProtocolMethods.CallAppTool, new { tool = "set_video_map", arguments = new { starsId = 99, enabled = true } })
         );
 
-        Assert.True(Result(responses[1]).GetProperty("available").GetBoolean());
-        Assert.True(toggle.IsEnabled);
+        Assert.Equal("Video map 5 CENTER is on.", Result(responses[1]).GetProperty("message").GetString());
+        Assert.True(toggle.IsOn);
+        Assert.Equal([5], ScopeMapsOn(viewModel));
         Assert.False(Result(responses[2]).GetProperty("available").GetBoolean());
         Assert.Contains("99", Result(responses[2]).GetProperty("reason").GetString(), StringComparison.Ordinal);
 
         Result(await CallTool(ToolsOf(viewModel), "set_video_map", new { starsId = 5, enabled = false }));
-        Assert.False(toggle.IsEnabled);
+        Assert.False(toggle.IsOn);
     }
 
     [AvaloniaFact]
@@ -788,20 +875,18 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal("The video maps are still loading.", result.GetProperty("reason").GetString());
     }
 
-    // The toggles exist from the moment the facility's map list arrives, before the maps download and the saved settings are
-    // restored over them; a map turned on in that window would be undone by the restore.
+    // A second load keeps the toggles of the first until it seeds; a map turned on in that window would be undone by the seed.
     [AvaloniaFact]
-    public async Task SetVideoMap_BeforeTheDownloadFinishes_Unavailable()
+    public async Task SetVideoMap_WhileTheNextLoadRuns_Unavailable()
     {
-        MainViewModel viewModel = InScenario();
-        VideoMapToggleItem toggle = MapFive();
-        viewModel.Radar.MapToggles.Add(toggle);
+        MainViewModel viewModel = ScopeReady();
+        viewModel.ScopeMaps.BeginLoadForTesting();
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "set_video_map", new { starsId = 5, enabled = true }));
 
         Assert.False(result.GetProperty("available").GetBoolean());
         Assert.Equal("The video maps are still loading.", result.GetProperty("reason").GetString());
-        Assert.False(toggle.IsEnabled);
+        Assert.Empty(ScopeMapsOn(viewModel));
     }
 
     // The tool sends the change without waiting for the room, so the value it reads back is the request; the preference plays no part.
@@ -957,19 +1042,19 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.False(viewModel.IsConnected);
     }
 
-    /// <summary><see cref="RadarReady"/> with two aircraft, UAL123 and AAL9, to measure between.</summary>
-    private static MainViewModel RadarReadyWithTwoAircraft()
+    /// <summary><see cref="ScopeReady"/> with two aircraft, UAL123 and AAL9, to measure between.</summary>
+    private static MainViewModel ScopeReadyWithTwoAircraft()
     {
-        MainViewModel viewModel = RadarReady();
+        MainViewModel viewModel = ScopeReady();
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "AAL9", Position = new LatLon(37.6188, -122.3750) });
         return viewModel;
     }
 
     [AvaloniaFact]
-    public async Task PlaceRbl_TwoCallsigns_ReturnsTheSlotAndDrawsTheLine()
+    public async Task PlaceRbl_TwoCallsigns_ReturnsTheSlotAndDrawsTheLineOnTheScope()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "AAL9" }));
 
@@ -979,13 +1064,13 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(1, line.Slot);
         Assert.Equal("UAL123", line.A.Callsign);
         Assert.Equal("AAL9", line.B.Callsign);
-        Assert.Equal(RadarViewModel.MeasureView, line.View);
+        Assert.Equal(ScopeViewModel.MeasureView, line.View);
     }
 
     [AvaloniaFact]
     public async Task PlaceRbl_UnknownEndpoint_IsUnavailableWithTheReason()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "ZZZ9" }));
 
@@ -999,10 +1084,10 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task PlaceRbl_WhenAllSlotsAreUsed_IsUnavailable()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
         for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
         {
-            Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9").Slot);
+            PlaceScopeLine(viewModel, "UAL123", "AAL9");
         }
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "AAL9" }));
@@ -1015,10 +1100,10 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task RemoveRbl_RemovesOnlyThatSlot()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "remove_rbl", new { slot = 2 }));
 
@@ -1030,10 +1115,10 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task PlaceRbl_ReusesTheLowestFreeSlot()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
         viewModel.Measure.Remove(2);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "AAL9", to = "UAL123" }));
@@ -1045,8 +1130,8 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task RemoveRbl_EmptySlot_IsUnavailable()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
@@ -1062,9 +1147,9 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task ClearRbls_RemovesEveryLine()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
 
@@ -1073,26 +1158,40 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
-    public async Task ClearRbls_KeepsTheGroundViewsLines()
+    public async Task ClearRbls_KeepsTheGroundAndRadarLines()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
         PlaceGroundLine(viewModel);
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
+        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9").Slot);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
 
         Assert.Equal("Cleared 2 RBL(s).", result.GetProperty("message").GetString());
-        RangeBearingLine ground = Assert.Single(viewModel.Measure.Lines);
-        Assert.Equal(RblView.Ground, ground.View);
-        Assert.Equal(2, ground.Slot);
+        Assert.Equal(
+            [(RblView.Ground, 2), (RblView.Radar, 4)],
+            viewModel.Measure.Lines.Select(line => (line.View, line.Slot)).OrderBy(line => line.Slot)
+        );
     }
+
+    /// <summary>Places a line on the Scope view in the shared store, as a measurement drawn on the Scope does.</summary>
+    private static void PlaceScopeLine(MainViewModel viewModel, string from, string to) =>
+        Assert.NotNull(
+            viewModel.Measure.Place(
+                RblEndpoint.OnAircraft(from),
+                RblEndpoint.OnAircraft(to),
+                ScopeViewModel.MeasureView,
+                viewModel.PrimaryScope.MeasureTrackLookup,
+                ScopeViewModel.MeasureUnits
+            )
+        );
 
     // The command and place_rbl share PlaceMeasurementFromText; the command still writes its outcome to the status line.
     [AvaloniaFact]
     public async Task MeasureCommand_PlacesTheLineAndReportsItInTheStatusLine()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
         await viewModel.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         viewModel.CommandText = ".rbl UAL123 AAL9";
@@ -1120,7 +1219,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task SetLeaderDirection_NeverConnected_ReportsNotSent()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
         await viewModel.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         viewModel.Preferences.SetSyncStudentLeaderDirection(true);
 
@@ -1136,7 +1235,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     public async Task SetLeaderDirection_OutOfRange_IsInvalidParam()
     {
         JsonElement[] responses = await SendAll(
-            ToolsOf(RadarReadyWithTwoAircraft()),
+            ToolsOf(ScopeReadyWithTwoAircraft()),
             (ProtocolMethods.CallAppTool, new { tool = "set_leader_direction", arguments = new { callsign = "UAL123", direction = 0 } }),
             (ProtocolMethods.CallAppTool, new { tool = "set_leader_direction", arguments = new { callsign = "UAL123", direction = 10 } })
         );
@@ -1147,13 +1246,13 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task SetLeaderDirection_SyncOff_SaysSo()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
         viewModel.Preferences.SetSyncStudentLeaderDirection(false);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "set_leader_direction", new { callsign = "UAL123", direction = 9 }));
 
         Assert.EndsWith(
-            " The radar shows it only while the student leader direction sync preference is on; it is off.",
+            " The Scope shows it only while the student leader direction sync preference is on; it is off.",
             result.GetProperty("message").GetString(),
             StringComparison.Ordinal
         );
@@ -1162,7 +1261,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public void RadarViewModel_SetDataBlockOffset_RaisesTheRepaintEvent()
     {
-        MainViewModel viewModel = RadarReady();
+        MainViewModel viewModel = InScenario();
         int raised = 0;
         viewModel.Radar.DataBlockState.ManualOffsetsChanged += () => raised++;
 
@@ -1176,11 +1275,11 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
-    public async Task SetDatablockOffset_WritesTheOffsetAndRaisesManualOffsetsChanged()
+    public async Task SetDatablockOffset_WritesThePrimaryScopesOffsetAndRaisesManualOffsetsChanged()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
         int raised = 0;
-        viewModel.Radar.DataBlockState.ManualOffsetsChanged += () => raised++;
+        viewModel.PrimaryScope.DataBlockState.ManualOffsetsChanged += () => raised++;
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
@@ -1213,7 +1312,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         );
 
         Assert.Equal("Data block of UAL123 offset to (40, -20) px.", Result(responses[0]).GetProperty("message").GetString());
-        Assert.Equal(new SKPoint(40, -20), viewModel.Radar.DataBlockState.ManualOffsets["UAL123"]);
+        Assert.Equal(new SKPoint(40, -20), viewModel.PrimaryScope.DataBlockState.ManualOffsets["UAL123"]);
         Assert.Equal(1, raised);
         Assert.Equal("No aircraft with callsign DAL1 in the client.", Result(responses[1]).GetProperty("reason").GetString());
     }
@@ -1221,21 +1320,21 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task ResetDatablockOffset_RemovesTheOffset()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        viewModel.Radar.SetDataBlockOffset("UAL123", new SKPoint(40, -20));
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        viewModel.PrimaryScope.SetDataBlockOffset("UAL123", new SKPoint(40, -20));
         var reset = new { tool = "reset_datablock_offset", arguments = new { callsign = "UAL123" } };
 
         JsonElement[] responses = await SendAll(ToolsOf(viewModel), (ProtocolMethods.CallAppTool, reset), (ProtocolMethods.CallAppTool, reset));
 
         Assert.Equal("Data block of UAL123 reset.", Result(responses[0]).GetProperty("message").GetString());
         Assert.Equal("Data block of UAL123 was already at its default position.", Result(responses[1]).GetProperty("message").GetString());
-        Assert.False(viewModel.Radar.DataBlockState.ManualOffsets.ContainsKey("UAL123"));
+        Assert.False(viewModel.PrimaryScope.DataBlockState.ManualOffsets.ContainsKey("UAL123"));
     }
 
     [AvaloniaFact]
     public async Task CenterRadarAt_SetsCentreAndRange()
     {
-        MainViewModel viewModel = RadarReady();
+        MainViewModel viewModel = ScopeReady();
 
         JsonElement result = Result(
             await CallTool(
@@ -1251,17 +1350,17 @@ public sealed class AppToolsTests : AutomationHostFixture
         );
 
         Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
-        Assert.Equal("Primary radar centred on (37.5000, -122.2500) at 30 nm.", result.GetProperty("message").GetString());
-        Assert.Equal(37.5, viewModel.Radar.CenterLat, 6);
-        Assert.Equal(-122.25, viewModel.Radar.CenterLon, 6);
-        Assert.Equal(30, viewModel.Radar.RangeNm, 6);
+        Assert.Equal("Primary Scope centred on (37.5000, -122.2500) at 30 nm.", result.GetProperty("message").GetString());
+        Assert.Equal(37.5, viewModel.PrimaryScope.CenterLat, 6);
+        Assert.Equal(-122.25, viewModel.PrimaryScope.CenterLon, 6);
+        Assert.Equal(30, viewModel.PrimaryScope.RangeNm, 6);
     }
 
     [AvaloniaFact]
     public async Task CenterRadarAt_RejectsOutOfRangeLat()
     {
-        MainViewModel viewModel = RadarReady();
-        double latBefore = viewModel.Radar.CenterLat;
+        MainViewModel viewModel = ScopeReady();
+        double latBefore = viewModel.PrimaryScope.CenterLat;
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
@@ -1321,15 +1420,15 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         string[] culprits = [.. responses.Select(response => ErrorParam(Error(response, AutomationErrorCodes.InvalidParam)))];
         Assert.Equal(["lat", "lat", "lon", "rangeNm"], culprits);
-        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+        Assert.Equal(latBefore, viewModel.PrimaryScope.CenterLat);
     }
 
-    /// <summary><see cref="RadarReady"/> with the real navigation data installed and the client told it is loaded.</summary>
-    private static MainViewModel RadarReadyWithNavData()
+    /// <summary><see cref="ScopeReady"/> with the real navigation data installed and the client told it is loaded.</summary>
+    private static MainViewModel ScopeReadyWithNavData()
     {
         TestVnasData.EnsureInitialized();
         Assert.NotNull(TestVnasData.NavigationDb);
-        MainViewModel viewModel = RadarReady();
+        MainViewModel viewModel = ScopeReady();
         viewModel.MarkNavDbReady();
         return viewModel;
     }
@@ -1337,118 +1436,142 @@ public sealed class AppToolsTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task CenterRadarOnFix_UnknownFix_IsUnavailable()
     {
-        MainViewModel viewModel = RadarReadyWithNavData();
-        double latBefore = viewModel.Radar.CenterLat;
+        MainViewModel viewModel = ScopeReadyWithNavData();
+        double latBefore = viewModel.PrimaryScope.CenterLat;
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar_on_fix", new { fix = "ZZZZQ", rangeNm = 20 }));
 
         Assert.False(result.GetProperty("available").GetBoolean());
         Assert.Equal("No fix or airport named ZZZZQ in the navigation data.", result.GetProperty("reason").GetString());
-        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+        Assert.Equal(latBefore, viewModel.PrimaryScope.CenterLat);
     }
 
     [AvaloniaFact]
     public async Task CenterRadarOnFix_KnownFix_Centres()
     {
-        MainViewModel viewModel = RadarReadyWithNavData();
+        MainViewModel viewModel = ScopeReadyWithNavData();
         (double Lat, double Lon)? oak = NavigationDatabase.Instance.GetFixPosition("OAK");
         Assert.NotNull(oak);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar_on_fix", new { fix = "oak", rangeNm = 20 }));
 
         Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
-        Assert.Equal(oak.Value.Lat, viewModel.Radar.CenterLat, 6);
-        Assert.Equal(oak.Value.Lon, viewModel.Radar.CenterLon, 6);
-        Assert.Equal(20, viewModel.Radar.RangeNm, 6);
-        Assert.StartsWith("Primary radar centred on OAK (", result.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(oak.Value.Lat, viewModel.PrimaryScope.CenterLat, 6);
+        Assert.Equal(oak.Value.Lon, viewModel.PrimaryScope.CenterLon, 6);
+        Assert.Equal(20, viewModel.PrimaryScope.RangeNm, 6);
+        Assert.StartsWith("Primary Scope centred on OAK (", result.GetProperty("message").GetString(), StringComparison.Ordinal);
     }
 
     [AvaloniaFact]
-    public async Task SetPtl_SetsLengthAndAll()
+    public async Task SetPtl_EachVectorLengthAndOwnership_SetsThePrimaryScope()
     {
-        MainViewModel viewModel = RadarReady();
-        viewModel.Radar.PtlOwn = true;
+        MainViewModel viewModel = ScopeReady();
+        (double Minutes, bool All)[] cases = [(0, true), (1, false), (2, true), (4, false), (8, true)];
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 1.5, all = true } }),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 3.0, all = false } })
+            [
+                .. cases.Select(c =>
+                    (ProtocolMethods.CallAppTool, (object)new { tool = "set_ptl", arguments = new { lengthMinutes = c.Minutes, all = c.All } })
+                ),
+            ]
         );
 
-        Assert.Equal("PTL 1.5 min, all tracks on.", Result(responses[0]).GetProperty("message").GetString());
-        Assert.Equal("PTL 3.0 min, all tracks off.", Result(responses[1]).GetProperty("message").GetString());
-        Assert.Equal(3.0, viewModel.Radar.PtlLengthMinutes);
-        Assert.False(viewModel.Radar.PtlAll);
-        Assert.True(viewModel.Radar.PtlOwn);
+        Assert.Equal(
+            [
+                "Vector 0 min on all tracks.",
+                "Vector 1 min on own tracks.",
+                "Vector 2 min on all tracks.",
+                "Vector 4 min on own tracks.",
+                "Vector 8 min on all tracks.",
+            ],
+            responses.Select(response => Result(response).GetProperty("message").GetString())
+        );
+        ScopeViewModel scope = viewModel.PrimaryScope;
+        Assert.Equal(8, scope.Pins.VectorMin);
+        Assert.Equal(8, scope.EffectiveBand.VectorMin);
+        Assert.Equal(ScopeVectorOwnership.All, scope.VectorOwnership);
     }
 
     [AvaloniaFact]
-    public async Task SetPtl_RejectsOffStepLength()
+    public async Task SetPtl_Own_SetsOwnTracks()
     {
-        MainViewModel viewModel = RadarReady();
-        double lengthBefore = viewModel.Radar.PtlLengthMinutes;
+        MainViewModel viewModel = ScopeReady();
+        viewModel.PrimaryScope.VectorOwnership = ScopeVectorOwnership.All;
+
+        Result(await CallTool(ToolsOf(viewModel), "set_ptl", new { lengthMinutes = 4, all = false }));
+
+        Assert.Equal(4, viewModel.PrimaryScope.EffectiveBand.VectorMin);
+        Assert.Equal(ScopeVectorOwnership.Own, viewModel.PrimaryScope.VectorOwnership);
+    }
+
+    [AvaloniaFact]
+    public async Task SetPtl_UnsupportedLength_IsInvalidParamNamingTheAllowedValues()
+    {
+        MainViewModel viewModel = ScopeReady();
+        ScopeBandPins pinsBefore = viewModel.PrimaryScope.Pins;
+        ScopeVectorOwnership ownershipBefore = viewModel.PrimaryScope.VectorOwnership;
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 0.75, all = true } }),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 3.5, all = true } }),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 0, all = true } })
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 3, all = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 0.5, all = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 16, all = true } })
         );
 
-        Assert.All(responses, response => Assert.Equal("lengthMinutes", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
-        Assert.Equal(lengthBefore, viewModel.Radar.PtlLengthMinutes);
-        Assert.False(viewModel.Radar.PtlAll);
+        Assert.All(
+            responses,
+            response =>
+            {
+                JsonElement error = Error(response, AutomationErrorCodes.InvalidParam);
+                Assert.Equal("lengthMinutes", ErrorParam(error));
+                Assert.Contains("0, 1, 2, 4 or 8", Message(error), StringComparison.Ordinal);
+            }
+        );
+        Assert.Equal("'lengthMinutes' must be 0, 1, 2, 4 or 8 minutes, not 3.", Message(Error(responses[0], AutomationErrorCodes.InvalidParam)));
+        Assert.Equal(pinsBefore, viewModel.PrimaryScope.Pins);
+        Assert.Equal(ownershipBefore, viewModel.PrimaryScope.VectorOwnership);
     }
 
-    [AvaloniaFact]
-    public async Task GetFraming_ReportsCentreRangeMapsPtlAndRbls()
+    /// <summary><see cref="ScopeReadyWithTwoAircraft"/> framed: maps 2 and 5 on, centre, range, a pinned vector and Scope RBLs.</summary>
+    private static MainViewModel FramedScope()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        RadarViewModel radar = viewModel.Radar;
-        VideoMapToggleItem five = MapFive();
-        five.IsEnabled = true;
-        radar.MapToggles.Add(five);
-        radar.MapToggles.Add(
-            new VideoMapToggleItem
-            {
-                MapId = "map-2",
-                ShortName = "OAK",
-                Name = "Oakland",
-                BrightnessCategory = "A",
-                StarsId = 2,
-                IsEnabled = true,
-            }
-        );
-        radar.MapToggles.Add(
-            new VideoMapToggleItem
-            {
-                MapId = "map-9",
-                ShortName = "SFO",
-                Name = "San Francisco",
-                BrightnessCategory = "B",
-                StarsId = 9,
-            }
-        );
-        radar.CenterLat = 37.7;
-        radar.CenterLon = -122.2;
-        radar.RangeNm = 25;
-        radar.PtlLengthMinutes = 2.0;
-        radar.PtlAll = true;
-        radar.PtlOwn = false;
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
-        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        ScopeViewModel scope = viewModel.PrimaryScope;
+        Assert.True(scope.SetMapOn(5, true));
+        Assert.True(scope.SetMapOn(2, true));
+        scope.CenterLat = 37.7;
+        scope.CenterLon = -122.2;
+        scope.RangeNm = 25;
+        scope.PinVectorMin(2);
+        scope.VectorOwnership = ScopeVectorOwnership.All;
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
+        PlaceScopeLine(viewModel, "UAL123", "AAL9");
         viewModel.Measure.Remove(1);
         PlaceGroundLine(viewModel);
+        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9").Slot);
+        return viewModel;
+    }
+
+    private async Task<JsonElement> FramingOf(MainViewModel viewModel)
+    {
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "get_framing", new { }));
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        using var framing = JsonDocument.Parse(result.GetProperty("message").GetString() ?? "");
+        return framing.RootElement.Clone();
+    }
+
+    [AvaloniaFact]
+    public async Task GetFraming_ReportsThePrimaryScopesCentreRangeMapsVectorAndRbls()
+    {
+        MainViewModel viewModel = FramedScope();
         viewModel.SimRate = 4;
         viewModel.IsPaused = true;
         viewModel.ScenarioElapsedSeconds = 123.5;
 
-        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "get_framing", new { }));
+        JsonElement root = await FramingOf(viewModel);
 
-        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
-        using var framing = JsonDocument.Parse(result.GetProperty("message").GetString() ?? "");
-        JsonElement root = framing.RootElement;
         Assert.Equal(
             ["centerLat", "centerLon", "rangeNm", "videoMaps", "ptl", "rbls", "simRate", "paused", "simSeconds"],
             root.EnumerateObject().Select(property => property.Name)
@@ -1469,6 +1592,38 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(4, root.GetProperty("simRate").GetInt32());
         Assert.True(root.GetProperty("paused").GetBoolean());
         Assert.Equal(123.5, root.GetProperty("simSeconds").GetDouble(), 6);
+    }
+
+    // A load reseeds the Scope at the area's centre and 40 NM, keeping on the maps that were on; get_framing reads the Scope
+    // as it stands, not a copy taken at the last framing.
+    [AvaloniaFact]
+    public async Task GetFraming_AfterALoad_ReportsTheReseededScope()
+    {
+        MainViewModel viewModel = FramedScope();
+
+        LoadScopeMaps(viewModel);
+        JsonElement root = await FramingOf(viewModel);
+
+        Assert.Equal(AreaLat, root.GetProperty("centerLat").GetDouble(), 6);
+        Assert.Equal(AreaLon, root.GetProperty("centerLon").GetDouble(), 6);
+        Assert.Equal(ScopeViewModel.DefaultRangeNm, root.GetProperty("rangeNm").GetDouble(), 6);
+        Assert.Equal([2, 5], root.GetProperty("videoMaps").EnumerateArray().Select(map => map.GetProperty("starsId").GetInt32()));
+    }
+
+    // A seek replaces the traffic and moves the clock; the Scope's framing stays as it was.
+    [AvaloniaFact]
+    public async Task GetFraming_AfterASeek_ReportsTheScopesFramingAtTheNewTime()
+    {
+        MainViewModel viewModel = FramedScope();
+
+        viewModel.ApplyRewindResult(new RewindResultDto(true, null, [], [], null, [], "scenario-1"), 60, "Rewound to 1:00.");
+        JsonElement root = await FramingOf(viewModel);
+
+        Assert.Equal(37.7, root.GetProperty("centerLat").GetDouble(), 6);
+        Assert.Equal(25, root.GetProperty("rangeNm").GetDouble(), 6);
+        Assert.Equal([2, 5], root.GetProperty("videoMaps").EnumerateArray().Select(map => map.GetProperty("starsId").GetInt32()));
+        Assert.Equal(2.0, root.GetProperty("ptl").GetProperty("lengthMinutes").GetDouble());
+        Assert.Equal(60, root.GetProperty("simSeconds").GetDouble(), 6);
     }
 
     [AvaloniaFact]
@@ -1635,27 +1790,12 @@ public sealed class AppToolsTests : AutomationHostFixture
         );
     }
 
-    /// <summary><see cref="RadarReadyWithTwoAircraft"/> with maps 2 and 9 on and map 5 off.</summary>
+    /// <summary><see cref="ScopeReadyWithTwoAircraft"/> with the primary Scope's maps 2 and 9 on and map 5 off.</summary>
     private static MainViewModel FramingReady()
     {
-        MainViewModel viewModel = RadarReadyWithTwoAircraft();
-        RadarViewModel radar = viewModel.Radar;
-        radar.MapToggles.Add(MapFive());
-        foreach (int starsId in new[] { 2, 9 })
-        {
-            radar.MapToggles.Add(
-                new VideoMapToggleItem
-                {
-                    MapId = $"map-{starsId}",
-                    ShortName = $"M{starsId}",
-                    Name = $"Map {starsId}",
-                    BrightnessCategory = "A",
-                    StarsId = starsId,
-                    IsEnabled = true,
-                }
-            );
-        }
-
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        Assert.True(viewModel.PrimaryScope.SetMapOn(2, true));
+        Assert.True(viewModel.PrimaryScope.SetMapOn(9, true));
         return viewModel;
     }
 
@@ -1677,26 +1817,26 @@ public sealed class AppToolsTests : AutomationHostFixture
     private static AutomationTools RealTools(MainViewModel viewModel) => new(viewModel, new MainViewModelAutomationState(viewModel));
 
     [AvaloniaFact]
-    public void FrameTake_SetsExactlyTheGivenMapsCentrePtlAndPrimaryRadarRbls()
+    public void FrameTake_SetsExactlyTheGivenMapsCentreVectorAndScopeRbls()
     {
         MainViewModel viewModel = FramingReady();
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
-        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
+        PlaceScopeLine(viewModel, "AAL9", "UAL123");
         PlaceGroundLine(viewModel);
 
-        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 5 }, 1.5, true, [("UAL123", "AAL9")]));
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 5 }, 2, true, [("UAL123", "AAL9")]));
 
         Assert.Null(stopped);
-        RadarViewModel radar = viewModel.Radar;
-        Assert.Equal([5], radar.MapToggles.Where(toggle => toggle.IsEnabled).Select(toggle => toggle.StarsId));
-        Assert.Equal(37.5, radar.CenterLat, 6);
-        Assert.Equal(-122.25, radar.CenterLon, 6);
-        Assert.Equal(35, radar.RangeNm, 6);
-        Assert.Equal(1.5, radar.PtlLengthMinutes);
-        Assert.True(radar.PtlAll);
+        ScopeViewModel scope = viewModel.PrimaryScope;
+        Assert.Equal([5], ScopeMapsOn(viewModel));
+        Assert.Equal(37.5, scope.CenterLat, 6);
+        Assert.Equal(-122.25, scope.CenterLon, 6);
+        Assert.Equal(35, scope.RangeNm, 6);
+        Assert.Equal(2, scope.EffectiveBand.VectorMin);
+        Assert.Equal(ScopeVectorOwnership.All, scope.VectorOwnership);
         RangeBearingLine ground = Assert.Single(viewModel.Measure.Lines, line => line.View == RblView.Ground);
         Assert.Equal(3, ground.Slot);
-        RangeBearingLine placed = Assert.Single(viewModel.Measure.Lines, line => line.View == RadarViewModel.MeasureView);
+        RangeBearingLine placed = Assert.Single(viewModel.Measure.Lines, line => line.View == ScopeViewModel.MeasureView);
         Assert.Equal(("UAL123", "AAL9"), (placed.A.Callsign, placed.B.Callsign));
     }
 
@@ -1704,28 +1844,28 @@ public sealed class AppToolsTests : AutomationHostFixture
     public void FrameTake_UnknownStarsId_StopsBeforeAnyToggleChanges()
     {
         MainViewModel viewModel = FramingReady();
-        double latBefore = viewModel.Radar.CenterLat;
+        double latBefore = viewModel.PrimaryScope.CenterLat;
 
-        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 5, 77 }, 1.0, true, []));
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 5, 77 }, 1, true, []));
 
         Assert.Equal("prepare_take stopped at 'set the video maps': no video map with STARS id 77 in this scenario.", stopped);
-        Assert.Equal([2, 9], viewModel.Radar.MapToggles.Where(toggle => toggle.IsEnabled).Select(toggle => toggle.StarsId).Order());
-        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+        Assert.Equal([2, 9], ScopeMapsOn(viewModel));
+        Assert.Equal(latBefore, viewModel.PrimaryScope.CenterLat);
     }
 
     [AvaloniaFact]
-    public void FrameTake_PtlZero_TurnsAllTracksOffAndKeepsTheLength()
+    public void FrameTake_VectorZero_DrawsNoVectorOnOwnTracks()
     {
         MainViewModel viewModel = FramingReady();
-        viewModel.Radar.PtlLengthMinutes = 2.0;
-        viewModel.Radar.PtlAll = true;
+        viewModel.PrimaryScope.PinVectorMin(4);
+        viewModel.PrimaryScope.VectorOwnership = ScopeVectorOwnership.All;
 
-        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int>(), 0, true, []));
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int>(), 0, false, []));
 
         Assert.Null(stopped);
-        Assert.False(viewModel.Radar.PtlAll);
-        Assert.Equal(2.0, viewModel.Radar.PtlLengthMinutes);
-        Assert.DoesNotContain(viewModel.Radar.MapToggles, toggle => toggle.IsEnabled);
+        Assert.Equal(0, viewModel.PrimaryScope.EffectiveBand.VectorMin);
+        Assert.Equal(ScopeVectorOwnership.Own, viewModel.PrimaryScope.VectorOwnership);
+        Assert.Empty(ScopeMapsOn(viewModel));
     }
 
     [AvaloniaFact]
@@ -1733,10 +1873,34 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         MainViewModel viewModel = FramingReady();
 
-        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 2 }, 1.0, false, [("UAL123", "AAL9"), ("UAL123", "ZZZ9")]));
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 2 }, 1, false, [("UAL123", "AAL9"), ("UAL123", "ZZZ9")]));
 
         Assert.StartsWith("prepare_take stopped at 'place the RBL UAL123,ZZZ9': Unknown", stopped, StringComparison.Ordinal);
         Assert.Single(viewModel.Measure.Lines);
+    }
+
+    [AvaloniaFact]
+    public void FrameTake_SelectsTheScopeTab()
+    {
+        MainViewModel viewModel = FramingReady();
+        viewModel.SelectedTabIndex = 0;
+
+        Assert.Null(RealTools(viewModel).FrameTake(Framing(new HashSet<int>(), 1, false, [])));
+
+        Assert.Equal(2, viewModel.SelectedTabIndex);
+    }
+
+    // A popped-out Scope has no tab to select: the tab strip stays where it was.
+    [AvaloniaFact]
+    public void FrameTake_ScopePoppedOut_LeavesTheTabAlone()
+    {
+        MainViewModel viewModel = FramingReady();
+        viewModel.IsScopePoppedOut = true;
+        viewModel.SelectedTabIndex = 0;
+
+        Assert.Null(RealTools(viewModel).FrameTake(Framing(new HashSet<int>(), 1, false, [])));
+
+        Assert.Equal(0, viewModel.SelectedTabIndex);
     }
 
     [AvaloniaFact]

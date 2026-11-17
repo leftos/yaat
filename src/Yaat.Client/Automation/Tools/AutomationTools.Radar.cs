@@ -3,28 +3,27 @@ using System.Globalization;
 using System.Text.Json;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Scope;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.Automation.Tools;
 
 public sealed partial class AutomationTools
 {
-    /// <summary>The radar range limits, the ones the range buttons and scroll keep to (<see cref="RadarViewModel.AdjustRange"/>).</summary>
+    /// <summary>The Scope range limits, the ones its range spinner keeps to (<see cref="ScopeViewModel.StepRange"/>).</summary>
     private const double MinRangeNm = 1;
 
     private const double MaxRangeNm = 256;
 
-    /// <summary>The PTL length limits, the ones the radar's PTL control keeps to (<see cref="RadarViewModel.AdjustPtlLength"/>).</summary>
-    private const double MinPtlMinutes = 0.5;
-
-    private const double MaxPtlMinutes = 3.0;
+    /// <summary>The vector lengths <c>set_ptl</c> and <c>prepare_take</c> take, as the Scope's VECTOR spinner offers them.</summary>
+    private const string VectorMinutesText = "0, 1, 2, 4 or 8";
 
     private static readonly JsonSerializerOptions FramingJsonOptions = new(JsonSerializerDefaults.Web);
 
-    [AutomationTool("center_radar", "Centres the primary radar view on an aircraft at a range.", nameof(RadarNotReady))]
+    [AutomationTool("center_radar", "Centres the primary Scope on an aircraft at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadar(
         [Description("The aircraft's callsign, matched case-insensitively.")] string callsign,
-        [Description("The radar range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm
     )
     {
         ValidateRange(rangeNm);
@@ -33,30 +32,30 @@ public sealed partial class AutomationTools
             return Task.FromResult(NoAircraft(callsign));
         }
 
-        CentreRadar(aircraft.Position.Lat, aircraft.Position.Lon, rangeNm);
+        CentreScope(aircraft.Position.Lat, aircraft.Position.Lon, rangeNm);
         return Task.FromResult(
             AppToolOutcome.Done(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Primary radar centred on {aircraft.Callsign} ({aircraft.Position.Lat:F4}, {aircraft.Position.Lon:F4}) at {rangeNm} nm."
+                    $"Primary Scope centred on {aircraft.Callsign} ({aircraft.Position.Lat:F4}, {aircraft.Position.Lon:F4}) at {rangeNm} nm."
                 )
             )
         );
     }
 
-    [AutomationTool("center_radar_at", "Centres the primary radar view on a latitude and longitude at a range.", nameof(RadarNotReady))]
+    [AutomationTool("center_radar_at", "Centres the primary Scope on a latitude and longitude at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadarAt(
         [Description("The centre's latitude in degrees, from -90 to 90.")] double lat,
         [Description("The centre's longitude in degrees, from -180 to 180.")] double lon,
-        [Description("The radar range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm
     )
     {
         ValidateLatitude("lat", lat);
         ValidateLongitude("lon", lon);
         ValidateRange(rangeNm);
-        CentreRadar(lat, lon, rangeNm);
+        CentreScope(lat, lon, rangeNm);
         return Task.FromResult(
-            AppToolOutcome.Done(string.Create(CultureInfo.InvariantCulture, $"Primary radar centred on ({lat:F4}, {lon:F4}) at {rangeNm} nm."))
+            AppToolOutcome.Done(string.Create(CultureInfo.InvariantCulture, $"Primary Scope centred on ({lat:F4}, {lon:F4}) at {rangeNm} nm."))
         );
     }
 
@@ -64,10 +63,10 @@ public sealed partial class AutomationTools
     /// Resolves the name as the <c>.rbl</c> command and <c>place_rbl</c> resolve a fix endpoint (<see cref="FrdResolver"/> over the
     /// loaded navigation data), so a fix, an airport or an FRD all work.
     /// </summary>
-    [AutomationTool("center_radar_on_fix", "Centres the primary radar view on a fix or airport at a range.", nameof(RadarNotReady))]
+    [AutomationTool("center_radar_on_fix", "Centres the primary Scope on a fix or airport at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadarOnFix(
         [Description("The fix or airport identifier, e.g. OAK or KSFO; an FRD such as OAK090010 also works.")] string fix,
-        [Description("The radar range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm
     )
     {
         ValidateRange(rangeNm);
@@ -82,57 +81,56 @@ public sealed partial class AutomationTools
             return Task.FromResult(AppToolOutcome.Unavailable($"No fix or airport named {fix} in the navigation data."));
         }
 
-        CentreRadar(centre.Lat, centre.Lon, rangeNm);
+        CentreScope(centre.Lat, centre.Lon, rangeNm);
         return Task.FromResult(
             AppToolOutcome.Done(
-                string.Create(CultureInfo.InvariantCulture, $"Primary radar centred on {name} ({centre.Lat:F4}, {centre.Lon:F4}) at {rangeNm} nm.")
+                string.Create(CultureInfo.InvariantCulture, $"Primary Scope centred on {name} ({centre.Lat:F4}, {centre.Lon:F4}) at {rangeNm} nm.")
             )
         );
     }
 
-    /// <summary>Sets the primary radar's PTL length and its all-tracks switch; the own-tracks switch is left as it is.</summary>
+    /// <summary>Pins the primary Scope's vector length and sets the tracks it draws on, as VECTOR and its OWN/ALL click do.</summary>
     [AutomationTool(
         "set_ptl",
-        "Sets the primary radar's predicted track line length and turns PTLs for all tracks on or off.",
-        nameof(RadarNotReady)
+        "Sets the primary Scope's vector (predicted track line) length and whether it draws on all tracks or the viewer's own.",
+        nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> SetPtl(
-        [Description("The PTL length in minutes, from 0.5 to 3.0 in 0.5 steps.")] double lengthMinutes,
-        [Description("True to show a PTL on every track, false to turn the all-tracks PTL off.")] bool all
+        [Description("The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.")] double lengthMinutes,
+        [Description("True to draw vectors on all tracks (ALL), false on the viewer's own tracks only (OWN).")] bool all
     )
     {
-        ValidatePtlLength("lengthMinutes", lengthMinutes);
-        RadarViewModel radar = _viewModel.Radar;
-        radar.PtlLengthMinutes = lengthMinutes;
-        radar.PtlAll = all;
-        string state = all ? "on" : "off";
-        return Task.FromResult(AppToolOutcome.Done(string.Create(CultureInfo.InvariantCulture, $"PTL {lengthMinutes:F1} min, all tracks {state}.")));
+        ValidateVectorMinutes("lengthMinutes", lengthMinutes);
+        SetScopeVector(lengthMinutes, all);
+        string tracks = all ? "all" : "own";
+        return Task.FromResult(AppToolOutcome.Done(string.Create(CultureInfo.InvariantCulture, $"Vector {lengthMinutes} min on {tracks} tracks.")));
     }
 
     [AutomationTool(
         "get_framing",
-        "Reports the primary radar's framing and the sim clock as one JSON object: centre, range, enabled video maps, PTL, the "
-            + "primary radar's RBL slots, sim rate, pause state and sim time.",
-        nameof(RadarNotReady)
+        "Reports the primary Scope's framing and the sim clock as one JSON object: centre, range, enabled video maps, vector "
+            + "(ptl), the Scope's RBL slots, sim rate, pause state and sim time.",
+        nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> GetFraming() => Task.FromResult(AppToolOutcome.Done(FramingJson(_state.SimRate, _state.IsPaused)));
 
     /// <summary>The framing answer for <paramref name="simRate"/> and <paramref name="paused"/>; the rest is the client's state now.</summary>
     private string FramingJson(int simRate, bool paused)
     {
-        RadarViewModel radar = _viewModel.Radar;
+        ScopeViewModel scope = Scope;
+        bool all = scope.VectorOwnership == ScopeVectorOwnership.All;
         Framing framing = new(
-            radar.CenterLat,
-            radar.CenterLon,
-            radar.RangeNm,
+            scope.CenterLat,
+            scope.CenterLon,
+            scope.RangeNm,
             [
-                .. radar
-                    .MapToggles.Where(toggle => toggle.IsEnabled)
+                .. scope
+                    .MapToggles.Where(toggle => toggle.IsOn)
                     .OrderBy(toggle => toggle.StarsId)
                     .Select(toggle => new FramingMap(toggle.StarsId, toggle.Name)),
             ],
-            new FramingPtl(radar.PtlLengthMinutes, radar.PtlAll, radar.PtlOwn),
-            [.. PrimaryRadarRbls().Select(line => line.Slot).Order()],
+            new FramingPtl(scope.EffectiveBand.VectorMin, all, !all),
+            [.. PrimaryScopeRbls().Select(line => line.Slot).Order()],
             simRate,
             paused,
             _state.ScenarioElapsedSeconds
@@ -141,17 +139,25 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// The primary radar's range-bearing lines: the shared store also holds the Ground view's, and <c>place_rbl</c> places
-    /// its lines on the radar view.
+    /// The Scope view's range-bearing lines, which every Scope window shows: the shared store also holds the Radar's and the
+    /// Ground view's, and <c>place_rbl</c> places its lines on the Scope view.
     /// </summary>
-    private IEnumerable<RangeBearingLine> PrimaryRadarRbls() => _viewModel.Measure.Lines.Where(line => line.View == RadarViewModel.MeasureView);
+    private IEnumerable<RangeBearingLine> PrimaryScopeRbls() => _viewModel.Measure.Lines.Where(line => line.View == ScopeViewModel.MeasureView);
 
-    private void CentreRadar(double lat, double lon, double rangeNm)
+    private void CentreScope(double lat, double lon, double rangeNm)
     {
-        RadarViewModel radar = _viewModel.Radar;
-        radar.CenterLat = lat;
-        radar.CenterLon = lon;
-        radar.RangeNm = rangeNm;
+        ScopeViewModel scope = Scope;
+        scope.CenterLat = lat;
+        scope.CenterLon = lon;
+        scope.RangeNm = rangeNm;
+    }
+
+    /// <summary>Pins the primary Scope's vector to <paramref name="minutes"/> and draws it on all tracks or the viewer's own.</summary>
+    private void SetScopeVector(double minutes, bool all)
+    {
+        ScopeViewModel scope = Scope;
+        scope.PinVectorMin(minutes);
+        scope.VectorOwnership = all ? ScopeVectorOwnership.All : ScopeVectorOwnership.Own;
     }
 
     private static void ValidateRange(double rangeNm)
@@ -187,18 +193,14 @@ public sealed partial class AutomationTools
         }
     }
 
-    /// <summary>Rejects a PTL length the radar's own PTL control cannot set (<see cref="RadarViewModel.AdjustPtlLength"/>).</summary>
-    private static void ValidatePtlLength(string parameter, double lengthMinutes)
+    /// <summary>Rejects a vector length the Scope's VECTOR spinner cannot set (<see cref="ScopeViewModel.IsVectorMinutes"/>).</summary>
+    private static void ValidateVectorMinutes(string parameter, double minutes)
     {
-        double halfMinutes = lengthMinutes * 2;
-        if ((lengthMinutes is < MinPtlMinutes or > MaxPtlMinutes) || (halfMinutes != Math.Round(halfMinutes)))
+        if (!ScopeViewModel.IsVectorMinutes(minutes))
         {
             throw new AppToolArgumentException(
                 parameter,
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"'{parameter}' must be from {MinPtlMinutes:F1} to {MaxPtlMinutes:F1} minutes in 0.5 steps, not {lengthMinutes}."
-                )
+                string.Create(CultureInfo.InvariantCulture, $"'{parameter}' must be {VectorMinutesText} minutes, not {minutes}.")
             );
         }
     }
@@ -218,24 +220,22 @@ public sealed partial class AutomationTools
 
     private sealed record FramingMap(int StarsId, string Name);
 
+    /// <summary>The Scope's vector: its length in minutes, and whether it draws on all tracks or the viewer's own.</summary>
     private sealed record FramingPtl(double LengthMinutes, bool All, bool Own);
 
-    [AutomationTool("set_video_map", "Turns one video map on the primary radar on or off.", nameof(MapsNotLoaded))]
+    [AutomationTool("set_video_map", "Turns one video map on the primary Scope on or off.", nameof(MapsNotLoaded))]
     public Task<AppToolOutcome> SetVideoMap(
-        [Description("The map's STARS id, the number its DCB button shows.")] int starsId,
+        [Description("The map's STARS id, the number its MAPS button shows.")] int starsId,
         [Description("True to show the map, false to hide it.")] bool enabled
     )
     {
-        RadarViewModel radar = _viewModel.Radar;
-        VideoMapToggleItem? toggle = radar.FindToggleByStarsId(starsId);
-        if (toggle is null)
+        if (Scope.MapToggles.FirstOrDefault(toggle => toggle.StarsId == starsId) is not { } toggle)
         {
             return Task.FromResult(AppToolOutcome.Unavailable($"No video map with STARS id {starsId} in this scenario."));
         }
 
-        // The toggle's own change handler redraws and saves the maps, as a DCB click does through ToggleMapByStarsId.
-        toggle.IsEnabled = enabled;
-        radar.SyncShortcutState(starsId, enabled);
+        // The toggle's own change handler redraws the Scope's maps, as a MAPS click does through .scope map.
+        Scope.SetMapOn(starsId, enabled);
         string state = enabled ? "on" : "off";
         return Task.FromResult(AppToolOutcome.Done($"Video map {starsId} {toggle.ShortName} is {state}."));
     }
