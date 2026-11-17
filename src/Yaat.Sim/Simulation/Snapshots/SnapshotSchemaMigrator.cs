@@ -220,6 +220,8 @@ public static class SnapshotSchemaMigrator
         //   false is left out of the JSON.
         // V33: Added ScenarioSnapshotDto.ActiveRunways. No bump — additive and optional, and the field is left out of the
         //   JSON while the room has named no runways, so an older snapshot reads no runways and an empty room writes none.
+        // V33: Added EramSectorDisplayDto.IsFourthLineSuppressed. No bump — additive and optional, an older snapshot reads
+        //   false (line 4 not suppressed for any sector).
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

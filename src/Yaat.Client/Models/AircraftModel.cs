@@ -95,6 +95,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private IReadOnlyList<EramSectorKey> _eramDwellLockedSectors = [];
 
+    /// <summary>The ERAM sectors whose bare <c>QS {FLID}</c> suppressed this track's fourth line (the HSF data).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<EramSectorKey> _eramFourthLineSuppressedSectors = [];
+
     /// <summary>The label of the ERAM CRR group this track is a member of; null when it is in none.</summary>
     [ObservableProperty]
     private string? _eramCrrGroup;
@@ -1581,6 +1585,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced,
             EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE,
             EramDwellLockedSectors = [.. dto.EramDwellLockedSectors ?? []],
+            EramFourthLineSuppressedSectors = [.. dto.EramFourthLineSuppressedSectors ?? []],
             EramCrrGroup = dto.EramCrrGroup,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
@@ -1672,6 +1677,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     internal static PatternPosition? ToPatternPosition(AircraftDto dto) =>
         ((dto.PatternLeg is { } leg) && (dto.PatternDistanceNm is { } distanceNm)) ? new PatternPosition(leg, dto.PatternSide, distanceNm) : null;
 
+    /// <summary>
+    /// The current sector list when the incoming one holds the same sectors in the same order (so no change is raised), else
+    /// a copy of the incoming one; a missing list is empty.
+    /// </summary>
+    private static IReadOnlyList<EramSectorKey> SameOrCopy(IReadOnlyList<EramSectorKey> current, List<EramSectorKey>? incoming) =>
+        current.SequenceEqual(incoming ?? []) ? current : [.. incoming ?? []];
+
     public void UpdateFromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         FiledAircraftType = dto.FiledAircraftType;
@@ -1761,11 +1773,8 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         EramRecentHandoffWasForced = dto.EramRecentHandoffWasForced;
         EramRecentHandoffPeerFieldE = dto.EramRecentHandoffPeerFieldE;
         EramCrrGroup = dto.EramCrrGroup;
-        IReadOnlyList<EramSectorKey> dwellLocked = dto.EramDwellLockedSectors ?? [];
-        if (!EramDwellLockedSectors.SequenceEqual(dwellLocked))
-        {
-            EramDwellLockedSectors = [.. dwellLocked];
-        }
+        EramDwellLockedSectors = SameOrCopy(EramDwellLockedSectors, dto.EramDwellLockedSectors);
+        EramFourthLineSuppressedSectors = SameOrCopy(EramFourthLineSuppressedSectors, dto.EramFourthLineSuppressedSectors);
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;

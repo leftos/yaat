@@ -82,6 +82,61 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void FourthLineSuppression_IsOffByDefault_AndASuppressedSectorIsNotDefault()
+    {
+        var none = EramSectorDisplay.Default(new EramSectorKey("ZOA", "44"));
+
+        Assert.False(none.IsFourthLineSuppressed);
+        Assert.False((none with { IsFourthLineSuppressed = true }).IsDefault);
+    }
+
+    [Fact]
+    public void Line4_SetsAndClearsTheSuppression_ForTheNamedSectorOnly_AsAnAbsoluteValue()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult set = Apply(ac, "LINE4 ZOA 44 1");
+        Apply(ac, "LINE4 ZOA 44 1");
+
+        Assert.True(set.Success, set.Message);
+        Assert.True(ac.Eram.DisplayFor("ZOA", "44").IsFourthLineSuppressed);
+        Assert.False(ac.Eram.DisplayFor("ZOA", "45").IsFourthLineSuppressed);
+
+        CommandResult cleared = Apply(ac, "LINE4 ZOA 44 0");
+
+        Assert.True(cleared.Success, cleared.Message);
+        Assert.False(ac.Eram.DisplayFor("ZOA", "44").IsFourthLineSuppressed);
+        Assert.Empty(ac.Eram.SectorDisplays);
+    }
+
+    [Theory]
+    [InlineData("LINE4 ZOA 44", EramEntryErrors.MessageTooShort)]
+    [InlineData("LINE4 ZOA 44 1 0", EramEntryErrors.MessageTooLong)]
+    [InlineData("LINE4 ZOA 44 2", "MsgCofieFormat 2")]
+    public void Line4_Malformed_IsRefused_AndChangesNothing(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.Empty(ac.Eram.SectorDisplays);
+    }
+
+    [Fact]
+    public void FourthLineSuppression_RoundTripsThroughTheSnapshot()
+    {
+        AircraftState ac = Aircraft();
+        Apply(ac, "LINE4 ZOA 44 1");
+
+        var restored = AircraftEramState.FromSnapshot(ac.Eram.ToSnapshot());
+
+        Assert.True(restored.DisplayFor("ZOA", "44").IsFourthLineSuppressed);
+        Assert.False(restored.DisplayFor("ZOA", "45").IsFourthLineSuppressed);
+    }
+
+    [Fact]
     public void SectorDisplays_RoundTripThroughTheSnapshot()
     {
         AircraftState ac = Aircraft();
@@ -91,8 +146,8 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
 
         var restored = AircraftEramState.FromSnapshot(ac.Eram.ToSnapshot());
 
-        Assert.Equal(new EramSectorDisplay(new EramSectorKey("ZOA", "44"), 9, 2, 2, false), restored.DisplayFor("ZOA", "44"));
-        Assert.Equal(new EramSectorDisplay(new EramSectorKey("ZOA", "45"), null, null, null, true), restored.DisplayFor("ZOA", "45"));
+        Assert.Equal(new EramSectorDisplay(new EramSectorKey("ZOA", "44"), 9, 2, 2, false, false), restored.DisplayFor("ZOA", "44"));
+        Assert.Equal(new EramSectorDisplay(new EramSectorKey("ZOA", "45"), null, null, null, true, false), restored.DisplayFor("ZOA", "45"));
         Assert.Equal(2, restored.SectorDisplays.Count);
     }
 
@@ -145,6 +200,38 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
         AircraftEramState at4 = replay.World.FindAircraft(callsign)!.Eram;
         Assert.False(at4.DisplayFor("ZOA", "44").IsDwellLocked);
         Assert.True(at4.DisplayFor("ZOA", "45").IsDwellLocked);
+    }
+
+    [Fact]
+    public void Replay_OfLine4Entries_SetsTheAbsoluteValueEachTime()
+    {
+        SessionRecording? baseline = RecordingLoader.Load(BundlePath);
+        if (baseline is null)
+        {
+            output.WriteLine($"Skipped: {BundlePath} not present");
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        var probe = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        probe.Replay(WithActions(baseline, [], 0), 0);
+        string callsign = probe.World.GetSnapshot()[0].Callsign;
+
+        List<RecordedAction> actions =
+        [
+            new RecordedEramEntry(1, callsign, "LINE4 ZOA 44 1", null, null, null, null, null, EramEntrySource.Crc),
+            // The same value again keeps the suppression: a toggle would clear it here.
+            new RecordedEramEntry(2, callsign, "LINE4 ZOA 44 1", null, null, null, null, null, EramEntrySource.Crc),
+            new RecordedEramEntry(3, callsign, "LINE4 ZOA 44 0", null, null, null, null, null, EramEntrySource.Crc),
+        ];
+        SessionRecording recording = WithActions(baseline, actions, 5);
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+
+        replay.Replay(recording, 2);
+        Assert.True(replay.World.FindAircraft(callsign)!.Eram.DisplayFor("ZOA", "44").IsFourthLineSuppressed);
+
+        replay.Replay(recording, 4);
+        Assert.False(replay.World.FindAircraft(callsign)!.Eram.DisplayFor("ZOA", "44").IsFourthLineSuppressed);
     }
 
     private static SessionRecording WithActions(SessionRecording baseline, List<RecordedAction> actions, double total) =>

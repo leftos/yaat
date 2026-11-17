@@ -266,6 +266,47 @@ public class AircraftDtoSituationTests
     }
 
     [Fact]
+    public void Model_CopiesFourthLineSuppressedSectors_OnCreate_AndDefaultsToEmpty()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with { EramFourthLineSuppressedSectors = [new("ZLA", "25"), new("ZOA", "44")] };
+
+        Assert.Equal([new EramSectorKey("ZLA", "25"), new EramSectorKey("ZOA", "44")], AircraftModel.FromDto(set).EramFourthLineSuppressedSectors);
+        Assert.Empty(AircraftModel.FromDto(Dto(AircraftSituation.Final)).EramFourthLineSuppressedSectors);
+    }
+
+    [Fact]
+    public void Json_FourthLineSuppressedSectors_ReadTheServersWireNames_AndMissingDeserializesAsNull()
+    {
+        const string json = "{\"callsign\":\"UAL1\",\"eramFourthLineSuppressedSectors\":[{\"facility\":\"ZOA\",\"sector\":\"44\"}]}";
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        Assert.Equal([new EramSectorKey("ZOA", "44")], back.EramFourthLineSuppressedSectors);
+        Assert.Null(JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\"}", WireOptions)!.EramFourthLineSuppressedSectors);
+    }
+
+    [Fact]
+    public void ApplyDto_ChangedFourthLineSuppressedSectors_Updates_AndTheSameListRaisesNothing()
+    {
+        AircraftDto set = Dto(AircraftSituation.Final) with { EramFourthLineSuppressedSectors = [new("ZOA", "44")] };
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final));
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        model.UpdateFromDto(set);
+        Assert.Equal([new EramSectorKey("ZOA", "44")], model.EramFourthLineSuppressedSectors);
+        Assert.Contains(nameof(AircraftModel.EramFourthLineSuppressedSectors), changed);
+
+        changed.Clear();
+        model.UpdateFromDto(set with { EramFourthLineSuppressedSectors = [new("ZOA", "44")] });
+        Assert.DoesNotContain(nameof(AircraftModel.EramFourthLineSuppressedSectors), changed);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        Assert.Empty(model.EramFourthLineSuppressedSectors);
+        Assert.Contains(nameof(AircraftModel.EramFourthLineSuppressedSectors), changed);
+    }
+
+    [Fact]
     public void Json_EramCrrGroup_ReadsTheServersWireName_AndMissingDeserializesAsNull()
     {
         AircraftDto back = JsonSerializer.Deserialize<AircraftDto>("{\"callsign\":\"UAL1\",\"eramCrrGroup\":\"BOSOX\"}", WireOptions)!;

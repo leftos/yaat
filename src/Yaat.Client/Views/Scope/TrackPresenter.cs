@@ -740,7 +740,9 @@ public static class TrackPresenter
         string stable = hsf ? status.PadRight(4) : status;
         bool blank = blinks && !input.FlashOn && !ConflictActive(input);
         string text = blank ? new string(' ', stable.Length) : stable;
-        string line4 = EramLine4.Text(ac, input.Display.EramLine4Type, input.Display.EramLine4Destination);
+        // A bare QS from the viewer's sector suppresses only the HSF data; the indicator above stays, as in CRC.
+        bool suppressed = EramDwellLock.IsFourthLineSuppressed(ac, input.Display.Viewer);
+        string line4 = EramLine4.Text(ac, input.Display.EramLine4Type, input.Display.EramLine4Destination, suppressed);
         return
         [
             new(ScopeFieldSlot.StatusLine3, text, stable, ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),

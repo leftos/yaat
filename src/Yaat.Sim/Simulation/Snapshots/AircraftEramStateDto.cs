@@ -4,7 +4,7 @@ namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftEramStateDto
 {
-    // Each ERAM sector's leader, DRI halo and dwell lock for this track. Null/empty = every sector at CRC's defaults.
+    // Each ERAM sector's leader, DRI halo, dwell lock and fourth-line suppression for this track. Null/empty = every sector at CRC's defaults.
     public List<EramSectorDisplayDto>? SectorDisplays { get; init; }
 
     // Sector IDs that marked this aircraft on-frequency (the ERAM VCI indicator). Null/empty = none.
@@ -98,7 +98,7 @@ public sealed class EramSectorKeyDto
 }
 
 // One sector's display state for a track: leader direction and length, DRI halo (Standard=1, ReducedSeparation=2) and
-// dwell lock. Null/false = CRC's default.
+// dwell lock and fourth-line (HSF) suppression. Null/false = CRC's default.
 public sealed class EramSectorDisplayDto
 {
     public required string Facility { get; init; }
@@ -107,4 +107,5 @@ public sealed class EramSectorDisplayDto
     public int? LeaderLength { get; init; }
     public int? DriHaloType { get; init; }
     public bool IsDwellLocked { get; init; }
+    public bool IsFourthLineSuppressed { get; init; }
 }

@@ -3,14 +3,14 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim;
 
 /// <summary>
-/// ERAM-side per-track display state mirrored to CRC. Includes each sector's leader, DRI and dwell display state, the
+/// ERAM-side per-track display state mirrored to CRC. Includes each sector's leader, DRI, dwell and fourth-line suppression display state, the
 /// ERAM-tier interim/procedure altitude pile, pending pointouts, and the ERAM sectors that have minimized the point-out
 /// data block or cycled the data block to an FDB.
 /// </summary>
 public class AircraftEramState
 {
     /// <summary>
-    /// Each ERAM sector's own display state for this track: leader direction and length, DRI halo and dwell lock
+    /// Each ERAM sector's own display state for this track: leader direction and length, DRI halo, dwell lock and fourth-line suppression
     /// (SRS §A.40, §A.41: R-position display state). A sector with no entry sees CRC's defaults; an entry back at every
     /// default is removed. Read by the broadcast path, so every touch locks the list.
     /// </summary>
@@ -413,13 +413,23 @@ public class AircraftEramState
 /// <c>QP T</c> (reduced separation, 3 NM), stored as CRC's <c>HaloType</c> ordinal: 1 = Standard, 2 = ReducedSeparation;
 /// null = no halo.</param>
 /// <param name="IsDwellLocked">The Field-A click dwell lock (<c>ToggleEramDwellLock</c>).</param>
-public sealed record EramSectorDisplay(EramSectorKey Sector, int? LeaderDirection, int? LeaderLength, int? DriHaloType, bool IsDwellLocked)
+/// <param name="IsFourthLineSuppressed">The bare <c>QS {FLID}</c> fourth-line toggle (CRC's <c>SuppressFourthLine</c>): line 4
+/// skips the HSF data and shows its DEST/TYPE fallback; the HSF indicator stays.</param>
+public sealed record EramSectorDisplay(
+    EramSectorKey Sector,
+    int? LeaderDirection,
+    int? LeaderLength,
+    int? DriHaloType,
+    bool IsDwellLocked,
+    bool IsFourthLineSuppressed
+)
 {
     /// <summary>A sector's state with nothing set: CRC's defaults.</summary>
-    public static EramSectorDisplay Default(EramSectorKey sector) => new(sector, null, null, null, false);
+    public static EramSectorDisplay Default(EramSectorKey sector) => new(sector, null, null, null, false, false);
 
     /// <summary>Whether every field is at CRC's default.</summary>
-    public bool IsDefault => (LeaderDirection is null) && (LeaderLength is null) && (DriHaloType is null) && !IsDwellLocked;
+    public bool IsDefault =>
+        (LeaderDirection is null) && (LeaderLength is null) && (DriHaloType is null) && !IsDwellLocked && !IsFourthLineSuppressed;
 
     public EramSectorDisplayDto ToSnapshot() =>
         new()
@@ -430,10 +440,18 @@ public sealed record EramSectorDisplay(EramSectorKey Sector, int? LeaderDirectio
             LeaderLength = LeaderLength,
             DriHaloType = DriHaloType,
             IsDwellLocked = IsDwellLocked,
+            IsFourthLineSuppressed = IsFourthLineSuppressed,
         };
 
     public static EramSectorDisplay FromSnapshot(EramSectorDisplayDto dto) =>
-        new(new EramSectorKey(dto.Facility, dto.Sector), dto.LeaderDirection, dto.LeaderLength, dto.DriHaloType, dto.IsDwellLocked);
+        new(
+            new EramSectorKey(dto.Facility, dto.Sector),
+            dto.LeaderDirection,
+            dto.LeaderLength,
+            dto.DriHaloType,
+            dto.IsDwellLocked,
+            dto.IsFourthLineSuppressed
+        );
 }
 
 /// <summary>

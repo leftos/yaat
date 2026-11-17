@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Scope;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
@@ -20,7 +21,7 @@ public class EramLine4Tests
         return ac;
     }
 
-    private static string Line4(AircraftModel ac) => EramLine4.Text(ac, showType: true, showDestination: true);
+    private static string Line4(AircraftModel ac) => EramLine4.Text(ac, showType: true, showDestination: true, hsfSuppressed: false);
 
     [Fact]
     public void FreeText_WinsOverHeadingAndSpeed()
@@ -126,7 +127,7 @@ public class EramLine4Tests
         ac.FiledAircraftType = "B738";
         ac.Destination = "KSFO";
 
-        Assert.Equal("", EramLine4.Text(ac, showType: false, showDestination: false));
+        Assert.Equal("", EramLine4.Text(ac, showType: false, showDestination: false, hsfSuppressed: false));
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public class EramLine4Tests
         ac.FiledAircraftType = "B738";
         ac.Destination = "KSFO";
 
-        Assert.Equal("KSFO", EramLine4.Text(ac, showType: false, showDestination: true));
+        Assert.Equal("KSFO", EramLine4.Text(ac, showType: false, showDestination: true, hsfSuppressed: false));
     }
 
     [Theory]
@@ -198,6 +199,43 @@ public class EramLine4Tests
 
         Assert.Equal("", status.Text);
     }
+
+    private static readonly ScopeViewer Viewer44 = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");
+
+    // A bare QS from the viewer's sector suppresses line 4 as CRC's GetFieldF does: the HSF branches are skipped, so the
+    // type/destination fallback shows, and the HSF indicator stays so the controller can click it back.
+    [Fact]
+    public void SuppressedForTheViewersSector_ShowsTheFallback_AndKeepsTheHsfIndicator()
+    {
+        AircraftModel ac = Plain();
+        ac.EramAssignedHeading = "270";
+        ac.FiledAircraftType = "B738";
+        ac.EramFourthLineSuppressedSectors = [new EramSectorKey("ZOA", "44")];
+
+        TrackPresentation p = TrackPresenter.Present(ViewedFrom(ac, Viewer44));
+
+        Assert.Equal("B738", Assert.Single(p.Fields, f => f.Slot == ScopeFieldSlot.Line4Notes).Text);
+        Assert.Equal(TrackPresenter.EramArrowCell, Assert.Single(p.Fields, f => f.Slot == ScopeFieldSlot.HsfIndicator).Text);
+    }
+
+    [Fact]
+    public void SuppressedForAnotherSector_KeepsTheHsf()
+    {
+        AircraftModel ac = Plain();
+        ac.EramAssignedHeading = "270";
+        ac.FiledAircraftType = "B738";
+        ac.EramFourthLineSuppressedSectors = [new EramSectorKey("ZOA", "40")];
+
+        TrackPresentation p = TrackPresenter.Present(ViewedFrom(ac, Viewer44));
+
+        Assert.Equal("270", Assert.Single(p.Fields, f => f.Slot == ScopeFieldSlot.Line4Notes).Text);
+    }
+
+    private static TrackPresenterInput ViewedFrom(AircraftModel ac, ScopeViewer viewer) =>
+        ScopeTestAircraft.Input(ac, ScopeTemplates.EramId) with
+        {
+            Display = ScopeTestAircraft.AllDisplay with { Viewer = viewer },
+        };
 
     private static bool IsStatus(ScopeField f) => f.Slot == ScopeFieldSlot.StatusLine3;
 }

@@ -266,7 +266,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 ### Bucket D — ERAM milestone MVP (done)
 
 - [x] `Hubs/CrcClientState.Eram.cs` scaffolding + dispatch entries
-- [x] `AircraftEramState` (`AircraftState.Eram`) ERAM fields: per-sector `SectorDisplays` (`EramSectorDisplay`: `LeaderDirection`, `LeaderLength`, `IsDwellLocked`), `OnFrequencySectorIds` (the VCI indicator), `InterimAltitude`, `LocalInterimAltitude`, `ProcedureAltitude`, `ControllerEnteredAltitude`
+- [x] `AircraftEramState` (`AircraftState.Eram`) ERAM fields: per-sector `SectorDisplays` (`EramSectorDisplay`: `LeaderDirection`, `LeaderLength`, `IsDwellLocked`, `IsFourthLineSuppressed`), `OnFrequencySectorIds` (the VCI indicator), `InterimAltitude`, `LocalInterimAltitude`, `ProcedureAltitude`, `ControllerEnteredAltitude`
 - [x] `TrainingRoom.EramState` (`EramRoomState`) — sector config, route lines, quicklook sets, RD toggles
 - [x] `CrcVisibilityTracker.IsVisibleOnEram` predicate (the Sim's coverage hysteresis side, `AircraftEramState.IsVisibleOnEramCoverage`, else the stateless `DisconnectCoastRules.IsVisibleOnEram` floor check; a frozen or QT-coasted track is always visible)
 - [x] `ProcessEramMessage` MVP verbs: QN, QF, QL, RD, QU

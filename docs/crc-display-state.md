@@ -149,7 +149,7 @@ Pure transformations from internal state to wire DTOs:
 
   `CrcVisibilityTracker` keeps a parked aircraft visible regardless of the floor; `AircraftChangeTracker` fingerprints `DataBlock`, and the broadcast layer deletes the stale `RPOS{callsign}` id on un-park or removal (CRC is additive).
 - `ToFlightPlan(ac)` — filed alt/route/clearance.
-- `ToEramTarget` / `ToEramTrack` / `ToEramDataBlock` — position-based ERAM symbology. Target and track take an `EramSweptPosition` (the aircraft's last 12 s sweep, below), never the live position.
+- `ToEramTarget` / `ToEramTrack` / `ToEramDataBlock` — position-based ERAM symbology. Target and track take an `EramSweptPosition` (the aircraft's last 12 s sweep, below), never the live position. `ApplySectorDisplay` writes the subscriber sector's per-aircraft display onto the block (leader, DRI halo, `IsDwellLocked`, and `SuppressFourthLine` from `EramSectorDisplay.IsFourthLineSuppressed`), for coast blocks too; the local key `AircraftChangeTracker.BuildEramDataBlockLocalKey` holds it, so a toggle on a paused sim re-sends. CRC only blanks the HSF branches of line 4 on it (the DEST/TYPE fallback shows, the HSF indicator stays); it is set by a bare `QS {FLID}`.
 - `ToAsdexTarget` / `ToAsdexTrack` — airport range/altitude envelope filtering.
 - `ToTowerCab(ac, fieldElev)` — AGL gate.
 - `ToStarsConsolidationItem(tcp, …)` — TCP hierarchy plus defaults.

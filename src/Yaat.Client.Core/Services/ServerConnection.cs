@@ -1592,6 +1592,10 @@ public record AircraftDto
     // client compares the pairs with its own viewer's ERAM sector. Nullable as the other lists here are.
     public List<EramSectorKey>? EramDwellLockedSectors { get; init; } = null;
 
+    // The ERAM sectors whose bare QS {FLID} suppressed this track's fourth line (line 4 shows its DEST/TYPE fallback in place
+    // of the HSF data), ordered ordinally by facility then sector. Nullable as the other lists here are.
+    public List<EramSectorKey>? EramFourthLineSuppressedSectors { get; init; } = null;
+
     // The label of the ERAM CRR group this track is a member of; null when it is in none. The groups arrive on
     // EramCrrGroupsChanged and RoomStateDto.EramCrrGroups.
     public string? EramCrrGroup { get; init; } = null;

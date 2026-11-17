@@ -5,7 +5,8 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The ERAM FDB line 4 (CRC's Field F, <c>FdbRenderObject.GetFieldF</c>): the HSF free text, heading and speed when set,
-/// else the aircraft type or the destination the display flags allow. Pure: it reads only its arguments.
+/// unless the viewer's sector suppressed the fourth line (CRC <c>SuppressFourthLine</c>); else the aircraft type or the
+/// destination the display flags allow. Pure: it reads only its arguments.
 /// </summary>
 internal static class EramLine4
 {
@@ -20,7 +21,10 @@ internal static class EramLine4
     /// <param name="ac">The track.</param>
     /// <param name="showType">The type/suffix fallback is shown.</param>
     /// <param name="showDestination">The destination fallback (four characters or fewer) is shown.</param>
-    internal static string Text(AircraftModel ac, bool showType, bool showDestination) => Hsf(ac) ?? Fallback(ac, showType, showDestination);
+    /// <param name="hsfSuppressed">The viewer's sector suppressed the fourth line (CRC <c>SuppressFourthLine</c>): the HSF
+    /// branches are skipped, so the fallback shows.</param>
+    internal static string Text(AircraftModel ac, bool showType, bool showDestination, bool hsfSuppressed) =>
+        (hsfSuppressed ? null : Hsf(ac)) ?? Fallback(ac, showType, showDestination);
 
     private static string? Hsf(AircraftModel ac)
     {

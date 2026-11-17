@@ -23,7 +23,8 @@ namespace Yaat.Sim.Commands;
 /// <c>LEADER {facility} {sector} [D{1-9}] [L{n}]</c> (data-block offset direction and leader length);
 /// <c>DRI {facility} {sector} [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; no halo letter removes it);
 /// <c>DWELL {facility} {sector} 1|0</c> (sets or clears the dwell lock: an absolute value, never a toggle, so a replay
-/// cannot desync on a missed entry).
+/// cannot desync on a missed entry); <c>LINE4 {facility} {sector} 1|0</c> (sets or clears the bare <c>QS {FLID}</c>
+/// fourth-line suppression, absolute as DWELL is).
 /// </para>
 ///
 /// <para>
@@ -99,6 +100,7 @@ public static partial class EramEntryEngine
             "POCONVERT" => ApplyPointoutConvert(ac, args, ctx),
             "DRI" => ApplyDri(ac, args),
             "DWELL" => ApplyDwell(ac, args),
+            "LINE4" => ApplyFourthLine(ac, args),
             "MIN" => ApplyMinimize(ac, args),
             "FDB" => ApplyFdbToggle(ac, args),
             "CO" => ApplyConflictSuppress(ac, args, ctx.EramConflicts),
@@ -574,6 +576,27 @@ public static partial class EramEntryEngine
         bool locked = args[2] == "1";
         ac.Eram.SetDisplay(ac.Eram.DisplayFor(args[0], args[1]) with { IsDwellLocked = locked });
         return new CommandResult(true, $"DWELL {args[0]} {args[1]} {(locked ? "on" : "off")} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// The fourth-line suppression (a bare <c>QS {FLID}</c>, CRC's <c>SuppressFourthLine</c>) for the named sector:
+    /// <c>1</c> sets it and <c>0</c> clears it. The live handler turns the QS toggle into the absolute value before it
+    /// records, so a replay reaches the same state whatever it replays onto.
+    /// </summary>
+    private static CommandResult ApplyFourthLine(AircraftState ac, List<string> args)
+    {
+        if (args.Count != 3)
+        {
+            return Refused(args.Count < 3 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+        if (args[2] is not ("1" or "0"))
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[2]);
+        }
+
+        bool suppressed = args[2] == "1";
+        ac.Eram.SetDisplay(ac.Eram.DisplayFor(args[0], args[1]) with { IsFourthLineSuppressed = suppressed });
+        return new CommandResult(true, $"LINE4 {args[0]} {args[1]} {(suppressed ? "on" : "off")} {ac.Callsign}");
     }
 
     private const int StandardHalo = 1;

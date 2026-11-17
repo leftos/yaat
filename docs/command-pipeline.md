@@ -475,8 +475,8 @@ Commands/TrackEngine.Ghost.cs       # The STARS display-object bodies: CreateGho
 Commands/EramEntryEngine.cs         # The one body for the ERAM keyboard entries that write per-track ERAM state, applied from a RecordedEramEntry on every run kind:
                                     # TRACK [/OK] (owner guard unless forced; clears the handoff, unfreezes), FREEZE {lat} {lon} (altitude snapshotted at apply),
                                     # QQ / QQ L / QQ [R|L|P]{alt} (interim tiers, hundreds of feet), QR {ddd} (CERA; 000 clears), QS * | */ | /* | /{speed} | {heading} | `{text}
-                                    # (the HSF fields in CRC's canonical forms — ParseHsfHeading / ParseHsfSpeed; free text 1–8 alphanumerics), LF [{label}]
-                                    # (CRR membership; bare = clear), VCI {sector} (on-frequency toggle), LEADER {facility} {sector} [D{1-9}] [L{0,1,2,3,5}] (that sector's data-block offset), DWELL {facility} {sector} 1|0 (that sector's dwell lock, absolute),
+                                    # (the HSF fields in CRC's canonical forms — ParseHsfHeading / ParseHsfSpeed; free text 1–8 alphanumerics; a bare QS {FLID} is not an HSF entry but toggles the acting sector's fourth-line suppression, recorded as LINE4), LF [{label}]
+                                    # (CRR membership; bare = clear), VCI {sector} (on-frequency toggle), LEADER {facility} {sector} [D{1-9}] [L{0,1,2,3,5}] (that sector's data-block offset), DWELL {facility} {sector} 1|0 (that sector's dwell lock, absolute), LINE4 {facility} {sector} 1|0 (that sector's fourth-line suppression, absolute),
                                     # HANDOFF {code} [/OK] (sector adapted, then owner only — /OK forces for another sector of the same ARTCC, never a STARS or
                                     # external owner — and a target that already owns the track is refused; then TrackEngine.ApplyHandoff), PO {fromFac}
                                     # {fromSec} {toFac} {toSec}… / POACK / POCLEAR (point-outs; the hub decides who may acknowledge or clear, the Sim refuses
