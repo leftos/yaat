@@ -479,6 +479,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
     public void Dispose()
     {
+        DisposeFeatures();
         _renderer.Dispose();
         _measurePaint.Dispose();
         _measureFont?.Dispose();

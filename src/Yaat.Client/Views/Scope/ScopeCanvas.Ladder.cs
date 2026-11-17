@@ -157,6 +157,7 @@ public sealed partial class ScopeCanvas
         MoveDrawRoute(in move);
         MoveBlockDrag(in move);
         MoveMapTools(in move);
+        MoveMenuGesture(in move);
     }
 
     partial void MoveHeadingVector(in ScopeMove move);
@@ -166,4 +167,6 @@ public sealed partial class ScopeCanvas
     partial void MoveBlockDrag(in ScopeMove move);
 
     partial void MoveMapTools(in ScopeMove move);
+
+    partial void MoveMenuGesture(in ScopeMove move);
 }

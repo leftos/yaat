@@ -292,6 +292,8 @@ public class ScopeEntryTests
             eram.OwnerSectorCode = "C36";
             main.SelectedAircraft = stars;
             FocusCanvas(window, view);
+            Assert.Null(main.SelectedAircraft);
+            main.SelectedAircraft = stars;
             Type(window, "QQ 250");
             Assert.StartsWith("PILOT QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
 

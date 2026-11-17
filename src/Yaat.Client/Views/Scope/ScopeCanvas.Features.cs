@@ -1,8 +1,13 @@
 namespace Yaat.Client.Views.Scope;
 
-/// <summary>The Scope canvas's feature hooks: the modes Esc leaves and the overlays each frame collects.</summary>
+/// <summary>
+/// The Scope canvas's feature hooks: the modes Esc leaves, the overlays each frame collects and each feature's own release.
+/// </summary>
 public sealed partial class ScopeCanvas
 {
+    /// <summary>Releases every feature's own resources, ahead of the canvas's own.</summary>
+    partial void DisposeFeatures();
+
     /// <summary>Leaves the canvas's own pointer modes, one per Esc. Returns whether one was left.</summary>
     internal bool EscapeModes()
     {

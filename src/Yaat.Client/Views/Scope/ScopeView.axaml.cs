@@ -17,7 +17,10 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The YAAT Scope: a scope canvas drawing traffic with the datablock template engine. A left click on a target or block
-/// selects that aircraft; a right click opens the shared aircraft menu. A left click on an ERAM block's callsign (Field A)
+/// selects that aircraft; a right click opens the shared aircraft menu. Ctrl+click (Cmd+click on macOS) on a target, block
+/// or indicator opens the flight-plan editor without selecting, and Ctrl+Shift leaves the press to Shift. A left click on
+/// empty map clears the selection, except while the Rings or measuring tool is armed or when the click fills the entry. A
+/// right click over two or more stacked targets opens a picker first. A left click on an ERAM block's callsign (Field A)
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>). A left click on a field
 /// with an action (<see cref="ScopeFieldAction"/>) selects the aircraft and opens that field's pick menu at the pointer
 /// (<see cref="FieldMenus.ScopeFieldMenus"/>), the note box, or takes control (the EuroScope owner); a row of the menu sends,
