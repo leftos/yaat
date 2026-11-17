@@ -2,8 +2,10 @@ using System.Globalization;
 using System.Text;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
 
@@ -36,8 +38,15 @@ public static class NavRouteOverlayProjector
     private const double RouteEndTailNm = 5.0;
 
     /// <summary>
-    /// The current phase's shapes, then the route-end course or the heading vector, then one dashed racetrack per hold
-    /// queued at a fix ahead, in queue order.
+    /// Shortest final approach course line (nm), drawn back from its anchor along the reciprocal: the client's
+    /// <c>ShownRouteBuilder.FacExtensionNm</c>, which an expected approach's line matches. A cleared or pending approach's
+    /// line reaches further, out to the aircraft.
+    /// </summary>
+    private const double FinalApproachMinimumNm = 5.0;
+
+    /// <summary>
+    /// The current phase's shapes, then the route-end course or the heading vector, then the final approach course of a
+    /// cleared, pending or expected approach, then one dashed racetrack per hold queued at a fix ahead, in queue order.
     /// </summary>
     public static List<NavRouteShapeDto> BuildShapes(AircraftState aircraft)
     {
@@ -49,6 +58,11 @@ public static class NavRouteOverlayProjector
         else if (HeadingVectorHeading(aircraft) is { } heading)
         {
             shapes.Add(BuildVector(NavRouteShapeKind.HeadingVector, aircraft.Position, heading));
+        }
+
+        if (FinalApproachCourse(aircraft) is { } final)
+        {
+            shapes.Add(BuildFinalApproachCourse(final));
         }
 
         foreach ((HoldingPatternCommand hold, double holdAltitudeFt) in QueuedHolds(aircraft))
@@ -65,7 +79,7 @@ public static class NavRouteOverlayProjector
             HoldingPatternPhase hold => [BuildHoldRacetrack(aircraft, hold)],
             ProcedureTurnPhase pt => [BuildProcedureTurn(aircraft, pt)],
             DepartureProcedurePhase departure => BuildCodedLegVectors(aircraft, departure),
-            Phases.MilitaryRoutePhase route => BuildMilitaryRouteCorridor(route),
+            MilitaryRoutePhase route => BuildMilitaryRouteCorridor(route),
             _ => CurrentOrbit(aircraft) is { } orbit ? [BuildOrbitCircle(aircraft, orbit.Centre, orbit.Direction)] : [],
         };
 
@@ -123,6 +137,178 @@ public static class NavRouteOverlayProjector
     }
 
     /// <summary>
+    /// The approach whose final an airborne aircraft draws, from stored state alone (no navdata): the first that holds of
+    /// the approach it is cleared for and flying (until it lands), the approach cleared to begin at its route's end, or the
+    /// approach it expects (EA). Null on the ground, with none of them, for an IFR visual approach, and from the start of a
+    /// go-around, a missed approach, a low approach or a touch-and-go or stop-and-go until a new clearance
+    /// (<see cref="HidesFinal"/>).
+    /// </summary>
+    private static FinalSource? FinalApproachSource(AircraftState aircraft)
+    {
+        if (aircraft.IsOnGround || (StoredFinal(aircraft) is not { } source))
+        {
+            return null;
+        }
+
+        return (HidesFinal(aircraft, source) || ApproachIds.TryParseVisual(source.ApproachId, out _)) ? null : source;
+    }
+
+    /// <summary>The cleared and flown (C), pending (P) or expected (X) approach, in that order of precedence.</summary>
+    private static FinalSource? StoredFinal(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.ActiveApproach is { } active)
+        {
+            return new FinalSource('C', active.ApproachId, active, aircraft.Phases.AssignedRunway);
+        }
+
+        if (aircraft.Approach.PendingClearance is { } pending)
+        {
+            return new FinalSource('P', pending.Clearance.ApproachId, pending.Clearance, pending.AssignedRunway);
+        }
+
+        return (aircraft.Approach.Expected is { Length: > 0 } expected) ? new FinalSource('X', expected, null, null) : null;
+    }
+
+    /// <summary>
+    /// The approach flown in the current phase list has ended in the air (<see cref="AirborneFollowHelper.HasEndedTheApproach"/>):
+    /// from then the cleared final, and an expected one behind it, stay hidden until a new clearance starts a new list.
+    /// A pending clearance is one issued since, and is not hidden: it draws until it activates into a new phase list.
+    /// </summary>
+    private static bool HidesFinal(AircraftState aircraft, FinalSource source) =>
+        (source.State != 'P') && (aircraft.Phases is { } phases) && AirborneFollowHelper.HasEndedTheApproach(phases, phases.ActiveApproach);
+
+    /// <summary>The final approach course to draw for <see cref="FinalApproachSource"/>, or null when it cannot be placed.</summary>
+    private static FinalCourse? FinalApproachCourse(AircraftState aircraft) =>
+        FinalApproachSource(aircraft) switch
+        {
+            { Clearance: { } clearance } source => ClearedFinal(aircraft, clearance, source.Runway),
+            { } source => ExpectedFinal(aircraft.FlightPlan.Destination, source.ApproachId),
+            null => null,
+        };
+
+    /// <summary>
+    /// A cleared approach's final from the clearance as stored: its course, from its lateral anchor (else the runway's
+    /// threshold) out along the reciprocal to the aircraft's distance along it, never shorter than
+    /// <see cref="FinalApproachMinimumNm"/>. Reads neither <see cref="ApproachClearance.Procedure"/> (null after a snapshot
+    /// restore) nor the navdata's course, so a restored or replayed clearance draws the same line.
+    /// </summary>
+    private static FinalCourse? ClearedFinal(AircraftState aircraft, ApproachClearance clearance, RunwayInfo? runway)
+    {
+        LatLon? anchor =
+            ((clearance.FinalApproachAnchorLat is { } lat) && (clearance.FinalApproachAnchorLon is { } lon)) ? new LatLon(lat, lon)
+            : ((runway ?? ClearanceRunway(clearance)) is { } threshold) ? new LatLon(threshold.ThresholdLatitude, threshold.ThresholdLongitude)
+            : null;
+        if (anchor is not { } near)
+        {
+            return null;
+        }
+
+        TrueHeading reciprocal = clearance.FinalApproachCourse.ToReciprocal();
+        double alongNm = GeoMath.AlongTrackDistanceNm(aircraft.Position, near, reciprocal);
+        LatLon far = GeoMath.ProjectPoint(near, reciprocal, Math.Max(FinalApproachMinimumNm, alongNm));
+        return new FinalCourse(NavRouteShapeKind.FinalApproachCourse, far, near);
+    }
+
+    private static RunwayInfo? ClearanceRunway(ApproachClearance clearance) =>
+        NavigationDatabase.InstanceOrNull?.GetRunway(clearance.AirportCode, clearance.RunwayId);
+
+    /// <summary>
+    /// The expected approach's final, resolved as <see cref="Situation.ExpectedFinalGeometry"/> resolves it (the first
+    /// candidate the expectation names at the destination that has a runway) and drawn as the client's
+    /// <c>ShownRouteBuilder</c> draws it: from <see cref="FinalApproachMinimumNm"/> back along the published course's
+    /// reciprocal from the lateral anchor (else the first common-leg fix), to the anchor (else the threshold). Null with no
+    /// destination, no navdata or no such candidate.
+    /// </summary>
+    private static FinalCourse? ExpectedFinal(string destination, string expected)
+    {
+        if (string.IsNullOrEmpty(destination) || (NavigationDatabase.InstanceOrNull is not { } navDb))
+        {
+            return null;
+        }
+
+        string airport = navDb.TryResolveAirport(destination, out string canonical) ? canonical : destination;
+        foreach (string id in navDb.ResolveApproachCandidates(airport, expected))
+        {
+            if ((navDb.GetApproach(airport, id) is { Runway: { } runwayId } procedure) && (navDb.GetRunway(airport, runwayId) is { } runway))
+            {
+                return ExpectedCourse(procedure, runway, navDb);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// An expected approach's line for <paramref name="procedure"/> to <paramref name="runway"/>: from
+    /// <see cref="FinalApproachMinimumNm"/> back along the published course's reciprocal from the lateral anchor (else the
+    /// first common-leg fix, else the threshold), to the anchor (else the threshold).
+    /// </summary>
+    private static FinalCourse ExpectedCourse(CifpApproachProcedure procedure, RunwayInfo runway, NavigationDatabase navDb)
+    {
+        FinalApproachCourseResult fac = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        LatLon near = OriginOf(fac, runway);
+        LatLon farOrigin = AnchorOf(fac) ?? FirstCommonLegFix(procedure, navDb) ?? near;
+        LatLon far = GeoMath.ProjectPoint(farOrigin, fac.Course.ToReciprocal(), FinalApproachMinimumNm);
+        return new FinalCourse(NavRouteShapeKind.ExpectedFinalApproachCourse, far, near);
+    }
+
+    /// <summary>The final approach course's lateral anchor, or null when the extractor found none.</summary>
+    private static LatLon? AnchorOf(FinalApproachCourseResult fac) =>
+        ((fac.AnchorLat is { } lat) && (fac.AnchorLon is { } lon)) ? new LatLon(lat, lon) : null;
+
+    /// <summary>The near end of an expected final: the lateral anchor, else the runway's threshold.</summary>
+    private static LatLon OriginOf(FinalApproachCourseResult fac, RunwayInfo runway) =>
+        AnchorOf(fac) ?? new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+
+    /// <summary>
+    /// The first common-leg fix the client's <c>ShownRouteBuilder</c> draws: the first named leg's fix that resolves, skipping
+    /// course reversals and holds, and none at or past the missed approach point.
+    /// </summary>
+    private static LatLon? FirstCommonLegFix(CifpApproachProcedure procedure, NavigationDatabase navDb)
+    {
+        foreach (CifpLeg leg in procedure.CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)))
+        {
+            if (leg.FixRole == CifpFixRole.MAP)
+            {
+                return null;
+            }
+
+            if (!IsReversalOrHold(leg) && (leg.ResolveFixPosition(navDb) is { } position))
+            {
+                return new LatLon(position.Lat, position.Lon);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A procedure-turn or hold leg, which the client's drawn approach skips.</summary>
+    private static bool IsReversalOrHold(CifpLeg leg) =>
+        leg.PathTerminator is CifpPathTerminator.PI or CifpPathTerminator.HM or CifpPathTerminator.HF or CifpPathTerminator.HA;
+
+    /// <summary>The final approach course as a two-point line: from its far end in along the course to its anchor.</summary>
+    private static NavRouteShapeDto BuildFinalApproachCourse(FinalCourse final) =>
+        new(
+            final.Kind,
+            [
+                [final.Far.Lat, final.Far.Lon],
+                [final.Near.Lat, final.Near.Lon],
+            ],
+            null,
+            null,
+            null
+        );
+
+    /// <summary>
+    /// The approach a final is drawn for: its key state (C cleared and flown, P pending, X expected), its approach id (the
+    /// expectation as stored for X), and for C and P the clearance and the runway it is drawn to.
+    /// </summary>
+    private readonly record struct FinalSource(char State, string ApproachId, ApproachClearance? Clearance, RunwayInfo? Runway);
+
+    /// <summary>A final approach course to draw: its kind, its far end and its anchor (the near end).</summary>
+    private readonly record struct FinalCourse(NavRouteShapeKind Kind, LatLon Far, LatLon Near);
+
+    /// <summary>
     /// The orbit the current phase flies, if any: a VFR hold's fix (HFIX), also while still proceeding to it, or an
     /// airspace-boundary orbit's reference position. A hover has no orbit, a hold at present position (HPP) keeps no record
     /// of where its orbit began, and a level-off under a shelf does not turn, so none of them has one.
@@ -131,10 +317,7 @@ public static class NavRouteOverlayProjector
         aircraft.Phases?.CurrentPhase switch
         {
             VfrHoldPhase { OrbitDirection: { } dir, FixLat: { } lat, FixLon: { } lon } => (new LatLon(lat, lon), dir),
-            Phases.AirspaceBoundaryHoldPhase { Mode: Phases.AirspaceHoldMode.Orbit } boundary => (
-                boundary.ReferencePosition,
-                boundary.OrbitDirection
-            ),
+            AirspaceBoundaryHoldPhase { Mode: AirspaceHoldMode.Orbit } boundary => (boundary.ReferencePosition, boundary.OrbitDirection),
             _ => null,
         };
 
@@ -175,7 +358,8 @@ public static class NavRouteOverlayProjector
     /// <summary>
     /// A key covering every input of the queued-hold racetracks and the orbit circle that the aircraft's position does not
     /// already cover: each queued hold's fix, course, leg, direction and hold altitude, the orbit's centre and direction, and
-    /// the route-end course's fix and true course. Empty when there are none, so it leaves an existing fingerprint unchanged.
+    /// the route-end course's fix and true course, and the final approach course's stored state (<see cref="FinalApproachKey"/>).
+    /// Empty when there are none, so it leaves an existing fingerprint unchanged.
     /// The heading vector adds nothing: its origin is the aircraft's position and its heading the target heading, both in
     /// the training fingerprint already.
     /// </summary>
@@ -204,8 +388,25 @@ public static class NavRouteOverlayProjector
             sb.Append(CultureInfo.InvariantCulture, $"|E{routeEnd.Last.Name}:{routeEnd.TrueCourse.Degrees:F1}");
         }
 
-        return sb?.ToString() ?? "";
+        return (sb?.ToString() ?? "") + FinalApproachKey(aircraft);
     }
+
+    /// <summary>
+    /// The final approach course's key, from stored state only (never navdata, which a tick must not read): the cleared and
+    /// pending approach's id and stored true course to a tenth of a degree, the expected approach's expectation as stored.
+    /// Empty when no final is drawn for a stored reason (none, visual, hidden phase). The cleared line's far end follows the
+    /// aircraft's position, which the fingerprint already covers.
+    /// </summary>
+    private static string FinalApproachKey(AircraftState aircraft) =>
+        FinalApproachSource(aircraft) switch
+        {
+            { Clearance: { } clearance } source => string.Create(
+                CultureInfo.InvariantCulture,
+                $"|A{source.State}:{source.ApproachId}:{clearance.FinalApproachCourse.Degrees:F1}"
+            ),
+            { } source => $"|A{source.State}:{source.ApproachId}",
+            null => "",
+        };
 
     /// <summary>
     /// The altitude a queued hold will be held at: the last altitude assignment in its own block, else the assigned
@@ -256,15 +457,15 @@ public static class NavRouteOverlayProjector
     /// as a uniform buffer, and each point is offset by the width published where it sits. Interior
     /// points bisect the two legs meeting there so the edge stays continuous around a turn.
     /// </summary>
-    private static List<NavRouteShapeDto> BuildMilitaryRouteCorridor(Phases.MilitaryRoutePhase phase)
+    private static List<NavRouteShapeDto> BuildMilitaryRouteCorridor(MilitaryRoutePhase phase)
     {
-        MilitaryRoute? route = Data.NavigationDatabase.Instance.GetMilitaryRoute(phase.Designator);
+        MilitaryRoute? route = NavigationDatabase.Instance.GetMilitaryRoute(phase.Designator);
         if (route is null || route.Widths.Count == 0)
         {
             return [];
         }
 
-        NavigationDatabase navDb = Data.NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var centerline = new List<(LatLon Position, string Id)>();
         foreach (string name in phase.PointNames)
         {

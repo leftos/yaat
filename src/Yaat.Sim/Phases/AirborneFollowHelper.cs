@@ -421,6 +421,29 @@ public static class AirborneFollowHelper
         phase is ApproachNavigationPhase { IsMissedApproach: true } or HoldingPatternPhase { IsMissedApproachHold: true };
 
     /// <summary>
+    /// True when the approach flown in <paramref name="phases"/> has ended in the air: a go-around, a low approach, a
+    /// touch-and-go or stop-and-go, the missed approach's fixes or its hold is the current phase, or has started (any status
+    /// but Pending) anywhere in the list. Every approach clearance starts a new phase list, so one found there came after the
+    /// clearance and holds until the next. The hold is the missed approach's when it says so or when it holds at
+    /// <paramref name="clearance"/>'s missed-approach holding fix. A not-yet-started option phase does not end it.
+    /// </summary>
+    internal static bool HasEndedTheApproach(PhaseList phases, ApproachClearance? clearance) =>
+        ((phases.CurrentPhase is { } current) && EndsTheApproach(current, clearance))
+        || phases.Phases.Any(phase => (phase.Status != PhaseStatus.Pending) && EndsTheApproach(phase, clearance));
+
+    private static bool EndsTheApproach(Phase phase, ApproachClearance? clearance) =>
+        phase switch
+        {
+            GoAroundPhase or LowApproachPhase or TouchAndGoPhase or StopAndGoPhase => true,
+            ApproachNavigationPhase { IsMissedApproach: true } => true,
+            HoldingPatternPhase hold => hold.IsMissedApproachHold || IsMapHoldFix(hold, clearance),
+            _ => false,
+        };
+
+    private static bool IsMapHoldFix(HoldingPatternPhase hold, ApproachClearance? clearance) =>
+        (clearance?.MapHold is { } mapHold) && string.Equals(hold.FixName, mapHold.FixName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// True when <paramref name="aircraft"/> is going around: in <see cref="GoAroundPhase"/>, re-entering the pattern or not, or
     /// flying the published missed approach after it (an <see cref="ApproachNavigationPhase"/> with
     /// <see cref="ApproachNavigationPhase.IsMissedApproach"/> set). The missed-approach hold is deliberately not a go-around:

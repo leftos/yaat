@@ -1,10 +1,13 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -776,5 +779,541 @@ public class NavRouteOverlayProjectorTests
                 Assert.Null(ac.Targets.TargetTrueHeading);
                 break;
         }
+    }
+
+    // ---- Final approach course: a cleared, pending or expected approach's final, from the sim's stored clearance ----
+
+    /// <summary>The shapes that draw a final approach course, cleared or expected.</summary>
+    private static bool IsFinal(NavRouteShapeDto shape) =>
+        shape.Kind is NavRouteShapeKind.FinalApproachCourse or NavRouteShapeKind.ExpectedFinalApproachCourse;
+
+    /// <summary>A clearance's lateral anchor, else its runway's threshold: the near end of its final.</summary>
+    private static LatLon AnchorOf(ApproachClearance clearance, RunwayInfo runway) =>
+        ((clearance.FinalApproachAnchorLat is { } lat) && (clearance.FinalApproachAnchorLon is { } lon))
+            ? new LatLon(lat, lon)
+            : new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+
+    /// <summary>
+    /// A two-point final, far end first: the far end <paramref name="farNm"/> (± <paramref name="toleranceNm"/>) back from
+    /// <paramref name="near"/> along the reciprocal of <paramref name="course"/>, then <paramref name="near"/> itself.
+    /// </summary>
+    private static void AssertFinalLine(LatLon near, TrueHeading course, double farNm, double toleranceNm, NavRouteShapeDto shape)
+    {
+        Assert.Equal(2, shape.Points.Count);
+        LatLon far = PointOf(shape.Points[0]);
+        Assert.Equal(near.Lat, shape.Points[1][0], 9);
+        Assert.Equal(near.Lon, shape.Points[1][1], 9);
+        Assert.InRange(GeoMath.DistanceNm(near, far), farNm - toleranceNm, farNm + toleranceNm);
+        var bearing = new TrueHeading(GeoMath.BearingTo(near, far));
+        TrueHeading reciprocal = course.ToReciprocal();
+        Assert.True(bearing.AbsAngleTo(reciprocal) < 0.1, $"bearing {bearing.Degrees:F2} should be {reciprocal.Degrees:F2}");
+        Assert.Null(shape.Labels);
+    }
+
+    /// <summary>
+    /// A jet vectored onto KDCA LDA-X 19 (X19, a final offset from the runway) 12 nm out, cleared for it on its heading
+    /// with no route: the implied PTAC activates at once, installs the intercept, clears the route and the assigned heading.
+    /// </summary>
+    private static AircraftState VectoredOntoKdcaX19()
+    {
+        TestVnasData.EnsureInitialized();
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(navDb.GetRunway("DCA", "19"));
+        CifpApproachProcedure procedure = Assert.IsType<CifpApproachProcedure>(navDb.GetApproach("DCA", "X19"));
+        TrueHeading course = FinalApproachCourseExtractor.Extract(procedure, runway, navDb).Course;
+        LatLon onFinal = GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), course.ToReciprocal(), 12.0);
+        LatLon position = GeoMath.ProjectPoint(onFinal, new TrueHeading(course.Degrees - 90.0), 2.0);
+        var ac = new AircraftState
+        {
+            Callsign = "AAL1",
+            AircraftType = "B738",
+            Position = position,
+            TrueHeading = new TrueHeading(course.Degrees + 30.0),
+            Altitude = 3000,
+            IndicatedAirspeed = 210,
+            IsOnGround = false,
+            Declination = MagneticDeclination.GetDeclination(position, DeclinationDate),
+            FlightPlan = new AircraftFlightPlan { Destination = "KDCA" },
+        };
+        ac.Targets.AssignedMagneticHeading = ac.MagneticHeading;
+
+        var cmd = new ClearedApproachCommand("X19", "KDCA", true, null, null, null, null, null, null, null, null);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<InterceptCoursePhase>(ac.Phases?.CurrentPhase);
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.Null(ac.Targets.AssignedMagneticHeading);
+        return ac;
+    }
+
+    /// <summary>
+    /// A jet on OAKES3 with EMZOH and HIRMO (the STAR's FM fix) ahead, expecting H12-Z and cleared for it: the clearance
+    /// defers to HIRMO, pending.
+    /// </summary>
+    private static AircraftState DeferredH12Z()
+    {
+        NavigationTarget hirmo = Oakes3Rw12Targets()[^1];
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("EMZOH") ?? throw new InvalidOperationException("EMZOH missing");
+        AircraftState ac = Routed([new NavigationTarget { Name = "EMZOH", Position = new LatLon(lat, lon) }, hirmo]);
+        ac.Position = new LatLon(37.5, -121.8);
+        ac.Approach.Expected = "H12-Z";
+        ac.Procedure.DestinationRunway = "12";
+
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, ac);
+        Assert.True(result.Success, result.Message);
+        Assert.NotNull(ac.Approach.PendingClearance);
+        return ac;
+    }
+
+    /// <summary>An airborne aircraft bound for KOAK with no route, no clearance and no expected approach.</summary>
+    private static AircraftState AirborneToKoak()
+    {
+        TestVnasData.EnsureInitialized();
+        return new AircraftState
+        {
+            Callsign = "SWA22",
+            AircraftType = "B738",
+            Position = new LatLon(37.85, -122.05),
+            Altitude = 5000,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+        };
+    }
+
+    private static ApproachClearance KoakClearance(string approachId, RunwayInfo runway) =>
+        new()
+        {
+            ApproachId = approachId,
+            AirportCode = "KOAK",
+            RunwayId = runway.Designator,
+            FinalApproachCourse = runway.TrueHeading,
+            TransitionName = null,
+        };
+
+    private static RunwayInfo KoakRunway(string id) => Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("KOAK", id));
+
+    /// <summary>
+    /// The cleared final runs from the aircraft's distance out along the course (its distance from the anchor projected onto
+    /// the reciprocal), never shorter than 5 nm, to the anchor.
+    /// </summary>
+    [Theory]
+    [InlineData(12.0, 0.0, 12.0)]
+    [InlineData(12.0, 2.0, 12.0)]
+    [InlineData(2.0, 0.0, 5.0)]
+    public void ClearedFinal_ReachesOutToTheAircraft_NeverShorterThanFiveMiles(double outNm, double offsetNm, double farNm)
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ApproachClearance clearance = Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach);
+        LatLon anchor = AnchorOf(clearance, Assert.IsType<RunwayInfo>(ac.Phases.AssignedRunway));
+        LatLon onCourse = GeoMath.ProjectPoint(anchor, clearance.FinalApproachCourse.ToReciprocal(), outNm);
+        ac.Position = GeoMath.ProjectPoint(onCourse, new TrueHeading(clearance.FinalApproachCourse.Degrees - 90.0), offsetNm);
+
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
+
+        AssertFinalLine(
+            anchor,
+            clearance.FinalApproachCourse,
+            farNm,
+            0.1,
+            Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.FinalApproachCourse)
+        );
+        Assert.DoesNotContain(shapes, s => s.Kind == NavRouteShapeKind.ExpectedFinalApproachCourse);
+    }
+
+    /// <summary>
+    /// A clearance deferred to the route's end draws its final solid, reaching out to the aircraft like a cleared one, and
+    /// neither the STAR's route-end course nor the expected approach's dashed final.
+    /// </summary>
+    [Theory]
+    [InlineData(12.0, 12.0)]
+    [InlineData(2.0, 5.0)]
+    public void DeferredCapp_DrawsTheFinalOutToTheAircraft_AndNoRouteEndTail(double outNm, double farNm)
+    {
+        AircraftState ac = DeferredH12Z();
+        PendingApproachInfo pending = Assert.IsType<PendingApproachInfo>(ac.Approach.PendingClearance);
+        LatLon anchor = AnchorOf(pending.Clearance, pending.AssignedRunway);
+        ac.Position = GeoMath.ProjectPoint(anchor, pending.Clearance.FinalApproachCourse.ToReciprocal(), outNm);
+
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
+
+        AssertFinalLine(
+            anchor,
+            pending.Clearance.FinalApproachCourse,
+            farNm,
+            0.1,
+            Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.FinalApproachCourse)
+        );
+        Assert.DoesNotContain(shapes, s => s.Kind == NavRouteShapeKind.RouteEndCourse);
+        Assert.DoesNotContain(shapes, s => s.Kind == NavRouteShapeKind.ExpectedFinalApproachCourse);
+    }
+
+    /// <summary>
+    /// The expected approach's final is the client's: 5 nm back from the published anchor (else the first common-leg fix)
+    /// along the reciprocal of the published course, to the anchor (else the threshold).
+    /// </summary>
+    [Fact]
+    public void ExpectedApproachOnly_DrawsADashedExpectedFinal()
+    {
+        AircraftState ac = Routed([Oakes3Rw12Targets()[^1]]);
+        ac.Approach.Expected = "I30";
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string id = navDb.ResolveApproachCandidates("KOAK", "I30")[0];
+        CifpApproachProcedure procedure = Assert.IsType<CifpApproachProcedure>(navDb.GetApproach("KOAK", id));
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(navDb.GetRunway("KOAK", Assert.IsType<string>(procedure.Runway)));
+        FinalApproachCourseResult fac = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        LatLon? anchor = ((fac.AnchorLat is { } lat) && (fac.AnchorLon is { } lon)) ? new LatLon(lat, lon) : null;
+        LatLon farOrigin =
+            anchor
+            ?? procedure
+                .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier))
+                .Select(l => l.ResolveFixPosition(navDb))
+                .Where(p => p is not null)
+                .Select(p => new LatLon(p!.Value.Lat, p.Value.Lon))
+                .First();
+        LatLon near = anchor ?? new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        LatLon far = GeoMath.ProjectPoint(farOrigin, fac.Course.ToReciprocal(), 5.0);
+
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
+
+        NavRouteShapeDto shape = Assert.Single(shapes, s => s.Kind == NavRouteShapeKind.ExpectedFinalApproachCourse);
+        Assert.Equal(2, shape.Points.Count);
+        Assert.Equal(far.Lat, shape.Points[0][0], 9);
+        Assert.Equal(far.Lon, shape.Points[0][1], 9);
+        Assert.Equal(near.Lat, shape.Points[1][0], 9);
+        Assert.Equal(near.Lon, shape.Points[1][1], 9);
+        Assert.Null(shape.Labels);
+        Assert.DoesNotContain(shapes, s => s.Kind == NavRouteShapeKind.FinalApproachCourse);
+    }
+
+    [Fact]
+    public void LandedAircraft_DrawsNoFinalApproachCourse()
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ac.IsOnGround = true;
+
+        Assert.NotNull(ac.Phases?.ActiveApproach);
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+    }
+
+    /// <summary>
+    /// A clearance restored from a snapshot carries no procedure, and draws its final from its stored fields: a stored
+    /// course 7° off the published one draws the line on the stored course.
+    /// </summary>
+    [Fact]
+    public void RestoredClearanceWithoutProcedure_DrawsTheStoredCourse()
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ApproachClearance live = Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach);
+        Assert.NotNull(live.Procedure);
+        var shifted = new TrueHeading(live.FinalApproachCourse.Degrees + 7.0);
+        ac.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = live.ApproachId,
+            AirportCode = live.AirportCode,
+            RunwayId = live.RunwayId,
+            FinalApproachCourse = shifted,
+            TransitionName = live.TransitionName,
+            FinalApproachAnchorLat = live.FinalApproachAnchorLat,
+            FinalApproachAnchorLon = live.FinalApproachAnchorLon,
+        };
+        Assert.Null(ac.Phases.ActiveApproach.Procedure);
+        LatLon anchor = AnchorOf(live, Assert.IsType<RunwayInfo>(ac.Phases.AssignedRunway));
+        ac.Position = GeoMath.ProjectPoint(anchor, shifted.ToReciprocal(), 2.0);
+
+        NavRouteShapeDto shape = Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.FinalApproachCourse);
+
+        AssertFinalLine(anchor, shifted, 5.0, 0.1, shape);
+    }
+
+    /// <summary>An IFR visual approach, cleared, pending or expected, draws no final, and its shape key adds none.</summary>
+    [Theory]
+    [InlineData('C')]
+    [InlineData('P')]
+    [InlineData('X')]
+    public void VisualApproach_DrawsNoFinal(char state)
+    {
+        AircraftState ac = AirborneToKoak();
+        RunwayInfo rw30 = KoakRunway("30");
+        ApproachClearance visual = KoakClearance(ApproachIds.Visual("30"), rw30);
+        switch (state)
+        {
+            case 'C':
+                ac.Phases = new PhaseList { AssignedRunway = rw30, ActiveApproach = visual };
+                break;
+            case 'P':
+                ac.Approach.PendingClearance = new PendingApproachInfo
+                {
+                    Clearance = visual,
+                    AssignedRunway = rw30,
+                    ConnectingFix = null,
+                };
+                break;
+            default:
+                ac.Approach.Expected = ApproachIds.Visual("30");
+                break;
+        }
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+        Assert.DoesNotContain("|A", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>A pattern entry flies no approach clearance, and draws no final.</summary>
+    [Fact]
+    public void PatternEntry_DrawsNoFinal()
+    {
+        AircraftState ac = AirborneToKoak();
+        RunwayInfo rw30 = KoakRunway("30");
+        ac.Phases = new PhaseList { AssignedRunway = rw30 };
+        ac.Phases.Add(
+            new PatternEntryPhase
+            {
+                EntryLat = rw30.ThresholdLatitude,
+                EntryLon = rw30.ThresholdLongitude,
+                PatternAltitude = 1000,
+                Kind = PatternEntryKind.FortyFive,
+            }
+        );
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+        Assert.DoesNotContain("|A", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    private static Phase HidingPhase(string name) =>
+        name switch
+        {
+            "GoAround" => new GoAroundPhase(),
+            "LowApproach" => new LowApproachPhase(),
+            "TouchAndGo" => new TouchAndGoPhase(),
+            "StopAndGo" => new StopAndGoPhase(),
+            "MissedApproach" => new ApproachNavigationPhase { Fixes = [], IsMissedApproach = true },
+            _ => new HoldingPatternPhase
+            {
+                FixName = "HOLDR",
+                FixLat = Fix.Lat,
+                FixLon = Fix.Lon,
+                InboundCourse = 270,
+                LegLength = 1.0,
+                IsMinuteBased = true,
+                Direction = TurnDirection.Right,
+                IsMissedApproachHold = true,
+            },
+        };
+
+    /// <summary>
+    /// The final hides once a go-around or missed approach starts and during a low approach or touch-and-go climbout, though
+    /// the clearance is still held; the shape key adds none either.
+    /// </summary>
+    [Theory]
+    [InlineData("GoAround")]
+    [InlineData("LowApproach")]
+    [InlineData("TouchAndGo")]
+    [InlineData("StopAndGo")]
+    [InlineData("MissedApproach")]
+    [InlineData("MissedApproachHold")]
+    public void GoAroundOrClimbout_HidesTheFinal(string phase)
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ApproachClearance clearance = Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach);
+        ac.Phases = new PhaseList { AssignedRunway = ac.Phases.AssignedRunway, ActiveApproach = clearance };
+        ac.Phases.Add(HidingPhase(phase));
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+        Assert.DoesNotContain("|A", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>A phase that does nothing: what follows a completed hiding phase in these lists.</summary>
+    private sealed class IdlePhase : Phase
+    {
+        public override string Name => "Idle";
+
+        public override PhaseDto ToSnapshot() => throw new NotSupportedException();
+
+        public override void OnStart(PhaseContext ctx) { }
+
+        public override bool OnTick(PhaseContext ctx) => false;
+    }
+
+    private static PhaseContext ContextFor(AircraftState ac) =>
+        new()
+        {
+            ActiveRunways = ActiveRunways.Empty,
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = NullLogger.Instance,
+        };
+
+    /// <summary>
+    /// Gives <paramref name="ac"/> a new list holding <paramref name="clearance"/>: <paramref name="hider"/> completed, then an
+    /// idle phase made current, or the list run out past both.
+    /// </summary>
+    private static void AfterCompleted(AircraftState ac, ApproachClearance clearance, Phase hider, bool runOut)
+    {
+        ac.Phases = new PhaseList { AssignedRunway = ac.Phases!.AssignedRunway, ActiveApproach = clearance };
+        ac.Phases.Add(hider);
+        ac.Phases.Add(new IdlePhase());
+        hider.Status = PhaseStatus.Completed;
+        PhaseContext ctx = ContextFor(ac);
+        if (runOut)
+        {
+            ac.Phases.Clear(ctx);
+        }
+        else
+        {
+            ac.Phases.SkipTo<IdlePhase>(ctx);
+            Assert.IsType<IdlePhase>(ac.Phases.CurrentPhase);
+        }
+    }
+
+    /// <summary>
+    /// The clearance survives a go-around, but the final stays hidden once the hiding phase is over, with the next phase
+    /// current or the list run out; an expected approach still stored draws no dashed final either, and the key adds none.
+    /// </summary>
+    [Theory]
+    [InlineData("GoAround", false)]
+    [InlineData("GoAround", true)]
+    [InlineData("LowApproach", false)]
+    [InlineData("LowApproach", true)]
+    [InlineData("TouchAndGo", false)]
+    [InlineData("TouchAndGo", true)]
+    [InlineData("StopAndGo", false)]
+    [InlineData("StopAndGo", true)]
+    [InlineData("MissedApproach", false)]
+    [InlineData("MissedApproach", true)]
+    [InlineData("MissedApproachHold", false)]
+    [InlineData("MissedApproachHold", true)]
+    public void AfterTheHidingPhase_TheFinalStaysHidden(string phase, bool runOut)
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ac.Approach.Expected = "X19";
+        AfterCompleted(ac, Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach), HidingPhase(phase), runOut);
+
+        Assert.NotNull(ac.Phases!.ActiveApproach);
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+        Assert.DoesNotContain("|A", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>A cleared option approach still draws its final before touchdown: a pending touch-and-go does not hide it.</summary>
+    [Fact]
+    public void PendingTouchAndGoAfterTheFinal_DrawsTheFinal()
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ApproachClearance clearance = Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach);
+        ac.Phases = new PhaseList { AssignedRunway = ac.Phases.AssignedRunway, ActiveApproach = clearance };
+        ac.Phases.Add(new FinalApproachPhase());
+        ac.Phases.Add(new TouchAndGoPhase());
+        Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+
+        Assert.Single(NavRouteOverlayProjector.BuildShapes(ac), s => s.Kind == NavRouteShapeKind.FinalApproachCourse);
+        Assert.Contains("|AC:X19:", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>A snapshot-restored clearance (no procedure) after a completed go-around draws no final.</summary>
+    [Fact]
+    public void RestoredClearanceAfterACompletedGoAround_DrawsNoFinal()
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        var restored = ApproachClearance.FromSnapshot(Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach).ToSnapshot());
+        Assert.Null(restored.Procedure);
+        AfterCompleted(ac, restored, new GoAroundPhase(), runOut: false);
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+        Assert.DoesNotContain("|A", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>A hold at the clearance's missed-approach holding fix is the missed approach's, though not marked as one.</summary>
+    [Fact]
+    public void HoldAtTheMapHoldFix_DrawsNoFinal()
+    {
+        AircraftState ac = VectoredOntoKdcaX19();
+        ApproachClearance live = Assert.IsType<ApproachClearance>(ac.Phases!.ActiveApproach);
+        var clearance = new ApproachClearance
+        {
+            ApproachId = live.ApproachId,
+            AirportCode = live.AirportCode,
+            RunwayId = live.RunwayId,
+            FinalApproachCourse = live.FinalApproachCourse,
+            TransitionName = live.TransitionName,
+            FinalApproachAnchorLat = live.FinalApproachAnchorLat,
+            FinalApproachAnchorLon = live.FinalApproachAnchorLon,
+            MapHold = new MissedApproachHold("HOLDR", Fix.Lat, Fix.Lon, 270, 1.0, true, TurnDirection.Right),
+        };
+        ac.Phases = new PhaseList { AssignedRunway = ac.Phases.AssignedRunway, ActiveApproach = clearance };
+        var hold = (HoldingPatternPhase)HidingPhase("MissedApproachHold");
+        ac.Phases.Add(
+            new HoldingPatternPhase
+            {
+                FixName = "holdr",
+                FixLat = hold.FixLat,
+                FixLon = hold.FixLon,
+                InboundCourse = hold.InboundCourse,
+                LegLength = hold.LegLength,
+                IsMinuteBased = hold.IsMinuteBased,
+                Direction = hold.Direction,
+                IsMissedApproachHold = false,
+            }
+        );
+
+        Assert.DoesNotContain(NavRouteOverlayProjector.BuildShapes(ac), IsFinal);
+        Assert.DoesNotContain("|A", NavRouteOverlayProjector.BuildPendingShapeKey(ac));
+    }
+
+    /// <summary>The expected approach's key is its stored expectation alone: swapping the navdata does not change it.</summary>
+    [Theory]
+    [InlineData('X', "|AX:I30")]
+    [InlineData('C', null)]
+    public void ExpectedFinalKey_IsTheStoredExpectation_WhateverTheNavdata(char state, string? expectedKey)
+    {
+        AircraftState ac = AirborneToKoak();
+        ac.Approach.Expected = "I30";
+        if (state == 'C')
+        {
+            // Cleared with no assigned runway: the key must not resolve the runway from navdata either.
+            RunwayInfo rw30 = KoakRunway("30");
+            ac.Phases = new PhaseList { ActiveApproach = KoakClearance("I30", rw30) };
+            expectedKey = string.Create(CultureInfo.InvariantCulture, $"|AC:I30:{rw30.TrueHeading.Degrees:F1}");
+        }
+
+        string key = NavRouteOverlayProjector.BuildPendingShapeKey(ac);
+        string swapped;
+        using (NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting()))
+        {
+            swapped = NavRouteOverlayProjector.BuildPendingShapeKey(ac);
+        }
+
+        Assert.Equal(expectedKey, key);
+        Assert.Equal(key, swapped);
+    }
+
+    /// <summary>A cleared or pending approach's key is its state, approach id and stored true course to a tenth.</summary>
+    [Theory]
+    [InlineData('C')]
+    [InlineData('P')]
+    public void ClearedFinalKey_IsTheStateApproachAndStoredCourse(char state)
+    {
+        AircraftState ac = AirborneToKoak();
+        RunwayInfo rw30 = KoakRunway("30");
+        ApproachClearance clearance = KoakClearance("I30", rw30);
+        if (state == 'C')
+        {
+            ac.Phases = new PhaseList { AssignedRunway = rw30, ActiveApproach = clearance };
+        }
+        else
+        {
+            ac.Approach.PendingClearance = new PendingApproachInfo
+            {
+                Clearance = clearance,
+                AssignedRunway = rw30,
+                ConnectingFix = null,
+            };
+        }
+
+        Assert.Equal(
+            string.Create(CultureInfo.InvariantCulture, $"|A{state}:I30:{rw30.TrueHeading.Degrees:F1}"),
+            NavRouteOverlayProjector.BuildPendingShapeKey(ac)
+        );
     }
 }
