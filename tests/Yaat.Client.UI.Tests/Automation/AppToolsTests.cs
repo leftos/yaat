@@ -17,6 +17,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using Yaat.Sim.Data;
@@ -501,7 +502,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     public async Task CenterRadarAt_AnotherScopeActive_StillCentresThePrimary()
     {
         MainViewModel viewModel = ScopeReady();
-        using var other = new ScopeViewModel(viewModel, prefStore: null, profileStore: null);
+        using var other = new ScopeViewModel(viewModel, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         viewModel.ActiveScope = other;
         double otherRangeBefore = other.RangeNm;
 
