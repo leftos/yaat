@@ -307,6 +307,10 @@ public partial class ScopeView : UserControl
         {
             OpenEramHsfPopup(vm, ac, kind, action);
         }
+        else if (action == ScopeFieldAction.StartDrawRoute)
+        {
+            StartFieldDrawRoute(vm, ac);
+        }
         else
         {
             OpenFieldMenu(vm, ac, action);

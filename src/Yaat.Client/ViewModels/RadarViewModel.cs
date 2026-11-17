@@ -307,9 +307,7 @@ public partial class RadarViewModel(
     [ObservableProperty]
     private IReadOnlyList<ShownShapeEntry>? _shownShapes;
 
-    private string? _drawRouteCallsign;
-    private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
-    private readonly Dictionary<int, WaypointCondition> _waypointConditions = [];
+    private DrawRouteState? _drawRoute;
 
     // --- Show nav route state ---
     private static readonly SKColor[] PathColors =
@@ -404,7 +402,7 @@ public partial class RadarViewModel(
     {
         _onSelectionChanged?.Invoke(value);
         UpdateProgrammedFixes(value);
-        if (IsDrawingRoute && (value is null || value.Callsign != _drawRouteCallsign))
+        if (IsDrawingRoute && (value is null || value.Callsign != _drawRoute?.Callsign))
         {
             CancelDrawRoute();
         }
@@ -1345,14 +1343,22 @@ public partial class RadarViewModel(
 
     // --- Draw route ---
 
-    public void EnterDrawRoute(string callsign)
+    /// <summary>The radar's draw-route mode, made on first use; its changes are mirrored into the radar's bound properties.</summary>
+    private DrawRouteState DrawRoute => _drawRoute ??= CreateDrawRoute();
+
+    private DrawRouteState CreateDrawRoute()
     {
-        _drawRouteCallsign = callsign;
-        _drawnWaypointsMutable.Clear();
-        _waypointConditions.Clear();
-        DrawnWaypoints = null;
-        IsDrawingRoute = true;
+        var route = new DrawRouteState(() => Fixes, _sendCommand);
+        route.Changed += () =>
+        {
+            DrawnWaypoints = route.Waypoints;
+            WaypointConditionsSnapshot = route.ConditionsSnapshot;
+            IsDrawingRoute = route.IsDrawing;
+        };
+        return route;
     }
+
+    public void EnterDrawRoute(string callsign) => DrawRoute.Enter(callsign);
 
     /// <summary>
     /// The point named by <see cref="FrdResolver.ToFrd"/> over <paramref name="fixes"/> and the loaded nav database; null when
@@ -1361,164 +1367,21 @@ public partial class RadarViewModel(
     public static string? TryToFrd(IReadOnlyList<(string Name, double Lat, double Lon)>? fixes, double lat, double lon) =>
         ScopeMapSource.ToFrd(fixes, lat, lon);
 
-    public void PlaceRouteWaypoint(double lat, double lon)
-    {
-        if (!IsDrawingRoute)
-        {
-            return;
-        }
+    public void PlaceRouteWaypoint(double lat, double lon) => DrawRoute.Place(lat, lon);
 
-        string name = TryToFrd(Fixes, lat, lon) ?? $"{lat:F3},{lon:F3}";
+    public void UndoRouteWaypoint() => DrawRoute.Undo();
 
-        _drawnWaypointsMutable.Add(new DrawnWaypoint(name, lat, lon));
-        DrawnWaypoints = [.. _drawnWaypointsMutable];
-    }
+    public void RemoveRouteWaypoint(int index) => DrawRoute.RemoveAt(index);
 
-    public void UndoRouteWaypoint()
-    {
-        if (!IsDrawingRoute || _drawnWaypointsMutable.Count == 0)
-        {
-            return;
-        }
+    public void RemoveRouteWaypointsAfter(int index) => DrawRoute.RemoveAfter(index);
 
-        int lastIdx = _drawnWaypointsMutable.Count - 1;
-        _waypointConditions.Remove(lastIdx);
-        _drawnWaypointsMutable.RemoveAt(lastIdx);
-        DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
-    }
+    public void CancelDrawRoute() => DrawRoute.Cancel();
 
-    public void RemoveRouteWaypoint(int index)
-    {
-        if (!IsDrawingRoute || index < 0 || index >= _drawnWaypointsMutable.Count)
-        {
-            return;
-        }
+    public void SetWaypointCondition(int index, string? altitude, string? commands) => DrawRoute.SetCondition(index, altitude, commands);
 
-        // Remove conditions that referenced this index, shift higher indices down
-        var newConditions = new Dictionary<int, WaypointCondition>();
-        foreach ((int idx, WaypointCondition? cond) in _waypointConditions)
-        {
-            if (idx < index)
-            {
-                newConditions[idx] = cond;
-            }
-            else if (idx > index)
-            {
-                newConditions[idx - 1] = cond;
-            }
-        }
+    public WaypointCondition? GetWaypointCondition(int index) => DrawRoute.GetCondition(index);
 
-        _waypointConditions.Clear();
-        foreach ((int idx, WaypointCondition? cond) in newConditions)
-        {
-            _waypointConditions[idx] = cond;
-        }
-
-        _drawnWaypointsMutable.RemoveAt(index);
-        DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
-    }
-
-    public void RemoveRouteWaypointsAfter(int index)
-    {
-        if (!IsDrawingRoute || index < 0 || index >= _drawnWaypointsMutable.Count - 1)
-        {
-            return;
-        }
-
-        // Remove conditions for all waypoints after index
-        for (int i = _drawnWaypointsMutable.Count - 1; i > index; i--)
-        {
-            _waypointConditions.Remove(i);
-            _drawnWaypointsMutable.RemoveAt(i);
-        }
-
-        DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
-    }
-
-    public void CancelDrawRoute()
-    {
-        _drawRouteCallsign = null;
-        _drawnWaypointsMutable.Clear();
-        _waypointConditions.Clear();
-        DrawnWaypoints = null;
-        IsDrawingRoute = false;
-    }
-
-    public void SetWaypointCondition(int index, string? altitude, string? commands)
-    {
-        if (string.IsNullOrWhiteSpace(altitude) && string.IsNullOrWhiteSpace(commands))
-        {
-            _waypointConditions.Remove(index);
-        }
-        else
-        {
-            _waypointConditions[index] = new WaypointCondition(altitude?.Trim(), commands?.Trim());
-        }
-
-        WaypointConditionsSnapshot = _waypointConditions.Count > 0 ? new Dictionary<int, WaypointCondition>(_waypointConditions) : null;
-    }
-
-    public WaypointCondition? GetWaypointCondition(int index) => _waypointConditions.GetValueOrDefault(index);
-
-    public async Task ConfirmDrawRouteAsync(string initials)
-    {
-        if (!IsDrawingRoute || _drawRouteCallsign is null || _drawnWaypointsMutable.Count == 0)
-        {
-            CancelDrawRoute();
-            return;
-        }
-
-        string command = BuildDrawRouteCommand();
-        string callsign = _drawRouteCallsign;
-        CancelDrawRoute();
-        await _sendCommand(callsign, command, initials);
-    }
-
-    private string BuildDrawRouteCommand()
-    {
-        // Build inline constrained DCTF: "DCTF FIX1/A080 FIX2/050 FIX3"
-        // Altitude-only conditions become inline tokens; other conditions stay as AT blocks.
-        var fixTokens = new List<string>();
-        var atBlocks = new List<string>();
-
-        for (int i = 0; i < _drawnWaypointsMutable.Count; i++)
-        {
-            string fixName = _drawnWaypointsMutable[i].ResolvedName;
-            WaypointCondition? condition = _waypointConditions.GetValueOrDefault(i);
-
-            if (condition is not null && !string.IsNullOrWhiteSpace(condition.Altitude) && string.IsNullOrWhiteSpace(condition.Commands))
-            {
-                // Pure altitude constraint — embed inline
-                fixTokens.Add($"{fixName}/{condition.Altitude}");
-            }
-            else
-            {
-                fixTokens.Add(fixName);
-
-                // Non-altitude conditions or mixed conditions go into AT blocks
-                if (condition is not null)
-                {
-                    var condParts = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(condition.Altitude))
-                    {
-                        condParts.Add($"CFIX {condition.Altitude}");
-                    }
-                    if (!string.IsNullOrWhiteSpace(condition.Commands))
-                    {
-                        condParts.Add(condition.Commands);
-                    }
-                    if (condParts.Count > 0)
-                    {
-                        atBlocks.Add($"AT {fixName} {string.Join(",", condParts)}");
-                    }
-                }
-            }
-        }
-
-        var parts = new List<string> { $"DCTF {string.Join(" ", fixTokens)}" };
-        parts.AddRange(atBlocks);
-        return string.Join(";", parts);
-    }
+    public Task ConfirmDrawRouteAsync(string initials) => DrawRoute.ConfirmAsync(initials);
 
     // --- Show nav route ---
 
@@ -1700,31 +1563,6 @@ public record ShownPathEntry(
 /// drawn on the "Show nav route" overlay in the owning aircraft's <see cref="Color"/>.
 /// </summary>
 public record ShownShapeEntry(Yaat.Sim.NavRouteShapeDto Shape, SKColor Color);
-
-/// <summary>
-/// Condition applied to a drawn route waypoint (crossing altitude and/or AT commands).
-/// </summary>
-public record WaypointCondition(string? Altitude, string? Commands)
-{
-    /// <summary>
-    /// Returns a compact summary for rendering on the map (e.g. "A100 SPD250").
-    /// </summary>
-    public string ToSummary()
-    {
-        var parts = new List<string>(2);
-        if (!string.IsNullOrWhiteSpace(Altitude))
-        {
-            parts.Add(Altitude);
-        }
-
-        if (!string.IsNullOrWhiteSpace(Commands))
-        {
-            parts.Add(Commands.Replace(" ", ""));
-        }
-
-        return string.Join(" ", parts);
-    }
-}
 
 /// <summary>
 /// A video map with an on/off toggle for the map selection list.

@@ -182,6 +182,9 @@ public enum ScopeFieldAction
 
     /// <summary>Opens the ERAM heading and speed popup: both HSF sections beside Fly heading above Assign speed.</summary>
     OpenEramHsfMenu,
+
+    /// <summary>Starts drawing a route for the track, as the aircraft menu's Draw route does.</summary>
+    StartDrawRoute,
 }
 
 /// <summary>

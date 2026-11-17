@@ -1040,7 +1040,7 @@ A run of one task category's icons on one icon-strip row (`QuickCommandStripSegm
 The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping; Taxi to runway has one tab per runway end.
 
 **View section**:
-The few canvas-only items a view adds to the shared aircraft menu, which the builder places last in All Commands after a separator, or at the root of the point menu (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
+The few canvas-only items a view adds to the shared aircraft menu, which the builder places last in All Commands after a separator, or at the root of the point menu (the radar's Display and Draw route, the Scope's Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
 
 **Menu session**:
 The session settings an aircraft menu's predicates read (`MenuSession`): the user's initials, solo training mode and the VFR-commands-for-IFR mode.

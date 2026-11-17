@@ -450,6 +450,7 @@ public static class TrackPresenter
             ScopeFieldSlot.Scratchpad1 or ScopeFieldSlot.Scratchpad2 => ScopeFieldAction.OpenScratchpadMenu,
             ScopeFieldSlot.Handoff => ScopeFieldAction.OpenHandoffMenu,
             ScopeFieldSlot.Squawk or ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
+            ScopeFieldSlot.Destination => ScopeFieldAction.StartDrawRoute,
             _ => ScopeFieldAction.None,
         };
 

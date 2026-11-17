@@ -96,6 +96,8 @@ public class ScopeTrackStateTests
         Assert.Single(scope.DataBlockState.ManualOffsets);
         Assert.Single(scope.LocalRings);
         Assert.Single(scope.LocalPtlCallsigns);
+        scope.EnterDrawRoute("UAL1");
+        Assert.True(scope.DrawRoute.IsDrawing);
     }
 
     private static void AssertTrackStateCleared(ScopeViewModel scope)
@@ -104,5 +106,6 @@ public class ScopeTrackStateTests
         Assert.Empty(scope.DataBlockState.ManualOffsets);
         Assert.Empty(scope.LocalRings);
         Assert.Empty(scope.LocalPtlCallsigns);
+        Assert.False(scope.DrawRoute.IsDrawing);
     }
 }
