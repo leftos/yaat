@@ -2365,11 +2365,12 @@ public static class FlightPhysics
     /// terminator (most US STARs) wins: fly the published outbound course and await vectors, instead of holding the
     /// heading the aircraft happened to arrive on. An IFR route ending at the cleared destination airport itself holds
     /// there (<see cref="HoldsAtRouteEndAirport"/>). Otherwise an IFR pilot with a cleared destination turns direct to it at
-    /// once (<see cref="DirectToClearedDestination"/>), leaving the altitude as it is; failing all three, it flies straight.
+    /// once (<see cref="ResolveDirectToClearedDestination"/>), leaving the altitude as it is; failing all three, it flies straight.
     /// </summary>
     private static void ApplyRouteEndLateral(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
     {
-        switch (ClassifyRouteEnd(aircraft, sequenced))
+        RouteEndLateral kind = ClassifyRouteEnd(aircraft, sequenced, out (NavigationTarget? Direct, string? Refusal) resolved);
+        switch (kind)
         {
             case RouteEndLateral.ClearanceLimitHold:
             case RouteEndLateral.AirportHold:
@@ -2381,7 +2382,7 @@ public static class FlightPhysics
                 break;
             case RouteEndLateral.DirectToDestination:
             case RouteEndLateral.Straight:
-                if (DirectToClearedDestination(aircraft, sequenced) is { } direct)
+                if (resolved.Direct is { } direct)
                 {
                     // Turn toward the airport now; the steering on the next tick corrects the heading for wind.
                     route.Add(direct);
@@ -2389,12 +2390,13 @@ public static class FlightPhysics
                 }
                 else
                 {
+                    LogNoDirectToClearedDestination(aircraft, sequenced, resolved.Refusal);
                     aircraft.Targets.TargetTrueHeading = null;
                 }
 
                 break;
             default:
-                throw new UnreachableException($"route-end branch {ClassifyRouteEnd(aircraft, sequenced)} has no handling");
+                throw new UnreachableException($"route-end branch {kind} has no handling");
         }
     }
 
@@ -2413,8 +2415,19 @@ public static class FlightPhysics
     /// target: the clearance-limit hold for an IFR clearance-limit direct, then its terminal course, then the hold at the
     /// destination airport, then the direct to the cleared destination, else straight on. No side effects.
     /// </summary>
-    internal static RouteEndLateral ClassifyRouteEnd(AircraftState aircraft, NavigationTarget last)
+    internal static RouteEndLateral ClassifyRouteEnd(AircraftState aircraft, NavigationTarget last) => ClassifyRouteEnd(aircraft, last, out _);
+
+    /// <summary>
+    /// <see cref="ClassifyRouteEnd(AircraftState, NavigationTarget)"/> together with the direct-to-cleared-destination
+    /// resolution it made: <paramref name="resolved"/> is the default when the branch never gets that far.
+    /// </summary>
+    private static RouteEndLateral ClassifyRouteEnd(
+        AircraftState aircraft,
+        NavigationTarget last,
+        out (NavigationTarget? Direct, string? Refusal) resolved
+    )
     {
+        resolved = default;
         if (last.IsClearanceLimitDirect && !aircraft.FlightPlan.IsVfr)
         {
             return RouteEndLateral.ClearanceLimitHold;
@@ -2430,7 +2443,8 @@ public static class FlightPhysics
             return RouteEndLateral.AirportHold;
         }
 
-        return ResolveDirectToClearedDestination(aircraft, last).Direct is not null ? RouteEndLateral.DirectToDestination : RouteEndLateral.Straight;
+        resolved = ResolveDirectToClearedDestination(aircraft, last);
+        return resolved.Direct is not null ? RouteEndLateral.DirectToDestination : RouteEndLateral.Straight;
     }
 
     /// <summary>
@@ -2574,18 +2588,11 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// The one-fix route to the pilot's cleared destination when its route has run out, or null when the aircraft keeps
-    /// its old route-end behaviour: a VFR aircraft, a reason in <see cref="RouteEndDirectRefusalByState"/> or
-    /// <see cref="RouteEndDirectRefusalByClearance"/>, or a destination with no airport position.
+    /// The debug line for a route that ran out with no direct to the cleared destination: the reason
+    /// <see cref="ResolveDirectToClearedDestination"/> refused it, or no airport position when it gave none.
     /// </summary>
-    private static NavigationTarget? DirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced)
+    private static void LogNoDirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced, string? refusal)
     {
-        (NavigationTarget? direct, string? refusal) = ResolveDirectToClearedDestination(aircraft, sequenced);
-        if (direct is not null)
-        {
-            return direct;
-        }
-
         Log.LogDebug(
             "{Callsign}: route ended at {Fix}, no direct to cleared destination '{Destination}': {Reason}",
             aircraft.Callsign,
@@ -2593,12 +2600,13 @@ public static class FlightPhysics
             aircraft.ClearedDestination,
             refusal ?? "no airport position"
         );
-        return null;
     }
 
     /// <summary>
-    /// <see cref="DirectToClearedDestination"/> without its log line: the direct, or null with the refusal reason (null
-    /// when the destination has no airport position). No side effects.
+    /// The one-fix route to the pilot's cleared destination when its route has run out, without the log line a refusal gets
+    /// at route end (<see cref="LogNoDirectToClearedDestination"/>): the direct, or null with its reason (a VFR aircraft, or
+    /// one in <see cref="RouteEndDirectRefusalByState"/> or <see cref="RouteEndDirectRefusalByClearance"/>), or null with
+    /// none when the destination has no airport position. No side effects.
     /// </summary>
     private static (NavigationTarget? Direct, string? Refusal) ResolveDirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced)
     {
