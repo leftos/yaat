@@ -91,13 +91,14 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// A right press on the Scope while the tool is armed: makes the Scope the active surface and cancels the tool, as Esc
-    /// does; the status line says so and the Scope's response keeps what it shows, less the tool's own prompt.
+    /// A right press on the Scope while the tool is armed: makes the Scope the active surface and cancels the tool, which is
+    /// global, with the anchor wherever it was picked (unlike Esc, which takes only this Scope's own); the status line says
+    /// so and the Scope's response keeps what it shows, less the tool's own prompt.
     /// </summary>
     public void CancelMeasureFromPointer()
     {
         ActivateMeasureSurface();
-        CancelMeasure();
+        Measure.Cancel();
     }
 
     // A Scope-started measure status in the response: an error for a full store, text otherwise. While the tool stays armed it
@@ -153,15 +154,18 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Esc's measure step: cancels the armed tool or a half-placed line when the Scope is the active surface or picked the
-    /// anchor, so an Esc here never cancels a measurement the instructor left armed on another surface. The status line says
-    /// so; the Scope's response is left as it is, so each Esc peels one layer.
+    /// Esc's measure step: cancels the half-placed line this Scope anchored, whichever surface is active, or the armed tool
+    /// with no anchor while this Scope is the active surface. An anchor another Scope window or the Radar or Ground view
+    /// holds stays, as does a tool armed on another surface, and the key passes on to the next Esc step. The status line
+    /// says so; the Scope's response is left as it is, so each Esc peels one layer.
     /// </summary>
     /// <returns>False when there was nothing of the Scope's to cancel.</returns>
     public bool CancelMeasure()
     {
-        bool ownsAnchor = (Measure.Anchor is { View: MeasureView } anchor) && ReferenceEquals(anchor.Surface, this);
-        if ((!Measure.IsMeasuring && (Measure.Anchor is null)) || (!IsActiveMeasureSurface && !ownsAnchor))
+        RblPendingAnchor? anchor = Measure.Anchor;
+        bool ownsAnchor = (anchor is { View: MeasureView } mine) && ReferenceEquals(mine.Surface, this);
+        bool armedHere = (anchor is null) && Measure.IsMeasuring && IsActiveMeasureSurface;
+        if (!ownsAnchor && !armedHere)
         {
             return false;
         }

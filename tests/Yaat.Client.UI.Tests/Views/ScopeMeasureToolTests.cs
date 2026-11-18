@@ -183,6 +183,162 @@ public class ScopeMeasureToolTests
         }
     }
 
+    // Esc's measure step on a Scope, case by case (anchor holder x this Scope the active surface x tool armed): it cancels only
+    // this Scope's own anchor, or the armed tool with no anchor while this Scope is the active surface; otherwise the key
+    // passes on to the next Esc step and the measurement stays.
+
+    [AvaloniaFact]
+    public async Task Esc_OnTheActiveScope_CancelsItsOwnAnchor()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        scope.PickMeasurePoint(AtPoint(37.7, -122.2));
+        Assert.True(scope.IsActiveMeasureSurface);
+
+        Assert.True(scope.CancelMeasure());
+
+        Assert.Null(main.Measure.Anchor);
+        Assert.False(main.Measure.IsMeasuring);
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_OnTheScopeThatPlacedTheAnchor_CancelsIt_WhateverIsActive()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            scope.PickMeasurePoint(AtPoint(37.7, -122.2));
+            other.Vm.ActivateMeasureSurface();
+
+            Assert.True(scope.CancelMeasure());
+
+            Assert.Null(main.Measure.Anchor);
+            Assert.False(main.Measure.IsMeasuring);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_OnTheActiveScope_LeavesAnotherScopesAnchor_AndPassesOnToTheNextEscStep()
+    {
+        (MainViewModel main, ScopeViewModel scope, _, Window window) = await ShowScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            scope.Pins = scope.Pins with { Rings = ScopeProfile.RingsJRing };
+            scope.Press(ScopeToolbarButtons.Find(ScopeButtonId.Tools)!);
+            Assert.True(scope.IsRingToolArmed);
+            other.Vm.PickMeasurePoint(AtPoint(37.7, -122.2));
+            scope.ActivateMeasureSurface();
+
+            window.DispatchKey(Key.Escape);
+
+            Assert.True(main.Measure.IsMeasuring);
+            Assert.Same(other.Vm, Assert.NotNull(main.Measure.Anchor).Surface);
+            Assert.False(scope.IsRingToolArmed);
+            Assert.False(scope.CancelMeasure());
+            Assert.Same(other.Vm, Assert.NotNull(main.Measure.Anchor).Surface);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_OnAnInactiveScope_LeavesAnotherScopesAnchor()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            other.Vm.PickMeasurePoint(AtPoint(37.7, -122.2));
+            Assert.False(scope.IsActiveMeasureSurface);
+
+            Assert.False(scope.CancelMeasure());
+
+            Assert.True(main.Measure.IsMeasuring);
+            Assert.Same(other.Vm, Assert.NotNull(main.Measure.Anchor).Surface);
+            Assert.True(other.Vm.CancelMeasure());
+            Assert.Null(main.Measure.Anchor);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_OnTheActiveScope_LeavesARadarAnchor()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.Measure.Pick(AtPoint(37.7, -122.2), main.MeasureSurface(RblView.Radar, null));
+        scope.ActivateMeasureSurface();
+
+        Assert.False(scope.CancelMeasure());
+
+        Assert.True(main.Measure.IsMeasuring);
+        Assert.Equal(RblView.Radar, Assert.NotNull(main.Measure.Anchor).View);
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_OnTheActiveScope_WithTheToolArmedAndNoAnchor_StillCancelsIt()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.Measure.Arm();
+        scope.ActivateMeasureSurface();
+
+        Assert.True(scope.CancelMeasure());
+
+        Assert.False(main.Measure.IsMeasuring);
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_OnAnInactiveScope_WithTheToolArmedAndNoAnchor_LeavesIt()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            main.Measure.Arm();
+            other.Vm.ActivateMeasureSurface();
+
+            Assert.False(scope.CancelMeasure());
+
+            Assert.True(main.Measure.IsMeasuring);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Esc_WithTheToolDisarmed_HasNothingToCancel_ActiveOrNot()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            scope.ActivateMeasureSurface();
+            Assert.False(scope.CancelMeasure());
+
+            other.Vm.ActivateMeasureSurface();
+            Assert.False(scope.CancelMeasure());
+
+            Assert.False(main.Measure.IsMeasuring);
+            Assert.Null(main.Measure.Anchor);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+        }
+    }
+
     [AvaloniaFact]
     public async Task Esc_GivesWayToATearoffMove_BeforeTheMeasurement()
     {

@@ -300,6 +300,33 @@ public class ScopeMeasurePointerTests
         }
     }
 
+    // The armed right press is an explicit click on the global tool: it cancels it even when another Scope window holds the
+    // anchor, unlike Esc, which leaves an anchor this Scope does not show.
+    [AvaloniaFact]
+    public async Task ArmedRightClick_WithAnotherScopesAnchor_StillCancelsTheTool()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            other.Vm.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""));
+            Assert.Same(other.Vm, Assert.NotNull(main.Measure.Anchor).Surface);
+
+            Click(window, view.Canvas, MapA, MouseButton.Right);
+
+            Assert.False(main.Measure.IsMeasuring);
+            Assert.Null(main.Measure.Anchor);
+            Assert.Null(view.ActiveContextMenu);
+            Assert.Equal("Measure cancelled", main.StatusText);
+            Assert.True(scope.IsActiveMeasureSurface);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+            CloseWindow(window, view);
+        }
+    }
+
     // Ladder row 4: with the tool not armed, a left press selects and a right press opens the aircraft menu, as before.
     [AvaloniaFact]
     public async Task NotArmed_LeftClickSelects_AndRightClickOpensTheMenu()
