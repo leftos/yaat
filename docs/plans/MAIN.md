@@ -87,17 +87,11 @@
 
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
-    - [ ] YAAT-2463 YAAT Scope step 7-3: aircraft and map menus on the Scope · release vNext
-    - [ ] YAAT-2465 YAAT Scope step 7-5: map and display tools on the Scope · release vNext
-    - [ ] YAAT-2466 YAAT Scope step 7-6: draw route and the EuroScope elastic heading vector on the Scope · release vNext
-    - [ ] YAAT-2467 YAAT Scope step 7-7: speech bubbles, live-traffic shadow and the menu cue on the Scope · release vNext
-    - [ ] YAAT-2468 YAAT Scope step 7-8: Scope as the docked tab, pop-out and extra windows; automation and layouts · release vNext
-      - [ ] YAAT-2525 YAAT Scope step 7-8c: layouts reopen the Scope windows; per-scenario Radar settings dropped · release vNext
     - [ ] YAAT-2469 YAAT Scope step 7-9: aviation and csharp reviews owed before the Radar is deleted · release vNext
     - [ ] YAAT-2470 YAAT Scope step 7-10: GuideCapture scenes on the new view and regenerated screenshots · release vNext
     - [ ] YAAT-2471 YAAT Scope step 7-11: delete the old Radar view · release vNext
     - [ ] YAAT-2472 YAAT Scope step 7-12: the new view takes the Radar name; docs and USER_GUIDE · release vNext
-    - [ ] YAAT-2486 YAAT Scope step 7: fold the parity parts into the Scope changelog bullet · release vNext
+    - [ ] YAAT-2534 Move ScopeTabHostingTests and ScopeExtraWindowTests onto the shared ScopeStoreFixture
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
   - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
   - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
@@ -1575,7 +1569,7 @@
   - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext
   - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext
   - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext
-- [/] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
+- [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
