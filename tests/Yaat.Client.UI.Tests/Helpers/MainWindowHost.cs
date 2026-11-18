@@ -1,5 +1,6 @@
 using Avalonia.Headless;
 using Avalonia.Threading;
+using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
@@ -23,6 +24,23 @@ internal static class MainWindowHost
         main.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
         return (main, (MainViewModel)main.DataContext!);
+    }
+
+    /// <summary>
+    /// Boots the main window once its navdata has loaded, with the terminal and the primary Scope docked and the Scope tab
+    /// selected, laid out and rendered.
+    /// </summary>
+    public static async Task<(MainWindow Main, MainViewModel Vm)> BootDockedScopeAsync()
+    {
+        (MainWindow main, MainViewModel vm) = Boot();
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        vm.IsTerminalPoppedOut = false;
+        vm.IsScopePoppedOut = false;
+        vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
+        Pump();
+        main.UpdateLayout();
+        Pump();
+        return (main, vm);
     }
 
     /// <summary>

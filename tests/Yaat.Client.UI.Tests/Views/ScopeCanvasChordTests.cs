@@ -56,6 +56,40 @@ public class ScopeCanvasChordTests
         }
     }
 
+    // A pen can deliver a left press while the right bit is set; the ladder reads the button the press went down with.
+    [AvaloniaFact]
+    public async Task LeftPress_WhileTheRightBitIsSet_SelectsTheTrack_NotTheMenu()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            AddAircraft(main, view.Canvas, Callsign, TrackPoint);
+            List<string> clicks = [];
+            view.Canvas.AircraftLeftClicked += callsign => clicks.Add("left:" + callsign);
+            view.Canvas.AircraftRightClicked += (callsign, _) => clicks.Add("right:" + callsign);
+            var props = new PointerPointProperties(RawInputModifiers.RightMouseButton, PointerUpdateKind.LeftButtonPressed);
+            Point inWindow = view.Canvas.TranslatePoint(TrackPoint, window)!.Value;
+            var e = new PointerPressedEventArgs(
+                view.Canvas,
+                new Pointer(Pointer.GetNextFreeId(), PointerType.Pen, true),
+                window,
+                inWindow,
+                0,
+                props,
+                KeyModifiers.None
+            );
+
+            Assert.True(view.Canvas.RunPressLadderForTesting(new ScopePress(e, props, TrackPoint)));
+
+            Assert.Equal(["left:" + Callsign], clicks);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
     private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScopeAsync()
     {
         MainViewModel main = await ScopeTestFixture.MainAsync();

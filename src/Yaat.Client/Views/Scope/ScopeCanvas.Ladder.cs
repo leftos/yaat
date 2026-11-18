@@ -48,6 +48,12 @@ public sealed partial class ScopeCanvas
         return handled;
     }
 
+    /// <summary>
+    /// Runs <paramref name="press"/> through the press ladder, for a test that hands it pointer properties no headless gesture
+    /// delivers to the press path.
+    /// </summary>
+    internal bool RunPressLadderForTesting(in ScopePress press) => RunPressLadder(in press);
+
     partial void PressHeadingVector(in ScopePress press, ref bool handled);
 
     partial void PressDrawRoute(in ScopePress press, ref bool handled);

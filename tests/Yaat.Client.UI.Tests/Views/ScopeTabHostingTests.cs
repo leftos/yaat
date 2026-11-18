@@ -25,11 +25,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeTabHostingTests
 {
-    private const int ScopeTabIndex = 2;
-
     private static TabControl Tabs(MainWindow main) => main.GetLogicalDescendants().OfType<TabControl>().Single(t => t.Name == "MainTabControl");
 
-    private static TabItem ScopeTab(MainWindow main) => Tabs(main).Items.OfType<TabItem>().ElementAt(ScopeTabIndex);
+    private static TabItem ScopeTab(MainWindow main) => Tabs(main).Items.OfType<TabItem>().ElementAt(MainWindow.ScopeTabIndex);
 
     [AvaloniaFact]
     public void PrimaryScope_ExistsOnceTheViewModelIsBuilt_AndTheVerbsActOnIt()
@@ -49,7 +47,7 @@ public class ScopeTabHostingTests
         try
         {
             vm.IsScopePoppedOut = false;
-            vm.SelectedTabIndex = ScopeTabIndex;
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
             MainWindowHost.Pump();
 
             TabItem tab = ScopeTab(main);
@@ -72,7 +70,7 @@ public class ScopeTabHostingTests
         try
         {
             vm.IsScopePoppedOut = false;
-            vm.SelectedTabIndex = ScopeTabIndex;
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
             MainWindowHost.Pump();
             Assert.Null(main.ScopeWindow);
 
@@ -83,7 +81,7 @@ public class ScopeTabHostingTests
             Assert.True(window.IsVisible);
             Assert.Same(vm.PrimaryScope, window.DataContext);
             Assert.False(ScopeTab(main).IsVisible);
-            Assert.NotEqual(ScopeTabIndex, vm.SelectedTabIndex);
+            Assert.NotEqual(MainWindow.ScopeTabIndex, vm.SelectedTabIndex);
             Assert.True(vm.Preferences.IsScopePoppedOut);
 
             vm.IsScopePoppedOut = false;
@@ -186,13 +184,13 @@ public class ScopeTabHostingTests
         {
             ScopeViewModel primary = vm.PrimaryScope;
             vm.IsScopePoppedOut = false;
-            vm.SelectedTabIndex = ScopeTabIndex;
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
             MainWindowHost.Pump();
             vm.IsScopePoppedOut = true;
             MainWindowHost.Pump();
             main.ScopeWindow!.Close();
             MainWindowHost.Pump();
-            vm.SelectedTabIndex = ScopeTabIndex;
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
             MainWindowHost.Pump();
             ScopeView view = Assert.IsType<ScopeHost>(ScopeTab(main).Content).ScopeView;
             var waypoint = new Point(300, 300);
@@ -228,7 +226,7 @@ public class ScopeTabHostingTests
         {
             ScopeViewModel primary = vm.PrimaryScope;
             vm.IsScopePoppedOut = false;
-            vm.SelectedTabIndex = ScopeTabIndex;
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
             MainWindowHost.Pump();
             vm.IsScopePoppedOut = true;
             MainWindowHost.Pump();

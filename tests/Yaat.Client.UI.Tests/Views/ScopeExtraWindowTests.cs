@@ -167,7 +167,7 @@ public class ScopeExtraWindowTests
         try
         {
             vm.IsScopePoppedOut = false;
-            vm.SelectedTabIndex = 2;
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
             MainWindowHost.Pump();
             TabItem scopeTab = main.GetLogicalDescendants().OfType<TabItem>().Single(t => t.Name == "ScopeTab");
             ScopeCanvas primary = Assert.IsType<ScopeHost>(scopeTab.Content).ScopeView.Canvas;

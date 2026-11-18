@@ -21,21 +21,12 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeKeyGateTests
 {
-    private const int ScopeTabIndex = 2;
-
     private static RawInputModifiers Action => PlatformHelper.IsMacOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
 
     // The main window with the terminal docked, the Scope tab selected and the primary Scope holding a typed entry.
     private static async Task<(MainWindow Main, MainViewModel Vm, ScopeViewModel Scope)> BootDockedAsync()
     {
-        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
-        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        vm.IsTerminalPoppedOut = false;
-        vm.IsScopePoppedOut = false;
-        vm.SelectedTabIndex = ScopeTabIndex;
-        MainWindowHost.Pump();
-        main.UpdateLayout();
-        MainWindowHost.Pump();
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
         ScopeViewModel scope = vm.PrimaryScope;
         scope.TypeEntryText("XYZ");
         return (main, vm, scope);

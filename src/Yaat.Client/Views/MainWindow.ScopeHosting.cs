@@ -16,6 +16,9 @@ public partial class MainWindow
     /// <summary>The main window's Scope tab header.</summary>
     public const string ScopeTabHeader = "Scope";
 
+    /// <summary>The main window's Scope tab, the third: Aircraft List, Ground View, Scope.</summary>
+    public const int ScopeTabIndex = 2;
+
     /// <summary>The View › Windows check item that pops the Scope out and docks it back.</summary>
     public const string ScopePopOutMenuHeader = "Sco_pe";
 

@@ -699,19 +699,10 @@ public class ScopeTearoffLayerTests
 
     // ── Docked: Esc is the Scope's only while the keyboard focus is inside it ──────
 
-    private const int ScopeTabIndex = 2;
-
     // The main window with the terminal docked and the Scope tab selected.
     private static async Task<(MainWindow Main, MainViewModel Vm, ScopeViewModel Scope)> BootDockedAsync()
     {
-        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
-        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        vm.IsTerminalPoppedOut = false;
-        vm.IsScopePoppedOut = false;
-        vm.SelectedTabIndex = ScopeTabIndex;
-        MainWindowHost.Pump();
-        main.UpdateLayout();
-        MainWindowHost.Pump();
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
         return (main, vm, vm.PrimaryScope);
     }
 
@@ -754,6 +745,32 @@ public class ScopeTearoffLayerTests
             ScopeView view = Assert.Single(main.GetVisualDescendants().OfType<ScopeView>());
             Assert.True(view.Canvas.Focus());
             Dispatcher.UIThread.RunJobs();
+
+            main.DispatchKey(Key.Escape);
+
+            Assert.False(scope.IsDeletingTearoffs);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    // The bar's DEL TEAROFF button takes the keyboard focus when pressed, so after a click from the command box Esc is the Scope's.
+    [AvaloniaFact]
+    public async Task Docked_DelTearoffClickedFromTheBar_WithTheCommandBoxFocusedFirst_EscLeavesTheMode()
+    {
+        (MainWindow main, _, ScopeViewModel scope) = await BootDockedAsync();
+        try
+        {
+            // At the default width the docked tab clips the bar's right end, where DEL TEAROFF sits.
+            main.Width = 1920;
+            Settle(main);
+            FocusCommandBox(main);
+
+            ClickAt(main, CentreOf(BarControl(main, ScopeButtonId.DeleteTearoff).Button, main));
+            Assert.True(scope.IsDeletingTearoffs);
+            Assert.False(CommandBox(main).IsFocused);
 
             main.DispatchKey(Key.Escape);
 

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
 
 namespace Yaat.Client.Automation.Tools;
@@ -9,9 +10,6 @@ namespace Yaat.Client.Automation.Tools;
 public sealed partial class AutomationTools
 {
     private static readonly TimeSpan VideoMapPollInterval = TimeSpan.FromMilliseconds(100);
-
-    /// <summary>The main window's Scope tab, the third: Aircraft List, Ground View, Scope.</summary>
-    private const int ScopeTabIndex = 2;
 
     /// <summary>
     /// Loads the recording through the same method as File &gt; Load Recording after its file pick, and answers once the client has
@@ -117,7 +115,7 @@ public sealed partial class AutomationTools
     {
         if (!_viewModel.IsScopePoppedOut)
         {
-            _viewModel.SelectedTabIndex = ScopeTabIndex;
+            _viewModel.SelectedTabIndex = MainWindow.ScopeTabIndex;
         }
     }
 
