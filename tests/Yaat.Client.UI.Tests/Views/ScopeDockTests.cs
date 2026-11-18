@@ -280,6 +280,58 @@ public class ScopeDockTests
         Assert.Empty(list.Rows);
     }
 
+    // The intruder files a plan between two conflict broadcasts: the aircraft update alone turns its MCI row into a CA row.
+    [AvaloniaFact]
+    public async Task ConflictList_FlipsFromMciToCa_WhenTheIntruderFilesAPlanBetweenBroadcasts()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel intruder = ScopeTestFixture.AddAircraft(main, "N123", 9000);
+            intruder.BeaconCode = 1200;
+            AircraftModel tracked = ScopeTestFixture.AddAircraft(main, "SKW5", 9000);
+            tracked.Owner = "OAK_44_CTR";
+            main.RunViewCommand(".view ca on");
+            main.ApplyConflictAlerts([new ConflictAlertDto("CA_N123_SKW5", "N123", "SKW5")]);
+            Settle(window);
+            Assert.Contains("1200*SKW5         MCI", Texts(CardOf(window, ScopeToolbarButtons.ViewCaName)));
+
+            main.OnAircraftUpdated(QueuedDto("N123", ""));
+            Settle(window);
+
+            Assert.True(intruder.HasFlightPlan);
+            Assert.Contains("N123*SKW5         CA", Texts(CardOf(window, ScopeToolbarButtons.ViewCaName)));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // An aircraft update that changes no row keeps the list's rows as they were, so the card does not rebuild every tick.
+    [AvaloniaFact]
+    public async Task ConflictList_KeepsItsRows_WhenAnAircraftUpdateChangesNoRow()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.RunViewCommand(".view ca on");
+            ConflictListViewModel list = scope.DockViews.OfType<ConflictListViewModel>().Single();
+            main.ApplyConflictAlerts([new ConflictAlertDto("CA_AAL22_UAL1", "UAL1", "AAL22")]);
+            Settle(window);
+            IReadOnlyList<ConflictListRow> before = list.Rows;
+
+            main.OnAircraftUpdated(QueuedDto("UAL1549", ""));
+            Settle(window);
+
+            Assert.Same(before, list.Rows);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact]
     public async Task AReopenedSsa_TakesItsPlaceAboveTheConflictList()
     {
