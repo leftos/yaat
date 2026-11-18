@@ -41,9 +41,10 @@ Recordings use a ZIP archive (`.zip`) with individually Brotli-compressed entrie
 | `actions.json.br` | All recorded actions with timestamps |
 | `weather.json` | Weather profile |
 | `artcc-config.json.br` | ARTCC config used at recording time |
-| `snapshots/{index}.json.br` | State snapshot, one per entry in the manifest's snapshot timestamps (on-demand loading) |
+| `snapshots/{index:D3}.json.br` | State snapshot, one per entry in the manifest's snapshot timestamps (on-demand loading) |
 | `layouts/{airportId}.json.br` | Ground layouts (deduplicated, shared across aircraft) |
 | `airport-geojson/{airportId}.geojson.br` | Original airport GeoJSON source used to build the layout |
+| `towered-airports.json.br`, `terminal-log.json.br`, `bookmarks.json`, `wind-grids/{hash}.grib2.br` | Optional: the towered airport ids, the room's broadcast terminal log, the user's timeline bookmarks, the gridded wind data |
 
 Each snapshot (`StateSnapshotDto`) captures: all aircraft (position, physics, control targets, command queue, phases, track ownership, scratchpads, procedures), scenario state (queues, generators, settings, coordination), and RNG state. Snapshots are versioned via `SchemaVersion` with a migration chain (`SnapshotSchemaMigrator`).
 
@@ -54,7 +55,7 @@ Each snapshot (`StateSnapshotDto`) captures: all aircraft (position, physics, co
 
 **Loading:** `RecordingLoader.Load()` uses `ToBaseSessionRecording()` (zero snapshots). Tests that need snapshots use `RecordingLoader.OpenArchive()` and `ReadSnapshotAt()`.
 
-**Generating snapshots:** Generated at export time, not runtime. The server replays through a temporary isolated room and captures a snapshot every second. Zero runtime memory overhead.
+**Generating snapshots:** Generated at export time, not runtime. The server replays through a temporary isolated room and captures a snapshot at t=0, every `SimulationEngine.SnapshotIntervalSeconds`, and the final second. Zero runtime memory overhead.
 
 ## Bug Report Bundles
 
@@ -578,7 +579,7 @@ curl -o tests/Yaat.Sim.Tests/TestData/mia.geojson \
 
 ## Layout Inspector Tool
 
-The `Yaat.LayoutInspector` tool (`tools/Yaat.LayoutInspector/`) loads an airport GeoJSON and exposes detailed graph queries. Use it during bug investigation to understand airport ground layout topology without staring at raw GeoJSON.
+The `Yaat.LayoutInspector` tool (`tools/Yaat.LayoutInspector/`) loads an airport GeoJSON and exposes detailed graph queries. Use it during bug investigation to understand airport ground layout topology without staring at raw GeoJSON. Open the `layout-inspect` skill before composing flags.
 
 ### Running
 
@@ -595,7 +596,7 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [options]
 | Taxiway detail | `--taxiway T` | All nodes/edges on a taxiway, connected taxiways, hold-short count |
 | Runway detail | `--runway 28R` | Centerline nodes and hold-short nodes for a runway |
 | Exits | `--exits 28R` | All exit candidates from a runway with angles and distances |
-| BFS path | `--path 230 T` | Step-by-step BFS trace from a centerline node through taxiway T to hold-short |
+| BFS path | `--bfs 230 T` | Step-by-step BFS trace from a centerline node through taxiway T to hold-short |
 | Parking | `--parking` | All parking nodes with positions and headings |
 | Spots | `--spots` | Taxiway intersection spots |
 | JSON output | `--json` | Machine-readable output for scripting |
@@ -603,10 +604,10 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [options]
 
 ### When to Use
 
-- **Runway exit bugs** — use `--exits 28R` to see all exits and `--path <node> <twy>` to trace the graph path from centerline to hold-short
+- **Runway exit bugs** — use `--exits 28R` to see all exits and `--bfs <node> <twy>` to trace the graph path from centerline to hold-short
 - **Taxi routing bugs** — use `--taxiway T` to see connectivity, then `--node <id>` to inspect specific intersections
 - **Hold-short bugs** — use `--runway 28R` to find all hold-short nodes and verify their runway IDs
-- **Understanding multi-hop exits** — high-speed exits like T at SFO have 9 hops between centerline and hold-short; `--path` shows each hop with edge distances and node types
+- **Understanding multi-hop exits** — high-speed exits like T at SFO have 9 hops between centerline and hold-short; `--bfs` shows each hop with edge distances and node types
 
 ### Example: Investigating EL T at SFO
 
@@ -615,7 +616,7 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [options]
 dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --exits 28R
 
 # Trace T's path from centerline node 230
-dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --path 230 T
+dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --bfs 230 T
 
 # Inspect the branch point
 dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --node 230

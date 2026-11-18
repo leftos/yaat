@@ -108,8 +108,11 @@ public sealed class TdlsState
     object Gate;
     ConcurrentDictionary<string, TdlsItemRecord> Items;   // key: ItemId
     ConcurrentDictionary<string, TdlsConfig> Configs;     // key: FacilityId — loaded from vNAS data-api
+    HashSet<DumpedKey> Dumped;                            // (FacilityId, Callsign) lockout
+    HashSet<DumpedKey> Expired;                           // TTL-expired lockout
+    Dictionary<string, DateTime> ScheduledWilcoAt;        // key: ItemId
     int NextItemId;
-    void InitializeFromArtcc(ArtccConfigRoot artcc, TdlsConfigCache cache);  // wires up per-facility configs
+    void InitializeFromArtcc(FacilityConfig artccRoot);   // wires up per-facility configs
     void Reset();
 }
 
@@ -118,21 +121,21 @@ public sealed record TdlsItemRecord(
     string AircraftId,          // callsign — may not be active in sim yet (pre-filed)
     string? Cid,                // VATSIM CID; durable across aircraft despawn/respawn
     string FacilityId,          // TDLS facility (resolved from departure airport)
-    TdlsStatus Status,          // Pending | Sent | Wilco
+    TdlsItemStatus Status,      // Pending | Sent | Wilco
     int Sequence,               // monotonic per-state, for sort stability
     DateTime CreatedUtc,
     DateTime? SentUtc,
     DateTime? WilcoUtc,
     DateTime ExpiresUtc,        // CreatedUtc + 2 hours per upstream
-    ClearanceDto? SentPayload   // null while Pending; snapshot of ClearanceDto at TDLSS time
+    TdlsClearance? SentPayload  // null while Pending; snapshot of the clearance fields at TDLSS time
 );
 
-public enum TdlsStatus { Pending = 0, Sent = 1, Wilco = 2 }
+public enum TdlsItemStatus { Pending = 0, Sent = 1, Wilco = 2 }
 ```
 
-Note: there is no "Dumped" status — the item is removed from `Items` on Dump and a separate `Dumped: HashSet<(facility, callsign)>` records the lockout so the auto-generator does not re-create it during the same session. The hashset persists in snapshot state.
+Note: there is no "Dumped" status — the item is removed from `Items` on Dump and the `Dumped` set records the lockout so the auto-generator does not re-create it during the same session. The set persists in snapshot state.
 
-`TdlsConfig` (per facility, loaded from vNAS data-api at scenario load):
+`TdlsConfig` (per facility, loaded from vNAS data-api at scenario load). The record below is the design's name for the model; the shipped classes (`TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig`) live in `ArtccConfig.cs` and follow the wire format:
 
 ```csharp
 public sealed record TdlsConfig(
@@ -165,7 +168,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 **1.0.1** ✅ `docs(tdls): probe vNAS data-api for TDLS config endpoint` (committed `65da3764`)
 - Findings in `docs/vtdls/README.md` under "Data-api integration". TL;DR: TDLS lives **inside** the existing `/api/artccs/{ID}` ARTCC config response on per-facility `tdlsConfiguration` nodes — no separate endpoint. Wire format matches `..\_ext\vatsim-vnas\data\Facilities\Tdls*.cs` exactly. ARTCC IDs must be uppercase.
 
-**1.0.2** ✅ `add(tdls): TdlsConfig DTOs in ArtccConfig.cs + ZOA fixture` (TBD this commit)
+**1.0.2** ✅ `add(tdls): TdlsConfig DTOs in ArtccConfig.cs + ZOA fixture`
 - Extends `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with `TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig` classes; adds `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration` to `FacilityConfig`. Property naming follows the wire format (`InitialAlts`, not "Maintain" — UI does the rename).
 - No separate `TdlsConfigLoader` needed; `ArtccConfigService` (which already caches ARTCC responses) handles the embedded TDLS subtree.
 - Fixture: `tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json` captured via `python tools/refresh-artcc-snapshot.py --artcc ZOA --out tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json`.
@@ -178,7 +181,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 ### Phase 1 — Server data model (no handlers)
 
 **1.1** `add(tdls): TdlsItemRecord, TdlsState, room wiring`
-- Create `src/Yaat.Sim/Simulation/Tdls/TdlsState.cs` per the data-model section above. No bays. `Items: ConcurrentDictionary<string, TdlsItemRecord>` keyed by ItemId; per-facility / per-status views are computed via LINQ on `Items` rather than stored separately. `Dumped: HashSet<(facility, callsign)>` lockout. `NextItemId: int`.
+- Create `src/Yaat.Sim/Simulation/Tdls/TdlsState.cs` per the data-model section above. No bays. `Items: ConcurrentDictionary<string, TdlsItemRecord>` keyed by ItemId; per-facility / per-status views are computed via LINQ on `Items` rather than stored separately. `Dumped: HashSet<DumpedKey>` lockout. `NextItemId: int`.
 - `SimulationEngine` (`src/Yaat.Sim/Simulation/SimulationEngine.cs`) holds `public TdlsState Tdls { get; } = new();` next to `Strips`.
 - Tests: `tests/Yaat.Server.Tests/TdlsStateInitTests.cs` — empty after construction; `InitializeFromArtcc` is idempotent; `Reset` clears Items + Dumped + NextItemId.
 
@@ -200,13 +203,13 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 
 **2.1** `add(tdls): canonical TDLS command types in Yaat.Sim`
 - The parsed record types (`TdlsQueueCommand`, `TdlsSendCommand`, `TdlsOpsConfigCommand`, `TdlsWilcoCommand`, `TdlsDumpCommand`) live in `src/Yaat.Sim/Commands/ParsedCommand.cs`; there is no separate commands file.
-- Modify `src/Yaat.Sim/Commands/CanonicalCommandType.cs` — add `TdlsQueue`, `TdlsSend`, `TdlsWilco`, `TdlsDump`. (No Cancel, no Move, no Delete — Dump *is* the removal.)
+- Modify `src/Yaat.Sim/Commands/CanonicalCommandType.cs` — add `TdlsQueue`, `TdlsSend`, `TdlsWilco`, `TdlsDump` (plus `TdlsOpsConfig`, which selects a facility's active ops configuration). (No Cancel, no Move, no Delete — Dump *is* the removal.)
 - Modify `CommandRegistry.cs`, `CommandScheme.cs`, `CommandSchemeParser.cs`, `CommandParser.cs`, `CommandDescriber.cs`.
 - `TrackEngine.IsTdlsCommand` (`src/Yaat.Sim/Commands/TrackEngine.cs`) marks the verbs so they route before the dispatcher (same bypass as strips, phase-transparent).
 - Tests: `tests/Yaat.Sim.Tests/TdlsCommandParserTests.cs`. Existing `CommandSchemeCompletenessTests` auto-covers enum / registry / scheme completeness.
 
 **2.2** `add(tdls): TdlsCommandHandler + TdlsMutations + TdlsBroadcaster + TdlsCommandTranslator`
-- Create `src/Yaat.Sim/Simulation/Tdls/TdlsMutations.cs` — stateless helpers: `NewItemId`, `QueuePending`, `MarkSent(itemId, clearancePayload)`, `MarkWilco(itemId)`, `Dump(itemId)`, `Expire(itemId)`, `BuildFullState`.
+- Create `src/Yaat.Sim/Simulation/Tdls/TdlsMutations.cs` — stateless helpers: `NewItemId`, `ResolveFacilityForAirport`, `FindActiveItem`, `QueuePending`, `MarkSent(itemId, clearancePayload)`, `MarkWilco(itemId)`, `Dump(itemId)`, `Expire(itemId)`; the full-state send is the broadcaster's `BroadcastFullStateAsync`.
 - Create `src/Yaat.Sim/Simulation/Tdls/TdlsCommandHandler.cs` — handlers for Queue / Send / Dump. Each: validate facility config exists, mutate via `TdlsMutations`, broadcast.
   - **Queue** (TDLSQ): rejects if (facility, callsign) is in Dumped lockout. Idempotent if already Pending for same aircraft+facility.
   - **Send** (TDLSS): requires a Pending entry; snapshot the resolved `ClearanceDto` (validated against `TdlsConfig` — mandatory fields set, values are in the dropdown). On success → Status=Sent, SentUtc=now, SentPayload=clearance, schedule auto-WILCO.
@@ -216,7 +219,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
   - **WILCO**: see Phase 3.
 - Create `src/Yaat.Server/Simulation/TdlsBroadcaster.cs` — `BroadcastChanges` (the `TdlsChangeSet` the engine's bodies drained), `BroadcastFullStateAsync`, per-client state sends. SignalR (`TdlsItemChanged`, `TdlsStateChanged`, `TdlsItemRemoved`) + CRC topic publish.
 - No `TdlsCommandTranslator` exists: the CRC inbound path reuses `HandleSendClearance` and `HandleTdlsDump` in `src/Yaat.Server/Hubs/CrcClientState.FlightPlan.cs` and `CrcClientState.Session.cs`.
-- Modify `src/Yaat.Server/ServerApp.cs` — `AddSingleton<TdlsBroadcaster>(); AddSingleton<TdlsCommandHandler>();`.
+- Modify `src/Yaat.Server/ServerApp.cs` — `AddSingleton<TdlsBroadcaster>();` (`TdlsCommandHandler` is static, so it has no registration).
 - `src/Yaat.Server/Simulation/RoomEngine.cs` — `BroadcastTdlsChanges` pushes the change set the engine's TDLS bodies touched.
 - Tests: `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs` (Queue/Send/Dump happy paths + rejections). No translator or broadcaster test file exists.
 
@@ -242,24 +245,24 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 
 **3.3** `add(tdls): 2-hour TTL expiry + reconnect re-send`
 - `SimulationEngine.TickTdlsExpiry` (`src/Yaat.Sim/Simulation/SimulationEngine.Tdls.cs`) iterates `Tdls.Items`, removes those with `ExpiresUtc <= now` and adds their (facility, callsign) to `TdlsState.Expired`, so the auto-queue does not re-create them. Idempotent.
-- Modify the SignalR `RequestFullTdlsState` handler so a CRC client reconnecting (or a YAAT-client vTDLS tab opening) receives the full current `TdlsStateDto` — including each item's `SentPayload`. That implicitly satisfies upstream's "If a pilot disconnects and then reconnects before departure, a new copy of their PDC is automatically sent to them" without a dedicated re-send mechanism: the YAAT pilot/CRC client repopulates from the state snapshot.
+- The `TrainingHub.RequestFullTdlsState` handler is how a CRC client reconnecting (or a YAAT-client vTDLS tab opening) receives the full current `TdlsStateDto` — including each item's `SentPayload`. That implicitly satisfies upstream's "If a pilot disconnects and then reconnects before departure, a new copy of their PDC is automatically sent to them" without a dedicated re-send mechanism: the YAAT pilot/CRC client repopulates from the state snapshot.
 - For aircraft despawn/respawn within a session: items keyed on `Cid` (not transient ItemId) survive even if the AircraftState is briefly removed. The Dumped lockout also keys on (facility, callsign) so re-spawn cannot bypass it.
 - Tests: `tests/Yaat.Server.Tests/TdlsTickProcessorTests.cs` (`TtlExpiry_RemovesItemsPastExpiry`, `TtlExpiry_PurgesScheduledWilcoEntry`); no reconnect test file exists.
 
 ### Phase 4 — Auto-generation rules
 
 **4.1** `add(tdls): auto-create Pending entry on filed flight plan`
-- Trigger model: when a flight plan is filed (via VP/DA/FP command, scenario load, or CRC AmendFlightPlan) whose `Departure` airport is served by a TDLS-configured facility in `room.TdlsState.Configs`, emit `TDLSQ <callsign>` automatically. Hook point: `RoomEngine` / `FlightPlanCommandHandler` post-success — wherever an authoritative flight-plan-changed event already fires.
+- Trigger model: when a flight plan is filed (via VP/DA/FP command, scenario load, or CRC AmendFlightPlan) whose `Departure` airport is served by a TDLS-configured facility in `SimulationEngine.Tdls.Configs`, emit `TDLSQ <callsign>` automatically. Hook point: `RoomEngine` / `FlightPlanCommandHandler` post-success — wherever an authoritative flight-plan-changed event already fires.
 - Idempotent: if a Pending entry already exists for the (facility, callsign) pair, do nothing. If the entry was previously Dumped (lockout), do nothing.
 - Trigger is NOT driven by student-position type. The DCL list belongs to the facility; whoever is staffing that facility (TWR/GND/CD/DEL/Center top-down) sees its entries via the per-facility tab.
 - Pre-filed flight plans (a CID with a flight plan but no active AircraftState) also generate Pending entries when the flight plan is recorded — matches upstream's "If a pilot pre-files prior to connecting to the network, their flight plan is displayed in the DCL list, even if the pilot is not yet connected."
-- Modify `TdlsMutations.cs` — `RequestPdcForFlightPlan(facility, aircraftId, cid)`.
+- The auto-queue calls `TdlsMutations.QueuePending(state, facilityId, aircraftId, cid, nowUtc)` from `SimulationEngine.TickAutoTdlsQueue` and the scenario-load path.
 - Tests: `tests/Yaat.Server.Tests/TdlsAutoGenerationTests.cs` — flight plan at TDLS airport → Pending entry; flight plan at non-TDLS airport → no entry; dumped (facility, callsign) → no re-creation; re-file → idempotent; pre-filed without aircraft → still generates.
 
 ### Phase 5 — Shared `Yaat.Client.Tdls` library
 
 **5.1** `add(tdls): Yaat.Client.Tdls project scaffold`
-- Create `src/Yaat.Client.Tdls/Yaat.Client.Tdls.csproj` (mirror `Yaat.Client.Strips.csproj`). `[InternalsVisibleTo]` for `Yaat.Client`, `Yaat.Client.Core`, `Yaat.Client.Tests`, `Yaat.Client.UI.Tests`, `Yaat.VTdls.Web`. Reference `Yaat.Sim` only.
+- Create `src/Yaat.Client.Tdls/Yaat.Client.Tdls.csproj` (mirror `Yaat.Client.Strips.csproj`). `[InternalsVisibleTo]` for `Yaat.Client`, `Yaat.Client.Core`, `Yaat.Client.Tests`, `Yaat.Client.UI.Tests`, `Yaat.VTdls.Web`. Reference `Yaat.Sim` and `Yaat.Client.Strips`.
 - Modify `yaat.slnx` — add the project.
 
 **5.2** `add(tdls): transport + DTO mirrors + viewmodels`
@@ -413,7 +416,7 @@ Resolved by Phase 0:
 Still open:
 1. **vNAS data-api TDLS config endpoint** — Phase 1.0.1 probe will settle whether TDLS config is embedded in the ARTCC config response or served by a separate endpoint. The loader's shape depends on this.
 2. **CRC ↔ server TDLS topic name + DTO field order** — provisional. Phase 2.3 is conditional on confirming whether CRC has a dedicated TDLS surface; if not, the existing `SendClearance` + `HandleTdlsDump` flows are sufficient. Best resolution: capture a real CRC↔vTDLS frame from a live VATSIM session.
-3. **Auto-WILCO timing** — defaulted to ~3s (real FMS auto-ack is near-instant). Exposed via `SimScenarioState.TdlsWilcoDelaySeconds`.
+3. **Auto-WILCO timing** — defaulted to ~3s (real FMS auto-ack is near-instant). The constant is `TdlsCommandHandler.DefaultWilcoDelay`; no scenario setting exposes it.
 4. **Voice-suppression audit** — exhaustive list of pilot-side places that watch for "controller issued clearance → readback" must be triple-checked. Cleanest fix is one chokepoint (`ApplyClearance(dto, viaTdls)`); the audit confirms there are no out-of-band paths. Track as a Phase 3.1 acceptance check.
 
 ## Verification
@@ -428,7 +431,7 @@ End-to-end after Phase 9 lands:
 6. F4 on the PDC item → item disappears from the list; re-creating the flight plan does NOT re-generate the entry (Dumped lockout).
 7. Wait 2+ hours sim time on a Sent item → item expires and disappears from the PDC list (TTL).
 8. Open NCT TRACON (parent of OAK/SFO/SJC/SMF/RNO) with none of those five staffed → consolidated view shows entries from all five child facilities. Staff one child → its entries disappear from the parent view and the child's tab populates.
-9. `prepare-restart` cycle: confirm `RoomStateSnapshotDto.Tdls` round-trips Pending + Sent items + Dumped lockout across the restart. Configs reload from data-api (not from snapshot).
+9. `prepare-restart` cycle: confirm `ServerSnapshotDto.Tdls` round-trips Pending + Sent items + Dumped lockout across the restart. Configs reload from data-api (not from snapshot).
 10. Reconnect a CRC client to an existing room with active TDLS items: the client's `RequestFullTdlsState` returns every item including each Sent item's `SentPayload`.
 11. Docker: `docker compose build && docker compose up -d` on yaat-server. Hit `https://{droplet}/vtdls/` — same behavior as localhost.
 
