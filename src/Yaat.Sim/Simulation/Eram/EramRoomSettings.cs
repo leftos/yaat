@@ -6,7 +6,8 @@ namespace Yaat.Sim.Simulation.Eram;
 /// The room's ERAM conflict-alert settings, per facility: the <c>CA</c> entry's function and per-sector display
 /// switches for conventional Conflict Alert and for Mode C Intruder alerts (FAA ERAM EDSM SRS §C.2, <c>CA</c>). Detection
 /// never reads them — the alert set stays whole — and a host consults <see cref="ShowsConflict"/> to decide what one
-/// sector's display is shown. A facility with no entry has every function and display on.
+/// sector's display is shown, or <see cref="HiddenSectors"/> to carry the sector half to a room-wide broadcast. A facility
+/// with no entry has every function and display on.
 ///
 /// <para>
 /// Written only by <see cref="TryApply"/>, from a <see cref="RecordedEramRoomEntry"/>, in the four absolute shapes
@@ -69,6 +70,24 @@ public sealed class EramRoomSettings
         }
 
         return !settings.CaDisplayOffSectors.Contains(sectorId) && !(isMciPair && settings.MciDisplayOffSectors.Contains(sectorId));
+    }
+
+    /// <summary>
+    /// The sector half of <see cref="ShowsConflict"/>: the sector ids of <paramref name="facilityId"/> whose display hides such
+    /// a pair — those with their CA display off and, for an MCI pair, those with their MCI display off. Empty for a facility
+    /// that holds no settings. For every sector <c>s</c>, <c>ShowsConflict(f, s, mci)</c> is
+    /// <c>ShowsConflict(f, null, mci) &amp;&amp; !HiddenSectors(f, mci).Contains(s)</c>.
+    /// </summary>
+    public IReadOnlyCollection<string> HiddenSectors(string facilityId, bool isMciPair)
+    {
+        if (!Volatile.Read(ref _facilities).TryGetValue(facilityId, out EramFacilityConflictSettings? settings))
+        {
+            return [];
+        }
+
+        return isMciPair
+            ? settings.CaDisplayOffSectors.Union(settings.MciDisplayOffSectors, StringComparer.Ordinal).ToList()
+            : settings.CaDisplayOffSectors;
     }
 
     /// <summary>

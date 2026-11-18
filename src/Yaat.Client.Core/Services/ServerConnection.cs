@@ -2157,6 +2157,20 @@ public record ConflictAlertDto(
     }
 
     private readonly List<string> _shownFacilities = [];
+
+    /// <summary>
+    /// ERAM only: for each facility in <see cref="ShownFacilities"/> with at least one, the sector ids (sorted ordinal) whose
+    /// CA display, or for an MCI pair MCI display, hides the pair; a Scope viewer acting as one of them is not shown it
+    /// (<c>ScopeEramConflictGate</c>). Empty for STARS. The source-generated reader assigns a missing member null, which reads
+    /// as empty.
+    /// </summary>
+    public Dictionary<string, List<string>> HiddenSectors
+    {
+        get => _hiddenSectors;
+        init => _hiddenSectors = value ?? [];
+    }
+
+    private readonly Dictionary<string, List<string>> _hiddenSectors = [];
 }
 
 /// <summary>The full set of active conflict alerts, pushed whenever a pair opens, clears or changes state.</summary>

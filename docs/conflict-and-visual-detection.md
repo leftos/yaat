@@ -105,7 +105,7 @@ A track must pass all four gates to be considered (`ConflictAlertDetector.cs:116
   applies the room's ERAM CA settings and drops a `CO`-suppressed pair or one with no ERAM owner). The client keeps
   ERAM pairs out of `AircraftModel.ConflictPeerCallsign`, so the Radar's CA line and fixed 3 nm ring never draw for an
   en-route pair; `MainViewModel.EramConflictAlerts` feeds the Scope, which flashes the whole ERAM-template datablock
-  of both members but the Mode C intruder, per its viewer's §377 facility gate (`ScopeEramConflictGate`). A STARS
+  of both members but the Mode C intruder, per its viewer's §377 facility and sector gate (`ScopeEramConflictGate`: the pair's `ShownFacilities` and `HiddenSectors`, so a viewer acting as a sector whose CA display, or MCI display for an MCI pair, is off is not shown it, as in CRC). A STARS
   `CASUP` or `CAACK` re-sends the list, since the pair's `Suppressed` and `Acknowledged` changed.
 
 ### Approach-corridor suppression volumes — `BuildCorridors`

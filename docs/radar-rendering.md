@@ -562,7 +562,7 @@ side and why the field must stay in `TrainingDtoFingerprint`.
 That line and the ring are STARS pairs only. An ERAM STCA pair (`ConflictAlertDto.Kind` `Eram`) never sets
 `ConflictPeerCallsign`; `MainViewModel.EramConflictAlerts` hands it to the Scope (`ScopeCanvas.EramConflicts`), where a
 track drawn with the ERAM template flashes its whole datablock on the blink phase, with no CA line, when
-`ScopeEramConflictGate` passes the pair for the viewer's ERAM facility (no facility passes every pair) and
+`ScopeEramConflictGate` passes the pair for the viewer's ERAM facility and sector (no facility passes every pair; a sector in the pair's `HiddenSectors` for that facility does not) and
 `ShowConflictAlerts` is on. The Mode C intruder does not flash, and the Ground level never does. The Radar draws nothing for an ERAM pair.
 
 Two things about this field are unlike every other datablock field:

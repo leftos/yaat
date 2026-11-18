@@ -62,6 +62,46 @@ public class ScopeEramConflictGateTests
     public void IsShown_PassesAPairOwnedInTheViewersFacility(string? viewer, string? ownerA, string? ownerB, string? intruder, bool shown) =>
         Assert.Equal(shown, ScopeEramConflictGate.IsShown(EramPair(ownerA, ownerB, intruder), ViewerIn(viewer)));
 
+    private static ScopeViewer ViewerAt(string? eramFacility, string? eramSector) => new(null, eramFacility, eramSector);
+
+    /// <summary>The server lists ZOA sector 44 as hidden (its CA display off): a viewer at 44 is not shown the pair, 45 is.</summary>
+    [Fact]
+    public void ASectorWhoseCaDisplayIsOff_DoesNotShowThePair()
+    {
+        ConflictAlertDto pair = EramPair("ZOA", null) with { HiddenSectors = new() { ["ZOA"] = ["44"] } };
+
+        Assert.False(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZOA", "44")));
+        Assert.True(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZOA", "45")));
+    }
+
+    /// <summary>
+    /// Sector 44's MCI display is off, so the server lists it hidden on the MCI pair only: a viewer at 44 is shown the
+    /// conventional pair and not the MCI one.
+    /// </summary>
+    [Fact]
+    public void ASectorWhoseMciDisplayIsOff_HidesOnlyMciPairs()
+    {
+        ConflictAlertDto conventional = EramPair("ZOA", null);
+        ConflictAlertDto mci = EramPair("ZOA", null, intruder: "UAL2") with { HiddenSectors = new() { ["ZOA"] = ["44"] } };
+
+        Assert.True(ScopeEramConflictGate.IsShown(conventional, ViewerAt("ZOA", "44")));
+        Assert.False(ScopeEramConflictGate.IsShown(mci, ViewerAt("ZOA", "44")));
+    }
+
+    /// <summary>
+    /// A viewer with a facility but no sector is gated by the facility alone; a viewer with no facility is shown every pair,
+    /// whatever sector it names.
+    /// </summary>
+    [Fact]
+    public void AViewerWithNoSector_IsGatedByFacilityOnly()
+    {
+        ConflictAlertDto pair = EramPair("ZOA", null) with { HiddenSectors = new() { ["ZOA"] = ["44"] } };
+
+        Assert.True(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZOA", null)));
+        Assert.False(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZLA", null)));
+        Assert.True(ScopeEramConflictGate.IsShown(pair, ViewerAt(null, "44")));
+    }
+
     [Fact]
     public void IsShown_RefusesStarsAndSuppressedPairs()
     {

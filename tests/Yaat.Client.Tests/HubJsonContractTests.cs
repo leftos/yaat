@@ -120,6 +120,23 @@ public class HubJsonContractTests
         Assert.False(pair.Acknowledged);
         Assert.Null(pair.IntruderCallsign);
         Assert.Empty(pair.ShownFacilities);
+        Assert.Empty(pair.HiddenSectors);
+    }
+
+    // An ERAM pair's hidden sectors, per owner facility, read through the source-gen context.
+    [Fact]
+    public void ConflictAlertsChangedDto_ReadsAnEramPairsHiddenSectors()
+    {
+        const string json =
+            "{\"conflicts\":[{\"id\":\"ESTCA_AAL1_UAL2\",\"callsignA\":\"AAL1\",\"callsignB\":\"UAL2\",\"kind\":1,"
+            + "\"ownerFacilityA\":\"ZOA\",\"shownFacilities\":[\"ZOA\"],\"hiddenSectors\":{\"ZOA\":[\"44\",\"46\"]}}]}";
+
+        var dto = (ConflictAlertsChangedDto?)
+            JsonSerializer.Deserialize(json, YaatHubJsonContext.Default.GetTypeInfo(typeof(ConflictAlertsChangedDto))!);
+
+        Assert.NotNull(dto);
+        ConflictAlertDto pair = Assert.Single(dto.Conflicts);
+        Assert.Equal(["44", "46"], Assert.Single(pair.HiddenSectors, kv => kv.Key == "ZOA").Value);
     }
 
     // An aircraft update's nav-route fixes carry restriction tokens (text and latency per token, one list per label line)

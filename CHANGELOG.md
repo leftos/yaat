@@ -26,7 +26,7 @@
 - The aircraft menu with its Display submenu, the map point menu, Draw route and the EuroScope elastic heading vector work on the Scope.
 - Drag a Scope datablock to move it, Shift+click to hide it, Ctrl+click for its flight plan, and right-click stacked targets to pick one.
 - Speech bubbles, menu cues, .marker diamonds and dashed live-traffic shadows draw on the Scope.
-- An ERAM datablock on the Scope flashes whole while its pair's conflict alert shows on the student's ERAM, following the facility's CA settings.
+- An ERAM datablock on the Scope flashes whole while its pair's conflict alert shows on the student's ERAM, following the facility's and the sector's CA settings.
 
 ### Changed
 

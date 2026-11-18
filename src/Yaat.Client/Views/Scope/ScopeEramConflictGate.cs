@@ -11,9 +11,12 @@ namespace Yaat.Client.Views.Scope;
 ///     &amp;&amp; (settings?.ShowsConflict(facilityId, sectorId, conflict.IntruderCallsign is not null) ?? true);
 /// </code>
 /// The training hub broadcasts to the whole room, so it lists on each pair the owner facilities whose CA settings show it
-/// (<see cref="ConflictAlertDto.ShownFacilities"/>, from <c>TrainingBroadcastService.ShownFacilities</c>); this passes the pair
-/// when the Scope's own viewer is in one of them (<see cref="ScopeViewer.EramFacilityId"/>). A viewer with no ERAM facility
-/// is shown every pair, as every track counts as its own.
+/// (<see cref="ConflictAlertDto.ShownFacilities"/>, from <c>TrainingBroadcastService.ShownFacilities</c>) and, per facility,
+/// the sectors whose CA or MCI display hides it (<see cref="ConflictAlertDto.HiddenSectors"/>, from
+/// <c>EramRoomSettings.HiddenSectors</c>). This mirrors the whole CRC rule, sector included: it passes the pair when the Scope's
+/// own viewer is in a listed facility (<see cref="ScopeViewer.EramFacilityId"/>) and its sector
+/// (<see cref="ScopeViewer.EramSectorId"/>) is not hidden there. A viewer with no ERAM facility is shown every pair, as every
+/// track counts as its own; a viewer with a facility but no sector is gated by the facility alone.
 /// </summary>
 internal static class ScopeEramConflictGate
 {
@@ -23,7 +26,13 @@ internal static class ScopeEramConflictGate
     public static bool IsShown(ConflictAlertDto pair, ScopeViewer viewer) =>
         (pair.Kind == ConflictAlertKind.Eram)
         && !pair.Suppressed
-        && ((viewer.EramFacilityId is not { } facility) || pair.ShownFacilities.Contains(facility, StringComparer.Ordinal));
+        && (
+            (viewer.EramFacilityId is not { } facility)
+            || (pair.ShownFacilities.Contains(facility, StringComparer.Ordinal) && !IsSectorHidden(pair, facility, viewer.EramSectorId))
+        );
+
+    private static bool IsSectorHidden(ConflictAlertDto pair, string facility, string? sector) =>
+        (sector is not null) && pair.HiddenSectors.TryGetValue(facility, out List<string>? hidden) && hidden.Contains(sector, StringComparer.Ordinal);
 
     /// <summary>
     /// The callsigns whose ERAM block flashes for <paramref name="viewer"/>: both members of every pair it is shown

@@ -181,6 +181,28 @@ public class EramRoomSettingsStepTests
         Assert.True(settings.ShowsConflict(Facility, "45", isMciPair: true));
     }
 
+    /// <summary>
+    /// <see cref="EramRoomSettings.HiddenSectors"/> is the sector half of <see cref="EramRoomSettings.ShowsConflict"/>, which the
+    /// training hub sends so each Scope can apply it: for every sector, the facility answer and not-hidden is the sector answer.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HiddenSectors_AgreesWithShowsConflict_ForEverySector(bool isMciPair)
+    {
+        EramRoomSettings settings = Settings("CA CA DISPLAY 44 46 OFF", "CA MCI DISPLAY 45 46 OFF");
+
+        foreach (string sector in (string[])["44", "45", "46", "47"])
+        {
+            bool expected = settings.ShowsConflict(Facility, null, isMciPair) && !settings.HiddenSectors(Facility, isMciPair).Contains(sector);
+            Assert.Equal(expected, settings.ShowsConflict(Facility, sector, isMciPair));
+        }
+
+        string[] hidden = isMciPair ? ["44", "45", "46"] : ["44", "46"];
+        Assert.Equal(hidden, settings.HiddenSectors(Facility, isMciPair).Order(StringComparer.Ordinal));
+        Assert.Empty(settings.HiddenSectors("ZNY", isMciPair));
+    }
+
     [Fact]
     public void ShowsConflict_AnUnknownFacility_Shows()
     {
