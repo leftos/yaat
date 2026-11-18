@@ -75,6 +75,20 @@ public class ScopeEramConflictGateTests
     }
 
     /// <summary>
+    /// A hidden sector belongs to its facility: a ZOA/ZLA pair with ZOA sector 44 hidden is still shown to a viewer at
+    /// ZLA 44, and hidden only at ZOA 44.
+    /// </summary>
+    [Fact]
+    public void AViewerAtAnotherFacility_IsShownAPair_WhoseOtherOwnerFacilityHidesItsSector()
+    {
+        ConflictAlertDto pair = EramPair("ZOA", "ZLA") with { HiddenSectors = new() { ["ZOA"] = ["44"] } };
+
+        Assert.True(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZLA", "44")));
+        Assert.False(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZOA", "44")));
+        Assert.True(ScopeEramConflictGate.IsShown(pair, ViewerAt("ZOA", "45")));
+    }
+
+    /// <summary>
     /// Sector 44's MCI display is off, so the server lists it hidden on the MCI pair only: a viewer at 44 is shown the
     /// conventional pair and not the MCI one.
     /// </summary>
