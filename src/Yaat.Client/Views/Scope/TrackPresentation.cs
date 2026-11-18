@@ -215,6 +215,10 @@ public sealed record ScopeField(
 /// </param>
 /// <param name="Tint">The RPO tint that applies to the track whatever its highlight; it colours the symbol.</param>
 /// <param name="Fields">Fields for every slot the template places at <paramref name="Level"/>, in template order.</param>
+/// <param name="BlankedWhole">
+/// Every field's text is blanked for the off phase of a whole-block flash (an ERAM conflict); the layout measures each field's
+/// stable text, its on-phase text, so the block keeps its bounds and rects while nothing draws.
+/// </param>
 /// <param name="ShowsLeader">Whether the block draws its leader; CRC's ERAM LDBs have none.</param>
 public sealed record TrackPresentation(
     string TemplateId,
@@ -222,5 +226,6 @@ public sealed record TrackPresentation(
     ScopeBlockColor BlockColor,
     ScopeTintRole Tint,
     IReadOnlyList<ScopeField> Fields,
+    bool BlankedWhole,
     bool ShowsLeader = true
 );

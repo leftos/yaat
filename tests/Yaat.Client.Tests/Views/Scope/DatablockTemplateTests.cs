@@ -112,7 +112,8 @@ public class DatablockTemplateTests
                 new ScopeField(ScopeFieldSlot.Ident, flashOn ? "ID" : "", "ID", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
                 new ScopeField(ScopeFieldSlot.Altitude, "230", "230", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
                 new ScopeField(ScopeFieldSlot.GroundSpeed, "25", "25", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
-            ]
+            ],
+            BlankedWhole: false
         );
         ScopeTextMetrics metrics = Metrics();
 
@@ -140,7 +141,8 @@ public class DatablockTemplateTests
                 new ScopeField(ScopeFieldSlot.Callsign, "UAL238", "UAL238", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.None),
                 new ScopeField(ScopeFieldSlot.Squawk, "1200 0301", "1200 0301", ScopeColorToken.Default, ScopeFieldAction.None, squawkStyle),
                 new ScopeField(ScopeFieldSlot.ModeC, "ModeC", "ModeC", ScopeColorToken.Default, ScopeFieldAction.None, ScopeFieldStyle.Strikethrough),
-            ]
+            ],
+            BlankedWhole: false
         );
         return DatablockTemplate.Layout(presentation, Metrics());
     }

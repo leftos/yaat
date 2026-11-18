@@ -102,6 +102,26 @@ public class HubJsonContractTests
         Assert.Equal(new EramCrrGroupHubDto("BOSOX", "Coral", 37.7, -122.2), Assert.Single(dto.Groups));
     }
 
+    // An older server sends a conflict pair with only its id and callsigns: the pair reads as an unsuppressed, unacknowledged
+    // STARS pair shown to no ERAM facility.
+    [Fact]
+    public void ConflictAlertsChangedDto_ReadsAPairWithoutTheNewFieldsAsStars()
+    {
+        const string json = "{\"conflicts\":[{\"id\":\"CA_AAL1_UAL2\",\"callsignA\":\"AAL1\",\"callsignB\":\"UAL2\"}]}";
+
+        var dto = (ConflictAlertsChangedDto?)
+            JsonSerializer.Deserialize(json, YaatHubJsonContext.Default.GetTypeInfo(typeof(ConflictAlertsChangedDto))!);
+
+        Assert.NotNull(dto);
+        ConflictAlertDto pair = Assert.Single(dto.Conflicts);
+        Assert.Equal(("CA_AAL1_UAL2", "AAL1", "UAL2"), (pair.Id, pair.CallsignA, pair.CallsignB));
+        Assert.Equal(ConflictAlertKind.Stars, pair.Kind);
+        Assert.False(pair.Suppressed);
+        Assert.False(pair.Acknowledged);
+        Assert.Null(pair.IntruderCallsign);
+        Assert.Empty(pair.ShownFacilities);
+    }
+
     // An aircraft update's nav-route fixes carry restriction tokens (text and latency per token, one list per label line)
     // through the source-gen context and back; a fix from an older server, with lines only, reads with no tokens.
     [Fact]

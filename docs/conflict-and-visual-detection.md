@@ -99,11 +99,14 @@ A track must pass all four gates to be considered (`ConflictAlertDetector.cs:116
   immediately. `TrainingRoom.LastBroadcastConflictSignature` starts at `""` (not null) so a conflict-free room doesn't
   push a pointless empty payload on its first tick. Client-side rendering: see
   [radar-rendering.md](radar-rendering.md) § Conflict alerts. The YAAT Scope's LA/CA/MCI list reads the same pair
-  list from `MainViewModel.ConflictAlerts` (CA rows only; no LA or MCI exists on the client).
-- **Only terminal CA reaches the YAAT radar.** `EramConflictDetector`'s separate set (`ESTCA_` ids, 4-minute lookahead,
-  5 nm minima) is *not* wired to `ConflictAlertsChanged`. This matters: the client draws a fixed 3 nm ring, which would
-  be actively misleading for an en-route pair. Anything that later routes ERAM pairs into that field must revisit the
-  ring radius.
+  list from `MainViewModel.ConflictAlerts` (every row reads CA; no LA or MCI exists on the client).
+- **ERAM STCA reaches only the YAAT Scope, as a flash.** `EramConflictDetector`'s separate set (`ESTCA_` ids, 4-minute
+  lookahead, 5 nm minima) rides `ConflictAlertsChanged` with `Kind` `Eram` (`TrainingBroadcastService.BuildConflictAlerts`
+  applies the room's ERAM CA settings and drops a `CO`-suppressed pair or one with no ERAM owner). The client keeps
+  ERAM pairs out of `AircraftModel.ConflictPeerCallsign`, so the Radar's CA line and fixed 3 nm ring never draw for an
+  en-route pair; `MainViewModel.EramConflictAlerts` feeds the Scope, which flashes the whole ERAM-template datablock
+  of both members but the Mode C intruder, per its viewer's §377 facility gate (`ScopeEramConflictGate`). A STARS
+  `CASUP` or `CAACK` re-sends the list, since the pair's `Suppressed` and `Acknowledged` changed.
 
 ### Approach-corridor suppression volumes — `BuildCorridors`
 

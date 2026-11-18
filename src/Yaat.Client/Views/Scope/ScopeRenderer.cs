@@ -94,6 +94,10 @@ namespace Yaat.Client.Views.Scope;
 /// The block offsets datablock deconfliction gave, by callsign (<see cref="ScopeDeconfliction"/>); null is none. A callsign
 /// here takes its offset over the student's leader direction and the default; a manual offset still wins.
 /// </param>
+/// <param name="EramConflicts">
+/// The room's ERAM conflict pairs (<c>MainViewModel.EramConflictAlerts</c>), copied on the UI thread; null is none. A member
+/// <see cref="ScopeEramConflictGate"/> shows the viewer flashes its block when drawn with the ERAM template.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -125,7 +129,8 @@ public sealed record ScopeFrameInput(
     IReadOnlyList<EramCrrGroupHubDto>? CrrGroups = null,
     IReadOnlySet<string>? HiddenCallsigns = null,
     bool SyncLeaderDirection = false,
-    IReadOnlyDictionary<string, SKPoint>? DeconflictOffsets = null
+    IReadOnlyDictionary<string, SKPoint>? DeconflictOffsets = null,
+    IReadOnlyList<ConflictAlertDto>? EramConflicts = null
 );
 
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
@@ -268,12 +273,13 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             byCallsign.TryAdd(ac.Callsign, ac);
         }
 
+        IReadOnlySet<string> eramFlashing = ScopeEramConflictGate.FlashingCallsigns(input.EramConflicts, input.Display.Viewer);
         var tracks = new List<ScopeTrack>(input.Aircraft.Count);
         var locked = new List<ScopeTrack>();
         var hovered = new List<ScopeTrack>();
         foreach (AircraftModel ac in input.Aircraft)
         {
-            ScopeTrack track = BuildTrack(input, byCallsign, ac, flashOn);
+            ScopeTrack track = BuildTrack(input, byCallsign, ac, flashOn, eramFlashing);
             if (!track.IsDwelled)
             {
                 tracks.Add(track);
@@ -371,7 +377,13 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     private static bool IsHovered(AircraftModel ac, ScopeFrameInput input) =>
         string.Equals(ac.Callsign, input.HoveredCallsign, StringComparison.Ordinal);
 
-    private static ScopeTrack BuildTrack(ScopeFrameInput input, Dictionary<string, AircraftModel> byCallsign, AircraftModel ac, bool flashOn)
+    private static ScopeTrack BuildTrack(
+        ScopeFrameInput input,
+        Dictionary<string, AircraftModel> byCallsign,
+        AircraftModel ac,
+        bool flashOn,
+        IReadOnlySet<string> eramFlashing
+    )
     {
         bool isSelected = ReferenceEquals(ac, input.Selected);
         string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
@@ -391,7 +403,8 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint, input.MvaFacilityId),
             input.HighlightedCallsigns.Contains(ac.Callsign),
             LevelFor(ac, templateId, input, dwelled),
-            VciPreview: string.Equals(ac.Callsign, input.VciHoveredCallsign, StringComparison.Ordinal)
+            VciPreview: string.Equals(ac.Callsign, input.VciHoveredCallsign, StringComparison.Ordinal),
+            InEramConflict: eramFlashing.Contains(ac.Callsign)
         );
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
         ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);

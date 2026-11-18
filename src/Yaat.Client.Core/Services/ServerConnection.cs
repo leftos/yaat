@@ -1352,6 +1352,9 @@ public record AircraftDto
     // the flashing red "NoLndgClnc" datablock line on the radar.
     public bool NoLandingClearanceWarningActive { get; init; } = false;
 
+    // The STARS CA inhibit (CA K): both conflict detectors skip the aircraft. Carried for the Scope's inhibit cue.
+    public bool IsCaInhibited { get; init; } = false;
+
     // True when a queued ONHS DEL block is armed (or per-aircraft auto-delete has been
     // requested). Drives the small auto-delete marker in the radar / tower-cab datablock.
     public bool AutoDeletePending { get; init; } = false;
@@ -2109,14 +2112,54 @@ public record TimelineBookmarkDto(string Id, double TimeSeconds, string? Name, s
 /// <summary>Pushed whenever the room's shared bookmark set changes (add/rename/delete or recording load).</summary>
 public record BookmarksChangedDto(List<TimelineBookmarkDto> Bookmarks);
 
-/// <summary>
-/// One active terminal (STARS) conflict-alert pair. <see cref="Id"/> is the detector's stable pair key.
-/// Separation values are not carried here — the radar derives them from the pair's live positions each
-/// frame, because this broadcast only fires when the pair set changes.
-/// </summary>
-public record ConflictAlertDto(string Id, string CallsignA, string CallsignB);
+/// <summary>Which detector raised a <see cref="ConflictAlertDto"/>. Serialized as its number; keep the order the server's copy has.</summary>
+public enum ConflictAlertKind
+{
+    /// <summary>The terminal STARS conflict alert (<c>CA_</c> ids).</summary>
+    Stars,
 
-/// <summary>The full set of active conflict alerts, pushed whenever a pair opens or clears.</summary>
+    /// <summary>The ERAM Short-Term Conflict Alert (<c>ESTCA_</c> ids).</summary>
+    Eram,
+}
+
+/// <summary>
+/// One active conflict-alert pair, STARS or ERAM (<see cref="Kind"/>). <see cref="Id"/> is the detector's stable pair key.
+/// Separation values are not carried here — the radar derives them from the pair's live positions each
+/// frame, because this broadcast only fires when the pair set or a pair's state changes.
+/// </summary>
+/// <param name="Kind">The detector that raised the pair.</param>
+/// <param name="Suppressed">STARS only: <c>CASUP</c> suppressed the alert. ERAM pairs a <c>CO</c> suppressed are not sent.</param>
+/// <param name="Acknowledged">STARS only: the sim's <c>IsAcknowledged</c> (set by <c>CAACK</c> and <c>CASUP</c>); false for ERAM.</param>
+/// <param name="IntruderCallsign">ERAM only: the untracked, uncorrelated Mode C side of an MCI-class pair, else null.</param>
+/// <param name="OwnerFacilityA">ERAM only: the ERAM facility owning <see cref="CallsignA"/>, or null when it is not ERAM-owned.</param>
+/// <param name="OwnerFacilityB">ERAM only: the ERAM facility owning <see cref="CallsignB"/>, or null when it is not ERAM-owned.</param>
+public record ConflictAlertDto(
+    string Id,
+    string CallsignA,
+    string CallsignB,
+    ConflictAlertKind Kind = ConflictAlertKind.Stars,
+    bool Suppressed = false,
+    bool Acknowledged = false,
+    string? IntruderCallsign = null,
+    string? OwnerFacilityA = null,
+    string? OwnerFacilityB = null
+)
+{
+    /// <summary>
+    /// ERAM only: the owner facilities whose ERAM CA settings show the pair, the facilities a Scope viewer may be in to be
+    /// shown it (<c>ScopeEramConflictGate</c>); empty for STARS. The source-generated reader assigns a missing member null,
+    /// which reads as empty.
+    /// </summary>
+    public List<string> ShownFacilities
+    {
+        get => _shownFacilities;
+        init => _shownFacilities = value ?? [];
+    }
+
+    private readonly List<string> _shownFacilities = [];
+}
+
+/// <summary>The full set of active conflict alerts, pushed whenever a pair opens, clears or changes state.</summary>
 public record ConflictAlertsChangedDto(List<ConflictAlertDto> Conflicts);
 
 /// <summary>

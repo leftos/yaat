@@ -47,9 +47,9 @@ public sealed record ScopeBlockLayout(SKRect Bounds, IReadOnlyList<FieldRect> Fi
 /// The template engine: lays a <see cref="TrackPresentation"/>'s fields into its template's lines for its level
 /// (<see cref="ScopeTemplate.LinesAt"/>).
 /// <para>
-/// A field takes part when it has text, or when its slot is reserved and its stable text is non-empty; a
-/// reserved field is measured on its stable text, so neither its rect nor the block bounds change between
-/// flash phases. A line takes a row when one of its fields takes part, or when the template always shows it.
+/// A field takes part when it has text, or when its slot is reserved or the block is blanked whole
+/// (<see cref="TrackPresentation.BlankedWhole"/>) and its stable text is non-empty; such a field is measured on its stable
+/// text, so neither its rect nor the block bounds change between flash phases. A line takes a row when one of its fields takes part, or when the template always shows it.
 /// </para>
 /// </summary>
 public static class DatablockTemplate
@@ -57,12 +57,16 @@ public static class DatablockTemplate
     /// <summary>Gap between a column-0 mark and the text block (CRC <c>FdbRenderObject</c>: 2 + 1 + 3 px left of the fields).</summary>
     public const float ColumnGap = 6f;
 
-    private readonly record struct PlacedField(ScopeSlotPlacement Placement, ScopeField Field)
+    // A block blanked whole (TrackPresentation.BlankedWhole) measures every field on its stable text, as a reserved slot does.
+    private readonly record struct PlacedField(ScopeSlotPlacement Placement, ScopeField Field, bool BlankedWhole)
     {
-        public string MeasuredText => Placement.Reserved ? Field.StableText : Field.Text;
+        public string MeasuredText => (Placement.Reserved || BlankedWhole) ? Field.StableText : Field.Text;
     }
 
     private readonly record struct LaidLine(IReadOnlyList<FieldRect> Rects, float Right);
+
+    // The block's fields by slot, and whether it is blanked whole (TrackPresentation.BlankedWhole), as the column-0 marks read them.
+    private readonly record struct Column0Fields(Dictionary<ScopeFieldSlot, ScopeField> BySlot, bool BlankedWhole);
 
     /// <summary>Lays <paramref name="presentation"/> out with the template its id names.</summary>
     public static ScopeBlockLayout Layout(TrackPresentation presentation, ScopeTextMetrics metrics) =>
@@ -80,7 +84,7 @@ public static class DatablockTemplate
 
         foreach (ScopeTemplateLine line in template.LinesAt(presentation.Level))
         {
-            List<PlacedField> present = PresentFields(line, bySlot);
+            List<PlacedField> present = PresentFields(line, bySlot, presentation.BlankedWhole);
             if ((present.Count == 0) && !line.AlwaysShown)
             {
                 continue;
@@ -105,7 +109,7 @@ public static class DatablockTemplate
             return new ScopeBlockLayout(bounds, rects, bounds);
         }
 
-        SKRect column0 = LayColumn0(marks, metrics, bySlot, rects, insertedRows);
+        SKRect column0 = LayColumn0(marks, metrics, new Column0Fields(bySlot, presentation.BlankedWhole), rects, insertedRows);
         SKRect? vciCell = VciCellOf(marks, metrics, bySlot, insertedRows);
         return new ScopeBlockLayout(Widen(bounds, column0, template.Padding), rects, bounds, vciCell);
     }
@@ -142,14 +146,14 @@ public static class DatablockTemplate
         (level == ScopeBlockLevel.Dwell) && (template.DwellLines is not null) && !template.Lines.Contains(line);
 
     /// <summary>
-    /// Adds a rect for each column-0 mark with text, right-aligned <see cref="ColumnGap"/> left of the text block on its row,
+    /// Adds a rect for each column-0 mark with text, or with stable text when the block is blanked whole, right-aligned <see cref="ColumnGap"/> left of the text block on its row,
     /// and returns the extent of the marks with stable text; <see cref="SKRect.Empty"/> when none shows. A mark stays beside the line it belongs
     /// to: each dwell-only row laid at or above its row (<paramref name="insertedRows"/>, 1-based) moves it down one row.
     /// </summary>
     private static SKRect LayColumn0(
         IReadOnlyList<ScopeColumn0Mark> marks,
         ScopeTextMetrics metrics,
-        Dictionary<ScopeFieldSlot, ScopeField> bySlot,
+        Column0Fields fields,
         List<FieldRect> rects,
         IReadOnlyList<int> insertedRows
     )
@@ -157,12 +161,19 @@ public static class DatablockTemplate
         SKRect extent = SKRect.Empty;
         foreach (ScopeColumn0Mark mark in marks)
         {
-            if (!bySlot.TryGetValue(mark.Slot, out ScopeField? field) || (field.Text.Length == 0))
+            if (!fields.BySlot.TryGetValue(mark.Slot, out ScopeField? field))
             {
                 continue;
             }
 
-            SKRect rect = Column0Rect(mark, metrics.Measure(field.Text), metrics, insertedRows);
+            // A block blanked whole keeps each mark's rect, measured on its stable text.
+            string measured = fields.BlankedWhole ? field.StableText : field.Text;
+            if (measured.Length == 0)
+            {
+                continue;
+            }
+
+            SKRect rect = Column0Rect(mark, metrics.Measure(measured), metrics, insertedRows);
             rects.Add(new FieldRect(mark.Slot, rect, field.Text, field.Token, field.Style, field.Action));
             if (field.StableText.Length == 0)
             {
@@ -183,7 +194,7 @@ public static class DatablockTemplate
             ? bounds
             : new SKRect(MathF.Min(bounds.Left, marks.Left - pad), bounds.Top, bounds.Right, MathF.Max(bounds.Bottom, marks.Bottom + pad));
 
-    private static List<PlacedField> PresentFields(ScopeTemplateLine line, Dictionary<ScopeFieldSlot, ScopeField> bySlot)
+    private static List<PlacedField> PresentFields(ScopeTemplateLine line, Dictionary<ScopeFieldSlot, ScopeField> bySlot, bool blankedWhole)
     {
         var present = new List<PlacedField>(line.Slots.Count);
         foreach (ScopeSlotPlacement placement in line.Slots)
@@ -192,7 +203,7 @@ public static class DatablockTemplate
             {
                 continue;
             }
-            var placed = new PlacedField(placement, field);
+            var placed = new PlacedField(placement, field, blankedWhole);
             if (placed.MeasuredText.Length > 0)
             {
                 present.Add(placed);

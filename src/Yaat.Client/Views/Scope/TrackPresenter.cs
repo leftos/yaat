@@ -59,6 +59,10 @@ public sealed record ScopeDisplayOptions(
 /// The pointer is on the track's VCI cell: an ERAM FDB lights its VCI while the viewer has an ERAM sector (CRC
 /// <c>IsVciDwelled</c>). It changes no level.
 /// </param>
+/// <param name="InEramConflict">
+/// The track is a flashing member of an ERAM conflict pair the viewer's facility gate shows
+/// (<see cref="ScopeEramConflictGate.FlashingCallsigns"/>); only a block drawn with the ERAM template reads it.
+/// </param>
 public sealed record TrackPresenterInput(
     AircraftModel Aircraft,
     string TemplateId,
@@ -71,7 +75,8 @@ public sealed record TrackPresenterInput(
     MvaRelation? Mva,
     bool IsHighlighted,
     ScopeBlockLevel Level = ScopeBlockLevel.Full,
-    bool VciPreview = false
+    bool VciPreview = false,
+    bool InEramConflict = false
 );
 
 /// <summary>
@@ -390,10 +395,16 @@ public static class TrackPresenter
     public static TrackPresentation Present(TrackPresenterInput input)
     {
         List<ScopeField> fields = WithActions(FieldsAt(input), input);
+        bool blankedWhole = EramConflictFlashes(input) && !input.FlashOn;
+        if (blankedWhole)
+        {
+            // Every text blanks on the off phase and keeps its stable text, which the layout measures (BlankedWhole).
+            fields = fields.ConvertAll(f => f with { Text = "" });
+        }
         ScopeTintRole tint = TintFor(input);
         // CRC's ERAM LDBs draw no leader.
         bool leader = !((input.TemplateId == ScopeTemplates.EramId) && (input.Level is ScopeBlockLevel.Limited or ScopeBlockLevel.Partial));
-        return new TrackPresentation(input.TemplateId, input.Level, BlockColorFor(input, tint), tint, fields, leader);
+        return new TrackPresentation(input.TemplateId, input.Level, BlockColorFor(input, tint), tint, fields, blankedWhole, leader);
     }
 
     /// <summary>
@@ -794,7 +805,8 @@ public static class TrackPresenter
     {
         AircraftModel ac = input.Aircraft;
         string noLandingClearance = NoLandingClearanceActive(input) ? DatablockText.NoLandingClearanceText : "";
-        string conflict = ConflictActive(input) ? DatablockText.BuildConflictLine(ac, input.ConflictPeer) : "";
+        // ERAM shows a conflict by flashing the block, never with the STARS CA line.
+        string conflict = (ConflictActive(input) && !EramConflictFlashes(input)) ? DatablockText.BuildConflictLine(ac, input.ConflictPeer) : "";
         string squawk = SquawkText(ac);
         // The mismatch line keeps its whole text in both phases; only its assigned-code tail dims on the off-phase.
         ScopeFieldStyle squawkStyle = ((squawk.Length > 0) && !input.FlashOn) ? ScopeFieldStyle.DimTail : ScopeFieldStyle.None;
@@ -828,6 +840,20 @@ public static class TrackPresenter
 
     private static bool ConflictActive(TrackPresenterInput input) =>
         input.Alerts.ShowConflictAlerts && !string.IsNullOrEmpty(input.Aircraft.ConflictPeerCallsign);
+
+    /// <summary>
+    /// Whether the whole block flashes for an ERAM conflict, as docs/crc/eram.md (Conflict Alert Processing) has it: "ERAM
+    /// continuously monitors all target movement and attempts to predict potential loss of separation between pairs of targets
+    /// within the surveillance area. This is known as the Short-Term Conflict Alert (STCA) system. Targets that are currently
+    /// in conflict alert status will have flashing data blocks." and "Alerts are only generated if one of the two targets is
+    /// owned by a controller in your ERAM facility." True for a block drawn with the ERAM template, at any level but Ground,
+    /// in a pair <see cref="ScopeEramConflictGate"/> shows, while conflict alerts are on; a STARS-drawn track never flashes so.
+    /// </summary>
+    private static bool EramConflictFlashes(TrackPresenterInput input) =>
+        input.Alerts.ShowConflictAlerts
+        && input.InEramConflict
+        && (input.TemplateId == ScopeTemplates.EramId)
+        && (input.Level != ScopeBlockLevel.Ground);
 
     private static string SquawkText(AircraftModel ac) =>
         AircraftCommandApplicability.TryGetSquawkMismatch(ac, out string reported, out string assigned) ? $"{reported} {assigned}" : "";

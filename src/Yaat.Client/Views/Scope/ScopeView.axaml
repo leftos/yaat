@@ -31,6 +31,7 @@
       LocalRings="{Binding LocalRings}"
       LocalPtlCallsigns="{Binding LocalPtlCallsigns}"
       CrrGroups="{Binding Main.CrrGroups}"
+      EramConflicts="{Binding Main.EramConflictAlerts}"
       Lens="{Binding Lens}"
       LensPathCallsigns="{Binding LensPathCallsigns}"
       ShowTopDown="{Binding IsTdm}"

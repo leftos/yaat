@@ -123,6 +123,15 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<EramCrrGroupHubDto>
     >(nameof(CrrGroups), defaultValue: []);
 
+    /// <summary>
+    /// The room's ERAM conflict pairs (<c>MainViewModel.EramConflictAlerts</c>, replaced whole); read in <see cref="BuildFrame"/>,
+    /// never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<ConflictAlertDto>> EramConflictsProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        IReadOnlyList<ConflictAlertDto>
+    >(nameof(EramConflicts), defaultValue: []);
+
     /// <summary>The pilot lens's switches; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
     public static readonly StyledProperty<ScopeLensSettings> LensProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeLensSettings>(
         nameof(Lens),
@@ -308,6 +317,12 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(CrrGroupsProperty);
         set => SetValue(CrrGroupsProperty, value);
+    }
+
+    public IReadOnlyList<ConflictAlertDto> EramConflicts
+    {
+        get => GetValue(EramConflictsProperty);
+        set => SetValue(EramConflictsProperty, value);
     }
 
     public ScopeLensSettings Lens
@@ -671,6 +686,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     private static bool IsLayerProperty(AvaloniaProperty property) =>
         (property == VectorMinutesProperty)
         || (property == CrrGroupsProperty)
+        || (property == EramConflictsProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
         || (property == LocalRingsProperty)
@@ -1104,7 +1120,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     LensCheckIn: Lens.DrawsCheckIn,
                     CrrGroups: CrrGroups,
                     HiddenCallsigns: DataBlockState?.HiddenCallsigns,
-                    SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false
+                    SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false,
+                    EramConflicts: EramConflicts
                 ),
                 stepDeconfliction
             )
