@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
@@ -9,9 +10,11 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -124,6 +127,76 @@ public class ScopeExtraWindowTests
 
             Assert.Same(vm.PrimaryScope, vm.OpenScope);
             Assert.Equal(20, vm.PrimaryScope.RangeNm);
+        }
+        finally
+        {
+            CloseExtras(main);
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AnAnchorAndALinePickedOnScopeTwo_DrawOnScopeTwoOnly()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            vm.IsScopePoppedOut = false;
+            vm.SelectedTabIndex = 2;
+            MainWindowHost.Pump();
+            TabItem scopeTab = main.GetLogicalDescendants().OfType<TabItem>().Single(t => t.Name == "ScopeTab");
+            ScopeCanvas primary = Assert.IsType<ScopeHost>(scopeTab.Content).ScopeView.Canvas;
+            ScopeWindow window = ClickNewScopeWindow(main);
+            ScopeViewModel extra = Assert.Single(vm.ExtraScopeViews).Vm;
+            ScopeCanvas second = window.ScopeHost.ScopeView.Canvas;
+            primary.MeasureCursor = new Point(300, 300);
+            second.MeasureCursor = new Point(300, 300);
+
+            extra.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""));
+            MainWindowHost.Pump();
+
+            Assert.NotNull(second.RenderSnapshotForTesting().PendingRangeBearingLine);
+            Assert.Null(primary.RenderSnapshotForTesting().PendingRangeBearingLine);
+
+            extra.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.6, -122.1), ""));
+            MainWindowHost.Pump();
+
+            Assert.Single(second.RenderSnapshotForTesting().RangeBearingLines);
+            Assert.Empty(primary.RenderSnapshotForTesting().RangeBearingLines);
+        }
+        finally
+        {
+            CloseExtras(main);
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    // Closing an extra Scope drops the lines it placed and cancels the anchor it holds, so neither keeps a slot nor completes
+    // on another Scope.
+    [AvaloniaFact]
+    public void ClosingAnExtraScope_DropsItsLinesAndCancelsItsAnchor()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            ScopeWindow window = ClickNewScopeWindow(main);
+            ScopeViewModel extra = Assert.Single(vm.ExtraScopeViews).Vm;
+            extra.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""));
+            extra.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.6, -122.1), ""));
+            extra.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.5, -122.0), ""));
+            Assert.Single(vm.Measure.Lines);
+            Assert.NotNull(vm.Measure.Anchor);
+
+            window.Close();
+            MainWindowHost.Pump();
+
+            Assert.Empty(vm.Measure.Lines);
+            Assert.Null(vm.Measure.Anchor);
+
+            vm.PrimaryScope.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.4, -121.9), ""));
+
+            Assert.Empty(vm.Measure.Lines);
+            Assert.Same(vm.PrimaryScope, Assert.NotNull(vm.Measure.Anchor).Surface);
         }
         finally
         {

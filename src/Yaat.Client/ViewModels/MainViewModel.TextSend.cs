@@ -156,8 +156,8 @@ public partial class MainViewModel
             && (
                 TryHandleScopeMarkerCommand(text, sink)
                 || TryHandleMeasureCommand(text, sink)
-                || TryHandleScopeCommand(text, sink)
-                || TryHandleViewCommand(text, sink)
+                || TryHandleScopeCommand(text, sink, OpenScope)
+                || TryHandleViewCommand(text, sink, OpenScope)
             );
         return handled || TryHandleCrcAlias(text, sink);
     }

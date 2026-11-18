@@ -4,25 +4,40 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// Which map surface the distance measuring tool's typed <c>.rbl A B</c> places on: the last surface (a Radar, Ground or
-/// Scope canvas) that took the focus or a press, the Radar before any, and the Radar again once the Scope that took it closes.
-/// Every Scope window shows the Scope's lines; the surface is held as the Scope that took it, whichever has the focus.
+/// Scope canvas) that took the focus or a press, the primary Scope before any, and the primary Scope again once the Scope that
+/// took it closes.
+/// A Scope line draws only on the Scope window that placed it, a typed one on the Scope holding the surface; the surface is
+/// held as the Scope that took it, whichever has the focus.
 /// </summary>
 public partial class MainViewModel
 {
-    private RblView _activeMeasureView = RblView.Radar;
+    private RblView _activeMeasureView = ScopeViewModel.MeasureView;
 
     /// <summary>The Scope that last took the measuring surface, so a closed or reopened Scope does not keep it.</summary>
     private ScopeViewModel? _activeMeasureScope;
 
     /// <summary>
-    /// The surface a typed <c>.rbl A B</c> places on: the last one that took the focus or a press; the Radar before any, and
-    /// the Radar when the Scope that took it is no longer one of <see cref="AllScopeViews"/>.
+    /// The surface a typed <c>.rbl A B</c> places on: the last one that took the focus or a press; the Scope before any, which
+    /// is then <see cref="ActiveMeasureScope"/>'s.
     /// </summary>
-    public RblView ActiveMeasureView => ((_activeMeasureView == RblView.Scope) && (ActiveMeasureScope is null)) ? RblView.Radar : _activeMeasureView;
+    public RblView ActiveMeasureView => _activeMeasureView;
 
-    /// <summary>The Scope that holds the measuring surface, while it is still open; null when the surface is not a Scope's.</summary>
-    public ScopeViewModel? ActiveMeasureScope =>
-        ((_activeMeasureView == RblView.Scope) && (_activeMeasureScope is { } scope) && AllScopeViews.Contains(scope)) ? scope : null;
+    /// <summary>
+    /// The Scope that holds the measuring surface: the one that took it while it is still one of <see cref="AllScopeViews"/>,
+    /// else the primary. Null when the surface is not a Scope's, and while the constructor builds the primary.
+    /// </summary>
+    public ScopeViewModel? ActiveMeasureScope
+    {
+        get
+        {
+            if (_activeMeasureView != RblView.Scope)
+            {
+                return null;
+            }
+
+            return ((_activeMeasureScope is { } scope) && AllScopeViews.Contains(scope)) ? scope : PrimaryScope;
+        }
+    }
 
     /// <summary>The Scope recorded as having taken the measuring surface, open or not. Test seam.</summary>
     internal ScopeViewModel? HeldMeasureScope => _activeMeasureScope;
@@ -47,14 +62,18 @@ public partial class MainViewModel
         _activeMeasureScope = scope;
     }
 
-    /// <summary>The view tag, track lookup and units a measurement placed on the <paramref name="view"/> surface takes.</summary>
-    internal (RblView View, RblTrackLookup Lookup, RblUnits Units) MeasureSurface(RblView view) =>
+    /// <summary>
+    /// The view tag, track lookup, units and owning surface a measurement placed on the <paramref name="view"/> surface takes:
+    /// for the Scope, <paramref name="scope"/>, else <see cref="ActiveMeasureScope"/>, else the primary owns it; no other view
+    /// has an owning surface.
+    /// </summary>
+    internal MeasureTarget MeasureSurface(RblView view, ScopeViewModel? scope) =>
         view switch
         {
-            RblView.Ground => (GroundViewModel.MeasureView, Ground.MeasureTrackLookup, GroundViewModel.MeasureUnits),
-            RblView.Scope => (ScopeViewModel.MeasureView, (ActiveMeasureScope ?? OpenScope).MeasureTrackLookup, ScopeViewModel.MeasureUnits),
+            RblView.Ground => new MeasureTarget(GroundViewModel.MeasureView, Ground.MeasureTrackLookup, GroundViewModel.MeasureUnits, null),
+            RblView.Scope => (scope ?? ActiveMeasureScope ?? PrimaryScope).MeasureTarget,
             // The primary radar's track lookup is deliberate: Measure is one shared store, so the line renders in every Radar
             // View window without the extra instances needing their own lookup.
-            _ => (RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits),
+            _ => new MeasureTarget(RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits, null),
         };
 }

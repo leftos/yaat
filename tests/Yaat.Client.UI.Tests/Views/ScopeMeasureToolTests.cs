@@ -81,7 +81,11 @@ public class ScopeMeasureToolTests
     private static RblEndpoint AtPoint(double lat, double lon) => RblEndpoint.AtPoint(new LatLon(lat, lon), "");
 
     private static void PlaceFixedLine(MainViewModel main, RblView view) =>
-        main.Measure.Place(AtPoint(37.6, -122.4), AtPoint(37.8, -122.0), view, main.MeasureSurface(view).Lookup, RblUnits.NauticalMiles);
+        main.Measure.Place(
+            AtPoint(37.6, -122.4),
+            AtPoint(37.8, -122.0),
+            new MeasureTarget(view, main.MeasureSurface(view, null).Lookup, RblUnits.NauticalMiles, null)
+        );
 
     [AvaloniaFact]
     public async Task CtrlM_InTheScopeWindow_ArmsTheTool_AndTheScopeResponseSaysSo()
@@ -287,10 +291,10 @@ public class ScopeMeasureToolTests
     [AvaloniaFact]
     public async Task ScopeLines_OutliveTheScopesUnloadAndRewindClear()
     {
-        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeAsync();
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
         try
         {
-            PlaceFixedLine(main, RblView.Scope);
+            main.Measure.PlaceSilently(AtPoint(37.6, -122.4), AtPoint(37.8, -122.0), scope.MeasureTarget);
 
             main.ClearScenarioState();
             main.ApplyScenarioRewind([]);

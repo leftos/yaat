@@ -5,8 +5,8 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The Scope's side of the distance measuring tool. The lines live in the shared <see cref="RangeBearingViewState"/>
-/// (<see cref="MainViewModel.Measure"/>): session state in the one 15-slot pool, never saved, kept while the Scope is closed and
-/// not cleared with the Scope's per-track state. A line taken here belongs to the Scope view and renders only here. Feedback
+/// (<see cref="MainViewModel.Measure"/>): session state in the one 15-slot pool, never saved, kept while the primary Scope's pop-out is closed
+/// (an extra Scope window drops its own when it closes) and not cleared with the Scope's per-track state. A line or anchor taken here belongs to this Scope window and renders only here. Feedback
 /// for an action the Scope itself starts (its Ctrl+M) also shows in the Scope's response; the status line shows every
 /// action's feedback, whichever surface started it.
 /// </summary>
@@ -23,6 +23,9 @@ public sealed partial class ScopeViewModel
 
     /// <summary>Resolves a latched measurement endpoint against the traffic the Scope draws.</summary>
     public RblTrackLookup MeasureTrackLookup => RangeBearingViewState.TrackLookup(FindAircraft);
+
+    /// <summary>Where a measurement taken here goes: the Scope view, this Scope's traffic and units, and this Scope window.</summary>
+    public MeasureTarget MeasureTarget => new(MeasureView, MeasureTrackLookup, MeasureUnits, this);
 
     /// <summary>The response <see cref="ArmMeasure"/> last wrote, so Esc can tell the tool's own prompt from another response.</summary>
     private ScopeEntryResponse? _measureResponse;
@@ -62,7 +65,7 @@ public sealed partial class ScopeViewModel
         Measure.StatusReported += Capture;
         try
         {
-            Measure.Pick(endpoint, MeasureView, MeasureTrackLookup, MeasureUnits);
+            Measure.Pick(endpoint, MeasureTarget);
         }
         finally
         {
@@ -82,7 +85,7 @@ public sealed partial class ScopeViewModel
     public void PlaceMeasurement(RblEndpoint from, RblEndpoint to)
     {
         ActivateMeasureSurface();
-        (_, string status) = Measure.PlaceSilently(from, to, MeasureView, MeasureTrackLookup, MeasureUnits);
+        (_, string status) = Measure.PlaceSilently(from, to, MeasureTarget);
         Main.StatusText = status;
         ShowMeasureResponse(status);
     }
@@ -157,7 +160,7 @@ public sealed partial class ScopeViewModel
     /// <returns>False when there was nothing of the Scope's to cancel.</returns>
     public bool CancelMeasure()
     {
-        bool ownsAnchor = Measure.Anchor is { View: MeasureView };
+        bool ownsAnchor = (Measure.Anchor is { View: MeasureView } anchor) && ReferenceEquals(anchor.Surface, this);
         if ((!Measure.IsMeasuring && (Measure.Anchor is null)) || (!IsActiveMeasureSurface && !ownsAnchor))
         {
             return false;

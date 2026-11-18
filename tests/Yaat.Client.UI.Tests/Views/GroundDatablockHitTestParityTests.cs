@@ -42,7 +42,13 @@ public class GroundDatablockHitTestParityTests
         (double aLat, double aLon) = canvas.Viewport.ScreenToLatLon(100f, 500f);
         canvas.RangeBearingLines =
         [
-            new RangeBearingLine(1, RblEndpoint.AtPoint(new LatLon(aLat, aLon), ""), RblEndpoint.AtPoint(new LatLon(bLat, bLon), ""), RblView.Ground),
+            new RangeBearingLine(
+                1,
+                RblEndpoint.AtPoint(new LatLon(aLat, aLon), ""),
+                RblEndpoint.AtPoint(new LatLon(bLat, bLon), ""),
+                RblView.Ground,
+                null
+            ),
         ];
         (IReadOnlyDictionary<string, SKPoint> offsets, IReadOnlyDictionary<int, SKRect> readouts) = canvas.CaptureSnapshotPlacement();
 

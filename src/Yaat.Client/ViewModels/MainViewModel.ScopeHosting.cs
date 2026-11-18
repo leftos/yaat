@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
-using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 
@@ -12,7 +11,8 @@ namespace Yaat.Client.ViewModels;
 /// <summary>
 /// Where the YAAT Scope lives: the primary Scope, built with this view model and alive until the app exits, shows as the
 /// main window's Scope tab or, popped out, in its own window; extra Scope windows (#2, #3, …) open beside it, each with its
-/// own state; the Scope a typed verb acts on is the one whose canvas last took the focus.
+/// own state; the Scope a typed verb acts on is the one whose canvas last took the focus, while a Scope's toolbar, tear-offs
+/// and cards act on their own Scope.
 /// </summary>
 public partial class MainViewModel
 {
@@ -102,12 +102,14 @@ public partial class MainViewModel
             ActiveScope = null;
         }
 
-        // The view model keeps no disposed Scope: the measuring surface it held falls back to the Radar.
+        // The view model keeps no disposed Scope: the measuring surface it held falls back to the primary Scope, which
+        // ActiveMeasureScope resolves on read; the lines it placed and the anchor it holds go with it.
         if (ReferenceEquals(_activeMeasureScope, instance.Vm))
         {
-            SetActiveMeasureView(RblView.Radar);
+            _activeMeasureScope = null;
         }
 
+        Measure.RemoveSurface(instance.Vm);
         instance.Vm.Dispose();
     }
 

@@ -40,7 +40,7 @@ public sealed partial class AutomationTools
     /// placed line's reading, or a full store's error, goes to the status line.
     /// </summary>
     private MeasurePlacement PlaceScopeRbl(string from, string to) =>
-        _viewModel.PlaceMeasurementFromText(from, to, new StatusLineSink(_viewModel), ScopeViewModel.MeasureView);
+        _viewModel.PlaceMeasurementFromText(from, to, new StatusLineSink(_viewModel), ScopeViewModel.MeasureView, _viewModel.PrimaryScope);
 
     /// <summary>Removes every Scope-view line from the shared store and returns how many it removed.</summary>
     private int ClearPrimaryScopeRbls()

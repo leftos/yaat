@@ -106,7 +106,8 @@ public class ScopeKeyGateTests
             main.DispatchKey(Key.M, Action);
 
             Assert.Null(scope.EntryResponse);
-            Assert.NotEqual(RblView.Scope, vm.ActiveMeasureView);
+            // The Scope is the measuring surface from the start, so the gate shows as the Scope never taking it itself.
+            Assert.Null(vm.HeldMeasureScope);
         }
         finally
         {

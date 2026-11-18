@@ -1049,7 +1049,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         RblTrackLookup lookup = BuildMeasureLookup();
         List<ResolvedRbl>? measurements = placedMeasurements is { Count: > 0 }
-            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, GroundViewModel.MeasureUnits, GroundViewModel.MeasureView)
+            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, GroundViewModel.MeasureUnits, GroundViewModel.MeasureView, null)
             : null;
         ResolvedRbl? pendingMeasurement = null;
         if (measureAnchor is not null)
@@ -1525,7 +1525,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             lines,
             BuildMeasureLookup(),
             GroundViewModel.MeasureUnits,
-            GroundViewModel.MeasureView
+            GroundViewModel.MeasureView,
+            null
         );
         return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }

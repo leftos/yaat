@@ -10,16 +10,34 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
 /// Which map surface the measuring tool's typed <c>.rbl A B</c> places on: the last surface that took the focus or a press,
-/// the Radar before any, and the Radar again once the Scope closes. The public placement the app tools call stays on the Radar.
+/// the primary Scope before any, and the primary Scope again once the Scope that took it closes.
 /// </summary>
 public class MainViewModelActiveMeasureViewTests
 {
     [AvaloniaFact]
-    public async Task NothingFocusedYet_IsTheRadar()
+    public async Task NothingFocusedYet_IsThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
-        Assert.Equal(RblView.Radar, main.ActiveMeasureView);
+        Assert.Equal(RblView.Scope, main.ActiveMeasureView);
+        Assert.Same(main.PrimaryScope, main.ActiveMeasureScope);
+    }
+
+    [AvaloniaFact]
+    public async Task TypedRbl_WithNothingFocused_PlacesOnTheScope()
+    {
+        MainViewModel main = await MainAsync();
+        await main.CrcAliasLoad;
+        AddAircraft(main, "UAL1", 5000);
+        AddAircraft(main, "UAL2", 6000);
+
+        var sink = new StatusSink();
+        await main.SendTextAsync(".rbl UAL1 UAL2", sink);
+        Dispatcher.UIThread.RunJobs();
+
+        RangeBearingLine line = Assert.Single(main.Measure.Lines);
+        Assert.Equal(RblView.Scope, line.View);
+        Assert.Null(sink.Error);
     }
 
     [AvaloniaFact]
@@ -61,7 +79,7 @@ public class MainViewModelActiveMeasureViewTests
     }
 
     [AvaloniaFact]
-    public async Task TheScopeClosing_FallsBackToTheRadar_AndAReopenedScopeDoesNotTakeItBack()
+    public async Task TheScopeClosing_FallsBackToThePrimaryScope_AndAReopenedScopeDoesNotTakeItBack()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ActivateMeasureSurface();
@@ -69,12 +87,14 @@ public class MainViewModelActiveMeasureViewTests
         main.OpenScope = null;
         scope.Dispose();
 
-        Assert.Equal(RblView.Radar, main.ActiveMeasureView);
+        Assert.Equal(RblView.Scope, main.ActiveMeasureView);
+        Assert.Same(main.PrimaryScope, main.ActiveMeasureScope);
 
         using var reopened = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = reopened;
 
-        Assert.Equal(RblView.Radar, main.ActiveMeasureView);
+        Assert.Equal(RblView.Scope, main.ActiveMeasureView);
+        Assert.Same(main.PrimaryScope, main.ActiveMeasureScope);
     }
 
     [AvaloniaFact]
@@ -102,7 +122,7 @@ public class MainViewModelActiveMeasureViewTests
     }
 
     [AvaloniaFact]
-    public async Task ThePublicPlacement_PlacesOnTheRadar_WhateverIsActive()
+    public async Task APlacementGivenTheRadar_PlacesOnTheRadar_WhateverIsActive()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         using (scope)
@@ -111,7 +131,7 @@ public class MainViewModelActiveMeasureViewTests
             AddAircraft(main, "UAL2", 6000);
             scope.ActivateMeasureSurface();
 
-            MeasurePlacement placed = main.PlaceMeasurementFromText("UAL1", "UAL2");
+            MeasurePlacement placed = main.PlaceMeasurementFromText("UAL1", "UAL2", new StatusSink(), RblView.Radar, null);
 
             Assert.Equal(1, placed.Slot);
             Assert.Equal(RblView.Radar, Assert.Single(main.Measure.Lines).View);

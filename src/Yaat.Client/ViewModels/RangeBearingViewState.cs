@@ -63,38 +63,47 @@ public sealed partial class RangeBearingViewState : ObservableObject
     internal (bool Armed, string Status) ArmSilently() => _store.Arm() ? (true, ArmedStatus) : (false, FullStatus);
 
     /// <summary>
-    /// Feeds the tool a clicked endpoint: the first click anchors, the second completes the measurement.
-    /// The completed line belongs to the view the anchor was picked in.
+    /// Whether a half-placed measurement waits for its second point on <paramref name="view"/>'s <paramref name="surface"/>:
+    /// an anchor another Scope window picked counts as none on a Scope, and the next pick there anchors anew.
     /// </summary>
-    public void Pick(RblEndpoint endpoint, RblView view, RblTrackLookup lookup, RblUnits units)
+    public bool HasAnchorFor(RblView view, object? surface) => (Anchor is { } anchor) && !IsOtherScopesAnchor(anchor, view, surface);
+
+    /// <summary>
+    /// Feeds the tool a clicked endpoint on <paramref name="target"/>: the first click anchors, the second completes the
+    /// measurement, which belongs to the view and surface the anchor was picked on. A pick on a Scope while another Scope
+    /// window holds the anchor cancels that anchor and anchors here.
+    /// </summary>
+    public void Pick(RblEndpoint endpoint, MeasureTarget target)
     {
-        if (_store.PendingAnchor is null)
+        if ((_store.PendingAnchor is not { } anchor) || IsOtherScopesAnchor(anchor, target.View, target.Surface))
         {
-            Report(_store.SetAnchor(endpoint, view) ? AnchoredStatus : FullStatus);
+            Report(_store.SetAnchor(endpoint, target.View, target.Surface) ? AnchoredStatus : FullStatus);
             return;
         }
 
-        RblView lineView = _store.PendingAnchor.Value.View;
         int? slot = _store.Complete(endpoint);
-        Report(slot is { } placed ? DescribePlaced(placed, lookup, units, lineView) : FullStatus);
+        Report(slot is { } placed ? DescribePlaced(placed, target with { View = anchor.View, Surface = anchor.Surface }) : FullStatus);
     }
 
-    /// <summary>Places a whole measurement at once, for the modifier-drag and text-command paths.</summary>
+    /// <summary>Places a whole measurement at once on <paramref name="target"/>, for the modifier-drag and text-command paths.</summary>
     /// <returns>The slot number the measurement took, or null when every slot is in use.</returns>
-    public int? Place(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
+    public int? Place(RblEndpoint from, RblEndpoint to, MeasureTarget target)
     {
-        (int? slot, string status) = PlaceSilently(from, to, view, lookup, units);
+        (int? slot, string status) = PlaceSilently(from, to, target);
         Report(status);
         return slot;
     }
 
     /// <summary>Places a whole measurement as <see cref="Place"/> does, returning its status instead of reporting it.</summary>
     /// <returns>The slot the measurement took (null when every slot is in use), and the status to show.</returns>
-    internal (int? Slot, string Status) PlaceSilently(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
+    internal (int? Slot, string Status) PlaceSilently(RblEndpoint from, RblEndpoint to, MeasureTarget target)
     {
-        int? slot = _store.Add(from, to, view);
-        return (slot, slot is { } placed ? DescribePlaced(placed, lookup, units, view) : FullStatus);
+        int? slot = _store.Add(from, to, target.View, target.Surface);
+        return (slot, slot is { } placed ? DescribePlaced(placed, target) : FullStatus);
     }
+
+    /// <summary>Drops the lines <paramref name="surface"/> placed and the anchor it holds, as its Scope window closes.</summary>
+    internal void RemoveSurface(object surface) => _store.RemoveSurface(surface);
 
     /// <summary>Cancels a half-placed measurement and disarms the tool. Placed measurements stay.</summary>
     public void Cancel()
@@ -150,11 +159,15 @@ public sealed partial class RangeBearingViewState : ObservableObject
             return aircraft is null ? null : new RblTrack(aircraft.Position, aircraft.GroundSpeed);
         };
 
-    private string DescribePlaced(int slot, RblTrackLookup lookup, RblUnits units, RblView view)
+    // Whether a Scope pick on surface meets an anchor another Scope window picked.
+    private static bool IsOtherScopesAnchor(RblPendingAnchor anchor, RblView view, object? surface) =>
+        (view == RblView.Scope) && (anchor.View == RblView.Scope) && !ReferenceEquals(anchor.Surface, surface);
+
+    private string DescribePlaced(int slot, MeasureTarget target)
     {
         // Report the reading in the status bar too — the on-scope label can sit under a datablock or off
         // the edge of the view, and the number is the whole point of the tool.
-        foreach (ResolvedRbl resolved in RangeBearingLineResolver.Resolve(Lines, lookup, units, view))
+        foreach (ResolvedRbl resolved in RangeBearingLineResolver.Resolve(Lines, target.Lookup, target.Units, target.View, target.Surface))
         {
             if (resolved.Slot == slot)
             {
@@ -179,3 +192,10 @@ public sealed partial class RangeBearingViewState : ObservableObject
 /// unresolvable or ambiguous endpoint, or every slot in use). Exactly one of the two is non-null.
 /// </summary>
 public readonly record struct MeasurePlacement(int? Slot, string? Error);
+
+/// <summary>
+/// Where a measurement goes: the <paramref name="View"/> it belongs to, the <paramref name="Lookup"/> its latched ends
+/// resolve against, the <paramref name="Units"/> its reading is in, and the <paramref name="Surface"/> that owns it: for a
+/// Scope, the Scope window; null for every other view.
+/// </summary>
+public readonly record struct MeasureTarget(RblView View, RblTrackLookup Lookup, RblUnits Units, object? Surface);

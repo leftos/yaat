@@ -165,8 +165,17 @@ public partial class MainViewModel
             ? kind
             : ScopeProfilePicker.KindFor(ActivePosition);
 
-    /// <summary>Runs a <c>.scope</c> command from the Scope's toolbar; nothing is added to the command history.</summary>
-    public void RunScopeCommand(string text) => TryHandleScopeCommand(text, new CommandLineSink(this));
+    /// <summary>
+    /// Runs a <c>.scope</c> command against <see cref="OpenScope"/>, as typed; nothing is added to the command history. Test
+    /// seam: the app's own paths name their Scope.
+    /// </summary>
+    internal void RunScopeCommand(string text) => RunScopeCommand(OpenScope, text);
+
+    /// <summary>
+    /// Runs a <c>.scope</c> command from <paramref name="scope"/>'s toolbar, tear-offs or cards against that Scope, whichever
+    /// Scope has the focus; nothing is added to the command history.
+    /// </summary>
+    public void RunScopeCommand(ScopeViewModel scope, string text) => TryHandleScopeCommand(text, new CommandLineSink(this), scope);
 
     /// <summary>The parsed data of the video map with <paramref name="mapId"/> from the video-map cache, or null when it is not loaded.</summary>
     public VideoMapData? GetCachedVideoMap(string mapId) => _videoMapService.GetCached(mapId);
@@ -178,10 +187,10 @@ public partial class MainViewModel
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
     /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
     /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c>, <c>.scope tdm</c>, <c>.scope ptl</c> and <c>.scope lens</c> against
-    /// <see cref="OpenScope"/>, reporting the echo or the error to <paramref name="sink"/>.
+    /// <paramref name="scope"/> (<see cref="OpenScope"/> for the typed line), reporting the echo or the error to <paramref name="sink"/>.
     /// </summary>
     /// <returns>False when the first token is not <c>.scope</c>, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleScopeCommand(string text, ICommandTextSink sink)
+    private bool TryHandleScopeCommand(string text, ICommandTextSink sink, ScopeViewModel scope)
     {
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if ((parts.Length == 0) || !string.Equals(parts[0], ".scope", StringComparison.OrdinalIgnoreCase))
@@ -189,12 +198,12 @@ public partial class MainViewModel
             return false;
         }
 
-        sink.ReportStatus(RunScopeVerb(parts));
+        sink.ReportStatus(RunScopeVerb(scope, parts));
         return true;
     }
 
-    /// <summary>Runs the verb in <paramref name="parts"/>[1] and returns the status text.</summary>
-    private string RunScopeVerb(string[] parts)
+    /// <summary>Runs the verb in <paramref name="parts"/>[1] against <paramref name="scope"/> and returns the status text.</summary>
+    private string RunScopeVerb(ScopeViewModel scope, string[] parts)
     {
         string verb = parts.Length > 1 ? parts[1].ToUpperInvariant() : "";
         Func<ScopeViewModel, string[], string>? handler = verb switch
@@ -219,10 +228,10 @@ public partial class MainViewModel
         };
         if (handler is null)
         {
-            return RunFeatureVerb(verb, parts) ?? ScopeUsage;
+            return RunFeatureVerb(scope, verb, parts) ?? ScopeUsage;
         }
 
-        return handler(OpenScope, parts);
+        return handler(scope, parts);
     }
 
     /// <summary><c>.scope map &lt;starsId&gt; on|off</c> or <c>.scope map clear</c>.</summary>

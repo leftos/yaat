@@ -139,10 +139,11 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// The Scope view's range-bearing lines, which every Scope window shows: the shared store also holds the Radar's and the
-    /// Ground view's, and <c>place_rbl</c> places its lines on the Scope view.
+    /// The primary Scope's range-bearing lines, which <c>place_rbl</c> places: the shared store also holds the Radar's, the
+    /// Ground view's and the extra Scope windows' lines.
     /// </summary>
-    private IEnumerable<RangeBearingLine> PrimaryScopeRbls() => _viewModel.Measure.Lines.Where(line => line.View == ScopeViewModel.MeasureView);
+    private IEnumerable<RangeBearingLine> PrimaryScopeRbls() =>
+        _viewModel.Measure.Lines.Where(line => (line.View == ScopeViewModel.MeasureView) && ReferenceEquals(line.Surface, _viewModel.PrimaryScope));
 
     private void CentreScope(double lat, double lon, double rangeNm)
     {

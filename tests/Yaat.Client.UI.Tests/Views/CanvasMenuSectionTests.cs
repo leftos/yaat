@@ -131,7 +131,10 @@ public class CanvasMenuSectionTests
             radar.ToggleShowPath(Callsign);
             var measure = new RangeBearingViewState(new RangeBearingLineStore());
             radar.SetMeasureState(measure);
-            measure.Pick(RblEndpoint.OnAircraft(Callsign), RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles);
+            measure.Pick(
+                RblEndpoint.OnAircraft(Callsign),
+                new MeasureTarget(RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles, null)
+            );
 
             Assert.Equal(
                 [
@@ -267,7 +270,10 @@ public class CanvasMenuSectionTests
             radar.SetMeasureState(measure);
             Assert.Contains($"Measure from {Callsign}", Headers(view.BuildCanvasDisplay(radar, context, host)));
 
-            measure.Pick(RblEndpoint.OnAircraft(Callsign), RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles);
+            measure.Pick(
+                RblEndpoint.OnAircraft(Callsign),
+                new MeasureTarget(RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles, null)
+            );
             Assert.Contains($"Measure to {Callsign}", Headers(view.BuildCanvasDisplay(radar, context, host)));
         }
         finally

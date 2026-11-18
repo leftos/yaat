@@ -118,22 +118,22 @@ public class RangeBearingLineStoreTests
     {
         var store = new RangeBearingLineStore();
 
-        Assert.Equal(1, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
-        Assert.Equal(2, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
-        Assert.Equal(3, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
+        Assert.Equal(1, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null));
+        Assert.Equal(2, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null));
+        Assert.Equal(3, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null));
     }
 
     [Fact]
     public void RemovedSlotIsReusedByTheNextLine()
     {
         var store = new RangeBearingLineStore();
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
 
         Assert.True(store.Remove(2));
 
-        Assert.Equal(2, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
+        Assert.Equal(2, store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null));
     }
 
     [Fact]
@@ -152,13 +152,13 @@ public class RangeBearingLineStoreTests
         var store = new RangeBearingLineStore();
         for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
         {
-            Assert.NotNull(store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
+            Assert.NotNull(store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null));
         }
 
         Assert.True(store.IsFull);
-        Assert.Null(store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
+        Assert.Null(store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null));
         Assert.False(store.Arm());
-        Assert.False(store.SetAnchor(Point(Somewhere), RblView.Radar));
+        Assert.False(store.SetAnchor(Point(Somewhere), RblView.Radar, null));
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public class RangeBearingLineStoreTests
         var store = new RangeBearingLineStore();
 
         Assert.True(store.Arm());
-        Assert.True(store.SetAnchor(RblEndpoint.OnAircraft("OAL123"), RblView.Radar));
+        Assert.True(store.SetAnchor(RblEndpoint.OnAircraft("OAL123"), RblView.Radar, null));
         Assert.NotNull(store.PendingAnchor);
 
         Assert.Equal(1, store.Complete(Point(Elsewhere)));
@@ -189,8 +189,8 @@ public class RangeBearingLineStoreTests
     public void DisarmDiscardsThePendingAnchorButKeepsPlacedLines()
     {
         var store = new RangeBearingLineStore();
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
-        store.SetAnchor(RblEndpoint.OnAircraft("OAL123"), RblView.Radar);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
+        store.SetAnchor(RblEndpoint.OnAircraft("OAL123"), RblView.Radar, null);
 
         store.Disarm();
 
@@ -203,8 +203,8 @@ public class RangeBearingLineStoreTests
     public void ClearRemovesEverything()
     {
         var store = new RangeBearingLineStore();
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
-        store.SetAnchor(Point(Somewhere), RblView.Radar);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
+        store.SetAnchor(Point(Somewhere), RblView.Radar, null);
 
         store.Clear();
 
@@ -217,9 +217,9 @@ public class RangeBearingLineStoreTests
     public void PruneDropsLinesLatchedToAVanishedAircraft()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.OnAircraft("OAL123"), Point(Elsewhere), RblView.Radar);
-        store.Add(RblEndpoint.OnAircraft("SWA45"), RblEndpoint.OnAircraft("UAL9"), RblView.Ground);
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
+        store.Add(RblEndpoint.OnAircraft("OAL123"), Point(Elsewhere), RblView.Radar, null);
+        store.Add(RblEndpoint.OnAircraft("SWA45"), RblEndpoint.OnAircraft("UAL9"), RblView.Ground, null);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
 
         store.PruneMissing(cs => cs != "OAL123" && cs != "UAL9");
 
@@ -233,7 +233,7 @@ public class RangeBearingLineStoreTests
     public void PruneDropsAPendingAnchorOnAVanishedAircraft()
     {
         var store = new RangeBearingLineStore();
-        store.SetAnchor(RblEndpoint.OnAircraft("OAL123"), RblView.Radar);
+        store.SetAnchor(RblEndpoint.OnAircraft("OAL123"), RblView.Radar, null);
 
         store.PruneMissing(_ => false);
 
@@ -244,7 +244,7 @@ public class RangeBearingLineStoreTests
     public void PruneKeepsLinesWhoseAircraftAreStillPresent()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.OnAircraft("OAL123"), Point(Elsewhere), RblView.Radar);
+        store.Add(RblEndpoint.OnAircraft("OAL123"), Point(Elsewhere), RblView.Radar, null);
 
         store.PruneMissing(_ => true);
 
@@ -258,7 +258,7 @@ public class RangeBearingLineStoreTests
         int count = 0;
         store.Changed += () => count++;
 
-        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
+        store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar, null);
         store.Remove(1);
 
         Assert.Equal(2, count);
@@ -276,18 +276,18 @@ public class RangeBearingLineResolverTests
     public void LatchedEndpointFollowsTheAircraft()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar);
+        store.Add(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar, null);
 
         LatLon position = Oakland;
         RblTrack? Lookup(string cs) => cs == "OAL123" ? new RblTrack(position, null) : null;
 
-        List<ResolvedRbl> first = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> first = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar, null);
         Assert.Single(first);
         Assert.Equal(Oakland.Lat, first[0].A.Lat, 6);
 
         // Move the aircraft; the resolved line moves with it.
         position = new LatLon(37.7513, -122.2208);
-        List<ResolvedRbl> second = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> second = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar, null);
         Assert.Equal(37.7513, second[0].A.Lat, 6);
         Assert.NotEqual(first[0].Label, second[0].Label);
     }
@@ -296,9 +296,9 @@ public class RangeBearingLineResolverTests
     public void LineIsSkippedWhileItsAircraftIsUnresolvable()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.OnAircraft("GONE"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar);
+        store.Add(RblEndpoint.OnAircraft("GONE"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar, null);
 
-        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar, null);
 
         Assert.Empty(resolved);
     }
@@ -307,9 +307,9 @@ public class RangeBearingLineResolverTests
     public void ResolvedLabelCarriesDistanceAndSlot()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(SixNorth, "B"), RblView.Radar);
+        store.Add(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(SixNorth, "B"), RblView.Radar, null);
 
-        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar, null);
 
         Assert.Single(resolved);
         Assert.EndsWith("/6.00-1", resolved[0].Label, StringComparison.Ordinal);
@@ -319,14 +319,15 @@ public class RangeBearingLineResolverTests
     public void MovingAircraftToFixedPointGetsATimeToGo()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar);
+        store.Add(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar, null);
 
         // 6 NM at 120 kt = 3 minutes.
         List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(
             store.Lines,
             _ => new RblTrack(Oakland, 120.0),
             RblUnits.NauticalMiles,
-            RblView.Radar
+            RblView.Radar,
+            null
         );
 
         Assert.EndsWith("/6.00/3-1", resolved[0].Label, StringComparison.Ordinal);
@@ -355,11 +356,11 @@ public class RangeBearingLineResolverTests
     public void ResolveOnlyReturnsLinesBelongingToTheRequestedView()
     {
         var store = new RangeBearingLineStore();
-        store.Add(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(SixNorth, "B"), RblView.Radar);
-        store.Add(RblEndpoint.AtPoint(Oakland, "C"), RblEndpoint.AtPoint(SixNorth, "D"), RblView.Ground);
+        store.Add(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(SixNorth, "B"), RblView.Radar, null);
+        store.Add(RblEndpoint.AtPoint(Oakland, "C"), RblEndpoint.AtPoint(SixNorth, "D"), RblView.Ground, null);
 
-        List<ResolvedRbl> radar = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
-        List<ResolvedRbl> ground = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.FeetThenNauticalMiles, RblView.Ground);
+        List<ResolvedRbl> radar = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar, null);
+        List<ResolvedRbl> ground = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.FeetThenNauticalMiles, RblView.Ground, null);
 
         // Slots stay globally unique even though each view only sees its own line.
         Assert.Equal(1, Assert.Single(radar).Slot);
@@ -370,7 +371,7 @@ public class RangeBearingLineResolverTests
     public void CompletedLineBelongsToTheViewTheAnchorWasPickedIn()
     {
         var store = new RangeBearingLineStore();
-        store.SetAnchor(RblEndpoint.AtPoint(Oakland, "A"), RblView.Ground);
+        store.SetAnchor(RblEndpoint.AtPoint(Oakland, "A"), RblView.Ground, null);
         store.Complete(RblEndpoint.AtPoint(SixNorth, "B"));
 
         Assert.Equal(RblView.Ground, Assert.Single(store.Lines).View);

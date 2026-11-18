@@ -198,9 +198,9 @@ public abstract partial class ScopeDockViewModel(ScopeViewModel scope, string na
 
     /// <summary>Closes the view through <c>.view {name} off</c>, as the card's close button does.</summary>
     [RelayCommand]
-    private void Close() => Scope.Main.RunViewCommand(ScopeToolbarButtons.ViewCommand(Name, false));
+    private void Close() => Scope.RunCommand(ScopeToolbarButtons.ViewCommand(Name, false));
 
     /// <summary>Returns the view to the dock through <c>.view {name} dock</c>, as a floating card's dock button does.</summary>
     [RelayCommand]
-    private void Dock() => Scope.Main.RunViewCommand(ScopeToolbarButtons.ViewDockCommand(Name));
+    private void Dock() => Scope.RunCommand(ScopeToolbarButtons.ViewDockCommand(Name));
 }

@@ -41,18 +41,19 @@ public sealed partial class ScopeViewModel
         MapToggles.FirstOrDefault(t => t.StarsId.ToString(CultureInfo.InvariantCulture) == starsId);
 
     /// <summary>
-    /// Runs the dot command <paramref name="text"/>, as the toolbar's buttons do: a <c>.view</c> command through
-    /// <see cref="MainViewModel.RunViewCommand"/>, any other through <see cref="MainViewModel.RunScopeCommand"/>.
+    /// Runs the dot command <paramref name="text"/> against this Scope, as the toolbar's buttons do, whichever Scope has the
+    /// focus: a <c>.view</c> command through <see cref="MainViewModel.RunViewCommand(ScopeViewModel, string)"/>, any other
+    /// through <see cref="MainViewModel.RunScopeCommand(ScopeViewModel, string)"/>.
     /// </summary>
     public void RunCommand(string text)
     {
         if (text.StartsWith(".view ", StringComparison.OrdinalIgnoreCase))
         {
-            Main.RunViewCommand(text);
+            Main.RunViewCommand(this, text);
         }
         else
         {
-            Main.RunScopeCommand(text);
+            Main.RunScopeCommand(this, text);
         }
     }
 

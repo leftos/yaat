@@ -6,6 +6,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Scope.Toolbar;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -110,6 +111,44 @@ public class MainViewModelScopeInstancesTests
             main.CloseExtraScopeView(extra);
         }
     }
+
+    [AvaloniaFact]
+    public async Task AToolbarOrCardAction_ActsOnItsOwnScope_WhicheverScopeHasTheFocus()
+    {
+        MainViewModel main = await MainAsync();
+        main.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto("ZOA", "NCT", [new StarsAreaDto("A", "Area A", 37.62, -122.38, 60, [])], [MapInfo(2), MapInfo(10)], []),
+            null,
+            null
+        );
+        ScopeViewInstance extra = main.OpenExtraScopeView();
+        try
+        {
+            main.PrimaryScope.RangeNm = 40;
+            extra.Vm.RangeNm = 40;
+            main.PrimaryScope.SetViewOpen(ScopeToolbarButtons.ViewSsaName, true);
+            extra.Vm.SetViewOpen(ScopeToolbarButtons.ViewSsaName, true);
+            main.ActiveScope = main.PrimaryScope;
+
+            extra.Vm.StepRange(+1);
+            extra.Vm.Press(ScopeToolbarButtons.MapToggle(10, "MAP10"));
+            extra.Vm.DockViews.Concat(extra.Vm.FloatingViews).Single(v => v.Name == ScopeToolbarButtons.ViewSsaName).CloseCommand.Execute(null);
+
+            Assert.Equal(41, extra.Vm.RangeNm);
+            Assert.True(extra.Vm.FindMapToggle("10") is { IsOn: true });
+            Assert.False(extra.Vm.IsViewOpen(ScopeToolbarButtons.ViewSsaName));
+            Assert.Equal(40, main.PrimaryScope.RangeNm);
+            Assert.All(main.PrimaryScope.MapToggles, t => Assert.False(t.IsOn));
+            Assert.True(main.PrimaryScope.IsViewOpen(ScopeToolbarButtons.ViewSsaName));
+        }
+        finally
+        {
+            main.CloseExtraScopeView(extra);
+        }
+    }
+
+    private static VideoMapInfoDto MapInfo(int starsId) =>
+        new($"m{starsId}", $"Map {starsId}", $"MAP{starsId}", [], "A", starsId, AlwaysVisible: false, TdmOnly: false);
 
     [AvaloniaFact]
     public async Task ClosingTheFocusedScope_HandsTheVerbsBackToThePrimary()
@@ -233,7 +272,7 @@ public class MainViewModelScopeInstancesTests
     }
 
     [AvaloniaFact]
-    public async Task ClosingTheScopeThatTookTheMeasureSurface_FallsBackToTheRadar()
+    public async Task ClosingTheScopeThatTookTheMeasureSurface_FallsBackToThePrimary()
     {
         MainViewModel main = await MainAsync();
         ScopeViewInstance extra = main.OpenExtraScopeView();
@@ -241,14 +280,9 @@ public class MainViewModelScopeInstancesTests
 
         main.CloseExtraScopeView(extra);
 
-        Assert.Equal(RblView.Radar, main.ActiveMeasureView);
-        Assert.Null(main.ActiveMeasureScope);
-        Assert.Null(main.HeldMeasureScope);
-
-        main.PrimaryScope.ActivateMeasureSurface();
-
         Assert.Equal(RblView.Scope, main.ActiveMeasureView);
         Assert.Same(main.PrimaryScope, main.ActiveMeasureScope);
+        Assert.Null(main.HeldMeasureScope);
         Assert.True(main.PrimaryScope.IsActiveMeasureSurface);
     }
 

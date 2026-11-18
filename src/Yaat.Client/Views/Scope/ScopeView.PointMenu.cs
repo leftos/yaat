@@ -143,7 +143,8 @@ public partial class ScopeView
     /// </summary>
     private void AddMeasureMenuItems(List<Control> items, ScopeViewModel vm, RblEndpoint endpoint, Point screenPos)
     {
-        string startLabel = vm.Measure.Anchor is null ? "Measure from here" : "Measure to here";
+        // An anchor another Scope window holds counts as none here: a pick here anchors anew.
+        string startLabel = vm.Measure.HasAnchorFor(ScopeViewModel.MeasureView, vm) ? "Measure to here" : "Measure from here";
         items.Add(CreateMenuItem(startLabel, () => vm.PickMeasurePoint(endpoint)));
 
         if (Canvas.MeasurementSlotAt(screenPos) is { } slot)

@@ -70,9 +70,10 @@ public partial class ScopeView
         return item;
     }
 
-    // The Scope's measure tool is never absent, so the row offers "Measure to" once something is anchored and "Measure from" before.
+    // The Scope's measure tool is never absent, so the row offers "Measure to" once something is anchored and "Measure from" before;
+    // an anchor another Scope window holds counts as none here.
     private static MenuMeasureState MeasureState(ScopeViewModel vm) =>
-        (vm.Measure.Anchor is null) ? MenuMeasureState.NoAnchor : MenuMeasureState.HasAnchor;
+        vm.Measure.HasAnchorFor(ScopeViewModel.MeasureView, vm) ? MenuMeasureState.HasAnchor : MenuMeasureState.NoAnchor;
 
     /// <summary>Ends <paramref name="menu"/> with "Settings for this view…", which opens Settings at the Scope's section.</summary>
     private static void AppendViewSettings(ContextMenu menu, ScopeViewModel vm) => ViewSettingsMenu.Append(menu, vm.Main, SettingsSectionId.Radar);

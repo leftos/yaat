@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -140,6 +142,87 @@ public class ScopeTabHostingTests
             vm.Aircraft.Add(ac);
             vm.SelectedAircraft = ac;
             Assert.Same(ac, primary.SelectedAircraft);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AfterAPopOutDocksBack_EscWithTheConditionPopupOpen_ClosesOnlyThePopup()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            ScopeViewModel primary = vm.PrimaryScope;
+            vm.IsScopePoppedOut = false;
+            vm.SelectedTabIndex = ScopeTabIndex;
+            MainWindowHost.Pump();
+            vm.IsScopePoppedOut = true;
+            MainWindowHost.Pump();
+            main.ScopeWindow!.Close();
+            MainWindowHost.Pump();
+            vm.SelectedTabIndex = ScopeTabIndex;
+            MainWindowHost.Pump();
+            ScopeView view = Assert.IsType<ScopeHost>(ScopeTab(main).Content).ScopeView;
+            var waypoint = new Point(300, 300);
+            (double lat, double lon) = view.Canvas.Viewport.ScreenToLatLon((float)waypoint.X, (float)waypoint.Y);
+            vm.SelectedAircraft = ScopeTestFixture.AddAircraft(vm, "UAL1", 5000);
+            primary.EnterDrawRoute("UAL1");
+            primary.DrawRoute.Place(lat, lon);
+            MainWindowHost.Pump();
+            Point at = view.Canvas.TranslatePoint(waypoint, main)!.Value;
+            main.MouseMove(at);
+            main.MouseDown(at, MouseButton.Middle);
+            main.MouseUp(at, MouseButton.Middle);
+            MainWindowHost.Pump();
+            Assert.NotNull(view.ActiveRouteConditionPopup);
+
+            Assert.True(primary.EscapeModes());
+            MainWindowHost.Pump();
+
+            Assert.Null(view.ActiveRouteConditionPopup);
+            Assert.True(primary.DrawRoute.IsDrawing);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public void InThePopOut_EscWithTheConditionPopupOpen_ClosesOnlyThePopup()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            ScopeViewModel primary = vm.PrimaryScope;
+            vm.IsScopePoppedOut = false;
+            vm.SelectedTabIndex = ScopeTabIndex;
+            MainWindowHost.Pump();
+            vm.IsScopePoppedOut = true;
+            MainWindowHost.Pump();
+            ScopeWindow window = main.ScopeWindow!;
+            ScopeView view = window.ScopeHost.ScopeView;
+            var waypoint = new Point(300, 300);
+            (double lat, double lon) = view.Canvas.Viewport.ScreenToLatLon((float)waypoint.X, (float)waypoint.Y);
+            vm.SelectedAircraft = ScopeTestFixture.AddAircraft(vm, "UAL1", 5000);
+            primary.EnterDrawRoute("UAL1");
+            primary.DrawRoute.Place(lat, lon);
+            MainWindowHost.Pump();
+            Point at = view.Canvas.TranslatePoint(waypoint, window)!.Value;
+            window.MouseMove(at);
+            window.MouseDown(at, MouseButton.Middle);
+            window.MouseUp(at, MouseButton.Middle);
+            MainWindowHost.Pump();
+            Assert.NotNull(view.ActiveRouteConditionPopup);
+
+            Assert.True(primary.EscapeModes());
+            MainWindowHost.Pump();
+
+            Assert.Null(view.ActiveRouteConditionPopup);
+            Assert.True(primary.DrawRoute.IsDrawing);
         }
         finally
         {

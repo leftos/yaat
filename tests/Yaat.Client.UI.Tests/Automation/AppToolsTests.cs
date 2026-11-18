@@ -1165,7 +1165,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         PlaceScopeLine(viewModel, "UAL123", "AAL9");
         PlaceGroundLine(viewModel);
         PlaceScopeLine(viewModel, "AAL9", "UAL123");
-        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9").Slot);
+        PlaceRadarLine(viewModel);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
 
@@ -1176,17 +1176,35 @@ public sealed class AppToolsTests : AutomationHostFixture
         );
     }
 
+    // The app tools act on the primary Scope: a line an extra Scope window placed is neither listed nor cleared.
+    [AvaloniaFact]
+    public async Task ClearRblsAndGetFraming_LeaveAnExtraScopesLine()
+    {
+        MainViewModel viewModel = ScopeReadyWithTwoAircraft();
+        ScopeViewInstance extra = viewModel.OpenExtraScopeView();
+        try
+        {
+            Assert.NotNull(
+                viewModel.Measure.PlaceSilently(RblEndpoint.OnAircraft("UAL123"), RblEndpoint.OnAircraft("AAL9"), extra.Vm.MeasureTarget).Slot
+            );
+            PlaceScopeLine(viewModel, "AAL9", "UAL123");
+
+            JsonElement framing = await FramingOf(viewModel);
+            JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
+
+            Assert.Equal([2], framing.GetProperty("rbls").EnumerateArray().Select(slot => slot.GetInt32()));
+            Assert.Equal("Cleared 1 RBL(s).", result.GetProperty("message").GetString());
+            Assert.Same(extra.Vm, Assert.Single(viewModel.Measure.Lines).Surface);
+        }
+        finally
+        {
+            viewModel.CloseExtraScopeView(extra);
+        }
+    }
+
     /// <summary>Places a line on the Scope view in the shared store, as a measurement drawn on the Scope does.</summary>
     private static void PlaceScopeLine(MainViewModel viewModel, string from, string to) =>
-        Assert.NotNull(
-            viewModel.Measure.Place(
-                RblEndpoint.OnAircraft(from),
-                RblEndpoint.OnAircraft(to),
-                ScopeViewModel.MeasureView,
-                viewModel.PrimaryScope.MeasureTrackLookup,
-                ScopeViewModel.MeasureUnits
-            )
-        );
+        Assert.NotNull(viewModel.Measure.Place(RblEndpoint.OnAircraft(from), RblEndpoint.OnAircraft(to), viewModel.PrimaryScope.MeasureTarget));
 
     // The command and place_rbl share PlaceMeasurementFromText; the command still writes its outcome to the status line.
     [AvaloniaFact]
@@ -1551,7 +1569,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         PlaceScopeLine(viewModel, "UAL123", "AAL9");
         viewModel.Measure.Remove(1);
         PlaceGroundLine(viewModel);
-        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9").Slot);
+        PlaceRadarLine(viewModel);
         return viewModel;
     }
 
@@ -1806,11 +1824,27 @@ public sealed class AppToolsTests : AutomationHostFixture
             viewModel.Measure.Place(
                 RblEndpoint.OnAircraft("UAL123"),
                 RblEndpoint.OnAircraft("AAL9"),
-                RblView.Ground,
-                viewModel.Radar.MeasureTrackLookup,
-                RadarViewModel.MeasureUnits
+                new MeasureTarget(RblView.Ground, viewModel.Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits, null)
             )
         );
+
+    /// <summary>Places a Radar-view RBL from typed points, as a measurement placed on the Radar surface does.</summary>
+    private static void PlaceRadarLine(MainViewModel viewModel) =>
+        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9", new IgnoredSink(), RblView.Radar, null).Slot);
+
+    /// <summary>A command sink that drops every report.</summary>
+    private sealed class IgnoredSink : ICommandTextSink
+    {
+        public void ReportStatus(string status) { }
+
+        public void ReportError(string message) { }
+
+        public void ClearInput() { }
+
+        public void AddHistory(string callsign, string command) { }
+
+        public void AddWarning(string message) { }
+    }
 
     private static TakeFraming Framing(IReadOnlySet<int> maps, double ptlMinutes, bool ptlAll, IReadOnlyList<(string From, string To)> rbls) =>
         new(CenterLat: 37.5, CenterLon: -122.25, RangeNm: 35, VideoMaps: maps, PtlMinutes: ptlMinutes, PtlAll: ptlAll, Rbls: rbls);

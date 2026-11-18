@@ -154,7 +154,7 @@ public partial class GroundView : UserControl
                 startLabel,
                 () =>
                 {
-                    measure.Pick(endpoint, GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+                    measure.Pick(endpoint, new MeasureTarget(GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits, null));
                     return Task.CompletedTask;
                 }
             )
@@ -195,7 +195,7 @@ public partial class GroundView : UserControl
     {
         if (DataContext is GroundViewModel { Measure: { } measure } vm)
         {
-            measure.Pick(endpoint, GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+            measure.Pick(endpoint, new MeasureTarget(GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits, null));
         }
     }
 
@@ -203,7 +203,7 @@ public partial class GroundView : UserControl
     {
         if (DataContext is GroundViewModel { Measure: { } measure } vm)
         {
-            measure.Place(from, to, GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+            measure.Place(from, to, new MeasureTarget(GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits, null));
         }
     }
 
@@ -685,7 +685,10 @@ public partial class GroundView : UserControl
     {
         if (vm.Measure is { } measure)
         {
-            measure.Pick(RblEndpoint.OnAircraft(callsign), GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+            measure.Pick(
+                RblEndpoint.OnAircraft(callsign),
+                new MeasureTarget(GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits, null)
+            );
         }
     }
 

@@ -33,12 +33,17 @@ public enum RblView
 
 /// <summary>
 /// A placed range/bearing line occupying slot <paramref name="Slot" /> (1-based, as displayed), visible
-/// only in <paramref name="View" />.
+/// only in <paramref name="View" />, and only on the one <paramref name="Surface" /> of the view that placed it: for a Scope,
+/// the Scope window; null for every other view, whose one surface shows it.
 /// </summary>
-public sealed record RangeBearingLine(int Slot, RblEndpoint A, RblEndpoint B, RblView View);
+public sealed record RangeBearingLine(int Slot, RblEndpoint A, RblEndpoint B, RblView View, object? Surface);
 
-/// <summary>The first endpoint of a half-placed measurement, tagged with the view it was picked in.</summary>
-public readonly record struct RblPendingAnchor(RblEndpoint Endpoint, RblView View);
+/// <summary>
+/// The first endpoint of a half-placed measurement, tagged with the view it was picked in and, for a Scope, the Scope window
+/// that picked it (<paramref name="Surface" />; null for every other view). The surface is part of the anchor: two anchors
+/// picked at one point on two Scope windows differ.
+/// </summary>
+public readonly record struct RblPendingAnchor(RblEndpoint Endpoint, RblView View, object? Surface);
 
 /// <summary>Live state of an aircraft an endpoint is latched to.</summary>
 public readonly record struct RblTrack(LatLon Position, double? GroundSpeedKts);
@@ -159,17 +164,20 @@ public sealed class RangeBearingLineStore
 
     /// <summary>
     /// Picks the first endpoint. Returns false when every slot is taken — the anchor is not set, so the
-    /// user is never left dragging a rubber band that cannot be committed.
+    /// user is never left dragging a rubber band that cannot be committed. <paramref name="surface"/> is the Scope window that
+    /// picked it, null for every other view.
     /// </summary>
-    public bool SetAnchor(RblEndpoint anchor, RblView view)
+    /// <exception cref="ArgumentException">A Scope anchor with no <paramref name="surface"/>.</exception>
+    public bool SetAnchor(RblEndpoint anchor, RblView view, object? surface)
     {
+        RequireScopeSurface(view, surface);
         if (IsFull)
         {
             return false;
         }
 
         IsArmed = true;
-        PendingAnchor = new RblPendingAnchor(anchor, view);
+        PendingAnchor = new RblPendingAnchor(anchor, view, surface);
         Changed?.Invoke();
         return true;
     }
@@ -193,7 +201,7 @@ public sealed class RangeBearingLineStore
         }
 
         int slot = index + 1;
-        _slots[index] = new RangeBearingLine(slot, anchor.Endpoint, end, anchor.View);
+        _slots[index] = new RangeBearingLine(slot, anchor.Endpoint, end, anchor.View, anchor.Surface);
         IsArmed = false;
         PendingAnchor = null;
         Changed?.Invoke();
@@ -202,10 +210,13 @@ public sealed class RangeBearingLineStore
 
     /// <summary>
     /// Places a whole line at once, for the modifier-drag and text-command paths where both endpoints
-    /// arrive together. Returns the slot number, or null when full.
+    /// arrive together. <paramref name="surface"/> is the Scope window that placed it, null for every other view. Returns the
+    /// slot number, or null when full.
     /// </summary>
-    public int? Add(RblEndpoint a, RblEndpoint b, RblView view)
+    /// <exception cref="ArgumentException">A Scope line with no <paramref name="surface"/>.</exception>
+    public int? Add(RblEndpoint a, RblEndpoint b, RblView view, object? surface)
     {
+        RequireScopeSurface(view, surface);
         int index = LowestFreeSlotIndex();
         if (index < 0)
         {
@@ -213,7 +224,7 @@ public sealed class RangeBearingLineStore
         }
 
         int slot = index + 1;
-        _slots[index] = new RangeBearingLine(slot, a, b, view);
+        _slots[index] = new RangeBearingLine(slot, a, b, view, surface);
         IsArmed = false;
         PendingAnchor = null;
         Changed?.Invoke();
@@ -232,6 +243,35 @@ public sealed class RangeBearingLineStore
         _slots[index] = null;
         Changed?.Invoke();
         return true;
+    }
+
+    /// <summary>
+    /// Drops every line <paramref name="surface"/> placed and cancels the tool when that surface holds the pending anchor, as a
+    /// Scope window closing does; other surfaces' lines and anchors are kept.
+    /// </summary>
+    public void RemoveSurface(object surface)
+    {
+        bool changed = false;
+        for (int i = 0; i < MaxLines; i++)
+        {
+            if ((_slots[i] is { } line) && ReferenceEquals(line.Surface, surface))
+            {
+                _slots[i] = null;
+                changed = true;
+            }
+        }
+
+        if ((PendingAnchor is { } anchor) && ReferenceEquals(anchor.Surface, surface))
+        {
+            IsArmed = false;
+            PendingAnchor = null;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke();
+        }
     }
 
     /// <summary>Removes every line and cancels any pending pick.</summary>
@@ -285,6 +325,14 @@ public sealed class RangeBearingLineStore
         if (changed)
         {
             Changed?.Invoke();
+        }
+    }
+
+    private static void RequireScopeSurface(RblView view, object? surface)
+    {
+        if ((view == RblView.Scope) && (surface is null))
+        {
+            throw new ArgumentException("A Scope measurement needs the Scope window that placed it", nameof(surface));
         }
     }
 
@@ -406,15 +454,22 @@ public static class RangeBearingLineResolver
     /// <summary>
     /// Resolves the placed lines belonging to <paramref name="view" /> against the current aircraft
     /// positions. Lines created in another view are skipped — a measurement only renders where it was
-    /// taken. Lines latched to an aircraft that has gone are skipped for this frame rather than drawn at
-    /// a stale position.
+    /// taken, and so is a line placed on another <paramref name="surface" /> of the view (another Scope window's); a view with
+    /// one surface passes null, as its lines carry. Lines latched to an aircraft that has gone are skipped for this frame
+    /// rather than drawn at a stale position.
     /// </summary>
-    public static List<ResolvedRbl> Resolve(IReadOnlyList<RangeBearingLine> lines, RblTrackLookup lookup, RblUnits units, RblView view)
+    public static List<ResolvedRbl> Resolve(
+        IReadOnlyList<RangeBearingLine> lines,
+        RblTrackLookup lookup,
+        RblUnits units,
+        RblView view,
+        object? surface
+    )
     {
         var result = new List<ResolvedRbl>(lines.Count);
         foreach (RangeBearingLine line in lines)
         {
-            if (line.View != view)
+            if ((line.View != view) || !ReferenceEquals(line.Surface, surface))
             {
                 continue;
             }

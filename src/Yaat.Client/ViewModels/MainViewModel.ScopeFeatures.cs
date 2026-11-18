@@ -4,18 +4,18 @@ namespace Yaat.Client.ViewModels;
 public partial class MainViewModel
 {
     /// <summary>
-    /// Offers <paramref name="verb"/> (upper-cased) and its <paramref name="parts"/> to each feature's verbs. Returns the status
-    /// text of the feature that took it, or null when none did.
+    /// Offers <paramref name="verb"/> (upper-cased) and its <paramref name="parts"/> to each feature's verbs, against
+    /// <paramref name="scope"/>. Returns the status text of the feature that took it, or null when none did.
     /// </summary>
-    private string? RunFeatureVerb(string verb, string[] parts)
+    private string? RunFeatureVerb(ScopeViewModel scope, string verb, string[] parts)
     {
         string? result = null;
-        RunMapToolsVerb(verb, parts, ref result);
-        RunDataBlocksVerb(verb, parts, ref result);
+        RunMapToolsVerb(scope, verb, parts, ref result);
+        RunDataBlocksVerb(scope, verb, parts, ref result);
         return result;
     }
 
-    partial void RunMapToolsVerb(string verb, string[] parts, ref string? result);
+    partial void RunMapToolsVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result);
 
-    partial void RunDataBlocksVerb(string verb, string[] parts, ref string? result);
+    partial void RunDataBlocksVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result);
 }

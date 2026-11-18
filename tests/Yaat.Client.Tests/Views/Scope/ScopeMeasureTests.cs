@@ -29,7 +29,11 @@ public class ScopeMeasureTests
             CenterLon = -122.0,
         };
 
-    private static RangeBearingLine Line(int slot, RblView view) => new(slot, RblEndpoint.AtPoint(West, "W"), RblEndpoint.AtPoint(East, "E"), view);
+    // The Scope window that owns a Scope line in these tests; a canvas with no Scope view model owns none.
+    private static readonly object Owner = new();
+
+    private static RangeBearingLine Line(int slot, RblView view) =>
+        new(slot, RblEndpoint.AtPoint(West, "W"), RblEndpoint.AtPoint(East, "E"), view, (view == RblView.Scope) ? Owner : null);
 
     private static readonly RblTrackLookup NoTracks = _ => null;
 
@@ -65,13 +69,13 @@ public class ScopeMeasureTests
     {
         RangeBearingLine[] lines = [Line(1, RblView.Radar), Line(2, RblView.Ground), Line(3, RblView.Scope)];
 
-        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(lines, NoTracks, RblUnits.NauticalMiles, RblView.Scope);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(lines, NoTracks, RblUnits.NauticalMiles, RblView.Scope, Owner);
 
         Assert.Equal(3, Assert.Single(resolved).Slot);
     }
 
     [AvaloniaFact]
-    public void TheSnapshot_CarriesTheScopesLines_AndOnlyAnAnchorPickedOnTheScope()
+    public void ACanvasWithNoScope_DrawsNoLineOrAnchor_ItsScopeWouldOwn()
     {
         var canvas = new ScopeCanvas
         {
@@ -81,17 +85,14 @@ public class ScopeMeasureTests
         try
         {
             ScopeRenderSnapshot snapshot = canvas.RenderSnapshotForTesting();
-            Assert.Equal(2, Assert.Single(snapshot.RangeBearingLines).Slot);
+            Assert.Empty(snapshot.RangeBearingLines);
             Assert.Null(snapshot.PendingRangeBearingLine);
 
-            canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Radar);
+            canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Radar, null);
             Assert.Null(canvas.RenderSnapshotForTesting().PendingRangeBearingLine);
 
-            canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Scope);
-            ResolvedRbl? pending = canvas.RenderSnapshotForTesting().PendingRangeBearingLine;
-            Assert.NotNull(pending);
-            Assert.Equal(0, pending.Slot);
-            Assert.Equal(West, pending.A);
+            canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Scope, Owner);
+            Assert.Null(canvas.RenderSnapshotForTesting().PendingRangeBearingLine);
         }
         finally
         {

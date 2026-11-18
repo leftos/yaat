@@ -250,6 +250,35 @@ public class ScopePointMenuTests
         }
     }
 
+    // An anchor another Scope picked counts as no anchor here: the menu starts a measurement, and picking here moves the
+    // one anchor to this Scope.
+    [AvaloniaFact]
+    public async Task Map_AnAnchorOnAnotherScope_OffersMeasureFromHere_AndAPickHereTakesTheAnchor()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            other.Vm.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.70, -122.20), ""));
+
+            ContextMenu menu = view.BuildMapContextMenu(scope, new LatLon(37.60, -121.90), new Point(10, 10));
+
+            List<string> labels = Labels(menu.Items);
+            Assert.Contains("Measure from here", labels);
+            Assert.DoesNotContain("Measure to here", labels);
+
+            scope.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.60, -121.90), ""));
+
+            Assert.Empty(main.Measure.Lines);
+            Assert.Same(scope, Assert.NotNull(main.Measure.Anchor).Surface);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+            Close(window, view);
+        }
+    }
+
     // A measurement the click lands on is offered for removal, and the store's lines for clearing.
     [AvaloniaFact]
     public async Task Map_MeasuredLineNearTheClick_OffersItsRemoveAndClearRows()
@@ -259,12 +288,10 @@ public class ScopePointMenuTests
         {
             (double fromLat, double fromLon) = view.Canvas.Viewport.ScreenToLatLon(100, 300);
             (double toLat, double toLon) = view.Canvas.Viewport.ScreenToLatLon(500, 300);
-            int? slot = main.Measure.Place(
+            (int? slot, _) = main.Measure.PlaceSilently(
                 RblEndpoint.AtPoint(new LatLon(fromLat, fromLon), ""),
                 RblEndpoint.AtPoint(new LatLon(toLat, toLon), ""),
-                ScopeViewModel.MeasureView,
-                scope.MeasureTrackLookup,
-                ScopeViewModel.MeasureUnits
+                scope.MeasureTarget
             );
             Assert.NotNull(slot);
             Dispatcher.UIThread.RunJobs();

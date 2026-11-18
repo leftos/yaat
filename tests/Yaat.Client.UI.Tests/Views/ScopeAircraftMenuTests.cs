@@ -144,12 +144,7 @@ public class ScopeAircraftMenuTests
             s.Scope.SetDataBlockOffset(Callsign, new SKPoint(12, 34));
             ToggleLensPathOn(s.Scope);
             s.Scope.ToggleLensPath(Callsign);
-            s.Scope.Measure.Pick(
-                RblEndpoint.OnAircraft(Callsign),
-                ScopeViewModel.MeasureView,
-                s.Scope.MeasureTrackLookup,
-                ScopeViewModel.MeasureUnits
-            );
+            s.Scope.Measure.Pick(RblEndpoint.OnAircraft(Callsign), s.Scope.MeasureTarget);
 
             Assert.Equal(
                 [

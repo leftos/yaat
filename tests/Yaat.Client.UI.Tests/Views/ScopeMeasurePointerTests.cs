@@ -145,10 +145,10 @@ public class ScopeMeasurePointerTests
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
             Assert.Null(main.SelectedAircraft);
             Assert.Equal(1, Assert.Single(view.Canvas.RenderSnapshotForTesting().RangeBearingLines).Slot);
-            Assert.Empty(RangeBearingLineResolver.Resolve(main.Measure.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar));
+            Assert.Empty(RangeBearingLineResolver.Resolve(main.Measure.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar, null));
             // The reading the line itself is labelled with, resolved against the Scope's traffic.
             ResolvedRbl resolved = Assert.Single(
-                RangeBearingLineResolver.Resolve(main.Measure.Lines, scope.MeasureTrackLookup, RblUnits.NauticalMiles, RblView.Scope)
+                RangeBearingLineResolver.Resolve(main.Measure.Lines, scope.MeasureTrackLookup, RblUnits.NauticalMiles, RblView.Scope, scope)
             );
             string expected = $"Measurement {resolved.Label}";
             Assert.StartsWith("1", resolved.Label, StringComparison.Ordinal);
@@ -200,7 +200,7 @@ public class ScopeMeasurePointerTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.True(main.Measure.IsMeasuring);
-            Assert.Equal(new RblPendingAnchor(RblEndpoint.AtPoint(LatLonAt(view.Canvas, MapA), ""), RblView.Scope), main.Measure.Anchor);
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.AtPoint(LatLonAt(view.Canvas, MapA), ""), RblView.Scope, scope), main.Measure.Anchor);
             Assert.Empty(main.Measure.Lines);
             Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Text, AnchoredStatus, "", []), scope.EntryResponse);
 
@@ -230,7 +230,7 @@ public class ScopeMeasurePointerTests
 
             Click(window, view.Canvas, SymbolOf(view.Canvas, ac), MouseButton.Left);
 
-            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope), main.Measure.Anchor);
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope, scope), main.Measure.Anchor);
             Assert.Null(main.SelectedAircraft);
             Assert.False(scope.LocalRings.ContainsKey("UAL1"));
             Assert.True(scope.IsRingToolArmed);
@@ -262,7 +262,7 @@ public class ScopeMeasurePointerTests
 
             Click(window, view.Canvas, SymbolOf(view.Canvas, ac), MouseButton.Left);
 
-            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope), main.Measure.Anchor);
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope, scope), main.Measure.Anchor);
             Assert.Equal("QQ", scope.EntryText);
             Assert.Null(main.SelectedAircraft);
         }
@@ -465,7 +465,7 @@ public class ScopeMeasurePointerTests
 
             Click(window, view.Canvas, FieldCentre(view.Canvas, ac, ScopeFieldSlot.Callsign), MouseButton.Left);
 
-            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope), main.Measure.Anchor);
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope, scope), main.Measure.Anchor);
             Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
             Assert.Null(main.SelectedAircraft);
         }
@@ -490,7 +490,7 @@ public class ScopeMeasurePointerTests
 
             Click(window, view.Canvas, FieldCentre(view.Canvas, ac, ScopeFieldSlot.Altitude), MouseButton.Left);
 
-            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope), main.Measure.Anchor);
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope, scope), main.Measure.Anchor);
             Assert.Null(view.ActiveContextMenu);
             Assert.Null(main.SelectedAircraft);
         }
@@ -512,7 +512,7 @@ public class ScopeMeasurePointerTests
 
             Click(window, view.Canvas, MapA, MouseButton.Left);
 
-            Assert.Equal(new RblPendingAnchor(RblEndpoint.AtPoint(LatLonAt(view.Canvas, MapA), ""), RblView.Scope), main.Measure.Anchor);
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.AtPoint(LatLonAt(view.Canvas, MapA), ""), RblView.Scope, scope), main.Measure.Anchor);
             Assert.Equal("QQ", scope.EntryText);
         }
         finally
@@ -582,10 +582,10 @@ public class ScopeMeasurePointerTests
         {
             var a = RblEndpoint.AtPoint(new LatLon(37.6, -122.4), "");
             var b = RblEndpoint.AtPoint(new LatLon(37.8, -122.0), "");
-            RblTrackLookup lookup = main.MeasureSurface(RblView.Radar).Lookup;
+            RblTrackLookup lookup = main.MeasureSurface(RblView.Radar, null).Lookup;
             for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
             {
-                main.Measure.Place(a, b, RblView.Radar, lookup, RblUnits.NauticalMiles);
+                main.Measure.Place(a, b, new MeasureTarget(RblView.Radar, lookup, RblUnits.NauticalMiles, null));
             }
 
             Point at = InWindow(window, view.Canvas, MapA);

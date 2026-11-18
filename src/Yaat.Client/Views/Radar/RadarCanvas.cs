@@ -1114,7 +1114,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             lines,
             BuildMeasureLookup(),
             RadarViewModel.MeasureUnits,
-            RadarViewModel.MeasureView
+            RadarViewModel.MeasureView,
+            null
         );
         return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }
@@ -1255,7 +1256,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         RblTrackLookup lookup = BuildMeasureLookup();
         List<ResolvedRbl>? measurements = placedMeasurements is { Count: > 0 }
-            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits, RadarViewModel.MeasureView)
+            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits, RadarViewModel.MeasureView, null)
             : null;
         ResolvedRbl? pendingMeasurement = null;
         if (measureAnchor is not null)

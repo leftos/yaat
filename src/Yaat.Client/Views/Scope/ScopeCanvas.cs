@@ -536,9 +536,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private (IReadOnlyList<ResolvedRbl> Lines, ResolvedRbl? Pending) ResolveMeasurements()
     {
-        IReadOnlyList<RangeBearingLine>? placed = RangeBearingLines;
-        // A half-placed anchor picked on another surface previews there, not here.
-        RblEndpoint? anchor = _measureDragAnchor ?? (MeasureAnchor is { View: ScopeViewModel.MeasureView } pending ? pending.Endpoint : null);
+        // A canvas with no Scope view model owns no line.
+        var owner = DataContext as ScopeViewModel;
+        IReadOnlyList<RangeBearingLine>? placed = (owner is not null) ? RangeBearingLines : null;
+        // A half-placed anchor picked on another surface, another Scope window's included, previews there, not here.
+        RblEndpoint? anchor = _measureDragAnchor ?? OwnMeasureAnchor()?.Endpoint;
         if ((placed is not { Count: > 0 }) && (anchor is null))
         {
             return ([], null);
@@ -546,7 +548,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
         RblTrackLookup lookup = BuildMeasureLookup();
         List<ResolvedRbl> lines = placed is { Count: > 0 }
-            ? RangeBearingLineResolver.Resolve(placed, lookup, ScopeViewModel.MeasureUnits, ScopeViewModel.MeasureView)
+            ? RangeBearingLineResolver.Resolve(placed, lookup, ScopeViewModel.MeasureUnits, ScopeViewModel.MeasureView, owner)
             : [];
         if ((anchor is null) || (MeasureCursor is not { } cursor))
         {
@@ -888,11 +890,22 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     private void TrackMeasureCursor(Point pos)
     {
         MeasureCursor = pos;
-        if ((_measureDragAnchor is not null) || (MeasureAnchor is { View: ScopeViewModel.MeasureView }))
+        if ((_measureDragAnchor is not null) || (OwnMeasureAnchor() is not null))
         {
             MarkDirty();
         }
     }
+
+    // The half-placed anchor when this canvas's Scope picked it (the Scope view, and its ScopeViewModel DataContext), else
+    // null; a canvas with no ScopeViewModel owns none.
+    private RblPendingAnchor? OwnMeasureAnchor() =>
+        (
+            (MeasureAnchor is { View: ScopeViewModel.MeasureView } pending)
+            && (DataContext is ScopeViewModel owner)
+            && ReferenceEquals(pending.Surface, owner)
+        )
+            ? pending
+            : null;
 
     // A left or right press on an aircraft: the right opens its menu, the left selects it (OnLeftPressed), or on a VCI cell, lit
     // or not, runs its toggle, or that of an HSF indicator over it in the same tier or above (ScopeFrame.IndicatorPickAt, which

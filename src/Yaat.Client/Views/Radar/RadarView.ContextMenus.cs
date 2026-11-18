@@ -177,7 +177,10 @@ public partial class RadarView
     {
         if (vm.Measure is { } measure)
         {
-            measure.Pick(RblEndpoint.OnAircraft(callsign), RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+            measure.Pick(
+                RblEndpoint.OnAircraft(callsign),
+                new MeasureTarget(RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits, null)
+            );
         }
     }
 
@@ -369,7 +372,10 @@ public partial class RadarView
 
         string startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
         items.Add(
-            CreateMenuItem(startLabel, () => measure.Pick(endpoint, RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits))
+            CreateMenuItem(
+                startLabel,
+                () => measure.Pick(endpoint, new MeasureTarget(RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits, null))
+            )
         );
 
         if (_canvas?.MeasurementSlotAt(screenPos) is { } slot)

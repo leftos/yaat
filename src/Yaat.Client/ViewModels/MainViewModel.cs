@@ -2830,7 +2830,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     // Endpoint errors are reported here; the placement reports its own outcome to the sink (a full store's
                     // text is written again, unchanged).
-                    if (PlaceMeasurementFromText(parts[1], parts[2], sink, ActiveMeasureView).Error is { } error)
+                    if (PlaceMeasurementFromText(parts[1], parts[2], sink, ActiveMeasureView, null).Error is { } error)
                     {
                         sink.ReportError(error);
                     }
@@ -2863,20 +2863,20 @@ public partial class MainViewModel : ObservableObject
         text.StartsWith("*T", StringComparison.OrdinalIgnoreCase) && ((text.Length == 2) || (text[2] == ' '));
 
     /// <summary>
-    /// Draws a measurement between two typed points, each a fix, an FRD, or a callsign (a callsign
-    /// endpoint latches and travels with the aircraft). These measurements belong to the radar view, whichever surface is
-    /// active. Used by the <c>place_rbl</c> app tool and the recording framing.
+    /// Draws a measurement between two typed points, each a fix, an FRD, or a callsign (a callsign endpoint latches and travels
+    /// with the aircraft), on the <paramref name="surface"/> map view, reporting the placed line's reading, or a full store's
+    /// error, to <paramref name="sink"/>; an endpoint error is only returned. The <c>.rbl A B</c> command passes the active
+    /// surface and the <c>place_rbl</c> app tool the Scope's. A Scope line belongs to <paramref name="scope"/>, else (null) to
+    /// the active measure Scope, and draws only there; a non-Scope surface passes null.
     /// </summary>
     /// <returns>The slot the line took, or the error text: an unresolvable or ambiguous endpoint, or every slot in use.</returns>
-    public MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken) =>
-        PlaceMeasurementFromText(fromToken, toToken, new CommandLineSink(this), RblView.Radar);
-
-    /// <summary>
-    /// Draws a measurement between two typed points as <see cref="PlaceMeasurementFromText(string, string)"/> does, on the
-    /// <paramref name="surface"/> map view, reporting the placed line's reading, or a full store's error, to
-    /// <paramref name="sink"/>; an endpoint error is only returned. The <c>.rbl A B</c> command passes the active surface.
-    /// </summary>
-    internal MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken, ICommandTextSink sink, RblView surface)
+    internal MeasurePlacement PlaceMeasurementFromText(
+        string fromToken,
+        string toToken,
+        ICommandTextSink sink,
+        RblView surface,
+        ScopeViewModel? scope
+    )
     {
         (RblEndpoint? from, string? fromError) = ResolveMeasureEndpoint(fromToken);
         if (from is null)
@@ -2890,8 +2890,7 @@ public partial class MainViewModel : ObservableObject
             return new MeasurePlacement(null, toError);
         }
 
-        (RblView view, RblTrackLookup lookup, RblUnits units) = MeasureSurface(surface);
-        (int? slot, string status) = Measure.PlaceSilently(from.Value, to.Value, view, lookup, units);
+        (int? slot, string status) = Measure.PlaceSilently(from.Value, to.Value, MeasureSurface(surface, scope));
         ReportMeasure(sink, slot is not null, status);
         return slot is { } placed ? new MeasurePlacement(placed, null) : new MeasurePlacement(null, RangeBearingViewState.FullStatus);
     }

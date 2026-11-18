@@ -115,7 +115,7 @@ public partial class RadarView : UserControl
     {
         if (DataContext is RadarViewModel { Measure: { } measure } vm)
         {
-            measure.Pick(endpoint, RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+            measure.Pick(endpoint, new MeasureTarget(RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits, null));
         }
     }
 
@@ -123,7 +123,7 @@ public partial class RadarView : UserControl
     {
         if (DataContext is RadarViewModel { Measure: { } measure } vm)
         {
-            measure.Place(from, to, RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+            measure.Place(from, to, new MeasureTarget(RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits, null));
         }
     }
 
