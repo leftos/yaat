@@ -94,6 +94,23 @@ public class ScopeProfileStoreTests : IDisposable
     }
 
     [Fact]
+    public void DuplicateKey_BecomesBak_AndTheShippedProfileLoads()
+    {
+        string shipped = File.ReadAllText(WriteShippedAndRead("stars"));
+        int close = shipped.LastIndexOf('}');
+        string duplicated = shipped[..close] + ",\"template\":\"stars\"" + shipped[close..];
+        File.WriteAllText(FileOf("stars"), duplicated);
+        _log.Warnings.Clear();
+
+        ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Stars);
+
+        Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Stars).Bands, loaded.Bands);
+        Assert.Equal(duplicated, File.ReadAllText(FileOf("stars") + ".bak"));
+        Assert.NotEmpty(_log.Warnings);
+        Assert.Equal("stars", (string?)JsonNode.Parse(File.ReadAllText(FileOf("stars")))!["kind"]);
+    }
+
+    [Fact]
     public void BandMissingAField_TakesTheShippedBands_WithAWarning_AndNoBak()
     {
         JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("mixed")))!.AsObject();

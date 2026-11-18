@@ -121,18 +121,37 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
     /// <summary>
     /// The profile <paramref name="text"/> holds, each field it lacks taken from the shipped profile, and a band list that
     /// does not bind or a null template replaced by the shipped one; null with the reason when it holds no profile: text
-    /// that is not a JSON object, or a field of the wrong JSON type.
+    /// that is not a JSON object, a property name it repeats, or a field of the wrong JSON type.
     /// </summary>
     private ScopeProfile? Parse(string text, ScopeProfileKind kind, string path, out string? reason)
     {
+        JsonObject file;
         try
         {
-            if (JsonNode.Parse(text) is not JsonObject file)
+            if (JsonNode.Parse(text) is not JsonObject parsed)
             {
                 reason = "not a JSON object";
                 return null;
             }
 
+            file = parsed;
+
+            // The object builds its property map lazily, and a duplicate name throws only then, so it is built here.
+            _ = file.Count;
+        }
+        catch (ArgumentException ex)
+        {
+            reason = ex.Message;
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            reason = ex.Message;
+            return null;
+        }
+
+        try
+        {
             JsonObject shipped = JsonNode.Parse(ShippedText(kind))!.AsObject();
             foreach ((string name, JsonNode? value) in shipped)
             {
