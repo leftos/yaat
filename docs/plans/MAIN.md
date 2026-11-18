@@ -88,20 +88,11 @@
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
   - [ ] YAAT-2226 YAAT Scope step 7: parity check against today's Radar, then delete the old view · release vNext
     - [ ] YAAT-2471 YAAT Scope step 7-11: delete the old Radar view · release vNext
-    - [ ] YAAT-2538 Scope ATPA: separate the in-trail distance toggle from the cones; settle the distance line · release vNext
-    - [/] YAAT-2537 Scope shows suppressed CAs steady and acknowledged CAs non-flashing (needs the state on the wire) · release vNext
-    - [/] YAAT-2536 Scope conflict alerts: keep CA blocks full, port the 3 NM ring, MCI list label, inhibit cue · release vNext
     - [ ] YAAT-2472 YAAT Scope step 7-12: the new view takes the Radar name; docs and USER_GUIDE · release vNext
     - [ ] YAAT-2534 Move ScopeTabHostingTests and ScopeExtraWindowTests onto the shared ScopeStoreFixture
-    - [ ] YAAT-2552 Scope entry tests: pin the selected-track and nothing-selected $ cases; decide late answers while a STARS entry is typed · release vNext
-    - [/] YAAT-2554 A route-less filing after CTO sets the pilot filed altitude but leaves the pending initial climb at 0 · release vNext
-    - [ ] YAAT-2555 Esc on one Scope cancels another Scope window's measure anchor · release vNext
-    - [/] YAAT-2557 A live-traffic shadow with no feed altitude takes a controller CRUISE/QZ at assume; migrate recorded shadow spawn states · release vNext
-    - [/] YAAT-2558 Test that an ERAM DM field 08 on a planless track files no pilot altitude · release vNext
-    - [ ] YAAT-2561 Scope tear-off and press-ladder tests: docked DEL TEAROFF Esc path, a ladder-level chord seam, one docked-boot helper · release vNext
-    - [ ] YAAT-2562 Scope ERAM conflict alerts: re-send on a CA settings change while paused; pin cross-facility and display-on cases · release vNext
-    - [ ] YAAT-2563 Filed-altitude replay follow-ups: stale IsVfr on a route-less rules change; pre-55 ADD spawns vs ReconcileRecordedSpawn · release vNext
-    - [ ] YAAT-2564 Filed-altitude seeding hardening: non-zip and rewriter tests, Sim-side non-zip replay, snapshot vs spawn-state seed agreement · release vNext
+    - [ ] YAAT-2568 Docked Scope toolbar clips its right-end buttons at a 1200 px window (DEL TEAROFF unreachable)
+    - [ ] YAAT-2575 A Radar or Ground measure anchor counts on the Scope for menus and picks but not for drawing or Esc · release vNext
+    - [ ] YAAT-2578 Pin HiddenSectors after a rewind across an ERAM CA toggle with a real ERAM pair · release vNext
   - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377)
   - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
   - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
@@ -1551,7 +1542,7 @@
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
 - [ ] YAAT-1950 Add a bug_bundle.py remap subcommand that moves a recording's node ids onto a new ground graph
-- [/] YAAT-2560 ProcessRecordingBackendTests: wait for every stage before deleting the case folder; cancel the poll when the hang guard fires
+- [ ] YAAT-2572 Recording kill reports a false unreachable child for an elevated older process listed under cmd's pid
 
 ## Docs, agent tooling and repo hygiene
 
