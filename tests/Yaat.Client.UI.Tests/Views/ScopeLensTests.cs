@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -270,29 +269,6 @@ public class ScopeLensTests
         }
     }
 
-    [AvaloniaFact]
-    public async Task OldPrefSet_WithNoLens_TurnsTheLensOff()
-    {
-        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        try
-        {
-            main.RunScopeCommand(".scope lens on");
-            main.RunScopeCommand(".scope lens path on");
-            string json = JsonSerializer.Serialize(scope.CapturePrefSet("OLD"), ScopePrefSet.JsonOptions);
-            JsonObject document = Assert.IsType<JsonObject>(JsonNode.Parse(json));
-            Assert.True(document.Remove("lens"), "the captured set has no lens key to drop");
-            ScopePrefSet old = Assert.IsType<ScopePrefSet>(document.Deserialize<ScopePrefSet>(ScopePrefSet.JsonOptions));
-
-            scope.ApplyPrefSet(old);
-
-            Assert.Equal(ScopeLensSettings.Off, scope.Lens);
-        }
-        finally
-        {
-            scope.Dispose();
-        }
-    }
-
     private static string[] WithQueueBadge(ScopeCanvas canvas)
     {
         Dispatcher.UIThread.RunJobs();
@@ -363,30 +339,6 @@ public class ScopeLensTests
             scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
 
             Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: true, CheckIn: false), scope.Lens);
-        }
-        finally
-        {
-            scope.Dispose();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task OldPrefSet_WithNoQueueInItsLens_TurnsTheQueueOff()
-    {
-        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        try
-        {
-            main.RunScopeCommand(".scope lens on");
-            main.RunScopeCommand(".scope lens queue on");
-            string json = JsonSerializer.Serialize(scope.CapturePrefSet("OLD"), ScopePrefSet.JsonOptions);
-            JsonObject document = Assert.IsType<JsonObject>(JsonNode.Parse(json));
-            JsonObject lens = Assert.IsType<JsonObject>(document["lens"]);
-            Assert.True(lens.Remove("queue"), "the captured lens has no queue key to drop");
-            ScopePrefSet old = Assert.IsType<ScopePrefSet>(document.Deserialize<ScopePrefSet>(ScopePrefSet.JsonOptions));
-
-            scope.ApplyPrefSet(old);
-
-            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false, CheckIn: false), scope.Lens);
         }
         finally
         {
@@ -523,30 +475,6 @@ public class ScopeLensTests
             scope.ApplyPrefSet(Assert.IsType<ScopePrefSet>(JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)));
 
             Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false, CheckIn: true), scope.Lens);
-        }
-        finally
-        {
-            scope.Dispose();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task OldPrefSet_WithNoCheckInInItsLens_TurnsTheCheckInOff()
-    {
-        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        try
-        {
-            main.RunScopeCommand(".scope lens on");
-            main.RunScopeCommand(".scope lens checkin on");
-            string json = JsonSerializer.Serialize(scope.CapturePrefSet("OLD"), ScopePrefSet.JsonOptions);
-            JsonObject document = Assert.IsType<JsonObject>(JsonNode.Parse(json));
-            JsonObject lens = Assert.IsType<JsonObject>(document["lens"]);
-            Assert.True(lens.Remove("checkIn"), "the captured lens has no checkIn key to drop");
-            ScopePrefSet old = Assert.IsType<ScopePrefSet>(document.Deserialize<ScopePrefSet>(ScopePrefSet.JsonOptions));
-
-            scope.ApplyPrefSet(old);
-
-            Assert.Equal(new ScopeLensSettings(Enabled: true, Path: false, Queue: false, CheckIn: false), scope.Lens);
         }
         finally
         {

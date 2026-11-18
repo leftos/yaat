@@ -127,7 +127,8 @@ public class ScopeMarkerTests
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
 
-        scope.ApplyPrefSet(SetWith(new ScopePrefMapTools(false, false, FixesAndMarkers: new ScopePrefFixesAndMarkers(false, ["SUNOL"]))));
+        var tools = new ScopePrefMapTools(false, false, null, null, new ScopePrefFixesAndMarkers(false, ["SUNOL"]));
+        scope.ApplyPrefSet(SetWith(tools));
         Assert.Equal(["SUNOL"], scope.MarkerTokens);
         Assert.Empty(scope.Markers);
 
@@ -162,7 +163,7 @@ public class ScopeMarkerTests
         scope.ShowFixes = true;
 
         ScopePrefSet set = scope.CapturePrefSet("MINE");
-        ScopePrefFixesAndMarkers? saved = set.MapTools!.FixesAndMarkers;
+        ScopePrefFixesAndMarkers? saved = set.MapTools.FixesAndMarkers;
         Assert.NotNull(saved);
         Assert.True(saved.ShowFixes);
         Assert.Equal(["SUNOL"], saved.Markers);
@@ -175,7 +176,7 @@ public class ScopeMarkerTests
         Assert.True(scope.ShowFixes);
         Assert.Equal(["SUNOL"], scope.Markers.Select(m => m.Name));
 
-        scope.ApplyPrefSet(set with { MapTools = null });
+        scope.ApplyPrefSet(set with { MapTools = new ScopePrefMapTools(false, false, null, null, null) });
         Assert.False(scope.ShowFixes);
         Assert.Empty(scope.MarkerTokens);
     }
@@ -280,6 +281,8 @@ public class ScopeMarkerTests
             CenterLon = -122.38,
             TemplateId = ScopeTemplates.StarsId,
             Db = new ScopePrefDb(true, false, true, 14),
+            Kind = "stars",
+            Lens = new ScopePrefLens(false, false, false, false),
             MapTools = tools,
         };
 

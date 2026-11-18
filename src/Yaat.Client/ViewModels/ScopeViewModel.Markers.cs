@@ -170,7 +170,7 @@ public sealed partial class ScopeViewModel
     private ScopePrefFixesAndMarkers? CaptureFixesAndMarkers() =>
         (!ShowFixes && (_markerTokens.Count == 0)) ? null : new ScopePrefFixesAndMarkers(ShowFixes, [.. _markerTokens]);
 
-    /// <summary>Applies a pref set's FIX overlay and markers; a set from an older build turns FIX off and pins no marker.</summary>
+    /// <summary>Applies a pref set's FIX overlay and markers; null turns FIX off and pins no marker.</summary>
     private void ApplyFixesAndMarkers(ScopePrefFixesAndMarkers? saved)
     {
         ShowFixes = saved?.ShowFixes ?? false;

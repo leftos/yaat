@@ -30,17 +30,11 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Applies a pref set's profile name <paramref name="kind"/>, as <c>.scope pref load</c> does: a known name switches the
-    /// room's profile, saved for no position type; an unknown one is kept as it is with a warning, and null (a set from an
-    /// older build) changes nothing.
+    /// room's profile, saved for no position type; an unknown one is kept as it is with a warning.
     /// </summary>
     /// <returns>The note the load's echo adds when the profile changed, else empty.</returns>
-    internal string ApplyPrefSetProfile(string? kind)
+    internal string ApplyPrefSetProfile(string kind)
     {
-        if (kind is null)
-        {
-            return "";
-        }
-
         if (!ScopeProfilePicker.TryParseKind(kind, out ScopeProfileKind parsed))
         {
             Log.LogWarning("A pref set names unknown profile '{Kind}'; keeping {Current}", kind, ProfileKind);

@@ -61,14 +61,11 @@ public sealed record ScopePrefSet
     /// <summary>The profile's views array: the view names.</summary>
     public IReadOnlyList<string> Views { get; init; } = [];
 
-    /// <summary>Reserved; written null and ignored on load, since zoom bands live only in the profile files.</summary>
-    public JsonElement? Bands { get; init; }
-
     /// <summary>
-    /// The name of the profile the Scope showed (<c>stars</c>, <c>eram</c> or <c>mixed</c>), or null in a set from an older
-    /// build. <c>.scope pref load</c> switches to it; the saved-state restore leaves the profile alone.
+    /// The name of the profile the Scope showed (<c>stars</c>, <c>eram</c> or <c>mixed</c>). <c>.scope pref load</c> switches
+    /// to it; the saved-state restore leaves the profile alone.
     /// </summary>
-    public string? Kind { get; init; }
+    public required string Kind { get; init; }
 
     /// <summary>The pinned block level of others' tracks (<c>full</c> or <c>partial</c>), or null when it follows the band.</summary>
     public string? PinOthersLevel { get; init; }
@@ -83,25 +80,19 @@ public sealed record ScopePrefSet
     public string? PinRings { get; init; }
 
     /// <summary>
-    /// The tracks vector lines draw on: <c>own</c> (the default, and what a set from an older build reads as) or <c>all</c>.
-    /// A setting, not a pin: it is neither banded nor cleared by AUTO.
+    /// The tracks vector lines draw on: <c>own</c> (the default) or <c>all</c>. A setting, not a pin: it is neither banded
+    /// nor cleared by AUTO.
     /// </summary>
     public string VectorOwnership { get; init; } = ScopeVectorOwnerships.OwnName;
 
     /// <summary>Whether top-down mode shows ground targets.</summary>
     public bool Tdm { get; init; }
 
-    /// <summary>
-    /// The pilot lens's switches, or null in a set from an older build, which loads with every switch off. The tracks whose
-    /// intent path is toggled on are never saved.
-    /// </summary>
-    public ScopePrefLens? Lens { get; init; }
+    /// <summary>The pilot lens's switches. The tracks whose intent path is toggled on are never saved.</summary>
+    public required ScopePrefLens Lens { get; init; }
 
-    /// <summary>
-    /// The map tools' settings, or null in a set from an older build, which leaves pan and zoom unlocked and the MVA tint at
-    /// the facility's default.
-    /// </summary>
-    public ScopePrefMapTools? MapTools { get; init; }
+    /// <summary>The map tools' settings.</summary>
+    public required ScopePrefMapTools MapTools { get; init; }
 
     /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
     [JsonExtensionData]
@@ -133,9 +124,9 @@ public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, int Cha
 /// <summary>The pilot lens's switches.</summary>
 /// <param name="Enabled">Whether the lens is on.</param>
 /// <param name="Path">Whether its intent path overlay is on.</param>
-/// <param name="Queue">Whether its queued-commands badge overlay is on; off in a set from a build without it.</param>
-/// <param name="CheckIn">Whether its check-in tag overlay is on; off in a set from a build without it.</param>
-public sealed record ScopePrefLens(bool Enabled, bool Path, bool Queue = false, bool CheckIn = false);
+/// <param name="Queue">Whether its queued-commands badge overlay is on.</param>
+/// <param name="CheckIn">Whether its check-in tag overlay is on.</param>
+public sealed record ScopePrefLens(bool Enabled, bool Path, bool Queue, bool CheckIn);
 
 /// <summary>One view's place: docked, or torn off to a corner with a pixel offset.</summary>
 /// <param name="Name">The view name, such as <c>ssa</c> or <c>ca</c>.</param>

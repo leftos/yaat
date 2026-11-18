@@ -211,7 +211,7 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task CapturedPrefSet_RecordsTheProfileName_AndNoBands()
+    public async Task CapturedPrefSet_RecordsTheProfileName()
     {
         MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
@@ -221,7 +221,6 @@ public class ScopeProfilePickTests : IDisposable
         ScopePrefSet set = scope.CapturePrefSet("DAY");
 
         Assert.Equal("stars", set.Kind);
-        Assert.Null(set.Bands);
     }
 
     [AvaloniaFact]
@@ -447,6 +446,8 @@ public class ScopeProfilePickTests : IDisposable
                     TemplateId = "euroscope",
                     Db = new ScopePrefDb(false, true, false, 12),
                     Kind = "eram",
+                    Lens = new ScopePrefLens(false, false, false, false),
+                    MapTools = new ScopePrefMapTools(false, false, null, null, null),
                 }
             );
         using ScopeViewModel scope = OpenScope(main, Store());

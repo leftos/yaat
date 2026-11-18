@@ -68,5 +68,8 @@ public class ScopeStateSlotTests : IDisposable
             CenterLon = -122.5,
             TemplateId = "stars",
             Db = new ScopePrefDb(true, false, true, 14),
+            Kind = "stars",
+            Lens = new ScopePrefLens(false, false, false, false),
+            MapTools = new ScopePrefMapTools(false, false, null, null, null),
         };
 }

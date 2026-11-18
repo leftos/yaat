@@ -32,8 +32,9 @@ public class ScopePrefSetTests
         Assert.Equal(set.Tearoffs, loaded.Tearoffs);
         Assert.Equal(set.Toolbar, loaded.Toolbar);
         Assert.Equal(set.Views, loaded.Views);
-        Assert.Null(loaded.Bands);
         Assert.Equal("eram", loaded.Kind);
+        Assert.Equal(set.Lens, loaded.Lens);
+        Assert.Equal(set.MapTools, loaded.MapTools);
         Assert.Equal(4, loaded.PinVectorMin);
         Assert.Equal(2, loaded.PinHistory);
         Assert.Equal("all", loaded.VectorOwnership);
@@ -61,7 +62,6 @@ public class ScopePrefSetTests
                 "tearoffs",
                 "toolbar",
                 "views",
-                "bands",
                 "kind",
                 "pinOthersLevel",
                 "pinVectorMin",
@@ -87,6 +87,9 @@ public class ScopePrefSetTests
               "centerLon": -122.5,
               "templateId": "eram",
               "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null },
               "futureThing": 3
             }
             """;
@@ -109,7 +112,10 @@ public class ScopePrefSetTests
               "centerLat": 37.5,
               "centerLon": -122.5,
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
             }
             """;
 
@@ -131,7 +137,10 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
             }
             """;
 
@@ -147,7 +156,10 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
             }
             """;
 
@@ -157,36 +169,21 @@ public class ScopePrefSetTests
     }
 
     [Fact]
-    public void MissingMapTools_LoadsAsNull()
-    {
-        const string json = """
-            {
-              "name": "SR-DAY",
-              "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 }
-            }
-            """;
-
-        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
-
-        Assert.Null(loaded.MapTools);
-    }
-
-    [Fact]
-    public void MapToolsWrittenWithoutTheRingAndWeather_LoadsTheDefaults()
+    public void MapToolsWithNullRingAndWeather_LoadTheDefaults()
     {
         const string json = """
             {
               "name": "SR-DAY",
               "templateId": "stars",
               "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
-              "mapTools": { "mva": true, "lock": false }
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": true, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
             }
             """;
 
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
 
-        Assert.NotNull(loaded.MapTools);
         Assert.True(loaded.MapTools.Mva);
         Assert.False(loaded.MapTools.Lock);
         Assert.Null(loaded.MapTools.RangeRing);
@@ -194,20 +191,22 @@ public class ScopePrefSetTests
     }
 
     [Fact]
-    public void MapToolsWrittenWithoutFixesAndMarkers_LoadsWithNone()
+    public void MapToolsWithNullFixesAndMarkers_LoadsWithNone()
     {
         const string json = """
             {
               "name": "SR-DAY",
               "templateId": "stars",
               "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
-              "mapTools": { "mva": true, "lock": false }
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": true, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
             }
             """;
 
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
 
-        Assert.Null(loaded.MapTools!.FixesAndMarkers);
+        Assert.Null(loaded.MapTools.FixesAndMarkers);
     }
 
     [Fact]
@@ -215,7 +214,7 @@ public class ScopePrefSetTests
     {
         ScopePrefSet set = FullSet() with
         {
-            MapTools = new ScopePrefMapTools(false, false, FixesAndMarkers: new ScopePrefFixesAndMarkers(true, ["SUNOL", "OAK090010"])),
+            MapTools = new ScopePrefMapTools(false, false, null, null, new ScopePrefFixesAndMarkers(true, ["SUNOL", "OAK090010"])),
         };
 
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(
@@ -223,7 +222,7 @@ public class ScopePrefSetTests
             ScopePrefSet.JsonOptions
         )!;
 
-        ScopePrefFixesAndMarkers? fixesAndMarkers = loaded.MapTools!.FixesAndMarkers;
+        ScopePrefFixesAndMarkers? fixesAndMarkers = loaded.MapTools.FixesAndMarkers;
         Assert.NotNull(fixesAndMarkers);
         Assert.True(fixesAndMarkers.ShowFixes);
         Assert.Equal(["SUNOL", "OAK090010"], fixesAndMarkers.Markers);
@@ -232,31 +231,36 @@ public class ScopePrefSetTests
     [Fact]
     public void TheDeconflictionMode_RoundTrips()
     {
-        ScopePrefSet set = FullSet() with { MapTools = new ScopePrefMapTools(false, false) { Deconflict = DatablockDeconflictMode.CompassSnap } };
+        ScopePrefSet set = FullSet() with
+        {
+            MapTools = new ScopePrefMapTools(false, false, null, null, null) { Deconflict = DatablockDeconflictMode.CompassSnap },
+        };
 
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(
             JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions),
             ScopePrefSet.JsonOptions
         )!;
 
-        Assert.Equal(DatablockDeconflictMode.CompassSnap, loaded.MapTools!.Deconflict);
+        Assert.Equal(DatablockDeconflictMode.CompassSnap, loaded.MapTools.Deconflict);
     }
 
     [Fact]
-    public void MapToolsWrittenWithoutTheDeconflictionMode_LoadsWithNone()
+    public void MapToolsWithoutTheDeconflictionMode_LoadsWithNone()
     {
         const string json = """
             {
               "name": "SR-DAY",
               "templateId": "stars",
               "db": { "line4": true, "hoverDwell": false, "atpa": true, "charSize": 14 },
-              "mapTools": { "mva": true, "lock": false }
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": true, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
             }
             """;
 
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
 
-        Assert.Null(loaded.MapTools!.Deconflict);
+        Assert.Null(loaded.MapTools.Deconflict);
     }
 
     private static ScopePrefSet FullSet() =>
@@ -281,6 +285,8 @@ public class ScopePrefSetTests
             Toolbar = ["range", "map15", "pref"],
             Views = ["ssa", "ca"],
             Kind = "eram",
+            Lens = new ScopePrefLens(true, false, false, false),
+            MapTools = new ScopePrefMapTools(false, false, null, null, null),
             PinVectorMin = 4,
             PinHistory = 2,
             VectorOwnership = "all",

@@ -267,16 +267,16 @@ public sealed partial class ScopeViewModel
             : new ScopePrefRangeRing(ShowRangeRing, RangeRingSizeNm, RangeRingCenter?.Lat, RangeRingCenter?.Lon);
 
     /// <summary>
-    /// Applies the map-tool settings a seed leaves alone; a set from an older build unlocks pan and zoom, turns WX on, turns
-    /// FIX off with no marker, takes the range ring's defaults and the deconfliction mode a new scope takes.
+    /// Applies the map-tool settings a seed leaves alone: the lock, WX, FIX and the markers, the range ring's switch and
+    /// size, and the deconfliction mode, a null one taking the mode a new scope takes.
     /// </summary>
-    private void ApplyMapTools(ScopePrefMapTools? tools)
+    private void ApplyMapTools(ScopePrefMapTools tools)
     {
-        ApplyDeconflictMode(tools?.Deconflict);
-        IsPanZoomLocked = tools?.Lock ?? false;
-        ShowWeather = tools?.Weather ?? true;
-        ApplyFixesAndMarkers(tools?.FixesAndMarkers);
-        ScopePrefRangeRing? ring = tools?.RangeRing;
+        ApplyDeconflictMode(tools.Deconflict);
+        IsPanZoomLocked = tools.Lock;
+        ShowWeather = tools.Weather ?? true;
+        ApplyFixesAndMarkers(tools.FixesAndMarkers);
+        ScopePrefRangeRing? ring = tools.RangeRing;
         ShowRangeRing = ring?.Show ?? true;
         ApplyRangeRingSize(ring?.SizeNm ?? DefaultRangeRingSizeNm);
     }
@@ -298,14 +298,11 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Applies the map-tool settings a seed overwrites (the MVA tint and the range ring's centre), with the set's range and
-    /// centre; a set from an older build keeps the facility's MVA default and centres the ring on the home centre.
+    /// centre; a null ring centre centres the ring on the home centre.
     /// </summary>
-    private void ApplySeededMapTools(ScopePrefMapTools? tools)
+    private void ApplySeededMapTools(ScopePrefMapTools tools)
     {
-        RangeRingCenter = (tools?.RangeRing is { CenterLat: { } lat, CenterLon: { } lon }) ? new LatLon(lat, lon) : null;
-        if (tools is not null)
-        {
-            ShowMvaHints = tools.Mva;
-        }
+        RangeRingCenter = (tools.RangeRing is { CenterLat: { } lat, CenterLon: { } lon }) ? new LatLon(lat, lon) : null;
+        ShowMvaHints = tools.Mva;
     }
 }

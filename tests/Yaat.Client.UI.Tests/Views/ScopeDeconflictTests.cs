@@ -132,18 +132,18 @@ public class ScopeDeconflictTests
         {
             scope.DeconflictMode = DatablockDeconflictMode.CompassSnap;
             ScopePrefSet set = scope.CapturePrefSet("MINE");
-            Assert.Equal(DatablockDeconflictMode.CompassSnap, set.MapTools!.Deconflict);
+            Assert.Equal(DatablockDeconflictMode.CompassSnap, set.MapTools.Deconflict);
 
             scope.DeconflictMode = DatablockDeconflictMode.Off;
             scope.ApplyPrefSet(set);
             Assert.Equal(DatablockDeconflictMode.CompassSnap, scope.DeconflictMode);
 
             main.Preferences.SetRadarDeconflictMode(DatablockDeconflictMode.FreeForm);
-            scope.ApplyPrefSet(set with { MapTools = new ScopePrefMapTools(false, false) });
+            scope.ApplyPrefSet(set with { MapTools = new ScopePrefMapTools(false, false, null, null, null) });
             Assert.Equal(DatablockDeconflictMode.FreeForm, scope.DeconflictMode);
 
             scope.DeconflictMode = DatablockDeconflictMode.Off;
-            scope.ApplyPrefSet(set with { MapTools = null });
+            scope.ApplyPrefSet(set with { MapTools = new ScopePrefMapTools(false, false, null, null, null) });
             Assert.Equal(DatablockDeconflictMode.FreeForm, scope.DeconflictMode);
         }
     }

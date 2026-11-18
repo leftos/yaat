@@ -105,7 +105,7 @@ public class ScopePanZoomLockTests
         scope.ShowMvaHints = true;
 
         ScopePrefSet set = scope.CapturePrefSet("MINE");
-        Assert.Equal(new ScopePrefMapTools(Mva: true, Lock: true), set.MapTools);
+        Assert.Equal(new ScopePrefMapTools(Mva: true, Lock: true, RangeRing: null, Weather: null, FixesAndMarkers: null), set.MapTools);
 
         scope.IsPanZoomLocked = false;
         scope.ShowMvaHints = false;
@@ -116,16 +116,19 @@ public class ScopePanZoomLockTests
     }
 
     [AvaloniaFact]
-    public void ASetFromAnOlderBuild_Unlocks_AndLeavesTheMvaTintAtTheSourceDefault()
+    public void ASetsLockAndMva_AreApplied()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        main.ScopeMaps.ShowMvaHintsDefault = true;
         ScopeMapToolsCommandTests.LoadSource(main);
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-        ScopePrefSet older = scope.CapturePrefSet("OLDER") with { MapTools = null };
+        ScopePrefSet set = scope.CapturePrefSet("MINE") with
+        {
+            MapTools = new ScopePrefMapTools(Mva: true, Lock: false, RangeRing: null, Weather: null, FixesAndMarkers: null),
+        };
         scope.IsPanZoomLocked = true;
+        scope.ShowMvaHints = false;
 
-        scope.ApplyPrefSet(older);
+        scope.ApplyPrefSet(set);
 
         Assert.False(scope.IsPanZoomLocked);
         Assert.True(scope.ShowMvaHints);

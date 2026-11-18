@@ -107,7 +107,6 @@ public sealed partial class ScopeViewModel
             Tearoffs = [.. Tearoffs.Select(CaptureTearoff)],
             Toolbar = [.. ToolbarButtons.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))],
             Views = [.. _allViews.Select(view => view.Name)],
-            Bands = null,
             Kind = ScopeProfilePicker.NameOf(ProfileKind),
             PinOthersLevel = Pins.OthersLevel,
             PinVectorMin = Pins.VectorMin,
@@ -140,7 +139,7 @@ public sealed partial class ScopeViewModel
         ApplyPins(set);
         ApplyVectorOwnership(set.VectorOwnership);
         IsTdm = set.Tdm;
-        Lens = (set.Lens is { } lens) ? new ScopeLensSettings(lens.Enabled, lens.Path, lens.Queue, lens.CheckIn) : ScopeLensSettings.Off;
+        Lens = new ScopeLensSettings(set.Lens.Enabled, set.Lens.Path, set.Lens.Queue, set.Lens.CheckIn);
         WarnUnknownOpenViews(set.OpenViews);
         ApplyOpenViews(set.OpenViews);
         ApplyViewPlaces(set.ViewPlaces);

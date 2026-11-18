@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Client.Views.Scope.Prefs;
@@ -211,9 +212,33 @@ public class ScopePrefSetStoreTests : IDisposable
             {
               "version": 1,
               "sets": [
-                { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} },
-                { "name": "SR-BAD", "rangeNm": "x", "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} },
-                { "name": "SR-NIGHT", "rangeNm": 30, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+                {
+                  "name": "SR-DAY",
+                  "rangeNm": 40,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+                },
+                {
+                  "name": "SR-BAD",
+                  "rangeNm": "x",
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+                },
+                {
+                  "name": "SR-NIGHT",
+                  "rangeNm": 30,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+                }
               ]
             }
             """
@@ -233,15 +258,34 @@ public class ScopePrefSetStoreTests : IDisposable
             {
               "version": 1,
               "sets": [
-                { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} },
+                {
+                  "name": "SR-DAY",
+                  "rangeNm": 40,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+                },
                 {
                   "name": "SR-BAD",
                   "rangeNm": 30,
                   "templateId": "stars",
                   "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
                   "maps": null
                 },
-                { "name": "SR-NIGHT", "rangeNm": 20, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+                {
+                  "name": "SR-NIGHT",
+                  "rangeNm": 20,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+                }
               ]
             }
             """
@@ -251,46 +295,114 @@ public class ScopePrefSetStoreTests : IDisposable
         Assert.Single(_log.Warnings);
     }
 
+    [Theory]
+    [InlineData("kind")]
+    [InlineData("lens")]
+    [InlineData("mapTools")]
+    [InlineData("lens.queue")]
+    [InlineData("mapTools.rangeRing")]
+    public void AnEntryMissingARequiredKey_IsDropped_AndTheGoodEntryLoads(string keyPath)
+    {
+        JsonObject bad = JsonNode.Parse(GoodEntry)!.AsObject();
+        bad["name"] = "SR-BAD";
+        string[] parts = keyPath.Split('.');
+        JsonObject target = bad;
+        for (int i = 0; i < (parts.Length - 1); i++)
+        {
+            target = target[parts[i]]!.AsObject();
+        }
+
+        Assert.True(target.Remove(parts[^1]), $"the entry has no '{keyPath}' key to drop");
+
+        string path = SetsPath("ZOA");
+        WriteFile(
+            path,
+            $$"""
+            { "version": 1, "sets": [
+              {{bad.ToJsonString()}},
+              {{GoodEntry}}
+            ] }
+            """
+        );
+
+        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+        Assert.Single(_log.Warnings);
+    }
+
     [Fact]
-    public void FileWithoutAVersion_Loads_AndIsRewrittenAtVersion1()
+    public void FileWithoutAVersion_LoadsAsCurrent_AndIsNotRewritten()
     {
         string path = SetsPath("ZOA");
         WriteFile(
             path,
             """
             { "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
+            ] }
+            """
+        );
+        byte[] before = File.ReadAllBytes(path);
+
+        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+
+        Assert.Empty(_log.Warnings);
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void FileAtVersion0_LoadsAsCurrent()
+    {
+        string path = SetsPath("ZOA");
+        WriteFile(
+            path,
+            """
+            { "version": 0, "sets": [
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
+            ] }
+            """
+        );
+        byte[] before = File.ReadAllBytes(path);
+
+        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+
+        Assert.Empty(_log.Warnings);
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void SaveSet_OnAFileWithoutAVersion_WritesVersion1()
+    {
+        string path = SetsPath("ZOA");
+        WriteFile(
+            path,
+            $$"""
+            { "sets": [
+              {{GoodEntry}}
             ] }
             """
         );
 
-        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+        NewStore().SaveSet("ZOA", Set("SR-NIGHT"));
 
         using var document = JsonDocument.Parse(File.ReadAllText(path));
         Assert.Equal(1, document.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal("SR-DAY", document.RootElement.GetProperty("sets")[0].GetProperty("name").GetString());
-    }
-
-    [Fact]
-    public void CurrentFileWithoutAVersion_Loads_AndIsRewrittenAtVersion1()
-    {
-        string path = CurrentPath("ZOA");
-        WriteFile(
-            path,
-            """
-            { "state": {
-                "name": "SR-DAY", "rangeNm": 22, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14}
-            } }
-            """
-        );
-
-        ScopePrefSet? loaded = NewStore().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot);
-
-        Assert.NotNull(loaded);
-        Assert.Equal("SR-DAY", loaded.Name);
-        Assert.Equal(22.0, loaded.RangeNm);
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        Assert.Equal(1, document.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(2, document.RootElement.GetProperty("sets").GetArrayLength());
     }
 
     [Fact]
@@ -301,7 +413,15 @@ public class ScopePrefSetStoreTests : IDisposable
             path,
             """
             { "version": 9, "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
             ] }
             """
         );
@@ -321,7 +441,15 @@ public class ScopePrefSetStoreTests : IDisposable
             path,
             """
             { "version": 9, "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
             ] }
             """
         );
@@ -341,7 +469,15 @@ public class ScopePrefSetStoreTests : IDisposable
             path,
             """
             { "version": "x", "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
             ] }
             """
         );
@@ -365,6 +501,9 @@ public class ScopePrefSetStoreTests : IDisposable
                 "rangeNm": 40,
                 "templateId": "stars",
                 "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
                 "futureThing": 3
               }
             ] }
@@ -392,6 +531,9 @@ public class ScopePrefSetStoreTests : IDisposable
                 "rangeNm": 40,
                 "templateId": "stars",
                 "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
                 "futureThing": 3
               }
             ] }
@@ -414,7 +556,15 @@ public class ScopePrefSetStoreTests : IDisposable
             path,
             """
             { "version": 1, "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
             ] }
             """
         );
@@ -449,9 +599,20 @@ public class ScopePrefSetStoreTests : IDisposable
                   "rangeNm": 40,
                   "templateId": "stars",
                   "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
                   "tearoffs": [ { "corner": "tl", "dx": 1, "dy": 2 } ]
                 },
-                { "name": "SR-NIGHT", "rangeNm": 30, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+                {
+                  "name": "SR-NIGHT",
+                  "rangeNm": 30,
+                  "templateId": "stars",
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                  "kind": "stars",
+                  "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                  "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+                }
               ]
             }
             """
@@ -492,7 +653,10 @@ public class ScopePrefSetStoreTests : IDisposable
             path,
             """
             { "version": 1, "state": {
-                "name": "SR-DAY", "rangeNm": 22, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14}
+                "name": "SR-DAY", "rangeNm": 22, "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars", "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
             } }
             """
         );
@@ -520,7 +684,15 @@ public class ScopePrefSetStoreTests : IDisposable
             path,
             """
             { "version": "x", "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
+              {
+                "name": "SR-DAY",
+                "rangeNm": 40,
+                "templateId": "stars",
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+                "kind": "stars",
+                "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+                "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+              }
             ] }
             """
         );
@@ -530,29 +702,6 @@ public class ScopePrefSetStoreTests : IDisposable
 
         Assert.Single(_log.Warnings);
         Assert.Equal(before, File.ReadAllBytes(path));
-    }
-
-    [Fact]
-    public void Version0FileWhoseRewriteFails_StillLoadsItsSets_WithAWarning()
-    {
-        string path = SetsPath("ZOA");
-        WriteFile(
-            path,
-            """
-            { "sets": [
-              { "name": "SR-DAY", "rangeNm": 40, "templateId": "stars", "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14} }
-            ] }
-            """
-        );
-
-        // The rewrite's temporary file cannot be written, so the load's save-back fails after the sets have been read.
-        Directory.CreateDirectory(path + ".tmp");
-
-        Assert.Equal(["SR-DAY"], NewStore().LoadSets("ZOA").Select(set => set.Name));
-
-        Assert.Contains(_log.Warnings, warning => warning.Contains("back at version"));
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        Assert.False(document.RootElement.TryGetProperty("version", out _));
     }
 
     [Theory]
@@ -628,28 +777,47 @@ public class ScopePrefSetStoreTests : IDisposable
     [Fact]
     public void SavedMapTools_RoundTrip_ThePlacedRingAndTheWeatherSwitch()
     {
-        ScopePrefSet set = Set("SR-DAY") with { MapTools = new ScopePrefMapTools(true, true, new ScopePrefRangeRing(true, 10, 37.5, -122.1), false) };
+        ScopePrefSet set = Set("SR-DAY") with
+        {
+            MapTools = new ScopePrefMapTools(true, true, new ScopePrefRangeRing(true, 10, 37.5, -122.1), false, null),
+        };
 
         NewStore().SaveSet("ZOA", set);
 
         ScopePrefSet loaded = Assert.Single(NewStore().LoadSets("ZOA"));
 
         Assert.Equal(set.MapTools, loaded.MapTools);
-        Assert.Equal(new ScopePrefRangeRing(true, 10, 37.5, -122.1), loaded.MapTools!.RangeRing);
+        Assert.Equal(new ScopePrefRangeRing(true, 10, 37.5, -122.1), loaded.MapTools.RangeRing);
         Assert.False(loaded.MapTools.Weather);
     }
 
     [Fact]
     public void SavedMapTools_RoundTrip_AnUnplacedRingKeepsItsNullCentre()
     {
-        ScopePrefSet set = Set("SR-DAY") with { MapTools = new ScopePrefMapTools(false, false, new ScopePrefRangeRing(false, 10, null, null), true) };
+        ScopePrefSet set = Set("SR-DAY") with
+        {
+            MapTools = new ScopePrefMapTools(false, false, new ScopePrefRangeRing(false, 10, null, null), true, null),
+        };
 
         NewStore().SaveSet("ZOA", set);
 
         ScopePrefSet loaded = Assert.Single(NewStore().LoadSets("ZOA"));
 
-        Assert.Equal(new ScopePrefRangeRing(false, 10, null, null), loaded.MapTools!.RangeRing);
+        Assert.Equal(new ScopePrefRangeRing(false, 10, null, null), loaded.MapTools.RangeRing);
     }
+
+    /// <summary>An entry every key this build requires; the drop tests remove one key at a time from it.</summary>
+    private const string GoodEntry = """
+        {
+          "name": "SR-DAY",
+          "rangeNm": 40,
+          "templateId": "stars",
+          "db": {"line4":true,"hoverDwell":false,"atpa":true,"charSize":14},
+          "kind": "stars",
+          "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
+          "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
+        }
+        """;
 
     private ScopePrefSetStore NewStore() => new(_root, _log);
 
@@ -674,6 +842,9 @@ public class ScopePrefSetStoreTests : IDisposable
             CenterLon = -122.5,
             TemplateId = "stars",
             Db = new ScopePrefDb(true, false, true, 14),
+            Kind = "stars",
+            Lens = new ScopePrefLens(false, false, false, false),
+            MapTools = new ScopePrefMapTools(false, false, null, null, null),
         };
 
     private sealed class CapturingLogger : ILogger

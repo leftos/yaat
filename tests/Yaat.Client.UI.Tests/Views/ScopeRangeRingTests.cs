@@ -357,7 +357,9 @@ public class ScopeRangeRingTests
             CenterLon = HomeLon,
             TemplateId = ScopeTemplates.StarsId,
             Db = new ScopePrefDb(true, false, true, 14),
-            MapTools = new ScopePrefMapTools(true, false, new ScopePrefRangeRing(true, 10, at.Lat, at.Lon), false),
+            Kind = "stars",
+            Lens = new ScopePrefLens(false, false, false, false),
+            MapTools = new ScopePrefMapTools(true, false, new ScopePrefRangeRing(true, 10, at.Lat, at.Lon), false, null),
         };
 
         scope.ApplyPrefSet(set);
@@ -409,7 +411,7 @@ public class ScopeRangeRingTests
     }
 
     [AvaloniaFact]
-    public void ThePlacedRingAndWx_AreKeptInAPrefSet_AnOlderSetTakingTheDefaults()
+    public void ThePlacedRingAndWx_AreKeptInAPrefSet_DefaultMapToolsTakesTheDefaults()
     {
         (_, ScopeViewModel scope) = SeededScope();
         using (scope)
@@ -419,10 +421,10 @@ public class ScopeRangeRingTests
             scope.ShowWeather = false;
 
             ScopePrefSet set = scope.CapturePrefSet("MINE");
-            Assert.Equal(new ScopePrefRangeRing(true, 10, 37.5, -122.1), set.MapTools!.RangeRing);
+            Assert.Equal(new ScopePrefRangeRing(true, 10, 37.5, -122.1), set.MapTools.RangeRing);
             Assert.False(set.MapTools.Weather);
 
-            scope.ApplyPrefSet(set with { MapTools = null });
+            scope.ApplyPrefSet(set with { MapTools = new ScopePrefMapTools(false, false, null, null, null) });
             Assert.True(scope.ShowRangeRing);
             Assert.Equal(5, scope.RangeRingSizeNm);
             Assert.Null(scope.RangeRingCenter);

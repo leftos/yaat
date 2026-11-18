@@ -13,10 +13,10 @@ namespace Yaat.Client.Views.Scope.Prefs;
 /// Per-facility store for the YAAT Scope pref sets and the Scope's saved current state: the named sets in
 /// <c>&lt;root&gt;/prefsets/&lt;facility&gt;.json</c> and the current state in
 /// <c>&lt;root&gt;/current/&lt;facility&gt;.json</c>. Each file is an envelope carrying a <c>version</c> beside its
-/// <c>sets</c> or <c>state</c>. A version 0 file is saved back at the current version on load; a newer or unrecognised
-/// version is read for the fields this build knows, with one warning and no rewrite. Every entry is read on its own, so
-/// one malformed set is dropped with a warning while the rest load, and a file that is not valid JSON is copied to
-/// <c>.bak</c>. A file whose contents a save cannot read is never written over, so a failed read cannot lose the
+/// <c>sets</c> or <c>state</c>; a file with no version, or version 0, is read as the current version, and a newer or
+/// unrecognised version is read for the fields this build knows, with one warning and no rewrite. Every entry is read on
+/// its own, so one malformed set is dropped with a warning while the rest load, and a file that is not valid JSON is copied
+/// to <c>.bak</c>. A file whose contents a save cannot read is never written over, so a failed read cannot lose the
 /// other sets.
 /// </summary>
 /// <param name="rootDir">The folder holding the <c>prefsets</c> and <c>current</c> directories, created on write.</param>
@@ -105,26 +105,7 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
                 return [];
             }
 
-            List<ScopePrefSet> sets = ReadSets(path, root);
-            if (read.Version == VersionRead.Rewrite)
-            {
-                Dictionary<string, JsonElement>? extra = ReadExtra(root, "sets");
-                RewriteOnLoad(
-                    path,
-                    () =>
-                        WriteCore(
-                            path,
-                            new SetsFile
-                            {
-                                Version = CurrentVersion,
-                                Sets = sets,
-                                Extra = extra,
-                            }
-                        )
-                );
-            }
-
-            return sets;
+            return ReadSets(path, root);
         }
     }
 
@@ -278,26 +259,7 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
                 return null;
             }
 
-            ScopePrefSet? state = ReadCurrent(root, path);
-            if ((state is not null) && (read.Version == VersionRead.Rewrite))
-            {
-                Dictionary<string, JsonElement>? extra = ReadExtra(root, "state");
-                RewriteOnLoad(
-                    path,
-                    () =>
-                        WriteCore(
-                            path,
-                            new CurrentFile
-                            {
-                                Version = CurrentVersion,
-                                State = state,
-                                Extra = extra,
-                            }
-                        )
-                );
-            }
-
-            return state;
+            return ReadCurrent(root, path);
         }
     }
 
@@ -382,7 +344,7 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         JsonObject? root = read.Root ?? throw RefuseWrite(path, "it could not be read");
         return read.Version switch
         {
-            VersionRead.Rewrite or VersionRead.Current => (root, CurrentVersion),
+            VersionRead.Current => (root, CurrentVersion),
             VersionRead.Newer => (root, read.VersionNumber),
             _ => throw RefuseWrite(path, "its version is not one this build knows"),
         };
@@ -456,15 +418,14 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     private static RootRead NoFile(ReadOutcome outcome) => new(outcome, null, VersionRead.Current, CurrentVersion);
 
     /// <summary>
-    /// How this build reads a file of <paramref name="version"/>: only version 0 is rewritten on load, and an
-    /// unrecognised version is read for the fields this build knows.
+    /// How this build reads a file of <paramref name="version"/>: a file with no version, or version 0, is read as the
+    /// current version, and an unrecognised version is read for the fields this build knows.
     /// </summary>
     private VersionRead ReadAtVersion(int? version, string path)
     {
         switch (version)
         {
             case 0:
-                return VersionRead.Rewrite;
             case CurrentVersion:
                 return VersionRead.Current;
             case null:
@@ -482,7 +443,7 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         }
     }
 
-    /// <summary>The file's version: 0 when it has none or exactly 0, and null when the value is not a version this build can name.</summary>
+    /// <summary>The file's version: 0 when it has none, and null when the value is not a version this build can name.</summary>
     private static int? ReadVersion(JsonObject root)
     {
         if (!root.TryGetPropertyValue("version", out JsonNode? node))
@@ -589,19 +550,6 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         AtomicFile.WriteAllText(path, JsonSerializer.Serialize(envelope, ScopePrefSet.JsonOptions));
     }
 
-    /// <summary>A load's version rewrite: a folder that refuses the write leaves the file as it is and says so.</summary>
-    private void RewriteOnLoad(string path, Action write)
-    {
-        try
-        {
-            write();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            log.LogWarning(ex, "Could not save scope pref file {Path} back at version {Version}; reading the file as it is", path, CurrentVersion);
-        }
-    }
-
     /// <summary>Copies a corrupt file to <c>.bak</c> and says what reading it produced.</summary>
     private ReadOutcome MarkCorrupt(string path, string reason)
     {
@@ -648,9 +596,6 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     /// <summary>How this build reads the version a file carries.</summary>
     private enum VersionRead
     {
-        /// <summary>Version 0: the current shape without the field, saved back at <see cref="CurrentVersion"/> on load.</summary>
-        Rewrite,
-
         /// <summary>The version this build writes.</summary>
         Current,
 

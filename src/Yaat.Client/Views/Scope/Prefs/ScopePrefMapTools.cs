@@ -3,31 +3,21 @@ using Yaat.Client.Models;
 namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
-/// The Scope's map-tool settings as a pref set stores them; mva and lock are required, so a file missing either is skipped as
-/// unreadable, and the range ring's, weather's, fixes and markers' and the deconfliction mode's defaults let a file written
-/// without them load.
+/// The Scope's map-tool settings as a pref set stores them; the constructor's keys are required, so a file missing one is
+/// skipped as unreadable, and deconflict may be left out. A null range ring, weather switch or fixes-and-markers entry is
+/// the default, which is how a default is written: the ring on at 5 NM on the facility's home centre, WX on, and FIX off
+/// with no marker.
 /// </summary>
 /// <param name="Mva">Whether the MVA altitude tint is on.</param>
 /// <param name="Lock">Whether pan and zoom are locked.</param>
-/// <param name="RangeRing">
-/// The range ring, or null for the default: on, 5 NM apart, centred on the facility's home centre. A set from an older
-/// build has none.
-/// </param>
-/// <param name="Weather">Whether the weather overlay is on, or null for on, the default; a set from an older build has none.</param>
-/// <param name="FixesAndMarkers">
-/// The FIX overlay and the pinned markers, or null for the default: FIX off and no marker. A set from an older build has none.
-/// </param>
-public sealed record ScopePrefMapTools(
-    bool Mva,
-    bool Lock,
-    ScopePrefRangeRing? RangeRing = null,
-    bool? Weather = null,
-    ScopePrefFixesAndMarkers? FixesAndMarkers = null
-)
+/// <param name="RangeRing">The range ring, or null for the default: on, 5 NM apart, centred on the facility's home centre.</param>
+/// <param name="Weather">Whether the weather overlay is on, or null for on, the default.</param>
+/// <param name="FixesAndMarkers">The FIX overlay and the pinned markers, or null for the default: FIX off and no marker.</param>
+public sealed record ScopePrefMapTools(bool Mva, bool Lock, ScopePrefRangeRing? RangeRing, bool? Weather, ScopePrefFixesAndMarkers? FixesAndMarkers)
 {
     /// <summary>
     /// The datablock deconfliction mode, or null for the mode a new Scope opens with (the Radar's,
-    /// <c>UserPreferences.RadarDeconflictMode</c>). A set from an older build has none.
+    /// <c>UserPreferences.RadarDeconflictMode</c>).
     /// </summary>
     public DatablockDeconflictMode? Deconflict { get; init; }
 }
