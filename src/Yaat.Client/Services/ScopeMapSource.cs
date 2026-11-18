@@ -204,6 +204,16 @@ public sealed partial class ScopeMapSource(ServerConnection connection, VideoMap
     public void SetPrimaryAirportPosition(double lat, double lon) => _primaryAirportPosition = new LatLon(lat, lon);
 
     /// <summary>
+    /// Forgets the primary airport's position and the area fallback a load remembered, so the next load centres on its own
+    /// first area; a position known later still arrives through <see cref="SetPrimaryAirportPosition"/>.
+    /// </summary>
+    public void ClearPrimaryAirportPosition()
+    {
+        _primaryAirportPosition = default;
+        _areaFallbackCenter = null;
+    }
+
+    /// <summary>
     /// Records the primary airport's position once it becomes known late, and centres on it while the centre is still the
     /// area fallback a load put there; a centre changed since is left alone.
     /// </summary>
@@ -233,6 +243,8 @@ public sealed partial class ScopeMapSource(ServerConnection connection, VideoMap
         WeatherAirports = [];
         _videoMapService.ClearMemoryCache();
         PrimaryAirportId = null;
+        _primaryAirportPosition = default;
+        _areaFallbackCenter = null;
         ShowMvaHintsDefault = false;
         HasCatalogue = false;
         IsLoading = false;

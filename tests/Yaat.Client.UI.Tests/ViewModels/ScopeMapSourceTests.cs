@@ -34,6 +34,20 @@ public class ScopeMapSourceTests
             SessionStartUtc = null,
         };
 
+    // A scenario whose primary airport id the navigation data cannot place, so its load takes its first STARS area's centre.
+    private static ScenarioBootstrap UnplaceableAirportBootstrap() =>
+        new()
+        {
+            ScenarioId = "scenario-zzzz",
+            ScenarioName = "ZZZZ scenario",
+            PrimaryAirportId = "ZZZZ",
+            PositionDisplayConfig = null,
+            FlightStripsConfig = null,
+            Aircraft = [],
+            ElapsedSeconds = 0,
+            SessionStartUtc = null,
+        };
+
     private static VideoMapInfoDto Map(string id, string shortName, string brightness, int starsId, bool tdmOnly = false) =>
         new(id, $"{shortName} full name", shortName, [], brightness, starsId, false, tdmOnly);
 
@@ -252,6 +266,39 @@ public class ScopeMapSourceTests
         Assert.False(source.IsReady);
         Assert.True(source.Generation > generation);
         Assert.Equal(1, cleared);
+    }
+
+    [AvaloniaFact]
+    public void Clear_ThenALoad_CentresOnTheNewFirstArea_NotThePreviousScenariosAirport()
+    {
+        (MainViewModel vm, _) = GatedStartupLoads.Create();
+        ScopeMapSource source = vm.ScopeMaps;
+        source.SetPrimaryAirportPosition(OakLat, OakLon);
+        source.ApplyVideoMapsDtoForTesting(NctDto(), null, null);
+        Assert.Equal(OakLat, source.CenterLat, 0.01);
+
+        // The next scenario's primary airport has no position of its own, so it centres on its first area.
+        source.Clear();
+        source.ApplyVideoMapsDtoForTesting(NctDto(), null, null);
+
+        Assert.Equal(AreaLat, source.CenterLat);
+        Assert.Equal(AreaLon, source.CenterLon);
+    }
+
+    [AvaloniaFact]
+    public async Task ScenarioBootstrap_OverAnother_WithNoClear_CentresOnTheNewFacilitysFirstArea()
+    {
+        MainViewModel vm = await MainWithNavDataAsync();
+        vm.ApplyScenarioBootstrap(OakBootstrap());
+        vm.ScopeMaps.ApplyVideoMapsDtoForTesting(NctDto(), null, null);
+        Assert.Equal(OakLat, vm.ScopeMaps.CenterLat, 0.01);
+
+        // Loaded straight over the first, with no Clear: the airport id that resolves to nothing leaves no position.
+        vm.ApplyScenarioBootstrap(UnplaceableAirportBootstrap());
+        vm.ScopeMaps.ApplyVideoMapsDtoForTesting(NctDto(), null, null);
+
+        Assert.Equal(AreaLat, vm.ScopeMaps.CenterLat);
+        Assert.Equal(AreaLon, vm.ScopeMaps.CenterLon);
     }
 
     [AvaloniaFact]

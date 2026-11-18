@@ -3273,12 +3273,15 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// The primary airport the last scenario bootstrap gave the main radar, kept for <see cref="InitializeNavDataAsync"/>
-    /// when the nav db was not ready to resolve it; null for a bootstrap with none.
+    /// when the nav db was not ready to resolve it; null for a bootstrap with none and after a scenario unload.
     /// </summary>
     private string? _radarAirportId;
 
     private void SetRadarAirportPosition(string? airportId)
     {
+        // A scenario loaded over another replaces the previous one's airport: an empty id or one that resolves to
+        // nothing leaves no position, so the scope centres on the new facility's first area, not the old airport.
+        ScopeMaps.ClearPrimaryAirportPosition();
         _radarAirportId = string.IsNullOrEmpty(airportId) ? null : airportId;
         if (string.IsNullOrEmpty(airportId))
         {

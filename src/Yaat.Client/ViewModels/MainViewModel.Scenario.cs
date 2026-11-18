@@ -1058,6 +1058,8 @@ public partial class MainViewModel
         _lastScenarioArtccId = null;
         _lastScenarioId = null;
         _lastRadarPrimaryAirportId = null;
+        // A late nav-data load must not recentre the scope on the airport of the scenario just unloaded.
+        _radarAirportId = null;
         _lastPositionDisplayConfig = null;
         foreach (ScopeViewModel scope in AllScopeViews)
         {
