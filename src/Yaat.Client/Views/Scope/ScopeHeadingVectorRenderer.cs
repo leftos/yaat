@@ -6,13 +6,12 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// Draws the elastic heading vector as the Radar's heading preview does: the standard-rate turn arc from the aircraft's present
-/// heading into the one its cursor names (left out for a course change under three degrees or a taxiing aircraft), the straight
-/// line from the arc's end to the snapped endpoint, and the label "{heading}M {nm}nm {m:ss}" beside it in amber.
+/// Draws the elastic heading vector: the turn arc from the aircraft's present heading into the one its cursor names at the
+/// type's turn rate (left out for a course change under three degrees or a taxiing aircraft), the straight line from the
+/// arc's end along that heading, and the label "{heading}M {nm}nm {m:ss}" beside it in amber.
 /// </summary>
 public sealed class ScopeHeadingVectorRenderer : IDisposable
 {
-    private const double StdTurnRateDegPerSec = 3.0;
     private const int ArcSegments = 24;
 
     private static readonly SKColor PreviewColor = new(255, 220, 80);
@@ -42,39 +41,26 @@ public sealed class ScopeHeadingVectorRenderer : IDisposable
     {
         int headingMag = ScopeHeadingVectorState.MagneticHeading(overlay.Aircraft, overlay.Cursor);
         double headingTrue = MagneticDeclination.MagneticToTrue(headingMag, overlay.Aircraft);
-        double change = GeoMath.SignedBearingDifference(overlay.HeadingTrue, headingTrue);
         double distNm = GeoMath.DistanceNm(overlay.Aircraft, overlay.Cursor);
-        // Projecting along the snapped bearing, so the arc, the line and the label agree with the heading that will be sent.
-        LatLon end = GeoMath.ProjectPoint(overlay.Aircraft, new TrueHeading(headingTrue), distNm);
-        (float endX, float endY) = vp.LatLonToScreen(end.Lat, end.Lon);
-
-        (float acX, float acY) = vp.LatLonToScreen(overlay.Aircraft.Lat, overlay.Aircraft.Lon);
-        SKPoint arcEnd = new(acX, acY);
-        if ((Math.Abs(change) >= 3.0) && (overlay.GroundSpeed > 30))
+        ScopeHeadingVectorGeometry geometry = ScopeHeadingVectorState.Geometry(overlay, headingTrue);
+        if (geometry.HasArc)
         {
-            arcEnd = DrawArc(canvas, vp, overlay, change, headingTrue);
+            DrawArc(canvas, vp, overlay, headingTrue);
         }
 
-        canvas.DrawLine(arcEnd.X, arcEnd.Y, endX, endY, _linePaint);
+        (float startX, float startY) = vp.LatLonToScreen(geometry.ArcEnd.Lat, geometry.ArcEnd.Lon);
+        (float endX, float endY) = vp.LatLonToScreen(geometry.LegEnd.Lat, geometry.LegEnd.Lon);
+        canvas.DrawLine(startX, startY, endX, endY, _linePaint);
         DrawLabel(canvas, Label(overlay, headingMag, distNm), endX + 12, endY - 8);
     }
 
-    // The standard-rate arc from the present heading into the new one, around the centre on the turn's side; returns where it
-    // ends, which is where the straight line starts.
-    private SKPoint DrawArc(SKCanvas canvas, MapViewport vp, ScopeHeadingVectorOverlay overlay, double change, double newHeadingTrue)
+    // The turn arc from the present heading into the new one at the type's turn rate, around the centre on the turn's side.
+    private void DrawArc(SKCanvas canvas, MapViewport vp, ScopeHeadingVectorOverlay overlay, double snappedHeadingTrue)
     {
-        double radiusNm = ScopeHeadingVectorState.TurnRadiusNm(overlay.GroundSpeed, StdTurnRateDegPerSec);
-        double side = change > 0 ? 1 : -1;
-        LatLon center = GeoMath.ProjectPoint(overlay.Aircraft, new TrueHeading(overlay.HeadingTrue + (90 * side)), radiusNm);
-        double startBearing = overlay.HeadingTrue - (90 * side);
-        double endBearing = newHeadingTrue - (90 * side);
-
-        var end = new SKPoint();
         using var path = new SKPath();
         for (int i = 0; i <= ArcSegments; i++)
         {
-            double bearing = GeoMath.BlendBearings(startBearing, endBearing, (double)i / ArcSegments);
-            LatLon point = GeoMath.ProjectPoint(center, new TrueHeading(bearing), radiusNm);
+            LatLon point = ScopeHeadingVectorState.ArcPoint(overlay, snappedHeadingTrue, (double)i / ArcSegments);
             (float x, float y) = vp.LatLonToScreen(point.Lat, point.Lon);
             if (i == 0)
             {
@@ -84,15 +70,9 @@ public sealed class ScopeHeadingVectorRenderer : IDisposable
             {
                 path.LineTo(x, y);
             }
-
-            if (i == ArcSegments)
-            {
-                end = new SKPoint(x, y);
-            }
         }
 
         canvas.DrawPath(path, _linePaint);
-        return end;
     }
 
     // "{heading}M  {nm}nm  {m:ss}", without the time for an aircraft barely moving; the Radar's label verbatim.

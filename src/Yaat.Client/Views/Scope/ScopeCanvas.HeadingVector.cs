@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Input;
 using Yaat.Client.Models;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -26,7 +27,7 @@ public sealed partial class ScopeCanvas
     /// <summary>Starts a heading vector for <paramref name="callsign"/> at the canvas point the AHDG field was pressed at.</summary>
     internal void EnterHeadingVector(string callsign, Point press)
     {
-        _headingVector = ScopeHeadingVectorState.Begin(callsign, PointAt(press), press.X, press.Y);
+        _headingVector = ScopeHeadingVectorState.Begin(callsign, PointAt(press), press);
         RefreshHeadingVectorCursor();
         Focus();
         MarkDirty();
@@ -101,7 +102,14 @@ public sealed partial class ScopeCanvas
 
         overlays = overlays with
         {
-            HeadingVector = new ScopeHeadingVectorOverlay(ac.Callsign, ac.Position, ac.Heading.Degrees, ac.GroundSpeed, vector.Cursor),
+            HeadingVector = new ScopeHeadingVectorOverlay(
+                ac.Callsign,
+                ac.Position,
+                ac.Heading.Degrees,
+                ac.GroundSpeed,
+                vector.Cursor,
+                AircraftPerformance.TurnRate(ac.AircraftType, ac.Category)
+            ),
         };
     }
 
