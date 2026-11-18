@@ -347,7 +347,31 @@ public class ScopeEntryTests
             await RunEntryAsync(scope, "$DM 110");
 
             Assert.Equal("DM 110", scope.LastSentEntryText);
+            // With no hub, SendTextAsync answers "Command error: Not connected." only once it has resolved a target aircraft (with
+            // none it answers NoAircraftMatchedMessage), and it writes the resolved target back to SelectedAircraft.
+            Assert.Equal("Command error: Not connected.", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Message);
             Assert.Same(aal2, main.SelectedAircraft);
+        }
+    }
+
+    /// <summary>
+    /// A <c>$</c> entry with no callsign typed, no track clicked and nothing selected is sent as it reads, and SendTextAsync
+    /// refuses it for naming no aircraft.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADollarEntry_WithNoCallsignNoClickAndNothingSelected_IsSentAsIs_AndRefusedBySendTextAsync()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            AddAircraft(main, "UAL1", 5000);
+            main.SelectedAircraft = null;
+
+            await RunEntryAsync(scope, "$FH 270");
+
+            Assert.Equal("FH 270", scope.LastSentEntryText);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, "$FH 270", []), scope.EntryResponse);
         }
     }
 
@@ -441,6 +465,101 @@ public class ScopeEntryTests
             await slowRun;
 
             Assert.Equal("QQ 250 UAL238", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Echo);
+        }
+    }
+
+    /// <summary>
+    /// On STARS, a slow entry's answer that lands after the next entry's first key is dropped: not shown while that entry is
+    /// typed, nor once it is erased again.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AStarsLateAnswer_IsDroppedOnceTheNextEntryStarts_AndNeverShownWhileItIsTyped()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            Assert.True(scope.TypeEntryText("F"));
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Null(scope.EntryResponse);
+            while (scope.BackspaceEntry()) { }
+            Assert.Null(scope.EntryResponse);
+        }
+    }
+
+    /// <summary>On STARS, a slow entry's answer that lands before any key of a next entry still shows.</summary>
+    [AvaloniaFact]
+    public async Task AStarsLateAnswer_WithNoNewKey_StillShows()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Equal("$UAL238 FH 270", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Echo);
+        }
+    }
+
+    /// <summary>On STARS, the next entry's first key drops a slow answer even when that entry is then cleared with Esc.</summary>
+    [AvaloniaFact]
+    public async Task AStarsLateAnswer_AfterEscWithTheEntryTyped_IsDropped()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            Assert.True(scope.TypeEntryText("F"));
+            Assert.True(scope.ClearEntry());
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Null(scope.EntryResponse);
+        }
+    }
+
+    /// <summary>On ERAM and Mixed, a slow entry's answer still shows when it lands while the next entry is typed.</summary>
+    [AvaloniaTheory]
+    [InlineData(ScopeProfileKind.Eram)]
+    [InlineData(ScopeProfileKind.Mixed)]
+    public async Task OnEramAndMixed_ALateAnswer_StillShowsWhileTheNextEntryIsTyped(ScopeProfileKind profile)
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = profile;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            Assert.True(scope.TypeEntryText("Q"));
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Equal("$UAL238 FH 270", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Echo);
         }
     }
 

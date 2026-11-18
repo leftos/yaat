@@ -44,8 +44,9 @@ internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
 /// (<see cref="EramEntrySender"/>), which answers as CRC's ERAM does. A <c>$</c> YAAT command sends what follows the <c>$</c>,
 /// as it reads (a clicked track's callsign is in it already; with none, it is for the selected aircraft); an entry that reads
 /// as none of these sends nothing and is answered <see cref="FormatMessage"/>. A slow answer never overwrites a later entry's
-/// or a measure prompt. On a STARS profile the response goes at the next entry's first key; on ERAM and Mixed it stays until
-/// the next entry is sent.
+/// or a measure prompt. On a STARS profile the response goes at the next entry's first key, and an answer still in flight
+/// then is dropped: it never shows on the Scope (the terminal history still logs the entry). On ERAM and Mixed the response
+/// stays until the next entry is sent, and a late answer landing while that entry is typed still shows.
 /// Esc clears both.
 /// </summary>
 public sealed partial class ScopeViewModel
@@ -93,8 +94,9 @@ public sealed partial class ScopeViewModel
     // The pick of the half-typed entry the first Up left (_savedEntry), which Down past the newest line puts back with it.
     private string? _savedPickedCallsign;
 
-    // The number of the latest entry run, bumped as each starts and as a measure prompt shows (ScopeViewModel.Measure.cs); a
-    // run answers only while its number is still the latest, so a slow answer never overwrites a later one. Esc does not bump it.
+    // The number of the latest entry run, bumped as each starts, as a measure prompt shows (ScopeViewModel.Measure.cs) and at a
+    // STARS entry's first key; a run answers only while its number is still the latest, so a slow answer never overwrites a
+    // later one. Esc does not bump it.
     private int _entrySeq;
 
     /// <summary>The entry being typed on the Scope.</summary>
@@ -630,12 +632,13 @@ public sealed partial class ScopeViewModel
             : (null, $"No {((tool == ScopeRingTool.JRing) ? "J-ring" : "cone")} on {ac.Callsign}");
     }
 
-    // A new entry on STARS takes the place of the response shown in its one area.
+    // A new entry on STARS takes the place of the response shown in its one area, and drops the answer of a run still in flight.
     private void SetEntry(string text)
     {
         if (!IsEramEntryLayout && (EntryText.Length == 0) && (text.Length > 0))
         {
             EntryResponse = null;
+            _entrySeq++;
         }
 
         EntryText = text;
