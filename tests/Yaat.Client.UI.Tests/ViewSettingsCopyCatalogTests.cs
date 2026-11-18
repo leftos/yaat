@@ -7,66 +7,6 @@ namespace Yaat.Client.UI.Tests;
 public class ViewSettingsCopyCatalogTests
 {
     [Fact]
-    public void RadarMapsGroup_CopiesOnlyMaps_LeavesOtherFields()
-    {
-        var source = new SavedRadarSettings
-        {
-            EnabledStarsIds = [7, 8],
-            RangeNm = 80,
-            PtlOwn = true,
-        };
-        var target = new SavedRadarSettings
-        {
-            EnabledStarsIds = [1],
-            RangeNm = 40,
-            PtlOwn = false,
-        };
-        RadarCopyGroup maps = RadarGroup(ViewSettingsCopyCatalog.RadarMapsKey);
-
-        maps.Copy(source, target);
-
-        Assert.Equal(new[] { 7, 8 }, target.EnabledStarsIds);
-        Assert.Equal(40, target.RangeNm);
-        Assert.False(target.PtlOwn);
-    }
-
-    [Fact]
-    public void RadarMapsGroup_Copy_ProducesIndependentList()
-    {
-        var source = new SavedRadarSettings { EnabledStarsIds = [7, 8] };
-        var target = new SavedRadarSettings();
-        RadarCopyGroup maps = RadarGroup(ViewSettingsCopyCatalog.RadarMapsKey);
-
-        maps.Copy(source, target);
-        target.EnabledStarsIds.Add(9);
-
-        Assert.Equal(new[] { 7, 8 }, source.EnabledStarsIds);
-    }
-
-    [Fact]
-    public void RadarCenterGroup_AreEqual_DetectsRangeDifference()
-    {
-        RadarCopyGroup center = RadarGroup(ViewSettingsCopyCatalog.RadarCenterKey);
-        var a = new SavedRadarSettings
-        {
-            RangeNm = 40,
-            CenterLat = 1,
-            CenterLon = 2,
-        };
-        var b = new SavedRadarSettings
-        {
-            RangeNm = 40,
-            CenterLat = 1,
-            CenterLon = 2,
-        };
-
-        Assert.True(center.AreEqual(a, b));
-
-        b.RangeNm = 60;
-        Assert.False(center.AreEqual(a, b));
-    }
-
-    [Fact]
     public void GroundFiltersGroup_CopiesFilters_LeavesLabels()
     {
         var source = new SavedGroundSettings
@@ -85,37 +25,6 @@ public class ViewSettingsCopyCatalogTests
         Assert.Equal(GroundFilterMode.IconsOnly, target.ShowParking);
         Assert.Equal(GroundFilterMode.Off, target.ShowSpot);
         Assert.True(target.ShowRunwayLabels);
-    }
-
-    [Fact]
-    public void AllRadarGroupsCopied_MakesTargetEqualSourcePerGroup()
-    {
-        var source = new SavedRadarSettings
-        {
-            EnabledStarsIds = [3, 9],
-            CenterLat = 37.7,
-            CenterLon = -122.2,
-            RangeNm = 99,
-            ShowRangeRings = true,
-            RangeRingSizeNm = 10,
-            PtlLengthMinutes = 2,
-            PtlOwn = true,
-            HistoryCount = 5,
-            ShowFixes = true,
-            ShowTopDown = true,
-            IsPanZoomLocked = true,
-        };
-        var target = new SavedRadarSettings();
-
-        foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
-        {
-            group.Copy(source, target);
-        }
-
-        foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
-        {
-            Assert.True(group.AreEqual(source, target), $"radar group '{group.Key}' not equal after full copy");
-        }
     }
 
     [Fact]
@@ -158,10 +67,10 @@ public class ViewSettingsCopyCatalogTests
                 ViewSettingsCopyCatalog.LayoutTerminalKey,
                 ViewSettingsCopyCatalog.LayoutAircraftListKey,
                 ViewSettingsCopyCatalog.LayoutGroundKey,
-                ViewSettingsCopyCatalog.LayoutRadarKey,
+                ViewSettingsCopyCatalog.LayoutScopeKey,
                 ViewSettingsCopyCatalog.LayoutControllersKey,
                 ViewSettingsCopyCatalog.LayoutMetarKey,
-                ViewSettingsCopyCatalog.LayoutExtraRadarKey,
+                ViewSettingsCopyCatalog.LayoutExtraScopeKey,
                 ViewSettingsCopyCatalog.LayoutExtraGroundKey,
                 ViewSettingsCopyCatalog.LayoutFavoriteSetsKey,
                 ViewSettingsCopyCatalog.LayoutFavoritesBarKey,
@@ -214,20 +123,57 @@ public class ViewSettingsCopyCatalogTests
     [Fact]
     public void ExtraViewRows_DescribeOrdinalAndAirport_AndDiffEachKind()
     {
-        var current = new SavedLayout { ExtraRadarViews = [new SavedExtraView(2, "KOAK")] };
+        var current = new SavedLayout { ExtraScopeViews = [new SavedExtraView(2, "")] };
         var source = new SavedLayout
         {
-            ExtraRadarViews = [new SavedExtraView(2, "KOAK")],
+            ExtraScopeViews = [new SavedExtraView(2, "")],
             ExtraGroundViews = [new SavedExtraView(2, "KSFO"), new SavedExtraView(3, "KOAK")],
         };
-        LayoutCopyGroup radar = LayoutGroup(ViewSettingsCopyCatalog.LayoutExtraRadarKey);
+        LayoutCopyGroup scope = LayoutGroup(ViewSettingsCopyCatalog.LayoutExtraScopeKey);
         LayoutCopyGroup ground = LayoutGroup(ViewSettingsCopyCatalog.LayoutExtraGroundKey);
 
-        Assert.Equal("#2 KOAK", radar.Describe(source));
+        Assert.Equal("#2", scope.Describe(source));
         Assert.Equal("#2 KSFO, #3 KOAK", ground.Describe(source));
         Assert.Equal("none", ground.Describe(current));
-        Assert.True(radar.AreEqual(current, source));
+        Assert.True(scope.AreEqual(current, source));
+        Assert.True(scope.IsSaved(source));
         Assert.False(ground.AreEqual(current, source));
+    }
+
+    [Fact]
+    public void ScopeRows_DescribeDiffAndIsSaved()
+    {
+        LayoutCopyGroup popOut = LayoutGroup(ViewSettingsCopyCatalog.LayoutScopeKey);
+        LayoutCopyGroup extras = LayoutGroup(ViewSettingsCopyCatalog.LayoutExtraScopeKey);
+        var legacy = new SavedLayout();
+        var poppedOut = new SavedLayout { IsScopePoppedOut = true, ExtraScopeViews = [new SavedExtraView(3, ""), new SavedExtraView(2, "")] };
+        var docked = new SavedLayout { IsScopePoppedOut = false, ExtraScopeViews = [] };
+
+        Assert.Equal(("Pop-out windows", "Scope view"), (popOut.Section, popOut.Label));
+        Assert.Equal(("Extra windows", "Extra Scope windows"), (extras.Section, extras.Label));
+
+        Assert.Equal("popped out", popOut.Describe(poppedOut));
+        Assert.Equal("docked", popOut.Describe(docked));
+        Assert.Equal("not saved", popOut.Describe(legacy));
+        Assert.False(popOut.AreEqual(poppedOut, docked));
+        Assert.True(popOut.AreEqual(docked, new SavedLayout { IsScopePoppedOut = false }));
+        // A layout that saved no Scope state leaves the Scope as it is when applied, so it has nothing to compare.
+        Assert.True(popOut.AreEqual(legacy, poppedOut));
+        Assert.False(popOut.IsSaved(legacy));
+        Assert.True(popOut.IsSaved(docked));
+
+        Assert.Equal("#2, #3", extras.Describe(poppedOut));
+        Assert.Equal("none", extras.Describe(docked));
+        Assert.Equal("not saved", extras.Describe(legacy));
+        Assert.False(extras.AreEqual(poppedOut, docked));
+        Assert.True(extras.AreEqual(poppedOut, new SavedLayout { ExtraScopeViews = [new SavedExtraView(2, ""), new SavedExtraView(3, "")] }));
+        Assert.True(extras.AreEqual(legacy, poppedOut));
+        // A number listed twice is one window, as applying the layout opens it once.
+        var twice = new SavedLayout { ExtraScopeViews = [new SavedExtraView(2, ""), new SavedExtraView(2, "")] };
+        Assert.Equal("#2", extras.Describe(twice));
+        Assert.True(extras.AreEqual(twice, new SavedLayout { ExtraScopeViews = [new SavedExtraView(2, "")] }));
+        Assert.False(extras.IsSaved(legacy));
+        Assert.True(extras.IsSaved(docked));
     }
 
     [Fact]
@@ -310,8 +256,6 @@ public class ViewSettingsCopyCatalogTests
     }
 
     private static LayoutCopyGroup LayoutGroup(string key) => ViewSettingsCopyCatalog.LayoutGroups.Single(g => g.Key == key);
-
-    private static RadarCopyGroup RadarGroup(string key) => ViewSettingsCopyCatalog.RadarGroups.Single(g => g.Key == key);
 
     private static GroundCopyGroup GroundGroup(string key) => ViewSettingsCopyCatalog.GroundGroups.Single(g => g.Key == key);
 }

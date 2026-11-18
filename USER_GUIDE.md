@@ -326,11 +326,11 @@ While drawing, the pointer is a cross. A left click places a waypoint, named by 
 
 If you open it before a scenario or ARTCC is loaded, it takes the Radar's centre, range and video maps the first time the Radar has them, then stays independent. Its window position is remembered.
 
-**Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window but the Scope (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
+**Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window, the Scope's included (Controllers, METAR and the favorites panel too), the docked terminal's size, which extra Scope and Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
 
-A layout never holds radar, ground or terminal view settings, so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
+A layout never holds Scope, ground or terminal view settings (a Scope window keeps its own saved state), so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
 
-Applying a layout brings its saved windows to the front (un-minimizing them if needed) and leaves focus on the main window; a window the layout saved minimized is restored minimized. A layout saved before it recorded the open Strips/vTDLS tabs leaves your open tabs as they are, and a saved tab that no longer exists is skipped.
+Applying a layout brings its saved windows to the front (un-minimizing them if needed) and leaves focus on the main window; a window the layout saved minimized is restored minimized. A layout saved before it recorded the open Strips/vTDLS tabs leaves your open tabs as they are, and a saved tab that no longer exists is skipped. Applying a layout pops the Scope in or out and opens or closes extra Scope windows to match, each extra window starting from its own saved state and placed at the layout's geometry; a layout saved before it recorded the Scope leaves your Scopes as they are. No layout opens a Radar window.
 
 Window profiles saved by an earlier version appear as layouts with the same names. Useful for keeping separate GC and LC layouts (each with its own favorite sets) and switching between them in one click.
 
@@ -1717,7 +1717,7 @@ The instructor radar can color and shape each aircraft's data block to match wha
 
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
 
-**Per-scenario persistence** — Radar view settings (maps, center, zoom, range rings, PTL, brightness, lock) are saved independently for each scenario.
+**No per-scenario settings** — the Radar view does not save its settings per scenario; the Scope keeps its own state per facility.
 
 When weather is loaded, wind and altimeter are displayed in the top-left corner in STARS green.
 
@@ -2020,11 +2020,11 @@ See [Session Report](SOLO_TRAINING.md#session-report) in the Solo Training guide
 
 ![The View menu open on its Layout submenu, listing a saved layout named Tower cab above Save current as layout…, From this scenario's views… (greyed out with no scenario loaded), Manage layouts… and Reset aircraft list columns](docs/user-guide/img/menu-view-layouts.png)
 
-Use **View > Layout > From this scenario's views…** to open the **Apply Layout** dialog, which copies settings into the current scenario from one of two sources: **Scenario views** (another scenario's Ground and Radar view settings, including selected video maps, range, PTL, brightness, labels, and filters) or a **Saved layout** (window geometry, every pop-out window, extra Radar/Ground windows, favorites, open Strips/vTDLS tabs, and the Aircraft List column layout).
+Use **View > Layout > From this scenario's views…** to open the **Apply Layout** dialog, which copies settings into the current scenario from one of two sources: **Scenario views** (another scenario's saved Ground view settings, including selected video maps, range, brightness, labels, and filters; only scenarios with saved Ground settings are listed) or a **Saved layout** (window geometry, every pop-out window, extra Scope/Ground windows, favorites, open Strips/vTDLS tabs, and the Aircraft List column layout).
 
 The **Terminal** row reads **docked · size 25%** (the terminal's share of the height) or **popped out**, and just **docked** for a layout saved before it recorded the size. Applying a docked layout restores the size; a layout with no saved size leaves the current one.
 
-The dialog shows your current value next to the source value for each setting, grouped into sections, and highlights the ones that differ. Tick the sections you want (**All** / **None** tick every section) and choose **Apply Selected** — matching sections start unticked, so you only copy real changes. When the source scenario is at a different airport, the map-position rows are flagged, since copying them moves your view to that airport.
+The dialog shows your current value next to the source value for each setting, grouped into sections, and highlights the ones that differ. Tick the sections you want (**All** / **None** tick every section) and choose **Apply Selected** — matching sections start unticked, so you only copy real changes. For a saved layout the **Scope view** row shows popped out, docked or not saved (unavailable when the layout has no Scope state), the **Extra Scope windows** row lists the open ones (#2, #3), none, or not saved, and the window rows read **Scope window** and **Scope window #2**. When the source scenario's Ground view is at a different airport, the map-position rows are flagged, since copying them moves your view to that airport.
 
 ---
 

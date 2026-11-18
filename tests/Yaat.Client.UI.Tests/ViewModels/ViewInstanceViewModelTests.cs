@@ -5,9 +5,9 @@ using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
-// An extra Radar/Ground view window (#2, #3, …) drives its own view-model: per-scenario settings key off
-// "{scenarioId}#n" so the windows don't overwrite each other's center/range, global preference writes are
-// gated to the primary view so an extra window's toggles never rewrite the app-wide defaults, and an extra
+// An extra Radar/Ground view window (#2, #3, …) drives its own view-model: an extra Ground View's per-scenario
+// settings key off "{scenarioId}#n" so the windows don't overwrite each other's center, global preference writes
+// are gated to the primary view so an extra window's toggles never rewrite the app-wide defaults, and an extra
 // Ground View mirrors the primary's layout instead of fetching and decoding its own copy.
 public class ViewInstanceViewModelTests
 {
@@ -37,33 +37,6 @@ public class ViewInstanceViewModelTests
             null,
             IsRunwaysOnly: false
         );
-    }
-
-    [Fact]
-    public void ExtraRadarView_UsesOwnPerScenarioSettingsKey()
-    {
-        const string scenarioId = "vivm-radar-scenario";
-        var prefs = new UserPreferences();
-        RadarViewModel vm = ExtraRadarVm();
-        vm.SetPreferences(prefs);
-        vm.SetScenarioIdForTesting(scenarioId);
-
-        vm.ApplyCopiedSettings(
-            new SavedRadarSettings
-            {
-                CenterLat = 37.5,
-                CenterLon = -122.2,
-                RangeNm = 27,
-            }
-        );
-
-        // The primary view's key is the bare scenario id and must be untouched by the extra window.
-        Assert.Null(prefs.GetRadarSettings(scenarioId));
-
-        SavedRadarSettings? saved = prefs.GetRadarSettings(scenarioId + "#2");
-        Assert.NotNull(saved);
-        Assert.Equal(27, saved.RangeNm);
-        Assert.Equal(37.5, saved.CenterLat);
     }
 
     [Fact]

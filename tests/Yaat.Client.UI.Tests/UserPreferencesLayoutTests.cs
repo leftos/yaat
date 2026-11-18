@@ -284,6 +284,39 @@ public class UserPreferencesLayoutTests
         Assert.Null(reloaded.OpenTabs);
     }
 
+    [Fact]
+    public void SaveLayout_RoundTripsScopeFields()
+    {
+        new UserPreferences().SaveLayout(
+            new SavedLayout
+            {
+                Name = "WPT-Scope",
+                IsScopePoppedOut = true,
+                ExtraScopeViews = [new SavedExtraView(2, "")],
+            }
+        );
+
+        SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-Scope");
+
+        Assert.NotNull(reloaded);
+        Assert.Equal(true, reloaded.IsScopePoppedOut);
+        Assert.Equal([new SavedExtraView(2, "")], reloaded.ExtraScopeViews);
+    }
+
+    [Fact]
+    public void SaveLayout_CapturedBeforeScope_ReadsBackAsNullScopeFields()
+    {
+        new UserPreferences().SaveLayout(new SavedLayout { Name = "WPT-PreScope", IsMetarPoppedOut = true });
+
+        SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-PreScope");
+
+        // Null = saved before the Scope was a layout part; applying it leaves the Scopes as they are.
+        Assert.NotNull(reloaded);
+        Assert.True(reloaded.IsMetarPoppedOut);
+        Assert.Null(reloaded.IsScopePoppedOut);
+        Assert.Null(reloaded.ExtraScopeViews);
+    }
+
     /// <summary>
     /// Saved window profiles carry over as layouts: a preferences file holding only the old <c>windowProfiles</c> key
     /// loads them with their names, timestamps and fields, and the next save writes only the <c>layouts</c> key.

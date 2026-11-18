@@ -2045,18 +2045,6 @@ public sealed partial class UserPreferences
         Save();
     }
 
-    public SavedRadarSettings? GetRadarSettings(string scenarioId)
-    {
-        _data.RadarSettings.TryGetValue(scenarioId, out SavedRadarSettings? settings);
-        return settings;
-    }
-
-    public void SetRadarSettings(string scenarioId, SavedRadarSettings settings)
-    {
-        _data.RadarSettings[scenarioId] = settings;
-        Save();
-    }
-
     private Dictionary<string, List<string>> FavoriteVideoMapStore(FavoriteMapScope scope) =>
         scope switch
         {
@@ -2216,11 +2204,6 @@ public sealed partial class UserPreferences
     public List<(string ScenarioId, string DisplayName)> GetSavedViewScenarioIds()
     {
         var ids = new HashSet<string>();
-        foreach (string key in _data.RadarSettings.Keys)
-        {
-            ids.Add(key);
-        }
-
         foreach (string key in _data.GroundSettings.Keys)
         {
             ids.Add(key);
@@ -2780,6 +2763,8 @@ public sealed partial class UserPreferences
         public bool IsVTdlsPoppedOut { get; set; }
         public bool IsVTdlsDarkMode { get; set; }
         public bool IsTerminalPoppedOut { get; set; }
+
+        /// <summary>The old Radar view's per-scenario settings, no longer read or written; kept so an old file round-trips.</summary>
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, List<string>> FavoriteVideoMapsByArtcc { get; set; } = [];
@@ -3122,9 +3107,29 @@ public sealed class SavedLayout
     public bool IsTerminalPoppedOut { get; set; }
     public bool IsDataGridPoppedOut { get; set; }
     public bool IsGroundViewPoppedOut { get; set; }
+
+    /// <summary>
+    /// The old Radar view's pop-out state, which layouts no longer capture or apply; kept so a layout saved with it still
+    /// loads.
+    /// </summary>
     public bool IsRadarViewPoppedOut { get; set; }
     public bool IsControllersPoppedOut { get; set; }
     public bool IsMetarPoppedOut { get; set; }
+
+    /// <summary>
+    /// Whether the primary Scope was popped out into its own window at capture time. Null on layouts captured before the
+    /// Scope was a layout part — applying such a layout leaves the Scope as it is (same convention as
+    /// <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public bool? IsScopePoppedOut { get; set; }
+
+    /// <summary>
+    /// The extra Scope windows open at capture time (ordinals ≥ 2; the primary Scope is #1), each with
+    /// <see cref="SavedExtraView.AirportId"/> "" since a Scope window has no airport; their geometries ride in
+    /// <see cref="WindowGeometries"/> under the matching "ScopeView#n" keys. Null on layouts captured before the Scope was
+    /// a layout part — applying such a layout leaves the extra Scope windows as they are.
+    /// </summary>
+    public List<SavedExtraView>? ExtraScopeViews { get; set; }
 
     /// <summary>
     /// The docked terminal's share of the main window's tabs + terminal height at capture time. Applied only when the
@@ -3134,15 +3139,17 @@ public sealed class SavedLayout
     public double? TerminalSplitRatio { get; set; }
 
     /// <summary>
-    /// The extra Radar View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with
-    /// the airport it was opened on; their geometries ride in <see cref="WindowGeometries"/> under the
-    /// matching "RadarView#n" keys. A layout captured before extra windows existed deserializes as empty,
-    /// and applying it closes any extras — a layout is the whole arrangement, not a partial overlay.
+    /// The old Radar view's extra windows, which layouts no longer capture or apply; kept so a layout saved with them
+    /// still loads.
     /// </summary>
     public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
 
-    /// <summary>The extra Ground View windows open at capture time; same convention as
-    /// <see cref="ExtraRadarViews"/>.</summary>
+    /// <summary>
+    /// The extra Ground View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with the airport it
+    /// was opened on; their geometries ride in <see cref="WindowGeometries"/> under the matching "GroundView#n" keys. A
+    /// layout captured before extra windows existed deserializes as empty, and applying it closes any extras — a layout is
+    /// the whole arrangement, not a partial overlay.
+    /// </summary>
     public List<SavedExtraView> ExtraGroundViews { get; set; } = [];
 
     /// <summary>DataGrid column order / widths / sort / hidden columns at capture time.</summary>

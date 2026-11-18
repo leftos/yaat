@@ -324,7 +324,6 @@ public class MainWindowLifecycleTests
         MarkNavDataReady(vm);
         try
         {
-            vm.OpenExtraRadarView("KOAK");
             vm.OpenExtraGroundView("KOAK");
             vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
@@ -333,7 +332,6 @@ public class MainWindowLifecycleTests
 
             // Ordinal and base airport in the FAA form ("KOAK" is stored as "OAK"), so applying the
             // layout reopens each window where it was.
-            Assert.Equal([new SavedExtraView(2, "OAK")], layout.ExtraRadarViews);
             Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], layout.ExtraGroundViews);
         }
         finally

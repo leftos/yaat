@@ -7,8 +7,8 @@ namespace Yaat.Client.Services;
 
 /// <summary>
 /// Captures and applies user-managed saved layouts. A layout is a named
-/// snapshot of every live window's geometry plus the six pop-out toggles driven from
-/// <see cref="MainViewModel"/>, the extra Radar/Ground windows, favorites state, the open
+/// snapshot of every live window's geometry plus the pop-out toggles driven from
+/// <see cref="MainViewModel"/> (the Scope's among them), the extra Scope and Ground windows, favorites state, the open
 /// Strips / vTDLS tabs and the DataGrid column layout.
 ///
 /// Capture walks <see cref="WindowGeometryHelper.GetActiveHelpers"/> to read every
@@ -44,7 +44,7 @@ public sealed class LayoutService(UserPreferences preferences)
             TerminalSplitRatio = vm.TerminalSplitRatio,
             IsDataGridPoppedOut = vm.IsDataGridPoppedOut,
             IsGroundViewPoppedOut = vm.IsGroundViewPoppedOut,
-            IsRadarViewPoppedOut = vm.IsRadarViewPoppedOut,
+            IsScopePoppedOut = vm.IsScopePoppedOut,
             IsControllersPoppedOut = vm.IsControllersPoppedOut,
             IsMetarPoppedOut = vm.IsMetarPoppedOut,
             DataGridLayout = CloneGridLayout(_preferences.GridLayout),
@@ -53,9 +53,9 @@ public sealed class LayoutService(UserPreferences preferences)
             ShowGlobalFavoriteSet = _preferences.ShowGlobalFavoriteSet,
             ShowFavoritesBar = vm.ShowFavoritesBar,
             IsFavoritesPanelOpen = FavoritesPanelWindow.IsOpen(vm),
-            // Which extra Radar/Ground windows are open and on which airport; their geometry rides the
-            // live-helper walk below under the RadarView#n / GroundView#n keys.
-            ExtraRadarViews = [.. vm.ExtraRadarViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId))],
+            // Which extra Scope and Ground windows are open (a Ground window on which airport, a Scope window on none);
+            // their geometry rides the live-helper walk below under the ScopeView#n / GroundView#n keys.
+            ExtraScopeViews = [.. vm.ExtraScopeViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, ""))],
             ExtraGroundViews = [.. vm.ExtraGroundViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId))],
             OpenTabs = CaptureOpenTabs(vm),
         };

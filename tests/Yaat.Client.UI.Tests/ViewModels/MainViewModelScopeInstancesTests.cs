@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
@@ -273,6 +274,134 @@ public class MainViewModelScopeInstancesTests
         finally
         {
             main.CloseExtraScopeView(extra);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ReconcileExtraScopeViews_OpensAListedOrdinal_ReadingItsOwnSlot()
+    {
+        string root = ScopeStoreFixture.NewStoreRoot();
+        using IDisposable store = ScopeStoreFixture.UseStore(root);
+        MainViewModel main = await MainAsync();
+        try
+        {
+            await ScopeStoreFixture.OnSector44Async(main);
+            ScopeStoreFixture.SeedExtraState(main, root, 3, 77);
+
+            main.ReconcileExtraScopeViews([new SavedExtraView(3, "")]);
+
+            ScopeViewInstance opened = Assert.Single(main.ExtraScopeViews);
+            Assert.Equal(3, opened.Ordinal);
+            Assert.Equal(3, opened.Vm.Ordinal);
+            // Headless, the map source never seeds, so the saved range is held for the seed: the state the Scope holds.
+            Assert.Equal(77, opened.Vm.CapturePrefSet(null).RangeNm);
+        }
+        finally
+        {
+            CloseEveryExtra(main);
+            ScopeStoreFixture.DeleteStoreRoot(root);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ReconcileExtraScopeViews_ClosesAnOpenScopeNotListed_DisposingIt()
+    {
+        MainViewModel main = await MainAsync();
+        ScopeViewInstance second = main.OpenExtraScopeView();
+        ScopeViewInstance third = main.OpenExtraScopeView();
+        try
+        {
+            main.ReconcileExtraScopeViews([new SavedExtraView(2, "")]);
+
+            Assert.Equal([second], main.ExtraScopeViews);
+            Assert.True(third.Vm.IsDisposed);
+            Assert.Equal([main.PrimaryScope, second.Vm], main.AllScopeViews);
+        }
+        finally
+        {
+            CloseEveryExtra(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ReconcileExtraScopeViews_LeavesAnOpenListedScopeUntouched()
+    {
+        MainViewModel main = await MainAsync();
+        ScopeViewInstance extra = main.OpenExtraScopeView();
+        extra.Vm.RangeNm = 70;
+        try
+        {
+            main.ReconcileExtraScopeViews([new SavedExtraView(2, "")]);
+
+            Assert.Same(extra, Assert.Single(main.ExtraScopeViews));
+            Assert.False(extra.Vm.IsDisposed);
+            Assert.Equal(70, extra.Vm.RangeNm);
+        }
+        finally
+        {
+            CloseEveryExtra(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ReconcileExtraScopeViews_IgnoresOrdinalsBelowTwo()
+    {
+        MainViewModel main = await MainAsync();
+        try
+        {
+            main.ReconcileExtraScopeViews([new SavedExtraView(1, ""), new SavedExtraView(0, "")]);
+
+            Assert.Empty(main.ExtraScopeViews);
+            Assert.Equal([main.PrimaryScope], main.AllScopeViews);
+        }
+        finally
+        {
+            CloseEveryExtra(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ReconcileExtraScopeViews_OpensAnOrdinalListedTwice_Once()
+    {
+        MainViewModel main = await MainAsync();
+        try
+        {
+            main.ReconcileExtraScopeViews([new SavedExtraView(2, ""), new SavedExtraView(2, "")]);
+
+            Assert.Equal([2], main.ExtraScopeViews.Select(i => i.Ordinal));
+        }
+        finally
+        {
+            CloseEveryExtra(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ReconcileExtraScopeViews_AnEmptyList_ClosesEveryExtra()
+    {
+        MainViewModel main = await MainAsync();
+        ScopeViewInstance second = main.OpenExtraScopeView();
+        ScopeViewInstance third = main.OpenExtraScopeView();
+        try
+        {
+            main.ReconcileExtraScopeViews([]);
+
+            Assert.Empty(main.ExtraScopeViews);
+            Assert.True(second.Vm.IsDisposed);
+            Assert.True(third.Vm.IsDisposed);
+            Assert.False(main.PrimaryScope.IsDisposed);
+        }
+        finally
+        {
+            CloseEveryExtra(main);
+        }
+    }
+
+    private static void CloseEveryExtra(MainViewModel main)
+    {
+        foreach (ScopeViewInstance instance in main.ExtraScopeViews.ToList())
+        {
+            main.CloseExtraScopeView(instance);
         }
     }
 

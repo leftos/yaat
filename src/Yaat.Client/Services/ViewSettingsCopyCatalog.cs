@@ -18,16 +18,6 @@ public sealed class GroundCopyGroup
     public required Action<SavedGroundSettings, SavedGroundSettings> Copy { get; init; }
 }
 
-/// <summary>One selectable section of per-scenario Radar view settings. See <see cref="GroundCopyGroup"/>.</summary>
-public sealed class RadarCopyGroup
-{
-    public required string Key { get; init; }
-    public required string Label { get; init; }
-    public required Func<SavedRadarSettings, string> Describe { get; init; }
-    public required Func<SavedRadarSettings, SavedRadarSettings, bool> AreEqual { get; init; }
-    public required Action<SavedRadarSettings, SavedRadarSettings> Copy { get; init; }
-}
-
 /// <summary>
 /// One selectable row of a saved layout in the apply dialog: a pop-out window, the extra views, favorites, open tabs or
 /// the aircraft-list columns. <see cref="IsSaved"/> is false when the layout predates the state being captured (a null
@@ -44,7 +34,7 @@ public sealed class LayoutCopyGroup
 }
 
 /// <summary>
-/// Single source of truth for how per-scenario Ground/Radar view settings and saved layouts are grouped when applied
+/// Single source of truth for how per-scenario Ground view settings and saved layouts are grouped when applied
 /// from a source. Used by both <c>ApplyLayoutDialog</c> (to render the comparison rows) and the apply step in
 /// <c>MainWindow</c> (to merge the selected sections into the current settings), so the groupings can never drift apart.
 /// </summary>
@@ -56,16 +46,22 @@ public static class ViewSettingsCopyCatalog
     public const string LayoutTerminalKey = "layout.terminal";
     public const string LayoutAircraftListKey = "layout.aircraftList";
     public const string LayoutGroundKey = "layout.ground";
-    public const string LayoutRadarKey = "layout.radar";
+    public const string LayoutScopeKey = "layout.scope";
     public const string LayoutControllersKey = "layout.controllers";
     public const string LayoutMetarKey = "layout.metar";
-    public const string LayoutExtraRadarKey = "layout.extraRadar";
+    public const string LayoutExtraScopeKey = "layout.extraScope";
     public const string LayoutExtraGroundKey = "layout.extraGround";
     public const string LayoutFavoriteSetsKey = "layout.favoriteSets";
     public const string LayoutFavoritesBarKey = "layout.favoritesBar";
     public const string LayoutFavoritesPanelKey = "layout.favoritesPanel";
     public const string LayoutOpenTabsKey = "layout.openTabs";
     public const string LayoutColumnsKey = "layout.columns";
+
+    /// <summary>The label of the primary Scope's pop-out row.</summary>
+    public const string ScopeViewLabel = "Scope view";
+
+    /// <summary>The label of the extra Scope windows' row.</summary>
+    public const string ExtraScopeWindowsLabel = "Extra Scope windows";
 
     private const string NotSaved = "not saved";
 
@@ -82,16 +78,25 @@ public static class ViewSettingsCopyCatalog
         },
         PopOutGroup(LayoutAircraftListKey, "Aircraft list", l => l.IsDataGridPoppedOut),
         PopOutGroup(LayoutGroundKey, "Ground view", l => l.IsGroundViewPoppedOut),
-        PopOutGroup(LayoutRadarKey, "Radar view", l => l.IsRadarViewPoppedOut),
+        new LayoutCopyGroup
+        {
+            Key = LayoutScopeKey,
+            Section = "Pop-out windows",
+            Label = ScopeViewLabel,
+            Describe = l => l.IsScopePoppedOut is { } poppedOut ? (poppedOut ? "popped out" : "docked") : NotSaved,
+            AreEqual = (a, b) => (a.IsScopePoppedOut is null) || (b.IsScopePoppedOut is null) || (a.IsScopePoppedOut == b.IsScopePoppedOut),
+            IsSaved = l => l.IsScopePoppedOut is not null,
+        },
         PopOutGroup(LayoutControllersKey, "Controllers", l => l.IsControllersPoppedOut),
         PopOutGroup(LayoutMetarKey, "METAR", l => l.IsMetarPoppedOut),
         new LayoutCopyGroup
         {
-            Key = LayoutExtraRadarKey,
+            Key = LayoutExtraScopeKey,
             Section = "Extra windows",
-            Label = "Extra radar windows",
-            Describe = l => FormatExtraViews(l.ExtraRadarViews),
-            AreEqual = (a, b) => a.ExtraRadarViews.SequenceEqual(b.ExtraRadarViews),
+            Label = ExtraScopeWindowsLabel,
+            Describe = l => l.ExtraScopeViews is { } views ? FormatScopeExtras(views) : NotSaved,
+            AreEqual = (a, b) => ScopeExtrasEqual(a.ExtraScopeViews, b.ExtraScopeViews),
+            IsSaved = l => l.ExtraScopeViews is not null,
         },
         new LayoutCopyGroup
         {
@@ -159,9 +164,6 @@ public static class ViewSettingsCopyCatalog
     /// <summary>Position group keys carry an airport-aware label and the cross-airport warning.</summary>
     public const string GroundPositionKey = "ground.position";
 
-    public const string RadarCenterKey = "radar.center";
-    public const string RadarMapsKey = "radar.maps";
-
     public static IReadOnlyList<GroundCopyGroup> GroundGroups { get; } =
     [
         new GroundCopyGroup
@@ -221,101 +223,6 @@ public static class ViewSettingsCopyCatalog
         },
     ];
 
-    public static IReadOnlyList<RadarCopyGroup> RadarGroups { get; } =
-    [
-        new RadarCopyGroup
-        {
-            Key = RadarMapsKey,
-            Label = "Video maps (selected)",
-            Describe = s => s.EnabledStarsIds.Count == 0 ? "none" : $"{s.EnabledStarsIds.Count} map{Plural(s.EnabledStarsIds.Count)}",
-            AreEqual = (a, b) => new HashSet<int>(a.EnabledStarsIds).SetEquals(b.EnabledStarsIds),
-            Copy = (src, tgt) => tgt.EnabledStarsIds = [.. src.EnabledStarsIds],
-        },
-        new RadarCopyGroup
-        {
-            Key = RadarCenterKey,
-            Label = "Center & range",
-            Describe = s => $"{Num(s.RangeNm)} nm",
-            AreEqual = (a, b) => DEq(a.CenterLat, b.CenterLat) && DEq(a.CenterLon, b.CenterLon) && DEq(a.RangeNm, b.RangeNm),
-            Copy = (src, tgt) =>
-            {
-                tgt.CenterLat = src.CenterLat;
-                tgt.CenterLon = src.CenterLon;
-                tgt.RangeNm = src.RangeNm;
-            },
-        },
-        new RadarCopyGroup
-        {
-            Key = "radar.rings",
-            Label = "Range rings",
-            Describe = s => s.ShowRangeRings ? $"on · {Num(s.RangeRingSizeNm)} nm" : "off",
-            AreEqual = (a, b) =>
-                a.ShowRangeRings == b.ShowRangeRings
-                && DEq(a.RangeRingSizeNm, b.RangeRingSizeNm)
-                && DEq(a.RangeRingCenterLat, b.RangeRingCenterLat)
-                && DEq(a.RangeRingCenterLon, b.RangeRingCenterLon),
-            Copy = (src, tgt) =>
-            {
-                tgt.ShowRangeRings = src.ShowRangeRings;
-                tgt.RangeRingSizeNm = src.RangeRingSizeNm;
-                tgt.RangeRingCenterLat = src.RangeRingCenterLat;
-                tgt.RangeRingCenterLon = src.RangeRingCenterLon;
-            },
-        },
-        new RadarCopyGroup
-        {
-            Key = "radar.ptl",
-            Label = "PTL (predicted track line)",
-            Describe = s =>
-                ((!s.PtlOwn && !s.PtlAll) || s.PtlLengthMinutes <= 0)
-                    ? "off"
-                    : $"{s.PtlLengthMinutes.ToString("0.0", CultureInfo.InvariantCulture)} min · {(s.PtlAll ? "all" : "own")}",
-            AreEqual = (a, b) => DEq(a.PtlLengthMinutes, b.PtlLengthMinutes) && a.PtlOwn == b.PtlOwn && a.PtlAll == b.PtlAll,
-            Copy = (src, tgt) =>
-            {
-                tgt.PtlLengthMinutes = src.PtlLengthMinutes;
-                tgt.PtlOwn = src.PtlOwn;
-                tgt.PtlAll = src.PtlAll;
-            },
-        },
-        new RadarCopyGroup
-        {
-            Key = "radar.brightness",
-            Label = "Brightness levels",
-            Describe = s => s.BrightnessValues is { Count: > 0 } b ? $"{b.Count} levels" : "default",
-            AreEqual = (a, b) => BrightnessEqual(a.BrightnessValues, b.BrightnessValues),
-            Copy = (src, tgt) => tgt.BrightnessValues = src.BrightnessValues is null ? null : new Dictionary<string, int>(src.BrightnessValues),
-        },
-        new RadarCopyGroup
-        {
-            Key = "radar.fixestopdown",
-            Label = "Fixes / top-down",
-            Describe = s => $"Fixes {OnOff(s.ShowFixes)} · TD {OnOff(s.ShowTopDown)}",
-            AreEqual = (a, b) => a.ShowFixes == b.ShowFixes && a.ShowTopDown == b.ShowTopDown,
-            Copy = (src, tgt) =>
-            {
-                tgt.ShowFixes = src.ShowFixes;
-                tgt.ShowTopDown = src.ShowTopDown;
-            },
-        },
-        new RadarCopyGroup
-        {
-            Key = "radar.lock",
-            Label = "Pan/zoom lock",
-            Describe = s => s.IsPanZoomLocked ? "On" : "Off",
-            AreEqual = (a, b) => a.IsPanZoomLocked == b.IsPanZoomLocked,
-            Copy = (src, tgt) => tgt.IsPanZoomLocked = src.IsPanZoomLocked,
-        },
-        new RadarCopyGroup
-        {
-            Key = "radar.history",
-            Label = "History trail",
-            Describe = s => s.HistoryCount.ToString(CultureInfo.InvariantCulture),
-            AreEqual = (a, b) => a.HistoryCount == b.HistoryCount,
-            Copy = (src, tgt) => tgt.HistoryCount = src.HistoryCount,
-        },
-    ];
-
     private static string FormatGroundPosition(SavedGroundSettings s)
     {
         string zoom = $"{s.Zoom.ToString("0.##", CultureInfo.InvariantCulture)}x";
@@ -330,31 +237,6 @@ public static class ViewSettingsCopyCatalog
             GroundFilterMode.Off => "Off",
             _ => m.ToString(),
         };
-
-    private static bool BrightnessEqual(Dictionary<string, int>? a, Dictionary<string, int>? b)
-    {
-        int countA = a?.Count ?? 0;
-        int countB = b?.Count ?? 0;
-        if (countA != countB)
-        {
-            return false;
-        }
-
-        if (a is null || b is null)
-        {
-            return true;
-        }
-
-        foreach ((string? key, int value) in a)
-        {
-            if (!b.TryGetValue(key, out int other) || other != value)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     // The dock state plus, on a docked layout that saved it, the terminal's share of the tabs + terminal height. A
     // popped-out terminal is sized by its own window geometry, so its saved share never applies.
@@ -384,6 +266,18 @@ public static class ViewSettingsCopyCatalog
 
     private static string FormatExtraViews(List<SavedExtraView> views) =>
         views.Count == 0 ? "none" : string.Join(", ", views.Select(v => $"#{v.Ordinal} {v.AirportId}"));
+
+    // A Scope window has no airport, so only its number shows: "#2, #3", ascending.
+    private static string FormatScopeExtras(List<SavedExtraView> views) =>
+        views.Count == 0 ? "none" : string.Join(", ", ScopeOrdinals(views).Select(o => $"#{o}"));
+
+    // A layout with no recorded Scope windows leaves them as they are when applied, so it has nothing to compare; two
+    // that recorded them differ only in which numbers are open.
+    private static bool ScopeExtrasEqual(List<SavedExtraView>? a, List<SavedExtraView>? b) =>
+        (a is null) || (b is null) || ScopeOrdinals(a).SequenceEqual(ScopeOrdinals(b));
+
+    // A number listed twice is one window, as ReconcileExtraScopeViews opens it once.
+    private static IEnumerable<int> ScopeOrdinals(List<SavedExtraView> views) => views.Select(v => v.Ordinal).Distinct().Order();
 
     private static string FormatOpenTabs(SavedOpenTabs tabs)
     {

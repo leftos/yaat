@@ -806,7 +806,7 @@ Another Scope window ("YAAT Scope #2", "#3", …; View › Windows › New Scope
 A YAAT Scope display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mixed}.json`) that sets the datablock template, the zoom bands, the toolbar order and the views order; picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`; a pref set is the same shape with one user's values.
 
 **Layout**:
-A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows, extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
+A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows (the Scope's included), extra Scope/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
 _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 
 **Altitude-mismatch mark**:

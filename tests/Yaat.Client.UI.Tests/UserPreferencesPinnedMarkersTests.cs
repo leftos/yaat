@@ -3,9 +3,7 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
 
-// Scope-marker pins persist per radar view (keyed by scenario id) in preferences.json. A fresh
-// UserPreferences instance reads from disk (this test's own preferences file),
-// proving the round-trip.
+// The saved Radar settings record, kept so old preference files still load, starts with no pinned markers.
 public class UserPreferencesPinnedMarkersTests
 {
     [Fact]
@@ -13,19 +11,5 @@ public class UserPreferencesPinnedMarkersTests
     {
         var saved = new SavedRadarSettings();
         Assert.Empty(saved.PinnedMarkers);
-    }
-
-    [Fact]
-    public void RadarSettings_PinnedMarkers_PersistAcrossInstances()
-    {
-        const string scenario = "TEST-markers-roundtrip-ZOA";
-        var prefs = new UserPreferences();
-        prefs.SetRadarSettings(scenario, new SavedRadarSettings { PinnedMarkers = ["SFO", "OAK270010"] });
-
-        var reader = new UserPreferences();
-        SavedRadarSettings? saved = reader.GetRadarSettings(scenario);
-
-        Assert.NotNull(saved);
-        Assert.Equal(["SFO", "OAK270010"], saved!.PinnedMarkers);
     }
 }

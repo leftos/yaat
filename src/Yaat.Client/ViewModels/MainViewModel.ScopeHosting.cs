@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Logging;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -83,14 +84,7 @@ public partial class MainViewModel
     }
 
     /// <summary>Opens another Scope window on the lowest free number, a view of the same facility with its own state.</summary>
-    public ScopeViewInstance OpenExtraScopeView()
-    {
-        int ordinal = ViewInstanceOrdinals.NextFree(ExtraScopeViews.Select(i => i.Ordinal));
-        (ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore) = ScopeStoreFactory();
-        var instance = new ScopeViewInstance { Ordinal = ordinal, Vm = new ScopeViewModel(this, prefStore, profileStore, ordinal) };
-        ExtraScopeViews.Add(instance);
-        return instance;
-    }
+    public ScopeViewInstance OpenExtraScopeView() => OpenScopeInstance(ViewInstanceOrdinals.NextFree(ExtraScopeViews.Select(i => i.Ordinal)));
 
     /// <summary>
     /// Drops an extra Scope window and disposes its view model, which saves its state in its slot. The typed verbs go back
@@ -117,6 +111,26 @@ public partial class MainViewModel
         instance.Vm.Dispose();
     }
 
+    /// <summary>
+    /// Opens and closes extra Scope windows to match a layout's list: an open Scope the list does not name is closed (and
+    /// saves its state), a listed number not open opens with its own saved state, and an open listed Scope is left as it
+    /// is. Entries match by number only; numbers below 2 are skipped, the primary Scope being #1.
+    /// </summary>
+    public void ReconcileExtraScopeViews(IReadOnlyList<SavedExtraView> entries)
+    {
+        HashSet<int> wanted = [.. entries.Select(e => e.Ordinal).Where(o => o > ScopePrefSetStore.PrimarySlot)];
+        foreach (ScopeViewInstance instance in ExtraScopeViews.Where(i => !wanted.Contains(i.Ordinal)).ToList())
+        {
+            CloseExtraScopeView(instance);
+        }
+
+        HashSet<int> open = [.. ExtraScopeViews.Select(i => i.Ordinal)];
+        foreach (int ordinal in wanted.Where(o => !open.Contains(o)).Order())
+        {
+            OpenScopeInstance(ordinal);
+        }
+    }
+
     /// <summary>Disposes every Scope, saving each one's state, as the app exits.</summary>
     public void DisposeScopes()
     {
@@ -133,6 +147,15 @@ public partial class MainViewModel
     {
         _preferences.SetPoppedOut(ScopeViewKey, value);
         OnTabPoppedOutChanged();
+    }
+
+    // An extra Scope's view model reads its own slot's saved state as it is built.
+    private ScopeViewInstance OpenScopeInstance(int ordinal)
+    {
+        (ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore) = ScopeStoreFactory();
+        var instance = new ScopeViewInstance { Ordinal = ordinal, Vm = new ScopeViewModel(this, prefStore, profileStore, ordinal) };
+        ExtraScopeViews.Add(instance);
+        return instance;
     }
 
     private ScopeViewModel CreatePrimaryScope()

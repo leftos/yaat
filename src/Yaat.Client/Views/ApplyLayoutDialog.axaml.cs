@@ -25,14 +25,12 @@ public sealed class ApplyLayoutContext
     public required string CurrentScenarioName { get; init; }
     public string? CurrentAirport { get; init; }
     public required SavedGroundSettings CurrentGround { get; init; }
-    public required SavedRadarSettings CurrentRadar { get; init; }
     public required SavedLayout CurrentLayout { get; init; }
-    public required Func<int, string> ResolveMapName { get; init; }
 }
 
 /// <summary>
 /// Modal picker for applying part of a source to the current session. The user chooses a source —
-/// another scenario's views (per-scenario Ground/Radar view settings) or a saved layout (window
+/// another scenario's views (per-scenario Ground view settings) or a saved layout (window
 /// geometry, every pop-out window, extra views, favorites, open tabs, column layout) — sees a
 /// Current-vs-Source diff grouped into sections, and checks the rows to apply. Results are read back via <see cref="Confirmed"/>,
 /// <see cref="SourceKind"/>, <see cref="SourceId"/>, and <see cref="SelectedKeys"/>; the actual
@@ -179,9 +177,8 @@ public partial class ApplyLayoutDialog : Window
         ApplyLayoutContext context = _context!;
         UserPreferences prefs = context.Preferences;
         SavedGroundSettings? srcGround = prefs.GetGroundSettings(sourceScenarioId);
-        SavedRadarSettings? srcRadar = prefs.GetRadarSettings(sourceScenarioId);
         string? sourceAirport = prefs.GetScenarioAirport(sourceScenarioId);
-        bool mismatch = ComputeAirportMismatch(sourceAirport, srcGround, srcRadar);
+        bool mismatch = ComputeAirportMismatch(sourceAirport, srcGround);
 
         AddGroupHeader("Ground view");
         if (srcGround is null)
@@ -210,39 +207,6 @@ public partial class ApplyLayoutDialog : Window
                         SourceText = source,
                         Differs = !group.AreEqual(context.CurrentGround, srcGround),
                         Warn = isPosition && mismatch,
-                    }
-                );
-            }
-        }
-
-        AddGroupHeader("Radar view");
-        if (srcRadar is null)
-        {
-            AddInfo("    (source scenario has no saved radar settings)");
-        }
-        else
-        {
-            foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
-            {
-                bool isCenter = group.Key == ViewSettingsCopyCatalog.RadarCenterKey;
-                string current = group.Describe(context.CurrentRadar);
-                string source = group.Describe(srcRadar);
-                if (isCenter)
-                {
-                    current = WithAirport(context.CurrentAirport, current);
-                    source = WithAirport(sourceAirport, source);
-                }
-
-                AddRow(
-                    new RowSpec
-                    {
-                        Key = group.Key,
-                        Label = group.Label,
-                        CurrentText = current,
-                        SourceText = source,
-                        Differs = !group.AreEqual(context.CurrentRadar, srcRadar),
-                        Warn = isCenter && mismatch,
-                        Tooltip = group.Key == ViewSettingsCopyCatalog.RadarMapsKey ? BuildMapsTooltip(context.CurrentRadar, srcRadar) : null,
                     }
                 );
             }
@@ -347,7 +311,7 @@ public partial class ApplyLayoutDialog : Window
         Close();
     }
 
-    private bool ComputeAirportMismatch(string? sourceAirport, SavedGroundSettings? srcGround, SavedRadarSettings? srcRadar)
+    private bool ComputeAirportMismatch(string? sourceAirport, SavedGroundSettings? srcGround)
     {
         ApplyLayoutContext context = _context!;
         string? currentAirport = context.CurrentAirport;
@@ -362,21 +326,7 @@ public partial class ApplyLayoutDialog : Window
                 > MismatchNmThreshold;
         }
 
-        if (srcRadar is not null)
-        {
-            return NmBetween(context.CurrentRadar.CenterLat, context.CurrentRadar.CenterLon, srcRadar.CenterLat, srcRadar.CenterLon)
-                > MismatchNmThreshold;
-        }
-
         return false;
-    }
-
-    private string BuildMapsTooltip(SavedRadarSettings current, SavedRadarSettings source)
-    {
-        ApplyLayoutContext context = _context!;
-        string Names(SavedRadarSettings s) =>
-            s.EnabledStarsIds.Count == 0 ? "(none)" : string.Join(", ", s.EnabledStarsIds.Select(context.ResolveMapName));
-        return $"Current: {Names(current)}\nSource: {Names(source)}";
     }
 
     private void AddGroupHeader(string title)
@@ -495,7 +445,7 @@ public partial class ApplyLayoutDialog : Window
 
     private static double ToRad(double degrees) => degrees * Math.PI / 180.0;
 
-    private static string FriendlyWindowName(string key)
+    internal static string FriendlyWindowName(string key)
     {
         if (key.StartsWith("VStripsView:", StringComparison.Ordinal))
         {
@@ -517,9 +467,15 @@ public partial class ApplyLayoutDialog : Window
             return $"Ground View window #{groundOrdinal}";
         }
 
+        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.ScopePrefix, out int scopeOrdinal))
+        {
+            return $"Scope window #{scopeOrdinal}";
+        }
+
         return key switch
         {
             "Main" => "Main window",
+            MainViewModel.ScopeViewKey => "Scope window",
             "Terminal" => "Terminal window",
             "DataGrid" => "Aircraft List window",
             "GroundView" => "Ground View window",
@@ -535,7 +491,7 @@ public partial class ApplyLayoutDialog : Window
     }
 
     /// <summary>
-    /// Reads the instance number out of an extra Radar/Ground view key ("RadarView#2"). A key that carries
+    /// Reads the instance number out of an extra Radar, Ground or Scope window key ("ScopeView#2"). A key that carries
     /// the prefix but no parseable ordinal is left to the caller's verbatim fallback.
     /// </summary>
     private static bool TryInstanceOrdinal(string key, string prefix, out int ordinal)

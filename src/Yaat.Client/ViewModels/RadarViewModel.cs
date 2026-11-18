@@ -60,7 +60,6 @@ public partial class RadarViewModel(
     private string? _activeArtccId;
     private string? _activeAirportId;
     private UserPreferences? _preferences;
-    private bool _isRestoring;
     private Func<string, double?>? _getAirportElevation;
     private Func<string, AircraftModel?>? _findAircraft;
     private bool _navDbReady;
@@ -77,9 +76,6 @@ public partial class RadarViewModel(
     /// this so an extra window's toggles never rewrite the primary view's app-wide defaults.
     /// </summary>
     public bool IsPrimary { get; init; } = true;
-
-    /// <summary>Per-scenario settings key for this view: the active scenario id plus its instance suffix.</summary>
-    private string? SettingsKey => _activeScenarioId is null ? null : _activeScenarioId + SettingsKeySuffix;
 
     public string? PrimaryAirportId { get; private set; }
 
@@ -459,7 +455,6 @@ public partial class RadarViewModel(
         {
             _pinnedMarkerTokens.RemoveAt(existing);
             RebuildPinnedMarkers();
-            SaveSettings();
             return true;
         }
 
@@ -470,7 +465,6 @@ public partial class RadarViewModel(
 
         _pinnedMarkerTokens.Add(normalized);
         RebuildPinnedMarkers();
-        SaveSettings();
         return true;
     }
 
@@ -486,7 +480,6 @@ public partial class RadarViewModel(
 
         _pinnedMarkerTokens.Add(normalized);
         RebuildPinnedMarkers();
-        SaveSettings();
     }
 
     /// <summary>Removes the pinned marker nearest <paramref name="lat"/>/<paramref name="lon"/> within
@@ -518,7 +511,6 @@ public partial class RadarViewModel(
 
         _pinnedMarkerTokens.RemoveAt(bestIndex);
         RebuildPinnedMarkers();
-        SaveSettings();
         return true;
     }
 
@@ -532,7 +524,6 @@ public partial class RadarViewModel(
 
         _pinnedMarkerTokens.Clear();
         RebuildPinnedMarkers();
-        SaveSettings();
     }
 
     public bool HasMarkers => _pinnedMarkerTokens.Count > 0;
@@ -636,10 +627,7 @@ public partial class RadarViewModel(
             // Download all referenced maps
             List<VideoMapData> data = await _videoMapService.LoadMapsAsync(artccId, dto.VideoMaps);
 
-            // Restore per-scenario settings if available
-            RestoreSettings();
-
-            // Initially enable always-visible maps (unless restored)
+            // Initially enable always-visible maps
             UpdateActiveMaps();
 
             _log.LogInformation("Video maps loaded: {Count} maps for {Facility}", data.Count, dto.FacilityId);
@@ -712,7 +700,6 @@ public partial class RadarViewModel(
             item.PropertyChanged += (_, _) =>
             {
                 UpdateActiveMaps();
-                SaveSettings();
             };
             MapToggles.Add(item);
         }
@@ -957,22 +944,13 @@ public partial class RadarViewModel(
         RangeRingCenterLat = lat;
         RangeRingCenterLon = lon;
         IsPlacingRangeRing = false;
-        SaveSettings();
     }
 
     [RelayCommand]
-    private void ToggleRangeRings()
-    {
-        ShowRangeRings = !ShowRangeRings;
-        SaveSettings();
-    }
+    private void ToggleRangeRings() => ShowRangeRings = !ShowRangeRings;
 
     [RelayCommand]
-    private void ToggleFixes()
-    {
-        ShowFixes = !ShowFixes;
-        SaveSettings();
-    }
+    private void ToggleFixes() => ShowFixes = !ShowFixes;
 
     [RelayCommand]
     private void ToggleMvaHints() =>
@@ -997,45 +975,24 @@ public partial class RadarViewModel(
     }
 
     [RelayCommand]
-    private void TogglePanZoomLock()
-    {
-        IsPanZoomLocked = !IsPanZoomLocked;
-        SaveSettings();
-    }
+    private void TogglePanZoomLock() => IsPanZoomLocked = !IsPanZoomLocked;
 
     [RelayCommand]
-    private void ToggleTopDown()
-    {
-        ShowTopDown = !ShowTopDown;
-        SaveSettings();
-    }
+    private void ToggleTopDown() => ShowTopDown = !ShowTopDown;
 
     public void AdjustPtlLength(int delta)
     {
         double next = PtlLengthMinutes + delta * 0.5;
         PtlLengthMinutes = Math.Clamp(next, 0.5, 3.0);
-        SaveSettings();
     }
 
-    public void AdjustHistoryCount(int delta)
-    {
-        HistoryCount = Math.Clamp(HistoryCount + delta, 0, 10);
-        SaveSettings();
-    }
+    public void AdjustHistoryCount(int delta) => HistoryCount = Math.Clamp(HistoryCount + delta, 0, 10);
 
     [RelayCommand]
-    private void TogglePtlOwn()
-    {
-        PtlOwn = !PtlOwn;
-        SaveSettings();
-    }
+    private void TogglePtlOwn() => PtlOwn = !PtlOwn;
 
     [RelayCommand]
-    private void TogglePtlAll()
-    {
-        PtlAll = !PtlAll;
-        SaveSettings();
-    }
+    private void TogglePtlAll() => PtlAll = !PtlAll;
 
     [RelayCommand]
     private void StartPlaceRangeRing() => IsPlacingRangeRing = true;
@@ -1097,7 +1054,6 @@ public partial class RadarViewModel(
         if (newRange is >= 1 and <= 256)
         {
             RangeNm = newRange;
-            SaveSettings();
         }
     }
 
@@ -1121,8 +1077,6 @@ public partial class RadarViewModel(
                 }
             );
         }
-
-        SaveSettings();
     }
 
     /// <summary>
@@ -1152,148 +1106,6 @@ public partial class RadarViewModel(
         }
 
         return RangeRingSizeSteps[0];
-    }
-
-    public SavedRadarSettings CaptureSettings()
-    {
-        var enabledIds = new List<int>();
-        foreach (VideoMapToggleItem t in MapToggles)
-        {
-            if (t.IsEnabled)
-            {
-                enabledIds.Add(t.StarsId);
-            }
-        }
-
-        var brightnessDict = new Dictionary<string, int>();
-        foreach ((BriteTarget target, int value) in _brightnessValues)
-        {
-            brightnessDict[target.ToString()] = value;
-        }
-
-        return new SavedRadarSettings
-        {
-            EnabledStarsIds = enabledIds,
-            PinnedMarkers = [.. _pinnedMarkerTokens],
-            CenterLat = CenterLat,
-            CenterLon = CenterLon,
-            RangeNm = RangeNm,
-            RangeRingCenterLat = RangeRingCenterLat,
-            RangeRingCenterLon = RangeRingCenterLon,
-            RangeRingSizeNm = RangeRingSizeNm,
-            ShowRangeRings = ShowRangeRings,
-            ShowFixes = ShowFixes,
-            IsPanZoomLocked = IsPanZoomLocked,
-            ShowTopDown = ShowTopDown,
-            PtlLengthMinutes = PtlLengthMinutes,
-            PtlOwn = PtlOwn,
-            PtlAll = PtlAll,
-            BrightnessValues = brightnessDict,
-            HistoryCount = HistoryCount,
-        };
-    }
-
-    private void SaveSettings()
-    {
-        if (_preferences is null || SettingsKey is not { } key || _isRestoring)
-        {
-            return;
-        }
-
-        _preferences.SetRadarSettings(key, CaptureSettings());
-    }
-
-    public void ApplyCopiedSettings(SavedRadarSettings merged)
-    {
-        ApplySettings(merged);
-        SaveSettings();
-    }
-
-    /// <summary>
-    /// Returns a human-readable label ("{StarsId} {ShortName}") for an enabled video-map
-    /// STARS id, or the bare id when the map is not in the current facility's toggle list.
-    /// </summary>
-    public string ResolveMapName(int starsId)
-    {
-        foreach (VideoMapToggleItem t in MapToggles)
-        {
-            if (t.StarsId == starsId)
-            {
-                return t.DisplayLabel;
-            }
-        }
-
-        return starsId.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    private void RestoreSettings()
-    {
-        if (_preferences is null || SettingsKey is not { } key)
-        {
-            return;
-        }
-
-        SavedRadarSettings? saved = _preferences.GetRadarSettings(key);
-        if (saved is null)
-        {
-            return;
-        }
-
-        ApplySettings(saved);
-    }
-
-    private void ApplySettings(SavedRadarSettings saved)
-    {
-        _isRestoring = true;
-
-        // Restore map toggles
-        var enabledSet = new HashSet<int>(saved.EnabledStarsIds);
-        foreach (VideoMapToggleItem t in MapToggles)
-        {
-            t.IsEnabled = enabledSet.Contains(t.StarsId);
-        }
-
-        // Sync shortcut states
-        foreach (MapShortcutItem sc in MapShortcuts)
-        {
-            sc.IsEnabled = enabledSet.Contains(sc.StarsId);
-        }
-
-        CenterLat = saved.CenterLat;
-        CenterLon = saved.CenterLon;
-        RangeNm = saved.RangeNm;
-        RangeRingCenterLat = saved.RangeRingCenterLat;
-        RangeRingCenterLon = saved.RangeRingCenterLon;
-        RangeRingSizeNm = saved.RangeRingSizeNm;
-        ShowRangeRings = saved.ShowRangeRings;
-        ShowFixes = saved.ShowFixes;
-        IsPanZoomLocked = saved.IsPanZoomLocked;
-        ShowTopDown = saved.ShowTopDown;
-        PtlLengthMinutes = saved.PtlLengthMinutes;
-        PtlOwn = saved.PtlOwn;
-        PtlAll = saved.PtlAll;
-        HistoryCount = saved.HistoryCount;
-
-        _pinnedMarkerTokens.Clear();
-        _pinnedMarkerTokens.AddRange(saved.PinnedMarkers);
-        RebuildPinnedMarkers();
-
-        if (saved.BrightnessValues is { Count: > 0 })
-        {
-            foreach ((string? key, int value) in saved.BrightnessValues)
-            {
-                if (Enum.TryParse<BriteTarget>(key, out BriteTarget target))
-                {
-                    _brightnessValues[target] = Math.Clamp(value, 0, 100);
-                }
-            }
-
-            OnPropertyChanged(nameof(MapBrightnessA));
-            OnPropertyChanged(nameof(MapBrightnessB));
-            OnPropertyChanged(nameof(RangeRingBrightness));
-        }
-
-        _isRestoring = false;
     }
 
     private void UpdateActiveMaps()

@@ -2363,7 +2363,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ApplyPopoutFlags(vm, layout, selected);
             ApplyTerminalSplitRatio(vm, layout, selected);
             ApplyFavoritesLayoutState(vm, layout, selected);
-            // Open/close the extra Radar/Ground windows the layout captured before the geometry push
+            // Open/close the extra Scope/Ground windows the layout captured before the geometry push
             // below, so each new window's helper is already in the ActiveHelpers registry by then.
             ApplyExtraViews(vm, layout, selected);
             if (selected.Contains(ViewSettingsCopyCatalog.LayoutOpenTabsKey))
@@ -2483,8 +2483,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Flips the selected ones of the six pop-out view toggles a layout captures. The MainViewModel property-changed
-    /// handlers create or destroy the matching pop-out windows, so every apply path must route
+    /// Flips the selected ones of the pop-out view toggles a layout captures, the Scope's among them. The MainViewModel
+    /// property-changed handlers create or destroy the matching pop-out windows, so every apply path must route
     /// through here or a layout silently leaves some of them open or closed.
     /// </summary>
     private static void ApplyPopoutFlags(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
@@ -2504,10 +2504,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.IsGroundViewPoppedOut = layout.IsGroundViewPoppedOut;
         }
 
-        if (selected.Contains(ViewSettingsCopyCatalog.LayoutRadarKey))
-        {
-            vm.IsRadarViewPoppedOut = layout.IsRadarViewPoppedOut;
-        }
+        ApplyScopePopOut(vm, layout, selected);
 
         if (selected.Contains(ViewSettingsCopyCatalog.LayoutControllersKey))
         {
@@ -2520,23 +2517,33 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
+    // A layout saved before the Scope was a layout part has no Scope pop-out state and leaves the Scope as it is.
+    private static void ApplyScopePopOut(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    {
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutScopeKey) && (layout.IsScopePoppedOut is { } scopePoppedOut))
+        {
+            vm.IsScopePoppedOut = scopePoppedOut;
+        }
+    }
+
     /// <summary>
-    /// Opens and closes the extra Radar/Ground windows to match the layout, for each kind selected. An unselected kind
-    /// is passed back as it stands, so the reconcile leaves those windows untouched.
+    /// Opens and closes the extra Scope and Ground windows to match the layout, for each kind selected. A layout never
+    /// touches the old Radar view's extra windows: their current list is passed back as it stands, as is the Ground list
+    /// when that kind is not selected. A layout saved before the Scope was a layout part leaves the Scope windows alone.
     /// </summary>
     private static void ApplyExtraViews(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
     {
-        bool radar = selected.Contains(ViewSettingsCopyCatalog.LayoutExtraRadarKey);
-        bool ground = selected.Contains(ViewSettingsCopyCatalog.LayoutExtraGroundKey);
-        if (!radar && !ground)
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutExtraScopeKey) && (layout.ExtraScopeViews is { } scopes))
+        {
+            vm.ReconcileExtraScopeViews(scopes);
+        }
+
+        if (!selected.Contains(ViewSettingsCopyCatalog.LayoutExtraGroundKey))
         {
             return;
         }
 
-        vm.ReconcileExtraViews(
-            radar ? layout.ExtraRadarViews : [.. vm.ExtraRadarViews.Select(i => new SavedExtraView(i.Ordinal, i.AirportId))],
-            ground ? layout.ExtraGroundViews : [.. vm.ExtraGroundViews.Select(i => new SavedExtraView(i.Ordinal, i.AirportId))]
-        );
+        vm.ReconcileExtraViews([.. vm.ExtraRadarViews.Select(i => new SavedExtraView(i.Ordinal, i.AirportId))], layout.ExtraGroundViews);
     }
 
     /// <summary>
@@ -2662,9 +2669,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             CurrentScenarioName = vm.ActiveScenarioName ?? vm.ActiveScenarioId,
             CurrentAirport = vm.ActiveScenarioPrimaryAirportId,
             CurrentGround = vm.Ground.CaptureSettings(),
-            CurrentRadar = vm.Radar.CaptureSettings(),
             CurrentLayout = _layoutService.CaptureCurrent("(current)", vm),
-            ResolveMapName = vm.Radar.ResolveMapName,
         };
 
         var dlg = new ApplyLayoutDialog(context);
@@ -2709,21 +2714,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             }
 
             vm.Ground.ApplyCopiedSettings(merged);
-        }
-
-        SavedRadarSettings? sourceRadar = prefs.GetRadarSettings(sourceScenarioId);
-        if (sourceRadar is not null && ViewSettingsCopyCatalog.RadarGroups.Any(g => selected.Contains(g.Key)))
-        {
-            SavedRadarSettings merged = vm.Radar.CaptureSettings();
-            foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
-            {
-                if (selected.Contains(group.Key))
-                {
-                    group.Copy(sourceRadar, merged);
-                }
-            }
-
-            vm.Radar.ApplyCopiedSettings(merged);
         }
 
         vm.StatusText = $"Copied {selected.Count} view-setting group(s) from the selected scenario";

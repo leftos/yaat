@@ -67,6 +67,33 @@ public class SettingsBundleTests : IDisposable
         Assert.Equal(["FH 270"], target.Favorites.GetSetFavorites(imported.Id).Select(f => f.Label));
     }
 
+    [Fact]
+    public void Layout_WithScopeFields_RoundTripsThroughTheBundle()
+    {
+        List<SavedLayout> layouts =
+        [
+            new SavedLayout
+            {
+                Name = "Scope",
+                IsScopePoppedOut = true,
+                ExtraScopeViews = [new SavedExtraView(2, ""), new SavedExtraView(3, "")],
+            },
+            new SavedLayout { Name = "PreScope" },
+        ];
+
+        SettingsBundle bundle = WriteAndRead([SettingsBundleItems.Layouts(layouts)], "YAAT test");
+        var target = new InMemorySettingsImportTarget(NewStore("target"));
+        SettingsBundleEntry entry = Assert.Single(bundle.Entries);
+        SettingsImportPlanner.Apply(SettingsImportPlanner.Plan(entry, DefaultMode(entry.ItemType), target), target);
+
+        SavedLayout scope = target.LayoutList.Single(l => l.Name == "Scope");
+        SavedLayout preScope = target.LayoutList.Single(l => l.Name == "PreScope");
+        Assert.Equal(true, scope.IsScopePoppedOut);
+        Assert.Equal([new SavedExtraView(2, ""), new SavedExtraView(3, "")], scope.ExtraScopeViews);
+        Assert.Null(preScope.IsScopePoppedOut);
+        Assert.Null(preScope.ExtraScopeViews);
+    }
+
     [Theory]
     [InlineData(SettingsItemType.Macros)]
     [InlineData(SettingsItemType.Verbs)]
