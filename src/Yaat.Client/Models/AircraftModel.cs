@@ -458,6 +458,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private bool _noLandingClearanceWarningActive;
 
     /// <summary>
+    /// The STARS CA inhibit (<c>CA K</c> / <c>CAINH</c>) on the room's shared track, which the student's display honours too:
+    /// the Scope's STARS full block draws a triangle after the callsign while it is set (7110.65 §5-14-6.c.4).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isCaInhibited;
+
+    /// <summary>
     /// Callsign of the other aircraft in an active conflict-alert pair, or <c>null</c> when this
     /// aircraft is not in conflict. Drives the flashing "CA" datablock field and the 3 nm conflict
     /// ring on the radar.
@@ -472,6 +479,23 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// </summary>
     [ObservableProperty]
     private string? _conflictPeerCallsign;
+
+    /// <summary>
+    /// Whether the STARS pair behind <see cref="ConflictPeerCallsign"/> is suppressed (<c>CASUP</c>): the Scope draws its CA
+    /// line and ring steady at half brightness, and it forces the block Full only when STARS or EuroScope draws it. Room-level
+    /// pair state projected with the peer by <c>MainViewModel.ApplyConflictAlerts</c>; never assigned in <see cref="FromDto"/> or
+    /// <see cref="UpdateFromDto"/>.
+    /// </summary>
+    [ObservableProperty]
+    private bool _conflictSuppressed;
+
+    /// <summary>
+    /// Whether the STARS pair behind <see cref="ConflictPeerCallsign"/> is acknowledged (<c>CAACK</c>): the Scope draws its CA
+    /// line steady (docs/crc/stars.md: CA goes solid red once acknowledged). Projected and guarded as
+    /// <see cref="ConflictSuppressed"/> is.
+    /// </summary>
+    [ObservableProperty]
+    private bool _conflictAcknowledged;
 
     /// <summary>
     /// Callsign of the aircraft immediately ahead of this one in its ATPA in-trail pairing, or
@@ -1087,7 +1111,8 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     /// <summary>
     /// The position symbol the student's STARS scope draws for an owner in another facility, appended to
-    /// <see cref="OwnerDisplay"/> as "3Y(1)" unless it repeats the owner's first or last letter or digit. Null when the student's scope shows the owner's TCP itself.
+    /// <see cref="OwnerDisplay"/> as "3Y(1)" unless it repeats the owner's first or last letter or digit. Null when the student's
+    /// scope shows the owner's TCP itself.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
@@ -1541,6 +1566,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             ActivePhaseIndex = dto.ActivePhaseIndex,
             LandingClearance = dto.LandingClearance,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
+            IsCaInhibited = dto.IsCaInhibited,
             AutoDeletePending = dto.AutoDeletePending,
             ClearedRunway = dto.ClearedRunway,
             PatternDirection = dto.PatternDirection,
@@ -1723,6 +1749,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         ActivePhaseIndex = dto.ActivePhaseIndex;
         LandingClearance = dto.LandingClearance;
         NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive;
+        IsCaInhibited = dto.IsCaInhibited;
         AutoDeletePending = dto.AutoDeletePending;
         ClearedRunway = dto.ClearedRunway;
         PatternDirection = dto.PatternDirection;

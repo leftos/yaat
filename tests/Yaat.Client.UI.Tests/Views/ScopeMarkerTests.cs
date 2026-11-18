@@ -280,7 +280,7 @@ public class ScopeMarkerTests
             CenterLat = 37.62,
             CenterLon = -122.38,
             TemplateId = ScopeTemplates.StarsId,
-            Db = new ScopePrefDb(true, false, true, 14),
+            Db = new ScopePrefDb(true, false, true, true, 14),
             Kind = "stars",
             Lens = new ScopePrefLens(false, false, false, false),
             MapTools = tools,

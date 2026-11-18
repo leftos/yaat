@@ -65,7 +65,7 @@ public partial class MainViewModel
 
     private const string ScopeMapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
 
-    private const string ScopeDbUsage = "Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>";
+    private const string ScopeDbUsage = "Usage: .scope db <4thline|dwell|atpa|caring> <on|off> | .scope db char <8-24>";
 
     private const string ScopeProfileUsage = "Usage: .scope profile <stars|eram|mixed>";
 
@@ -256,7 +256,7 @@ public partial class MainViewModel
         return ScopeToolbarButtons.MapCommand(starsId, on);
     }
 
-    /// <summary><c>.scope db 4thline|dwell|atpa on|off</c> or <c>.scope db char &lt;8-24&gt;</c>.</summary>
+    /// <summary><c>.scope db 4thline|dwell|atpa|caring on|off</c> or <c>.scope db char &lt;8-24&gt;</c>.</summary>
     private static string SetScopeDb(ScopeViewModel scope, string[] parts)
     {
         if (parts.Length < 3)

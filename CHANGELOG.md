@@ -27,9 +27,12 @@
 - Drag a Scope datablock to move it, Shift+click to hide it, Ctrl+click for its flight plan, and right-click stacked targets to pick one.
 - Speech bubbles, menu cues, .marker diamonds and dashed live-traffic shadows draw on the Scope.
 - An ERAM datablock on the Scope flashes whole while its pair's conflict alert shows on the student's ERAM, following the facility's and the sector's CA settings.
+- Scope conflict alerts keep the pair's blocks full, draw CA rings (ERAM rings under the DB menu's CA RING) and label list rows CA, MCI or ERAM.
+- Suppressed Scope CAs draw steady and dimmed, acknowledged ones steady; a CA inhibited from the Scope marks the STARS block and says "(student display)".
 
 ### Changed
 
+- Settings > Radar "Show conflict alerts" is now on by default.
 - A departure with no assigned altitude climbs to its filed altitude, even one filed after takeoff clearance; later STARS or ERAM amendments change only the plan.
 - New favorite buttons go to the set showing in the bar, asking which when several show, and no longer turn a hidden Global back on.
 - An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows, asks for further clearance and holds over the airport.

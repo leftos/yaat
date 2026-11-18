@@ -356,7 +356,7 @@ public class ScopeRangeRingTests
             CenterLat = HomeLat,
             CenterLon = HomeLon,
             TemplateId = ScopeTemplates.StarsId,
-            Db = new ScopePrefDb(true, false, true, 14),
+            Db = new ScopePrefDb(true, false, true, true, 14),
             Kind = "stars",
             Lens = new ScopePrefLens(false, false, false, false),
             MapTools = new ScopePrefMapTools(true, false, new ScopePrefRangeRing(true, 10, at.Lat, at.Lon), false, null),

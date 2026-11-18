@@ -42,19 +42,31 @@ public partial class MainViewModel
     public void ApplyConflictAlerts(List<ConflictAlertDto>? conflicts)
     {
         List<ConflictAlertDto> pairs = conflicts ?? [];
-        var peerByCallsign = new Dictionary<string, string>(StringComparer.Ordinal);
+        var pairByCallsign = new Dictionary<string, ConflictAlertDto>(StringComparer.Ordinal);
         foreach (ConflictAlertDto c in pairs.Where(IsStarsPair))
         {
-            peerByCallsign[c.CallsignA] = c.CallsignB;
-            peerByCallsign[c.CallsignB] = c.CallsignA;
+            pairByCallsign[c.CallsignA] = c;
+            pairByCallsign[c.CallsignB] = c;
         }
 
         foreach (AircraftModel ac in Aircraft)
         {
-            ac.ConflictPeerCallsign = peerByCallsign.GetValueOrDefault(ac.Callsign);
+            ProjectStarsPair(ac, pairByCallsign.GetValueOrDefault(ac.Callsign));
         }
 
         ReplaceConflictAlerts(pairs);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="pair"/> onto <paramref name="ac"/>, one of its members: the other member as the peer, with the pair's
+    /// suppressed and acknowledged state; a null pair clears all three.
+    /// </summary>
+    private static void ProjectStarsPair(AircraftModel ac, ConflictAlertDto? pair)
+    {
+        ac.ConflictPeerCallsign =
+            (pair is null) ? null : (string.Equals(pair.CallsignA, ac.Callsign, StringComparison.Ordinal) ? pair.CallsignB : pair.CallsignA);
+        ac.ConflictSuppressed = pair?.Suppressed ?? false;
+        ac.ConflictAcknowledged = pair?.Acknowledged ?? false;
     }
 
     /// <summary>
@@ -77,19 +89,14 @@ public partial class MainViewModel
     /// </summary>
     private void SeedConflictPeer(Models.AircraftModel ac)
     {
-        foreach (ConflictAlertDto c in _conflictAlerts.Where(IsStarsPair))
+        ConflictAlertDto? pair = _conflictAlerts
+            .Where(IsStarsPair)
+            .FirstOrDefault(c =>
+                string.Equals(c.CallsignA, ac.Callsign, StringComparison.Ordinal) || string.Equals(c.CallsignB, ac.Callsign, StringComparison.Ordinal)
+            );
+        if (pair is not null)
         {
-            if (string.Equals(c.CallsignA, ac.Callsign, StringComparison.Ordinal))
-            {
-                ac.ConflictPeerCallsign = c.CallsignB;
-                return;
-            }
-
-            if (string.Equals(c.CallsignB, ac.Callsign, StringComparison.Ordinal))
-            {
-                ac.ConflictPeerCallsign = c.CallsignA;
-                return;
-            }
+            ProjectStarsPair(ac, pair);
         }
     }
 }

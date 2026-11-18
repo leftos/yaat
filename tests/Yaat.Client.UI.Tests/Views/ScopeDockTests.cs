@@ -109,7 +109,7 @@ public class ScopeDockTests
         {
             main.RunViewCommand(".view ssa dock");
             Settle(window);
-            Assert.False(main.Preferences.ShowConflictAlerts);
+            Assert.True(main.Preferences.ShowConflictAlerts);
             main.RunViewCommand(".view ca on");
             Settle(window);
 

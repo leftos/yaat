@@ -14,7 +14,11 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="ShowAtpa">ATPA in-trail distance display.</param>
 /// <param name="ShowConflictAlerts">Conflict-alert (CA/MCI) display.</param>
 /// <param name="ShowNoLandingClearance">No-landing-clearance warning display.</param>
-public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, bool ShowNoLandingClearance);
+/// <param name="ShowEramCaRing">
+/// The DB menu's CA RING: an ERAM conflict pair draws its ring on each member but an MCI pair's Mode C intruder
+/// (<see cref="ScopeRingGeometry.EramConflictRingNm"/>).
+/// </param>
+public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, bool ShowNoLandingClearance, bool ShowEramCaRing);
 
 /// <summary>Which instructor display hints a block carries, as the user's preferences set them.</summary>
 /// <param name="MarkStudentLevel">Mark a track the student's scope shows limited or partial with <c>(LDB)</c>/<c>(PDB)</c>.</param>
@@ -500,11 +504,27 @@ public static class TrackPresenter
     // The beacon code the aircraft squawks, four digits; empty when none.
     private static string BeaconText(AircraftModel ac) => (ac.BeaconCode > 0) ? ac.BeaconCode.ToString("0000", CultureInfo.InvariantCulture) : "";
 
+    /// <summary>
+    /// The STARS full block's <paramref name="fields"/>, with the CA-inhibited triangle in a cell after the callsign while
+    /// <paramref name="ac"/>'s conflict alerts are inhibited (docs/crc/stars.md, "Conflict alerts inhibited"). ERAM, which
+    /// builds on the STARS fields, and EuroScope draw no mark.
+    /// </summary>
+    private static List<ScopeField> WithCaInhibitMark(List<ScopeField> fields, AircraftModel ac)
+    {
+        if (ac.IsCaInhibited)
+        {
+            int callsign = fields.FindIndex(f => f.Slot == ScopeFieldSlot.Callsign);
+            fields[callsign] = Styled(ScopeFieldSlot.Callsign, ac.Callsign + EramArrowCell, ScopeFieldStyle.CaInhibitMark);
+        }
+
+        return fields;
+    }
+
     private static List<ScopeField> FullFields(TrackPresenterInput input)
     {
         List<ScopeField> fields = input.TemplateId switch
         {
-            ScopeTemplates.StarsId => StarsFields(input),
+            ScopeTemplates.StarsId => WithCaInhibitMark(StarsFields(input), input.Aircraft),
             ScopeTemplates.EramId => EramFields(input),
             ScopeTemplates.EuroScopeId => EuroScopeFields(input),
             _ => throw new ArgumentException($"Unknown scope template id '{input.TemplateId}'.", nameof(input)),
@@ -816,9 +836,26 @@ public static class TrackPresenter
             Styled(ScopeFieldSlot.Squawk, squawk, squawkStyle),
             Styled(ScopeFieldSlot.ModeC, standby ? "ModeC" : "", standby ? ScopeFieldStyle.Strikethrough : ScopeFieldStyle.None),
             Flashing(ScopeFieldSlot.NoLandingClearance, noLandingClearance, input.FlashOn, ScopeColorToken.NoLandingClearance),
-            Flashing(ScopeFieldSlot.ConflictAlert, conflict, input.FlashOn, ScopeColorToken.ConflictAlert),
+            ConflictField(conflict, ac, input.FlashOn),
             Steady(ScopeFieldSlot.InstructorNote, ac.HasNote ? ac.Note : "", ScopeColorToken.Note),
         ];
+    }
+
+    /// <summary>
+    /// The CA line <paramref name="text"/> in its STARS pair's state: steady at half the ALERTS brightness while the pair is
+    /// suppressed, steady red once acknowledged (docs/crc/stars.md, STCA: "the CA text will be displayed in solid red"), and
+    /// flashing otherwise.
+    /// </summary>
+    private static ScopeField ConflictField(string text, AircraftModel ac, bool flashOn)
+    {
+        if (ac.ConflictSuppressed)
+        {
+            return new(ScopeFieldSlot.ConflictAlert, text, text, ScopeColorToken.ConflictAlert, ScopeFieldAction.None, ScopeFieldStyle.Dimmed);
+        }
+
+        return ac.ConflictAcknowledged
+            ? Steady(ScopeFieldSlot.ConflictAlert, text, ScopeColorToken.ConflictAlert)
+            : Flashing(ScopeFieldSlot.ConflictAlert, text, flashOn, ScopeColorToken.ConflictAlert);
     }
 
     private static ScopeField AtpaField(TrackPresenterInput input)

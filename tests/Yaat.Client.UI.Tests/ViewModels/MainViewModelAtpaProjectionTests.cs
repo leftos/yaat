@@ -155,4 +155,47 @@ public class MainViewModelAtpaProjectionTests
 
         Assert.Null(Find(vm, "ALPHA1").ConflictPeerCallsign);
     }
+
+    /// <summary>
+    /// A STARS pair's suppressed and acknowledged state reaches both members with the peer, and a cleared pair clears them; an
+    /// ERAM pair never touches them.
+    /// </summary>
+    [AvaloniaFact]
+    public void ApplyConflictAlerts_ProjectsTheStarsPairsState_OntoBothMembers()
+    {
+        MainViewModel vm = VmWith("ALPHA1", "BRAVO1", "CHARLIE1", "DELTA1");
+
+        vm.ApplyConflictAlerts([
+            new ConflictAlertDto("CA_ALPHA1_BRAVO1", "ALPHA1", "BRAVO1", Suppressed: true, Acknowledged: true),
+            new ConflictAlertDto("CA_CHARLIE1_DELTA1", "CHARLIE1", "DELTA1", Acknowledged: true),
+            new ConflictAlertDto("ESTCA_ALPHA1_DELTA1", "ALPHA1", "DELTA1", ConflictAlertKind.Eram, Suppressed: true),
+        ]);
+
+        Assert.True(Find(vm, "ALPHA1").ConflictSuppressed);
+        Assert.True(Find(vm, "BRAVO1").ConflictSuppressed);
+        Assert.True(Find(vm, "BRAVO1").ConflictAcknowledged);
+        Assert.False(Find(vm, "DELTA1").ConflictSuppressed);
+        Assert.True(Find(vm, "DELTA1").ConflictAcknowledged);
+
+        vm.ApplyConflictAlerts([]);
+
+        Assert.False(Find(vm, "ALPHA1").ConflictSuppressed);
+        Assert.False(Find(vm, "DELTA1").ConflictAcknowledged);
+    }
+
+    /// <summary>An aircraft added after the broadcast is seeded with its STARS pair's state, as it is with the peer.</summary>
+    [AvaloniaFact]
+    public void ALateAddedAircraft_IsSeededWithItsStarsPairsState()
+    {
+        MainViewModel vm = VmWith("ALPHA1");
+        vm.ApplyConflictAlerts([new ConflictAlertDto("CA_ALPHA1_BRAVO1", "ALPHA1", "BRAVO1", Suppressed: true, Acknowledged: true)]);
+
+        vm.OnAircraftUpdated(MakeAircraft("BRAVO1"));
+        Dispatcher.UIThread.RunJobs();
+
+        AircraftModel bravo = Find(vm, "BRAVO1");
+        Assert.Equal("ALPHA1", bravo.ConflictPeerCallsign);
+        Assert.True(bravo.ConflictSuppressed);
+        Assert.True(bravo.ConflictAcknowledged);
+    }
 }

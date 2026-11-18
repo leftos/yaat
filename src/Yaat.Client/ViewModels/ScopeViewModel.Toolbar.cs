@@ -303,6 +303,7 @@ public sealed partial class ScopeViewModel
             ScopeButtonId.Db4thLine => DbSettings.Line4,
             ScopeButtonId.DbDwell => DbSettings.HoverDwell,
             ScopeButtonId.DbAtpa => DbSettings.Atpa,
+            ScopeButtonId.DbCaRing => DbSettings.EramCaRing,
             ScopeButtonId.LensOn or ScopeButtonId.LensPath or ScopeButtonId.LensQueue or ScopeButtonId.LensCheckIn => IsLensToggleOn(button.Id),
             ScopeButtonId.Mva or ScopeButtonId.DisplayFix or ScopeButtonId.DisplayLock or ScopeButtonId.DisplayWx or ScopeButtonId.RrShow =>
                 IsMapToolToggleOn(button.Id),

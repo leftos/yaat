@@ -118,8 +118,9 @@ public sealed record ScopePrefSet
 /// <param name="Line4">Whether the datablock draws its fourth line.</param>
 /// <param name="HoverDwell">Whether hovering a target dwells it.</param>
 /// <param name="Atpa">Whether ATPA pairs are shown.</param>
+/// <param name="EramCaRing">Whether an ERAM conflict pair draws its ring (CA RING).</param>
 /// <param name="CharSize">The datablock character size.</param>
-public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, int CharSize);
+public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, bool EramCaRing, int CharSize);
 
 /// <summary>The pilot lens's switches.</summary>
 /// <param name="Enabled">Whether the lens is on.</param>

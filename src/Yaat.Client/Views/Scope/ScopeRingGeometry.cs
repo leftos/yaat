@@ -111,9 +111,18 @@ public sealed record ScopeRingShapes(
     /// <summary>Nothing to draw.</summary>
     public static ScopeRingShapes None { get; } = new(null, null, [], null, AtpaConeState.Monitor);
 
+    /// <summary>The track's conflict ring, drawn in the conflict red at the ALERTS brightness; null for none.</summary>
+    public ScopeConflictRing? ConflictRing { get; init; }
+
     /// <summary>Whether there is nothing to draw.</summary>
-    public bool IsEmpty => (JRing is null) && (Cone is null) && (DriArcs.Count == 0) && (AtpaCone is null);
+    public bool IsEmpty => (JRing is null) && (Cone is null) && (DriArcs.Count == 0) && (AtpaCone is null) && (ConflictRing is null);
 }
+
+/// <summary>A conflict ring around one pair member: a closed circle in screen points and its radius.</summary>
+/// <param name="Points">The circle's screen points every 5 degrees, from north clockwise, 0 and 360 both included.</param>
+/// <param name="RadiusNm">The ring's radius in NM.</param>
+/// <param name="Dimmed">The pair is a suppressed STARS pair: the ring draws at half the ALERTS brightness.</param>
+public sealed record ScopeConflictRing(IReadOnlyList<SKPoint> Points, double RadiusNm, bool Dimmed);
 
 /// <summary>
 /// Pure: the Rings tool's size grid and the screen geometry of J-rings, cones, DRI halos and ATPA cones, all anchored to the
@@ -141,6 +150,12 @@ public static class ScopeRingGeometry
 
     /// <summary>The last bearing of the first reduced-DRI arc.</summary>
     public const double ReducedDriArcEndDeg = 82.5;
+
+    /// <summary>
+    /// The STARS conflict ring's radius in NM: the detector's lateral trigger, as the Radar's
+    /// <c>TargetRenderer.ConflictRingRadiusNm</c> draws it.
+    /// </summary>
+    public const double StarsConflictRingNm = 3.0;
 
     private const int CircleStepDeg = 5;
 
@@ -184,6 +199,17 @@ public static class ScopeRingGeometry
 
     /// <summary>Whether a track at <paramref name="altitudeFt"/> may take a reduced (3 NM) DRI: at or below FL230.</summary>
     public static bool AllowsReducedDri(double altitudeFt) => altitudeFt <= ReducedDriCeilingFt;
+
+    /// <summary>
+    /// The ERAM conflict ring's radius in NM for a pair at <paramref name="altitudeAFt"/> and <paramref name="altitudeBFt"/>: the
+    /// probe's lateral minimum, 3 NM when both are at or below FL230 and 5 NM otherwise.
+    /// </summary>
+    public static double EramConflictRingNm(double altitudeAFt, double altitudeBFt) =>
+        (AllowsReducedDri(altitudeAFt) && AllowsReducedDri(altitudeBFt)) ? ReducedDriNm : StandardDriNm;
+
+    /// <summary>The conflict ring of <paramref name="radiusNm"/> around <paramref name="ac"/>, dimmed or not.</summary>
+    public static ScopeConflictRing ConflictRing(AircraftModel ac, double radiusNm, bool dimmed, MapViewport vp) =>
+        new(Circle(ac.Position, radiusNm, vp), radiusNm, dimmed);
 
     /// <summary>The screen point <paramref name="distanceNm"/> from <paramref name="from"/> on true bearing <paramref name="bearingDeg"/>.</summary>
     public static SKPoint Project(LatLon from, double bearingDeg, double distanceNm, MapViewport vp)

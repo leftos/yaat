@@ -715,7 +715,12 @@ internal static class ScopeTestAircraft
     ) => new(ac, templateId, atpaLead, conflictPeer, flashOn, IsSelected: false, AllAlerts, AllDisplay, Mva: null, IsHighlighted: false);
 
     /// <summary>Every alert overlay on, matching the flags the parity rows pass to today's layouts.</summary>
-    public static readonly ScopeAlertOptions AllAlerts = new(ShowAtpa: true, ShowConflictAlerts: true, ShowNoLandingClearance: true);
+    public static readonly ScopeAlertOptions AllAlerts = new(
+        ShowAtpa: true,
+        ShowConflictAlerts: true,
+        ShowNoLandingClearance: true,
+        ShowEramCaRing: true
+    );
 
     /// <summary>Every display hint on and student colour sync on, as the preferences default; no initials, both tints off.</summary>
     public static readonly ScopeDisplayOptions AllDisplay = new(

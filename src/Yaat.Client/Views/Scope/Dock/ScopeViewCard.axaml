@@ -23,8 +23,9 @@
     <DataTemplate x:DataType="vm:ConflictListViewModel">
       <ItemsControl Margin="8,6" ItemsSource="{Binding Rows}">
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="x:String">
-            <TextBlock Text="{Binding}" Foreground="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
+          <!-- A suppressed STARS pair's row is dimmed, steady. -->
+          <DataTemplate x:DataType="dock:ConflictListRow">
+            <TextBlock Text="{Binding Text}" Opacity="{Binding Opacity}" Foreground="{x:Static dock:ScopeViewCard.ViewTextBrush}" />
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

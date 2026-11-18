@@ -124,6 +124,15 @@ public enum ScopeFieldStyle
 
     /// <summary>The altitude-mismatch <c>≠</c> drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/>.</summary>
     AltitudeMismatch = 64,
+
+    /// <summary>The whole text draws at half its group's brightness (a suppressed STARS pair's CA line).</summary>
+    Dimmed = 128,
+
+    /// <summary>
+    /// The STARS CA-inhibited mark, a filled triangle the cap height tall drawn as a path in the text's
+    /// <see cref="TrackPresenter.EramArrowCell"/> right after the callsign (docs/crc/stars.md, "Conflict alerts inhibited").
+    /// </summary>
+    CaInhibitMark = 256,
 }
 
 /// <summary>

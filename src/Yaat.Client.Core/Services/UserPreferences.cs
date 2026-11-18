@@ -2379,7 +2379,7 @@ public sealed partial class UserPreferences
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
-            ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", false),
+            ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", true),
             ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
             ShowQuickCommandIcons = GetFieldOr(obj, "showQuickCommandIcons", true),
             ShowAtpa = GetFieldOr(obj, "showAtpa", false),
@@ -2792,7 +2792,7 @@ public sealed partial class UserPreferences
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
-        public bool ShowConflictAlerts { get; set; }
+        public bool ShowConflictAlerts { get; set; } = true;
         public bool ShowTypeMismatchHints { get; set; } = true;
         public bool ShowQuickCommandIcons { get; set; } = true;
         public bool ShowAtpa { get; set; }

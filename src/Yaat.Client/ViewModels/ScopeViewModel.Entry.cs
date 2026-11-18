@@ -66,6 +66,12 @@ public sealed partial class ScopeViewModel
 
     internal const string AcceptMessage = "ACCEPT";
 
+    /// <summary>The Scope's answer to a CA inhibit that left the track inhibited, on the student's display too.</summary>
+    internal const string CaInhibitedMessage = "CA INHIBITED (student display)";
+
+    /// <summary>The Scope's answer to a CA inhibit that re-enabled the track's conflict alerts, on the student's display too.</summary>
+    internal const string CaEnabledMessage = "CA ENABLED (student display)";
+
     /// <summary>The caret drawn after the entry being typed.</summary>
     internal const string Caret = "_";
 
@@ -494,7 +500,28 @@ public sealed partial class ScopeViewModel
             Main.AddHistory("", entry);
         }
 
-        Answer(seq, sink.ResponseTo(entry));
+        Answer(seq, CaInhibitAnswer(sendText, sink.ResponseTo(entry)));
+    }
+
+    /// <summary>
+    /// <paramref name="response"/>, unless <paramref name="sendText"/> is a CA inhibit (<c>CAINH</c>, which STARS <c>CA K</c>
+    /// and F11's <c>CA </c> send) and the Sim answered it: that inhibit acts on the student's display as well, so the Scope
+    /// names it (7110.65 §5-14-6.c.4), its direction the Sim's own "inhibited" or "enabled".
+    /// </summary>
+    internal static ScopeEntryResponse CaInhibitAnswer(string sendText, ScopeEntryResponse response)
+    {
+        string[] words = sendText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        bool isInhibit = (words.Length > 0) && words[^1].TrimStart('$').Equals("CAINH", StringComparison.OrdinalIgnoreCase);
+        if ((response.Kind != ScopeResponseKind.Text) || !isInhibit)
+        {
+            return response;
+        }
+
+        string? message =
+            response.Message.Contains("inhibited", StringComparison.OrdinalIgnoreCase) ? CaInhibitedMessage
+            : response.Message.Contains("enabled", StringComparison.OrdinalIgnoreCase) ? CaEnabledMessage
+            : null;
+        return (message is null) ? response : response with { Message = message };
     }
 
     /// <summary>

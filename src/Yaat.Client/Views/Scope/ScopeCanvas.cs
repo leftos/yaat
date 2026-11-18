@@ -70,8 +70,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     );
 
     /// <summary>
-    /// The scope's DB settings: 4TH LINE, hover DWELL, ATPA DIST and the datablock point size. Null reads ATPA and the size from
-    /// <see cref="Preferences"/> and keeps line 4's fallback and hover dwell on.
+    /// The scope's DB settings: 4TH LINE, hover DWELL, ATPA DIST, CA RING and the datablock point size. Null reads ATPA and the size from
+    /// <see cref="Preferences"/> and keeps line 4's fallback, hover dwell and CA RING on.
     /// </summary>
     public static readonly StyledProperty<ScopeDbSettings?> DbSettingsProperty = AvaloniaProperty.Register<ScopeCanvas, ScopeDbSettings?>(
         nameof(DbSettings)
@@ -1192,12 +1192,15 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         );
     }
 
-    /// <summary>The alert overlays: ATPA from the DB settings (else the preferences), the others from the preferences.</summary>
+    /// <summary>
+    /// The alert overlays: ATPA from the DB settings (else the preferences), CA RING from the DB settings (on without them), the
+    /// others from the preferences.
+    /// </summary>
     private ScopeAlertOptions BuildAlertOptions()
     {
         UserPreferences? prefs = Preferences;
         bool atpa = DbSettings?.Atpa ?? prefs?.ShowAtpa ?? false;
-        return new ScopeAlertOptions(atpa, prefs?.ShowConflictAlerts ?? false, prefs?.FlashNoLandingClearance ?? true);
+        return new ScopeAlertOptions(atpa, prefs?.ShowConflictAlerts ?? true, prefs?.FlashNoLandingClearance ?? true, DbSettings?.EramCaRing ?? true);
     }
 
     /// <summary>The display hints from the preferences; line 4's type and destination fallback from the DB settings' 4TH LINE.</summary>

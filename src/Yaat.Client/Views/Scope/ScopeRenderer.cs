@@ -133,6 +133,16 @@ public sealed record ScopeFrameInput(
     IReadOnlyList<ConflictAlertDto>? EramConflicts = null
 );
 
+/// <summary>
+/// One frame's conflict reads: the callsigns whose ERAM block flashes (<see cref="ScopeEramConflictGate.FlashingCallsigns"/>) and
+/// each shown ERAM pair member's ring radius in NM.
+/// </summary>
+/// <param name="EramFlashing">The callsigns whose ERAM block flashes for the viewer.</param>
+/// <param name="EramRingNm">
+/// The ERAM conflict ring radius of each member of a pair the viewer is shown, an MCI pair's Mode C intruder excepted, by callsign.
+/// </param>
+internal sealed record ScopeConflictSets(IReadOnlySet<string> EramFlashing, IReadOnlyDictionary<string, double> EramRingNm);
+
 /// <summary>One track as the frame draws it: its symbol's screen point and its block laid out at its placed position.</summary>
 /// <param name="Aircraft">The track.</param>
 /// <param name="Symbol">Screen point of the position symbol.</param>
@@ -143,7 +153,9 @@ public sealed record ScopeFrameInput(
 /// <param name="Tint">The RPO tint that applies to the track, as the presenter decided it; it colours the symbol.</param>
 /// <param name="VectorEnd">Screen point the vector line from the symbol ends at, or null when the track draws none.</param>
 /// <param name="History">Screen points of the history dots, oldest first; null or empty when the track draws none.</param>
-/// <param name="Rings">The track's J-ring, cone, DRI halo and ATPA cone in screen points; <see cref="ScopeRingShapes.None"/> for none.</param>
+/// <param name="Rings">
+/// The track's J-ring, cone, DRI halo, ATPA cone and conflict ring in screen points; <see cref="ScopeRingShapes.None"/> for none.
+/// </param>
 /// <param name="Level">The block level the track was presented at.</param>
 /// <param name="ShowsLeader">Whether the block draws its leader, as the presenter decided it.</param>
 /// <param name="Dwelled">
@@ -273,13 +285,16 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             byCallsign.TryAdd(ac.Callsign, ac);
         }
 
-        IReadOnlySet<string> eramFlashing = ScopeEramConflictGate.FlashingCallsigns(input.EramConflicts, input.Display.Viewer);
+        var conflicts = new ScopeConflictSets(
+            ScopeEramConflictGate.FlashingCallsigns(input.EramConflicts, input.Display.Viewer),
+            EramRingRadii(input, byCallsign)
+        );
         var tracks = new List<ScopeTrack>(input.Aircraft.Count);
         var locked = new List<ScopeTrack>();
         var hovered = new List<ScopeTrack>();
         foreach (AircraftModel ac in input.Aircraft)
         {
-            ScopeTrack track = BuildTrack(input, byCallsign, ac, flashOn, eramFlashing);
+            ScopeTrack track = BuildTrack(input, byCallsign, ac, flashOn, conflicts);
             if (!track.IsDwelled)
             {
                 tracks.Add(track);
@@ -300,9 +315,10 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Ground"/> for a ground target
     /// (<see cref="IsGroundTarget"/>), dwelled or not; else <see cref="ScopeBlockLevel.Dwell"/> while it is
     /// <paramref name="dwelled"/> (hovered, or <see cref="IsDwellLockedTrack"/>); else Full for the viewer's own track and for every track
-    /// when there is no viewer; else the others' level for the track's template (<see cref="OthersLevelFor"/>).
+    /// when there is no viewer, and for a track a conflict pair forces Full (<see cref="IsForcedFullForConflict"/>); else the
+    /// others' level for the track's template (<see cref="OthersLevelFor"/>).
     /// </summary>
-    private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input, bool dwelled)
+    private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input, bool dwelled, bool inEramConflict)
     {
         if (IsGroundTarget(ac, templateId, input))
         {
@@ -315,12 +331,29 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         }
 
         ScopeViewer viewer = input.Display.Viewer;
-        if (IsOwnTrack(ac, viewer))
+        if (IsOwnTrack(ac, viewer) || IsForcedFullForConflict(ac, templateId, input.Alerts, inEramConflict))
         {
             return ScopeBlockLevel.Full;
         }
 
         return OthersLevelFor(templateId, input.OthersLevel);
+    }
+
+    /// <summary>
+    /// Whether a conflict draws <paramref name="ac"/>'s block Full, so its CA field or whole-block flash shows, while conflict
+    /// alerts are on: a block drawn with the ERAM template in an ERAM pair the viewer's gate shows it as flashing
+    /// (<paramref name="inEramConflict"/>; a Mode C intruder is not) or in an unsuppressed STARS pair, since its Full block
+    /// carries the CA line; any other block in any STARS pair, so a suppressed pair's steady, dimmed CA line shows.
+    /// </summary>
+    private static bool IsForcedFullForConflict(AircraftModel ac, string templateId, ScopeAlertOptions alerts, bool inEramConflict)
+    {
+        if (!alerts.ShowConflictAlerts)
+        {
+            return false;
+        }
+
+        bool inStarsPair = !string.IsNullOrEmpty(ac.ConflictPeerCallsign);
+        return (templateId == ScopeTemplates.EramId) ? (inEramConflict || (inStarsPair && !ac.ConflictSuppressed)) : inStarsPair;
     }
 
     /// <summary>
@@ -382,7 +415,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         Dictionary<string, AircraftModel> byCallsign,
         AircraftModel ac,
         bool flashOn,
-        IReadOnlySet<string> eramFlashing
+        ScopeConflictSets conflicts
     )
     {
         bool isSelected = ReferenceEquals(ac, input.Selected);
@@ -391,6 +424,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         bool hidden = IsBlockHidden(input, ac, isSelected);
         bool locked = IsDwellLockedTrack(ac, templateId, input);
         bool dwelled = (IsHovered(ac, input) || locked) && !hidden;
+        bool inEramConflict = conflicts.EramFlashing.Contains(ac.Callsign);
         var presenterInput = new TrackPresenterInput(
             ac,
             templateId,
@@ -402,9 +436,9 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             input.Display,
             MvaRelationFor(ac, input.Display.ShowMvaAltitudeTint, input.MvaFacilityId),
             input.HighlightedCallsigns.Contains(ac.Callsign),
-            LevelFor(ac, templateId, input, dwelled),
+            LevelFor(ac, templateId, input, dwelled, inEramConflict),
             VciPreview: string.Equals(ac.Callsign, input.VciHoveredCallsign, StringComparison.Ordinal),
-            InEramConflict: eramFlashing.Contains(ac.Callsign)
+            InEramConflict: inEramConflict
         );
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
         ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
@@ -428,7 +462,10 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             presentation.Tint,
             VectorEndFor(ac, input),
             ScopeTrackLayers.HistoryDots(ac, input.HistoryCount, input.Viewport),
-            RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset),
+            RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset) with
+            {
+                ConflictRing = ConflictRingFor(ac, templateId, input, conflicts),
+            },
             presentation.Level,
             presentation.ShowsLeader && !hidden,
             dwelled,
@@ -503,6 +540,64 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     {
         ScopeTrackRings rings = input.LocalRings.GetValueOrDefault(ac.Callsign) ?? ScopeTrackRings.None;
         return ScopeRingGeometry.Shapes(ac, rings, atpaLead, leaderOffset, input.Viewport);
+    }
+
+    /// <summary>
+    /// The conflict ring of <paramref name="ac"/> while conflict alerts are on: on a block drawn with the ERAM template in a pair
+    /// <see cref="ScopeEramConflictGate"/> shows the viewer, the pair's ring (<see cref="EramRingRadii"/>) while CA RING is on and
+    /// none while it is off; else, in a STARS pair, the 3 NM ring, dimmed while the pair is suppressed; else null.
+    /// </summary>
+    private static ScopeConflictRing? ConflictRingFor(AircraftModel ac, string templateId, ScopeFrameInput input, ScopeConflictSets conflicts)
+    {
+        if (!input.Alerts.ShowConflictAlerts)
+        {
+            return null;
+        }
+
+        if ((templateId == ScopeTemplates.EramId) && conflicts.EramRingNm.TryGetValue(ac.Callsign, out double eramNm))
+        {
+            return input.Alerts.ShowEramCaRing ? ScopeRingGeometry.ConflictRing(ac, eramNm, false, input.Viewport) : null;
+        }
+
+        return string.IsNullOrEmpty(ac.ConflictPeerCallsign)
+            ? null
+            : ScopeRingGeometry.ConflictRing(ac, ScopeRingGeometry.StarsConflictRingNm, ac.ConflictSuppressed, input.Viewport);
+    }
+
+    /// <summary>
+    /// The ERAM conflict ring radius of each member of every pair <see cref="ScopeEramConflictGate"/> shows the viewer but its Mode C
+    /// intruder (<see cref="ScopeRingGeometry.EramConflictRingNm"/>, from both members' altitudes); a member not on the scope counts
+    /// as above FL230, and a member of several pairs takes the largest.
+    /// </summary>
+    private static Dictionary<string, double> EramRingRadii(ScopeFrameInput input, Dictionary<string, AircraftModel> byCallsign)
+    {
+        var radii = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (ConflictAlertDto pair in input.EramConflicts ?? [])
+        {
+            if (!ScopeEramConflictGate.IsShown(pair, input.Display.Viewer))
+            {
+                continue;
+            }
+
+            double altitudeA = byCallsign.TryGetValue(pair.CallsignA, out AircraftModel? a) ? a.Altitude : double.MaxValue;
+            double altitudeB = byCallsign.TryGetValue(pair.CallsignB, out AircraftModel? b) ? b.Altitude : double.MaxValue;
+            double nm = ScopeRingGeometry.EramConflictRingNm(altitudeA, altitudeB);
+            AddRingUnlessIntruder(radii, pair.CallsignA, nm, pair);
+            AddRingUnlessIntruder(radii, pair.CallsignB, nm, pair);
+        }
+        return radii;
+    }
+
+    /// <summary>
+    /// Records <paramref name="nm"/> as <paramref name="callsign"/>'s ERAM ring radius, keeping the larger, unless it is the
+    /// pair's Mode C intruder, which keeps its normal block and draws no ring (only the tracked side and the list show the pair).
+    /// </summary>
+    private static void AddRingUnlessIntruder(Dictionary<string, double> radii, string callsign, double nm, ConflictAlertDto pair)
+    {
+        if (!string.Equals(callsign, pair.IntruderCallsign, StringComparison.Ordinal))
+        {
+            radii[callsign] = Math.Max(nm, radii.GetValueOrDefault(callsign));
+        }
     }
 
     /// <summary>
@@ -903,6 +998,9 @@ public sealed partial class ScopeRenderer : IDisposable
 
     private readonly SKPaint _lensFillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
+    // The STARS CA-inhibited triangle after the callsign, filled in the block's colour each draw.
+    private readonly SKPaint _markFillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+
     private readonly SKPaint _lensTextPaint = new() { IsAntialias = true };
 
     // The box a hovered queued-commands badge's lines draw on.
@@ -953,6 +1051,7 @@ public sealed partial class ScopeRenderer : IDisposable
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
             DrawRings(canvas, track, snapshot.Brightness.Rings);
+            DrawConflictRing(canvas, track, snapshot.Brightness.Alerts);
         }
 
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
@@ -1066,6 +1165,24 @@ public sealed partial class ScopeRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws <paramref name="track"/>'s conflict ring, if any, in the conflict red at the ALERTS group's
+    /// <paramref name="alertsPercent"/> (<see cref="ConflictRingPercent"/>). DWELL never lifts it.
+    /// </summary>
+    private void DrawConflictRing(SKCanvas canvas, ScopeTrack track, int alertsPercent)
+    {
+        if (track.Rings.ConflictRing is { } ring)
+        {
+            DrawPolyline(canvas, ring.Points, RingShade(ConflictAlertColor, track, ConflictRingPercent(ring, alertsPercent)));
+        }
+    }
+
+    /// <summary>
+    /// The percent <paramref name="ring"/> draws at: the ALERTS group's <paramref name="alertsPercent"/>, halved for a suppressed
+    /// STARS pair's ring.
+    /// </summary>
+    internal static int ConflictRingPercent(ScopeConflictRing ring, int alertsPercent) => ring.Dimmed ? alertsPercent / 2 : alertsPercent;
+
     /// <summary><paramref name="color"/> at <paramref name="percent"/>, at the stale alpha when <paramref name="track"/> coasts.</summary>
     private static SKColor RingShade(SKColor color, ScopeTrack track, int percent) => Stale(track, ScopeBrightness.Apply(color, percent));
 
@@ -1131,6 +1248,7 @@ public sealed partial class ScopeRenderer : IDisposable
         _lensLeaderPaint.Dispose();
         _lensDashPaint.Dispose();
         _lensFillPaint.Dispose();
+        _markFillPaint.Dispose();
         _lensTextPaint.Dispose();
         _lensBackingPaint.Dispose();
         _lensLabelFont.Dispose();
@@ -1433,13 +1551,19 @@ public sealed partial class ScopeRenderer : IDisposable
 
     /// <summary>
     /// The group percent <paramref name="field"/> draws at before the dwell lift: the ERAM line 4 at FDB plus LINE 4, clamped
-    /// to 0 to 100; an alert token at ALERTS; any other field at FDB.
+    /// to 0 to 100; a <see cref="ScopeFieldStyle.Dimmed"/> field (a suppressed STARS pair's CA line) at half ALERTS; any other
+    /// alert token at ALERTS; any other field at FDB.
     /// </summary>
     internal static int FieldPercent(FieldRect field, ScopeBrightness brightness)
     {
         if (field.Slot.IsLine4())
         {
             return Math.Clamp(brightness.Fdb + brightness.Line4, 0, 100);
+        }
+
+        if (field.Style.HasFlag(ScopeFieldStyle.Dimmed))
+        {
+            return brightness.Alerts / 2;
         }
 
         return IsAlertToken(field.Token) ? brightness.Alerts : brightness.Fdb;
@@ -1491,6 +1615,48 @@ public sealed partial class ScopeRenderer : IDisposable
         {
             DrawCellPath(canvas, field, font, color, cell => NotEqualPath(field, font, cell));
         }
+
+        if (field.Style.HasFlag(ScopeFieldStyle.CaInhibitMark))
+        {
+            DrawCaInhibitMark(canvas, field, font, color);
+        }
+    }
+
+    /// <summary>
+    /// Fills the CA-inhibited triangle (<see cref="CaInhibitPath"/>) in <paramref name="color"/> in the last cell of
+    /// <paramref name="field"/>'s text, the <see cref="TrackPresenter.EramArrowCell"/> after the callsign. A path rather than
+    /// U+25B2, since the block's monospace face is the first of a fallback list the platform has, whose coverage varies.
+    /// </summary>
+    private void DrawCaInhibitMark(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
+    {
+        int cell = field.Text.LastIndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
+        if (cell < 0)
+        {
+            return;
+        }
+
+        using SKPath path = CaInhibitPath(field, font, cell);
+        _markFillPaint.Color = color;
+        canvas.DrawPath(path, _markFillPaint);
+    }
+
+    /// <summary>
+    /// The CA-inhibited triangle in cell <paramref name="cell"/> of <paramref name="field"/>: apex up, its base on the
+    /// baseline, the cap height tall and eight tenths of the cell wide, centred in the cell.
+    /// </summary>
+    internal static SKPath CaInhibitPath(FieldRect field, SKFont font, int cell)
+    {
+        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        float bottom = field.Rect.Bottom;
+        float x = left + (width / 2f);
+        float half = width * 0.4f;
+
+        var path = new SKPath();
+        path.MoveTo(x - half, bottom);
+        path.LineTo(x, bottom - capHeight);
+        path.LineTo(x + half, bottom);
+        path.Close();
+        return path;
     }
 
     /// <summary>

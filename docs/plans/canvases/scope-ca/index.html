@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YAAT Scope conflict alerts: options (YAAT-2536)</title>
+<style>
+  :root { --bg: #15171a; --panel: #1f2226; --text: #e6e6e6; --muted: #a0a6ad; --rule: #33373d; --accent: #6cb6ff; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 14px/1.45 "Segoe UI", system-ui, sans-serif; padding: 20px 16px 40px; width: 1060px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 30px 0 4px; }
+  p { margin: 4px 0; max-width: 1040px; }
+  .muted { color: var(--muted); }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; color: #fff; }
+  .facts { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 14px; margin: 12px 0; max-width: 1030px; }
+  .facts ul { margin: 4px 0 0; padding-left: 18px; }
+  .lane { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px; margin-top: 12px; width: 1040px; box-sizing: border-box; }
+  .lane.ref { border-style: dashed; }
+  .lane h3 { margin: 0 0 6px; font-size: 15px; }
+  .lane h3 .tag { display: inline-block; background: var(--accent); color: #000; border-radius: 4px; padding: 0 7px; margin-right: 8px; font-weight: 700; }
+  .lane.ref h3 .tag { background: #8a8f96; }
+  .frames { display: flex; gap: 10px; }
+  .frame { width: 333px; }
+  .frame .fl { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .frame svg { display: block; width: 333px; height: 230px; background: #000; border-radius: 3px; }
+  .cap { margin-top: 8px; font-size: 13px; }
+  .blink { animation: blink 1s infinite step-end; }
+  .blinkdim { animation: blinkdim 1s infinite step-end; }
+  @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
+  @keyframes blinkdim { 0% { opacity: 1; } 50% { opacity: 0.25; } 100% { opacity: 0.25; } }
+</style>
+</head>
+<body>
+<h1>YAAT Scope conflict alerts: options (YAAT-2536)</h1>
+<p class="muted">Static mock of the instructor's Scope. Blocks follow <code>ScopeTemplates.Stars</code> / <code>ScopeTemplates.Eram</code> and the <code>ScopeRenderer</code> look: black background, bold 13 px monospace text in the block colour, blue track circle, leader to the text bounds, white vector lines.</p>
+<div class="facts">
+  <b>How to read each lane.</b> Three frames of the same moment: <b>Live</b> flashes at the Scope's blink rate (<code>MapBlink.IsOn</code>: 0.5 s on, 0.5 s off), then still frames of the <b>on</b> and <b>off</b> phases, so a screenshot shows both.
+  <ul>
+    <li>Colours: white for the viewer's tracks, green (50,205,50) for others' and unowned tracks, red (255,60,60) for the CA line and the conflict ring (<code>ScopeRenderer</code>, <code>TargetRenderer</code>).</li>
+    <li>STARS CA line: <code>CA h.h/vvv</code> (<code>DatablockText.BuildConflictLine</code>); the Scope draws it as the block's last line (CRC STARS draws it above the callsign). It flashes by blanking on the off phase.</li>
+    <li>ERAM STCA draws no CA line: the whole block flashes (every text blank on the off phase), <code>eram.md:375</code>. ERAM has no acknowledged state.</li>
+    <li>The scale bar in each frame gives the miles. Q3 and Q4 draw no ring on ERAM pairs, so they can be judged apart from Q1.</li>
+  </ul>
+</div>
+
+<h2>Q1: does an ERAM pair get a ring?</h2>
+<p class="muted">An ERAM-owned pair (both the viewer's sector) at FL350, 20 NM apart and converging, alerting on the 4-minute probe. Same pair in both lanes; vectors are 1 minute. The dashed lane is today's STARS pair, for reference.</p>
+<div id="q1"></div>
+
+<h2>Q2: what does a suppressed STARS pair draw?</h2>
+<p class="muted">A STARS pair (both tracked) whose conflict the student suppressed. The ring follows the line's treatment in each lane. The dashed lane is the same pair unsuppressed and unacknowledged, for contrast.</p>
+<div id="q2"></div>
+
+<h2>Q3: ERAM CA on a Limited/Partial block</h2>
+<p class="muted">The viewer's AAL1234 (Full) in STCA with UAL219, another controller's track at medium range, which sits at Partial (CRC's enhanced paired LDB: aircraft id, Field B/C). Limited would read <code>UAL219</code> / <code>290</code>.</p>
+<div id="q3"></div>
+
+<h2>Q4: ERAM MCI intruder</h2>
+<p class="muted">The viewer's SKW5410 descending, in conflict with an unowned VFR target with no flight plan (beacon 1200, Mode C 115). The dock's LA/CA/MCI list row reads <code>MCI</code> with the intruder's beacon in place of its callsign (<code>stars.md:382</code>).</p>
+<div id="q4"></div>
+
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const FONT_FAMILY = 'Consolas, "Cascadia Mono", "Courier New", monospace';
+const FONT_SIZE = 13, LINE_H = 15, ASCENT = 11, PAD = 3;
+const WHITE = "#ffffff", GREEN = "rgb(50,205,50)", RED = "rgb(255,60,60)", SYMBOL = "rgb(0,176,255)", MAP = "#3a3a3a";
+const PW = 333, PH = 230;
+let CW = 7.15;
+
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function measureCell() {
+  const svg = el("svg", { width: 200, height: 40 }, document.body);
+  const t = el("text", { x: 0, y: 20, "font-family": FONT_FAMILY, "font-size": FONT_SIZE, "font-weight": "bold" }, svg);
+  t.textContent = "0123456789";
+  const w = t.getComputedTextLength() / 10;
+  svg.remove();
+  if (w > 0) CW = w;
+}
+
+// Flash modes: "blank" (text gone on the off phase), "dim" (25% brightness on the off phase, CRC's CDB).
+function flash(node, mode, phase) {
+  if (!mode) return;
+  if (phase === "live") node.classList.add(mode === "blank" ? "blink" : "blinkdim");
+  else if (phase === "off") node.setAttribute("opacity", mode === "blank" ? 0 : 0.25);
+}
+
+// A segment: text t, optional colour c, optional per-segment flash f, optional opacity o; or a glyph cell g (down | vci).
+const T = (t, o) => Object.assign({ t }, o || {});
+const G = (g) => ({ g });
+const segLen = (s) => (s.g ? 1 : s.t.length);
+const rowLen = (row) => row.reduce((n, s) => n + segLen(s), 0);
+
+function glyph(parent, kind, x, baseline, color) {
+  const cap = FONT_SIZE * 0.7, w = Math.max(1, FONT_SIZE / 10);
+  const attrs = { fill: "none", stroke: color, "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round" };
+  if (kind === "down") {
+    const cx = x + CW / 2, top = baseline - cap, bot = baseline, head = CW * 0.35;
+    el("path", Object.assign({ d: "M" + cx + "," + top + " L" + cx + "," + bot + " M" + (cx - head) + "," + (bot - head) + " L" + cx + "," + bot + " L" + (cx + head) + "," + (bot - head) }, attrs), parent);
+  } else if (kind === "vci") {
+    const radius = Math.min(CW, cap) * 0.9, cx = x + CW * 0.05, cy = baseline;
+    let d = "";
+    for (const s of [1 / 3, 2 / 3, 1]) { const r = radius * s; d += "M" + cx + "," + (cy - r) + " A" + r + "," + r + " 0 0 1 " + (cx + r) + "," + cy + " "; }
+    el("path", Object.assign({ d }, attrs), parent);
+  }
+}
+
+function drawRow(parent, row, x, baseline, blockColor, phase) {
+  let cx = x;
+  for (const s of row) {
+    if (s.g) { glyph(parent, s.g, cx, baseline, blockColor); cx += CW; continue; }
+    const t = el("text", { x: cx, y: baseline, fill: s.c || blockColor, "font-family": FONT_FAMILY, "font-size": FONT_SIZE, "font-weight": "bold", style: "white-space:pre" }, parent);
+    t.textContent = s.t;
+    if (s.o !== undefined) t.setAttribute("opacity", s.o);
+    flash(t, s.f, phase);
+    cx += s.t.length * CW;
+  }
+}
+
+/** One track: vector, symbol, leader to the text bounds, rows (flashing as a whole when o.flash is set), column 0. */
+function track(svg, o, phase) {
+  const color = o.color || WHITE;
+  if (o.vec) el("line", { x1: o.sx, y1: o.sy, x2: o.sx + o.vec[0], y2: o.sy + o.vec[1], stroke: WHITE, "stroke-width": 1 }, svg);
+  const width = Math.max(...o.rows.map(rowLen)) * CW;
+  const tb = { l: o.bx - PAD, t: o.by, r: o.bx + width + PAD, b: o.by + PAD * 2 + o.rows.length * LINE_H };
+  const lx = Math.min(Math.max(o.sx, tb.l), tb.r), ly = Math.min(Math.max(o.sy, tb.t), tb.b);
+  el("line", { x1: o.sx, y1: o.sy, x2: lx, y2: ly, stroke: color, "stroke-width": 2 }, svg);
+  el("circle", { cx: o.sx, cy: o.sy, r: 5, fill: "none", stroke: SYMBOL, "stroke-width": 1.5 }, svg);
+  const g = el("g", {}, svg);
+  flash(g, o.flash, phase);
+  o.rows.forEach((row, i) => drawRow(g, row, o.bx, o.by + PAD + i * LINE_H + ASCENT, color, phase));
+  if (o.col0) {
+    const x0 = o.bx - PAD - CW - 3;
+    if (o.col0.vci) glyph(g, "vci", x0, o.by + PAD + LINE_H + ASCENT, color);
+    if (o.col0.r) drawRow(g, [T("R")], x0, o.by + PAD + 2 * LINE_H + ASCENT, color, phase);
+  }
+}
+
+function ring(svg, x, y, r, opacity) {
+  const c = el("circle", { cx: x, cy: y, r, fill: "none", stroke: RED, "stroke-width": 1 }, svg);
+  if (opacity !== undefined) c.setAttribute("opacity", opacity);
+}
+
+function backdrop(svg, nmPx, nm) {
+  for (const r of [70, 140, 210]) el("circle", { cx: PW * 0.55, cy: PH + 40, r, fill: "none", stroke: MAP, "stroke-width": 1 }, svg);
+  el("path", { d: "M0," + (PH * 0.3) + " L" + (PW * 0.4) + "," + (PH * 0.22) + " L" + PW + "," + (PH * 0.35), fill: "none", stroke: MAP, "stroke-width": 1, "stroke-dasharray": "6 5" }, svg);
+  const x = 10, y = PH - 10, len = nm * nmPx;
+  el("path", { d: "M" + x + "," + (y - 4) + " L" + x + "," + y + " L" + (x + len) + "," + y + " L" + (x + len) + "," + (y - 4), fill: "none", stroke: "#8a8f96", "stroke-width": 1 }, svg);
+  label(svg, x + len + 5, y + 1, nm + " NM");
+}
+
+function label(svg, x, y, text, anchor) {
+  const t = el("text", { x, y, fill: "#9aa0a6", "font-family": "Segoe UI, system-ui, sans-serif", "font-size": 11, "text-anchor": anchor || "start" }, svg);
+  t.textContent = text;
+}
+
+function list(svg, x, y, rows, phase) {
+  const w = 182, h = 18 + rows.length * LINE_H + 4;
+  el("rect", { x, y, width: w, height: h, fill: "#000", stroke: "#555", "stroke-width": 1 }, svg);
+  drawRow(svg, [T("LA/CA/MCI")], x + 5, y + 14, GREEN, phase);
+  rows.forEach((r, i) => drawRow(svg, r, x + 5, y + 18 + (i + 1) * LINE_H - 3, GREEN, phase));
+}
+
+const FRAMES = [["live", "Live (0.5 s on, 0.5 s off)"], ["on", "On phase (still)"], ["off", "Off phase (still)"]];
+
+function lane(container, tag, title, caption, scene, isRef) {
+  const div = document.createElement("div");
+  div.className = "lane" + (isRef ? " ref" : "");
+  div.innerHTML = '<h3><span class="tag">' + tag + "</span>" + title + "</h3>";
+  const frames = document.createElement("div");
+  frames.className = "frames";
+  for (const [phase, name] of FRAMES) {
+    const f = document.createElement("div");
+    f.className = "frame";
+    f.innerHTML = '<div class="fl">' + name + "</div>";
+    const svg = el("svg", { viewBox: "0 0 " + PW + " " + PH, width: PW, height: PH, role: "img", "aria-label": tag + " " + name }, f);
+    scene(svg, phase);
+    frames.appendChild(f);
+  }
+  div.appendChild(frames);
+  const cap = document.createElement("div");
+  cap.className = "cap";
+  cap.textContent = caption;
+  div.appendChild(cap);
+  container.appendChild(div);
+}
+
+// ---- Q1: ring on an ERAM pair ----
+const Q1_NM = 8;
+const AAL = { sx: 70, sy: 150, bx: 22, by: 70, vec: [56, -22], rows: [[T("AAL1234")], [T("350C 45 F/B738")], [T("B738/L")]], col0: { vci: true } };
+const DAL = { sx: 230, sy: 150, bx: 196, by: 70, vec: [-50, -30], rows: [[T("DAL881")], [T("350C 47 F/A321")], [T("A321/L")]], col0: { vci: true } };
+
+function q1Eram(withRing) {
+  return (svg, phase) => {
+    backdrop(svg, Q1_NM, 5);
+    if (withRing) { ring(svg, AAL.sx, AAL.sy, 5 * Q1_NM); ring(svg, DAL.sx, DAL.sy, 5 * Q1_NM); }
+    track(svg, Object.assign({ flash: "blank" }, AAL), phase);
+    track(svg, Object.assign({ flash: "blank" }, DAL), phase);
+    label(svg, PW - 8, PH - 10, "FL350, 20 NM apart", "end");
+  };
+}
+
+function starsPair(nmPx, opts) {
+  return (svg, phase) => {
+    backdrop(svg, nmPx, 3);
+    const a = { sx: 140, sy: 114, bx: 30, by: 40, vec: [28, 10] };
+    const b = { sx: 172, sy: 130, bx: 214, by: 150, vec: [-26, -14] };
+    const ringOpacity = opts.ringOpacity;
+    if (opts.ring) { ring(svg, a.sx, a.sy, 3 * nmPx, ringOpacity); ring(svg, b.sx, b.sy, 3 * nmPx, ringOpacity); }
+    const ca = (h) => (opts.caLine ? [[opts.caLine(h)]] : []);
+    track(svg, Object.assign({ rows: [[T("N512CA")], [T("040 25 F/C56X")]].concat(ca("2.4/500")) }, a), phase);
+    track(svg, Object.assign({ rows: [[T("SKW3310")], [T("045 22 E/E75L")]].concat(ca("2.4/500")) }, b), phase);
+    label(svg, PW - 8, PH - 10, "STARS, 2.4 NM / 500 ft", "end");
+  };
+}
+
+function q1() {
+  const box = document.getElementById("q1");
+  lane(box, "a", "No ring on ERAM pairs",
+    "The ERAM pair shows only as two flashing blocks (no ring, no CA line); worst case: partners 20 NM apart flash with nothing joining them, so on a busy scope the instructor hunts for the other member.",
+    q1Eram(false));
+  lane(box, "b", "5 NM ring (3 NM at or below FL230)",
+    "Each ERAM member gets a red ring at the lateral minimum the probe used, 5 NM here at FL350; worst case: zoomed out with many alerts, 5 NM rings clutter the view and still do not touch at 20 NM.",
+    q1Eram(true));
+  lane(box, "ref", "Reference: a STARS pair today, 3 NM ring",
+    "Not an option: the STARS CA line flashes red under each block and a 3 NM ring sits on both members (shown at 15 px/NM so the pair is readable).",
+    starsPair(15, { ring: true, caLine: (h) => T("CA " + h, { c: RED, f: "blank" }) }), true);
+}
+
+// ---- Q2: suppressed STARS pair ----
+function q2() {
+  const box = document.getElementById("q2");
+  lane(box, "a", "Omit (as the student's CRC shows it)",
+    "Nothing is drawn for the suppressed pair: plain blocks, no CA line, no ring; worst case: a conflict the student wrongly suppressed looks exactly like no conflict, so the instructor can miss it.",
+    starsPair(15, { ring: false }));
+  lane(box, "b", "Steady, dimmed CA line",
+    "The CA line and ring stay, not flashing, at 50% brightness; worst case: at a low FDB brightness the dim line almost vanishes, and it can be read as an acknowledged alert.",
+    starsPair(15, { ring: true, ringOpacity: 0.5, caLine: (h) => T("CA " + h, { c: RED, o: 0.5 }) }));
+  lane(box, "c", "Steady CA line with a suppressed mark",
+    "Steady red CA line and ring with a lowercase 's' after CA (stars.md defines no suppressed mark; its triangle, :696, means CA inhibited); worst case: it differs from an acknowledged alert by one letter.",
+    starsPair(15, { ring: true, caLine: (h) => T("CAs " + h, { c: RED }) }));
+  lane(box, "ref", "Reference: the same pair, not suppressed",
+    "Not an option: unsuppressed and unacknowledged, the CA line flashes; once acknowledged it turns steady red (stars.md:788-790).",
+    starsPair(15, { ring: true, caLine: (h) => T("CA " + h, { c: RED, f: "blank" }) }), true);
+}
+
+// ---- Q3: ERAM CA on a collapsed block ----
+const Q3_NM = 10;
+function q3(forceFull) {
+  return (svg, phase) => {
+    backdrop(svg, Q3_NM, 5);
+    track(svg, { sx: 80, sy: 150, bx: 24, by: 40, vec: [40, -18], flash: "blank", rows: [[T("AAL1234")], [T("290C 45 F/B738")], [T("B738/L")]], col0: { vci: true } }, phase);
+    const ual = { sx: 210, sy: 160, bx: 196, by: forceFull ? 40 : 90, vec: [-36, -22], color: GREEN, flash: "blank" };
+    if (forceFull) Object.assign(ual, { rows: [[T("UAL219")], [T("290C 44 F/B739")], [T("B739/L")]], col0: { r: true } });
+    else ual.rows = [[T("UAL219")], [T("290C")]];
+    track(svg, ual, phase);
+    label(svg, PW - 8, PH - 10, "FL290, 13 NM apart", "end");
+  };
+}
+
+// ---- Q4: ERAM MCI intruder ----
+function q4(cdb) {
+  return (svg, phase) => {
+    backdrop(svg, 10, 5);
+    track(svg, { sx: 70, sy: 120, bx: 20, by: 20, vec: [44, 6], flash: "blank", rows: [[T("SKW5410")], [T("110"), G("down"), T("121 28 E/E75L")], [T("E75L/L")]], col0: { vci: true } }, phase);
+    const intr = { sx: 170, sy: 132, bx: 196, by: 66, vec: [-16, -12], color: GREEN };
+    if (cdb) Object.assign(intr, { flash: "dim", rows: [[T("TFC1200")], [T("0A0 115")]] });
+    else intr.rows = [[T("N7234K")], [T("115")]];
+    track(svg, intr, phase);
+    list(svg, PW - 192, PH - 50, [[T("1200*SKW5410     MCI")]], phase);
+  };
+}
+
+measureCell();
+q1();
+q2();
+lane(document.getElementById("q3"), "a", "Force Full block while in CA",
+  "UAL219 jumps from its Partial LDB to the Full ERAM block while in conflict, and the whole block flashes; worst case: at medium range blocks grow on alert, overlap their neighbours, then shrink back when it clears.",
+  q3(true));
+lane(document.getElementById("q3"), "b", "Flash the collapsed block only",
+  "UAL219 keeps its Partial LDB, which flashes whole (every text blank on the off phase); worst case: the LDB has no speed or type, so judging the conflict means dwelling on it or zooming in.",
+  q3(false));
+lane(document.getElementById("q4"), "a", "Flash the tracked side and list row only",
+  "SKW5410's block flashes and the list gets the MCI row; the intruder stays an ordinary steady unowned block; worst case: nothing on the intruder marks it, so among several VFR targets it is found by beacon.",
+  q4(false));
+lane(document.getElementById("q4"), "b", "Also draw a callsign-less block for the intruder",
+  "The intruder's block becomes CRC's CDB while the alert lasts (TFC + beacon, track number and altitude, blinking bright/dim, eram.md:852-854); worst case: its callsign is gone from the instructor's scope.",
+  q4(true));
+</script>
+</body>
+</html>

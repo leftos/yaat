@@ -31,7 +31,7 @@ public class ScopeDbSettingsTests
         (ScopeViewModel scope, ScopeView view, Window window) = ShowScope(main);
         try
         {
-            Assert.Equal(new ScopeDbSettings(Line4: true, HoverDwell: true, Atpa: true, CharSize: 14), scope.DbSettings);
+            Assert.Equal(new ScopeDbSettings(Line4: true, HoverDwell: true, Atpa: true, EramCaRing: true, CharSize: 14), scope.DbSettings);
             AddAtpaPair(main, view.Canvas);
             float width = TrailerBlockWidth(view.Canvas);
             Assert.NotEqual("", AtpaText(view.Canvas));
@@ -41,7 +41,7 @@ public class ScopeDbSettingsTests
             main.Aircraft.Add(Aircraft("SKW5", 37.0, -121.0));
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(new ScopeDbSettings(Line4: true, HoverDwell: true, Atpa: true, CharSize: 14), scope.DbSettings);
+            Assert.Equal(new ScopeDbSettings(Line4: true, HoverDwell: true, Atpa: true, EramCaRing: true, CharSize: 14), scope.DbSettings);
             Assert.NotEqual("", AtpaText(view.Canvas));
             Assert.Equal(width, TrailerBlockWidth(view.Canvas));
         }

@@ -88,7 +88,7 @@ internal static class DatablockText
     /// there is no flight plan to correlate it to. Per the P/CG, a conflict involving such a target is a
     /// Mode C Intruder alert rather than a conflict alert.
     /// </summary>
-    private static bool IsModeCIntruder(AircraftModel ac) => string.IsNullOrEmpty(ac.Owner) && !ac.HasFlightPlan;
+    internal static bool IsModeCIntruder(AircraftModel ac) => string.IsNullOrEmpty(ac.Owner) && !ac.HasFlightPlan;
 
     /// <summary>
     /// The value STARS shows in the primary-scratchpad slot: the controller-entered scratchpad when

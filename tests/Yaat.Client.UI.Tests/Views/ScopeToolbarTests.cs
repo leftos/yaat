@@ -613,7 +613,7 @@ public class ScopeToolbarTests
             Click(ButtonOf(window, ScopeButtonId.Db));
 
             string charLabel = $"CHAR {main.Preferences.RadarDatablockFontSize}";
-            Assert.Equal(["4TH LINE", "DWELL", "ATPA DIST", charLabel], TrayButtons(window).Select(DrawnText));
+            Assert.Equal(["4TH LINE", "DWELL", "ATPA DIST", "CA RING", charLabel], TrayButtons(window).Select(DrawnText));
             Assert.Contains("active", ButtonOf(window, ScopeButtonId.Db4thLine).Classes);
             Assert.Contains("active", ButtonOf(window, ScopeButtonId.DbDwell).Classes);
             Assert.Equal(main.Preferences.ShowAtpa, ButtonOf(window, ScopeButtonId.DbAtpa).Classes.Contains("active"));

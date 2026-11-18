@@ -337,7 +337,7 @@ public class ScopeCommandTests
 
     private const string MapUsage = "Usage: .scope map <id> <on|off> | .scope map clear";
 
-    private const string DbUsage = "Usage: .scope db <4thline|dwell|atpa> <on|off> | .scope db char <8-24>";
+    private const string DbUsage = "Usage: .scope db <4thline|dwell|atpa|caring> <on|off> | .scope db char <8-24>";
 
     /// <summary>A Scope seeded from a loaded map source with maps 2 and 10, every map off.</summary>
     private static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeWithMapsAsync()
@@ -436,6 +436,7 @@ public class ScopeCommandTests
 
     [AvaloniaTheory]
     [InlineData(".scope db atpa off", "atpa")]
+    [InlineData(".scope db caring off", "caring")]
     [InlineData(".scope db 4thline off", "4thline")]
     [InlineData(".SCOPE DB DWELL OFF", "dwell")]
     public async Task Db_ToggleOff_SetsItsSetting_AndEchoesInLowercase(string command, string item)
@@ -443,7 +444,7 @@ public class ScopeCommandTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            ScopeDbSettings before = scope.DbSettings with { Atpa = true };
+            ScopeDbSettings before = scope.DbSettings with { Atpa = true, EramCaRing = true };
             scope.DbSettings = before;
 
             main.RunScopeCommand(command);
@@ -452,6 +453,7 @@ public class ScopeCommandTests
             ScopeDbSettings expected = item switch
             {
                 "atpa" => before with { Atpa = false },
+                "caring" => before with { EramCaRing = false },
                 "4thline" => before with { Line4 = false },
                 _ => before with { HoverDwell = false },
             };

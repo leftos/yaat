@@ -11,7 +11,7 @@ namespace Yaat.Client.ViewModels;
 public sealed partial class ConflictListViewModel(ScopeViewModel scope) : ScopeDockViewModel(scope, ScopeToolbarButtons.ViewCaName, "LA/CA/MCI")
 {
     [ObservableProperty]
-    private IReadOnlyList<string> _rows = [];
+    private IReadOnlyList<ConflictListRow> _rows = [];
 
     internal override void StartReading()
     {
@@ -25,5 +25,6 @@ public sealed partial class ConflictListViewModel(ScopeViewModel scope) : ScopeD
         Rows = [];
     }
 
-    private void Rebuild() => Rows = ConflictListRows.Build(Scope.Main.ConflictAlerts);
+    private void Rebuild() =>
+        Rows = ConflictListRows.Rows(Scope.Main.ConflictAlerts, callsign => Scope.Main.Aircraft.FirstOrDefault(ac => ac.Callsign == callsign));
 }

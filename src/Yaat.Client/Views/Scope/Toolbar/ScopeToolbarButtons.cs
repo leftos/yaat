@@ -74,6 +74,9 @@ public enum ScopeButtonId
     /// <summary>The DB menu's ATPA DIST toggle.</summary>
     DbAtpa,
 
+    /// <summary>The DB menu's CA RING toggle: an ERAM conflict pair draws its ring.</summary>
+    DbCaRing,
+
     /// <summary>The DB menu's CHAR spinner.</summary>
     DbChar,
 
@@ -358,6 +361,7 @@ public static class ScopeToolbarButtons
                 DbToggle(ScopeButtonId.Db4thLine, "4TH LINE", DbLine4Item),
                 DbToggle(ScopeButtonId.DbDwell, "DWELL", DbDwellItem),
                 DbToggle(ScopeButtonId.DbAtpa, "ATPA DIST", DbAtpaItem),
+                DbToggle(ScopeButtonId.DbCaRing, "CA RING", DbCaRingItem),
                 new(ScopeButtonId.DbChar, "CHAR", ScopeButtonKind.Spinner, [], DbCharItem, null),
             ],
             null,
@@ -434,6 +438,9 @@ public static class ScopeToolbarButtons
 
     /// <summary>The DB ATPA DIST item, as <c>.scope db</c> takes it.</summary>
     public const string DbAtpaItem = "atpa";
+
+    /// <summary>The DB CA RING item, as <c>.scope db</c> takes it.</summary>
+    public const string DbCaRingItem = "caring";
 
     /// <summary>The DB CHAR item, as <c>.scope db</c> takes it.</summary>
     public const string DbCharItem = "char";
