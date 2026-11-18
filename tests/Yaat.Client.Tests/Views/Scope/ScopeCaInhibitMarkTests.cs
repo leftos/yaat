@@ -2,6 +2,7 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -10,7 +11,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// The Scope's CA inhibit cue (7110.65 §5-14-6.c.4): <see cref="AircraftModel.FromDto"/> and
 /// <see cref="AircraftModel.UpdateFromDto"/> carry <c>AircraftDto.IsCaInhibited</c>, and a STARS full block of an inhibited
 /// track draws a filled triangle in the cell right after its callsign, as CRC's block does (docs/crc/stars.md, "Conflict
-/// alerts inhibited"); an uninhibited track and an ERAM block draw none.
+/// alerts inhibited"), before a VFR track's "*"; an uninhibited track and an ERAM block draw none.
 /// </summary>
 public class ScopeCaInhibitMarkTests
 {
@@ -53,6 +54,29 @@ public class ScopeCaInhibitMarkTests
 
         Assert.Equal("UAL238", callsign.Text);
         Assert.False(callsign.Style.HasFlag(ScopeFieldStyle.CaInhibitMark));
+    }
+
+    [Fact]
+    public void StarsFullBlock_OfAnInhibitedVfrTrack_LaysOutTheTriangleBeforeTheStar()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.FlightRules = "VFR";
+        ac.IsCaInhibited = true;
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+
+        ScopeBlockLayout layout = DatablockTemplate.Layout(
+            TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.StarsId)),
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint))
+        );
+        FieldRect callsign = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.Callsign);
+        FieldRect vfr = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.VfrMark);
+
+        Assert.Equal("UAL238" + TrackPresenter.EramArrowCell, callsign.Text);
+        Assert.Equal(ScopeFieldStyle.CaInhibitMark, callsign.Style & ScopeFieldStyle.CaInhibitMark);
+        Assert.Equal("*", vfr.Text);
+        Assert.Equal(callsign.Rect.Top, vfr.Rect.Top);
+        Assert.True(callsign.Rect.Right <= vfr.Rect.Left, $"triangle cell ends at {callsign.Rect.Right}, '*' starts at {vfr.Rect.Left}");
     }
 
     [Fact]

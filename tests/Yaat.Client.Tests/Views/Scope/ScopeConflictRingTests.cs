@@ -5,13 +5,16 @@ using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
 /// The conflict ring: a STARS pair draws the Radar's 3 NM ring on both members, at half the ALERTS brightness while the pair is
 /// suppressed; an ERAM pair draws a ring on each member at the probe's lateral minimum (5 NM, 3 NM when both are at or below
-/// FL230) while CA RING is on, except on an MCI pair's Mode C intruder, and none while it is off.
+/// FL230) while CA RING is on, except on an MCI pair's Mode C intruder, and none while it is off. A member of several ERAM pairs
+/// takes the largest ring, and a member not on the scope counts as above FL230. CA RING governs ERAM rings only: a track in both
+/// a STARS and an ERAM pair draws the ERAM ring while CA RING is on and the STARS ring while it is off.
 /// </summary>
 [Collection(MapBlinkClockCollection.Name)]
 public class ScopeConflictRingTests
@@ -29,8 +32,21 @@ public class ScopeConflictRingTests
         ScopeAlertOptions alerts,
         IReadOnlyList<ConflictAlertDto>? eramPairs,
         params AircraftModel[] aircraft
+    ) => ViewerFrame(templateId, alerts, eramPairs, aircraft, viewer: ScopeViewer.None);
+
+    /// <summary>
+    /// A frame seen by <paramref name="viewer"/>; with a viewer, others' tracks draw Partial, so a Full block of another
+    /// position's track is one a conflict pair forced Full.
+    /// </summary>
+    private static ScopeFrame ViewerFrame(
+        string templateId,
+        ScopeAlertOptions alerts,
+        IReadOnlyList<ConflictAlertDto>? eramPairs,
+        AircraftModel[] aircraft,
+        ScopeViewer viewer
     )
     {
+        string othersLevel = (viewer == ScopeViewer.None) ? ScopeProfile.OthersFull : ScopeProfile.OthersPartial;
         using var font = new SKFont { Size = 12f };
         using var paint = new SKPaint();
         var input = new ScopeFrameInput(
@@ -40,11 +56,14 @@ public class ScopeConflictRingTests
             templateId,
             ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
             alerts,
-            ScopeTestAircraft.AllDisplay,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = viewer,
+            },
             new Dictionary<string, SKPoint>(),
             new HashSet<string>(),
             MvaFacilityId: null,
-            ScopeProfile.OthersFull,
+            othersLevel,
             VectorMinutes: 0,
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
@@ -76,8 +95,45 @@ public class ScopeConflictRingTests
         return (a, b);
     }
 
-    private static ConflictAlertDto EramPair(string? intruder = null) =>
+    private static ConflictAlertDto EramPair(string? intruder) =>
         new("ESTCA_SWA1234_UAL238", "UAL238", "SWA1234", ConflictAlertKind.Eram, IntruderCallsign: intruder);
+
+    /// <summary>An ERAM pair of <paramref name="callsignA"/> and <paramref name="callsignB"/> with no Mode C intruder.</summary>
+    private static ConflictAlertDto EramPairOf(string callsignA, string callsignB) =>
+        new($"ESTCA_{callsignA}_{callsignB}", callsignA, callsignB, ConflictAlertKind.Eram, IntruderCallsign: null);
+
+    /// <summary>A third track, apart from <see cref="ScopeTestAircraft.CreateModel"/> and its conflict peer.</summary>
+    private static AircraftModel ThirdTrack(double altitude) =>
+        new()
+        {
+            Callsign = "DAL9",
+            AircraftType = "A321",
+            FiledAircraftType = "A321",
+            FlightRules = "IFR",
+            Position = new LatLon(37.05, -122.0),
+            Altitude = altitude,
+            GroundSpeed = 250,
+        };
+
+    /// <summary>
+    /// <see cref="ScopeTestAircraft.CreateModel"/>, both it and its peer at FL350, drawn with the ERAM template: in a STARS pair
+    /// (suppressed or not) and in a shown ERAM pair as asked, CA RING on or off. Returns the track and its conflict ring.
+    /// </summary>
+    private static (AircraftModel Ac, ScopeConflictRing? Ring) EramTemplateRing(bool inStarsPair, bool suppressed, bool inEramPair, bool caRing)
+    {
+        (AircraftModel a, AircraftModel b) = EramMembers(35000, 35000);
+        if (inStarsPair)
+        {
+            a.ConflictPeerCallsign = b.Callsign;
+            b.ConflictPeerCallsign = a.Callsign;
+            a.ConflictSuppressed = suppressed;
+            b.ConflictSuppressed = suppressed;
+        }
+
+        ConflictAlertDto[]? eramPairs = inEramPair ? [EramPair(intruder: null)] : null;
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts with { ShowEramCaRing = caRing }, eramPairs, a, b);
+        return (a, RingOf(frame, a.Callsign));
+    }
 
     private static void AssertRing(ScopeConflictRing? ring, AircraftModel ac, double radiusNm, bool dimmed)
     {
@@ -125,7 +181,7 @@ public class ScopeConflictRingTests
     {
         (AircraftModel a, AircraftModel b) = EramMembers(35000, 22000);
 
-        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair()], a, b);
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair(intruder: null)], a, b);
 
         AssertRing(RingOf(frame, a.Callsign), a, 5.0, dimmed: false);
         AssertRing(RingOf(frame, b.Callsign), b, 5.0, dimmed: false);
@@ -136,7 +192,7 @@ public class ScopeConflictRingTests
     {
         (AircraftModel a, AircraftModel b) = EramMembers(23000, 22000);
 
-        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair()], a, b);
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair(intruder: null)], a, b);
 
         AssertRing(RingOf(frame, a.Callsign), a, 3.0, dimmed: false);
         AssertRing(RingOf(frame, b.Callsign), b, 3.0, dimmed: false);
@@ -147,7 +203,16 @@ public class ScopeConflictRingTests
     {
         (AircraftModel a, AircraftModel b) = EramMembers(35000, 35000);
 
-        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts with { ShowEramCaRing = false }, [EramPair()], a, b);
+        ScopeFrame frame = Frame(
+            ScopeTemplates.EramId,
+            ScopeTestAircraft.AllAlerts with
+            {
+                ShowEramCaRing = false,
+            },
+            [EramPair(intruder: null)],
+            a,
+            b
+        );
 
         Assert.Null(RingOf(frame, a.Callsign));
         Assert.Null(RingOf(frame, b.Callsign));
@@ -178,5 +243,129 @@ public class ScopeConflictRingTests
         Assert.Equal(ScopeBlockLevel.Full, tracked.Level);
         Assert.All(tracked.Block.Fields, f => Assert.Equal("", f.Text));
         AssertRing(tracked.Rings.ConflictRing, a, 5.0, dimmed: false);
+    }
+
+    [Fact]
+    public void AnEramPairWithNoIntruder_RingsBothMembers()
+    {
+        (AircraftModel a, AircraftModel b) = EramMembers(35000, 35000);
+
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair(intruder: null)], a, b);
+
+        AssertRing(RingOf(frame, a.Callsign), a, 5.0, dimmed: false);
+        AssertRing(RingOf(frame, b.Callsign), b, 5.0, dimmed: false);
+    }
+
+    [Fact]
+    public void ATrackInSeveralEramPairs_TakesTheLargestRing()
+    {
+        (AircraftModel a, AircraftModel b) = EramMembers(22000, 22000);
+        AircraftModel c = ThirdTrack(35000);
+        ConflictAlertDto low = EramPairOf(a.Callsign, b.Callsign);
+        ConflictAlertDto high = EramPairOf(a.Callsign, c.Callsign);
+
+        ConflictAlertDto[][] orders =
+        [
+            [low, high],
+            [high, low],
+        ];
+        foreach (ConflictAlertDto[] pairs in orders)
+        {
+            ScopeFrame frame = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, pairs, a, b, c);
+
+            AssertRing(RingOf(frame, a.Callsign), a, 5.0, dimmed: false);
+            AssertRing(RingOf(frame, b.Callsign), b, 3.0, dimmed: false);
+            AssertRing(RingOf(frame, c.Callsign), c, 5.0, dimmed: false);
+        }
+    }
+
+    [Fact]
+    public void AnEramPairMemberOffTheScope_CountsAsAboveFl230()
+    {
+        (AircraftModel a, AircraftModel b) = EramMembers(22000, 22000);
+
+        ScopeFrame bothOn = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair(intruder: null)], a, b);
+        ScopeFrame peerOff = Frame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, [EramPair(intruder: null)], a);
+
+        AssertRing(RingOf(bothOn, a.Callsign), a, 3.0, dimmed: false);
+        AssertRing(RingOf(peerOff, a.Callsign), a, 5.0, dimmed: false);
+    }
+
+    [Fact]
+    public void AnEramTemplateBlock_InAStarsPair_IsForcedFull_WithTheCaLine_AndDrawsTheStars3NmRing()
+    {
+        (AircraftModel a, AircraftModel b) = StarsPair();
+        AircraftModel alone = ThirdTrack(23000);
+        AircraftModel[] othersTracks = [a, alone];
+        foreach (AircraftModel ac in othersTracks)
+        {
+            ac.Owner = "OAK_12_CTR";
+            ac.OwnerFacilityId = "ZOA";
+            ac.OwnerSectorCode = "C12";
+        }
+        var viewer = new ScopeViewer(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");
+
+        ScopeFrame frame = ViewerFrame(ScopeTemplates.EramId, ScopeTestAircraft.AllAlerts, null, [a, b, alone], viewer);
+        ScopeTrack track = Assert.Single(frame.Tracks, t => t.Aircraft.Callsign == a.Callsign);
+
+        Assert.Equal(ScopeBlockLevel.Partial, Assert.Single(frame.Tracks, t => t.Aircraft.Callsign == alone.Callsign).Level);
+        Assert.Equal(ScopeBlockLevel.Full, track.Level);
+        Assert.Equal(ScopeColorToken.ConflictAlert, Assert.Single(track.Block.Fields, f => f.Slot == ScopeFieldSlot.ConflictAlert).Token);
+        AssertRing(track.Rings.ConflictRing, a, 3.0, dimmed: false);
+    }
+
+    [Fact]
+    public void AnEramTemplateTrackInNoPair_DrawsNoRing_WhateverCaRingSays()
+    {
+        Assert.Null(EramTemplateRing(inStarsPair: false, suppressed: false, inEramPair: false, caRing: true).Ring);
+        Assert.Null(EramTemplateRing(inStarsPair: false, suppressed: false, inEramPair: false, caRing: false).Ring);
+    }
+
+    [Fact]
+    public void WithCaRingOff_AnEramTemplateTrackInAStarsPair_DrawsTheStars3NmRing()
+    {
+        (AircraftModel ac, ScopeConflictRing? ring) = EramTemplateRing(inStarsPair: true, suppressed: false, inEramPair: false, caRing: false);
+
+        AssertRing(ring, ac, 3.0, dimmed: false);
+    }
+
+    [Fact]
+    public void WithCaRingOff_AnEramTemplateTrackInASuppressedStarsPair_DrawsTheStarsRingDimmed()
+    {
+        (AircraftModel ac, ScopeConflictRing? ring) = EramTemplateRing(inStarsPair: true, suppressed: true, inEramPair: false, caRing: false);
+
+        AssertRing(ring, ac, 3.0, dimmed: true);
+    }
+
+    [Fact]
+    public void WithCaRingOn_ATrackInAnEramAndAStarsPair_DrawsTheEramRing()
+    {
+        (AircraftModel ac, ScopeConflictRing? ring) = EramTemplateRing(inStarsPair: true, suppressed: false, inEramPair: true, caRing: true);
+
+        AssertRing(ring, ac, 5.0, dimmed: false);
+    }
+
+    [Fact]
+    public void WithCaRingOn_ATrackInAnEramAndASuppressedStarsPair_DrawsTheEramRingUndimmed()
+    {
+        (AircraftModel ac, ScopeConflictRing? ring) = EramTemplateRing(inStarsPair: true, suppressed: true, inEramPair: true, caRing: true);
+
+        AssertRing(ring, ac, 5.0, dimmed: false);
+    }
+
+    [Fact]
+    public void WithCaRingOff_ATrackInAnEramAndAStarsPair_KeepsItsStars3NmRing()
+    {
+        (AircraftModel ac, ScopeConflictRing? ring) = EramTemplateRing(inStarsPair: true, suppressed: false, inEramPair: true, caRing: false);
+
+        AssertRing(ring, ac, 3.0, dimmed: false);
+    }
+
+    [Fact]
+    public void WithCaRingOff_ATrackInAnEramAndASuppressedStarsPair_KeepsItsStarsRingDimmed()
+    {
+        (AircraftModel ac, ScopeConflictRing? ring) = EramTemplateRing(inStarsPair: true, suppressed: true, inEramPair: true, caRing: false);
+
+        AssertRing(ring, ac, 3.0, dimmed: true);
     }
 }

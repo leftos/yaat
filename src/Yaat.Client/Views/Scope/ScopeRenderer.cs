@@ -556,8 +556,9 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
 
     /// <summary>
     /// The conflict ring of <paramref name="ac"/> while conflict alerts are on: on a block drawn with the ERAM template in a pair
-    /// <see cref="ScopeEramConflictGate"/> shows the viewer, the pair's ring (<see cref="EramRingRadii"/>) while CA RING is on and
-    /// none while it is off; else, in a STARS pair, the 3 NM ring, dimmed while the pair is suppressed; else null.
+    /// <see cref="ScopeEramConflictGate"/> shows the viewer, the pair's ring (<see cref="EramRingRadii"/>) while CA RING is on;
+    /// else, in a STARS pair, the 3 NM ring, dimmed while the pair is suppressed, whatever CA RING says (it governs ERAM rings
+    /// only); else null.
     /// </summary>
     private static ScopeConflictRing? ConflictRingFor(AircraftModel ac, string templateId, ScopeFrameInput input, ScopeConflictSets conflicts)
     {
@@ -566,9 +567,9 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             return null;
         }
 
-        if ((templateId == ScopeTemplates.EramId) && conflicts.EramRingNm.TryGetValue(ac.Callsign, out double eramNm))
+        if ((templateId == ScopeTemplates.EramId) && input.Alerts.ShowEramCaRing && conflicts.EramRingNm.TryGetValue(ac.Callsign, out double eramNm))
         {
-            return input.Alerts.ShowEramCaRing ? ScopeRingGeometry.ConflictRing(ac, eramNm, false, input.Viewport) : null;
+            return ScopeRingGeometry.ConflictRing(ac, eramNm, false, input.Viewport);
         }
 
         return string.IsNullOrEmpty(ac.ConflictPeerCallsign)
