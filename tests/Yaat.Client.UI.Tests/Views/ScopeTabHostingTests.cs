@@ -99,6 +99,35 @@ public class ScopeTabHostingTests
         }
     }
 
+    // The pop-out's canvas is the window's own and goes with it; the docked tab's canvas lives for the process and survives
+    // the close.
+    [AvaloniaFact]
+    public void ClosingThePrimaryPopOut_DisposesItsCanvas_NotTheDockedOne()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            ScopeCanvas docked = Assert.IsType<ScopeHost>(ScopeTab(main).Content).ScopeView.Canvas;
+            vm.IsScopePoppedOut = false;
+            MainWindowHost.Pump();
+            vm.IsScopePoppedOut = true;
+            MainWindowHost.Pump();
+            ScopeWindow window = Assert.IsType<ScopeWindow>(main.ScopeWindow);
+            ScopeCanvas poppedOut = window.ScopeHost.ScopeView.Canvas;
+            Assert.NotSame(docked, poppedOut);
+
+            window.Close();
+            MainWindowHost.Pump();
+
+            Assert.True(poppedOut.IsDisposed);
+            Assert.False(docked.IsDisposed);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
     [AvaloniaFact]
     public void PopOutThenTitleBarClose_DocksBack_UnbindsTheWindow_AndKeepsTheState() => AssertDocksBack(main => main.ScopeWindow!.Close());
 

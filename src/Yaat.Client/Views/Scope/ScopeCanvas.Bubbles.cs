@@ -24,7 +24,7 @@ public sealed partial class ScopeCanvas
     public Func<string?>? GroundShownAirportIdProvider { get; set; }
 
     /// <summary>The speech bubbles the current frame draws, placed as the next frame places them. Test and hit-test seam.</summary>
-    internal IReadOnlyList<ScopeBubble> CurrentBubbles => PlaceBubbles(CurrentFrame);
+    internal IReadOnlyList<ScopeBubble> CurrentBubbles => _disposed ? [] : PlaceBubbles(CurrentFrame);
 
     /// <summary>The preferences a frame's speech bubbles are placed under.</summary>
     internal ScopeBubbleOptions BubbleOptions() => new(Preferences?.ShowSpeechBubbles ?? false, Preferences?.AlwaysShowGroundBubblesOnRadar ?? false);

@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
@@ -95,6 +96,37 @@ public class ScopePointMenuTests
             Assert.StartsWith($"{frd} · ", labels[2]);
             Assert.DoesNotContain(frd, labels);
             Assert.Contains("Copy FRD", labels);
+        }
+        finally
+        {
+            Close(window, view);
+        }
+    }
+
+    // The clipboard can fail (lost, locked, or a platform that refuses it): Copy FRD logs that once and lets no exception
+    // escape the item's async click handler.
+    [AvaloniaFact]
+    public async Task CopyFrd_WhenTheClipboardThrows_LogsAndDoesNotThrow()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
+            ContextMenu menu = view.BuildMapPointMenu(scope, new LatLon(37.80, -122.20), default);
+            MenuItem copy = Assert.IsType<MenuItem>(menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == "Copy FRD"));
+            string? written = null;
+            view.ClipboardWriter = frd =>
+            {
+                written = frd;
+                throw new InvalidOperationException("the clipboard is gone");
+            };
+            long before = AppLog.RecentErrors.LastSequence;
+
+            copy.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.NotNull(written);
+            Assert.Single(AppLog.RecentErrors.Since(before, 50), entry => entry.Message.Contains("Copy FRD failed", StringComparison.Ordinal));
         }
         finally
         {

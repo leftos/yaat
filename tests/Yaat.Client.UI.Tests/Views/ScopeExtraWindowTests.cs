@@ -103,6 +103,31 @@ public class ScopeExtraWindowTests
         }
     }
 
+    // Each window builds its own canvas, and closing it disposes that canvas once the window's render work has detached;
+    // a second dispose is harmless.
+    [AvaloniaFact]
+    public void ClosingAnExtraScopeWindow_DisposesItsCanvas()
+    {
+        (MainWindow main, MainViewModel _) = MainWindowHost.Boot();
+        try
+        {
+            ScopeWindow window = ClickNewScopeWindow(main);
+            ScopeCanvas canvas = window.ScopeHost.ScopeView.Canvas;
+            Assert.False(canvas.IsDisposed);
+
+            window.Close();
+            MainWindowHost.Pump();
+
+            Assert.True(canvas.IsDisposed);
+            canvas.Dispose();
+        }
+        finally
+        {
+            CloseExtras(main);
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
     [AvaloniaFact]
     public void FocusingAScopesCanvas_MakesItTheScopeTheVerbsActOn_AndClosingItHandsThemBack()
     {

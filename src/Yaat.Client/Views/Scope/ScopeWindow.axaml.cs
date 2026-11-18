@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -53,10 +54,14 @@ public partial class ScopeWindow : Window, IAlwaysOnTopToggle
     public string WindowGeometryKey { get; }
 
     // A closed window drops its binding to the Scope first, so a view model that outlives it (the primary) keeps no
-    // subscriber from it; only a window that owns the view model then disposes it.
+    // subscriber from it; only a window that owns the view model then disposes it. The canvas is the window's own, so it is
+    // disposed too: the canvas's render lock makes that safe against a frame already drawing, and the post below the render
+    // priority only orders the dispose after the UI-thread work the close queued.
     private void Release(ScopeViewModel? viewModel, bool ownsViewModel)
     {
         DataContext = null;
+        ScopeCanvas canvas = ScopeHost.ScopeView.Canvas;
+        Dispatcher.UIThread.Post(canvas.Dispose, DispatcherPriority.Background);
         if (ownsViewModel)
         {
             viewModel?.Dispose();

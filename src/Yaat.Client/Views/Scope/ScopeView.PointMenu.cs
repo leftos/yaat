@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Media;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
@@ -160,12 +161,33 @@ public partial class ScopeView
         items.Add(new Separator());
     }
 
-    private async Task CopyFrd(string frd)
+    /// <summary>
+    /// The writer Copy FRD hands the FRD to: the TopLevel clipboard's, until a test replaces it to make the write fail.
+    /// Test seam.
+    /// </summary>
+    internal Func<string, Task> ClipboardWriter
+    {
+        get => _clipboardWriter ??= WriteClipboardAsync;
+        set => _clipboardWriter = value;
+    }
+
+    private Func<string, Task>? _clipboardWriter;
+
+    private Task WriteClipboardAsync(string frd)
     {
         IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-        if (clipboard is not null)
+        return clipboard is null ? Task.CompletedTask : clipboard.SetTextAsync(frd);
+    }
+
+    private async Task CopyFrd(string frd)
+    {
+        try
         {
-            await clipboard.SetTextAsync(frd);
+            await ClipboardWriter(frd);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Copy FRD failed");
         }
     }
 

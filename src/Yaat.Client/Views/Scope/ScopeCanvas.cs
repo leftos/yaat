@@ -2,7 +2,9 @@ using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Microsoft.Extensions.Logging;
 using SkiaSharp;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -179,11 +181,21 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         nameof(MeasureAnchor)
     );
 
+    private static readonly ILogger Log = AppLog.CreateLogger("ScopeCanvas");
+
     private static readonly Dictionary<string, SKPoint> NoOffsets = [];
     private static readonly HashSet<string> NoCallsigns = [];
     private static readonly Dictionary<int, SKRect> NoReadoutRects = [];
 
+    // The last value parsed for each colour preference, and the values already warned about: the docked canvas lives for
+    // the process, so neither may grow with every value the Settings live preview passes through.
+    private readonly Dictionary<string, (string Value, SKColor? Color)> _parsedColors = [];
+    private readonly HashSet<(string Preference, string Value)> _warnedColors = [];
     private readonly ScopeRenderer _renderer = new();
+
+    // Held by the render thread for a whole draw and by Dispose while it sets the flag: once Dispose holds it no draw is in
+    // flight, so the renderer's Skia objects are safe to free, and every later draw returns at once.
+    private readonly Lock _renderLock = new();
     private readonly ScopeIntentPathCache _intentPaths = new();
     private readonly SKPaint _measurePaint = new();
     private SKFont? _measureFont;
@@ -205,6 +217,9 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     private string? _hoveredQueueCallsign;
     private INotifyCollectionChanged? _watchedAircraft;
     private bool _isAttached;
+
+    // Set by Dispose on the UI thread: a draw the render thread already has queued must not touch the Skia objects it freed.
+    private volatile bool _disposed;
 
     // Range/zoom and centre feedback-loop guards, copied from RadarCanvas (docs/radar-rendering.md).
     private bool _initialFitDone;
@@ -473,9 +488,10 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
     /// <summary>
     /// The frame clicks and hover are hit-tested against: the last one drawn, or a fresh one when the traffic or the viewport has
-    /// changed since.
+    /// changed since. A disposed canvas builds none: a hit test then sees an empty frame.
     /// </summary>
-    internal ScopeFrame CurrentFrame => _lastFrame ??= BuildFrame(BuildPalette(), stepDeconfliction: false);
+    internal ScopeFrame CurrentFrame =>
+        _disposed ? new ScopeFrame(TemplateId, []) : (_lastFrame ??= BuildFrame(BuildPalette(), stepDeconfliction: false));
 
     /// <summary>The frame the last render snapshot drew, or null before the first. Test seam.</summary>
     internal ScopeFrame? LastRenderedFrame { get; private set; }
@@ -498,8 +514,21 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     /// <summary>The traffic collection the canvas is listening to, or null. Test seam.</summary>
     internal INotifyCollectionChanged? WatchedAircraft => _watchedAircraft;
 
+    /// <summary>Whether the canvas has been disposed. Test seam.</summary>
+    internal bool IsDisposed => _disposed;
+
     public void Dispose()
     {
+        lock (_renderLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
         DisposeFeatures();
         _renderer.Dispose();
         _measurePaint.Dispose();
@@ -509,6 +538,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
     protected override object? CreateRenderSnapshot()
     {
+        if (_disposed)
+        {
+            return null;
+        }
+
         ScopePalette palette = BuildPalette();
         ScopeFrame frame = BuildFrame(palette, stepDeconfliction: true);
         _lastFrame = frame;
@@ -624,13 +658,30 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>The snapshot the next frame would hand the render thread. Test seam.</summary>
-    internal ScopeRenderSnapshot RenderSnapshotForTesting() => (ScopeRenderSnapshot)CreateRenderSnapshot()!;
+    internal ScopeRenderSnapshot RenderSnapshotForTesting() =>
+        TryRenderSnapshotForTesting() ?? throw new InvalidOperationException("The canvas is disposed: use TryRenderSnapshotForTesting");
 
-    protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
+    /// <summary>The snapshot the next frame would hand the render thread, or null once the canvas is disposed. Test seam.</summary>
+    internal ScopeRenderSnapshot? TryRenderSnapshotForTesting() => (ScopeRenderSnapshot?)CreateRenderSnapshot();
+
+    protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot) =>
+        DrawScopeSnapshot(canvas, viewport, snapshot);
+
+    /// <summary>Draws one snapshot as the render thread does, answering whether it drew. Test seam.</summary>
+    internal bool DrawSnapshotForTesting(SKCanvas canvas, MapViewport viewport, object? snapshot) => DrawScopeSnapshot(canvas, viewport, snapshot);
+
+    // The render thread holds the lock for the whole draw, so Dispose cannot free the renderer's Skia objects underneath it.
+    private bool DrawScopeSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
     {
-        if (snapshot is ScopeRenderSnapshot s)
+        lock (_renderLock)
         {
+            if (_disposed || snapshot is not ScopeRenderSnapshot s)
+            {
+                return false;
+            }
+
             _renderer.Render(canvas, viewport, s);
+            return true;
         }
     }
 
@@ -1177,9 +1228,36 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             return new ScopePalette(null, null, new SKColor(255, 255, 255));
         }
 
-        SKColor? assignedToMe = prefs.AssignmentTintEnabled ? TryParseHex(prefs.AssignmentTintColor) : null;
-        SKColor? assignedToOther = prefs.UnassignedTintEnabled ? TryParseHex(prefs.UnassignedTintColor) : null;
-        return new ScopePalette(assignedToMe, assignedToOther, TryParseHex(prefs.SelectedColor) ?? new SKColor(255, 255, 255));
+        SKColor? assignedToMe = prefs.AssignmentTintEnabled
+            ? ParsePreferenceColor(nameof(UserPreferences.AssignmentTintColor), prefs.AssignmentTintColor)
+            : null;
+        SKColor? assignedToOther = prefs.UnassignedTintEnabled
+            ? ParsePreferenceColor(nameof(UserPreferences.UnassignedTintColor), prefs.UnassignedTintColor)
+            : null;
+        SKColor selected = ParsePreferenceColor(nameof(UserPreferences.SelectedColor), prefs.SelectedColor) ?? new SKColor(255, 255, 255);
+        return new ScopePalette(assignedToMe, assignedToOther, selected);
+    }
+
+    /// <summary>
+    /// One colour preference's parsed value: the last value per preference is kept, so a frame re-parses nothing unless the
+    /// value changes. A value that does not parse warns once per distinct value; a blank one is "no colour picked" and stays
+    /// quiet.
+    /// </summary>
+    private SKColor? ParsePreferenceColor(string preference, string value)
+    {
+        if (_parsedColors.TryGetValue(preference, out (string Value, SKColor? Color) parsed) && (parsed.Value == value))
+        {
+            return parsed.Color;
+        }
+
+        SKColor? color = TryParseHex(value);
+        _parsedColors[preference] = (value, color);
+        if ((color is null) && !string.IsNullOrWhiteSpace(value) && _warnedColors.Add((preference, value)))
+        {
+            Log.LogWarning("Scope: {Pref} colour {Value} does not parse; using the default", preference, value);
+        }
+
+        return color;
     }
 
     private static SKColor? TryParseHex(string hex)
