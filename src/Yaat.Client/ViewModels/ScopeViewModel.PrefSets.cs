@@ -100,7 +100,15 @@ public sealed partial class ScopeViewModel
             CenterLon = CenterLon,
             TemplateId = TemplateId,
             Brightness = ScopeBrightness.Groups.ToDictionary(group => group.Name, group => group.Get(Brightness)),
-            Db = new ScopePrefDb(DbSettings.Line4, DbSettings.HoverDwell, DbSettings.Atpa, DbSettings.EramCaRing, DbSettings.CharSize),
+            Db = new ScopePrefDb(
+                DbSettings.Line4,
+                DbSettings.HoverDwell,
+                DbSettings.Atpa,
+                DbSettings.AtpaAlertCones,
+                DbSettings.AtpaMonitorCones,
+                DbSettings.EramCaRing,
+                DbSettings.CharSize
+            ),
             Maps = CaptureMaps(),
             OpenViews = [.. OpenViews],
             ViewPlaces = [.. _allViews.Select(CaptureViewPlace)],
@@ -287,7 +295,7 @@ public sealed partial class ScopeViewModel
             );
         }
 
-        DbSettings = new ScopeDbSettings(db.Line4, db.HoverDwell, db.Atpa, db.EramCaRing, size);
+        DbSettings = new ScopeDbSettings(db.Line4, db.HoverDwell, db.Atpa, db.AtpaAlertCones, db.AtpaMonitorCones, db.EramCaRing, size);
     }
 
     private void ApplyRange(double rangeNm)

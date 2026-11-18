@@ -44,12 +44,26 @@ public class ScopePrefSetTests
     [Fact]
     public void TheCaRing_IsSavedAsEramCaRing_AndRoundTrips()
     {
-        ScopePrefSet set = FullSet() with { Db = new ScopePrefDb(true, false, true, EramCaRing: false, 14) };
+        ScopePrefSet set = FullSet() with { Db = new ScopePrefDb(true, false, true, true, true, EramCaRing: false, 14) };
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions));
 
         Assert.False(document.RootElement.GetProperty("db").GetProperty("eramCaRing").GetBoolean());
         Assert.False(RoundTrip(set).Db.EramCaRing);
         Assert.True(RoundTrip(set with { Db = set.Db with { EramCaRing = true } }).Db.EramCaRing);
+    }
+
+    [Fact]
+    public void TheAtpaConeToggles_AreSaved_AndRoundTrip()
+    {
+        ScopePrefSet set = FullSet() with { Db = new ScopePrefDb(true, false, true, AtpaAlertCones: false, AtpaMonitorCones: true, true, 14) };
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions));
+
+        JsonElement db = document.RootElement.GetProperty("db");
+        Assert.False(db.GetProperty("atpaAlertCones").GetBoolean());
+        Assert.True(db.GetProperty("atpaMonitorCones").GetBoolean());
+        Assert.Equal(set.Db, RoundTrip(set).Db);
+        ScopePrefSet flipped = set with { Db = set.Db with { AtpaAlertCones = true, AtpaMonitorCones = false } };
+        Assert.Equal(flipped.Db, RoundTrip(flipped).Db);
     }
 
     [Fact]
@@ -97,7 +111,8 @@ public class ScopePrefSetTests
               "centerLat": 37.5,
               "centerLon": -122.5,
               "templateId": "eram",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null },
@@ -123,7 +138,8 @@ public class ScopePrefSetTests
               "centerLat": 37.5,
               "centerLon": -122.5,
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
@@ -148,7 +164,8 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
@@ -167,7 +184,8 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
@@ -186,7 +204,8 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": true, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
@@ -208,7 +227,8 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": true, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
@@ -262,7 +282,8 @@ public class ScopePrefSetTests
             {
               "name": "SR-DAY",
               "templateId": "stars",
-              "db": { "line4": true, "hoverDwell": false, "atpa": true, "eramCaRing": true, "charSize": 14 },
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
               "kind": "stars",
               "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
               "mapTools": { "mva": true, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
@@ -288,7 +309,7 @@ public class ScopePrefSetTests
                 ["line4"] = -15,
                 ["dwell"] = 20,
             },
-            Db = new ScopePrefDb(true, false, true, false, 14),
+            Db = new ScopePrefDb(true, false, true, true, true, false, 14),
             Maps = [3, 15, 40],
             OpenViews = ["ssa", "ca"],
             ViewPlaces = [new ScopePrefView("ssa", null, 8, 8), new ScopePrefView("ca", "br", 410, 260)],

@@ -23,7 +23,14 @@ public class ScopeTemplateParityTests
 
     /// <param name="Marker">The student-level marker today's renderer appends to line 1.</param>
     /// <param name="MarkLevel">Whether the student-level marker preference is on.</param>
-    private sealed record Case(AircraftModel Ac, AircraftModel? Lead, AircraftModel? Peer, string Marker, bool MarkLevel);
+    private sealed record Case(AircraftModel Ac, AircraftModel? Lead, AircraftModel? Peer, string Marker, bool MarkLevel)
+    {
+        /// <summary>
+        /// The Scope's STARS block carries the ATPA distance at line 2's right end, where the Radar draws it on its own row:
+        /// the one place the two layouts differ on purpose (<see cref="RadarLinesAsScope"/>).
+        /// </summary>
+        public bool AtpaOnLine2 { get; init; }
+    }
 
     private static readonly Dictionary<string, Func<Case>> Cases = new()
     {
@@ -34,7 +41,8 @@ public class ScopeTemplateParityTests
                 ac.CwtCode = "";
                 ac.IsIdenting = true;
             }),
-        ["AtpaLead"] = () => new Case(ScopeTestAircraft.CreateAtpaTrailer(), ScopeTestAircraft.CreateAtpaLead(), null, Marker: "", MarkLevel: true),
+        ["AtpaLead"] = () => AtpaPair(identing: false),
+        ["AtpaLeadWithIdent"] = () => AtpaPair(identing: true),
         ["LongCallsign"] = () => Plain(ac => ac.Callsign = "N1234567890AB"),
         ["OwnedWithScratchpads"] = () => Plain(OwnedWithScratchpads),
         ["SquawkMismatchWithNote"] = () =>
@@ -132,6 +140,14 @@ public class ScopeTemplateParityTests
 
     private static Case Plain(Action<AircraftModel> setup) => new(With(setup), null, null, Marker: "", MarkLevel: true);
 
+    /// <summary>The ATPA trailer UAL238 behind its lead, identing or not.</summary>
+    private static Case AtpaPair(bool identing)
+    {
+        AircraftModel trailer = ScopeTestAircraft.CreateAtpaTrailer();
+        trailer.IsIdenting = identing;
+        return new Case(trailer, ScopeTestAircraft.CreateAtpaLead(), null, Marker: "", MarkLevel: true) { AtpaOnLine2 = true };
+    }
+
     /// <summary>A track the student's scope shows at <paramref name="level"/>, with the marker preference on or off.</summary>
     private static Case Student(StarsDatablockLevel level, bool markLevel) =>
         new(With(ac => ac.StudentDatablockLevel = level), null, null, markLevel ? DatablockText.StudentLevelMarker(level) : "", markLevel);
@@ -188,6 +204,25 @@ public class ScopeTemplateParityTests
         return lines;
     }
 
+    /// <summary>
+    /// Today's drawn lines as the Scope's STARS template carries them. The same as <see cref="DrawnLines"/> but for an
+    /// <see cref="Case.AtpaOnLine2"/> case: there the Radar's own ATPA row moves to line 2's right end, after the cwt/type and
+    /// before the ident. A narrow, deliberate exception: the Scope follows CRC's block, the Radar keeps its row until it is
+    /// deleted, and every other line still matches.
+    /// </summary>
+    private static List<string> RadarLinesAsScope(RadarDatablockLayout layout, bool flashOn, Case c)
+    {
+        List<string> lines = DrawnLines(layout, flashOn);
+        if ((!c.AtpaOnLine2) || (layout.AtpaLine.Length == 0))
+        {
+            return lines;
+        }
+
+        lines.RemoveAt(lines.IndexOf(layout.AtpaLine, 2));
+        lines[1] = lines[1].Insert(layout.TypeTokenStart + layout.TypeTokenLength, " " + layout.AtpaLine);
+        return lines;
+    }
+
     private static void AddIf(List<string> lines, string line, bool present)
     {
         if (present)
@@ -218,13 +253,22 @@ public class ScopeTemplateParityTests
         TextStyle style = Style(12);
         Case c = Cases[caseName]();
         RadarDatablockLayout today = Today(c, flashOn, style);
-        List<string> stableLines = DrawnLines(Today(c, flashOn: true, style), flashOn: true);
+        List<string> stableLines = RadarLinesAsScope(Today(c, flashOn: true, style), flashOn: true, c);
 
         ScopeBlockLayout scope = ScopeLayout(ScopeTemplates.StarsId, c, flashOn, style);
         List<FieldRect[]> rows = Rows(scope);
 
-        Assert.Equal(DrawnLines(today, flashOn), rows.Select(JoinRow));
-        Assert.Equal(today.Rect, scope.Bounds);
+        Assert.Equal(RadarLinesAsScope(today, flashOn, c), rows.Select(JoinRow));
+        if (c.AtpaOnLine2)
+        {
+            // The Radar's ATPA row is gone from the Scope's block: same corner, one row shorter.
+            Assert.Equal(today.Rect.Location, scope.Bounds.Location);
+            Assert.True(scope.Bounds.Height < today.Rect.Height, "the Scope's ATPA block keeps the Radar's extra row");
+        }
+        else
+        {
+            Assert.Equal(today.Rect, scope.Bounds);
+        }
         for (int i = 0; i < rows.Count; i++)
         {
             Assert.Equal(style.Measure(stableLines[i]), rows[i][^1].Rect.Right, precision: 3);
@@ -279,16 +323,49 @@ public class ScopeTemplateParityTests
         Assert.Equal(golden.Lines, Rows(scope).Select(JoinRow));
     }
 
-    /// <summary>Proves the frozen fixture is today's text; it goes with <see cref="RadarDatablockLayout"/>.</summary>
+    /// <summary>
+    /// Proves the frozen fixture is today's text, with the ATPA distance on line 2 (<see cref="RadarLinesAsScope"/>); it goes
+    /// with <see cref="RadarDatablockLayout"/>.
+    /// </summary>
     [Theory]
     [MemberData(nameof(CasesByPhase))]
     public void FrozenStarsText_MatchesRadarDatablockLayout(string caseName, bool flashOn)
     {
         GoldenBlock golden = Golden(caseName, flashOn);
+        Case c = Cases[caseName]();
 
-        RadarDatablockLayout today = Today(Cases[caseName](), flashOn, Style(12));
+        RadarDatablockLayout today = Today(c, flashOn, Style(12));
 
-        Assert.Equal(golden.Lines, DrawnLines(today, flashOn));
+        Assert.Equal(golden.Lines, RadarLinesAsScope(today, flashOn, c));
+    }
+
+    [Theory]
+    [InlineData("AtpaLead", true)]
+    [InlineData("AtpaLead", false)]
+    [InlineData("AtpaLeadWithIdent", true)]
+    [InlineData("AtpaLeadWithIdent", false)]
+    public void StarsTemplate_AtpaPair_PutsTheDistanceAtLine2sRightEnd_WithNoExtraRow(string caseName, bool flashOn)
+    {
+        ScopeBlockLayout scope = ScopeLayout(ScopeTemplates.StarsId, Cases[caseName](), flashOn, Style(12));
+        List<FieldRect[]> rows = Rows(scope);
+
+        Assert.Equal(2, rows.Count);
+        FieldRect atpa = Assert.Single(scope.Fields, f => f.Slot == ScopeFieldSlot.Atpa);
+        Assert.Equal("3.2", atpa.Text);
+        Assert.Contains(atpa, rows[1]);
+        FieldRect[] drawn = [.. rows[1].Where(f => f.Text.Length > 0)];
+        Assert.Equal(ScopeFieldSlot.CwtType, drawn[Array.IndexOf(drawn, atpa) - 1].Slot);
+        Assert.All(drawn.SkipWhile(f => f != atpa).Skip(1), f => Assert.Equal(ScopeFieldSlot.Ident, f.Slot));
+    }
+
+    [Fact]
+    public void StarsTemplate_Line2_IsAltitudeGroundSpeedCwtTypeAtpaThenIdent()
+    {
+        Assert.Equal(
+            [ScopeFieldSlot.Altitude, ScopeFieldSlot.GroundSpeed, ScopeFieldSlot.CwtType, ScopeFieldSlot.Atpa, ScopeFieldSlot.Ident],
+            ScopeTemplates.Stars.Lines[1].Slots.Select(s => s.Slot)
+        );
+        Assert.Single(ScopeTemplates.Stars.Lines, l => l.Slots.Any(s => s.Slot == ScopeFieldSlot.Atpa));
     }
 
     [Theory]

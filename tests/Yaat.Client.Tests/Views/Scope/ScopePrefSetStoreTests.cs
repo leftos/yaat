@@ -216,7 +216,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-DAY",
                   "rangeNm": 40,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -225,7 +225,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-BAD",
                   "rangeNm": "x",
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -234,7 +234,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-NIGHT",
                   "rangeNm": 30,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -262,7 +262,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-DAY",
                   "rangeNm": 40,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -271,7 +271,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-BAD",
                   "rangeNm": 30,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
@@ -281,7 +281,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-NIGHT",
                   "rangeNm": 20,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -341,7 +341,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -369,7 +369,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -417,7 +417,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -445,7 +445,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -473,7 +473,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -500,7 +500,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
@@ -530,7 +530,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
@@ -560,7 +560,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -598,7 +598,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-BAD",
                   "rangeNm": 40,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null},
@@ -608,7 +608,7 @@ public class ScopePrefSetStoreTests : IDisposable
                   "name": "SR-NIGHT",
                   "rangeNm": 30,
                   "templateId": "stars",
-                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                  "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                   "kind": "stars",
                   "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                   "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -654,7 +654,7 @@ public class ScopePrefSetStoreTests : IDisposable
             """
             { "version": 1, "state": {
                 "name": "SR-DAY", "rangeNm": 22, "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars", "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
             } }
@@ -688,7 +688,7 @@ public class ScopePrefSetStoreTests : IDisposable
                 "name": "SR-DAY",
                 "rangeNm": 40,
                 "templateId": "stars",
-                "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+                "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
                 "kind": "stars",
                 "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
                 "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -812,7 +812,7 @@ public class ScopePrefSetStoreTests : IDisposable
           "name": "SR-DAY",
           "rangeNm": 40,
           "templateId": "stars",
-          "db": {"line4":true,"hoverDwell":false,"atpa":true,"eramCaRing":true,"charSize":14},
+          "db": {"line4":true,"hoverDwell":false,"atpa":true,"atpaAlertCones":true,"atpaMonitorCones":true,"eramCaRing":true,"charSize":14},
           "kind": "stars",
           "lens": {"enabled":false,"path":false,"queue":false,"checkIn":false},
           "mapTools": {"mva":false,"lock":false,"rangeRing":null,"weather":null,"fixesAndMarkers":null}
@@ -841,7 +841,7 @@ public class ScopePrefSetStoreTests : IDisposable
             CenterLat = 37.5,
             CenterLon = -122.5,
             TemplateId = "stars",
-            Db = new ScopePrefDb(true, false, true, true, 14),
+            Db = new ScopePrefDb(true, false, true, true, true, true, 14),
             Kind = "stars",
             Lens = new ScopePrefLens(false, false, false, false),
             MapTools = new ScopePrefMapTools(false, false, null, null, null),

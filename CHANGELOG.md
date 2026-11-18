@@ -29,6 +29,7 @@
 - An ERAM datablock on the Scope flashes whole while its pair's conflict alert shows on the student's ERAM, following the facility's and the sector's CA settings.
 - Scope conflict alerts keep the pair's blocks full, draw CA rings (ERAM rings under the DB menu's CA RING) and label list rows CA, MCI or ERAM.
 - Suppressed Scope CAs draw steady and dimmed, acknowledged ones steady; a CA inhibited from the Scope marks the STARS block and says "(student display)".
+- The Scope's DB menu splits ATPA into DIST, ALERT CONES and MONITOR CONES, and STARS blocks show the in-trail distance at line 2's end.
 
 ### Changed
 

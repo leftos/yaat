@@ -187,15 +187,34 @@ public class ScopeToolbarButtonsTests
         Assert.Equal(ScopeButtonKind.Menu, db.Kind);
         Assert.Null(db.Command);
         Assert.Equal(
-            [ScopeButtonId.Db4thLine, ScopeButtonId.DbDwell, ScopeButtonId.DbAtpa, ScopeButtonId.DbCaRing, ScopeButtonId.DbChar],
+            [
+                ScopeButtonId.Db4thLine,
+                ScopeButtonId.DbDwell,
+                ScopeButtonId.DbAtpa,
+                ScopeButtonId.DbAtpaAlertCones,
+                ScopeButtonId.DbAtpaMonitorCones,
+                ScopeButtonId.DbCaRing,
+                ScopeButtonId.DbChar,
+            ],
             db.Children.Select(c => c.Id)
         );
-        Assert.Equal(["4TH LINE", "DWELL", "ATPA DIST", "CA RING", "CHAR"], db.Children.Select(c => c.Label));
+        Assert.Equal(["4TH LINE", "DWELL", "ATPA DIST", "ALERT CONES", "MONITOR CONES", "CA RING", "CHAR"], db.Children.Select(c => c.Label));
         Assert.Equal(
-            [ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Toggle, ScopeButtonKind.Spinner],
+            [
+                ScopeButtonKind.Toggle,
+                ScopeButtonKind.Toggle,
+                ScopeButtonKind.Toggle,
+                ScopeButtonKind.Toggle,
+                ScopeButtonKind.Toggle,
+                ScopeButtonKind.Toggle,
+                ScopeButtonKind.Spinner,
+            ],
             db.Children.Select(c => c.Kind)
         );
-        Assert.Equal([".scope db 4thline", ".scope db dwell", ".scope db atpa", ".scope db caring", null], db.Children.Select(c => c.Command));
+        Assert.Equal(
+            [".scope db 4thline", ".scope db dwell", ".scope db atpa", ".scope db alertcones", ".scope db monitorcones", ".scope db caring", null],
+            db.Children.Select(c => c.Command)
+        );
         Assert.Equal(".scope db char 16", ScopeToolbarButtons.DbCharCommand(16));
         Assert.All(db.Children, c => Assert.Empty(c.Children));
     }

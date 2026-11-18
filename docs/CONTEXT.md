@@ -813,6 +813,9 @@ A YAAT Scope display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mix
 A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows (the Scope's included), extra Scope/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
 _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 
+**Alert cones (YAAT Scope)**:
+The DB menu's ALERT CONES toggle (`.scope db alertcones`): whether an ATPA pair in the Warning or Alert state draws its cone on the Scope; on at open. The Monitor state has its own toggle, **Monitor cones**, and ATPA DIST gates only the in-trail distance text.
+
 **Altitude-mismatch mark**:
 The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while the ERAM plan altitude and the filed altitude are both set and differ (never on a VFR or OTP plan); YAAT-only, CRC has no such marker. The dwelled block names the other side's altitude on an extra line (`TrackPresenter.EramAltitudeDiffers`).
 
@@ -860,6 +863,9 @@ ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on
 
 **Mixed (YAAT Scope template)**:
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
+
+**Monitor cones (YAAT Scope)**:
+The DB menu's MONITOR CONES toggle (`.scope db monitorcones`): whether an ATPA pair in the Monitor state draws its cone on the Scope; on at open. The Warning and Alert states have their own toggle, **Alert cones**.
 
 **PILOT column (YAAT Scope)**:
 The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain altitude panel on the altitude popup, Fly heading and Assign speed on the fourth-line ones (none on the free-text popup); a row click sends for the clicked aircraft and Shift+click stages `$ {callsign} {command}`; beside the Scope data column.

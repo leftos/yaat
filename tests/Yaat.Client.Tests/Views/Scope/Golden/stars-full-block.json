@@ -36,8 +36,7 @@
     "flashOn": true,
     "lines": [
       "UAL238",
-      "230 25 D/B738",
-      "3.2"
+      "230 25 D/B738 3.2"
     ]
   },
   {
@@ -45,8 +44,23 @@
     "flashOn": false,
     "lines": [
       "UAL238",
-      "230 25 D/B738",
-      "3.2"
+      "230 25 D/B738 3.2"
+    ]
+  },
+  {
+    "case": "AtpaLeadWithIdent",
+    "flashOn": true,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738 3.2 ID"
+    ]
+  },
+  {
+    "case": "AtpaLeadWithIdent",
+    "flashOn": false,
+    "lines": [
+      "UAL238",
+      "230 25 D/B738 3.2"
     ]
   },
   {

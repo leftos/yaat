@@ -6,6 +6,7 @@ using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Mva;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -462,7 +463,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             presentation.Tint,
             VectorEndFor(ac, input),
             ScopeTrackLayers.HistoryDots(ac, input.HistoryCount, input.Viewport),
-            RingsFor(ac, input, input.Alerts.ShowAtpa ? atpaLead : null, offset) with
+            RingsFor(ac, input, AtpaConeLead(ac, input.Alerts, atpaLead), offset) with
             {
                 ConflictRing = ConflictRingFor(ac, templateId, input, conflicts),
             },
@@ -533,13 +534,24 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
 
     /// <summary>
     /// The ring layer of <paramref name="ac"/>: its placed rings (<see cref="ScopeFrameInput.LocalRings"/>) and its ATPA cone
-    /// toward <paramref name="atpaLead"/>, null when ATPA is off or the lead is not drawn; the J-ring's label sits opposite the
-    /// leader (<paramref name="leaderOffset"/>).
+    /// toward <paramref name="atpaLead"/>, null when the cone's toggle is off or the lead is not drawn
+    /// (<see cref="AtpaConeLead"/>); the J-ring's label sits opposite the leader (<paramref name="leaderOffset"/>).
     /// </summary>
     private static ScopeRingShapes RingsFor(AircraftModel ac, ScopeFrameInput input, AircraftModel? atpaLead, SKPoint leaderOffset)
     {
         ScopeTrackRings rings = input.LocalRings.GetValueOrDefault(ac.Callsign) ?? ScopeTrackRings.None;
         return ScopeRingGeometry.Shapes(ac, rings, atpaLead, leaderOffset, input.Viewport);
+    }
+
+    /// <summary>
+    /// The lead <paramref name="ac"/>'s ATPA cone points at: <paramref name="atpaLead"/> while the toggle of the cone's state is
+    /// on (MONITOR CONES for a Monitor cone, ALERT CONES for a Warning or Alert one), else null. ATPA DIST plays no part: it
+    /// gates the distance text only.
+    /// </summary>
+    private static AircraftModel? AtpaConeLead(AircraftModel ac, ScopeAlertOptions alerts, AircraftModel? atpaLead)
+    {
+        bool on = (ac.AtpaConeState == AtpaConeState.Monitor) ? alerts.ShowAtpaMonitorCones : alerts.ShowAtpaAlertCones;
+        return on ? atpaLead : null;
     }
 
     /// <summary>

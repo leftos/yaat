@@ -117,10 +117,12 @@ public sealed record ScopePrefSet
 /// <summary>The Scope's DB toggles and datablock character size.</summary>
 /// <param name="Line4">Whether the datablock draws its fourth line.</param>
 /// <param name="HoverDwell">Whether hovering a target dwells it.</param>
-/// <param name="Atpa">Whether ATPA pairs are shown.</param>
+/// <param name="Atpa">Whether blocks show the ATPA in-trail distance (ATPA DIST).</param>
+/// <param name="AtpaAlertCones">Whether an ATPA pair in the Warning or Alert state draws its cone (ALERT CONES).</param>
+/// <param name="AtpaMonitorCones">Whether an ATPA pair in the Monitor state draws its cone (MONITOR CONES).</param>
 /// <param name="EramCaRing">Whether an ERAM conflict pair draws its ring (CA RING).</param>
 /// <param name="CharSize">The datablock character size.</param>
-public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, bool EramCaRing, int CharSize);
+public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, bool AtpaAlertCones, bool AtpaMonitorCones, bool EramCaRing, int CharSize);
 
 /// <summary>The pilot lens's switches.</summary>
 /// <param name="Enabled">Whether the lens is on.</param>

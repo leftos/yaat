@@ -71,8 +71,14 @@ public enum ScopeButtonId
     /// <summary>The DB menu's DWELL toggle.</summary>
     DbDwell,
 
-    /// <summary>The DB menu's ATPA DIST toggle.</summary>
+    /// <summary>The DB menu's ATPA DIST toggle: blocks show the ATPA in-trail distance.</summary>
     DbAtpa,
+
+    /// <summary>The DB menu's ALERT CONES toggle: an ATPA pair in the Warning or Alert state draws its cone.</summary>
+    DbAtpaAlertCones,
+
+    /// <summary>The DB menu's MONITOR CONES toggle: an ATPA pair in the Monitor state draws its cone.</summary>
+    DbAtpaMonitorCones,
 
     /// <summary>The DB menu's CA RING toggle: an ERAM conflict pair draws its ring.</summary>
     DbCaRing,
@@ -361,6 +367,8 @@ public static class ScopeToolbarButtons
                 DbToggle(ScopeButtonId.Db4thLine, "4TH LINE", DbLine4Item),
                 DbToggle(ScopeButtonId.DbDwell, "DWELL", DbDwellItem),
                 DbToggle(ScopeButtonId.DbAtpa, "ATPA DIST", DbAtpaItem),
+                DbToggle(ScopeButtonId.DbAtpaAlertCones, "ALERT CONES", DbAtpaAlertConesItem),
+                DbToggle(ScopeButtonId.DbAtpaMonitorCones, "MONITOR CONES", DbAtpaMonitorConesItem),
                 DbToggle(ScopeButtonId.DbCaRing, "CA RING", DbCaRingItem),
                 new(ScopeButtonId.DbChar, "CHAR", ScopeButtonKind.Spinner, [], DbCharItem, null),
             ],
@@ -438,6 +446,12 @@ public static class ScopeToolbarButtons
 
     /// <summary>The DB ATPA DIST item, as <c>.scope db</c> takes it.</summary>
     public const string DbAtpaItem = "atpa";
+
+    /// <summary>The DB ALERT CONES item, as <c>.scope db</c> takes it.</summary>
+    public const string DbAtpaAlertConesItem = "alertcones";
+
+    /// <summary>The DB MONITOR CONES item, as <c>.scope db</c> takes it.</summary>
+    public const string DbAtpaMonitorConesItem = "monitorcones";
 
     /// <summary>The DB CA RING item, as <c>.scope db</c> takes it.</summary>
     public const string DbCaRingItem = "caring";

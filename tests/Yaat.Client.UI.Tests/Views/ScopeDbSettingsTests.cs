@@ -16,8 +16,9 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Scope's DB settings on the real canvas: 4TH LINE, DWELL, ATPA DIST and CHAR seed once from the preferences, change only
-/// through <c>.scope db</c>, and reach every frame the canvas builds; the preferences never change them afterwards.
+/// The Scope's DB settings on the real canvas: 4TH LINE, DWELL, ATPA DIST and CHAR seed once from the preferences (ALERT CONES
+/// and MONITOR CONES start on), change only through <c>.scope db</c>, and reach every frame the canvas builds; the preferences
+/// never change them afterwards.
 /// </summary>
 public class ScopeDbSettingsTests
 {
@@ -31,7 +32,7 @@ public class ScopeDbSettingsTests
         (ScopeViewModel scope, ScopeView view, Window window) = ShowScope(main);
         try
         {
-            Assert.Equal(new ScopeDbSettings(Line4: true, HoverDwell: true, Atpa: true, EramCaRing: true, CharSize: 14), scope.DbSettings);
+            Assert.Equal(Seeded, scope.DbSettings);
             AddAtpaPair(main, view.Canvas);
             float width = TrailerBlockWidth(view.Canvas);
             Assert.NotEqual("", AtpaText(view.Canvas));
@@ -41,7 +42,7 @@ public class ScopeDbSettingsTests
             main.Aircraft.Add(Aircraft("SKW5", 37.0, -121.0));
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(new ScopeDbSettings(Line4: true, HoverDwell: true, Atpa: true, EramCaRing: true, CharSize: 14), scope.DbSettings);
+            Assert.Equal(Seeded, scope.DbSettings);
             Assert.NotEqual("", AtpaText(view.Canvas));
             Assert.Equal(width, TrailerBlockWidth(view.Canvas));
         }
@@ -92,6 +93,49 @@ public class ScopeDbSettingsTests
             main.RunScopeCommand(".scope db atpa off");
 
             Assert.Equal("", AtpaText(view.Canvas));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Defaults_BothConeTogglesAreOn()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Preferences.SetShowAtpa(false);
+        (ScopeViewModel scope, _, Window window) = ShowScope(main);
+        try
+        {
+            Assert.False(scope.DbSettings.Atpa);
+            Assert.True(scope.DbSettings.AtpaAlertCones);
+            Assert.True(scope.DbSettings.AtpaMonitorCones);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DistOff_KeepsTheConesDrawn_WhenTheScopeRenders()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        (_, ScopeView view, Window window) = ShowScope(main);
+        try
+        {
+            main.RunScopeCommand(".scope db atpa off");
+            AddAtpaPair(main, view.Canvas);
+
+            Assert.Equal("", AtpaText(view.Canvas));
+            Assert.NotNull(TrackOf(view.Canvas, "UAL238").Rings.AtpaCone);
+
+            main.RunScopeCommand(".scope db alertcones off");
+
+            Assert.Null(TrackOf(view.Canvas, "UAL238").Rings.AtpaCone);
         }
         finally
         {
@@ -159,6 +203,17 @@ public class ScopeDbSettingsTests
             Dispatcher.UIThread.RunJobs();
         }
     }
+
+    // The settings a scope seeds from preferences with ATPA on and a 14-point datablock font: every toggle on.
+    private static readonly ScopeDbSettings Seeded = new(
+        Line4: true,
+        HoverDwell: true,
+        Atpa: true,
+        AtpaAlertCones: true,
+        AtpaMonitorCones: true,
+        EramCaRing: true,
+        CharSize: 14
+    );
 
     private static FontSizePrefs Sizes(UserPreferences prefs, int radarDatablock) =>
         new(

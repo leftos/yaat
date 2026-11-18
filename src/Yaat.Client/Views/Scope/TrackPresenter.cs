@@ -11,14 +11,23 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>Which alert overlays a block may carry, as the user's preferences set them.</summary>
-/// <param name="ShowAtpa">ATPA in-trail distance display.</param>
+/// <param name="ShowAtpa">The DB menu's ATPA DIST: the ATPA in-trail distance display, the text only.</param>
+/// <param name="ShowAtpaAlertCones">The DB menu's ALERT CONES: an ATPA pair in the Warning or Alert state draws its cone.</param>
+/// <param name="ShowAtpaMonitorCones">The DB menu's MONITOR CONES: an ATPA pair in the Monitor state draws its cone.</param>
 /// <param name="ShowConflictAlerts">Conflict-alert (CA/MCI) display.</param>
 /// <param name="ShowNoLandingClearance">No-landing-clearance warning display.</param>
 /// <param name="ShowEramCaRing">
 /// The DB menu's CA RING: an ERAM conflict pair draws its ring on each member but an MCI pair's Mode C intruder
 /// (<see cref="ScopeRingGeometry.EramConflictRingNm"/>).
 /// </param>
-public sealed record ScopeAlertOptions(bool ShowAtpa, bool ShowConflictAlerts, bool ShowNoLandingClearance, bool ShowEramCaRing);
+public sealed record ScopeAlertOptions(
+    bool ShowAtpa,
+    bool ShowAtpaAlertCones,
+    bool ShowAtpaMonitorCones,
+    bool ShowConflictAlerts,
+    bool ShowNoLandingClearance,
+    bool ShowEramCaRing
+);
 
 /// <summary>Which instructor display hints a block carries, as the user's preferences set them.</summary>
 /// <param name="MarkStudentLevel">Mark a track the student's scope shows limited or partial with <c>(LDB)</c>/<c>(PDB)</c>.</param>

@@ -6,13 +6,15 @@ using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
 /// The ring layer, framed and drawn: a placed ring draws on its own track only and a ring whose aircraft is not drawn draws
-/// nothing; ATPA cones draw with ATPA DIST on and not off, hide the track's manual cone and leave its J-ring; RINGS dims
-/// every ring and ATPA cone, 0 drawing no ring pixel, and nothing else.
+/// nothing; an ATPA cone follows its state's toggle (MONITOR CONES for a Monitor cone, ALERT CONES for a Warning or Alert
+/// one) and never ATPA DIST, hides the track's manual cone and leaves its J-ring; RINGS dims every ring and ATPA cone, 0
+/// drawing no ring pixel, and nothing else.
 /// </summary>
 [Collection(MapBlinkClockCollection.Name)]
 public class ScopeFrameRingsTests
@@ -26,6 +28,12 @@ public class ScopeFrameRingsTests
     private static readonly SKColor SymbolBlue = new(0, 176, 255);
 
     private static readonly ScopeAlertOptions NoAtpa = ScopeTestAircraft.AllAlerts with { ShowAtpa = false };
+
+    private static readonly ScopeAlertOptions NoAtpaCones = ScopeTestAircraft.AllAlerts with
+    {
+        ShowAtpaAlertCones = false,
+        ShowAtpaMonitorCones = false,
+    };
 
     private static MapViewport Viewport() =>
         new()
@@ -62,6 +70,16 @@ public class ScopeFrameRingsTests
     }
 
     private static Dictionary<string, ScopeTrackRings> Rings(string callsign, ScopeTrackRings rings) => new() { [callsign] = rings };
+
+    private static Dictionary<string, ScopeTrackRings> NoRings() => [];
+
+    // The rings of the ATPA trailer UAL238, set to the given cone state, framed with its lead drawn.
+    private static ScopeRingShapes TrailerRings(ScopeAlertOptions alerts, AtpaConeState state, Dictionary<string, ScopeTrackRings> rings)
+    {
+        AircraftModel trailer = ScopeTestAircraft.CreateAtpaTrailer();
+        trailer.AtpaConeState = state;
+        return TrackOf(Frame(alerts, rings, trailer, ScopeTestAircraft.CreateAtpaLead()), "UAL238").Rings;
+    }
 
     private static ScopeTrack TrackOf(ScopeFrame frame, string callsign) => Assert.Single(frame.Tracks, t => t.Aircraft.Callsign == callsign);
 
@@ -143,19 +161,77 @@ public class ScopeFrameRingsTests
     }
 
     [Fact]
-    public void AtpaCone_DrawsWithAtpaDistOn_AndNotOff()
+    public void AtpaCone_DrawsWithAlertConesOn_AndNotOff()
     {
         AircraftModel trailer = ScopeTestAircraft.CreateAtpaTrailer();
         AircraftModel lead = ScopeTestAircraft.CreateAtpaLead();
+        ScopeAlertOptions alertConesOff = ScopeTestAircraft.AllAlerts with { ShowAtpaAlertCones = false };
 
         ScopeRingShapes on = TrackOf(Frame(ScopeTestAircraft.AllAlerts, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "UAL238").Rings;
-        ScopeRingShapes off = TrackOf(Frame(NoAtpa, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "UAL238").Rings;
+        ScopeRingShapes off = TrackOf(Frame(alertConesOff, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "UAL238").Rings;
 
         ScopeWedge cone = Assert.IsType<ScopeWedge>(on.AtpaCone);
         Assert.Equal("3", cone.Label);
-        Assert.Equal(Yaat.Sim.Data.Vnas.AtpaConeState.Warning, on.AtpaState);
+        Assert.Equal(AtpaConeState.Warning, on.AtpaState);
         Assert.True(off.IsEmpty);
         Assert.True(TrackOf(Frame(ScopeTestAircraft.AllAlerts, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "SWA1234").Rings.IsEmpty);
+    }
+
+    [Fact]
+    public void AtpaCone_WithDistOff_StillDraws()
+    {
+        ScopeRingShapes rings = TrailerRings(NoAtpa, AtpaConeState.Warning, NoRings());
+
+        Assert.NotNull(rings.AtpaCone);
+        Assert.Equal(AtpaConeState.Warning, rings.AtpaState);
+    }
+
+    [Theory]
+    [InlineData(AtpaConeState.Warning, true)]
+    [InlineData(AtpaConeState.Warning, false)]
+    [InlineData(AtpaConeState.Alert, true)]
+    [InlineData(AtpaConeState.Alert, false)]
+    public void AWarningOrAlertCone_FollowsAlertCones(AtpaConeState state, bool alertCones)
+    {
+        // MONITOR CONES stays on: a Warning or Alert pair with ALERT CONES off draws no cone, not a Monitor cone.
+        ScopeRingShapes rings = TrailerRings(ScopeTestAircraft.AllAlerts with { ShowAtpaAlertCones = alertCones }, state, NoRings());
+
+        Assert.Equal(alertCones, rings.AtpaCone is not null);
+        Assert.Equal(!alertCones, rings.IsEmpty);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AMonitorCone_FollowsMonitorCones(bool monitorCones)
+    {
+        Dictionary<string, ScopeTrackRings> manual = Rings("UAL238", new ScopeTrackRings(null, 5.0, null));
+
+        ScopeRingShapes rings = TrailerRings(ScopeTestAircraft.AllAlerts with { ShowAtpaMonitorCones = monitorCones }, AtpaConeState.Monitor, manual);
+
+        Assert.Equal(monitorCones, rings.AtpaCone is not null);
+        // A Monitor cone switched off no longer hides the manual cone.
+        Assert.Equal(!monitorCones, rings.Cone is not null);
+    }
+
+    [Fact]
+    public void AMonitorCone_StaysWithAlertConesOff()
+    {
+        ScopeRingShapes rings = TrailerRings(ScopeTestAircraft.AllAlerts with { ShowAtpaAlertCones = false }, AtpaConeState.Monitor, NoRings());
+
+        Assert.NotNull(rings.AtpaCone);
+        Assert.Equal(AtpaConeState.Monitor, rings.AtpaState);
+    }
+
+    [Theory]
+    [InlineData(AtpaConeState.Warning)]
+    [InlineData(AtpaConeState.Alert)]
+    public void AnAlertCone_StaysWithMonitorConesOff(AtpaConeState state)
+    {
+        ScopeRingShapes rings = TrailerRings(ScopeTestAircraft.AllAlerts with { ShowAtpaMonitorCones = false }, state, NoRings());
+
+        Assert.NotNull(rings.AtpaCone);
+        Assert.Equal(state, rings.AtpaState);
     }
 
     [Fact]
@@ -183,7 +259,7 @@ public class ScopeFrameRingsTests
             "UAL238"
         ).Rings;
         ScopeRingShapes withoutAtpa = TrackOf(
-            Frame(NoAtpa, rings, ScopeTestAircraft.CreateAtpaTrailer(), ScopeTestAircraft.CreateAtpaLead()),
+            Frame(NoAtpaCones, rings, ScopeTestAircraft.CreateAtpaTrailer(), ScopeTestAircraft.CreateAtpaLead()),
             "UAL238"
         ).Rings;
 

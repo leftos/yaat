@@ -444,7 +444,7 @@ public class ScopeProfilePickTests : IDisposable
                 new ScopePrefSet
                 {
                     TemplateId = "euroscope",
-                    Db = new ScopePrefDb(false, true, false, true, 12),
+                    Db = new ScopePrefDb(false, true, false, true, true, true, 12),
                     Kind = "eram",
                     Lens = new ScopePrefLens(false, false, false, false),
                     MapTools = new ScopePrefMapTools(false, false, null, null, null),

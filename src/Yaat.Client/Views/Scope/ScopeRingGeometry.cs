@@ -301,7 +301,7 @@ public static class ScopeRingGeometry
 
     /// <summary>
     /// What the ring layer draws for <paramref name="ac"/>: its placed <paramref name="rings"/>, and the ATPA cone toward
-    /// <paramref name="atpaLead"/> (null when ATPA is off or the lead is not drawn). An ATPA cone hides the manual cone; the
+    /// <paramref name="atpaLead"/> (null when the cone's toggle is off or the lead is not drawn). An ATPA cone hides the manual cone; the
     /// J-ring and the DRI draw regardless.
     /// </summary>
     public static ScopeRingShapes Shapes(AircraftModel ac, ScopeTrackRings rings, AircraftModel? atpaLead, SKPoint leaderOffset, MapViewport vp)

@@ -65,6 +65,31 @@ public class TrackPresenterTests
         Assert.Equal(ScopeColorToken.AtpaWarning, atpa.Token);
     }
 
+    [Theory]
+    [InlineData(true, true, true, "3.2")]
+    [InlineData(true, false, false, "3.2")]
+    [InlineData(false, true, true, "")]
+    [InlineData(false, false, false, "")]
+    public void Atpa_Distance_FollowsDistOnly(bool dist, bool alertCones, bool monitorCones, string expected)
+    {
+        ScopeAlertOptions alerts = ScopeTestAircraft.AllAlerts with
+        {
+            ShowAtpa = dist,
+            ShowAtpaAlertCones = alertCones,
+            ShowAtpaMonitorCones = monitorCones,
+        };
+        TrackPresenterInput input = ScopeTestAircraft.Input(
+            ScopeTestAircraft.CreateAtpaTrailer(),
+            ScopeTemplates.StarsId,
+            atpaLead: ScopeTestAircraft.CreateAtpaLead()
+        ) with
+        {
+            Alerts = alerts,
+        };
+
+        Assert.Equal(expected, Field(TrackPresenter.Present(input), ScopeFieldSlot.Atpa).StableText);
+    }
+
     [Fact]
     public void Atpa_Empty_WhenLeadModelAbsent()
     {
@@ -717,6 +742,8 @@ internal static class ScopeTestAircraft
     /// <summary>Every alert overlay on, matching the flags the parity rows pass to today's layouts.</summary>
     public static readonly ScopeAlertOptions AllAlerts = new(
         ShowAtpa: true,
+        ShowAtpaAlertCones: true,
+        ShowAtpaMonitorCones: true,
         ShowConflictAlerts: true,
         ShowNoLandingClearance: true,
         ShowEramCaRing: true

@@ -48,13 +48,16 @@ public sealed partial class ScopeViewModel
     private IReadOnlySet<string> _tdmOnlyMapIds = new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>
-    /// Whether <paramref name="item"/> names a DB on/off item (<c>4thline</c>, <c>dwell</c>, <c>atpa</c>, <c>caring</c>; lowercase).
+    /// Whether <paramref name="item"/> names a DB on/off item (<c>4thline</c>, <c>dwell</c>, <c>atpa</c>, <c>alertcones</c>,
+    /// <c>monitorcones</c>, <c>caring</c>; lowercase).
     /// </summary>
     public static bool IsDbToggleItem(string item) =>
         item
             is ScopeToolbarButtons.DbLine4Item
                 or ScopeToolbarButtons.DbDwellItem
                 or ScopeToolbarButtons.DbAtpaItem
+                or ScopeToolbarButtons.DbAtpaAlertConesItem
+                or ScopeToolbarButtons.DbAtpaMonitorConesItem
                 or ScopeToolbarButtons.DbCaRingItem;
 
     /// <summary>
@@ -113,6 +116,8 @@ public sealed partial class ScopeViewModel
             ScopeToolbarButtons.DbLine4Item => DbSettings with { Line4 = on },
             ScopeToolbarButtons.DbDwellItem => DbSettings with { HoverDwell = on },
             ScopeToolbarButtons.DbAtpaItem => DbSettings with { Atpa = on },
+            ScopeToolbarButtons.DbAtpaAlertConesItem => DbSettings with { AtpaAlertCones = on },
+            ScopeToolbarButtons.DbAtpaMonitorConesItem => DbSettings with { AtpaMonitorCones = on },
             ScopeToolbarButtons.DbCaRingItem => DbSettings with { EramCaRing = on },
             _ => throw new ArgumentException($"Unknown scope DB item: {item}", nameof(item)),
         };
@@ -207,10 +212,20 @@ public sealed partial class ScopeViewModel
 /// <summary>The Scope's DB settings. A data record: nothing here reads the preferences after <see cref="FromPreferences"/>.</summary>
 /// <param name="Line4">4TH LINE: the ERAM line 4 falls back to the type and the destination when no HSF is set.</param>
 /// <param name="HoverDwell">DWELL: the pointer dwells the block it is over; locked blocks dwell either way.</param>
-/// <param name="Atpa">ATPA DIST: blocks show the ATPA in-trail distance.</param>
+/// <param name="Atpa">ATPA DIST: blocks show the ATPA in-trail distance. The text only: the cones have their own toggles.</param>
+/// <param name="AtpaAlertCones">ALERT CONES: an ATPA pair in the Warning or Alert state draws its cone.</param>
+/// <param name="AtpaMonitorCones">MONITOR CONES: an ATPA pair in the Monitor state draws its cone.</param>
 /// <param name="EramCaRing">CA RING: an ERAM conflict pair draws its ring on each member but an MCI pair's Mode C intruder.</param>
 /// <param name="CharSize">CHAR: the datablock point size, <see cref="MinCharSize"/> to <see cref="MaxCharSize"/>.</param>
-public sealed record ScopeDbSettings(bool Line4, bool HoverDwell, bool Atpa, bool EramCaRing, int CharSize)
+public sealed record ScopeDbSettings(
+    bool Line4,
+    bool HoverDwell,
+    bool Atpa,
+    bool AtpaAlertCones,
+    bool AtpaMonitorCones,
+    bool EramCaRing,
+    int CharSize
+)
 {
     /// <summary>The smallest CHAR size.</summary>
     public const int MinCharSize = 8;
@@ -221,12 +236,17 @@ public sealed record ScopeDbSettings(bool Line4, bool HoverDwell, bool Atpa, boo
     /// <summary>Whether <paramref name="size"/> is a CHAR size.</summary>
     public static bool IsCharSize(int size) => size is >= MinCharSize and <= MaxCharSize;
 
-    /// <summary>The settings a scope opens with: 4TH LINE, DWELL and CA RING on, ATPA DIST and CHAR as the preferences have them.</summary>
+    /// <summary>
+    /// The settings a scope opens with: 4TH LINE, DWELL, ALERT CONES, MONITOR CONES and CA RING on, ATPA DIST and CHAR as the
+    /// preferences have them.
+    /// </summary>
     public static ScopeDbSettings FromPreferences(UserPreferences preferences) =>
         new(
             Line4: true,
             HoverDwell: true,
             Atpa: preferences.ShowAtpa,
+            AtpaAlertCones: true,
+            AtpaMonitorCones: true,
             EramCaRing: true,
             CharSize: Math.Clamp(preferences.RadarDatablockFontSize, MinCharSize, MaxCharSize)
         );
