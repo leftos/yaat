@@ -120,14 +120,14 @@ public class ScopeEntryTests
         try
         {
             FocusCanvas(window, view);
-            Type(window, "UAL238 FH 270");
+            Type(window, "$UAL238 FH 270");
 
-            Assert.Equal("UAL238 FH 270", scope.EntryText);
+            Assert.Equal("$UAL238 FH 270", scope.EntryText);
             Assert.True(view.EntryLayer.StarsArea.IsVisible);
             List<string> lines = Lines(view.EntryLayer.StarsArea);
             Assert.Equal(2, lines.Count);
-            Assert.StartsWith("PILOT FH", lines[0], StringComparison.Ordinal);
-            Assert.Equal("UAL238 FH 270_", lines[1]);
+            Assert.StartsWith("$ FH", lines[0], StringComparison.Ordinal);
+            Assert.Equal("$UAL238 FH 270_", lines[1]);
             Assert.Equal(Untouched, main.CommandText);
         }
         finally
@@ -143,12 +143,12 @@ public class ScopeEntryTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ProfileKind = ScopeProfileKind.Stars;
         AddAircraft(main, "UAL238", 5000);
-        await RunEntryAsync(scope, "UAL238 FH 270");
+        await RunEntryAsync(scope, "$UAL238 FH 270");
         Assert.NotNull(scope.EntryResponse);
 
         scope.StageEntry("UAL238", "SPD 250");
 
-        Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+        Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
         Assert.Null(scope.EntryResponse);
     }
 
@@ -158,7 +158,7 @@ public class ScopeEntryTests
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         AddAircraft(main, "UAL238", 5000);
-        await RunEntryAsync(scope, "UAL238 FH 270");
+        await RunEntryAsync(scope, "$UAL238 FH 270");
         Assert.True(scope.WalkEntryHistory(older: true));
 
         scope.StageEntry("UAL238", "SPD 250");
@@ -168,14 +168,14 @@ public class ScopeEntryTests
 
     // A bare ERAM entry staged from a field click (a Shift+click on a scope-data row, the HSF indicator or the VCI cell).
 
-    /// <summary>The bare entry replaces the preview, never appends, even to a pilot entry for the same aircraft.</summary>
+    /// <summary>The bare entry replaces the preview, never appends, even to a <c>$</c> entry for the same aircraft.</summary>
     [AvaloniaFact]
     public async Task StageEramText_ReplacesAPilotEntryForTheSameAircraft_WithExactlyTheEntry()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ProfileKind = ScopeProfileKind.Eram;
         AddAircraft(main, "UAL238", 5000);
-        Assert.True(scope.TypeEntryText("PILOT UAL238 CM 80"));
+        Assert.True(scope.TypeEntryText("$ UAL238 CM 80"));
 
         scope.StageEramText("UAL238", "QQ 110 UAL238");
 
@@ -256,21 +256,191 @@ public class ScopeEntryTests
             AddAircraft(main, "UAL238", 5000);
             string statusBefore = main.StatusText;
             FocusCanvas(window, view);
-            Type(window, "UAL238 FH 270");
+            Type(window, "$UAL238 FH 270");
 
             await EnterAsync(window, scope);
 
             Assert.Equal("", scope.EntryText);
             Assert.Equal("UAL238 FH 270", scope.LastSentEntryText);
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "Command error: Not connected.", "UAL238 FH 270", []), scope.EntryResponse);
-            Assert.Equal(["Command error: Not connected.", "UAL238 FH 270"], Lines(view.EntryLayer.StarsArea));
-            Assert.Contains(main.CommandHistory, h => h.Command == "UAL238 FH 270");
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "Command error: Not connected.", "$UAL238 FH 270", []), scope.EntryResponse);
+            Assert.Equal(["Command error: Not connected.", "$UAL238 FH 270"], Lines(view.EntryLayer.StarsArea));
+            Assert.Contains(main.CommandHistory, h => h.Command == "$UAL238 FH 270");
             Assert.Equal(statusBefore, main.StatusText);
             Assert.Equal(Untouched, main.CommandText);
         }
         finally
         {
             window.Close();
+        }
+    }
+
+    /// <summary>A pilot command typed without <c>$</c> is no Scope entry: nothing is sent, and the answer names the prefix.</summary>
+    [AvaloniaFact]
+    public async Task APilotCommandWithoutDollar_WithATrackSelected_SendsNothing_AndAnswersFormat()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            AircraftModel ac = AddAircraft(main, "UAL238", 5000);
+            FocusCanvas(window, view);
+            main.SelectedAircraft = ac;
+            Type(window, "FH 270");
+
+            await EnterAsync(window, scope);
+
+            Assert.Null(scope.LastSentEntryText);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, "FORMAT - $ FOR A YAAT COMMAND", "FH 270", []), scope.EntryResponse);
+            Assert.Equal("FORMAT - $ FOR A YAAT COMMAND", Lines(view.EntryLayer.StarsArea)[0]);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>A slow entry's answer, landing after a later entry was answered, leaves the later answer shown.</summary>
+    [AvaloniaFact]
+    public async Task ASlowEntrysLateAnswer_DoesNotOverwriteALaterEntrysAnswer()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Eram;
+            AddAircraft(main, "UAL238", 5000);
+            var slow = new TaskCompletionSource<ScopeEramEntryResultDto>();
+            scope.EramEntrySender = _ => slow.Task;
+            Assert.True(scope.TypeEntryText("QQ 250 UAL238"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+
+            await RunEntryAsync(scope, ".scope range 60");
+            ScopeEntryResponse? later = scope.EntryResponse;
+            Assert.NotNull(later);
+            Assert.Equal(".scope range 60", later.Echo);
+
+            slow.SetResult(new ScopeEramEntryResultDto(true, ["LATE"], null));
+            await slowRun;
+
+            Assert.Same(later, scope.EntryResponse);
+        }
+    }
+
+    /// <summary>
+    /// A track clicked into an entry that was then erased names no later <c>$</c> entry: that one is sent as it reads, for the
+    /// selected track.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADollarEntry_AfterAClickedTrackWasErased_SendsAsItReads_ForTheSelectedTrack()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            AddAircraft(main, "UAL1", 5000);
+            AircraftModel aal2 = AddAircraft(main, "AAL2", 5000);
+            Assert.True(scope.TypeEntryText("$FH 270"));
+            scope.FillTrack("UAL1");
+            Assert.Equal("$UAL1 FH 270", scope.EntryText);
+            while (scope.BackspaceEntry()) { }
+
+            main.SelectedAircraft = aal2;
+            await RunEntryAsync(scope, "$DM 110");
+
+            Assert.Equal("DM 110", scope.LastSentEntryText);
+            Assert.Same(aal2, main.SelectedAircraft);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task DollarUn_SendsUn_WithNoCallsignAdded()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            AddAircraft(main, "UAL1", 5000);
+            Assert.True(scope.TypeEntryText("$"));
+            scope.FillTrack("UAL1");
+            while (scope.BackspaceEntry()) { }
+
+            await RunEntryAsync(scope, "$UN");
+
+            Assert.Equal("UN", scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>A slow entry's answer, landing after the measure tool's prompt was shown, leaves the prompt shown.</summary>
+    [AvaloniaFact]
+    public async Task ASlowEntrysLateAnswer_DoesNotOverwriteAMeasurePrompt()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Eram;
+            AddAircraft(main, "UAL238", 5000);
+            var slow = new TaskCompletionSource<ScopeEramEntryResultDto>();
+            scope.EramEntrySender = _ => slow.Task;
+            Assert.True(scope.TypeEntryText("QQ 250 UAL238"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+
+            scope.ArmMeasure();
+            ScopeEntryResponse? prompt = scope.EntryResponse;
+            Assert.NotNull(prompt);
+
+            slow.SetResult(new ScopeEramEntryResultDto(true, ["LATE"], null));
+            await slowRun;
+
+            Assert.Same(prompt, scope.EntryResponse);
+        }
+    }
+
+    /// <summary>A slow <c>$</c> command's answer, landing after a later entry was answered, leaves the later answer shown.</summary>
+    [AvaloniaFact]
+    public async Task ASlowDollarCommandsLateAnswer_DoesNotOverwriteALaterEntrysAnswer()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Eram;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (text, sink) => text.StartsWith('.') ? main.SendTextAsync(text, sink) : slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+
+            await RunEntryAsync(scope, ".scope range 60");
+            ScopeEntryResponse? later = scope.EntryResponse;
+            Assert.NotNull(later);
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Same(later, scope.EntryResponse);
+        }
+    }
+
+    /// <summary>Esc clears the shown answer only: a slow entry's answer landing after it, with no later entry, still shows.</summary>
+    [AvaloniaFact]
+    public async Task ASlowEntrysAnswer_AfterEsc_StillShows()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Eram;
+            AddAircraft(main, "UAL238", 5000);
+            var slow = new TaskCompletionSource<ScopeEramEntryResultDto>();
+            scope.EramEntrySender = _ => slow.Task;
+            Assert.True(scope.TypeEntryText("QQ 250 UAL238"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            Assert.True(scope.TypeEntryText("QQ"));
+            Assert.True(scope.ClearEntry());
+
+            slow.SetResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            await slowRun;
+
+            Assert.Equal("QQ 250 UAL238", Assert.IsType<ScopeEntryResponse>(scope.EntryResponse).Echo);
         }
     }
 
@@ -294,8 +464,9 @@ public class ScopeEntryTests
             FocusCanvas(window, view);
             Assert.Null(main.SelectedAircraft);
             main.SelectedAircraft = stars;
+            // QQ is no STARS entry: for a STARS-owned track it reads as nothing and has no label.
             Type(window, "QQ 250");
-            Assert.StartsWith("PILOT QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+            Assert.Equal("QQ 250_", Lines(view.EntryLayer.EramPreview)[0]);
 
             main.SelectedAircraft = eram;
             Settle(window);
@@ -303,10 +474,11 @@ public class ScopeEntryTests
 
             main.SelectedAircraft = stars;
             Settle(window);
-            Assert.StartsWith("PILOT QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+            Assert.Equal("QQ 250_", Lines(view.EntryLayer.EramPreview)[0]);
             await EnterAsync(window, scope);
 
-            Assert.Equal("QQ 250", scope.LastSentEntryText);
+            Assert.Null(scope.LastSentEntryText);
+            Assert.Equal(ScopeViewModel.FormatMessage, scope.EntryResponse?.Message);
             Assert.Empty(eramSends);
         }
         finally
@@ -598,7 +770,7 @@ public class ScopeEntryTests
     }
 
     /// <summary>
-    /// A pilot command typed on an ERAM Scope sends as typed: only an ERAM entry takes ERAM's characters, so the push free
+    /// A <c>$</c> command typed on an ERAM Scope sends as typed: only an ERAM entry takes ERAM's characters, so the push free
     /// point's tilde reaches the command parser as a tilde.
     /// </summary>
     [AvaloniaFact]
@@ -608,7 +780,7 @@ public class ScopeEntryTests
         try
         {
             FocusCanvas(window, view);
-            Type(window, "PILOT UAL238 PUSH ~37.61523/-122.38604/090");
+            Type(window, "$UAL238 PUSH ~37.61523/-122.38604/090");
 
             Assert.Contains("~", string.Concat(scope.EntryPreviewLines));
 
@@ -810,17 +982,17 @@ public class ScopeEntryTests
     }
 
     [AvaloniaFact]
-    public async Task EnterOnABarePilotWord_DoesNothing()
+    public async Task EnterOnABareDollar_DoesNothing()
     {
         (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
         try
         {
             FocusCanvas(window, view);
-            Type(window, "PILOT");
+            Type(window, "$");
 
             await EnterAsync(window, scope);
 
-            Assert.Equal("PILOT", scope.EntryText);
+            Assert.Equal("$", scope.EntryText);
             Assert.Null(scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
         }

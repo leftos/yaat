@@ -44,6 +44,8 @@ public sealed partial class ScopeViewModel
         (bool armed, string status) = Measure.ArmSilently();
         Main.StatusText = status;
         _measureResponse = new ScopeEntryResponse(armed ? ScopeResponseKind.Text : ScopeResponseKind.Error, status, "", []);
+        // The prompt is the latest answer: a slow entry's answer arriving now does not replace it.
+        _entrySeq++;
         EntryResponse = _measureResponse;
     }
 
@@ -106,6 +108,7 @@ public sealed partial class ScopeViewModel
             []
         );
         _measureResponse = Measure.IsMeasuring ? response : null;
+        _entrySeq++;
         EntryResponse = response;
     }
 

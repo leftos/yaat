@@ -17,8 +17,8 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Colors** follow STARS ownership (white yours, green others', amber inbound handoff, yellow point out, cyan highlight, red CA). Brightness is set per group, as in ERAM.
 - **Semantic zoom**: zoomed in it behaves like STARS (other controllers' blocks shown full, ATPA cones, rings). At medium range, others' blocks drop to partial and vector lines run 1 minute. Zoomed out it behaves like ERAM (vector lines 4 minutes, route lines, DRI halos). Band edges live in the profile. A manual change pins a value until AUTO is pressed.
 - **Input**: four ways to enter a command, all feeding one command pipeline.
-  - Type, then click the track (STARS).
-  - Select the track, then type (YAAT today).
+  - Type, then click the track (STARS). A `$` command gets the clicked track's callsign after the `$`.
+  - Select the track, then type `$` and a YAAT command (`$DM 110` or `$ DM 110`). The Scope entry line reads only STARS and ERAM entries otherwise; other pilot commands go through the main command input.
   - Middle-click executes (ERAM).
   - Click a datablock field to open a menu. Field menus split scope data from pilot commands.
 - **Toolbar** combines ERAM menus, STARS spinners, tear-offs (any button or view can be pulled onto the scope) and named pref sets. The views dock holds the views: the status area (SSA) and the lists.
@@ -36,8 +36,8 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Viewer.** The viewer's ERAM sector (VCI, R, dwell lock, line-3 handoff text) is the instructor's active position: the scenario's student position by default, changed with the `AS` command.
 - **Ground.** The Ground view stays as it is. Top-down mode (TDM) is a Ctrl+Shift+T toggle on the scope (Ctrl+T stays Take Control), never a zoom band.
 - **Conflict alerts.** The scope mirrors the student's system rule: STARS 3 NM with a 5 s look-ahead, or ERAM's 4-minute probe that honours the datablock altitude.
-- **Typing on the Scope.** While the Scope has focus, typed text goes into a preview area drawn on the Scope, as in CRC's STARS and ERAM scopes: Enter executes, and the response shows in a feedback area on the Scope. It accepts scope entries in the profile's CRC dialect alongside YAAT pilot commands, and the preview names which kind it read before you send. YAAT's main command line keeps its own input.
-- **Field-menu pilot picks.** A plain click sends; Shift+click puts the command in the Scope preview (as `PILOT {callsign} {command}`) for Enter to run.
+- **Typing on the Scope.** While the Scope has focus, typed text goes into a preview area drawn on the Scope, as in CRC's STARS and ERAM scopes: Enter executes, and the response shows in a feedback area on the Scope. It reads the profile's CRC dialect entries; a YAAT command starts with `$` and goes to the YAAT command pipeline with the clicked or selected track as its callsign. Anything else sends nothing and answers `FORMAT - $ FOR A YAAT COMMAND`. The preview names which kind it read before you send. YAAT's main command line keeps its own input.
+- **Field-menu pilot picks.** A plain click sends; Shift+click puts the command in the Scope preview (as `$ {callsign} {command}`) for Enter to run.
 - **Pilot lens.** All pilot-lens overlays are off by default: the queued-commands badge, the intent path, check-in truth and the RPO queue view.
 - **Rollout.** YAAT Scope is built as a new view beside today's Radar (reached from the View menu). The old Radar view is deleted once the new one reaches parity; no long-lived dual renderer.
 - **EuroScope tag mode** survives as a template on the new engine. Its flyouts become the field menus.

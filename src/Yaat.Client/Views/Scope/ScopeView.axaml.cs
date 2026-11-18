@@ -25,7 +25,7 @@ namespace Yaat.Client.Views.Scope;
 /// also toggles the instructor's local dwell lock (<see cref="ScopeViewModel.ToggleDwellLock"/>). A left click on a field
 /// with an action (<see cref="ScopeFieldAction"/>) selects the aircraft and opens that field's pick menu at the pointer
 /// (<see cref="FieldMenus.ScopeFieldMenus"/>), the note box, or takes control (the EuroScope owner); a row of the menu sends,
-/// or, picked with Shift held, stages <c>PILOT {callsign} {command}</c> in the entry (<see cref="ScopeViewModel.StageEntry"/>)
+/// or, picked with Shift held, stages <c>$ {callsign} {command}</c> in the entry (<see cref="ScopeViewModel.StageEntry"/>)
 /// and gives the canvas the focus, so Enter runs it. On an ERAM block the altitude opens the two-column popup
 /// (<see cref="ScopeDataAltitudePopup"/>): a SCOPE DATA row runs its ERAM entry at once, or with Shift stages the bare entry
 /// (<see cref="ScopeViewModel.StageEramText"/>); a PILOT row sends or stages as a menu row does. The HSF indicator and VCI cell

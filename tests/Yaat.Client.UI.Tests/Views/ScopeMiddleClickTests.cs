@@ -125,6 +125,32 @@ public class ScopeMiddleClickTests
         }
     }
 
+    /// <summary>A <c>$</c> command middle-clicked onto an ERAM block goes to the command pipeline for that track, never to ERAM.</summary>
+    [AvaloniaFact]
+    public async Task EramBlockMiddleClick_WithADollarCommand_SendsItForTheTrack_NotToTheEramDispatch()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "$FH 270");
+        try
+        {
+            var eramSends = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                eramSends.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Middle, "UAL238");
+            await scope.LastEntryRun;
+
+            Assert.Equal("UAL238 FH 270", scope.LastSentEntryText);
+            Assert.Empty(eramSends);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
     // On Mixed a middle click runs the entry in the clicked track's dialect, whatever is selected.
 
     [AvaloniaFact]
@@ -227,11 +253,11 @@ public class ScopeMiddleClickTests
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");
             Assert.Contains("UAL238", scope.DataBlockState.HighlightedCallsigns);
 
-            scope.TypeEntryText("FH 270");
+            scope.TypeEntryText("$FH 270");
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");
 
             Assert.DoesNotContain("UAL238", scope.DataBlockState.HighlightedCallsigns);
-            Assert.Equal("FH 270", scope.EntryText);
+            Assert.Equal("$FH 270", scope.EntryText);
             Assert.Null(scope.EntryResponse);
         }
         finally
@@ -243,12 +269,12 @@ public class ScopeMiddleClickTests
     [AvaloniaFact]
     public async Task EramLeftClick_WithText_FillsTheCallsign_OpensNoMenu_AndTogglesNoLock()
     {
-        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "FH 270");
+        (ScopeViewModel scope, ScopeView view, Window window, AircraftModel ac) = await ShowAsync(ScopeTemplates.EramId, "$FH 270");
         try
         {
             ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Left, "UAL238");
 
-            Assert.Equal("UAL238 FH 270", scope.EntryText);
+            Assert.Equal("$UAL238 FH 270", scope.EntryText);
             Assert.Null(view.ActiveContextMenu);
             Assert.Same(ac, scope.Main.SelectedAircraft);
 
@@ -256,7 +282,7 @@ public class ScopeMiddleClickTests
             AircraftModel other = AddAt(scope.Main, view.Canvas, "DAL1", 550f, 300f);
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "DAL1");
 
-            Assert.Equal("DAL1 FH 270", scope.EntryText);
+            Assert.Equal("$DAL1 FH 270", scope.EntryText);
             Assert.Empty(scope.DataBlockState.DwellLockedCallsigns);
             Assert.Null(view.ActiveContextMenu);
             Assert.Same(other, scope.Main.SelectedAircraft);
@@ -537,22 +563,22 @@ public class ScopeMiddleClickTests
         }
     }
 
-    /// <summary>Ruling (A): the pilot entry already names UAL238 first, so a click on it acts as with an empty preview.</summary>
+    /// <summary>Ruling (A): the <c>$</c> entry already names UAL238 first, so a click on it acts as with an empty preview.</summary>
     [AvaloniaFact]
     public async Task EramLeftClick_OnTheTrackThePilotEntryNames_ActsAsWithAnEmptyPreview()
     {
-        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "PILOT UAL238 FH 270");
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.EramId, "$ UAL238 FH 270");
         try
         {
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Left, "UAL238");
 
             Assert.Contains("UAL238", scope.DataBlockState.DwellLockedCallsigns);
-            Assert.Equal("PILOT UAL238 FH 270", scope.EntryText);
+            Assert.Equal("$ UAL238 FH 270", scope.EntryText);
 
             ClickField(window, view.Canvas, ScopeFieldSlot.EramAltitude, MouseButton.Left, "UAL238");
 
             Assert.True(Assert.IsType<ScopeDataAltitudePopup>(view.ActiveFieldPopup).IsOpen);
-            Assert.Equal("PILOT UAL238 FH 270", scope.EntryText);
+            Assert.Equal("$ UAL238 FH 270", scope.EntryText);
         }
         finally
         {

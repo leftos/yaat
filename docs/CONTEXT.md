@@ -812,6 +812,9 @@ _Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
 **Altitude-mismatch mark**:
 The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while the ERAM plan altitude and the filed altitude are both set and differ (never on a VFR or OTP plan); YAAT-only, CRC has no such marker. The dwelled block names the other side's altitude on an extra line (`TrackPresenter.EramAltitudeDiffers`).
 
+**`$` prefix (YAAT Scope)**:
+The marker that starts a YAAT command on the Scope's entry line (`$DM 110`, `$ UAL1 DM 110`, `$ ** UAL1 FH 270`): what follows goes to the YAAT command pipeline, and a click's callsign goes right after it. An entry that is neither a dialect entry nor a `$` one sends nothing and answers `FORMAT - $ FOR A YAAT COMMAND`. The old `PILOT` word is no longer a prefix.
+
 **Brightness group (YAAT Scope)**:
 One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Scope window, never saved or sent.
 
@@ -819,7 +822,7 @@ One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB
 A line in a `.aliases` file that CRC, and YAAT's dot handlers, expand into a command; not a CRC dialect.
 
 **CRC dialect (YAAT Scope)**:
-The typed-entry grammar of the Scope's profile as CRC's own scope reads it (STARS entries such as `+100` or `INIT`, ERAM verbs such as `QQ`); the preview reads it beside YAAT pilot commands and dot commands, and the profile's dialect wins where a token could mean both. Not a CRC alias.
+The typed-entry grammar of the Scope's profile as CRC's own scope reads it (STARS entries such as `+100` or `INIT`, ERAM verbs such as `QQ`); the preview reads it beside `$` YAAT commands and dot commands; a YAAT command needs its `$`, so the dialect never competes with one. Not a CRC alias.
 
 **CRR group (ERAM)**:
 A named ERAM continuous range readout group (`LF`): a point and its member aircraft, each shown its distance to the point in a range data block; listed on the YAAT Scope's CRR view.
@@ -846,7 +849,7 @@ The two-line block the YAAT Scope draws for an on-ground aircraft in top-down mo
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
 **Kind label (YAAT Scope)**:
-The words the Preview area shows before the entry to say how it will be read (`PILOT FH fly heading`, `DOT .scope`, `STARS +100 temporary altitude`); `ScopeEntryClassifier` picks it. A STARS entry's label is `STARS <first word> <gloss>`, an ERAM entry's `ERAM <first word>`; the Scope's STARS entries are read by shape and key words, not by verb.
+The words the Preview area shows before the entry to say how it will be read (`$ FH fly heading`, `DOT .scope`, `STARS +100 temporary altitude`); `ScopeEntryClassifier` picks it. A STARS entry's label is `STARS <first word> <gloss>`, an ERAM entry's `ERAM <first word>`; the Scope's STARS entries are read by shape and key words, not by verb.
 
 **MCA (Message Composition Area)**:
 ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.
@@ -855,7 +858,7 @@ ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
 **PILOT column (YAAT Scope)**:
-The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain altitude panel on the altitude popup, Fly heading and Assign speed on the fourth-line ones (none on the free-text popup); a row click sends for the clicked aircraft and Shift+click stages `PILOT {callsign} {command}`; beside the Scope data column.
+The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain altitude panel on the altitude popup, Fly heading and Assign speed on the fourth-line ones (none on the free-text popup); a row click sends for the clicked aircraft and Shift+click stages `$ {callsign} {command}`; beside the Scope data column.
 
 **Pin (YAAT Scope)**:
 A value set by hand over the zoom band's default (others' level, vector minutes, history, rings) that stands until AUTO or `.scope auto` clears every pin; kept in pref sets and the saved state (`pinOthersLevel`, `pinVectorMin`, `pinHistory`, `pinRings`) and across a profile change.
@@ -1034,7 +1037,7 @@ What a pointed or focused Give way to… / Follow… row draws on the ground vie
 A position in the room's controller list that has a controller signed on (a live CRC client or a scenario auto-connect position, `OnlineControllerDto.IsActive`), as against a standby one. The Initiate handoff… and Point out… flyouts list only staffed positions.
 
 **Stage (a menu pick)**:
-To put a Scope field menu row's command in the Scope's Preview area as `PILOT {callsign} {command}` instead of sending it, so Enter runs it; done by Shift+click on the row (`ClientMenuHost.Stage`, `ScopeEntryStaging`). A Shift+click that produces a bare ERAM entry (a Scope data row, the HSF indicator, the VCI cell) stages that text with the track as the pick (`ScopeViewModel.StageEramText`). Not the spine's "step".
+To put a Scope field menu row's command in the Scope's Preview area as `$ {callsign} {command}` instead of sending it, so Enter runs it; done by Shift+click on the row (`ClientMenuHost.Stage`, `ScopeEntryStaging`). A Shift+click that produces a bare ERAM entry (a Scope data row, the HSF indicator, the VCI cell) stages that text with the track as the pick (`ScopeViewModel.StageEramText`). Not the spine's "step".
 
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.

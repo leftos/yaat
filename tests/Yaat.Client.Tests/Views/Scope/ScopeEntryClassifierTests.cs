@@ -7,7 +7,7 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// <summary>
 /// How the Scope reads a typed entry for its kind label: a leading dot is a dot command, a first word that is a dialect verb
 /// of the profile's kind is a STARS or ERAM entry (Mixed reads as ERAM, or as STARS while a STARS-owned track is selected), a
-/// leading <c>PILOT</c> word forces a pilot read, anything that parses as a pilot command is one, and the rest reads as nothing.
+/// leading <c>$</c> makes the rest a YAAT command (sent without the <c>$</c>), and the rest reads as nothing, with nothing to send.
 /// </summary>
 public class ScopeEntryClassifierTests
 {
@@ -26,13 +26,19 @@ public class ScopeEntryClassifierTests
         AssertReads(Read(entry, ScopeProfileKind.Eram), ScopeEntryKind.Eram, label);
 
     [Fact]
-    public void AFlidThenAPilotVerb_OnEram_StaysAPilotCommand() =>
-        AssertReads(Read("UAL238 FH 270", ScopeProfileKind.Eram), ScopeEntryKind.Pilot, "PILOT FH");
+    public void AFlidThenAPilotVerb_OnEram_ReadsAsNothing_AndSendsNothing() => AssertNothing(Read("UAL238 FH 270", ScopeProfileKind.Eram));
 
     private static void AssertReads(ScopeEntryReading reading, ScopeEntryKind kind, string labelStart)
     {
         Assert.Equal(kind, reading.Kind);
         Assert.StartsWith(labelStart, reading.Label, StringComparison.Ordinal);
+    }
+
+    private static void AssertNothing(ScopeEntryReading reading)
+    {
+        Assert.Equal(ScopeEntryKind.None, reading.Kind);
+        Assert.Equal("", reading.Label);
+        Assert.Equal("", reading.SendText);
     }
 
     [Fact]
@@ -49,13 +55,34 @@ public class ScopeEntryClassifierTests
     [Fact]
     public void LeadingDot_ReadsAsADotCommand() => AssertReads(Read(".scope range 40", ScopeProfileKind.Stars), ScopeEntryKind.Dot, "DOT .scope");
 
-    [Fact]
-    public void CallsignThenPilotVerb_OnStars_ReadsAsPilot() =>
-        AssertReads(Read("UAL238 FH 270", ScopeProfileKind.Stars), ScopeEntryKind.Pilot, "PILOT FH");
+    [Theory]
+    [InlineData(ScopeProfileKind.Stars)]
+    [InlineData(ScopeProfileKind.Eram)]
+    [InlineData(ScopeProfileKind.Mixed)]
+    public void CallsignThenPilotVerb_WithoutDollar_ReadsAsNothing(ScopeProfileKind profile)
+    {
+        AssertNothing(Read("UAL238 FH 270", profile));
+        AssertNothing(Read("FH 270", profile));
+    }
 
-    [Fact]
-    public void CallsignThenPilotVerb_OnEram_ReadsAsPilot() =>
-        AssertReads(Read("UAL238 FH 270", ScopeProfileKind.Eram), ScopeEntryKind.Pilot, "PILOT FH");
+    [Theory]
+    [InlineData(ScopeProfileKind.Stars)]
+    [InlineData(ScopeProfileKind.Eram)]
+    [InlineData(ScopeProfileKind.Mixed)]
+    public void Dollar_ThenACallsignAndAPilotVerb_ReadsAsPilot_SentWithoutTheDollar(ScopeProfileKind profile)
+    {
+        foreach (string entry in new[] { "$UAL238 FH 270", "$ UAL238 FH 270" })
+        {
+            ScopeEntryReading reading = Read(entry, profile);
+            AssertReads(reading, ScopeEntryKind.Pilot, "$ FH");
+            Assert.Equal("UAL238 FH 270", reading.SendText);
+        }
+    }
+
+    [Theory]
+    [InlineData(ScopeProfileKind.Stars)]
+    [InlineData(ScopeProfileKind.Eram)]
+    public void ThePilotWord_IsNoPrefix(ScopeProfileKind profile) => Assert.NotEqual(ScopeEntryKind.Pilot, Read("PILOT FH 270", profile).Kind);
 
     [Fact]
     public void EramVerb_OnEram_ReadsAsEram() => AssertReads(Read("QQ 250 UAL238", ScopeProfileKind.Eram), ScopeEntryKind.Eram, "ERAM QQ");
@@ -64,30 +91,23 @@ public class ScopeEntryClassifierTests
     public void EramVerb_OnMixed_ReadsAsEram() => AssertReads(Read("QQ 250 UAL238", ScopeProfileKind.Mixed), ScopeEntryKind.Eram, "ERAM QQ");
 
     [Fact]
-    public void EramVerb_OnStars_ReadsAsThePilotAlias() => AssertReads(Read("QQ 250", ScopeProfileKind.Stars), ScopeEntryKind.Pilot, "PILOT QQ");
+    public void EramVerb_OnStars_ReadsAsNothing() => AssertNothing(Read("QQ 250", ScopeProfileKind.Stars));
 
     [Fact]
-    public void PilotPrefix_ForcesAPilotRead_OnEram() => AssertReads(Read("PILOT QQ 250", ScopeProfileKind.Eram), ScopeEntryKind.Pilot, "PILOT QQ");
+    public void DollarPrefix_ForcesAPilotRead_OnEram() => AssertReads(Read("$QQ 250", ScopeProfileKind.Eram), ScopeEntryKind.Pilot, "$ QQ");
 
     [Fact]
     public void LowercaseEramVerb_ReadsAsEram() => AssertReads(Read("qq 250 ual238", ScopeProfileKind.Eram), ScopeEntryKind.Eram, "ERAM QQ");
 
     [Fact]
-    public void UnknownWord_ReadsAsNothing()
-    {
-        ScopeEntryReading reading = Read("xyzzy", ScopeProfileKind.Stars);
-        Assert.Equal(ScopeEntryKind.None, reading.Kind);
-        Assert.Equal("", reading.Label);
-    }
+    public void UnknownWord_ReadsAsNothing() => AssertNothing(Read("xyzzy", ScopeProfileKind.Stars));
 
-    [Fact]
-    public void BarePilotWord_ReadsAsNothing_AndSendsNothing()
-    {
-        ScopeEntryReading reading = Read("PILOT", ScopeProfileKind.Eram);
-        Assert.Equal(ScopeEntryKind.None, reading.Kind);
-        Assert.Equal("", reading.Label);
-        Assert.Equal("", reading.SendText);
-    }
+    [Theory]
+    [InlineData("$", ScopeProfileKind.Eram)]
+    [InlineData("$ ", ScopeProfileKind.Eram)]
+    [InlineData("$", ScopeProfileKind.Stars)]
+    [InlineData("$  ", ScopeProfileKind.Mixed)]
+    public void BareDollar_HasNothingToSend(string entry, ScopeProfileKind profile) => Assert.Equal("", Read(entry, profile).SendText);
 
     [Fact]
     public void AStarsShape_OnStars_ReadsAsStars_WithItsTranslation()
@@ -127,9 +147,11 @@ public class ScopeEntryClassifierTests
         Assert.NotEqual(ScopeEntryKind.Stars, Read("MF R UAL238", profile).Kind);
 
     [Fact]
-    public void PilotUn_ReadsAsUnpause_AndUnOnStars_ReadsAsStars()
+    public void DollarUn_ReadsAsUnpause_AndUnOnStars_ReadsAsStars()
     {
-        AssertReads(Read("PILOT UN", ScopeProfileKind.Stars), ScopeEntryKind.Pilot, "PILOT UN");
+        ScopeEntryReading reading = Read("$UN", ScopeProfileKind.Stars);
+        AssertReads(reading, ScopeEntryKind.Pilot, "$ UN");
+        Assert.Equal("UN", reading.SendText);
         AssertReads(Read("UN", ScopeProfileKind.Stars), ScopeEntryKind.Stars, "STARS UN");
     }
 
@@ -140,14 +162,14 @@ public class ScopeEntryClassifierTests
             Read(".scope range 40", ScopeProfileKind.Stars)
         );
 
-    // The selected track's owner decides the dialect on Mixed (a STARS-owned track reads STARS and pilot entries).
+    // The selected track's owner decides the dialect on Mixed (a STARS-owned track reads STARS entries).
 
     private static ScopeEntryReading ReadWithSelected(string text, ScopeProfileKind profile, string ownerTemplateId) =>
         ScopeEntryClassifier.Classify(text, profile, ownerTemplateId);
 
     [Fact]
-    public void Qq_OnMixed_WithAStarsOwnedTrackSelected_ReadsAsThePilotTempAltAlias() =>
-        AssertReads(ReadWithSelected("QQ 250", ScopeProfileKind.Mixed, ScopeTemplates.StarsId), ScopeEntryKind.Pilot, "PILOT QQ");
+    public void Qq_OnMixed_WithAStarsOwnedTrackSelected_ReadsAsNothing() =>
+        AssertNothing(ReadWithSelected("QQ 250", ScopeProfileKind.Mixed, ScopeTemplates.StarsId));
 
     [Fact]
     public void Qq_OnMixed_WithAnEramOwnedTrackSelected_ReadsAsEram() =>
@@ -157,7 +179,7 @@ public class ScopeEntryClassifierTests
     public void Qq_OnEram_WithAStarsOwnedTrackSelected_StillReadsAsEram() =>
         AssertReads(ReadWithSelected("QQ 250", ScopeProfileKind.Eram, ScopeTemplates.StarsId), ScopeEntryKind.Eram, "ERAM QQ");
 
-    // The shared ERAM verbs win over the YAAT pilot aliases on ERAM and Mixed; PILOT or a callsign first reaches the pilot command.
+    // The shared ERAM verbs are ERAM on ERAM and Mixed; only a leading $ reaches the pilot command.
 
     [Theory]
     [InlineData("CA", ScopeProfileKind.Eram)]
@@ -172,16 +194,47 @@ public class ScopeEntryClassifierTests
         AssertReads(Read($"{verb} UAL238", profile), ScopeEntryKind.Eram, $"ERAM {verb}");
 
     [Theory]
-    [InlineData("PILOT CA", "PILOT CA")]
-    [InlineData("UAL238 CA", "PILOT CA")]
-    [InlineData("PILOT SP ABC", "PILOT SP")]
-    [InlineData("UAL238 SP ABC", "PILOT SP")]
-    [InlineData("PILOT RD", "PILOT RD")]
-    [InlineData("UAL238 RD", "PILOT RD")]
-    public void ASharedVerb_AfterPilotOrACallsign_ReadsAsThePilotCommand(string entry, string label)
+    [InlineData("$CA", "$ CA")]
+    [InlineData("$UAL238 CA", "$ CA")]
+    [InlineData("$SP ABC", "$ SP")]
+    [InlineData("$ UAL238 SP ABC", "$ SP")]
+    [InlineData("$RD", "$ RD")]
+    [InlineData("$UAL238 RD", "$ RD")]
+    public void ASharedVerb_AfterDollar_ReadsAsThePilotCommand(string entry, string label)
     {
         AssertReads(Read(entry, ScopeProfileKind.Eram), ScopeEntryKind.Pilot, label);
         AssertReads(Read(entry, ScopeProfileKind.Mixed), ScopeEntryKind.Pilot, label);
+    }
+
+    [Theory]
+    [InlineData("UAL238 CA")]
+    [InlineData("UAL238 SP ABC")]
+    [InlineData("UAL238 RD")]
+    public void ACallsignThenASharedVerb_WithoutDollar_ReadsAsNothing(string entry)
+    {
+        AssertNothing(Read(entry, ScopeProfileKind.Eram));
+        AssertNothing(Read(entry, ScopeProfileKind.Mixed));
+    }
+
+    // Each verb ERAM and YAAT share: bare it is the ERAM entry on an ERAM Scope; after $ it is the YAAT command, sent without the $.
+
+    [Theory]
+    [InlineData("DM", "DM 110")]
+    [InlineData("LA", "LA")]
+    [InlineData("CA", "CA")]
+    [InlineData("FP", "FP")]
+    [InlineData("VP", "VP")]
+    [InlineData("RD", "RD")]
+    [InlineData("SP", "SP ABC")]
+    public void ASharedVerb_ReadsAsEramBare_AndAsPilotAfterDollar(string verb, string command)
+    {
+        AssertReads(Read($"{verb} UAL238", ScopeProfileKind.Eram), ScopeEntryKind.Eram, $"ERAM {verb}");
+        foreach (string entry in new[] { $"${command}", $"$ {command}" })
+        {
+            ScopeEntryReading reading = Read(entry, ScopeProfileKind.Eram);
+            AssertReads(reading, ScopeEntryKind.Pilot, $"$ {verb}");
+            Assert.Equal(command, reading.SendText);
+        }
     }
 
     [Theory]
@@ -192,21 +245,24 @@ public class ScopeEntryClassifierTests
     public void AVerbTheServerDoesNotDispatch_IsNoEramVerb(string verb) =>
         Assert.DoesNotContain(verb, (IReadOnlySet<string>)Yaat.Sim.Commands.EramEntryVerbs.All);
 
-    // The bare-FLID fallback: a lone FLID, or a sector then a FLID (an implied handoff), reads as ERAM; a mistyped pilot entry does not.
+    // The bare-FLID entries: a lone FLID, or a sector then a FLID (an implied handoff), reads as ERAM; a FLID then other words does not.
 
     [Fact]
     public void ALoneFlid_OnEram_ReadsAsEram() => AssertReads(Read("UAL238", ScopeProfileKind.Eram), ScopeEntryKind.Eram, "ERAM UAL238");
+
+    // A lone FLID-shaped word is tried as a FLID, as CRC's ERAM would, even when it is a YAAT verb.
+    [Fact]
+    public void ALonePilotVerb_OnEram_ReadsAsAnEramFlidEntry() => AssertReads(Read("FH", ScopeProfileKind.Eram), ScopeEntryKind.Eram, "ERAM FH");
 
     [Fact]
     public void ASectorThenAFlid_OnEram_ReadsAsAnImpliedHandoff() =>
         AssertReads(Read("44 UAL238", ScopeProfileKind.Eram), ScopeEntryKind.Eram, "ERAM 44");
 
     [Fact]
-    public void AFlidThenAMistypedPilotVerb_OnEram_IsNoEramEntry() =>
-        Assert.NotEqual(ScopeEntryKind.Eram, Read("UAL238 FHH 270", ScopeProfileKind.Eram).Kind);
+    public void AFlidThenAMistypedPilotVerb_OnEram_ReadsAsNothing() => AssertNothing(Read("UAL238 FHH 270", ScopeProfileKind.Eram));
 
     [Fact]
-    public void AFlidThenAnUnknownWord_OnEram_IsNoEramEntry() => Assert.NotEqual(ScopeEntryKind.Eram, Read("UAL238 FHH", ScopeProfileKind.Eram).Kind);
+    public void AFlidThenAnUnknownWord_OnEram_ReadsAsNothing() => AssertNothing(Read("UAL238 FHH", ScopeProfileKind.Eram));
 
     // The case table for the ERAM read (profile x first word), one test per row.
 
@@ -243,20 +299,36 @@ public class ScopeEntryClassifierTests
     }
 
     [Fact]
-    public void PilotPrefix_ForcesAPilotRead_OnMixed() => AssertReads(Read("PILOT QQ 250", ScopeProfileKind.Mixed), ScopeEntryKind.Pilot, "PILOT QQ");
+    public void DollarPrefix_ForcesAPilotRead_OnMixed() => AssertReads(Read("$QQ 250", ScopeProfileKind.Mixed), ScopeEntryKind.Pilot, "$ QQ");
 
     [Fact]
     public void ADotCommand_OnEram_StaysADotCommand() =>
         AssertReads(Read(".scope range 40", ScopeProfileKind.Eram), ScopeEntryKind.Dot, "DOT .scope");
 
-    [Fact]
-    public void AnOverrideEntry_OnEram_ReadsAsItsPilotCommand()
+    [Theory]
+    [InlineData("$** QQ 250")]
+    [InlineData("$ ** QQ 250")]
+    public void AnOverrideEntry_AfterDollar_OnEram_ReadsAsItsPilotCommand(string entry)
     {
-        ScopeEntryReading reading = Read("** QQ 250", ScopeProfileKind.Eram);
+        ScopeEntryReading reading = Read(entry, ScopeProfileKind.Eram);
 
-        AssertReads(reading, ScopeEntryKind.Pilot, "PILOT QQ");
+        AssertReads(reading, ScopeEntryKind.Pilot, "$ QQ");
         Assert.Equal("** QQ 250", reading.SendText);
     }
+
+    [Fact]
+    public void AnOverrideEntry_AfterDollar_WithACallsign_SendsTheOverrideAndTheCallsign()
+    {
+        ScopeEntryReading reading = Read("$ ** UAL1 FH 270", ScopeProfileKind.Eram);
+
+        AssertReads(reading, ScopeEntryKind.Pilot, "$ FH");
+        Assert.Equal("** UAL1 FH 270", reading.SendText);
+    }
+
+    [Theory]
+    [InlineData(ScopeProfileKind.Stars)]
+    [InlineData(ScopeProfileKind.Eram)]
+    public void AnOverrideEntry_WithoutDollar_ReadsAsNothing(ScopeProfileKind profile) => AssertNothing(Read("** FH 270", profile));
 
     [Fact]
     public void AVciToggle_OnEram_ReadsAsAnImpliedEramEntry() =>
@@ -283,11 +355,11 @@ public class ScopeEntryClassifierTests
     }
 
     [Fact]
-    public void AnOverrideEntry_ReadsAsItsPilotCommand_AndSendsTheOverride()
+    public void AnOverrideEntry_AfterDollar_ReadsAsItsPilotCommand_AndSendsTheOverride()
     {
-        ScopeEntryReading reading = Read("** FH 270", ScopeProfileKind.Stars);
+        ScopeEntryReading reading = Read("$** FH 270", ScopeProfileKind.Stars);
 
-        AssertReads(reading, ScopeEntryKind.Pilot, "PILOT FH");
+        AssertReads(reading, ScopeEntryKind.Pilot, "$ FH");
         Assert.Equal("** FH 270", reading.SendText);
     }
 

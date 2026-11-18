@@ -7,10 +7,10 @@ namespace Yaat.Client.Views.Scope;
 /// <summary>What an entry typed on the Scope reads as.</summary>
 internal enum ScopeEntryKind
 {
-    /// <summary>Nothing it knows: no label.</summary>
+    /// <summary>Nothing it knows: no label, nothing to send.</summary>
     None,
 
-    /// <summary>A YAAT pilot command.</summary>
+    /// <summary>A YAAT command, typed after a leading <c>$</c>.</summary>
     Pilot,
 
     /// <summary>A client dot command, such as <c>.scope</c> or <c>.view</c>.</summary>
@@ -27,24 +27,25 @@ internal enum ScopeEntryKind
 /// <param name="Kind">What the entry reads as.</param>
 /// <param name="Label">The kind label, empty for <see cref="ScopeEntryKind.None"/>.</param>
 /// <param name="SendText">
-/// The entry as Enter sends it: trimmed, with a leading <c>PILOT</c> word taken off; for a STARS entry, the YAAT command it
-/// translates to (empty when not supported).
+/// The entry as Enter sends it: trimmed, with a leading <c>$</c> taken off; for a STARS entry, the YAAT command it translates
+/// to (empty when not supported); empty for an entry that reads as nothing.
 /// </param>
 /// <param name="Supported">False for a STARS entry with no YAAT command, which Enter answers <c>NOT SUPPORTED</c>.</param>
 internal sealed record ScopeEntryReading(ScopeEntryKind Kind, string Label, string SendText, bool Supported);
 
 /// <summary>
-/// Reads an entry typed on the Scope for its kind label. In order: a leading dot is a dot command; a leading <c>PILOT</c> word
-/// forces a pilot read; a leading <c>** </c> override is a pilot command with the override kept; on a STARS profile, a STARS
-/// shape or key word (<see cref="StarsEntryParser"/>) is a STARS entry, translated to its YAAT command or not supported; on
-/// ERAM and Mixed (Mixed reads as STARS for a STARS-owned track: the clicked one, else the selected one), a first word that
-/// is a verb the server dispatches (<see cref="EramEntryVerbs.All"/>, shared with it) or an implied command is an ERAM entry;
-/// anything else that parses as a pilot command (after a callsign or not) is one; the rest reads as nothing. This is the one
-/// place on the client that reads a dialect verb.
+/// Reads an entry typed on the Scope for its kind label. In order: a leading dot is a dot command; a leading <c>$</c> makes
+/// the rest a YAAT command, as the main command input reads it (a callsign and a <c>** </c> override included), sent without
+/// the <c>$</c>; on a STARS profile, a STARS shape or key word (<see cref="StarsEntryParser"/>) is a STARS entry, translated
+/// to its YAAT command or not supported; on ERAM and Mixed (Mixed reads as STARS for a STARS-owned track: the clicked one,
+/// else the selected one), a first word that is a verb the server dispatches (<see cref="EramEntryVerbs.All"/>, shared with
+/// it), an implied command's shape or an implied FLID entry is an ERAM entry; the rest reads as nothing and sends nothing.
+/// This is the one place on the client that reads a dialect verb.
 /// </summary>
 internal static class ScopeEntryClassifier
 {
-    private const string PilotWord = "PILOT";
+    /// <summary>The character a YAAT command typed on the Scope starts with.</summary>
+    internal const char YaatPrefix = '$';
 
     private const string OverridePrefix = "** ";
 
@@ -64,6 +65,9 @@ internal static class ScopeEntryClassifier
 
     private static readonly char[] BlockSeparators = [',', ';'];
 
+    // An entry that reads as nothing: no label, nothing to send.
+    private static readonly ScopeEntryReading Nothing = new(ScopeEntryKind.None, "", "", true);
+
     /// <summary>
     /// Reads <paramref name="text"/> as typed on a Scope showing a <paramref name="profile"/> profile, with
     /// <paramref name="ownerTemplateId"/> the owner kind of the track the entry is for (which picks the dialect on Mixed).
@@ -81,19 +85,27 @@ internal static class ScopeEntryClassifier
             return new ScopeEntryReading(ScopeEntryKind.Dot, $"DOT {FirstWord(trimmed)}", trimmed, true);
         }
 
+        if (trimmed[0] == YaatPrefix)
+        {
+            return ReadYaat(trimmed[1..].TrimStart());
+        }
+
         string verb = FirstWord(trimmed);
-        if (string.Equals(verb, PilotWord, StringComparison.OrdinalIgnoreCase))
-        {
-            string rest = trimmed[verb.Length..].TrimStart();
-            return ReadPilot(rest, rest);
-        }
-
-        if (trimmed.StartsWith(OverridePrefix, StringComparison.Ordinal))
-        {
-            return ReadPilot(trimmed[OverridePrefix.Length..].TrimStart(), trimmed);
-        }
-
         return ReadDialect(trimmed, verb, DialectOf(profile, ownerTemplateId, verb));
+    }
+
+    /// <summary>
+    /// A <c>$</c> entry, <paramref name="text"/> the YAAT command after the <c>$</c>: it reads as a YAAT command whether or not
+    /// it parses (the command pipeline answers it), labelled after its pilot command where it parses, after a <c>** </c>
+    /// override kept in what it sends; a bare <c>$</c> has nothing to send.
+    /// </summary>
+    private static ScopeEntryReading ReadYaat(string text)
+    {
+        string command = text.StartsWith(OverridePrefix, StringComparison.Ordinal) ? text[OverridePrefix.Length..].TrimStart() : text;
+        ScopeEntryReading pilot = ReadPilot(command, text);
+        return (pilot.Kind == ScopeEntryKind.Pilot)
+            ? pilot
+            : new ScopeEntryReading(ScopeEntryKind.Pilot, $"{YaatPrefix} {FirstWord(command).ToUpperInvariant()}".TrimEnd(), text, true);
     }
 
     /// <summary>
@@ -114,25 +126,19 @@ internal static class ScopeEntryClassifier
 
     /// <summary>
     /// Reads <paramref name="trimmed"/> in the profile's dialect: a STARS entry on STARS; on ERAM and Mixed, a verb the server
-    /// dispatches (<see cref="EramEntryVerbs.All"/>) or an implied command's shape (<see cref="IsImpliedEramShape"/>) is an ERAM
-    /// entry; else it reads as a pilot command, and on ERAM and Mixed an entry that reads as no pilot command is an implied ERAM
-    /// entry when it is a lone FLID or a sector number then a FLID (<see cref="IsImpliedFlidEntry"/>), so <c>UAL238 FH 270</c>
-    /// stays a pilot command and the mistyped <c>UAL238 FHH 270</c> reads as nothing.
+    /// dispatches (<see cref="EramEntryVerbs.All"/>), an implied command's shape (<see cref="IsImpliedEramShape"/>), or a lone
+    /// FLID or a sector number then a FLID (<see cref="IsImpliedFlidEntry"/>) is an ERAM entry; anything else reads as nothing,
+    /// so <c>UAL238 FH 270</c> is no entry without its <c>$</c>.
     /// </summary>
     private static ScopeEntryReading ReadDialect(string trimmed, string verb, ScopeProfileKind profile)
     {
         if (profile == ScopeProfileKind.Stars)
         {
-            return (StarsEntryParser.TryRead(trimmed) is { } stars) ? ReadStars(stars) : ReadPilot(trimmed, trimmed);
+            return (StarsEntryParser.TryRead(trimmed) is { } stars) ? ReadStars(stars) : Nothing;
         }
 
-        if (EramEntryVerbs.All.Contains(verb.ToUpperInvariant()) || IsImpliedEramShape(trimmed, verb))
-        {
-            return ReadEram(trimmed, verb);
-        }
-
-        ScopeEntryReading pilot = ReadPilot(trimmed, trimmed);
-        return ((pilot.Kind == ScopeEntryKind.None) && IsImpliedFlidEntry(trimmed)) ? ReadEram(trimmed, verb) : pilot;
+        bool eram = EramEntryVerbs.All.Contains(verb.ToUpperInvariant()) || IsImpliedEramShape(trimmed, verb) || IsImpliedFlidEntry(trimmed);
+        return eram ? ReadEram(trimmed, verb) : Nothing;
     }
 
     private static ScopeEntryReading ReadEram(string trimmed, string verb) =>
@@ -237,7 +243,7 @@ internal static class ScopeEntryClassifier
         }
 
         string gloss = CommandRegistry.Get(parsed.Type)?.Label.ToLowerInvariant() ?? "";
-        return new ScopeEntryReading(ScopeEntryKind.Pilot, $"{PilotWord} {verb.ToUpperInvariant()} {gloss}".TrimEnd(), sendText, true);
+        return new ScopeEntryReading(ScopeEntryKind.Pilot, $"{YaatPrefix} {verb.ToUpperInvariant()} {gloss}".TrimEnd(), sendText, true);
     }
 
     private static string FirstWord(string text)

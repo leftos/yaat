@@ -5,15 +5,13 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// The text a click fills into the Scope's preview. A track: when the entry reads as a pilot command
-/// (<see cref="ScopeEntryClassifier"/>), its callsign goes first (after a leading <c>PILOT</c> word), in place of a first word
-/// that is already a known aircraft's callsign; any other entry gets the callsign appended. A point: its FRD appended, else its
-/// ERAM lat/long (<c>//DDMMN/DDDMMW</c>).
+/// The text a click fills into the Scope's preview. A track: in a <c>$</c> YAAT command (<see cref="ScopeEntryClassifier"/>),
+/// its callsign goes first (after the <c>$</c> and any <c>** </c> override), in place of a first word that is already a known
+/// aircraft's callsign; any other entry gets the callsign appended. A point: its FRD appended, else its ERAM lat/long
+/// (<c>//DDMMN/DDDMMW</c>).
 /// </summary>
 internal static class ScopeEntryFill
 {
-    private const string PilotWord = "PILOT";
-
     private const string OverridePrefix = "** ";
 
     /// <summary>
@@ -45,7 +43,7 @@ internal static class ScopeEntryFill
     }
 
     /// <summary>
-    /// Whether filling <paramref name="callsign"/> would change <paramref name="entry"/> (case aside): false when its pilot entry
+    /// Whether filling <paramref name="callsign"/> would change <paramref name="entry"/> (case aside): false when its <c>$</c> entry
     /// already names the track first, or its last word is the track's callsign, where a click acts as with an empty preview;
     /// <paramref name="ownerTemplateId"/> is the owner kind of the track the entry is for.
     /// </summary>
@@ -59,15 +57,16 @@ internal static class ScopeEntryFill
         !EndsWithCallsign(entry.Trim(), callsign)
         && !string.Equals(Track(entry, callsign, profile, ownerTemplateId, isKnownCallsign), entry.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    // A leading PILOT word, then a leading ** override, each kept in front of the filled callsign; the rest after them.
+    // The leading $ with the spaces typed after it, then a leading ** override, each kept in front of the filled callsign; the
+    // rest after them.
     private static (string Prefix, string Remainder) SplitPrefixes(string trimmed)
     {
         string prefix = "";
         string rest = trimmed;
-        if (string.Equals(FirstWord(rest), PilotWord, StringComparison.OrdinalIgnoreCase))
+        if ((rest.Length > 0) && (rest[0] == ScopeEntryClassifier.YaatPrefix))
         {
-            prefix = $"{FirstWord(rest)} ";
-            rest = rest[PilotWord.Length..].TrimStart();
+            rest = rest[1..].TrimStart();
+            prefix = trimmed[..(trimmed.Length - rest.Length)];
         }
 
         if (rest.StartsWith(OverridePrefix, StringComparison.Ordinal))

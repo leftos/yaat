@@ -31,6 +31,7 @@ Hit-testing already returns the field: `ScopeFrame.FieldAt(x, y)` (used at `Scop
 - STARS: slew on a track toggles PDB/FDB, accepts a handoff, etc. (docs/crc/stars.md Table 24, lines 1140-1142); middle-click toggles highlight (stars.md:1177, 620-622; the Radar does exactly this: `RadarCanvas.cs:1548-1556` `State.ToggleHighlight`).
 
 ### The design board (canvas 04, "Four ways in, one command pipeline", decoded from the committed index.html)
+Superseded by YAAT-2546 where it names the pilot fallback or the `PILOT` word: a YAAT command on the Scope entry line now starts with `$`.
 "ERAM + EUROSCOPE | Click a field | 060↓112 → menu | Altitude, heading, speed and 4th-line fields open pick menus; YAAT's EuroScope flyouts become these."
 "ALTITUDE FIELD MENU · UAL1549: SCOPE DATA · QZ / QQ (FP 110 clear T; 080 T L P ...; ▲▼; R = CERA) | PILOT · CM / DM (080 CM; 060 DM; 040 @MENLO DM; EXPEDITE +X; queue ⏲)". "Two columns because they are two different acts. A scope entry updates what the controller's automation displays and never moves the aircraft; a pilot pick issues a YAAT command. Heading (LT · PH · RT) and speed (KT/M · + · −) menus split the same way."
 Board also: "ERAM | Middle-click executes | QU 20 ▾middle | Middle-click a target or map point appends it and presses Enter"; "STARS | Type, then slew"; "YAAT TODAY | Select, then type"; Tools palette "Measure — STARS RBL *T plus ERAM LA/LB: range, bearing, and time-to-fix at GS. Min sep — STARS MIN. Speed to time — ERAM LC fix/time: the speed that crosses on time. Rings. CRR groups — distance-to-fix under each block, listed in a view. Route — QU n"; Keys "F1 hold: codes, F3/F4 start/drop track, F5 handoff, F7 multi-func, PgUp/Dn vector length, Ctrl+R recall last". The board's closing line ("the command line also accepts scope entries in either CRC dialect") is superseded by the owner ruling (preview area on the Scope): see DOC DRIFT.
@@ -104,6 +105,7 @@ Collision hazard: YAAT canonical aliases `QQ` → TemporaryAltitude (writes `ac.
 Naming: 5a-5i. Shared rule for all: aviation-sim-expert review on 5e, 5g, 5h, 5i; csharp-reviewer each (plan README:81-82); a USER_GUIDE.md section and COMMANDS.md / command-cheatsheet.json rows for any new verb (architecture.md:276).
 
 ### 5a. Type on the Scope: preview area, Enter, feedback area (pilot commands only)
+Superseded by YAAT-2546: the pilot fallback and the `PILOT` word below were replaced by the `$` prefix; a YAAT command on the Scope entry line starts with `$`, and staging writes `$ {callsign} {command}`.
 User sees: with the Scope focused, typing shows text in a preview area drawn on the Scope; Enter runs it as a YAAT pilot command on the selected aircraft; the response appears in a feedback area; Esc clears; the main command line is untouched. The preview names the kind it read (here: PILOT or DOT, or "?").
 Files, in order:
 1. `src/Yaat.Client/ViewModels/MainViewModel.cs` (`SendCommandAsync` :2943-3233): extract the body that takes `text`, `selected aircraft` and returns a result record (status text, success, history) into `SendTextAsync(string text, ...)`; the box path calls it with `CommandText`/clears it. Today every exit writes `CommandText = ""` and `StatusText` (twenty-odd sites); route them through an injected sink. Biggest risk of the whole step.
@@ -180,6 +182,7 @@ Dependency graph: 5a → {5b, 5c, 5d, 5g}; 5d → 5e; 5g, 5h → 5i; 5h → 5f; 
 - Server work: 5f and 5h need yaat-server changes (DTO and hub method) in the same feature branch (`feat/yaat-scope`, both repos).
 
 ## 7. OPEN DECISIONS (neither docs nor code settle; recommendation each)
+Superseded by YAAT-2546: the pilot fallback and the `PILOT` word below were replaced by the `$` prefix; a YAAT command on the Scope entry line starts with `$`, and staging writes `$ {callsign} {command}`.
 D1. Sink for responses. Options: Scope-local feedback only; also echo to `StatusText`/terminal. Recommend: Scope feedback for Scope-originated entries, keep terminal history (`AddHistory`) so the record exists; `StatusText` only for main-box input.
 D2. "Click sends": the plan says plain click sends. A click on a field opens a menu (CRC); the plain/Shift distinction can only apply to a menu row. Recommend: field click opens the menu (and selects the aircraft); a plain row click sends; Shift+row-click stages. Field A keeps the dwell lock toggle (ERAM) and selects.
 D3. Where Shift+click stages. Recommend: pilot picks stage into the MAIN command line (plan README:40 says "the command line", and the Favorites precedent `MainViewModel.Favorites.cs:306-311`); scope-data picks stage into the Scope preview area (so they run in the right dialect). Say both in USER_GUIDE.

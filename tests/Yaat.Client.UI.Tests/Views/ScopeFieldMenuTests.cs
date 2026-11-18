@@ -364,7 +364,7 @@ public class ScopeFieldMenuTests
 
             ClickInPopup(PilotRowAbove(popup), RawInputModifiers.Shift);
 
-            Assert.Matches(@"^PILOT UAL238 CM \d+$", scope.EntryText);
+            Assert.Matches(@"^\$ UAL238 CM \d+$", scope.EntryText);
             Assert.Equal(statusBefore, main.StatusText);
             Assert.Null(view.ActiveFieldPopup);
             Assert.True(view.Canvas.IsFocused, "the canvas does not have the focus");
@@ -444,7 +444,7 @@ public class ScopeFieldMenuTests
     public async Task EscInsideTheEramAltitudePopup_WithTextInThePreview_ClosesIt_AndKeepsTheText()
     {
         // The pilot entry names UAL238 first, so the altitude click opens the popup rather than filling the track.
-        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(s => s.TypeEntryText("PILOT UAL238 FH 270"));
+        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(s => s.TypeEntryText("$ UAL238 FH 270"));
         try
         {
             ScopeDataAltitudePopup popup = OpenPopup(view);
@@ -456,7 +456,7 @@ public class ScopeFieldMenuTests
 
             Assert.False(popup.IsOpen);
             Assert.Null(view.ActiveFieldPopup);
-            Assert.Equal("PILOT UAL238 FH 270", scope.EntryText);
+            Assert.Equal("$ UAL238 FH 270", scope.EntryText);
         }
         finally
         {
@@ -2041,7 +2041,7 @@ public class ScopeFieldMenuTests
 
             ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
 
-            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
             Assert.Equal(statusBefore, main.StatusText);
         }
         finally
@@ -2081,7 +2081,7 @@ public class ScopeFieldMenuTests
             top.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.Shift);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
             Assert.Equal(statusBefore, main.StatusText);
         }
         finally
@@ -2090,7 +2090,7 @@ public class ScopeFieldMenuTests
         }
     }
 
-    /// <summary>After a stage the menu is closed and the canvas has the focus, so Enter runs the entry without its PILOT word.</summary>
+    /// <summary>After a stage the menu is closed and the canvas has the focus, so Enter runs the entry without its $.</summary>
     [AvaloniaFact]
     public async Task AfterAStage_TheCanvasHasTheFocus_AndEnterRunsTheStagedEntry()
     {
@@ -2114,12 +2114,12 @@ public class ScopeFieldMenuTests
     [AvaloniaFact]
     public async Task ShiftClick_IntoAPilotEntryForTheSameAircraft_Appends()
     {
-        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(s => s.TypeEntryText("PILOT UAL238 CM 80"));
+        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenSpeedMenuAsync(s => s.TypeEntryText("$ UAL238 CM 80"));
         try
         {
             ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
 
-            Assert.Equal("PILOT UAL238 CM 80, SPD 250", scope.EntryText);
+            Assert.Equal("$ UAL238 CM 80, SPD 250", scope.EntryText);
         }
         finally
         {
@@ -2148,7 +2148,7 @@ public class ScopeFieldMenuTests
 
             ClickInPopup(row, RawInputModifiers.Shift);
 
-            Assert.Equal("PILOT UAL238 RWY 28L", scope.EntryText);
+            Assert.Equal("$ UAL238 RWY 28L", scope.EntryText);
             Assert.Equal(statusBefore, main.StatusText);
         }
         finally
@@ -2170,7 +2170,7 @@ public class ScopeFieldMenuTests
 
             ClickInPopup(entry, RawInputModifiers.Shift);
 
-            Assert.Equal("PILOT UAL238 ACCEPT", Assert.IsType<ScopeViewModel>(view.DataContext).EntryText);
+            Assert.Equal("$ UAL238 ACCEPT", Assert.IsType<ScopeViewModel>(view.DataContext).EntryText);
             Assert.Equal(statusBefore, main.StatusText);
         }
         finally
@@ -2211,14 +2211,14 @@ public class ScopeFieldMenuTests
         try
         {
             ClickInPopup(SpeedChip(view, 250), RawInputModifiers.Shift);
-            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
             Assert.Null(view.ActiveContextMenu);
 
             ClickAt(window, view.Canvas, Centre(view.Canvas, ScopeFieldSlot.GroundSpeed));
             ClickInPopup(SpeedChip(view, 250), RawInputModifiers.None);
 
             Assert.Equal(NotConnected, main.StatusText);
-            Assert.Equal("PILOT UAL238 SPD 250", scope.EntryText);
+            Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
         }
         finally
         {

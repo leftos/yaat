@@ -138,12 +138,12 @@ public class ScopeCanvasClickTests
             AircraftModel eram = AddAircraft(main, view.Canvas, "AAL1", 500, 450);
             eram.OwnerSectorCode = "C36";
             main.SelectedAircraft = eram;
-            scope.TypeEntryText("QQ 250");
+            scope.TypeEntryText("$QQ 250");
 
             Click(window, view.Canvas, new Point(300, 300), MouseButton.Left);
 
-            Assert.Equal("UAL238 QQ 250", scope.EntryText);
-            Assert.StartsWith("PILOT", scope.EntryReading.Label, StringComparison.Ordinal);
+            Assert.Equal("$UAL238 QQ 250", scope.EntryText);
+            Assert.StartsWith("$ QQ", scope.EntryReading.Label, StringComparison.Ordinal);
         }
         finally
         {
@@ -160,12 +160,12 @@ public class ScopeCanvasClickTests
         {
             AircraftModel stars = AddAircraft(main, view.Canvas, "UAL238", 300, 300);
             stars.OwnerSectorCode = "1A";
-            scope.TypeEntryText("QQ 250");
+            scope.TypeEntryText("$QQ 250");
 
             Click(window, view.Canvas, new Point(300, 300), MouseButton.Left);
 
-            Assert.Equal("UAL238 QQ 250", scope.EntryText);
-            Assert.StartsWith("PILOT", scope.EntryReading.Label, StringComparison.Ordinal);
+            Assert.Equal("$UAL238 QQ 250", scope.EntryText);
+            Assert.StartsWith("$ QQ", scope.EntryReading.Label, StringComparison.Ordinal);
         }
         finally
         {

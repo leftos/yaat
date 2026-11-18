@@ -41,8 +41,11 @@ internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
 /// text and status are never touched. A STARS entry sends the YAAT command it translates to, resolved here from the
 /// selected aircraft's state where it needs it (bare <c>HND</c>, <c>*J</c>/<c>*P</c>); a STARS entry with no YAAT command
 /// is refused with <c>NOT SUPPORTED</c> and nothing is sent. An ERAM entry goes to the server's ERAM dispatch
-/// (<see cref="EramEntrySender"/>), which answers as CRC's ERAM does. On a
-/// STARS profile the response goes at the next entry's first key; on ERAM and Mixed it stays until the next entry is sent.
+/// (<see cref="EramEntrySender"/>), which answers as CRC's ERAM does. A <c>$</c> YAAT command sends what follows the <c>$</c>,
+/// as it reads (a clicked track's callsign is in it already; with none, it is for the selected aircraft); an entry that reads
+/// as none of these sends nothing and is answered <see cref="FormatMessage"/>. A slow answer never overwrites a later entry's
+/// or a measure prompt. On a STARS profile the response goes at the next entry's first key; on ERAM and Mixed it stays until
+/// the next entry is sent.
 /// Esc clears both.
 /// </summary>
 public sealed partial class ScopeViewModel
@@ -57,6 +60,9 @@ public sealed partial class ScopeViewModel
     internal const int FeedbackLineCap = 5;
 
     internal const string NotSupportedMessage = "NOT SUPPORTED";
+
+    /// <summary>The answer to an entry that reads as neither a STARS or ERAM entry nor a <c>$</c> YAAT command.</summary>
+    internal const string FormatMessage = "FORMAT - $ FOR A YAAT COMMAND";
 
     internal const string AcceptMessage = "ACCEPT";
 
@@ -80,6 +86,10 @@ public sealed partial class ScopeViewModel
 
     // The pick of the half-typed entry the first Up left (_savedEntry), which Down past the newest line puts back with it.
     private string? _savedPickedCallsign;
+
+    // The number of the latest entry run, bumped as each starts and as a measure prompt shows (ScopeViewModel.Measure.cs); a
+    // run answers only while its number is still the latest, so a slow answer never overwrites a later one. Esc does not bump it.
+    private int _entrySeq;
 
     /// <summary>The entry being typed on the Scope.</summary>
     [ObservableProperty]
@@ -138,6 +148,12 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>>? EramEntrySender { get; set; }
 
+    /// <summary>
+    /// Sends a non-ERAM entry's YAAT command through the pilot path with the Scope's sink: <see cref="MainViewModel.SendTextAsync"/>
+    /// unless set. Test seam.
+    /// </summary>
+    internal Func<string, ICommandTextSink, Task>? YaatEntrySender { get; set; }
+
     /// <summary>Adds typed <paramref name="text"/> to the entry; control characters are dropped.</summary>
     /// <returns>False when nothing printable was typed.</returns>
     public bool TypeEntryText(string? text)
@@ -182,7 +198,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Stages <paramref name="command"/> for <paramref name="callsign"/> in the entry (<see cref="ScopeEntryStaging.Text"/>): appended
-    /// to a pilot entry for the same aircraft, else in place of the entry.
+    /// to a <c>$</c> entry for the same aircraft, else in place of the entry.
     /// </summary>
     internal void StageEntry(string callsign, string command)
     {
@@ -205,7 +221,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Fills the track <paramref name="callsign"/> into the entry (<see cref="ScopeEntryFill.Track"/>), as a click on it with text
-    /// in the preview does: first in a pilot entry, else appended, the entry read in the clicked track's dialect on Mixed.
+    /// in the preview does: first in a <c>$</c> entry, else appended, the entry read in the clicked track's dialect on Mixed.
     /// </summary>
     internal void FillTrack(string callsign)
     {
@@ -368,7 +384,7 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Enter: runs the entry, read in the selected track's dialect on Mixed, which leaves the preview for the response.
     /// </summary>
-    /// <returns>False when nothing is typed, or the entry is only the <c>PILOT</c> word, which has nothing to send.</returns>
+    /// <returns>False when nothing is typed, or the entry is only the <c>$</c>, which has nothing to send.</returns>
     public bool ExecuteEntry() => RunEntry(SelectedOwnerTemplateId);
 
     // Runs the entry, read in the dialect the owner kind ownerTemplateId picks on Mixed.
@@ -380,20 +396,57 @@ public sealed partial class ScopeViewModel
             return false;
         }
 
-        // An unsupported STARS entry sends nothing but still runs, to be answered NOT SUPPORTED.
+        // An unsupported STARS entry and an entry that reads as nothing send nothing but still run, to be answered.
         ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId);
-        if ((reading.Kind != ScopeEntryKind.Stars) && (reading.SendText.Length == 0))
+        if ((reading.Kind is not (ScopeEntryKind.Stars or ScopeEntryKind.None)) && (reading.SendText.Length == 0))
         {
             return false;
         }
 
-        LastEntryRun = RunEntryAsync(entry, ownerTemplateId);
+        LastEntryRun = RunEntryAsync(entry, ownerTemplateId, ++_entrySeq);
         return true;
     }
 
-    private async Task RunEntryAsync(string entry, string? ownerTemplateId)
+    // Shows response as the answer to the run numbered seq, unless a later run has started since.
+    private void Answer(int seq, ScopeEntryResponse response)
+    {
+        if (seq == _entrySeq)
+        {
+            EntryResponse = response;
+        }
+    }
+
+    private async Task RunEntryAsync(string entry, string? ownerTemplateId, int seq)
     {
         ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId);
+        string? pickedCallsign = TakeEntry(entry);
+
+        if (reading.Kind == ScopeEntryKind.Eram)
+        {
+            await RunEramEntryAsync(entry, pickedCallsign, seq);
+            return;
+        }
+
+        // MIN runs on the Scope (ScopeViewModel.MinSep.cs) and sends nothing.
+        if ((reading.Kind == ScopeEntryKind.Stars) && reading.Supported && TryRunMinSep(entry))
+        {
+            return;
+        }
+
+        (string? sendText, string? refusal) = ResolveSendText(entry, reading);
+        if (sendText is null)
+        {
+            Main.AddHistory("", entry);
+            Answer(seq, new ScopeEntryResponse(ScopeResponseKind.Error, refusal ?? "", entry, []));
+            return;
+        }
+
+        await SendEntryAsync(entry, sendText, seq);
+    }
+
+    // Puts the entry Enter ran in the Scope's history and empties the preview; returns the clicked track the entry held.
+    private string? TakeEntry(string entry)
+    {
         _entryHistory.Add(entry);
         if (_entryHistory.Count > EntryHistoryCap)
         {
@@ -406,40 +459,29 @@ public sealed partial class ScopeViewModel
         string? pickedCallsign = _pickedCallsign;
         _pickedCallsign = null;
         EntryText = "";
+        return pickedCallsign;
+    }
 
-        if (reading.Kind == ScopeEntryKind.Eram)
+    // The text a non-ERAM entry sends, or null and its refusal: an entry that reads as nothing answers FORMAT, an unsupported
+    // STARS entry NOT SUPPORTED. A $ command sends as it reads: a clicked track is in its text already (the click fill wrote
+    // it), and one naming no callsign is for the selected aircraft, which SendTextAsync supplies.
+    private (string? Text, string? Refusal) ResolveSendText(string entry, ScopeEntryReading reading) =>
+        reading.Kind switch
         {
-            await RunEramEntryAsync(entry, pickedCallsign);
-            return;
-        }
+            ScopeEntryKind.None => (null, FormatMessage),
+            _ when !reading.Supported => (null, NotSupportedMessage),
+            ScopeEntryKind.Stars => ResolveStarsEntry(entry, reading.SendText),
+            _ => (reading.SendText, null),
+        };
 
-        if (!reading.Supported)
-        {
-            Main.AddHistory("", entry);
-            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, NotSupportedMessage, entry, []);
-            return;
-        }
-
-        // MIN runs on the Scope (ScopeViewModel.MinSep.cs) and sends nothing.
-        if ((reading.Kind == ScopeEntryKind.Stars) && TryRunMinSep(entry))
-        {
-            return;
-        }
-
-        (string? sendText, string? refusal) =
-            (reading.Kind == ScopeEntryKind.Stars) ? ResolveStarsEntry(entry, reading.SendText) : (reading.SendText, null);
-        if (sendText is null)
-        {
-            Main.AddHistory("", entry);
-            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, refusal ?? "", entry, []);
-            return;
-        }
-
+    // Sends sendText, the entry's YAAT command, through the pilot path with the Scope's own sink; its answer the response.
+    private async Task SendEntryAsync(string entry, string sendText, int seq)
+    {
         var sink = new ScopeEntrySink(Main);
         try
         {
             LastSentEntryText = sendText;
-            await Main.SendTextAsync(sendText, sink);
+            await ((YaatEntrySender is { } send) ? send(sendText, sink) : Main.SendTextAsync(sendText, sink));
         }
         catch (Exception ex)
         {
@@ -452,7 +494,7 @@ public sealed partial class ScopeViewModel
             Main.AddHistory("", entry);
         }
 
-        EntryResponse = sink.ResponseTo(entry);
+        Answer(seq, sink.ResponseTo(entry));
     }
 
     /// <summary>
@@ -463,27 +505,27 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal Task RunEramText(string callsign, string entry)
     {
-        Task run = RunEramEntryAsync(entry, callsign);
+        Task run = RunEramEntryAsync(entry, callsign, ++_entrySeq);
         LastEntryRun = run;
         return run;
     }
 
-    // An ERAM entry: in the history as typed, then to the server's ERAM dispatch with ERAM's own characters where its keys
-    // typed them, its answer the response. Only this path maps: a pilot command typed on an ERAM Scope sends as typed. The
-    // clicked track's callsign, when still in the entry, goes as a pick of that aircraft.
-    private async Task RunEramEntryAsync(string entry, string? pickedCallsign)
+    // An ERAM entry, the run numbered seq: in the history as typed, then to the server's ERAM dispatch with ERAM's own
+    // characters where its keys typed them, its answer the response. Only this path maps: a $ command typed on an ERAM Scope
+    // sends as typed. The clicked track's callsign, when still in the entry, goes as a pick of that aircraft.
+    private async Task RunEramEntryAsync(string entry, string? pickedCallsign, int seq)
     {
         Main.AddHistory("", entry);
         Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>> send = EramEntrySender ?? Main.SendScopeEramEntryAsync;
         try
         {
             ScopeEramEntryResultDto result = await send(ScopeEramEntryBuilder.Build(ScopeEramKeys.MapTyped(entry), pickedCallsign));
-            EntryResponse = ScopeEramEntryBuilder.ResponseTo(result, entry);
+            Answer(seq, ScopeEramEntryBuilder.ResponseTo(result, entry));
         }
         catch (Exception ex)
         {
             Log.LogError(ex, "Scope ERAM entry failed");
-            EntryResponse = new ScopeEntryResponse(ScopeResponseKind.Error, ex.Message, entry, []);
+            Answer(seq, new ScopeEntryResponse(ScopeResponseKind.Error, ex.Message, entry, []));
         }
     }
 
