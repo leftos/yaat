@@ -166,8 +166,9 @@ public static class LiveTrafficAssumer
         aircraft.AssumedFromLiveTraffic = true;
         aircraft.LiveTraffic = null;
         // An assumed aircraft is cleared to its filed destination, as a scenario spawn is.
+        // The pilot's filed altitude is the one seeded when the shadow spawned (null when the feed filed none); a
+        // controller's amendment to the shadow's plan before the assume is data only.
         aircraft.ClearToFiledDestination();
-        aircraft.FiledCruiseAltitudeFt ??= aircraft.FlightPlan.Altitude.CruiseFeet;
         aircraft.Queue.Blocks.Clear();
         aircraft.DeferredDispatches.Clear();
 

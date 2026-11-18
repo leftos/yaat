@@ -39,8 +39,10 @@ public class LiveTrafficAssumeTests
         LiveTrafficSource source = LiveTrafficSource.Stars
     ) => new(at, pos.Lat, pos.Lon, altFt, gs, track, vs, source, 4521);
 
-    private static AircraftState Shadow(LiveTrafficSample sample, AircraftFlightPlan? plan = null) =>
-        LiveTrafficKinematics.CreateShadow(
+    /// <summary>A shadow seeded as the shadow factory seeds it: the pilot's filed altitude is the plan's at spawn.</summary>
+    private static AircraftState Shadow(LiveTrafficSample sample, AircraftFlightPlan? plan = null)
+    {
+        AircraftState ac = LiveTrafficKinematics.CreateShadow(
             Callsign,
             "B738",
             sample,
@@ -52,6 +54,9 @@ public class LiveTrafficAssumeTests
                     Destination = "KSMF",
                 }
         );
+        ac.ClearToFiledAltitude();
+        return ac;
+    }
 
     private static DispatchContext Ctx(AircraftState ac) => Ctx(ac, null);
 
@@ -716,6 +721,7 @@ public class LiveTrafficAssumeTests
             Sample(0, pos, runway.ElevationFt + 40, 15, runway.TrueHeading.Degrees, -200),
             plan
         );
+        ac.ClearToFiledAltitude();
 
         CommandResult result = Assume(ac);
 

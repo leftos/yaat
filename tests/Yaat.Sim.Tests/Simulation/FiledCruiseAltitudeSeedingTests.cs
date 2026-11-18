@@ -90,7 +90,10 @@ public class FiledCruiseAltitudeSeedingTests(ITestOutputHelper output)
         AssertSeeded(ac);
     }
 
-    /// <summary>A live-traffic shadow assumed into the sim takes the feed plan's altitude at the assume.</summary>
+    /// <summary>
+    /// A live-traffic shadow takes the feed plan's altitude when it spawns, as the shadow factory seeds it, and keeps it
+    /// through the assume into the sim.
+    /// </summary>
     [Fact]
     public void LiveTrafficAssume_TakesTheFeedPlansAltitude()
     {
@@ -105,6 +108,7 @@ public class FiledCruiseAltitudeSeedingTests(ITestOutputHelper output)
             Altitude = PlannedAltitude.Ifr(23000),
         };
         AircraftState ac = LiveTrafficKinematics.CreateShadow("UAL123", "B738", sample, plan);
+        ac.ClearToFiledAltitude();
         DispatchContext ctx = TestDispatch.Context(new Random(1), findAircraft: cs => cs == ac.Callsign ? ac : null, listAircraft: () => [ac]);
 
         CommandResult assumed = CommandDispatcher.Dispatch(new AssumeCommand(), ac, ctx);
@@ -142,6 +146,37 @@ public class FiledCruiseAltitudeSeedingTests(ITestOutputHelper output)
 
         Assert.True(assumed.Success, assumed.Message);
         Assert.Equal(23000, ac.FiledCruiseAltitudeFt);
+    }
+
+    /// <summary>
+    /// A live-traffic shadow whose feed filed no altitude spawns with none; a controller's CRUISE amendment before the
+    /// assume is data only, so the assumed aircraft still has no filed altitude rather than adopting the amended 17,000.
+    /// </summary>
+    [Fact]
+    public void LiveTrafficAssume_WithNoSpawnAltitude_KeepsNone_AfterACruise()
+    {
+        TestVnasData.EnsureInitialized();
+        var sample = new LiveTrafficSample(0, 37.9, -121.3, 11_000, 300, 90, 0, LiveTrafficSource.Stars, 4521);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            FlightRules = "IFR",
+            Departure = "KSFO",
+            Destination = "KSMF",
+        };
+        AircraftState ac = LiveTrafficKinematics.CreateShadow("UAL123", "B738", sample, plan);
+        ac.ClearToFiledAltitude();
+        Assert.Null(ac.FiledCruiseAltitudeFt);
+        DispatchContext ctx = TestDispatch.Context(new Random(1), findAircraft: cs => cs == ac.Callsign ? ac : null, listAircraft: () => [ac]);
+
+        CommandResult cruised = TrackEngine.HandleCruise(ac, 170);
+        Assert.True(cruised.Success, cruised.Message);
+
+        CommandResult assumed = CommandDispatcher.Dispatch(new AssumeCommand(), ac, ctx);
+
+        Assert.True(assumed.Success, assumed.Message);
+        Assert.Equal(17000, ac.FlightPlan.Altitude.CruiseFeet);
+        Assert.Null(ac.FiledCruiseAltitudeFt);
     }
 
     private static void AssertSeeded(AircraftState ac) => Assert.Equal(ac.FlightPlan.Altitude.CruiseFeet, ac.FiledCruiseAltitudeFt);

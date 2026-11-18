@@ -2601,6 +2601,42 @@ internal static class DepartureClearanceHandler
         }
     }
 
+    /// <summary>
+    /// Gives each pending <see cref="InitialClimbPhase"/> the pilot's filed altitude (<see cref="AircraftState.FiledCruiseAltitudeFt"/>)
+    /// as its cruise altitude, keeping everything else it was built with: the departure, assigned altitude, route, SID and
+    /// radar-vectors fields. For a filing that sets the pilot's altitude without a route, which
+    /// <see cref="RefreshPendingInitialClimbPhases(AircraftState)"/> cannot resolve a departure route for.
+    /// </summary>
+    internal static void RefreshPendingInitialClimbCruiseAltitude(AircraftState aircraft)
+    {
+        if (aircraft.Phases is not { } phases)
+        {
+            return;
+        }
+
+        for (int i = 0; i < phases.Phases.Count; i++)
+        {
+            if (phases.Phases[i] is not InitialClimbPhase { Status: PhaseStatus.Pending } climb)
+            {
+                continue;
+            }
+
+            phases.Phases[i] = new InitialClimbPhase
+            {
+                Departure = climb.Departure,
+                AssignedAltitude = climb.AssignedAltitude,
+                DepartureRoute = climb.DepartureRoute,
+                DepartureSidId = climb.DepartureSidId,
+                SidDepartureHeadingMagnetic = climb.SidDepartureHeadingMagnetic,
+                RvSidDeferHeadingUntilMinAlt = climb.RvSidDeferHeadingUntilMinAlt,
+                RvSidHoldRunwayHeading = climb.RvSidHoldRunwayHeading,
+                DepartureProcedureLegs = climb.DepartureProcedureLegs,
+                IsVfr = climb.IsVfr,
+                CruiseAltitude = aircraft.FiledCruiseAltitudeFt ?? 0,
+            };
+        }
+    }
+
     private static void RefreshPendingInitialClimbPhases(
         AircraftState aircraft,
         DepartureInstruction departure,

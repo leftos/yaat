@@ -121,7 +121,9 @@ public sealed class RecordingArchive : IDisposable
     /// <summary>
     /// Reads the recorded actions. A recording whose first snapshot predates the CTO/LUAW runway grammar
     /// (<see cref="DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar"/>) has its CTO/LUAW text rewritten by
-    /// <see cref="DepartureGrammarCanonicalRewriter"/>, so it replays as it was recorded.
+    /// <see cref="DepartureGrammarCanonicalRewriter"/>, so it replays as it was recorded; one whose first snapshot predates
+    /// the pilot's filed altitude (<see cref="FiledAltitudeSpawnStateRewriter.PredatesFiledCruiseAltitude"/>) has its shadow
+    /// spawn states seeded from their plans by <see cref="FiledAltitudeSpawnStateRewriter"/>.
     /// </summary>
     public List<RecordedAction> ReadActions()
     {
@@ -132,9 +134,17 @@ public sealed class RecordingArchive : IDisposable
         {
             _ = DepartureGrammarCanonicalRewriter.RewriteRecordedCommands(actions);
         }
+        if (ActionsPredateFiledCruiseAltitude)
+        {
+            _ = FiledAltitudeSpawnStateRewriter.SeedRecordedSpawnStates(actions);
+        }
 
         return actions;
     }
+
+    /// <summary>Whether the first snapshot, as written, predates the pilot's filed altitude; false when there are no snapshots.</summary>
+    private bool ActionsPredateFiledCruiseAltitude =>
+        (Manifest.Snapshots.Count > 0) && FiledAltitudeSpawnStateRewriter.PredatesFiledCruiseAltitude(FirstSnapshot.State.SchemaVersion);
 
     /// <summary>Whether the first snapshot, as written, predates the CTO/LUAW runway grammar; false when there are no snapshots.</summary>
     private bool ActionsPredateCtoRunwayGrammar =>

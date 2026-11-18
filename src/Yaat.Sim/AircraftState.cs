@@ -369,7 +369,8 @@ public class AircraftState
 
     /// <summary>
     /// Takes the filed altitude as the pilot's (<see cref="FiledCruiseAltitudeFt"/>). Called once the flight plan is final
-    /// at spawn and on a live-traffic assume. A later first filing sets the field from the altitude it carries instead.
+    /// at spawn, a live-traffic shadow's included (the assume keeps what the shadow spawned with). A later first filing sets
+    /// the field from the altitude it carries instead.
     /// </summary>
     public void ClearToFiledAltitude() => FiledCruiseAltitudeFt = FlightPlan.Altitude.CruiseFeet;
 

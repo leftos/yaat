@@ -220,6 +220,60 @@ public class FiledAltitudeClimbCeilingTests(ITestOutputHelper output)
         Assert.Equal(9000, AwaitInitialClimb(engine).CruiseAltitude);
     }
 
+    /// <summary>
+    /// A planless aircraft cleared for takeoff, then filed by an amendment that carries an aircraft type and an altitude
+    /// but no route (an ERAM <c>AM</c> of <c>TYP</c> and <c>ALT</c>): the filing sets the pilot's altitude, and the pending
+    /// initial climb takes the filing's 9,000 rather than keeping the no-altitude fallback.
+    /// </summary>
+    [Fact]
+    public void SpawnedWithoutAPlan_ClearedThenFiledWithoutARoute_PendingClimbTakesTheFiledAltitude()
+    {
+        if (HoldingShort(flightplanJson: null) is not { } engine)
+        {
+            return;
+        }
+
+        Send(engine, "CTO");
+        Assert.Equal(0, AwaitInitialClimb(engine).CruiseAltitude);
+        var amendment = new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "B738", Altitude: PlannedAltitude.Ifr(9000));
+        CommandResult filed = engine.AmendFlightPlan(Callsign, amendment);
+        Assert.True(filed.Success, filed.Message);
+
+        Assert.Equal(9000, Aircraft(engine).FiledCruiseAltitudeFt);
+        Assert.Equal(9000, AwaitInitialClimb(engine).CruiseAltitude);
+    }
+
+    /// <summary>
+    /// A planless aircraft cleared for takeoff, then filed VFR at 6,500 with a route (a <c>VP</c>-style filing): a VFR plan
+    /// resolves no departure route, so the route refresh leaves the pending climb alone, and the pending initial climb still
+    /// takes the filing's 6,500.
+    /// </summary>
+    [Fact]
+    public void SpawnedWithoutAPlan_ClearedThenFiledVfrWithARoute_PendingClimbTakesTheFiledAltitude()
+    {
+        if (HoldingShort(flightplanJson: null) is not { } engine)
+        {
+            return;
+        }
+
+        Send(engine, "CTO");
+        Assert.Equal(0, AwaitInitialClimb(engine).CruiseAltitude);
+        var amendment = new FlightPlanAmendment(
+            ClearBeaconCode: false,
+            AircraftType: "B738",
+            Departure: "KOAK",
+            Destination: "KLAX",
+            Altitude: PlannedAltitude.Vfr(6500),
+            FlightRules: "VFR",
+            Route: "SYRAH"
+        );
+        CommandResult filed = engine.AmendFlightPlan(Callsign, amendment);
+        Assert.True(filed.Success, filed.Message);
+
+        Assert.Equal(6500, Aircraft(engine).FiledCruiseAltitudeFt);
+        Assert.Equal(6500, AwaitInitialClimb(engine).CruiseAltitude);
+    }
+
     private static string FiledIfr(int cruiseAltitudeFt) =>
         $$"""
             {"rules": "IFR", "departure": "KOAK", "destination": "KLAX", "cruiseAltitude": {{cruiseAltitudeFt}}, "cruiseSpeed": 450,

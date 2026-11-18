@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -20,6 +21,9 @@ public class RecordingSchemaUpgraderTests
 
     /// <summary>The last snapshot schema before CTO and LUAW took a runway.</summary>
     private const int PreCtoRunwayGrammarVersion = 41;
+
+    /// <summary>The last snapshot schema before a shadow spawn state carried the pilot's filed altitude.</summary>
+    private const int PreFiledCruiseAltitudeVersion = 54;
 
     // A snapshot pinned at schema 3 with an empty filed aircraft type — the 3→4 migration seeds the
     // filed type from the top-level type, so a correct surgical upgrade produces FlightPlan.AircraftType
@@ -265,6 +269,62 @@ public class RecordingSchemaUpgraderTests
         Assert.Same(input, result.Output);
         using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
         Assert.Equal(["CTO 28", "CTO 28R", "LUAW 28L", "CTO 330"], RecordedCommandTexts(archive.ReadActions()));
+    }
+
+    /// <summary>
+    /// Before V55 a shadow spawn state carried no pilot filed altitude; the upgrade seeds a recorded shadow spawn state's
+    /// <c>FiledCruiseAltitudeFt</c> from its plan altitude, as the V55 snapshot migration does, in an archive and in a
+    /// non-zip recording alike.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Upgrade_BelowV55_SeedsARecordedShadowSpawnStatesFiledAltitudeFromItsPlan(bool archive)
+    {
+        List<RecordedAction> actions = [ShadowSpawnSample()];
+
+        List<RecordedAction> upgraded = archive ? UpgradeArchiveActions(actions) : UpgradeNonZipActions(actions);
+
+        RecordedLiveTrafficSample sample = Assert.IsType<RecordedLiveTrafficSample>(Assert.Single(upgraded));
+        Assert.Equal(23000, Assert.IsType<AircraftSnapshotDto>(sample.SpawnState).FiledCruiseAltitudeFt);
+    }
+
+    private static RecordedLiveTrafficSample ShadowSpawnSample()
+    {
+        var liveSample = new LiveTrafficSample(0, 37.9, -121.3, 11_000, 300, 90, 0, LiveTrafficSource.Stars, 4521);
+        AircraftSnapshotDto spawnState = new AircraftState
+        {
+            Callsign = "UAL123",
+            AircraftType = "B738",
+            FlightPlan = new AircraftFlightPlan
+            {
+                HasFlightPlan = true,
+                FlightRules = "IFR",
+                Departure = "KSFO",
+                Destination = "KSMF",
+                Altitude = PlannedAltitude.Ifr(23000),
+            },
+        }.ToSnapshot();
+        Assert.Null(spawnState.FiledCruiseAltitudeFt);
+        return new RecordedLiveTrafficSample(1, "UAL123", liveSample, spawnState);
+    }
+
+    private static List<RecordedAction> UpgradeArchiveActions(List<RecordedAction> actions)
+    {
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(BuildArchive(EmptySnapshotAt(PreFiledCruiseAltitudeVersion), actions));
+        Assert.True(result.Changed);
+        using var upgraded = RecordingArchive.Open(new MemoryStream(result.Output));
+        return [.. upgraded.ReadActions()];
+    }
+
+    private static List<RecordedAction> UpgradeNonZipActions(List<RecordedAction> actions)
+    {
+        SessionRecording recording = RecordingWith(EmptySnapshotAt(PreFiledCruiseAltitudeVersion));
+        recording.Actions.AddRange(actions);
+        byte[] input = RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(recording, RecordingJsonOptions.Default));
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
+        Assert.True(result.Changed);
+        return JsonSerializer.Deserialize<SessionRecording>(RecordingCompression.Decompress(result.Output), RecordingJsonOptions.Default)!.Actions;
     }
 
     private static List<RecordedAction> CtoCommands() =>

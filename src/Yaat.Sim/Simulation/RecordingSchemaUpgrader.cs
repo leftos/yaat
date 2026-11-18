@@ -68,14 +68,12 @@ public static class RecordingSchemaUpgrader
             return RecordingUpgradeResult.NeedsResim(input);
         }
 
-        bool actionsPredateNullableEfc = recording.Snapshots![0].State.SchemaVersion < NullableEfcSchemaVersion;
-        bool actionsPredateCtoRunwayGrammar = DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar(recording.Snapshots![0].State.SchemaVersion);
+        var gates = ActionGates.For(recording.Snapshots![0].State.SchemaVersion);
         bool changed = MigrateSnapshots(recording.Snapshots!);
-        changed |= RewriteRecordedHoldEfcs(recording.Actions, actionsPredateNullableEfc);
-        changed |= RewriteRecordedCanonicals(
+        changed |= RewriteRecordedActions(
             recording.Actions,
             ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson),
-            actionsPredateCtoRunwayGrammar
+            gates
         );
         if (!changed)
         {
@@ -202,6 +200,28 @@ public static class RecordingSchemaUpgrader
         return changed;
     }
 
+    /// <summary>Every rewrite of the recorded actions, each gated on the schema the recording was written at.</summary>
+    private static bool RewriteRecordedActions(List<RecordedAction> actions, IReadOnlyList<AccessibleBay> bays, ActionGates gates)
+    {
+        bool changed = RewriteRecordedHoldEfcs(actions, gates.PredateNullableEfc);
+        changed |= gates.PredateFiledCruiseAltitude && FiledAltitudeSpawnStateRewriter.SeedRecordedSpawnStates(actions);
+        changed |= RewriteRecordedCanonicals(actions, bays, gates.PredateCtoRunwayGrammar);
+        return changed;
+    }
+
+    /// <summary>Which schema-gated action rewrites apply, from the recording's first snapshot as written (none without one).</summary>
+    private readonly record struct ActionGates(bool PredateNullableEfc, bool PredateCtoRunwayGrammar, bool PredateFiledCruiseAltitude)
+    {
+        public static ActionGates For(int? firstSchemaVersion) =>
+            firstSchemaVersion is not { } version
+                ? default
+                : new ActionGates(
+                    version < NullableEfcSchemaVersion,
+                    DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar(version),
+                    FiledAltitudeSpawnStateRewriter.PredatesFiledCruiseAltitude(version)
+                );
+    }
+
     // --- zip containers ---
 
     private static RecordingUpgradeResult UpgradeZip(byte[] input)
@@ -264,9 +284,7 @@ public static class RecordingSchemaUpgrader
 
         StateSnapshotDto? firstSnapshot = ReadFirstArchiveSnapshot(sourceZip);
         IReadOnlyList<AccessibleBay> bays = ResolveArchiveBays(sourceZip, firstSnapshot);
-        bool actionsPredateNullableEfc = (firstSnapshot is not null) && (firstSnapshot.SchemaVersion < NullableEfcSchemaVersion);
-        bool actionsPredateCtoRunwayGrammar =
-            (firstSnapshot is not null) && DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar(firstSnapshot.SchemaVersion);
+        var gates = ActionGates.For(firstSnapshot?.SchemaVersion);
 
         bool changed = false;
         using var output = new MemoryStream();
@@ -282,7 +300,7 @@ public static class RecordingSchemaUpgrader
                 }
                 else if (entry.FullName == ActionsEntry)
                 {
-                    content = MigrateActionsEntry(content, bays, actionsPredateNullableEfc, actionsPredateCtoRunwayGrammar, out bool entryChanged);
+                    content = MigrateActionsEntry(content, bays, gates, out bool entryChanged);
                     changed |= entryChanged;
                 }
 
@@ -333,21 +351,14 @@ public static class RecordingSchemaUpgrader
         return JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default);
     }
 
-    private static byte[] MigrateActionsEntry(
-        byte[] brotliContent,
-        IReadOnlyList<AccessibleBay> bays,
-        bool actionsPredateNullableEfc,
-        bool actionsPredateCtoRunwayGrammar,
-        out bool changed
-    )
+    private static byte[] MigrateActionsEntry(byte[] brotliContent, IReadOnlyList<AccessibleBay> bays, ActionGates gates, out bool changed)
     {
         string json = DecompressBrotli(brotliContent);
         List<RecordedAction> actions =
             JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize actions entry.");
 
-        changed = RewriteRecordedHoldEfcs(actions, actionsPredateNullableEfc);
-        changed |= RewriteRecordedCanonicals(actions, bays, actionsPredateCtoRunwayGrammar);
+        changed = RewriteRecordedActions(actions, bays, gates);
         return changed ? RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default)) : brotliContent;
     }
 

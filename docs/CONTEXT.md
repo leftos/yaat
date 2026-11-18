@@ -203,7 +203,7 @@ The STAR or route fix a `CAPP` given while the aircraft is still on the STAR joi
 _Avoid_: join fix
 
 **Filed cruise altitude (pilot's copy)**:
-The altitude the pilot filed when the aircraft was created (`AircraftState.FiledCruiseAltitudeFt`): what a departure with no assigned altitude and no SID altitude climbs to. Taken at spawn (a live-traffic assume keeps the shadow's), and, while unset, by the first filing that carries an altitude (any amendment with a route, departure, destination or type, which every editor save is). Pilot-side: once taken, a later STARS `++ddd`, `CRUISE`/`QZ`, ERAM `QZ`/`AM`/`DM` or Flight Plan Editor altitude change updates the plan, never the climb.
+The altitude the pilot filed when the aircraft was created (`AircraftState.FiledCruiseAltitudeFt`): what a departure with no assigned altitude and no SID altitude climbs to. Taken at spawn (a live-traffic assume keeps the shadow's and never takes one, so a shadow whose feed filed none stays unset), and, while unset, by the first filing that carries an altitude (any amendment with a route, departure, destination or type, which every editor save is). Pilot-side: once taken, a later STARS `++ddd`, `CRUISE`/`QZ`, ERAM `QZ`/`AM`/`DM` or Flight Plan Editor altitude change updates the plan, never the climb.
 _Avoid_: filed altitude (that is the scope-editable `FlightPlan.Altitude`)
 
 **Latent restriction**:

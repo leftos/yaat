@@ -631,7 +631,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Copies the cleared profile — speed, altitude, flight rules, route, remarks — and runs the two side effects
     /// that reach past the plan: a route change refreshes the stored departure clearance and the pending
-    /// initial-climb phases, and remarks re-derive the CRC voice type. Route is applied after flight rules because
+    /// initial-climb phases (a filing that sets the pilot's filed altitude also refreshes their cruise altitude, route or
+    /// not), and remarks re-derive the CRC voice type. Route is applied after flight rules because
     /// the departure-route resolution reads the amended rules.
     /// </summary>
     private static void ApplyClearanceFields(AircraftState ac, FlightPlanAmendment amendment)
@@ -649,19 +650,37 @@ public sealed partial class SimulationEngine
         {
             ac.FlightPlan.FlightRules = amendment.FlightRules;
         }
-        // Before the route block, whose refresh rebuilds the pending initial climb from the pilot's filed altitude. The pilot
-        // takes the altitude the filing carries, never one an earlier altitude-only amendment left on the plan.
-        if ((ac.FiledCruiseAltitudeFt is null) && (amendment.Altitude is { } filedAltitude) && IsFiling(amendment))
-        {
-            ac.FiledCruiseAltitudeFt = filedAltitude.CruiseFeet;
-        }
+        // Before the refresh, which rebuilds the pending initial climb from the pilot's filed altitude.
+        bool filedAltitudeSet = SeedFiledCruiseAltitude(ac, amendment);
         if (amendment.Route is not null)
         {
             ac.FlightPlan.Route = amendment.Route;
             DepartureClearanceHandler.RefreshStoredDepartureClearance(ac);
             DepartureClearanceHandler.RefreshPendingInitialClimbPhases(ac);
         }
+        // After the route refresh, which leaves the climb alone for a route that resolves no departure route (every VFR plan,
+        // or IFR fixes that do not resolve); idempotent after one that rebuilt it.
+        if (filedAltitudeSet)
+        {
+            DepartureClearanceHandler.RefreshPendingInitialClimbCruiseAltitude(ac);
+        }
         ApplyRemarksFields(ac, amendment);
+    }
+
+    /// <summary>
+    /// Gives an aircraft with no filed altitude yet the altitude a filing carries as its pilot's
+    /// (<see cref="AircraftState.FiledCruiseAltitudeFt"/>), never one an earlier altitude-only amendment left on the plan.
+    /// Returns whether it set the field, so a filing with no route still rebuilds the pending initial climb.
+    /// </summary>
+    private static bool SeedFiledCruiseAltitude(AircraftState ac, FlightPlanAmendment amendment)
+    {
+        if ((ac.FiledCruiseAltitudeFt is not null) || (amendment.Altitude is not { } filedAltitude) || !IsFiling(amendment))
+        {
+            return false;
+        }
+
+        ac.FiledCruiseAltitudeFt = filedAltitude.CruiseFeet;
+        return true;
     }
 
     /// <summary>
