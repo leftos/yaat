@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -408,7 +409,8 @@ public sealed class ScopeTearoffLayer : Panel
     /// <summary>Whether a tear-off or view is being moved, which Esc cancels before anything else on the Scope.</summary>
     internal bool IsMoving => _follower is not null;
 
-    // Esc cancels a move, else leaves DEL TEAROFF's mode; any other key, or Esc with neither, passes on.
+    // Esc cancels a move, else leaves DEL TEAROFF's mode while the Scope has the keyboard focus; any other key, or Esc with
+    // neither, passes on.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
@@ -421,10 +423,14 @@ public sealed class ScopeTearoffLayer : Panel
             EndMove();
             e.Handled = true;
         }
-        else if (_viewModel is { IsDeletingTearoffs: true } vm)
+        else if ((_viewModel is { IsDeletingTearoffs: true } vm) && HasScopeFocus)
         {
             vm.IsDeletingTearoffs = false;
             e.Handled = true;
         }
     }
+
+    // Whether the Scope has the keyboard focus: in a window of its own always, and docked in the main window only while the
+    // focus is on the Scope (ScopeView.IsKeyFocusInside), so an Esc typed in the command box there stays the box's.
+    private bool HasScopeFocus => this.FindAncestorOfType<ScopeView>()?.IsKeyFocusInside() == true;
 }

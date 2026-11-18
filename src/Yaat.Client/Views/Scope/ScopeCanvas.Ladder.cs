@@ -60,7 +60,7 @@ public sealed partial class ScopeCanvas
             return;
         }
 
-        if (press.Props.IsMiddleButtonPressed)
+        if (press.Props.PointerUpdateKind == PointerUpdateKind.MiddleButtonPressed)
         {
             OnMiddlePressed(press.Pos);
             handled = true;
@@ -89,7 +89,7 @@ public sealed partial class ScopeCanvas
             return;
         }
 
-        if (press.Props.IsLeftButtonPressed && TryFillPress(press.Pos))
+        if ((press.Props.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed) && TryFillPress(press.Pos))
         {
             handled = true;
         }
@@ -111,10 +111,10 @@ public sealed partial class ScopeCanvas
             return;
         }
 
-        PointerPointProperties props = press.Props;
+        PointerUpdateKind kind = press.Props.PointerUpdateKind;
         if (
-            (props.IsLeftButtonPressed || props.IsRightButtonPressed)
-            && PressAircraft(props.IsRightButtonPressed, press.Pos, press.Event.KeyModifiers)
+            (kind is PointerUpdateKind.LeftButtonPressed or PointerUpdateKind.RightButtonPressed)
+            && PressAircraft(kind == PointerUpdateKind.RightButtonPressed, press.Pos, press.Event.KeyModifiers)
         )
         {
             handled = true;

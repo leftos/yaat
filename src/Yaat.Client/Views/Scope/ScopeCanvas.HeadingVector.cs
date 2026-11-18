@@ -44,9 +44,10 @@ public sealed partial class ScopeCanvas
 
     partial void PressHeadingVector(in ScopePress press, ref bool handled)
     {
+        PointerUpdateKind kind = press.Props.PointerUpdateKind;
         if (
             handled
-            || (press.Props.PointerUpdateKind is not (PointerUpdateKind.LeftButtonPressed or PointerUpdateKind.RightButtonPressed))
+            || (kind is not (PointerUpdateKind.LeftButtonPressed or PointerUpdateKind.RightButtonPressed))
             || (_headingVector is not { ButtonHeld: false } vector)
         )
         {
@@ -54,7 +55,7 @@ public sealed partial class ScopeCanvas
         }
 
         handled = true;
-        ApplyHeadingVector(vector.Pressed(press.Props.IsLeftButtonPressed, PointAt(press.Pos)));
+        ApplyHeadingVector(vector.Pressed(kind == PointerUpdateKind.LeftButtonPressed, PointAt(press.Pos)));
     }
 
     partial void ReleaseHeadingVector(in ScopeRelease release, ref bool handled)

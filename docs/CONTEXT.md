@@ -870,6 +870,9 @@ A value set by hand over the zoom band's default (others' level, vector minutes,
 **Pref set (YAAT Scope)**:
 A named snapshot of a YAAT Scope's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
 
+**Press ladder (YAAT Scope)**:
+The ordered list of rungs a pointer press on the Scope runs through (`ScopeCanvas.RunPressLadder`); the first rung that handles the press ends it, so an interactive mode inserted at the wrong place steals clicks from a lower rung. The release ladder and the move hooks are the same shape.
+
 **Preview area (YAAT Scope)**:
 The part of the Scope's entry area that shows the entry being typed, with its Kind label and a trailing `_`; on STARS one unboxed area at the top left below the SSA's default place, on ERAM/Mixed the upper half of the MCA.
 
@@ -878,6 +881,9 @@ The small text beside an ERAM full data block's target giving the track's distan
 
 **Response Area (RA)**:
 ERAM's message area above the MCA; in YAAT Scope on ERAM and Mixed an empty box above the MCA, kept for readouts.
+
+**Rung (YAAT Scope)**:
+One step of the press, release or move ladder: a partial method of `ScopeCanvas` that a feature implements in its own file (`PressBlockHide`, the heading-vector press, the draw-route press) and that reports whether it handled the event.
 
 **Scope data column (YAAT Scope)**:
 The left column of an ERAM popup (cyan, "runs an ERAM entry"). On the altitude popup (`ScopeDataAltitudePopup`) it is an altitude box and rows for the FP altitude, interim, local interim, procedure, interim plus CERA and CERA-only entries and the three clears. On the fourth-line popups (`ScopeDataHsfPopup`) it is a Heading, Speed or Free text section: a box opening on the stored value, a Set row and a Clear row (Clear all HSF for free text).

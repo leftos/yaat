@@ -145,7 +145,7 @@ public sealed partial class ScopeCanvas
     // aircraft, so a press on a datablock or a track places too.
     partial void PressRangeRing(in ScopePress press, ref bool handled)
     {
-        if (handled || !IsPlacingRangeRing || !press.Props.IsLeftButtonPressed || (Viewport.PixelWidth < 1))
+        if (handled || !IsPlacingRangeRing || (press.Props.PointerUpdateKind is not PointerUpdateKind.LeftButtonPressed) || (Viewport.PixelWidth < 1))
         {
             return;
         }

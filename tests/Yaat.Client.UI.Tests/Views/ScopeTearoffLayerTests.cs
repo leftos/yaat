@@ -10,6 +10,7 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -693,6 +694,100 @@ public class ScopeTearoffLayerTests
         finally
         {
             window.Close();
+        }
+    }
+
+    // ── Docked: Esc is the Scope's only while the keyboard focus is inside it ──────
+
+    private const int ScopeTabIndex = 2;
+
+    // The main window with the terminal docked and the Scope tab selected.
+    private static async Task<(MainWindow Main, MainViewModel Vm, ScopeViewModel Scope)> BootDockedAsync()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        vm.IsTerminalPoppedOut = false;
+        vm.IsScopePoppedOut = false;
+        vm.SelectedTabIndex = ScopeTabIndex;
+        MainWindowHost.Pump();
+        main.UpdateLayout();
+        MainWindowHost.Pump();
+        return (main, vm, vm.PrimaryScope);
+    }
+
+    private static TextBox CommandBox(MainWindow main) => main.GetVisualDescendants().OfType<TextBox>().First(t => t.Name == "CommandInput");
+
+    private static void FocusCommandBox(MainWindow main)
+    {
+        Assert.True(CommandBox(main).Focus());
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Docked_DelTearoffOn_WithTheCommandBoxFocused_EscStaysTheBoxs()
+    {
+        (MainWindow main, MainViewModel vm, ScopeViewModel scope) = await BootDockedAsync();
+        try
+        {
+            scope.IsDeletingTearoffs = true;
+            FocusCommandBox(main);
+            vm.CommandText = "abc";
+
+            main.DispatchKey(Key.Escape);
+
+            Assert.True(scope.IsDeletingTearoffs);
+            Assert.Equal("", vm.CommandText);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Docked_DelTearoffOn_WithTheScopeFocused_EscLeavesTheMode()
+    {
+        (MainWindow main, _, ScopeViewModel scope) = await BootDockedAsync();
+        try
+        {
+            scope.IsDeletingTearoffs = true;
+            ScopeView view = Assert.Single(main.GetVisualDescendants().OfType<ScopeView>());
+            Assert.True(view.Canvas.Focus());
+            Dispatcher.UIThread.RunJobs();
+
+            main.DispatchKey(Key.Escape);
+
+            Assert.False(scope.IsDeletingTearoffs);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    // A move owns the pointer, so Esc ends it whatever has the keyboard focus.
+    [AvaloniaFact]
+    public async Task Docked_DuringAMove_WithTheCommandBoxFocused_EscEndsTheMove()
+    {
+        (MainWindow main, MainViewModel vm, _) = await BootDockedAsync();
+        try
+        {
+            PressStrip(main, BarControl(main, ScopeButtonId.Range));
+            main.MouseMove(InLayer(main, 500, 300));
+            Settle(main);
+            Assert.NotNull(FollowerOf(main));
+
+            FocusCommandBox(main);
+            vm.CommandText = "abc";
+
+            main.DispatchKey(Key.Escape);
+
+            Assert.Null(FollowerOf(main));
+            Assert.Equal("abc", vm.CommandText);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
         }
     }
 }

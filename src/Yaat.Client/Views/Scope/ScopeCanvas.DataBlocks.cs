@@ -69,7 +69,7 @@ public sealed partial class ScopeCanvas
     // writes nothing. The press goes on to the aircraft rung, which selects the track and toggles an ERAM dwell lock as usual.
     partial void PressBlockDrag(in ScopePress press, ref bool handled)
     {
-        if (handled || IsBlockGestureSuspended || !press.Props.IsLeftButtonPressed)
+        if (handled || IsBlockGestureSuspended || (press.Props.PointerUpdateKind is not PointerUpdateKind.LeftButtonPressed))
         {
             return;
         }
