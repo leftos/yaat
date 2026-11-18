@@ -298,7 +298,7 @@ Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.Ti
 
 Solo evaluation phases time the same way, per evaluator: attach a dictionary to `SoloTrainingEvaluator.DiagnosticPhaseTimings` (an instance property, never process-wide) and `Evaluate` records its `Solo.*` phases into it. An export's temp reconstruction room forwards the live evaluator's dictionary beside `TickTimings`. Neither dictionary is thread-safe, so share one only between engines that run on one thread.
 
-Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `BroadcastConflictAlerts`, `HandleAutoDeleted`'s CRC disconnect). A new broadcast from a tick-processor method must add the same guard or it leaks replay/snapshot-engine state to real clients.
+Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `BroadcastConflictAlerts`, `HandleAutoDeleted`'s CRC disconnect). A new broadcast from a tick-processor method must add the same guard or it leaks replay/snapshot-engine state to real clients. `BroadcastConflictAlertsIfChanged` returns before sending or latching its signature while suppressed, so the latch keeps what the client last received; `RecordingManager.ResyncEngineStateAsync` then clears `LastBroadcastConflictSignature` and sends the hub's `ConflictAlertsChanged` once, since a paused room has no tick to do it.
 
 ## `AircraftChangeTracker` — the delta engine (`Simulation/AircraftChangeTracker.cs`)
 
