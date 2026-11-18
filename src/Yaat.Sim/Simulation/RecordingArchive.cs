@@ -123,7 +123,7 @@ public sealed class RecordingArchive : IDisposable
     /// (<see cref="DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar"/>) has its CTO/LUAW text rewritten by
     /// <see cref="DepartureGrammarCanonicalRewriter"/>, so it replays as it was recorded; one whose first snapshot predates
     /// the pilot's filed altitude (<see cref="FiledAltitudeSpawnStateRewriter.PredatesFiledCruiseAltitude"/>) has its shadow
-    /// spawn states seeded from their plans by <see cref="FiledAltitudeSpawnStateRewriter"/>.
+    /// spawn states and <c>ADD</c> spawns seeded from their plans by <see cref="FiledAltitudeSpawnStateRewriter"/>.
     /// </summary>
     public List<RecordedAction> ReadActions()
     {

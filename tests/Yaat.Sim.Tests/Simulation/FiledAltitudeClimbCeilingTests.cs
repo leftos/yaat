@@ -274,6 +274,68 @@ public class FiledAltitudeClimbCeilingTests(ITestOutputHelper output)
         Assert.Equal(6500, AwaitInitialClimb(engine).CruiseAltitude);
     }
 
+    /// <summary>
+    /// A planless aircraft cleared for takeoff, then filed VFR at 6,500 without a route: the refresh of the pending initial
+    /// climb takes the flight rules from the plan, so the climb is VFR as well as taking the filing's 6,500.
+    /// </summary>
+    [Fact]
+    public void SpawnedWithoutAPlan_ClearedThenFiledVfrWithoutARoute_PendingClimbIsVfr()
+    {
+        if (HoldingShort(flightplanJson: null) is not { } engine)
+        {
+            return;
+        }
+
+        Send(engine, "CTO");
+        var amendment = new FlightPlanAmendment(
+            ClearBeaconCode: false,
+            AircraftType: "B738",
+            Altitude: PlannedAltitude.Vfr(6500),
+            FlightRules: "VFR"
+        );
+        CommandResult filed = engine.AmendFlightPlan(Callsign, amendment);
+        Assert.True(filed.Success, filed.Message);
+
+        InitialClimbPhase climb = AwaitInitialClimb(engine);
+        Assert.True(climb.IsVfr);
+        Assert.Equal(6500, climb.CruiseAltitude);
+    }
+
+    /// <summary>
+    /// The reverse: an aircraft on a VFR plan with no altitude, cleared for takeoff, then filed IFR at 9,000 without a route:
+    /// the refreshed pending initial climb is no longer VFR.
+    /// </summary>
+    [Fact]
+    public void FiledVfrWithoutAnAltitude_ClearedThenFiledIfrWithoutARoute_PendingClimbIsNotVfr()
+    {
+        if (HoldingShort(flightplanJson: VfrWithoutAnAltitude) is not { } engine)
+        {
+            return;
+        }
+
+        Send(engine, "CTO");
+        Assert.Null(Aircraft(engine).FiledCruiseAltitudeFt);
+        Assert.True(AwaitInitialClimb(engine).IsVfr);
+        var amendment = new FlightPlanAmendment(
+            ClearBeaconCode: false,
+            AircraftType: "B738",
+            Altitude: PlannedAltitude.Ifr(9000),
+            FlightRules: "IFR"
+        );
+        CommandResult filed = engine.AmendFlightPlan(Callsign, amendment);
+        Assert.True(filed.Success, filed.Message);
+
+        InitialClimbPhase climb = AwaitInitialClimb(engine);
+        Assert.False(climb.IsVfr);
+        Assert.Equal(9000, climb.CruiseAltitude);
+    }
+
+    /// <summary>A VFR plan that files no altitude, so the aircraft spawns with no pilot's filed altitude.</summary>
+    private const string VfrWithoutAnAltitude = """
+        {"rules": "VFR", "departure": "KOAK", "destination": "KLAX", "cruiseAltitude": 0, "cruiseSpeed": 120,
+         "route": "", "remarks": "", "aircraftType": "B738/L"}
+        """;
+
     private static string FiledIfr(int cruiseAltitudeFt) =>
         $$"""
             {"rules": "IFR", "departure": "KOAK", "destination": "KLAX", "cruiseAltitude": {{cruiseAltitudeFt}}, "cruiseSpeed": 450,

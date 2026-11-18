@@ -465,7 +465,10 @@ public static class SnapshotSchemaMigrator
 
         // V54→V55: AircraftSnapshotDto.FiledCruiseAltitudeFt added, the altitude the pilot filed when the aircraft was created
         //   and climbs to on departure with no assigned altitude. Seeded from the plan's altitude as it stood in the snapshot
-        //   (null without one, never 0), so a restored departure climbs as it would have before.
+        //   (null without one, never 0), so a restored departure climbs as it would have before. That plan may have been
+        //   amended since the spawn, while FiledAltitudeSpawnStateRewriter seeds a pre-55 tape's recorded spawns from the plan
+        //   at spawn: a shadow amended before its assume can take a different filed altitude after a rewind to a pre-55
+        //   snapshot than in a replay from the start. Inherent to pre-55 data, which recorded no pilot's altitude.
         if (snapshot.SchemaVersion < 55)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

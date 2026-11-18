@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -281,32 +280,12 @@ public class RecordingSchemaUpgraderTests
     [InlineData(false)]
     public void Upgrade_BelowV55_SeedsARecordedShadowSpawnStatesFiledAltitudeFromItsPlan(bool archive)
     {
-        List<RecordedAction> actions = [ShadowSpawnSample()];
+        List<RecordedAction> actions = [ShadowSpawnSamples.ShadowSpawnSample()];
 
         List<RecordedAction> upgraded = archive ? UpgradeArchiveActions(actions) : UpgradeNonZipActions(actions);
 
         RecordedLiveTrafficSample sample = Assert.IsType<RecordedLiveTrafficSample>(Assert.Single(upgraded));
         Assert.Equal(23000, Assert.IsType<AircraftSnapshotDto>(sample.SpawnState).FiledCruiseAltitudeFt);
-    }
-
-    private static RecordedLiveTrafficSample ShadowSpawnSample()
-    {
-        var liveSample = new LiveTrafficSample(0, 37.9, -121.3, 11_000, 300, 90, 0, LiveTrafficSource.Stars, 4521);
-        AircraftSnapshotDto spawnState = new AircraftState
-        {
-            Callsign = "UAL123",
-            AircraftType = "B738",
-            FlightPlan = new AircraftFlightPlan
-            {
-                HasFlightPlan = true,
-                FlightRules = "IFR",
-                Departure = "KSFO",
-                Destination = "KSMF",
-                Altitude = PlannedAltitude.Ifr(23000),
-            },
-        }.ToSnapshot();
-        Assert.Null(spawnState.FiledCruiseAltitudeFt);
-        return new RecordedLiveTrafficSample(1, "UAL123", liveSample, spawnState);
     }
 
     private static List<RecordedAction> UpgradeArchiveActions(List<RecordedAction> actions)
