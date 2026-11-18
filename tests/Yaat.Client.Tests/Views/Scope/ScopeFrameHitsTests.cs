@@ -78,6 +78,27 @@ public class ScopeFrameHitsTests
         Assert.Empty(frame.BlocksAt(-50f, -50f));
     }
 
+    /// <summary>
+    /// The ATPA trailer's block carries the distance at line 2's right end, so it ends at line 2: a click on the band below,
+    /// where the Radar's own ATPA row was, no longer hits it.
+    /// </summary>
+    [Fact]
+    public void BlocksAt_TheOldAtpaRowsBand_MissesTheShorterAtpaBlock()
+    {
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+        float lineHeight = new TextStyle(font, paint).LineHeight;
+        ScopeFrame frame = Build(ScopeTestAircraft.CreateAtpaTrailer(), ScopeTestAircraft.CreateAtpaLead());
+        ScopeTrack trailer = Assert.Single(frame.Tracks, t => t.Aircraft.Callsign == "UAL238");
+        SKRect bounds = trailer.Block.Bounds;
+        FieldRect atpa = Assert.Single(trailer.Block.Fields, f => f.Slot == ScopeFieldSlot.Atpa);
+        Assert.Equal(trailer.Block.Fields.Max(f => f.Rect.Top), atpa.Rect.Top);
+        float x = bounds.Left + 2f;
+
+        Assert.Contains(trailer.Aircraft, frame.BlocksAt(x, bounds.MidY));
+        Assert.DoesNotContain(trailer.Aircraft, frame.BlocksAt(x, bounds.Bottom + (lineHeight / 2f)));
+    }
+
     [Fact]
     public void TargetsNear_SymbolsInsideTheClickRadius_ListsThemNearestFirst()
     {

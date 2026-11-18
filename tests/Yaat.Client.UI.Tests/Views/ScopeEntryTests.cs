@@ -539,6 +539,75 @@ public class ScopeEntryTests
         }
     }
 
+    /// <summary>On STARS, a staged entry starts the next entry as a typed key does: a slow answer landing after it is dropped.</summary>
+    [AvaloniaFact]
+    public async Task AStarsLateAnswer_IsDropped_WhenTheNextEntryIsStaged()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            scope.StageEntry("UAL238", "SPD 250");
+            Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Null(scope.EntryResponse);
+        }
+    }
+
+    /// <summary>On STARS, an Up that recalls the last entry starts the next entry: a slow answer landing after it is dropped.</summary>
+    [AvaloniaFact]
+    public async Task AStarsLateAnswer_IsDropped_WhenTheNextEntryIsRecalledFromTheHistory()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            Assert.True(scope.WalkEntryHistory(older: true));
+            Assert.Equal("$UAL238 FH 270", scope.EntryText);
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Null(scope.EntryResponse);
+        }
+    }
+
+    /// <summary>On STARS, a function key starts the next entry: a slow answer landing after it is dropped.</summary>
+    [AvaloniaFact]
+    public async Task AStarsLateAnswer_IsDropped_WhenAFunctionKeyStartsTheNextEntry()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            var slow = new TaskCompletionSource();
+            scope.YaatEntrySender = (_, _) => slow.Task;
+            Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
+            Assert.True(scope.ExecuteEntry());
+            Task slowRun = scope.LastEntryRun;
+            Assert.True(scope.StartStarsFunctionEntry(Key.F3));
+            Assert.Equal("INIT ", scope.EntryText);
+
+            slow.SetResult();
+            await slowRun;
+
+            Assert.Null(scope.EntryResponse);
+        }
+    }
+
     /// <summary>On ERAM and Mixed, a slow entry's answer still shows when it lands while the next entry is typed.</summary>
     [AvaloniaTheory]
     [InlineData(ScopeProfileKind.Eram)]

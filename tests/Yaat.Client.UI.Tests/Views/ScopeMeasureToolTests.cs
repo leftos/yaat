@@ -494,6 +494,33 @@ public class ScopeMeasureToolTests
         }
     }
 
+    // Esc case table, first Esc (entry empty, the measure prompt showing, another Scope holding the first point): the prompt
+    // goes, and the tool and the other Scope's anchor stay.
+    [AvaloniaFact]
+    public async Task CtrlM_ThenAnotherScopesAnchor_EscTakesThePromptOnly_AndTheAnchorStays()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            FocusCanvas(window, view);
+            window.DispatchKey(Key.M, ActionModifier);
+            other.Vm.PickMeasurePoint(AtPoint(37.7, -122.2));
+            Assert.NotNull(scope.EntryResponse);
+
+            window.DispatchKey(Key.Escape);
+
+            Assert.Null(scope.EntryResponse);
+            Assert.True(main.Measure.IsMeasuring);
+            Assert.Same(other.Vm, Assert.NotNull(main.Measure.Anchor).Surface);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+            window.Close();
+        }
+    }
+
     // Esc case table, first Esc (entry empty, another response showing, armed on the Scope): the response goes, the tool stays.
     [AvaloniaFact]
     public async Task Esc_WithAnotherResponseShowing_ClearsItFirst_AndKeepsTheToolArmed()

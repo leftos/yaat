@@ -44,7 +44,15 @@ public class ScopeFrameRingsTests
             CenterLon = -122.0,
         };
 
-    private static ScopeFrame Frame(ScopeAlertOptions alerts, IReadOnlyDictionary<string, ScopeTrackRings> rings, params AircraftModel[] aircraft)
+    private static ScopeFrame Frame(ScopeAlertOptions alerts, IReadOnlyDictionary<string, ScopeTrackRings> rings, params AircraftModel[] aircraft) =>
+        Frame(ScopeTemplates.StarsId, alerts, rings, aircraft);
+
+    private static ScopeFrame Frame(
+        string templateId,
+        ScopeAlertOptions alerts,
+        IReadOnlyDictionary<string, ScopeTrackRings> rings,
+        params AircraftModel[] aircraft
+    )
     {
         using SKFont font = PlatformHelper.MonospaceFontBold(FontSize);
         using var paint = new SKPaint();
@@ -52,7 +60,7 @@ public class ScopeFrameRingsTests
             aircraft,
             null,
             Viewport(),
-            ScopeTemplates.StarsId,
+            templateId,
             ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
             alerts,
             ScopeTestAircraft.AllDisplay,
@@ -161,23 +169,6 @@ public class ScopeFrameRingsTests
     }
 
     [Fact]
-    public void AtpaCone_DrawsWithAlertConesOn_AndNotOff()
-    {
-        AircraftModel trailer = ScopeTestAircraft.CreateAtpaTrailer();
-        AircraftModel lead = ScopeTestAircraft.CreateAtpaLead();
-        ScopeAlertOptions alertConesOff = ScopeTestAircraft.AllAlerts with { ShowAtpaAlertCones = false };
-
-        ScopeRingShapes on = TrackOf(Frame(ScopeTestAircraft.AllAlerts, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "UAL238").Rings;
-        ScopeRingShapes off = TrackOf(Frame(alertConesOff, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "UAL238").Rings;
-
-        ScopeWedge cone = Assert.IsType<ScopeWedge>(on.AtpaCone);
-        Assert.Equal("3", cone.Label);
-        Assert.Equal(AtpaConeState.Warning, on.AtpaState);
-        Assert.True(off.IsEmpty);
-        Assert.True(TrackOf(Frame(ScopeTestAircraft.AllAlerts, new Dictionary<string, ScopeTrackRings>(), trailer, lead), "SWA1234").Rings.IsEmpty);
-    }
-
-    [Fact]
     public void AtpaCone_WithDistOff_StillDraws()
     {
         ScopeRingShapes rings = TrailerRings(NoAtpa, AtpaConeState.Warning, NoRings());
@@ -194,10 +185,51 @@ public class ScopeFrameRingsTests
     public void AWarningOrAlertCone_FollowsAlertCones(AtpaConeState state, bool alertCones)
     {
         // MONITOR CONES stays on: a Warning or Alert pair with ALERT CONES off draws no cone, not a Monitor cone.
-        ScopeRingShapes rings = TrailerRings(ScopeTestAircraft.AllAlerts with { ShowAtpaAlertCones = alertCones }, state, NoRings());
+        AircraftModel trailer = ScopeTestAircraft.CreateAtpaTrailer();
+        trailer.AtpaConeState = state;
+        AircraftModel lead = ScopeTestAircraft.CreateAtpaLead();
+        ScopeFrame frame = Frame(ScopeTestAircraft.AllAlerts with { ShowAtpaAlertCones = alertCones }, NoRings(), trailer, lead);
+
+        ScopeRingShapes rings = TrackOf(frame, trailer.Callsign).Rings;
 
         Assert.Equal(alertCones, rings.AtpaCone is not null);
         Assert.Equal(!alertCones, rings.IsEmpty);
+        // The cone is the trailer's: its lead draws none.
+        Assert.True(TrackOf(frame, lead.Callsign).Rings.IsEmpty);
+    }
+
+    /// <summary>The cone toggles act on a block drawn with the ERAM or the Mixed template as they do on STARS.</summary>
+    [Theory]
+    [InlineData(ScopeTemplates.EramId, AtpaConeState.Warning, true)]
+    [InlineData(ScopeTemplates.EramId, AtpaConeState.Warning, false)]
+    [InlineData(ScopeTemplates.EramId, AtpaConeState.Monitor, true)]
+    [InlineData(ScopeTemplates.EramId, AtpaConeState.Monitor, false)]
+    [InlineData(ScopeTemplates.MixedId, AtpaConeState.Warning, true)]
+    [InlineData(ScopeTemplates.MixedId, AtpaConeState.Warning, false)]
+    [InlineData(ScopeTemplates.MixedId, AtpaConeState.Monitor, true)]
+    [InlineData(ScopeTemplates.MixedId, AtpaConeState.Monitor, false)]
+    public void TheConeToggles_HoldOnTheEramAndMixedTemplates(string templateId, AtpaConeState state, bool toggleOn)
+    {
+        AircraftModel trailer = ScopeTestAircraft.CreateAtpaTrailer();
+        trailer.AtpaConeState = state;
+        ScopeAlertOptions alerts =
+            (state == AtpaConeState.Monitor)
+                ? ScopeTestAircraft.AllAlerts with
+                {
+                    ShowAtpaMonitorCones = toggleOn,
+                }
+                : ScopeTestAircraft.AllAlerts with
+                {
+                    ShowAtpaAlertCones = toggleOn,
+                };
+
+        ScopeRingShapes rings = TrackOf(Frame(templateId, alerts, NoRings(), trailer, ScopeTestAircraft.CreateAtpaLead()), "UAL238").Rings;
+
+        Assert.Equal(toggleOn, rings.AtpaCone is not null);
+        if (toggleOn)
+        {
+            Assert.Equal(state, rings.AtpaState);
+        }
     }
 
     [Theory]

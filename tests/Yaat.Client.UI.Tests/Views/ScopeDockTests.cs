@@ -13,6 +13,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -278,6 +279,49 @@ public class ScopeDockTests
         main.ApplyConflictAlerts([new ConflictAlertDto("CA_AAL22_UAL1", "UAL1", "AAL22")]);
 
         Assert.Empty(list.Rows);
+
+        main.OnAircraftUpdated(QueuedDto("UAL1", ""));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(list.Rows);
+    }
+
+    // A listed pair's member that arrives through the aircraft list after the broadcast relabels its row.
+    [AvaloniaFact]
+    public async Task ConflictList_RelabelsAPair_WhenAMemberArrivesAfterTheBroadcast()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            AircraftModel tracked = ScopeTestFixture.AddAircraft(main, "SKW5", 9000);
+            tracked.Owner = "OAK_44_CTR";
+            main.RunViewCommand(".view ca on");
+            main.ApplyConflictAlerts([new ConflictAlertDto("CA_N123_SKW5", "N123", "SKW5")]);
+            Settle(window);
+            Assert.DoesNotContain("1200*SKW5         MCI", Texts(CardOf(window, ScopeToolbarButtons.ViewCaName)));
+
+            main.Aircraft.Add(
+                new AircraftModel
+                {
+                    Callsign = "N123",
+                    AircraftType = "B738",
+                    FiledAircraftType = "B738",
+                    FlightRules = "IFR",
+                    TransponderMode = "C",
+                    BeaconCode = 1200,
+                    Altitude = 9000,
+                    GroundSpeed = 250,
+                    Position = new LatLon(37.7, -122.2),
+                }
+            );
+            Settle(window);
+
+            Assert.Contains("1200*SKW5         MCI", Texts(CardOf(window, ScopeToolbarButtons.ViewCaName)));
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     // The intruder files a plan between two conflict broadcasts: the aircraft update alone turns its MCI row into a CA row.
@@ -308,20 +352,26 @@ public class ScopeDockTests
         }
     }
 
-    // An aircraft update that changes no row keeps the list's rows as they were, so the card does not rebuild every tick.
+    // An update to a pair's member that changes neither its track nor its plan keeps the list's rows as they were, so the
+    // card does not rebuild every tick.
     [AvaloniaFact]
     public async Task ConflictList_KeepsItsRows_WhenAnAircraftUpdateChangesNoRow()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
+            ScopeTestFixture.AddAircraft(main, "UAL1", 9000);
+            ScopeTestFixture.AddAircraft(main, "AAL22", 9000);
+            // The first update gives UAL1 the update's track and plan; the second repeats them.
+            main.OnAircraftUpdated(QueuedDto("UAL1", ""));
             main.RunViewCommand(".view ca on");
             ConflictListViewModel list = scope.DockViews.OfType<ConflictListViewModel>().Single();
             main.ApplyConflictAlerts([new ConflictAlertDto("CA_AAL22_UAL1", "UAL1", "AAL22")]);
             Settle(window);
             IReadOnlyList<ConflictListRow> before = list.Rows;
+            Assert.NotEmpty(before);
 
-            main.OnAircraftUpdated(QueuedDto("UAL1549", ""));
+            main.OnAircraftUpdated(QueuedDto("UAL1", ""));
             Settle(window);
 
             Assert.Same(before, list.Rows);

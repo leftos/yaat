@@ -301,6 +301,9 @@ public class ScopePrefSetStoreTests : IDisposable
     [InlineData("mapTools")]
     [InlineData("lens.queue")]
     [InlineData("mapTools.rangeRing")]
+    [InlineData("db.atpaAlertCones")]
+    [InlineData("db.atpaMonitorCones")]
+    [InlineData("db.eramCaRing")]
     public void AnEntryMissingARequiredKey_IsDropped_AndTheGoodEntryLoads(string keyPath)
     {
         JsonObject bad = JsonNode.Parse(GoodEntry)!.AsObject();

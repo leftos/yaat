@@ -263,7 +263,7 @@ public class ScopeTemplateParityTests
         {
             // The Radar's ATPA row is gone from the Scope's block: same corner, one row shorter.
             Assert.Equal(today.Rect.Location, scope.Bounds.Location);
-            Assert.True(scope.Bounds.Height < today.Rect.Height, "the Scope's ATPA block keeps the Radar's extra row");
+            Assert.Equal(today.Rect.Height - style.LineHeight, scope.Bounds.Height, precision: 3);
         }
         else
         {
