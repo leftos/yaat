@@ -96,6 +96,13 @@ public sealed class AircraftSnapshotDto
     public string? ClearedDestination { get; set; }
 
     /// <summary>
+    /// The altitude the pilot filed when the aircraft was created (<see cref="AircraftState.FiledCruiseAltitudeFt"/>), null
+    /// when none was. A pre-V55 snapshot carries none; <see cref="SnapshotSchemaMigrator"/> seeds it from the plan's
+    /// altitude; settable for it.
+    /// </summary>
+    public int? FiledCruiseAltitudeFt { get; set; }
+
+    /// <summary>
     /// Through V47 the "left the student's frequency" flag lived here. Read only so <see cref="SnapshotSchemaMigrator"/> can
     /// turn a true one into <see cref="TrackOwner.Elsewhere"/> on <see cref="TunedPosition"/>, then nulled, so a rewritten
     /// snapshot drops it.

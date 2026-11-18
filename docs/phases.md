@@ -255,6 +255,8 @@ Aircraft fly charted SID legs coded as **headings/courses**, not just fix-to-fix
 
 `InitialClimbPhase` holds runway heading to the 400 ft AGL TERPS gate, then `InsertAfterCurrent`s the procedure phase (gated on `_proceduralDeparture`).
 
+A departure with no assigned altitude and no SID altitude climbs to the altitude filed when the aircraft was created: `InitialClimbPhase.CruiseAltitude` is `AircraftState.FiledCruiseAltitudeFt`, the pilot's copy, set by every departure-clearance path (`DepartureClearanceHandler`, `TaxiingPhase`). Once that copy is set, a later STARS `++ddd`, `CRUISE`/`QZ`, ERAM or Flight Plan Editor altitude change updates the plan altitude and not the climb.
+
 Legs come from `ProcedureLegResolver.Resolve` (which keeps the fix-less legs `DepartureClearanceHandler.ResolveLegsToTargets` drops); `ExtractActiveDepartureLegs` returns only the **leading run** of coded legs, stopping at the first plain fix — interior fix legs keep FlightPhysics' turn anticipation via `NavigationRoute`. It reuses approach-intercept geometry (`GeoMath.SignedCrossTrackDistanceNm`, turn-radius lead for VI, proportional cross-track steering for CF).
 
 - **SID climb windows** — a leg's `AtOrBelow`/`Between` crossing altitude (`Altitude1Ft`) is enforced as a **level-off cap** (`ApplyLegAltitudeCap`, min against `_climbCeiling`) only while the SID's published altitudes are in force (`AltitudeRestrictionInForce.ProcedureAltitudesInForce`: a climb via, or the no-data fallback), so a CTO altitude or TDLS maintain is never held below by a leg window; released when the leg sequences (back to the SID hold altitude below) — it never *lowers* the overall ceiling, so an assigned / top-altitude cap survives (AIM §5-2-9.e.5: level off only if reached before the fix).

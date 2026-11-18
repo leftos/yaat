@@ -202,6 +202,10 @@ _Avoid_: filed destination (that is the scope-editable `FlightPlan.Destination`)
 The STAR or route fix a `CAPP` given while the aircraft is still on the STAR joins at (`PendingApproachInfo.ConnectingFix`), or the fix of a later direct that skips it. The approach's published altitudes bind only once the aircraft is past it; until then it keeps its last assigned altitude.
 _Avoid_: join fix
 
+**Filed cruise altitude (pilot's copy)**:
+The altitude the pilot filed when the aircraft was created (`AircraftState.FiledCruiseAltitudeFt`): what a departure with no assigned altitude and no SID altitude climbs to. Taken at spawn (a live-traffic assume keeps the shadow's), and, while unset, by the first filing that carries an altitude (any amendment with a route, departure, destination or type, which every editor save is). Pilot-side: once taken, a later STARS `++ddd`, `CRUISE`/`QZ`, ERAM `QZ`/`AM`/`DM` or Flight Plan Editor altitude change updates the plan, never the climb.
+_Avoid_: filed altitude (that is the scope-editable `FlightPlan.Altitude`)
+
 **Latent restriction**:
 A published route altitude or speed restriction the radar Show-nav-route overlay draws dimmed because it is on the route but does not bind now. An altitude (`AltitudeRestrictionInForce.IsShownLatent`) is latent when it is not in force by its restriction source, or is a published restriction above a climb via's "except maintain" top or below a descend via's bottom. A published SID or STAR speed (`NavRouteSpeedLatency.LatentAlongRoute`, judged by `FlightPhysics.PublishedSpeedApplies`) is latent when an ATC speed or a delete-speed-restrictions is in force at that fix, judged fix by fix past crossings that revert or resume. A controller's crossing speed is never latent.
 _Avoid_: inactive restriction, cancelled restriction (a maintain does not delete it, and a later via clearance makes it bind again)
@@ -939,7 +943,7 @@ YAAT Scope overlays drawn from simulation truth rather than from what the contro
 The STARS minimum separation readout on the YAAT Scope (`MIN`): for one pair of tracks, the lateral closest approach their current ground tracks and speeds project, drawn as the predicted points and boxed as `0.00 NM`, or `NO XING` over the current distance when they do not close. One pair at a time, the Scope's own, never saved; not a conflict alert.
 
 **Scope entry**:
-Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.
+Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad, `CRUISE`/`QZ`): it changes what the displays show and never moves the aircraft, unlike a pilot command. A cruise-altitude entry changes the plan and never the climb (Filed cruise altitude (pilot's copy)).
 
 **Nudge**:
 A range/bearing readout pushing an auto-placed data block (one at its default or deconflicted placement, never a manually dragged one) just far enough aside to stay readable, capped at the leader's maximum length; the block returns once the readout no longer needs the room (`RblReadoutPlacement`).

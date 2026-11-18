@@ -48,6 +48,8 @@ internal static class LinedUpAircraft
                 FlightRules = "VFR",
             },
         };
+        // Built by hand, not spawned: take the filed altitude as a spawn does.
+        ac.ClearToFiledAltitude();
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.Add(new LinedUpAndWaitingPhase());

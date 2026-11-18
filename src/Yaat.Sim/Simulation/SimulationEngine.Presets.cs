@@ -717,6 +717,7 @@ public sealed partial class SimulationEngine
 
         // The pilot is cleared as filed, the backstop's destination included.
         loaded.State.ClearToFiledDestination();
+        loaded.State.ClearToFiledAltitude();
 
         // Separate immediate presets from delayed ones.
         var immediatePresets = new List<string>();

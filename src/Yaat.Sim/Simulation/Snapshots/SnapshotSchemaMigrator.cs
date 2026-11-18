@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 54;
+    public const int CurrentSchemaVersion = 55;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -462,6 +462,17 @@ public static class SnapshotSchemaMigrator
         //   data rebuilds them). Strip items, bays, vTDLS items, active ops configs, dumped and expired keys and scheduled
         //   wilcos are also captured ordered by key, so a capture of a restored state equals the capture it came from; an
         //   older snapshot restores in whatever order it holds.
+
+        // V54→V55: AircraftSnapshotDto.FiledCruiseAltitudeFt added, the altitude the pilot filed when the aircraft was created
+        //   and climbs to on departure with no assigned altitude. Seeded from the plan's altitude as it stood in the snapshot
+        //   (null without one, never 0), so a restored departure climbs as it would have before.
+        if (snapshot.SchemaVersion < 55)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                ac.FiledCruiseAltitudeFt ??= ac.FlightPlan?.AltitudeCruiseFeet;
+            }
+        }
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

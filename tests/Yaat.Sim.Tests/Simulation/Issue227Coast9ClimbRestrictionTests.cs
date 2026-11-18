@@ -93,6 +93,8 @@ public class Issue227Coast9ClimbRestrictionTests
             },
             Phases = new PhaseList { AssignedRunway = rwy },
         };
+        // Built by hand, not spawned: take the filed altitude as a spawn does.
+        ac.ClearToFiledAltitude();
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);

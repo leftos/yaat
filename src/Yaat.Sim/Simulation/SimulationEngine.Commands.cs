@@ -616,6 +616,19 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Whether the amendment is a filing: it carries a route, departure, destination or aircraft type. Flight rules alone are
+    /// no filing, since every ERAM altitude amendment (QZ, AM and DM field 08) carries them with the altitude. A filing that
+    /// also carries an altitude gives an aircraft with no filed altitude yet that altitude as its pilot's
+    /// (<see cref="AircraftState.FiledCruiseAltitudeFt"/>); an altitude-only amendment (a STARS <c>++</c>, a
+    /// <c>CRUISE</c>/<c>QZ</c>, an ERAM altitude amendment) never does.
+    /// </summary>
+    private static bool IsFiling(FlightPlanAmendment amendment) =>
+        (amendment.Route is not null)
+        || (amendment.Departure is not null)
+        || (amendment.Destination is not null)
+        || (amendment.AircraftType is not null);
+
+    /// <summary>
     /// Copies the cleared profile — speed, altitude, flight rules, route, remarks — and runs the two side effects
     /// that reach past the plan: a route change refreshes the stored departure clearance and the pending
     /// initial-climb phases, and remarks re-derive the CRC voice type. Route is applied after flight rules because
@@ -635,6 +648,12 @@ public sealed partial class SimulationEngine
         if (amendment.FlightRules is not null)
         {
             ac.FlightPlan.FlightRules = amendment.FlightRules;
+        }
+        // Before the route block, whose refresh rebuilds the pending initial climb from the pilot's filed altitude. The pilot
+        // takes the altitude the filing carries, never one an earlier altitude-only amendment left on the plan.
+        if ((ac.FiledCruiseAltitudeFt is null) && (amendment.Altitude is { } filedAltitude) && IsFiling(amendment))
+        {
+            ac.FiledCruiseAltitudeFt = filedAltitude.CruiseFeet;
         }
         if (amendment.Route is not null)
         {

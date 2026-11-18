@@ -359,6 +359,21 @@ public class AircraftState
     public void ClearToFiledDestination() => ClearedDestination = FlightPlan.HasFlightPlan ? FlightPlan.Destination : "";
 
     /// <summary>
+    /// The altitude the pilot filed when the aircraft was created, in feet: the climb a departure with no assigned
+    /// altitude and no SID altitude flies to. Set at spawn, or else, while it is unset, by the first filing that carries an
+    /// altitude (an amendment carrying a route, departure, destination or aircraft type), which gives it that altitude.
+    /// Never written by an altitude-only amendment, so a STARS <c>++</c>, a <c>CRUISE</c>/<c>QZ</c> or an ERAM altitude
+    /// amendment of <see cref="AircraftFlightPlan.Altitude"/> stays data only. Null when none was filed.
+    /// </summary>
+    public int? FiledCruiseAltitudeFt { get; set; }
+
+    /// <summary>
+    /// Takes the filed altitude as the pilot's (<see cref="FiledCruiseAltitudeFt"/>). Called once the flight plan is final
+    /// at spawn and on a live-traffic assume. A later first filing sets the field from the altitude it carries instead.
+    /// </summary>
+    public void ClearToFiledAltitude() => FiledCruiseAltitudeFt = FlightPlan.Altitude.CruiseFeet;
+
+    /// <summary>
     /// Whether the pilot has left the student's frequency: tuned to a position (<see cref="TunedPosition"/>) that is not
     /// <paramref name="studentPosition"/> by callsign, or tuned to any position when there is no student. Compared by
     /// callsign, never by TCP, because tower-cab positions (OAK_GND, OAK_TWR) share one.
@@ -609,6 +624,7 @@ public class AircraftState
             TunedPosition = dto.TunedPosition is null ? null : TrackOwner.FromSnapshot(dto.TunedPosition),
             AirborneCheckInHeldWarned = dto.AirborneCheckInHeldWarned,
             ClearedDestination = dto.ClearedDestination ?? "",
+            FiledCruiseAltitudeFt = dto.FiledCruiseAltitudeFt,
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
             IsGeneratorArrival = dto.IsGeneratorArrival,
             IsGeneratedOverflight = dto.IsGeneratedOverflight,
@@ -732,6 +748,7 @@ public class AircraftState
             TunedPosition = TunedPosition?.ToSnapshot(),
             AirborneCheckInHeldWarned = AirborneCheckInHeldWarned,
             ClearedDestination = ClearedDestination,
+            FiledCruiseAltitudeFt = FiledCruiseAltitudeFt,
             SpawnedAtSeconds = SpawnedAtSeconds,
             IsGeneratorArrival = IsGeneratorArrival,
             IsGeneratedOverflight = IsGeneratedOverflight,

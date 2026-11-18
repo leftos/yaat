@@ -246,7 +246,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
 
         SnapshotSchemaMigrator.Migrate(legacy);
 
-        Assert.Equal(54, legacy.SchemaVersion);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, legacy.SchemaVersion);
         var restored = PhaseList.FromSnapshot(legacy.Aircraft.Single(a => a.Callsign == "UAL1").Phases!, layout);
         HoldingInPositionPhase hold = Assert.IsType<HoldingInPositionPhase>(restored.CurrentPhase);
         Assert.Equal("28L", hold.HeldShortOfRunway);

@@ -167,6 +167,7 @@ public static class LiveTrafficAssumer
         aircraft.LiveTraffic = null;
         // An assumed aircraft is cleared to its filed destination, as a scenario spawn is.
         aircraft.ClearToFiledDestination();
+        aircraft.FiledCruiseAltitudeFt ??= aircraft.FlightPlan.Altitude.CruiseFeet;
         aircraft.Queue.Blocks.Clear();
         aircraft.DeferredDispatches.Clear();
 
@@ -408,7 +409,7 @@ public static class LiveTrafficAssumer
         ac.Targets.DesiredVerticalRate = Math.Abs(vs);
         if (vs > 0)
         {
-            double target = cleared ?? Math.Max(ac.FlightPlan.Altitude.CruiseFeet ?? RoundUpTo1000(ac.Altitude + 1), RoundTo100(ac.Altitude));
+            double target = cleared ?? Math.Max(ac.FiledCruiseAltitudeFt ?? RoundUpTo1000(ac.Altitude + 1), RoundTo100(ac.Altitude));
             ac.Targets.TargetAltitude = target;
             ac.Targets.AssignedAltitude = target;
             return $"climbing to {target:F0}";
@@ -805,7 +806,7 @@ public static class LiveTrafficAssumer
             return null;
         }
 
-        return (sidDeparture && (assigned == ac.FlightPlan.Altitude.CruiseFeet)) ? null : (assigned, false);
+        return (sidDeparture && (assigned == ac.FiledCruiseAltitudeFt)) ? null : (assigned, false);
     }
 
     /// <summary>

@@ -400,6 +400,7 @@ public static class AircraftGenerator
             FlightPlan = BuildBearingFlightPlan(request, flightRules, aircraftType),
         };
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
 
         return (state, null);
     }
@@ -455,6 +456,7 @@ public static class AircraftGenerator
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
         };
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
 
         return (state, null);
     }
@@ -521,6 +523,7 @@ public static class AircraftGenerator
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: airport, route: filedRoute),
         };
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
 
         // The runway-transition designator drives both the lateral route build and the descend-via profile.
         // Zero-pad it (SpawnParser leaves single-digit designators unpadded) so it matches the CIFP
@@ -733,6 +736,7 @@ public static class AircraftGenerator
             Phases = init.Phases,
         };
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
 
         return (state, null);
     }
@@ -793,6 +797,7 @@ public static class AircraftGenerator
             Phases = init.Phases,
         };
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
 
         return (state, null);
     }
@@ -853,6 +858,7 @@ public static class AircraftGenerator
             Phases = init.Phases,
         };
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
 
         return (state, null);
     }

@@ -512,6 +512,8 @@ public class DepartureProcedureVectorClimbStallTests
             },
             Phases = new PhaseList { AssignedRunway = rwy },
         };
+        // Built by hand, not spawned: take the filed altitude as a spawn does.
+        ac.ClearToFiledAltitude();
 
         // The dispatcher caches this when CTO goes through CommandDispatcher (issue #187); this fixture clears
         // the aircraft through the handler directly, so resolve it here from the same TDLS config.

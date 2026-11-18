@@ -268,6 +268,7 @@ public static class ScenarioLoader
         };
         state.FlightPlan.ApplyFiledAircraftData(filed);
         state.ClearToFiledDestination();
+        state.ClearToFiledAltitude();
         return state;
     }
 

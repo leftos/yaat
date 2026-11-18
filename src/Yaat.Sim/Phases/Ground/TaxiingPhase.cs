@@ -3502,7 +3502,7 @@ public sealed class TaxiingPhase : Phase
                 RvSidDeferHeadingUntilMinAlt = dep.RvSidDeferHeadingUntilMinAlt,
                 RvSidHoldRunwayHeading = dep.RvSidHoldRunwayHeading,
                 IsVfr = ctx.Aircraft.FlightPlan.IsVfr,
-                CruiseAltitude = ctx.Aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
+                CruiseAltitude = ctx.Aircraft.FiledCruiseAltitudeFt ?? 0,
             };
             if (rolling)
             {

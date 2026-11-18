@@ -50,6 +50,8 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation,
             Phases = phaseList,
         };
+        // Built by hand, not spawned: take the filed altitude as a spawn does, for the climb phase below to read.
+        aircraft.ClearToFiledAltitude();
         ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
@@ -92,7 +94,7 @@ public class TakeoffDepartureTests
         {
             Departure = departure,
             IsVfr = aircraft.FlightPlan.IsVfr,
-            CruiseAltitude = aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
+            CruiseAltitude = aircraft.FiledCruiseAltitudeFt ?? 0,
         };
         climbPhase.OnStart(ctx);
         climbPhase.OnTick(ctx);
