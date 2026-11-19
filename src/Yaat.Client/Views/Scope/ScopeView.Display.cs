@@ -25,7 +25,7 @@ public partial class ScopeView
     {
         string callsign = context.Callsign;
         bool hidden = vm.IsDataBlockHidden(callsign);
-        var host = new ClientMenuHost(vm.Main, ac, Canvas, vm.Main.ScopeMaps.MvaFacilityId);
+        var host = new ClientMenuHost(vm.Main, ac, Canvas);
         return CanvasMenuItems.Display([
             [
                 CanvasMenuItems.HideDataBlock(hidden, () => SetDataBlockHidden(vm, callsign, !hidden)),

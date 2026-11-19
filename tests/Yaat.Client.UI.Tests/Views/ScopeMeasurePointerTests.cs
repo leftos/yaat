@@ -131,7 +131,7 @@ public class ScopeMeasurePointerTests
         try
         {
             AircraftModel ac = AddAt300(main, view.Canvas, "UAL1");
-            main.SetActiveMeasureView(RblView.Ground);
+            main.SetGroundMeasureActive();
 
             AltDrag(window, view.Canvas, SymbolOf(view.Canvas, ac), MapB);
 

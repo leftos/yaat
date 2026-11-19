@@ -170,7 +170,7 @@ public class ScopeMeasureToolTests
         try
         {
             main.Measure.Arm();
-            main.SetActiveMeasureView(RblView.Ground);
+            main.SetGroundMeasureActive();
 
             window.DispatchKey(Key.Escape);
 
@@ -380,7 +380,7 @@ public class ScopeMeasureToolTests
         {
             AddAircraft(main, "UAL1", 5000);
             AddAircraft(main, "UAL2", 6000);
-            main.SetActiveMeasureView(RblView.Ground);
+            main.SetGroundMeasureActive();
             FocusCanvas(window, view);
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
 
@@ -404,7 +404,7 @@ public class ScopeMeasureToolTests
             AddAircraft(main, "UAL1", 5000);
             AddAircraft(main, "UAL2", 6000);
             FocusCanvas(window, view);
-            main.SetActiveMeasureView(RblView.Ground);
+            main.SetGroundMeasureActive();
 
             await TypeAndEnterAsync(window, scope, ".rbl UAL1 UAL2");
 

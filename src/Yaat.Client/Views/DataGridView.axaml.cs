@@ -309,7 +309,7 @@ public partial class DataGridView : UserControl
         IReadOnlyList<AircraftModel> selection
     )
     {
-        var host = new ClientMenuHost(vm, ac, flyoutTarget, vm.ScopeMaps.MvaFacilityId);
+        var host = new ClientMenuHost(vm, ac, flyoutTarget);
         return AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, previousSelection, null, selection), host, _ => []);
     }
 

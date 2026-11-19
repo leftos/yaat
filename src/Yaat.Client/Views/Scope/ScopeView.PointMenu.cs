@@ -58,7 +58,7 @@ public partial class ScopeView
         }
 
         var point = new MenuPoint(position, null, null, [], null);
-        ClientMenuHost host = new(vm.Main, selected, Canvas, vm.Main.ScopeMaps.MvaFacilityId);
+        ClientMenuHost host = new(vm.Main, selected, Canvas);
         List<Control> section = BuildMapPointSection(vm, position, screenPos, !SharedMenuGroups.PointHeaderShowsFrd(point, host));
         var click = new MenuClick(selected.Callsign, null, point, []);
         return AircraftMenuBuilder.Build(selected, click, host, _ => section);

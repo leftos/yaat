@@ -554,7 +554,7 @@ public partial class GroundView : UserControl
         }
 
         TrimTrailingSeparators(section);
-        var host = new ClientMenuHost(main, selected, Canvas, main.ScopeMaps.MvaFacilityId);
+        var host = new ClientMenuHost(main, selected, Canvas);
         ContextMenu menu = AircraftMenuBuilder.Build(selected, new MenuClick(selected.Callsign, null, point, []), host, _ => section);
         menu.Closed += (_, _) => host.SetRoutePreview(null);
         return menu;
@@ -638,7 +638,7 @@ public partial class GroundView : UserControl
         MainViewModel main =
             FindMainViewModel()
             ?? throw new InvalidOperationException("The ground aircraft menu needs the main view model; the ground view is not hosted by one");
-        var host = new ClientMenuHost(main, ac, Canvas, main.ScopeMaps.MvaFacilityId);
+        var host = new ClientMenuHost(main, ac, Canvas);
         return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, context => BuildViewSection(vm, context));
     }
 
@@ -1099,8 +1099,7 @@ public partial class GroundView : UserControl
     }
 
     // The canvas taking the focus or a press makes the Ground the active measure surface: a typed .rbl A B places here.
-    private void OnCanvasActivatedForMeasure(object? sender, RoutedEventArgs e) =>
-        FindMainViewModel()?.SetActiveMeasureView(GroundViewModel.MeasureView);
+    private void OnCanvasActivatedForMeasure(object? sender, RoutedEventArgs e) => FindMainViewModel()?.SetGroundMeasureActive();
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {

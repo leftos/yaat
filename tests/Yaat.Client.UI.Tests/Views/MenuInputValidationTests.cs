@@ -235,7 +235,7 @@ public class MenuInputValidationTests
         };
         window.ShowAndRunLayout();
 
-        var sent = new SendCapturingHost(new ClientMenuHost(main, aircraft, anchor, mvaFacilityId: null), "AB");
+        var sent = new SendCapturingHost(new ClientMenuHost(main, aircraft, anchor), "AB");
         MenuContext context = TestMenuContext.Create(Callsign, "AB", null, false, VfrCommandsForIfr.None);
         MenuItem entry = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, context, sent));
         var menu = new ContextMenu { Items = { entry } };
@@ -290,7 +290,7 @@ public class MenuInputValidationTests
         };
         window.ShowAndRunLayout();
 
-        var sent = new SendCapturingHost(new ClientMenuHost(main, aircraft, anchor, mvaFacilityId: null), "AB");
+        var sent = new SendCapturingHost(new ClientMenuHost(main, aircraft, anchor), "AB");
         MenuContext context = TestMenuContext.Create(Callsign, "AB", null, false, VfrCommandsForIfr.None);
         MenuItem entry = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.SquawkCode).Build(aircraft, context, sent));
         var menu = new ContextMenu { Items = { entry } };

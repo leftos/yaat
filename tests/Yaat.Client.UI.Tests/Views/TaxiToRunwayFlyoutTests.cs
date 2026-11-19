@@ -90,7 +90,7 @@ public class TaxiToRunwayFlyoutTests
             main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28L"] });
         }
 
-        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border(), mvaFacilityId: null), Initials);
+        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border()), Initials);
         MenuItem entry = MenuCatalog
             .Get(MenuIds.GroundTaxiToRunway)
             .Build(ac, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None), host)!;

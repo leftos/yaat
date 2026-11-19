@@ -59,7 +59,7 @@ public class MainViewModelActiveMeasureViewTests
         using (scope)
         {
             scope.ActivateMeasureSurface();
-            main.SetActiveMeasureView(RblView.Ground);
+            main.SetGroundMeasureActive();
 
             Assert.Equal(RblView.Ground, main.ActiveMeasureView);
         }

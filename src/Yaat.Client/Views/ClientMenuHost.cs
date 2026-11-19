@@ -26,10 +26,9 @@ namespace Yaat.Client.Views;
 /// view model; fix names and field elevations from its Scope map source (<see cref="MainViewModel.ScopeMaps"/>); the ground
 /// choices from its primary ground view model, which owns the layout the other ground windows mirror; and a route preview
 /// shows on every ground view. Route drawing and tug moves start on the primary ground view. The MVA a menu shows
-/// (<see cref="GetMva"/>) prefers the chart of <paramref name="mvaFacilityId"/>, the Scope map source's
-/// (<see cref="ScopeMapSource.MvaFacilityId"/>) for every menu.
+/// (<see cref="GetMva"/>) prefers the Scope map source's chart (<see cref="ScopeMapSource.MvaFacilityId"/>).
 /// </summary>
-internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft, Control anchor, string? mvaFacilityId) : IMenuHost
+internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft, Control anchor) : IMenuHost
 {
     private static readonly ILogger Log = AppLog.CreateLogger("ClientMenuHost");
 
@@ -377,10 +376,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>
     /// The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>, the
-    /// constructor's <c>mvaFacilityId</c> chart winning where charts overlap.
+    /// Scope map source's chart (<see cref="ScopeMapSource.MvaFacilityId"/>) winning where charts overlap.
     /// </summary>
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
-        (MvaDatabase.Default.FindSector(position, mvaFacilityId) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
+        (MvaDatabase.Default.FindSector(position, main.ScopeMaps.MvaFacilityId) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
 
     /// <summary>
     /// The pattern entries' runway choices at <paramref name="airportId"/> for <paramref name="aircraftType"/>

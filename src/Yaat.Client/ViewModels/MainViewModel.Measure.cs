@@ -42,16 +42,10 @@ public partial class MainViewModel
     /// <summary>The Scope recorded as having taken the measuring surface, open or not. Test seam.</summary>
     internal ScopeViewModel? HeldMeasureScope => _activeMeasureScope;
 
-    /// <summary>Records that the Ground <paramref name="view"/> surface took the focus or a press.</summary>
-    /// <exception cref="ArgumentException"><paramref name="view"/> is the Scope's, which <see cref="SetActiveMeasureScope"/> sets.</exception>
-    public void SetActiveMeasureView(RblView view)
+    /// <summary>Records that the Ground surface took the focus or a press.</summary>
+    public void SetGroundMeasureActive()
     {
-        if (view == RblView.Scope)
-        {
-            throw new ArgumentException("Use SetActiveMeasureScope for a Scope surface", nameof(view));
-        }
-
-        _activeMeasureView = view;
+        _activeMeasureView = GroundViewModel.MeasureView;
         _activeMeasureScope = null;
     }
 

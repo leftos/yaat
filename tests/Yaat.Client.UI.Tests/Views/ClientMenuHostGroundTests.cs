@@ -58,7 +58,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
             .. Enumerable.Range(1, 14).Reverse().Select(i => GroundAircraft($"SWA{i:000}", "Taxiing", new LatLon(at.Lat + (i * 0.001), at.Lon))),
         ];
         MainViewModel main = MainWith(target, [self, airborne, .. traffic]);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         Assert.Equal(Enumerable.Range(1, 14).Select(i => $"SWA{i:000}"), host.GetGroundTrafficRows(Callsign).Select(row => row.Callsign));
     }
@@ -75,7 +75,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel[] delayed = [.. Enumerable.Range(1, 12).Select(i => DelayedSpawn($"DLY{i:00}", new LatLon(at.Lat + (i * 0.0001), at.Lon)))];
         AircraftModel pushingBack = GroundAircraft("SWA1182", "Pushback", new LatLon(at.Lat + 0.002, at.Lon));
         MainViewModel main = MainWith(target, [.. delayed, pushingBack]);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         Assert.Equal(["SWA1182"], host.GetGroundTrafficRows(Callsign).Select(row => row.Callsign));
     }
@@ -93,7 +93,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel creeping = GroundAircraft("HLD1", "Holding In Position", new LatLon(at.Lat + 0.005, at.Lon));
         creeping.GroundSpeed = 1;
         MainViewModel main = MainWith(target, [creeping, parked, rolling, taxiing, pushingBack]);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         Assert.Equal(
             [("PSH1", true), ("TXI1", true), ("ROL1", true), ("PRK1", false), ("HLD1", false)],
@@ -110,7 +110,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         shadow.IsLiveTraffic = true;
         AircraftModel inSim = GroundAircraft(OtherCallsign, "Taxiing", new LatLon(at.Lat + 0.002, at.Lon));
         MainViewModel main = MainWith(target, [shadow, inSim]);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         Assert.Equal(
             [("SHD1", true), (OtherCallsign, false)],
@@ -126,7 +126,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel holding = GroundAircraft(OtherCallsign, $"Holding Short {Runway30HoldShortNode.RunwayId}", PositionOf(Runway30HoldShortNode));
         AircraftModel parked = GroundAircraft("SWA300", "At Parking", PositionOf(PushbackFaceNode));
         MainViewModel main = OakMain(target, [holding, parked]);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         Assert.True(host.IsOnTaxiRoute(Callsign, OtherCallsign));
         Assert.False(host.IsOnTaxiRoute(Callsign, "SWA300"));
@@ -138,7 +138,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void HighlightAircraft_SetsReplacesAndClears_KeepingAHandHighlight()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, null, new Border());
         GroundDataBlockViewState state = main.Ground.DataBlockState;
         state.ToggleHighlight("KEEP1");
         int changes = 0;
@@ -168,7 +168,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void GroundMembers_AircraftNotInTheList_AnswerNothing()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, null, new Border());
 
         Assert.Empty(host.GetGroundTrafficRows(Callsign));
         Assert.Equal(HoldShortMenu.Empty, host.GetHoldShortChoices(Callsign));
@@ -186,7 +186,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingAcrossOnG();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         HoldShortMenu holdShort = host.GetHoldShortChoices(Callsign);
 
@@ -211,7 +211,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = TaxiingAcrossOnG();
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28R"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         HoldShortChoice runway = Assert.Single(host.GetHoldShortChoices(Callsign).Rows, r => r.Label.Badge == HoldShortChoice.RunwayBadge);
 
@@ -222,7 +222,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void SetRoutePreview_SetsAndClearsTheGroundPreview()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, null, new Border());
         var route = new TaxiRoute { Segments = [], HoldShortPoints = [] };
 
         host.SetRoutePreview(route);
@@ -240,7 +240,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         IReadOnlyList<MenuCommandChoice> choices = host.GetPushbackFaceChoices(Callsign);
 
@@ -368,7 +368,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
         target.AssignedRunway = "30";
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         IReadOnlyList<TaxiRouteRow> rows = host.GetPresetTaxiChoices(Callsign);
 
@@ -400,7 +400,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["D30", "28L"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         TaxiToRunwayEndList list = host.GetTaxiToRunwayChoices(Callsign).RunwayEnds;
         IReadOnlyList<TaxiToRunwayEnd> ends = list.Ends;
@@ -429,7 +429,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(NodeBehind(HoldShort30On("W1"), "W1")));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         TaxiToRunwayEnd runway30 = EndOf(Ends(host, Callsign), "30");
 
@@ -451,7 +451,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "12"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         IReadOnlyList<TaxiToRunwayEnd> ends = Ends(host, Callsign);
 
@@ -472,7 +472,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         List<TaxiRouteRow> entries = EntryRows(EndOf(Ends(host, Callsign), "30"));
 
@@ -495,7 +495,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         TaxiRouteRow w3 = Assert.Single(EntryRows(EndOf(Ends(host, Callsign), "30")), r => r.Name == "At W3");
 
@@ -521,11 +521,8 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         cessna.AircraftType = "C172";
         cessna.AssignedRunway = "12";
 
-        TaxiToRunwayEnd jet12 = EndOf(Ends(new ClientMenuHost(OakMain(jet, []), jet, new Border(), mvaFacilityId: null), Callsign), "12");
-        TaxiToRunwayEnd cessna12 = EndOf(
-            Ends(new ClientMenuHost(OakMain(cessna, []), cessna, new Border(), mvaFacilityId: null), OtherCallsign),
-            "12"
-        );
+        TaxiToRunwayEnd jet12 = EndOf(Ends(new ClientMenuHost(OakMain(jet, []), jet, new Border()), Callsign), "12");
+        TaxiToRunwayEnd cessna12 = EndOf(Ends(new ClientMenuHost(OakMain(cessna, []), cessna, new Border()), OtherCallsign), "12");
 
         Assert.Equal((TaxiToRunwayEndRole.Assigned, TaxiToRunwayEndRole.Assigned), (jet12.Role, cessna12.Role));
         Assert.DoesNotContain("At W3", EntryRows(jet12).Select(r => r.Name));
@@ -564,7 +561,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "15", "33"] });
-        return await SearchedEnds(new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(callsign).RunwayEnds);
+        return await SearchedEnds(new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(callsign).RunwayEnds);
     }
 
     /// <summary>The full-length entry rows of the ends among <paramref name="ends"/> named <paramref name="designators"/>.</summary>
@@ -587,7 +584,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         target.AircraftType = "MD81";
         target.AssignedRunway = "12";
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         TaxiToRunwayEnd runway12 = EndOf(Ends(host, Callsign), "12");
 
@@ -632,7 +629,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int before = main.Ground.TaxiToRunwayRouteSearches;
 
         IReadOnlyList<TaxiToRunwayEnd> ends = Ends(host, Callsign);
@@ -651,7 +648,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         target.AssignedRunway = "30";
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28L", "A28R"] });
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         IReadOnlyList<TaxiToRunwayEnd> ends = Ends(host, Callsign);
 
@@ -668,7 +665,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["D30", "28L"] });
-        TaxiToRunwayEndList list = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign).RunwayEnds;
+        TaxiToRunwayEndList list = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign).RunwayEnds;
 
         main.Ground.ClearLayout();
         await list.SearchRunwayOf("28R").WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
@@ -683,7 +680,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         GroundNodeDto bar = Runway30HoldShortNode;
         AircraftModel target = GroundAircraft(Callsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
         target.AssignedRunway = "30";
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         IReadOnlyList<TaxiToRunwayEnd> ends = await SearchedEnds(host.GetTaxiToRunwayChoices(Callsign).RunwayEnds);
 
@@ -701,9 +698,9 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         target.AssignedRunway = "30";
         MainViewModel main = OakMain(target, []);
 
-        TaxiToRunwayMenu first = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign);
+        TaxiToRunwayMenu first = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
         int searches = main.Ground.TaxiToRunwayRouteSearches;
-        TaxiToRunwayMenu second = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign);
+        TaxiToRunwayMenu second = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
 
         Assert.True(searches > 0, "the first open searched no route");
         Assert.Equal(searches, main.Ground.TaxiToRunwayRouteSearches);
@@ -716,10 +713,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
-        TaxiToRunwayMenu noList = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign);
+        TaxiToRunwayMenu noList = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["A30", "A28R"] });
 
-        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign);
+        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
 
         Assert.Empty(Offered(menu.RunwayEnds.Ends));
         Assert.Equal(Summary(noList), Summary(menu));
@@ -732,11 +729,11 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         target.AssignedRunway = "30";
         MainViewModel main = OakMain(target, []);
-        _ = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign);
+        _ = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
         int firstSearches = main.Ground.TaxiToRunwayRouteSearches;
 
         main.Ground.SetLayoutForTesting(Oak);
-        _ = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null).GetTaxiToRunwayChoices(Callsign);
+        _ = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
 
         Assert.True(firstSearches > 0, "the first open searched no route");
         Assert.Equal(2 * firstSearches, main.Ground.TaxiToRunwayRouteSearches);
@@ -748,13 +745,13 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel atStart = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
         TaxiRouteRow terminal = Assert.Single(
-            new ClientMenuHost(OakMain(atStart, []), atStart, new Border(), mvaFacilityId: null).GetPresetTaxiChoices(Callsign),
+            new ClientMenuHost(OakMain(atStart, []), atStart, new Border()).GetPresetTaxiChoices(Callsign),
             r => r.Name == "TERMINAL to 30"
         );
         GroundNodeDto bar = Oak.Nodes.First(n => n.Id == terminal.Preview.Segments[^1].ToNodeId);
         AircraftModel holding = GroundAircraft(OtherCallsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
         holding.AssignedRunway = "30";
-        var host = new ClientMenuHost(OakMain(holding, []), holding, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(holding, []), holding, new Border());
 
         IReadOnlyList<TaxiToRunwayEnd> ends = await SearchedEnds(host.GetTaxiToRunwayChoices(OtherCallsign).RunwayEnds);
 
@@ -772,7 +769,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", ["28L"]);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         IReadOnlyList<TaxiToRunwayEnd> ends = host.GetTaxiToRunwayChoices(Callsign).RunwayEnds.Ends;
 
@@ -1037,7 +1034,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         target.AssignedRunway = "12";
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         TaxiToRunwayEnd runway12 = EndOf(Ends(host, Callsign), "12");
 
@@ -1056,7 +1053,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         target.AssignedRunway = "1L";
         MainViewModel main = MainWith(target, []);
         main.Ground.SetLayoutForTesting(Sfo);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         TaxiToRunwayEnd runway1L = EndOf(Ends(host, Callsign), "1L");
 
@@ -1072,7 +1069,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
         var runway = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!);
 
         IReadOnlyList<MenuCommandChoice> routes = RouteChoices(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, runway.End2));
@@ -1089,7 +1086,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         (GroundNodeDto bar, GroundNodeDto across) = BarsFacingAcrossTheRunway();
         var runway = RunwayIdentifier.Parse(bar.RunwayId!);
         AircraftModel target = GroundAircraft(Callsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         IReadOnlyList<TaxiToRunwayEnd> ends = await SearchedEnds(host.GetTaxiToRunwayChoices(Callsign).RunwayEnds);
 
@@ -1105,7 +1102,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         GroundNodeDto w4 = HoldShort30On("W4");
         AircraftModel atW4 = GroundAircraft(OtherCallsign, $"Holding Short {w4.RunwayId}", PositionOf(w4));
         atW4.AssignedRunway = "30";
-        TaxiToRunwayEnd runway30 = EndOf(Ends(new ClientMenuHost(OakMain(atW4, []), atW4, new Border(), mvaFacilityId: null), OtherCallsign), "30");
+        TaxiToRunwayEnd runway30 = EndOf(Ends(new ClientMenuHost(OakMain(atW4, []), atW4, new Border()), OtherCallsign), "30");
         Assert.Equal(TaxiToRunwayEndRole.Assigned, runway30.Role);
         Assert.Contains(runway30.Rows, r => r.Preview.Segments[^1].ToNodeId == HoldShort30On("W1").Id);
     }
@@ -1244,7 +1241,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void PushbackAndPresetChoices_NoLayout_AreEmpty()
     {
         AircraftModel target = GroundAircraft(Callsign, "At Parking", new LatLon(37.72, -122.22));
-        var host = new ClientMenuHost(MainWith(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(MainWith(target, []), target, new Border());
 
         Assert.Empty(host.GetPushbackFaceChoices(Callsign));
         AssertSettledEmpty(host.GetPushbackTargets(Callsign));
@@ -1257,7 +1254,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         host.EnterPushRoute(Callsign);
 
@@ -1273,7 +1270,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
         // The first node, helipads first, that the pathfinder cannot reach from I30 for a B738.
         GroundNodeDto? unreachable = Oak
@@ -1297,7 +1294,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
         string end1 = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End1;
 
         IReadOnlyList<MenuCommandChoice> routes = RouteChoices(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, null));
@@ -1311,7 +1308,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
         // The other end than the node's own End1, so the answer can only come from the click.
         string clickedEnd = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End2;
 
@@ -1333,7 +1330,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
             .MinBy(n => onR1.Min(r => GeoMath.DistanceNm(PositionOf(n), PositionOf(r))))!;
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(stand));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int holdShortId = main.Ground.FindNearestHoldShortNodeForRunwayEnd(target, "28L")!.Value;
         GroundNodeDto holdShort = Oak.Nodes.Single(n => n.Id == holdShortId);
 
@@ -1358,7 +1355,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = C172AtNew5();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int holdShortId = main.Ground.FindThresholdHoldShortNode(target, "28R")!.Value;
         GroundNodeDto holdShort = Oak.Nodes.Single(n => n.Id == holdShortId);
 
@@ -1376,7 +1373,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = C172AtNew5();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         List<GroundNode> inside = [.. OakNodesInsideAHoldLine(null)];
         Assert.NotEmpty(inside);
 
@@ -1399,7 +1396,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = C172AtNew5();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
 
         foreach (string taxiway in new[] { "B", "C1", "E", "G", "H", "J" })
         {
@@ -1454,7 +1451,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingOnW3();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
         List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
             main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
@@ -1480,7 +1477,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingOnW3();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
         List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
             main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
@@ -1502,7 +1499,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingOnW3();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
         List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
             main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
@@ -1534,7 +1531,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingOnW3();
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
         List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
             main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
@@ -1550,7 +1547,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         List<string> commands = LeafCommands(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, null));
 
@@ -1564,7 +1561,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         GroundNodeDto parking = Oak.Nodes.First(n => (n.Type == "Parking") && (n.Name is not null));
         string rwy = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End1);
         string taxiway = main.Ground.GetNodeTaxiwayNames(PresetTaxiNode.Id)[0];
@@ -1581,7 +1578,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
         MainViewModel main = OakMain(target, []);
-        var host = new ClientMenuHost(main, target, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, target, new Border());
         string end2 = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End2;
         string seed = $"RWY {RunwayIdentifier.ToDisplayDesignator(end2)} TAXI ";
 
@@ -1649,7 +1646,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = TaxiingAcrossOnG();
         AircraftModel candidate = GroundAircraft(OtherCallsign, "Taxiing", new LatLon(target.Position.Lat + 0.002, target.Position.Lon));
         MainViewModel main = OakMain(target, [candidate]);
-        var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border(), mvaFacilityId: null), "AB");
+        var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border()), "AB");
 
         ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(Callsign, null, null, []), host, _ => []);
 
@@ -1842,7 +1839,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = ParkedAt(standName, Callsign);
         MainViewModel main = OakMain(target, others);
         main.Ground.SetPushTargetSeedForTesting(seed);
-        return (target, main, new ClientMenuHost(main, target, new Border(), mvaFacilityId: null));
+        return (target, main, new ClientMenuHost(main, target, new Border()));
     }
 
     /// <summary>A B738 parked on the named OAK stand on its heading, at parking with its parking spot named.</summary>

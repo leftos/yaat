@@ -36,7 +36,7 @@ public class ClientMenuHostTests
         var main = new MainViewModel(new FakeFilePickerService());
         main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "4U", null, 4));
 
-        Assert.Equal(4, new ClientMenuHost(main, null, new Border(), mvaFacilityId: null).ScratchpadMaxLength);
+        Assert.Equal(4, new ClientMenuHost(main, null, new Border()).ScratchpadMaxLength);
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public class ClientMenuHostTests
     public void ScratchpadMaxLength_NoLimitFromTheServer_ReadsThree()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, null, new Border());
 
         main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "4U", null, 0));
         Assert.Equal(3, host.ScratchpadMaxLength);
@@ -65,7 +65,7 @@ public class ClientMenuHostTests
         string? expected = main.ScopeMaps.DescribePoint(37.80, -122.30);
         Assert.NotNull(expected);
 
-        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, null, new Border());
 
         Assert.Equal(expected, host.DescribePoint(new LatLon(37.80, -122.30)));
     }
@@ -75,7 +75,7 @@ public class ClientMenuHostTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        IMenuHost host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        IMenuHost host = new ClientMenuHost(main, null, new Border());
 
         // Not connected to a server, so the send throws; the host shows it rather than letting it escape the click.
         await host.SendAsync("AAL123", "FH 270", "AB");
@@ -105,7 +105,7 @@ public class ClientMenuHostTests
         main.Aircraft.Add(delayed);
         main.Aircraft.Add(shadow);
         main.Aircraft.Add(onGround);
-        var host = new ClientMenuHost(main, self, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, self, new Border());
 
         IReadOnlyList<MenuAirborneTrafficRow> rows = host.GetAirborneTraffic("N302AB");
 
@@ -131,7 +131,7 @@ public class ClientMenuHostTests
         main.Aircraft.Add(self);
         main.Aircraft.Add(pattern);
         main.Aircraft.Add(cruising);
-        var host = new ClientMenuHost(main, self, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, self, new Border());
 
         IReadOnlyList<MenuAirborneTrafficRow> rows = host.GetAirborneTraffic("N302AB");
 
@@ -149,7 +149,7 @@ public class ClientMenuHostTests
         heavy.FiledAircraftType = "B77W/L";
         main.Aircraft.Add(self);
         main.Aircraft.Add(heavy);
-        var host = new ClientMenuHost(main, self, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, self, new Border());
 
         Assert.Equal("B77W", Assert.Single(host.GetAirborneTraffic("N302AB")).Traffic.AircraftType);
     }
@@ -174,7 +174,7 @@ public class ClientMenuHostTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         main.Aircraft.Add(new AircraftModel { Callsign = "DAL2" });
-        IMenuHost host = new ClientMenuHost(main, new AircraftModel { Callsign = "UAL1" }, new Border(), mvaFacilityId: null);
+        IMenuHost host = new ClientMenuHost(main, new AircraftModel { Callsign = "UAL1" }, new Border());
         try
         {
             host.OpenFlightPlanEditor("DAL2");
@@ -197,7 +197,7 @@ public class ClientMenuHostTests
     public void GetReportingPointsNearby_NearOakland_ListsTheNearestReportablePoints()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        var host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), null, new Border());
 
         IReadOnlyList<NearbyReportingPoint> points = host.GetReportingPointsNearby(new LatLon(37.7213, -122.2207));
 
@@ -214,7 +214,7 @@ public class ClientMenuHostTests
     public void GetReportingPointsNearby_Offshore_ListsNone()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        var host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), null, new Border());
 
         Assert.Empty(host.GetReportingPointsNearby(new LatLon(37.0, -124.0)));
     }
@@ -231,7 +231,7 @@ public class ClientMenuHostTests
         Assert.False(main.IsGroundViewPoppedOut);
         Assert.Null(main.GroundShownAirportId);
 
-        new ClientMenuHost(main, ac, new Border(), mvaFacilityId: null).EnterDrawRoute(ac.Callsign);
+        new ClientMenuHost(main, ac, new Border()).EnterDrawRoute(ac.Callsign);
 
         Assert.NotNull(main.GroundShownAirportId);
         Assert.True(main.Ground.IsDrawingRoute, "The draw should start on the primary ground view.");
@@ -262,7 +262,7 @@ public class ClientMenuHostTests
                 Situation = AircraftSituation.IfrEnroute,
             };
             main.Aircraft.Add(ac);
-            IMenuHost host = new ClientMenuHost(main, ac, new Border(), mvaFacilityId: null);
+            IMenuHost host = new ClientMenuHost(main, ac, new Border());
             var context = new MenuContext(new MenuClick(ac.Callsign, null, null, []), host.Session);
             List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Left traffic", "MLT", null, MenuFlightRules.Both)];
             MenuCatalogEntry entry = Assert.Single(QuickCommandResolver.Resolve(entries, ac, context, _ => true).Text);
@@ -357,7 +357,7 @@ public class ClientMenuHostTests
     // Opens a fresh client-host menu on the aircraft and returns what its single quick command sends.
     private static string? MenuSend(MainViewModel main, AircraftModel ac)
     {
-        IMenuHost host = new ClientMenuHost(main, ac, new Border(), mvaFacilityId: null);
+        IMenuHost host = new ClientMenuHost(main, ac, new Border());
         var context = new MenuContext(new MenuClick(ac.Callsign, null, null, []), host.Session);
         MenuCatalogEntry entry = Assert.Single(QuickCommandResolver.Resolve(ac, context, _ => true).Text);
         return MenuCommandText.GetCommand(Assert.IsType<MenuItem>(entry.Build(ac, context, host)));

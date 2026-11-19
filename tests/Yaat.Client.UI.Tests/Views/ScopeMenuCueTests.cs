@@ -30,7 +30,7 @@ public class ScopeMenuCueTests
         var main = new MainViewModel(new FakeFilePickerService());
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
-        var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+        var host = new ClientMenuHost(main, null, new Border());
         scope.DataBlockState.ToggleHighlight("KEEP1");
 
         host.HighlightAircraft("SWA1");
@@ -65,7 +65,7 @@ public class ScopeMenuCueTests
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = ShowScope();
         try
         {
-            var host = new ClientMenuHost(main, null, new Border(), mvaFacilityId: null);
+            var host = new ClientMenuHost(main, null, new Border());
             AircraftModel from = AddAircraft(main, view.Canvas, From, 300, 400);
             AircraftModel target = AddAircraft(main, view.Canvas, Target, 300, 200);
             var cue = new MapCue(From, Target, null, ShowBearingLabel: true);

@@ -74,7 +74,7 @@ public sealed partial class ScopeViewModel
 
         if (status is not null)
         {
-            ShowMeasureResponse(status);
+            ShowMeasureResponse(status, isPrompt: true);
         }
     }
 
@@ -109,7 +109,7 @@ public sealed partial class ScopeViewModel
     // A Scope-started measure status in the response: an error for a full store, text otherwise. A pick's status while the tool
     // stays armed is the tool's own prompt, which Esc takes with the measurement and a disarm elsewhere takes down; a placed
     // reading (isPrompt false) never is.
-    private void ShowMeasureResponse(string status, bool isPrompt = true)
+    private void ShowMeasureResponse(string status, bool isPrompt)
     {
         var response = new ScopeEntryResponse(
             status == RangeBearingViewState.FullStatus ? ScopeResponseKind.Error : ScopeResponseKind.Text,

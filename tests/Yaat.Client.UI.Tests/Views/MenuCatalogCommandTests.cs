@@ -3228,7 +3228,7 @@ public class MenuCatalogCommandTests
         main.Aircraft.Add(ac);
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "12", "28L", "10R", "28R", "10L", "15", "33"] });
-        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border(), mvaFacilityId: null), Initials);
+        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border()), Initials);
 
         MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
 
@@ -3583,7 +3583,7 @@ public class MenuCatalogCommandTests
         Assert.IsType<Separator>(cto.Items[^2]);
 
         AircraftModel ac = OnGround("Taxiing", "IFR", "30");
-        IMenuHost host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border(), mvaFacilityId: null);
+        IMenuHost host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border());
 
         MenuItem? clientCto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(ac, Context(VfrCommandsForIfr.None), host);
 
