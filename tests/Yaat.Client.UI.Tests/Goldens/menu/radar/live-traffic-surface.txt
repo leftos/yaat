@@ -25,7 +25,6 @@ All Commands
     Acknowledge release alias:RDACK
   ---
   Display
-    Mini datablock
     Hide datablock
     Show nav route
     Measure from UAL402
@@ -41,21 +40,11 @@ All Commands
       8
       9
     J-ring
-      Clear
-      1 nm
-      2 nm
-      3 nm
-      5 nm
-      10 nm
     Cone
-      Clear
-      1 nm
-      2 nm
-      3 nm
-      5 nm
-      10 nm
     ---
     Blank target
     Unblank target
 ---
 Delete alias:DEL
+---
+Settings for this view…

@@ -15,7 +15,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Settings;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -377,8 +377,8 @@ public class SettingsDialogHostTests
     public void OpenSettings_BlocksInputToOtherWindows_WithoutDisablingThem(string? closeButton)
     {
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
-        var radar = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
-        radar.ShowAndRunLayout();
+        var poppedOut = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
+        poppedOut.ShowAndRunLayout();
         var probe = new CheckBox
         {
             Content = "Probe",
@@ -411,7 +411,7 @@ public class SettingsDialogHostTests
         {
             SettingsWindow dialog = OpenSettings(main);
 
-            Assert.True(radar.IsEnabled, "a popped-out window keeps its look while Settings is open");
+            Assert.True(poppedOut.IsEnabled, "a popped-out window keeps its look while Settings is open");
             Assert.True(main.IsEnabled);
             Assert.True(other.IsEnabled);
             ClickCenter(other);
@@ -448,7 +448,7 @@ public class SettingsDialogHostTests
         }
         finally
         {
-            radar.Close();
+            poppedOut.Close();
             other.Close();
             tapped.Close();
             MainWindowHost.CloseAll(main);

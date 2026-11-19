@@ -58,7 +58,6 @@ All Commands
     Edit flight plan
   ---
   Display
-    Mini datablock
     Hide datablock
     Show nav route
     Measure from SWA101
@@ -74,19 +73,7 @@ All Commands
       8
       9
     J-ring
-      Clear
-      1 nm
-      2 nm
-      3 nm
-      5 nm
-      10 nm
     Cone
-      Clear
-      1 nm
-      2 nm
-      3 nm
-      5 nm
-      10 nm
     ---
     Blank target
     Unblank target
@@ -94,3 +81,5 @@ Favorite Commands
   (no items) [disabled]
 ---
 Delete alias:DEL
+---
+Settings for this view…

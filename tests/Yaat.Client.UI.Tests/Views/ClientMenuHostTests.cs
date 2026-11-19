@@ -55,14 +55,13 @@ public class ClientMenuHostTests
         Assert.Equal(3, host.ScratchpadMaxLength);
     }
 
-    /// <summary>A point is named from the Scope's map source, so it is named even while the radar holds no fixes.</summary>
+    /// <summary>A point is named from the Scope's map source.</summary>
     [AvaloniaFact]
-    public async Task DescribePoint_ReadsTheSourcesFixes_WithTheRadarsFixesEmpty()
+    public async Task DescribePoint_ReadsTheSourcesFixes()
     {
         (MainViewModel main, GatedStartupLoads loads) = GatedStartupLoads.Create();
         loads.Gate.SetResult();
         await main.NavDataInitialization;
-        main.Radar.SetFixes([]);
         string? expected = main.ScopeMaps.DescribePoint(37.80, -122.30);
         Assert.NotNull(expected);
 

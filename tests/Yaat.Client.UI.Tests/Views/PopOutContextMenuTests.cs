@@ -3,7 +3,6 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -21,7 +20,6 @@ public class PopOutContextMenuTests
         {
             ("Aircraft List", new DataGridWindow()),
             ("Ground View", new GroundViewWindow()),
-            ("Radar View", new RadarViewWindow()),
             ("Controllers", new ControllersWindow()),
             ("METAR", new MetarWindow()),
             ("Terminal", new TerminalWindow()),

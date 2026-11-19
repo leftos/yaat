@@ -12,9 +12,10 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The foot every aircraft menu ends with: a separator, Delete, then the RPO items, with Warp… and the
-/// release-to-live-feed item closing All Commands, built through each view's whole-menu builder over the golden fixtures. The aircraft is marked as
-/// assumed from the live feed so the release item shows, and the room has one other member so the RPO items show.
+/// The foot every aircraft menu ends with: a separator, Delete, then the RPO items (on the Scope, then a separator and
+/// "Settings for this view…"), with Warp… and the release-to-live-feed item closing All Commands, built through each
+/// view's whole-menu builder over the golden fixtures. The aircraft is marked as assumed from the live feed so the
+/// release item shows, and the room has one other member so the RPO items show.
 /// </summary>
 public class MenuFootTests
 {
@@ -23,16 +24,16 @@ public class MenuFootTests
     private readonly NavigationDatabase _navDb = MenuGoldenFixtures.EnsureNavData();
 
     [AvaloniaFact]
-    public void RadarMenu_EndsWithDeleteThenRpoItems_WarpAndReleaseCloseAllCommands()
+    public void ScopeMenu_EndsWithDeleteThenRpoItemsThenViewSettings_WarpAndReleaseCloseAllCommands()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Favorite Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
+        Assert.Equal(["Favorite Commands", "---", "Delete", "---", "Give control", "Unassign", "---", "Settings for this view…"], items[^8..]);
         Assert.Equal(["---", "Warp…", "Release to live feed", "---", "Display", "Draw route"], commands[^6..]);
     }
 
     [AvaloniaFact]
-    public void RadarMenu_HasNoSimControlSubmenu()
+    public void ScopeMenu_HasNoSimControlSubmenu()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: false);
 
@@ -44,11 +45,14 @@ public class MenuFootTests
 
     // A surface shadow is never assumable, so the warp, which goes through the command path, stays out of its menu.
     [AvaloniaFact]
-    public void RadarSurfaceShadowMenu_OffersNoWarp()
+    public void ScopeSurfaceShadowMenu_OffersNoWarp()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "live-traffic-surface", assumedFromLiveFeed: false);
 
-        Assert.Equal(["---", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(
+            ["---", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign", "---", "Settings for this view…"],
+            items[^10..]
+        );
         Assert.DoesNotContain("Warp…", commands);
     }
 
@@ -111,7 +115,7 @@ public class MenuFootTests
 
         return view switch
         {
-            MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
+            MenuView.Radar => MenuHostHarness.BuildScopeMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };

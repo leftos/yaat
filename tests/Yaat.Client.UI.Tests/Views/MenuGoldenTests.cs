@@ -18,9 +18,12 @@ public class MenuGoldenTests
 {
     private const string RegenerateVariable = "YAAT_MENU_GOLDEN_REGENERATE";
     private const int DiffLines = 8;
+
+    /// <summary>The Scope's last root item, which with the separator before it closes the view's own section.</summary>
+    private const string ViewSettingsHeader = "Settings for this view…";
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    /// <summary>The labels that open a view's own section: the canvases' Display submenu and the radar's Draw route.</summary>
+    /// <summary>The labels that open a view's own section: the canvases' Display submenu and the Scope's Draw route.</summary>
     private static readonly string[] ViewSectionHeads = ["Display", "Draw route"];
 
     private readonly NavigationDatabase _navDb;
@@ -28,7 +31,7 @@ public class MenuGoldenTests
     public MenuGoldenTests() => _navDb = MenuGoldenFixtures.EnsureNavData();
 
     [AvaloniaFact]
-    public Task RadarMenus_MatchGoldens() => AssertGoldens(MenuView.Radar);
+    public Task ScopeMenus_MatchGoldens() => AssertGoldens(MenuView.Radar);
 
     [AvaloniaFact]
     public Task GroundMenus_MatchGoldens() => AssertGoldens(MenuView.Ground);
@@ -66,12 +69,12 @@ public class MenuGoldenTests
     }
 
     /// <summary>
-    /// The radar point menu with the quick command icons off, for the airborne ifr-enroute fixture selected and a map point
+    /// The Scope point menu with the quick command icons off, for the airborne ifr-enroute fixture selected and a map point
     /// south-east of it: no icon strip, every strip item a text row (Fly heading with its turn row, Direct to, Append direct
-    /// to, the two holds, then Warp here), then the radar's point section at the root.
+    /// to, the two holds, then Warp here), then the Scope's point section at the root.
     /// </summary>
     [AvaloniaFact]
-    public void RadarPointMenu_IconsOff_MatchesGolden()
+    public void ScopePointMenu_IconsOff_MatchesGolden()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -81,11 +84,10 @@ public class MenuGoldenTests
         main.Aircraft.Add(fixture.Aircraft);
         main.Preferences.SetShowQuickCommandIcons(false);
         // A fix to name the point by, so Direct to, Append direct to and the holds have their FRD.
-        main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
         main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
         LatLon point = new(fixture.Aircraft.Position.Lat - 0.1, fixture.Aircraft.Position.Lon + 0.1);
 
-        ContextMenu menu = MenuHostHarness.BuildRadarPointMenu(main, fixture.Aircraft, point);
+        ContextMenu menu = MenuHostHarness.BuildScopePointMenu(main, fixture.Aircraft, point);
 
         AssertGolden("filled", "radar-point-icons-off", $"# radar point, icons off\n{MenuTreeSnapshot.Render(menu)}");
     }
@@ -202,7 +204,26 @@ public class MenuGoldenTests
             sectionIndent = indent;
         }
 
+        DropTrailingViewSettings(kept);
         return string.Join('\n', kept);
+    }
+
+    /// <summary>
+    /// Drops the Scope's "---" and "Settings for this view…" when they are the menu's last two root items (before the
+    /// golden's closing empty line): that pair is the view's own. The item anywhere else stays in the compared text.
+    /// </summary>
+    private static void DropTrailingViewSettings(List<string> kept)
+    {
+        int end = kept.Count;
+        while ((end > 0) && (kept[end - 1].Length == 0))
+        {
+            end--;
+        }
+
+        if ((end >= 2) && (kept[end - 1] == ViewSettingsHeader) && (kept[end - 2] == "---"))
+        {
+            kept.RemoveRange(end - 2, 2);
+        }
     }
 
     private async Task AssertGoldens(MenuView view)
@@ -293,7 +314,7 @@ public class MenuGoldenTests
             main.Preferences.SetShowQuickCommandIcons(fixture.ShowQuickCommandIcons);
             ContextMenu menu = view switch
             {
-                MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected),
+                MenuView.Radar => MenuHostHarness.BuildScopeMenu(main, fixture.Aircraft, fixture.Selected),
                 MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected),
                 _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, fixture.Selected, [fixture.Aircraft]),
             };

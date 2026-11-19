@@ -13,7 +13,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
@@ -258,10 +258,10 @@ public class MenuHeaderTests
     private const string VfrOnlyCommand = "ELD 28L";
 
     [AvaloniaFact]
-    public async Task ClientHost_Command_OpensOnTheRadarAndGoesThroughTheVfrGate()
+    public async Task ClientHost_Command_OpensOnTheScopeAndGoesThroughTheVfrGate()
     {
         (MainViewModel main, AircraftModel ac) = await GatedMainAsync();
-        var view = new RadarView { DataContext = main.Radar };
+        var view = new ScopeView { DataContext = main.PrimaryScope };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
         AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas, mvaFacilityId: null), view, main);
@@ -275,7 +275,7 @@ public class MenuHeaderTests
     public async Task ClientHost_Command_Allowed_ReachesTheSend()
     {
         (MainViewModel main, AircraftModel ac) = await GatedMainAsync();
-        var view = new RadarView { DataContext = main.Radar };
+        var view = new ScopeView { DataContext = main.PrimaryScope };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
         new ClientMenuHost(main, ac, view.Canvas, mvaFacilityId: null).ShowCommandFlyout(Callsign, Initials);
@@ -309,10 +309,10 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void ClientHost_Note_OpensThePrefilledPopupOnTheRadar_AndHandsBackTheNoteCommand()
+    public void ClientHost_Note_OpensThePrefilledPopupOnTheScope_AndHandsBackTheNoteCommand()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var view = new RadarView { DataContext = main.Radar };
+        var view = new ScopeView { DataContext = main.PrimaryScope };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
         AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas, mvaFacilityId: null), view);
@@ -520,7 +520,7 @@ public class MenuHeaderTests
         ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
+        ContextMenu menu = MenuHostHarness.BuildScopeMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
         Assert.DoesNotContain("Release (HFR)", items);
@@ -540,7 +540,7 @@ public class MenuHeaderTests
         ac.HoldKind = "HoldPosition";
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
+        ContextMenu menu = MenuHostHarness.BuildScopeMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
         Assert.Equal(["SWA108 · B738", "Taxiing", "Held: position", "---", StripRow], items[..5]);
@@ -619,7 +619,7 @@ public class MenuHeaderTests
 
         menu = view switch
         {
-            MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
+            MenuView.Radar => MenuHostHarness.BuildScopeMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };

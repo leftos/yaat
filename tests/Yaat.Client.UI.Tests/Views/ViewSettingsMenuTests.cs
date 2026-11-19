@@ -17,27 +17,15 @@ using Yaat.Sim;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The right-click menus of the radar, ground, aircraft list and terminal views end with "Settings for this view…", which asks
-/// the main view model for Settings opened at that view's section.
+/// The right-click menus of the ground, aircraft list and terminal views end with "Settings for this view…", which asks
+/// the main view model for Settings opened at that view's section. The Scope's are pinned by ScopeViewSettingsMenuTests and
+/// ScopeAircraftMenuTests.
 /// </summary>
 public class ViewSettingsMenuTests
 {
     private const string Header = "Settings for this view…";
     private const double Lat = 37.620;
     private const double Lon = -122.380;
-
-    [AvaloniaFact]
-    public void RadarMapMenu_EndsWithSettingsForThisView_OpeningRadar()
-    {
-        var mainVm = new MainViewModel(new FakeFilePickerService());
-        var view = new RadarView { DataContext = mainVm.Radar };
-        var host = new Grid { DataContext = mainVm };
-        host.Children.Add(view);
-
-        ContextMenu? menu = view.BuildMapContextMenu(Lat, Lon, new Point(10, 10));
-
-        AssertLastItemRequests(menu, mainVm, SettingsSectionId.Radar);
-    }
 
     [AvaloniaFact]
     public void GroundMenu_EndsWithSettingsForThisView_OpeningGround()
@@ -88,20 +76,6 @@ public class ViewSettingsMenuTests
         ContextMenu menu = DataGridView.BuildRowContextMenu(mainVm, new DataGrid(), ac, null, [ac]);
 
         AssertLastItemRequests(menu, mainVm, SettingsSectionId.AircraftList);
-    }
-
-    [AvaloniaFact]
-    public void RadarAircraftMenu_EndsWithSettingsForThisView_OpeningRadar()
-    {
-        var mainVm = new MainViewModel(new FakeFilePickerService());
-        AircraftModel ac = Aircraft();
-        var view = new RadarView { DataContext = mainVm.Radar };
-        var host = new Grid { DataContext = mainVm };
-        host.Children.Add(view);
-
-        ContextMenu menu = view.BuildAircraftRightClickMenu(mainVm.Radar, ac, null, ac.Callsign);
-
-        AssertLastItemRequests(menu, mainVm, SettingsSectionId.Radar);
     }
 
     [AvaloniaFact]

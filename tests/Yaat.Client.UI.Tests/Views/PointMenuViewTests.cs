@@ -16,7 +16,6 @@ using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -347,138 +346,6 @@ public class PointMenuViewTests
 
     // --- Radar map --------------------------------------------------------------------------
 
-    [AvaloniaFact]
-    public void Map_AirborneSelected_PointItemsThenTheViewSection()
-    {
-        (RadarView view, MainViewModel main) = RadarHarness();
-        AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
-        main.Aircraft.Add(ac);
-        main.Radar.SelectedAircraft = ac;
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, new LatLon(37.60, -121.90), default);
-
-        List<string> labels = Labels(menu.Items);
-        Assert.Equal($"{Callsign} · B738 → this point", labels[0]);
-        Assert.Equal("", labels[1]);
-        Assert.EndsWith(" from the aircraft", labels[2]);
-        Assert.Equal(Separator, labels[3]);
-        Assert.Contains(labels, l => l.StartsWith("Fly heading ", StringComparison.Ordinal));
-        Assert.StartsWith("MVA", labels[^1]);
-    }
-
-    // The header's second row names the point by its FRD, so the radar section leaves out its own FRD row.
-    [AvaloniaFact]
-    public void Map_SelectedWithFrd_HeaderCarriesTheFrdAndTheSectionDropsItsRow()
-    {
-        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        (RadarView view, MainViewModel main) = RadarHarness();
-        main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
-        main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
-        AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
-        main.Aircraft.Add(ac);
-        main.Radar.SelectedAircraft = ac;
-        var position = new LatLon(37.80, -122.20);
-        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.ScopeMaps.Fixes!, NavigationDatabase.Instance)!;
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
-
-        List<string> labels = Labels(menu.Items);
-        Assert.StartsWith($"{frd} · ", labels[2]);
-        Assert.DoesNotContain(frd, labels);
-        Assert.Contains("Copy FRD", labels);
-    }
-
-    [AvaloniaFact]
-    public void Map_NothingSelectedWithFrd_KeepsTheFrdRow()
-    {
-        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        (RadarView view, MainViewModel main) = RadarHarness();
-        main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
-        main.ScopeMaps.SetFixesForTesting([("OAK", 37.7213, -122.2208)]);
-        var position = new LatLon(37.80, -122.20);
-        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.ScopeMaps.Fixes!, NavigationDatabase.Instance)!;
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
-
-        List<string> labels = Labels(menu.Items);
-        Assert.Equal([frd, "Copy FRD"], labels[..2]);
-    }
-
-    // --- MVA row ------------------------------------------------------------------------------
-
-    [AvaloniaFact]
-    public void Map_MvaRow_NamesTheFloorAndSector()
-    {
-        (RadarView view, MainViewModel main) = RadarHarness();
-        var koak = new LatLon(37.7213, -122.2208);
-        MvaSector sector = MvaDatabase.Default.FindSector(koak, preferredFacility: null)!;
-        Assert.Equal(2000, sector.FloorFtMsl);
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, koak, default);
-
-        MenuItem row = Assert.IsType<MenuItem>(menu.Items[^1]);
-        Assert.Equal($"MVA 2,000 ft (sector {sector.Sector})", row.Header);
-        Assert.False(row.IsEnabled);
-        Assert.Equal(0.8, row.Opacity);
-    }
-
-    [AvaloniaFact]
-    public void Map_MvaRow_PrefersTheLoadedFacilityChart()
-    {
-        (RadarView view, MainViewModel main) = RadarHarness();
-        Assert.Null(main.Radar.MvaFacilityId);
-
-        // Video maps for FAT load: the radar's MVA readouts now prefer FAT's chart, so KFAT reads FAT's 1900
-        // (ZOA map 322) rather than NCT's overlapping 2000.
-        main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "FAT", [], [], []));
-        Assert.Equal("FAT", main.Radar.MvaFacilityId);
-        var kfat = new LatLon(36.7762, -119.7181);
-        MvaSector sector = MvaDatabase.Default.FindSector(kfat, preferredFacility: "FAT")!;
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, kfat, default);
-
-        MenuItem row = Assert.IsType<MenuItem>(menu.Items[^1]);
-        Assert.Equal($"MVA 1,900 ft (sector {sector.Sector})", row.Header);
-    }
-
-    [AvaloniaFact]
-    public void MvaFacility_FollowsVideoMapLoadsOntoTheCanvas()
-    {
-        (RadarView view, MainViewModel main) = RadarHarness();
-
-        main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "FAT", [], [], []));
-        Assert.Equal("FAT", view.Canvas.MvaFacilityId);
-
-        main.Radar.ClearVideoMaps();
-        Assert.Null(main.Radar.MvaFacilityId);
-        Assert.Null(view.Canvas.MvaFacilityId);
-
-        main.Radar.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", FacilityId: " ", [], [], []));
-        Assert.Null(main.Radar.MvaFacilityId);
-    }
-
-    [AvaloniaFact]
-    public void Map_NoMvaData_HasNoMvaRow()
-    {
-        (RadarView view, MainViewModel main) = RadarHarness();
-        var midAtlantic = new LatLon(40.0, -70.0);
-        Assert.Null(MvaDatabase.Default.FindSector(midAtlantic, preferredFacility: null));
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, midAtlantic, default);
-
-        Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("MVA", StringComparison.Ordinal));
-    }
-
-    [AvaloniaFact]
-    public void Map_NothingSelected_OpensOnlyTheViewSection()
-    {
-        (RadarView view, MainViewModel main) = RadarHarness();
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, new LatLon(37.60, -121.90), default);
-
-        AssertOnlyMapSection(Labels(menu.Items));
-    }
-
     /// <summary>
     /// The navigation-data load is held open: once it lands, the radar's fixes name the clicked point and the section gains
     /// its FRD rows, so the test would be racing the load rather than asserting what the app shows before it finishes.
@@ -522,20 +389,6 @@ public class PointMenuViewTests
         }
 
         var view = new GroundView { DataContext = main.Ground };
-        var host = new Grid { DataContext = main };
-        host.Children.Add(view);
-        return (view, main);
-    }
-
-    /// <summary>
-    /// A radar view over a main view model whose navigation-data load is held open: the radar's fixes stay unloaded, so a
-    /// test's point section cannot pick up the FRD rows the load adds once it lands.
-    /// </summary>
-    private static (RadarView View, MainViewModel Main) RadarHarness()
-    {
-        (MainViewModel main, _) = GatedStartupLoads.Create();
-        main.Aircraft.Clear();
-        var view = new RadarView { DataContext = main.Radar };
         var host = new Grid { DataContext = main };
         host.Children.Add(view);
         return (view, main);

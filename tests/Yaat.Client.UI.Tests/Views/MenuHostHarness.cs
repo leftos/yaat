@@ -3,28 +3,29 @@ using Avalonia.Controls;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// Builds the radar and ground aircraft menus the way the client hosts the views: each view in a shown
+/// Builds the scope and ground aircraft menus the way the client hosts the views: each view in a shown
 /// <see cref="Window"/> whose data context is the main view model, with the selection the right-click handler leaves —
 /// the previously selected aircraft, else the right-clicked one.
 /// </summary>
 internal static class MenuHostHarness
 {
-    /// <summary>The radar menu for <paramref name="ac"/>, with <paramref name="selected"/> as the previous selection.</summary>
-    public static ContextMenu BuildRadarMenu(MainViewModel main, AircraftModel ac, AircraftModel? selected)
+    /// <summary>The primary scope's menu for <paramref name="ac"/>, with <paramref name="selected"/> as the previous selection.</summary>
+    public static ContextMenu BuildScopeMenu(MainViewModel main, AircraftModel ac, AircraftModel? selected)
     {
-        var view = new RadarView { DataContext = main.Radar };
+        ScopeViewModel scope = main.PrimaryScope;
+        var view = new ScopeView { DataContext = scope };
         var window = new Window { DataContext = main, Content = view };
         window.Show();
         try
         {
-            main.Radar.SelectedAircraft = selected ?? ac;
-            return view.BuildAircraftContextMenu(main.Radar, ac, selected, ac.Callsign);
+            scope.SelectedAircraft = selected ?? ac;
+            return view.BuildAircraftMenu(scope, ac, selected, ac.Callsign);
         }
         finally
         {
@@ -32,16 +33,20 @@ internal static class MenuHostHarness
         }
     }
 
-    /// <summary>The radar's point menu for a right-click on empty map at <paramref name="position"/> with <paramref name="selected"/> selected.</summary>
-    public static ContextMenu BuildRadarPointMenu(MainViewModel main, AircraftModel selected, LatLon position)
+    /// <summary>
+    /// The primary scope's point menu for a right-click on empty map at <paramref name="position"/> with
+    /// <paramref name="selected"/> selected.
+    /// </summary>
+    public static ContextMenu BuildScopePointMenu(MainViewModel main, AircraftModel selected, LatLon position)
     {
-        var view = new RadarView { DataContext = main.Radar };
+        ScopeViewModel scope = main.PrimaryScope;
+        var view = new ScopeView { DataContext = scope };
         var window = new Window { DataContext = main, Content = view };
         window.Show();
         try
         {
-            main.Radar.SelectedAircraft = selected;
-            return view.BuildMapPointMenu(main.Radar, position, new Point(10, 10));
+            scope.SelectedAircraft = selected;
+            return view.BuildMapPointMenu(scope, position, new Point(10, 10));
         }
         finally
         {

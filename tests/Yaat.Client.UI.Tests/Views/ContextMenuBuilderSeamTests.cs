@@ -7,7 +7,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 
@@ -19,6 +19,9 @@ namespace Yaat.Client.UI.Tests.Views;
 // so their MenuPickerDescriptor carries the values for inspection.
 public class ContextMenuBuilderSeamTests
 {
+    /// <summary>The Scope's last root item, after a separator: the view's own, which the ground and the list do not add.</summary>
+    private const string ViewSettingsHeader = "Settings for this view…";
+
     /// <summary>Each top-level item as its header text, with a separator written as <c>---</c>.</summary>
     private static List<string> Sequence(ContextMenu menu) => Sequence(menu.Items);
 
@@ -56,13 +59,13 @@ public class ContextMenuBuilderSeamTests
     }
 
     /// <summary>
-    /// A radar view parented to a host carrying the MainViewModel, so <c>FindMainViewModel</c> resolves and the
-    /// favorites and RPO blocks build as they do in the running client.
+    /// A Scope view over the main view model's primary Scope, parented to a host carrying the MainViewModel, as the
+    /// running client hosts it.
     /// </summary>
-    private static (RadarView View, MainViewModel Main) RadarHarness()
+    private static (ScopeView View, MainViewModel Main) ScopeHarness()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var view = new RadarView { DataContext = main.Radar };
+        var view = new ScopeView { DataContext = main.PrimaryScope };
         var host = new Grid { DataContext = main };
         host.Children.Add(view);
         return (view, main);
@@ -89,15 +92,28 @@ public class ContextMenuBuilderSeamTests
         };
 
     [AvaloniaFact]
-    public void RadarBuildAircraftContextMenu_ReturnsTopLevelItems()
+    public void ScopeBuildAircraftMenu_ReturnsTopLevelItems()
     {
-        (RadarView view, MainViewModel main) = RadarHarness();
+        (ScopeView view, MainViewModel main) = ScopeHarness();
         AircraftModel ac = AirborneIfr("AAL123", "InitialClimb");
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
+        ContextMenu menu = view.BuildAircraftMenu(main.PrimaryScope, ac, prevSelected: null, ac.Callsign);
 
-        AssertSequence(menu, "AAL123 · B738", "Departure", "---", "Command…", "Note…", "All Commands", "Favorite Commands", "---", "Delete");
+        AssertSequence(
+            menu,
+            "AAL123 · B738",
+            "Departure",
+            "---",
+            "Command…",
+            "Note…",
+            "All Commands",
+            "Favorite Commands",
+            "---",
+            "Delete",
+            "---",
+            ViewSettingsHeader
+        );
         Assert.Equal(
             ["Vectors", "Approach", "Pilot reports", "Track and coordination", "---", "Warp…", "---", "Display", "Draw route"],
             AllCommandsSequence(menu)
@@ -105,17 +121,31 @@ public class ContextMenuBuilderSeamTests
     }
 
     [AvaloniaFact]
-    public void RadarBuildAircraftContextMenu_SurfaceShadow_ReadOnlyItems()
+    public void ScopeBuildAircraftMenu_SurfaceShadow_ReadOnlyItems()
     {
-        (RadarView view, MainViewModel main) = RadarHarness();
+        (ScopeView view, MainViewModel main) = ScopeHarness();
         AircraftModel ac = AirborneIfr("SWA9", "InitialClimb");
         ac.IsLiveTraffic = true;
         ac.IsOnGround = true;
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
+        ContextMenu menu = view.BuildAircraftMenu(main.PrimaryScope, ac, prevSelected: null, ac.Callsign);
 
-        AssertSequence(menu, "SWA9 · B738", "Departure", "---", "Command…", "Note…", "---", "Favorite Commands", "All Commands", "---", "Delete");
+        AssertSequence(
+            menu,
+            "SWA9 · B738",
+            "Departure",
+            "---",
+            "Command…",
+            "Note…",
+            "---",
+            "Favorite Commands",
+            "All Commands",
+            "---",
+            "Delete",
+            "---",
+            ViewSettingsHeader
+        );
         Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(menu));
         // A surface shadow is not assumable, so it gets neither the assume items nor any relative-traffic block.
         Assert.DoesNotContain(Sequence(menu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
@@ -130,12 +160,12 @@ public class ContextMenuBuilderSeamTests
         return ac;
     }
 
-    /// <summary>A surface shadow's radar menu, through the radar view's whole-menu builder.</summary>
-    private static ContextMenu RadarSurfaceShadowMenu(AircraftModel shadow)
+    /// <summary>A surface shadow's Scope menu, through the Scope view's whole-menu builder.</summary>
+    private static ContextMenu ScopeSurfaceShadowMenu(AircraftModel shadow)
     {
-        (RadarView view, MainViewModel main) = RadarHarness();
+        (ScopeView view, MainViewModel main) = ScopeHarness();
         main.Aircraft.Add(shadow);
-        return view.BuildAircraftContextMenu(main.Radar, shadow, prevSelected: null, shadow.Callsign);
+        return view.BuildAircraftMenu(main.PrimaryScope, shadow, prevSelected: null, shadow.Callsign);
     }
 
     /// <summary>A surface shadow's ground menu, through the ground view's whole-menu builder.</summary>
@@ -171,24 +201,16 @@ public class ContextMenuBuilderSeamTests
     private static List<string> DisplayHeaders(ContextMenu menu) =>
         [.. DisplayOf(menu).Items.OfType<MenuItem>().Select(i => i.Header as string ?? "")];
 
-    // Each canvas's Display is the view's own: each builds it from its own canvas state, so it still builds over a host
-    // with no canvas members at all.
+    // The ground canvas's Display is the view's own: it builds from its own canvas state, with no menu host at all.
     [AvaloniaFact]
-    public void RadarAndGroundDisplay_BuildOverAHostWithNoCanvasMembers()
+    public void GroundDisplay_BuildsFromItsOwnCanvasState()
     {
-        var host = new RecordingMenuHost("");
-
-        (RadarView radarView, MainViewModel radarMain) = RadarHarness();
         (GroundView groundView, GroundViewModel ground, _) = GroundHarness();
-        MenuContext context = Context();
 
-        MenuItem[] displays = [radarView.BuildCanvasDisplay(radarMain.Radar, context, host), groundView.BuildCanvasDisplay(ground, context)];
+        MenuItem display = groundView.BuildCanvasDisplay(ground, Context());
 
-        foreach (MenuItem display in displays)
-        {
-            Assert.NotEmpty(display.Items);
-            Assert.False(display.Items[0] is Separator);
-        }
+        Assert.NotEmpty(display.Items);
+        Assert.False(display.Items[0] is Separator);
     }
 
     // Every view gives a surface shadow the same read-only tree: Favorites, All Commands holding Track and coordination
@@ -199,10 +221,10 @@ public class ContextMenuBuilderSeamTests
         AircraftModel shadow = SurfaceShadow("SWA9");
 
         string[] root = ["Favorite Commands", "All Commands", "---", "Delete"];
-        Assert.Equal(root, AfterHeader(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal([.. root, "---", ViewSettingsHeader], AfterHeader(ScopeSurfaceShadowMenu(shadow)));
         Assert.Equal(root, AfterHeader(GroundSurfaceShadowMenu(shadow)));
         Assert.Equal(root, AfterHeader(ListSurfaceShadowMenu(shadow)));
-        Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(ScopeSurfaceShadowMenu(shadow)));
         Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(GroundSurfaceShadowMenu(shadow)));
         Assert.Equal(["Track and coordination"], AllCommandsSequence(ListSurfaceShadowMenu(shadow)));
     }
@@ -216,8 +238,8 @@ public class ContextMenuBuilderSeamTests
         Assert.Contains("Hide datablock", groundHeaders);
         Assert.DoesNotContain("Leader direction", groundHeaders);
 
-        Assert.DoesNotContain("Taxi route", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
-        Assert.Contains("Hide datablock", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+        Assert.DoesNotContain("Taxi route", DisplayHeaders(ScopeSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+        Assert.Contains("Hide datablock", DisplayHeaders(ScopeSurfaceShadowMenu(SurfaceShadow("SWA9"))));
     }
 
     [AvaloniaFact]
@@ -319,13 +341,13 @@ public class ContextMenuBuilderSeamTests
     }
 
     [AvaloniaFact]
-    public void RadarPicker_CarriesDescriptorWithItsValues()
+    public void ScopePicker_CarriesDescriptorWithItsValues()
     {
-        (RadarView view, MainViewModel main) = RadarHarness();
+        (ScopeView view, MainViewModel main) = ScopeHarness();
         AircraftModel ac = AirborneIfr("AAL123", "InitialClimb");
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
+        ContextMenu menu = view.BuildAircraftMenu(main.PrimaryScope, ac, prevSelected: null, ac.Callsign);
 
         // "Fly heading" opens the heading flyout, a submenu holding its panel, and carries no popup descriptor.
         MenuItem vectors = AllCommandsPath.Group(menu, MenuCategory.Vectors);
@@ -340,9 +362,9 @@ public class ContextMenuBuilderSeamTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_GroundPair_OffersGiveWayAndFollowG()
+    public void ScopeMenu_GroundPair_OffersGiveWayAndFollowG()
     {
-        (RadarView view, MainViewModel main) = RadarHarness();
+        (ScopeView view, MainViewModel main) = ScopeHarness();
         AircraftModel clicked = AirborneIfr("SWA104", "Taxiing");
         clicked.IsOnGround = true;
         AircraftModel selected = AirborneIfr("SWA602", "Taxiing");
@@ -350,7 +372,7 @@ public class ContextMenuBuilderSeamTests
         main.Aircraft.Add(clicked);
         main.Aircraft.Add(selected);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, clicked, selected, clicked.Callsign);
+        ContextMenu menu = view.BuildAircraftMenu(main.PrimaryScope, clicked, selected, clicked.Callsign);
 
         List<string> sequence = Sequence(menu);
         Assert.Contains("For SWA602 (selected)", sequence);

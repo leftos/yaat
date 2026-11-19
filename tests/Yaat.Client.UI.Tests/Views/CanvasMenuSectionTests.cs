@@ -10,17 +10,15 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// The canvas section a view builds for itself, over the real view model and canvas: the ground's Display items and
-// the radar's Display submenu, each reading the state the running client keeps (the data-block offsets, minified and
-// hidden choices, the nav route and the measure tool) and writing it back. CanvasMenuItemsTests pins the item builders;
-// these pin the wiring that turns them into a section, since no golden carries a moved or minified data block, a shown
-// nav route or a non-default taxi-route radio.
+// The canvas section the ground view builds for itself, over the real view model and canvas: its Display items, reading
+// the state the running client keeps (the data-block offsets, hidden choices and the measure tool) and writing it back.
+// CanvasMenuItemsTests pins the item builders; these pin the wiring that turns them into a section, since no golden
+// carries a moved data block or a non-default taxi-route radio. The Scope's Display submenu is pinned by
+// ScopeAircraftMenuTests.
 public class CanvasMenuSectionTests
 {
     private const string Callsign = "SWA104";
@@ -52,19 +50,6 @@ public class CanvasMenuSectionTests
         GroundCanvas? canvas = view.FindControl<GroundCanvas>("Canvas");
         Assert.NotNull(canvas);
         Assert.Same(main.Ground.DataBlockState, canvas!.DataBlockState);
-        return (view, canvas, window);
-    }
-
-    /// <summary>The same for a radar view over <paramref name="main"/>'s radar view model.</summary>
-    private static (RadarView View, RadarCanvas Canvas, Window Window) ShowRadarView(MainViewModel main)
-    {
-        var view = new RadarView { DataContext = main.Radar };
-        var window = new Window { DataContext = main, Content = view };
-        window.ShowAndRunLayout();
-
-        RadarCanvas? canvas = view.FindControl<RadarCanvas>("Canvas");
-        Assert.NotNull(canvas);
-        Assert.Same(main.Radar.DataBlockState, canvas!.DataBlockState);
         return (view, canvas, window);
     }
 
@@ -112,104 +97,8 @@ public class CanvasMenuSectionTests
         }
     }
 
-    // The radar's Display submenu at every state on at once: the minified form, a moved data block, a shown nav route
-    // and an anchored measurement, which the header sequence and the labels that follow state pin.
-    [AvaloniaFact]
-    public void RadarCanvasDisplay_AllStatesOn_PinsTheHeaderSequence()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        (RadarView view, RadarCanvas canvas, Window window) = ShowRadarView(main);
-        try
-        {
-            RadarViewModel radar = main.Radar;
-            var host = new RecordingMenuHost("");
-            MenuContext context = Context();
-
-            canvas.ToggleMinifiedDataBlock(Callsign);
-            canvas.ToggleHiddenDataBlock(Callsign);
-            radar.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
-            radar.ToggleShowPath(Callsign);
-            var measure = new RangeBearingViewState(new RangeBearingLineStore());
-            radar.SetMeasureState(measure);
-            measure.Pick(
-                RblEndpoint.OnAircraft(Callsign),
-                new MeasureTarget(RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles, null)
-            );
-
-            Assert.Equal(
-                [
-                    "Full datablock",
-                    "Show datablock",
-                    "Reset datablock position",
-                    "Hide nav route",
-                    $"Measure to {Callsign}",
-                    "---",
-                    "Leader direction",
-                    "J-ring",
-                    "Cone",
-                    "---",
-                    "Blank target",
-                    "Unblank target",
-                ],
-                Headers(view.BuildCanvasDisplay(radar, context, host))
-            );
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    // The radar's Display hide item writes the canvas's hidden set, which the rebuilt item reads back.
-    [AvaloniaFact]
-    public void RadarCanvasDisplay_HideDataBlock_TogglesTheCanvasAndReadsBack()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        (RadarView view, RadarCanvas canvas, Window window) = ShowRadarView(main);
-        try
-        {
-            RadarViewModel radar = main.Radar;
-            var host = new RecordingMenuHost("");
-            MenuContext context = Context();
-
-            MenuItem hide = view.BuildCanvasDisplay(radar, context, host).Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Hide datablock"));
-            Click(hide);
-            Assert.True(canvas.IsDataBlockHidden(Callsign));
-
-            MenuItem show = view.BuildCanvasDisplay(radar, context, host).Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Show datablock"));
-            Click(show);
-            Assert.False(canvas.IsDataBlockHidden(Callsign));
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    // The radar's background menu offers "Show all datablocks", disabled while no block is hidden; it clears the set.
-    [AvaloniaFact]
-    public void RadarBackgroundMenu_ShowAllDataBlocks_DisabledUntilOneIsHidden_ThenShowsAll()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        (RadarView view, RadarCanvas canvas, Window window) = ShowRadarView(main);
-        try
-        {
-            Assert.False(ShowAllItem(view.BuildMapContextMenu(37.0, -122.0, new Avalonia.Point(10, 10))).IsEnabled);
-
-            canvas.ToggleHiddenDataBlock(Callsign);
-            MenuItem showAll = ShowAllItem(view.BuildMapContextMenu(37.0, -122.0, new Avalonia.Point(10, 10)));
-            Assert.True(showAll.IsEnabled);
-
-            Click(showAll);
-            Assert.False(canvas.IsDataBlockHidden(Callsign));
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    // The ground's background (empty-space) menu offers "Show all datablocks" the same way.
+    // The ground's background (empty-space) menu offers "Show all datablocks", disabled while no block is hidden; it
+    // clears the set.
     [AvaloniaFact]
     public void GroundBackgroundMenu_ShowAllDataBlocks_DisabledUntilOneIsHidden_ThenShowsAll()
     {
@@ -248,37 +137,5 @@ public class CanvasMenuSectionTests
     {
         Assert.NotNull(menu);
         return menu!.Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Show all datablocks"));
-    }
-
-    // The radar's measure item against the real tool: no item with no tool, "from" while the tool is idle, "to" once it
-    // is anchored.
-    [AvaloniaFact]
-    public void RadarCanvasDisplay_MeasureItem_NoTool_ThenIdle_ThenAnchored()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        (RadarView view, RadarCanvas _, Window window) = ShowRadarView(main);
-        try
-        {
-            RadarViewModel radar = main.Radar;
-            var host = new RecordingMenuHost("");
-            MenuContext context = Context();
-
-            radar.Measure = null;
-            Assert.DoesNotContain("Measure", Headers(view.BuildCanvasDisplay(radar, context, host)));
-
-            var measure = new RangeBearingViewState(new RangeBearingLineStore());
-            radar.SetMeasureState(measure);
-            Assert.Contains($"Measure from {Callsign}", Headers(view.BuildCanvasDisplay(radar, context, host)));
-
-            measure.Pick(
-                RblEndpoint.OnAircraft(Callsign),
-                new MeasureTarget(RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles, null)
-            );
-            Assert.Contains($"Measure to {Callsign}", Headers(view.BuildCanvasDisplay(radar, context, host)));
-        }
-        finally
-        {
-            window.Close();
-        }
     }
 }

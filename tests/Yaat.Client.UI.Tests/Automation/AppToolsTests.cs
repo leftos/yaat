@@ -484,7 +484,6 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         MainViewModel viewModel = ScopeReady();
         viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
-        double radarRangeBefore = viewModel.Radar.RangeNm;
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar", new { callsign = "ual123", rangeNm = 15.5 }));
 
@@ -493,7 +492,6 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(37.7213, scope.CenterLat, 6);
         Assert.Equal(-122.2208, scope.CenterLon, 6);
         Assert.Equal(15.5, scope.RangeNm, 6);
-        Assert.Equal(radarRangeBefore, viewModel.Radar.RangeNm);
         Assert.Equal("Primary Scope centred on UAL123 (37.7213, -122.2208) at 15.5 nm.", result.GetProperty("message").GetString());
     }
 
@@ -1278,22 +1276,6 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
-    public void RadarViewModel_SetDataBlockOffset_RaisesTheRepaintEvent()
-    {
-        MainViewModel viewModel = InScenario();
-        int raised = 0;
-        viewModel.Radar.DataBlockState.ManualOffsetsChanged += () => raised++;
-
-        viewModel.Radar.SetDataBlockOffset("UAL123", new SKPoint(12, -8));
-        bool removed = viewModel.Radar.ResetDataBlockOffset("UAL123");
-        bool removedAgain = viewModel.Radar.ResetDataBlockOffset("UAL123");
-
-        Assert.True(removed);
-        Assert.False(removedAgain);
-        Assert.Equal(2, raised);
-    }
-
-    [AvaloniaFact]
     public async Task SetDatablockOffset_WritesThePrimaryScopesOffsetAndRaisesManualOffsetsChanged()
     {
         MainViewModel viewModel = ScopeReadyWithTwoAircraft();
@@ -1824,7 +1806,7 @@ public sealed class AppToolsTests : AutomationHostFixture
             viewModel.Measure.Place(
                 RblEndpoint.OnAircraft("UAL123"),
                 RblEndpoint.OnAircraft("AAL9"),
-                new MeasureTarget(RblView.Ground, viewModel.Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits, null)
+                new MeasureTarget(RblView.Ground, viewModel.Ground.MeasureTrackLookup, GroundViewModel.MeasureUnits, null)
             )
         );
 

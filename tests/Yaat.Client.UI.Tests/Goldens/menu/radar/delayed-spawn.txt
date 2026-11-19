@@ -19,3 +19,5 @@ Change spawn delay
   ---
   <TextBox>
 Delete alias:DEL
+---
+Settings for this view…

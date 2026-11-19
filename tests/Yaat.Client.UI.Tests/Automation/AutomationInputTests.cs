@@ -14,7 +14,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Scope;
 
 namespace Yaat.Client.UI.Tests.Automation;
 
@@ -49,22 +49,22 @@ public sealed class AutomationInputTests : AutomationHostFixture
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         ShowWindow("HotkeyWindow", new TextBox { Name = "Box" }, vm);
-        bool dcbBefore = vm.Radar.IsDcbVisible;
+        Assert.False(vm.Measure.IsMeasuring);
         using AutomationHost host = StartHost(() => Windows);
         await using AutomationPipeTestClient client = await Connect();
 
-        Result(await Send(client, ProtocolMethods.SendKeys, new { selector = "#Box", keys = "^{F8}" }));
+        Result(await Send(client, ProtocolMethods.SendKeys, new { selector = "#Box", keys = "^m" }));
 
-        Assert.NotEqual(dcbBefore, vm.Radar.IsDcbVisible);
+        Assert.True(vm.Measure.IsMeasuring);
     }
 
     [AvaloniaFact]
-    public async Task ClickPoint_OnRadar_ReachesTheCanvas()
+    public async Task ClickPoint_OnScope_ReachesTheCanvas()
     {
-        var canvas = new RadarCanvas();
+        var canvas = new ScopeCanvas();
         int picked = 0;
         canvas.MeasurePointPicked += _ => picked++;
-        ShowWindow("RadarWindow", canvas, null);
+        ShowWindow("ScopeWindow", canvas, null);
         using AutomationHost host = StartHost(() => Windows);
         await using AutomationPipeTestClient client = await Connect();
 
@@ -76,7 +76,7 @@ public sealed class AutomationInputTests : AutomationHostFixture
                 ProtocolMethods.ClickPoint,
                 new
                 {
-                    windowSelector = "#RadarWindow",
+                    windowSelector = "#ScopeWindow",
                     x = 200,
                     y = 150,
                     modifiers = "alt",
@@ -84,7 +84,7 @@ public sealed class AutomationInputTests : AutomationHostFixture
             )
         );
 
-        Assert.Equal(nameof(RadarCanvas), result.GetProperty("elementType").GetString());
+        Assert.Equal(nameof(ScopeCanvas), result.GetProperty("elementType").GetString());
         Assert.Equal(1, picked);
     }
 
