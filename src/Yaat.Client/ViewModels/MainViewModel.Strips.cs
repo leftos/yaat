@@ -12,7 +12,7 @@ namespace Yaat.Client.ViewModels;
 /// and follows the scenario lifecycle.
 ///
 /// Each entry is a top-level TabItem in the main window, adjacent to
-/// Aircraft List / Ground View / Radar View. The code-behind watches
+/// Aircraft List / Ground View / Scope. The code-behind watches
 /// <see cref="StripsEntries"/> and materializes a TabItem per entry. Per-tab
 /// pop-out mirrors the pattern used by the other views
 /// (<see cref="IsDataGridPoppedOut"/> et al.) but is stored on the entry

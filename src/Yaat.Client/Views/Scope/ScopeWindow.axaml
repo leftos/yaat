@@ -6,7 +6,7 @@
   x:Class="Yaat.Client.Views.Scope.ScopeWindow"
   x:DataType="vm:ScopeViewModel"
   Icon="avares://Yaat.Client/Resources/icon.png"
-  Title="YAAT Scope"
+  Title="YAAT Radar"
 >
   <scope:ScopeHost x:Name="Host" />
 </Window>

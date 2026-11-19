@@ -28,7 +28,7 @@ public sealed class MvaDatabase(IReadOnlyList<MvaSector> sectors)
 
     /// <summary>
     /// The controlling MVA sector at a point, or null if no sector covers it. Where charts overlap, the chart of
-    /// <paramref name="preferredFacility"/> (the radar's own facility; ordinal, case-insensitive) wins, highest floor
+    /// <paramref name="preferredFacility"/> (the viewing Scope's own facility; ordinal, case-insensitive) wins, highest floor
     /// among its sectors there. Where that chart does not cover the point, or the preference is null, the highest
     /// floor across every chart wins — the conservative (safest) minimum vectoring altitude.
     /// </summary>

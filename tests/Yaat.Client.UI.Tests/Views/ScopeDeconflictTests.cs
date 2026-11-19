@@ -18,7 +18,7 @@ using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Scope's datablock deconfliction: off by default, seeded from the Radar's mode and never written back to it;
+/// The Scope's datablock deconfliction: off by default, seeded from the saved default mode and never written back to it;
 /// <c>.scope dcnf off|snap|free</c> and DISPLAY's DCNF (reading DCNF, DCNF S, DCNF F) set it; overlapping blocks on the canvas
 /// spread apart and hit-test where they are drawn; the mode is kept in a pref set, and a set without it takes the seed.
 /// </summary>
@@ -39,7 +39,7 @@ public class ScopeDeconflictTests
     }
 
     [AvaloniaFact]
-    public void TheModeIsSeededFromTheRadars_AndNeverWrittenBack()
+    public void TheModeIsSeededFromTheSavedDefault_AndNeverWrittenBack()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetRadarDeconflictMode(DatablockDeconflictMode.FreeForm);
@@ -63,15 +63,15 @@ public class ScopeDeconflictTests
         {
             main.RunScopeCommand(".scope dcnf snap");
             Assert.Equal(DatablockDeconflictMode.CompassSnap, scope.DeconflictMode);
-            Assert.Equal("Scope DCNF SNAP", main.StatusText);
+            Assert.Equal("Radar DCNF SNAP", main.StatusText);
 
             main.RunScopeCommand(".scope dcnf FREE");
             Assert.Equal(DatablockDeconflictMode.FreeForm, scope.DeconflictMode);
-            Assert.Equal("Scope DCNF FREE", main.StatusText);
+            Assert.Equal("Radar DCNF FREE", main.StatusText);
 
             main.RunScopeCommand(".scope dcnf off");
             Assert.Equal(DatablockDeconflictMode.Off, scope.DeconflictMode);
-            Assert.Equal("Scope DCNF OFF", main.StatusText);
+            Assert.Equal("Radar DCNF OFF", main.StatusText);
 
             foreach (string bad in new[] { ".scope dcnf", ".scope dcnf on", ".scope dcnf snap now" })
             {
@@ -95,7 +95,7 @@ public class ScopeDeconflictTests
         main.RunScopeCommand(".scope dcnf snap");
 
         Assert.Equal(DatablockDeconflictMode.CompassSnap, main.PrimaryScope.DeconflictMode);
-        Assert.Equal("Scope DCNF SNAP", main.StatusText);
+        Assert.Equal("Radar DCNF SNAP", main.StatusText);
     }
 
     [AvaloniaFact]

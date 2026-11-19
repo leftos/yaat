@@ -20,10 +20,10 @@ public sealed partial class AutomationTools
 
     private static readonly JsonSerializerOptions FramingJsonOptions = new(JsonSerializerDefaults.Web);
 
-    [AutomationTool("center_radar", "Centres the primary Scope on an aircraft at a range.", nameof(ScopeNotReady))]
+    [AutomationTool("center_radar", "Centres the primary Radar on an aircraft at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadar(
         [Description("The aircraft's callsign, matched case-insensitively.")] string callsign,
-        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm
     )
     {
         ValidateRange(rangeNm);
@@ -37,17 +37,17 @@ public sealed partial class AutomationTools
             AppToolOutcome.Done(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Primary Scope centred on {aircraft.Callsign} ({aircraft.Position.Lat:F4}, {aircraft.Position.Lon:F4}) at {rangeNm} nm."
+                    $"Primary Radar centred on {aircraft.Callsign} ({aircraft.Position.Lat:F4}, {aircraft.Position.Lon:F4}) at {rangeNm} nm."
                 )
             )
         );
     }
 
-    [AutomationTool("center_radar_at", "Centres the primary Scope on a latitude and longitude at a range.", nameof(ScopeNotReady))]
+    [AutomationTool("center_radar_at", "Centres the primary Radar on a latitude and longitude at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadarAt(
         [Description("The centre's latitude in degrees, from -90 to 90.")] double lat,
         [Description("The centre's longitude in degrees, from -180 to 180.")] double lon,
-        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm
     )
     {
         ValidateLatitude("lat", lat);
@@ -55,7 +55,7 @@ public sealed partial class AutomationTools
         ValidateRange(rangeNm);
         CentreScope(lat, lon, rangeNm);
         return Task.FromResult(
-            AppToolOutcome.Done(string.Create(CultureInfo.InvariantCulture, $"Primary Scope centred on ({lat:F4}, {lon:F4}) at {rangeNm} nm."))
+            AppToolOutcome.Done(string.Create(CultureInfo.InvariantCulture, $"Primary Radar centred on ({lat:F4}, {lon:F4}) at {rangeNm} nm."))
         );
     }
 
@@ -63,10 +63,10 @@ public sealed partial class AutomationTools
     /// Resolves the name as the <c>.rbl</c> command and <c>place_rbl</c> resolve a fix endpoint (<see cref="FrdResolver"/> over the
     /// loaded navigation data), so a fix, an airport or an FRD all work.
     /// </summary>
-    [AutomationTool("center_radar_on_fix", "Centres the primary Scope on a fix or airport at a range.", nameof(ScopeNotReady))]
+    [AutomationTool("center_radar_on_fix", "Centres the primary Radar on a fix or airport at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadarOnFix(
         [Description("The fix or airport identifier, e.g. OAK or KSFO; an FRD such as OAK090010 also works.")] string fix,
-        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm
     )
     {
         ValidateRange(rangeNm);
@@ -84,7 +84,7 @@ public sealed partial class AutomationTools
         CentreScope(centre.Lat, centre.Lon, rangeNm);
         return Task.FromResult(
             AppToolOutcome.Done(
-                string.Create(CultureInfo.InvariantCulture, $"Primary Scope centred on {name} ({centre.Lat:F4}, {centre.Lon:F4}) at {rangeNm} nm.")
+                string.Create(CultureInfo.InvariantCulture, $"Primary Radar centred on {name} ({centre.Lat:F4}, {centre.Lon:F4}) at {rangeNm} nm.")
             )
         );
     }
@@ -92,7 +92,7 @@ public sealed partial class AutomationTools
     /// <summary>Pins the primary Scope's vector length and sets the tracks it draws on, as VECTOR and its OWN/ALL click do.</summary>
     [AutomationTool(
         "set_ptl",
-        "Sets the primary Scope's vector (predicted track line) length and whether it draws on all tracks or the viewer's own.",
+        "Sets the primary Radar's vector (predicted track line) length and whether it draws on all tracks or the viewer's own.",
         nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> SetPtl(
@@ -108,8 +108,8 @@ public sealed partial class AutomationTools
 
     [AutomationTool(
         "get_framing",
-        "Reports the primary Scope's framing and the sim clock as one JSON object: centre, range, enabled video maps, vector "
-            + "(ptl), the Scope's RBL slots, sim rate, pause state and sim time.",
+        "Reports the primary Radar's framing and the sim clock as one JSON object: centre, range, enabled video maps, vector "
+            + "(ptl), the Radar's RBL slots, sim rate, pause state and sim time.",
         nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> GetFraming() => Task.FromResult(AppToolOutcome.Done(FramingJson(_state.SimRate, _state.IsPaused)));
@@ -139,7 +139,7 @@ public sealed partial class AutomationTools
     }
 
     /// <summary>
-    /// The primary Scope's range-bearing lines, which <c>place_rbl</c> places: the shared store also holds the Radar's, the
+    /// The primary Scope's range-bearing lines, which <c>place_rbl</c> places: the shared store also holds the
     /// Ground view's and the extra Scope windows' lines.
     /// </summary>
     private IEnumerable<RangeBearingLine> PrimaryScopeRbls() =>
@@ -224,7 +224,7 @@ public sealed partial class AutomationTools
     /// <summary>The Scope's vector: its length in minutes, and whether it draws on all tracks or the viewer's own.</summary>
     private sealed record FramingPtl(double LengthMinutes, bool All, bool Own);
 
-    [AutomationTool("set_video_map", "Turns one video map on the primary Scope on or off.", nameof(MapsNotLoaded))]
+    [AutomationTool("set_video_map", "Turns one video map on the primary Radar on or off.", nameof(MapsNotLoaded))]
     public Task<AppToolOutcome> SetVideoMap(
         [Description("The map's STARS id, the number its MAPS button shows.")] int starsId,
         [Description("True to show the map, false to hide it.")] bool enabled

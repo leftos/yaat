@@ -64,7 +64,7 @@ public sealed partial class AutomationTools(MainViewModel viewModel, IAutomation
     /// seed that load ends with (the area's centre, the default range and the facility's saved state) would overwrite a centre,
     /// range or map set now.
     /// </summary>
-    public string? ScopeNotReady() => NoScenario() ?? (ScopeMapsReady ? null : "The Scope is still loading its maps.");
+    public string? ScopeNotReady() => NoScenario() ?? (ScopeMapsReady ? null : "The Radar is still loading its maps.");
 
     /// <summary>The Scope every framing tool acts on: the primary one, even when another Scope window last had the focus.</summary>
     private ScopeViewModel Scope => _viewModel.PrimaryScope;

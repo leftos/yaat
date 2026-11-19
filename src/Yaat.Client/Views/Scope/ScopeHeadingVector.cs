@@ -31,7 +31,7 @@ public readonly record struct ScopeHeadingVectorGeometry(bool HasArc, LatLon Arc
 /// The elastic heading vector's state, as the Scope's pointer drives it: the aircraft and the cursor it runs toward, the press
 /// point a drag is measured from, and whether the button is still held. A press arms it; a move past
 /// <see cref="DragThresholdPxSq"/> makes the release the confirm, and a release short of it leaves the vector armed for the
-/// next left press, as the Radar's heading mode does.
+/// next left press.
 /// </summary>
 /// <param name="Callsign">The aircraft the vector is drawn for.</param>
 /// <param name="Cursor">Where the pointer is, in lat/lon.</param>

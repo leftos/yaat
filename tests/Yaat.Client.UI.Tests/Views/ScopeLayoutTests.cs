@@ -13,7 +13,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// A layout carries the Scope: saving one records whether the primary Scope is popped out and which extra Scope windows
 /// are open; applying it pops the Scope in or out and opens or closes extra Scope windows, each with its own saved state
 /// and the layout's geometry. A layout saved before the Scope was a layout part leaves the Scopes alone, and no layout
-/// opens a Radar window.
+/// opens an old-view window.
 /// </summary>
 public class ScopeLayoutTests
 {
@@ -63,7 +63,7 @@ public class ScopeLayoutTests
             MainWindowHost.Pump();
 
             List<ScopeWindow> windows = [.. main.ExtraScopeWindows.OrderBy(p => p.Key.Ordinal).Select(p => p.Value)];
-            Assert.Equal(["YAAT Scope #2", "YAAT Scope #3"], windows.Select(w => w.Title));
+            Assert.Equal(["YAAT Radar #2", "YAAT Radar #3"], windows.Select(w => w.Title));
             Assert.Equal([900.0, 1000.0], windows.Select(w => w.Width));
             Assert.Equal([2, 3], vm.ExtraScopeViews.Select(i => i.Ordinal));
         }
@@ -167,7 +167,7 @@ public class ScopeLayoutTests
             await main.ApplyLayoutAsync(vm, layout, ViewSettingsCopyCatalog.AllLayoutKeys(layout));
             MainWindowHost.Pump();
 
-            // The Radar fields are ignored: the Scope ends as the layout's Scope fields say.
+            // The old Radar fields are ignored: the Scope ends as the layout's Scope fields say.
             Assert.False(vm.IsScopePoppedOut);
             Assert.Equal([3], vm.ExtraScopeViews.Select(i => i.Ordinal));
             Assert.Equal([3], main.ExtraScopeWindows.Keys.Select(i => i.Ordinal));

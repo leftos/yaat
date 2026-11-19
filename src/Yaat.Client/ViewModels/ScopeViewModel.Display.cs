@@ -11,7 +11,7 @@ namespace Yaat.Client.ViewModels;
 /// <summary>
 /// The Scope's display state: its BRITE groups, its video-map toggles, its DB settings and top-down mode. Changed only by <c>.scope brite</c>,
 /// <c>.scope map</c>, <c>.scope db</c> and <c>.scope tdm</c> (the toolbar and Ctrl+Shift+T run them) and by a pref-set load; never written to the
-/// preferences or the Radar, never sent to the server.
+/// preferences, never sent to the server.
 /// </summary>
 public sealed partial class ScopeViewModel
 {

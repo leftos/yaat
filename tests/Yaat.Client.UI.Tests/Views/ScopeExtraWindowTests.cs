@@ -19,7 +19,7 @@ using Yaat.Sim;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// View › Windows › "New Scope window…" opens another Scope of the same facility in its own window, "YAAT Scope #n", with
+/// View › Windows › "New Radar window…" opens another Scope of the same facility in its own window, "YAAT Radar #n", with
 /// its own view model and its own saved state; its canvas taking the focus makes it the Scope the typed verbs act on, and
 /// closing the window disposes it.
 /// </summary>
@@ -66,7 +66,7 @@ public class ScopeExtraWindowTests
             ScopeWindow window = ClickNewScopeWindow(main);
 
             ScopeViewInstance instance = Assert.Single(vm.ExtraScopeViews);
-            Assert.Equal("YAAT Scope #2", window.Title);
+            Assert.Equal("YAAT Radar #2", window.Title);
             Assert.Equal("ScopeView#2", window.WindowGeometryKey);
             Assert.Same(instance.Vm, window.DataContext);
             Assert.NotSame(vm.PrimaryScope, instance.Vm);

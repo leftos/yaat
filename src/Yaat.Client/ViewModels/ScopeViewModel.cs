@@ -14,7 +14,7 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The YAAT Scope window's view model. It keeps its own centre, range, map toggles, brightness and datablock state; nothing
-/// is shared with the main radar. At every facility load of the Scope's map source (<see cref="MainViewModel.ScopeMaps"/>) it
+/// is shared with another view. At every facility load of the Scope's map source (<see cref="MainViewModel.ScopeMaps"/>) it
 /// takes the facility's map toggles, brightness categories, centre and MVA-tint default, and opens at
 /// <see cref="DefaultRangeNm"/>, keeping on the maps that were on. The selection is the app-wide one: a pick here sets
 /// <see cref="MainViewModel.SelectedAircraft"/>, and a pick anywhere else shows here.
@@ -169,7 +169,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Toggles the highlight of the aircraft's block on this scope, as a middle click on a STARS or EuroScope block does; the
-    /// scope's own state, never the Radar's.
+    /// scope's own state, never another view's.
     /// </summary>
     public void ToggleHighlight(string callsign) => DataBlockState.ToggleHighlight(callsign);
 

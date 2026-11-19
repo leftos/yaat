@@ -249,7 +249,7 @@ public sealed partial class UserPreferences
         ["groundShowYaatLayout"] = "a Ground View toggle, not a Settings section field",
         ["groundPanZoomLocked"] = "a Ground View toggle, not a Settings section field",
         ["groundDeconflictMode"] = "a Ground View toggle, not a Settings section field",
-        ["radarDeconflictMode"] = "a Radar View toggle, not a Settings section field",
+        ["radarDeconflictMode"] = "the default deconfliction mode a new Radar opens with; no Settings field or command writes it",
         ["vStripsSplitMode"] = "a Strips view split, not a Settings section field",
         ["vStripsSplitRatio"] = "a Strips view split, not a Settings section field",
         ["terminalSplitRatio"] = "a window split, carried by layouts",

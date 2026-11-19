@@ -36,11 +36,11 @@ public class ScopeFixOverlayTests
 
             main.RunScopeCommand(".scope fix on");
             Assert.True(scope.ShowFixes);
-            Assert.Equal("Scope FIX ON", main.StatusText);
+            Assert.Equal("Radar FIX ON", main.StatusText);
 
             main.RunScopeCommand(".scope fix off");
             Assert.False(scope.ShowFixes);
-            Assert.Equal("Scope FIX OFF", main.StatusText);
+            Assert.Equal("Radar FIX OFF", main.StatusText);
 
             main.RunScopeCommand(".scope fix");
             Assert.Equal("Usage: .scope fix <on|off>", main.StatusText);
@@ -55,7 +55,7 @@ public class ScopeFixOverlayTests
         main.RunScopeCommand(".scope fix on");
 
         Assert.True(main.PrimaryScope.ShowFixes);
-        Assert.Equal("Scope FIX ON", main.StatusText);
+        Assert.Equal("Radar FIX ON", main.StatusText);
     }
 
     [AvaloniaFact]

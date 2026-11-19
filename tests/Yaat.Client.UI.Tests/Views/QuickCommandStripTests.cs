@@ -1094,7 +1094,7 @@ public class QuickCommandStripTests
     private static MenuContext Context(AircraftModel ac, RecordingMenuHost host) => new(new MenuClick(ac.Callsign, null, null, []), host.Session);
 
     /// <summary>The radar golden fixture of that name: its aircraft, the same on every view.</summary>
-    private static AircraftModel Fixture(string name) => MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == name).Aircraft;
+    private static AircraftModel Fixture(string name) => MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == name).Aircraft;
 
     private static MenuItem Strip(ContextMenu menu) => Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
 

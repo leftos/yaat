@@ -7,7 +7,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// Draws the route being drawn on the Scope, as the Radar draws it, in amber: a dashed leg from the aircraft to the first
+/// Draws the route being drawn on the Scope, in amber: a dashed leg from the aircraft to the first
 /// waypoint, solid legs between waypoints, a dashed rubber band from the last waypoint (or the aircraft, before the first) to the
 /// pointer labelled with the pointer's FRD, and a diamond at each waypoint with its name and the summary of its condition below.
 /// </summary>

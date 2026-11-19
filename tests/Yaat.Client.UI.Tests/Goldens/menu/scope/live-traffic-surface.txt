@@ -1,0 +1,50 @@
+# scope live-traffic-surface
+UAL402 · B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+  ---
+  Display
+    Hide datablock
+    Show nav route
+    Measure from UAL402
+    ---
+    Leader direction
+      1
+      2
+      3
+      4
+      5 (default)
+      6
+      7
+      8
+      9
+    J-ring
+    Cone
+    ---
+    Blank target
+    Unblank target
+---
+Delete alias:DEL
+---
+Settings for this view…

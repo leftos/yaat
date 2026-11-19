@@ -80,7 +80,7 @@ public class ScopeFrameHitsTests
 
     /// <summary>
     /// The ATPA trailer's block carries the distance at line 2's right end, so it ends at line 2: a click on the band below,
-    /// where the Radar's own ATPA row was, no longer hits it.
+    /// where an ATPA row once was, no longer hits it.
     /// </summary>
     [Fact]
     public void BlocksAt_TheOldAtpaRowsBand_MissesTheShorterAtpaBlock()

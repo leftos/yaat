@@ -713,7 +713,7 @@ public class ApproachFlyoutTests
     public void Keyboard_DefaultRowFocused_DownIntoTheTab_RightSwitchesTabs_DownReachesTheBox_EscapeCloses()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "approach-ifr").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "approach-ifr").Aircraft;
         RecordingMenuHost host = KoakHost("OAK");
         var window = new Window { Width = 900, Height = 900 };
         window.Show();
@@ -888,7 +888,7 @@ public class ApproachFlyoutTests
     public void ClearedVisual_Keyboard_DownReachesTheFoldRow_EnterUnfoldsInPlace_ReopeningFolds()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "approach-ifr").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "approach-ifr").Aircraft;
         ac.SituationFlags = SituationFlags.HasReportedFieldInSight;
         RecordingMenuHost host = KoakHost("OAK");
         var window = new Window { Width = 900, Height = 900 };

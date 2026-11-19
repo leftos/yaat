@@ -23,7 +23,7 @@ public class ScopeFrameRingsTests
     private const int Height = 800;
     private const float FontSize = 12f;
 
-    // The renderer's ring colour (the Radar's TPA blue), duplicated rather than exposed.
+    // The renderer's ring colour (the TPA blue), duplicated rather than exposed.
     private static readonly SKColor RingBlue = new(90, 180, 255);
     private static readonly SKColor SymbolBlue = new(0, 176, 255);
 

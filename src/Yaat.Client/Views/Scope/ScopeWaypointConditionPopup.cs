@@ -10,7 +10,7 @@ using Avalonia.Media.Immutable;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// The popup a middle click on a drawn waypoint opens, as the Radar's: the waypoint's crossing altitude and the commands run at
+/// The popup a middle click on a drawn waypoint opens: the waypoint's crossing altitude and the commands run at
 /// it, with OK, Clear and Cancel. Enter submits from either box; a click outside it closes it and still reaches the Scope. Opened
 /// in the canvas's overlay layer at the click point.
 /// </summary>

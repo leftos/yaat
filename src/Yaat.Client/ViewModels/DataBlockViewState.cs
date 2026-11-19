@@ -189,7 +189,7 @@ public sealed class GroundDataBlockViewState : DataBlockViewState
     }
 }
 
-/// <summary>Radar and Scope datablock state: adds the full/mini datablock choices and the hidden datablocks.</summary>
+/// <summary>The Scope's datablock state: adds the full/mini datablock choices and the hidden datablocks.</summary>
 public sealed class ScopeDataBlockViewState : DataBlockViewState
 {
     /// <summary>Callsigns showing the minified (single-line) datablock.</summary>

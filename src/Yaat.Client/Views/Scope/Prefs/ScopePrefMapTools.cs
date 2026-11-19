@@ -16,8 +16,7 @@ namespace Yaat.Client.Views.Scope.Prefs;
 public sealed record ScopePrefMapTools(bool Mva, bool Lock, ScopePrefRangeRing? RangeRing, bool? Weather, ScopePrefFixesAndMarkers? FixesAndMarkers)
 {
     /// <summary>
-    /// The datablock deconfliction mode, or null for the mode a new Scope opens with (the Radar's,
-    /// <c>UserPreferences.RadarDeconflictMode</c>).
+    /// The datablock deconfliction mode, or null for the mode a new Scope opens with (<c>UserPreferences.RadarDeconflictMode</c>).
     /// </summary>
     public DatablockDeconflictMode? Deconflict { get; init; }
 }

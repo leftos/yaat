@@ -208,7 +208,7 @@ public class ScopeRingsToolTests
 
             Assert.Null(main.SelectedAircraft);
             Assert.Equal(new ScopeTrackRings(3.0, null, null), scope.LocalRings["UAL238"]);
-            Assert.Equal("Scope J-ring 3.0 NM UAL238", main.StatusText);
+            Assert.Equal("Radar J-ring 3.0 NM UAL238", main.StatusText);
             Assert.NotNull(Assert.Single(view.Canvas.CurrentFrame.Tracks).Rings.JRing);
 
             window.DispatchKey(Key.Escape);
@@ -262,22 +262,22 @@ public class ScopeRingsToolTests
             AddAircraft(main, "N123AB", 5000);
 
             main.RunScopeCommand(".scope rings jring 3.0 N123AB");
-            Assert.Equal("Scope J-ring 3.0 NM N123AB", main.StatusText);
+            Assert.Equal("Radar J-ring 3.0 NM N123AB", main.StatusText);
             main.RunScopeCommand(".scope rings cone 5 n123ab");
-            Assert.Equal("Scope cone 5.0 NM N123AB", main.StatusText);
+            Assert.Equal("Radar cone 5.0 NM N123AB", main.StatusText);
             main.RunScopeCommand(".scope rings dri5 N123AB");
-            Assert.Equal("Scope DRI 5 NM N123AB", main.StatusText);
+            Assert.Equal("Radar DRI 5 NM N123AB", main.StatusText);
             Assert.Equal(new ScopeTrackRings(3.0, 5.0, ScopeDriKind.Standard), scope.RingsOf("N123AB"));
 
             main.RunScopeCommand(".scope rings jring 12 N123AB");
-            Assert.Equal("Scope J-ring 12 NM N123AB", main.StatusText);
+            Assert.Equal("Radar J-ring 12 NM N123AB", main.StatusText);
             main.RunScopeCommand(".scope rings dri3 N123AB");
             Assert.Equal(new ScopeTrackRings(12.0, 5.0, ScopeDriKind.Reduced), scope.RingsOf("N123AB"));
 
             main.RunScopeCommand(".scope rings cone 5.0 N123AB");
-            Assert.Equal("Scope cone 5.0 NM N123AB removed", main.StatusText);
+            Assert.Equal("Radar cone 5.0 NM N123AB removed", main.StatusText);
             main.RunScopeCommand(".scope rings dri3 N123AB");
-            Assert.Equal("Scope DRI 3 NM N123AB removed", main.StatusText);
+            Assert.Equal("Radar DRI 3 NM N123AB removed", main.StatusText);
             Assert.Equal(new ScopeTrackRings(12.0, null, null), scope.RingsOf("N123AB"));
         }
         finally
@@ -391,11 +391,11 @@ public class ScopeRingsToolTests
             main.RunScopeCommand(".scope rings cone 3 UAL2");
 
             main.RunScopeCommand(".scope rings clear ual1");
-            Assert.Equal("Scope rings cleared UAL1", main.StatusText);
+            Assert.Equal("Radar rings cleared UAL1", main.StatusText);
             Assert.Equal(["UAL2"], scope.LocalRings.Keys);
 
             main.RunScopeCommand(".scope rings clear");
-            Assert.Equal("Scope rings cleared", main.StatusText);
+            Assert.Equal("Radar rings cleared", main.StatusText);
             Assert.Empty(scope.LocalRings);
         }
         finally

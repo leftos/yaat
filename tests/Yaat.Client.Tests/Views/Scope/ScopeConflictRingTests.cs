@@ -10,7 +10,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// The conflict ring: a STARS pair draws the Radar's 3 NM ring on both members, at half the ALERTS brightness while the pair is
+/// The conflict ring: a STARS pair draws the 3 NM ring on both members, at half the ALERTS brightness while the pair is
 /// suppressed; an ERAM pair draws a ring on each member at the probe's lateral minimum (5 NM, 3 NM when both are at or below
 /// FL230) while CA RING is on, except on an MCI pair's Mode C intruder, and none while it is off. A member of several ERAM pairs
 /// takes the largest ring, and a member not on the scope counts as above FL230. CA RING governs ERAM rings only: a track in both

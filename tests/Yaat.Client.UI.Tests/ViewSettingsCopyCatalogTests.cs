@@ -149,8 +149,8 @@ public class ViewSettingsCopyCatalogTests
         var poppedOut = new SavedLayout { IsScopePoppedOut = true, ExtraScopeViews = [new SavedExtraView(3, ""), new SavedExtraView(2, "")] };
         var docked = new SavedLayout { IsScopePoppedOut = false, ExtraScopeViews = [] };
 
-        Assert.Equal(("Pop-out windows", "Scope view"), (popOut.Section, popOut.Label));
-        Assert.Equal(("Extra windows", "Extra Scope windows"), (extras.Section, extras.Label));
+        Assert.Equal(("Pop-out windows", "Radar view"), (popOut.Section, popOut.Label));
+        Assert.Equal(("Extra windows", "Extra Radar windows"), (extras.Section, extras.Label));
 
         Assert.Equal("popped out", popOut.Describe(poppedOut));
         Assert.Equal("docked", popOut.Describe(docked));

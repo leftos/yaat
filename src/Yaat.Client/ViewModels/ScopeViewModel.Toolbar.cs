@@ -100,7 +100,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Changes the range by <paramref name="delta"/> whole NM from its rounded value, through <c>.scope range</c>; a step
-    /// that would leave 1 to 256 NM changes nothing, as the Radar's range does.
+    /// that would leave 1 to 256 NM changes nothing.
     /// </summary>
     public void StepRange(int delta)
     {

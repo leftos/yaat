@@ -7,9 +7,9 @@ namespace Yaat.Client.UI.Tests.Views;
 public class ApplyLayoutDialogLabelTests
 {
     [Theory]
-    [InlineData("ScopeView", "Scope window")]
-    [InlineData("ScopeView#2", "Scope window #2")]
-    [InlineData("ScopeView#3", "Scope window #3")]
+    [InlineData("ScopeView", "Radar window")]
+    [InlineData("ScopeView#2", "Radar window #2")]
+    [InlineData("ScopeView#3", "Radar window #3")]
     public void FriendlyWindowName_NamesTheScopeWindows(string key, string expected) =>
         Assert.Equal(expected, ApplyLayoutDialog.FriendlyWindowName(key));
 }

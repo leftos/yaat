@@ -183,7 +183,7 @@ public partial class ScopeView
         _routeWaypointMenu = menu;
     }
 
-    // The waypoint's menu, as the Radar's: its name, then Confirm route, Delete waypoint, Delete waypoints after (not on the last
+    // The waypoint's menu: its name, then Confirm route, Delete waypoint, Delete waypoints after (not on the last
     // waypoint) and Cancel route.
     private static ContextMenu BuildWaypointMenu(ScopeViewModel vm, IReadOnlyList<DrawnWaypoint> waypoints, int index)
     {

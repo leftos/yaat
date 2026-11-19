@@ -75,7 +75,7 @@ public sealed class ScopeHeadingVectorRenderer : IDisposable
         canvas.DrawPath(path, _linePaint);
     }
 
-    // "{heading}M  {nm}nm  {m:ss}", without the time for an aircraft barely moving; the Radar's label verbatim.
+    // "{heading}M  {nm}nm  {m:ss}", without the time for an aircraft barely moving.
     private static string Label(ScopeHeadingVectorOverlay overlay, int headingMag, double distNm)
     {
         string heading = new MagneticHeading(headingMag).ToDisplayString();

@@ -80,7 +80,7 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "RaiseWindowsTogether", "Bring all windows to front together", "Windows", None),
             SettingWithin(s, "MainWindowTopmost", "Main Window", AlwaysOnTop, OnTop),
             SettingWithin(s, "GroundViewTopmost", "Ground View", AlwaysOnTop, OnTop),
-            SettingWithin(s, "ScopeTopmost", "Scope", AlwaysOnTop, OnTop),
+            SettingWithin(s, "ScopeTopmost", "Radar", AlwaysOnTop, OnTop),
             SettingWithin(s, "DataGridTopmost", "Aircraft List", AlwaysOnTop, OnTop),
             SettingWithin(s, "TerminalTopmost", "Terminal", AlwaysOnTop, OnTop),
             SettingWithin(s, "VStripsTopmost", "Flight Strips", AlwaysOnTop, OnTop),

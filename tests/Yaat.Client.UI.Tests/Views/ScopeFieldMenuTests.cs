@@ -1836,7 +1836,7 @@ public class ScopeFieldMenuTests
         }
     }
 
-    /// <summary>Offline there is no room to take control in, so the take reports why on the status line, as the Radar's does.</summary>
+    /// <summary>Offline there is no room to take control in, so the take reports why on the status line.</summary>
     [AvaloniaFact]
     public async Task EuroScopeOwnerClick_TakesControl_AndOpensNoMenu()
     {

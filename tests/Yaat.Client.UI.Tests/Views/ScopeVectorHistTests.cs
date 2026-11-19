@@ -73,7 +73,7 @@ public class ScopeVectorHistTests : IDisposable
 
             scope.StepSpinner(ScopeButtonId.Vector, 1);
             Assert.Equal(2, scope.EffectiveBand.VectorMin);
-            Assert.Equal("Scope vector 2 MIN (pinned)", main.StatusText);
+            Assert.Equal("Radar vector 2 MIN (pinned)", main.StatusText);
             scope.StepSpinner(ScopeButtonId.Vector, 1);
             Assert.Equal(4, scope.EffectiveBand.VectorMin);
             scope.StepSpinner(ScopeButtonId.Vector, 1);
@@ -88,7 +88,7 @@ public class ScopeVectorHistTests : IDisposable
             Assert.Equal(2, scope.EffectiveBand.VectorMin);
             scope.StepSpinner(ScopeButtonId.Vector, -5);
             Assert.Equal(0, scope.EffectiveBand.VectorMin);
-            Assert.Equal("Scope vector 0 MIN (pinned)", main.StatusText);
+            Assert.Equal("Radar vector 0 MIN (pinned)", main.StatusText);
 
             main.StatusText = "";
             scope.StepSpinner(ScopeButtonId.Vector, -1);
@@ -111,7 +111,7 @@ public class ScopeVectorHistTests : IDisposable
 
             scope.StepSpinner(ScopeButtonId.Hist, 1);
             Assert.Equal(6, scope.EffectiveBand.History);
-            Assert.Equal("Scope history 6 (pinned)", main.StatusText);
+            Assert.Equal("Radar history 6 (pinned)", main.StatusText);
             scope.StepSpinner(ScopeButtonId.Hist, 5);
             Assert.Equal(10, scope.EffectiveBand.History);
 
@@ -218,7 +218,7 @@ public class ScopeVectorHistTests : IDisposable
             scope.Press(Button(ScopeButtonId.Vector));
 
             Assert.Equal(ScopeVectorOwnership.All, scope.VectorOwnership);
-            Assert.Equal("Scope vector ALL", main.StatusText);
+            Assert.Equal("Radar vector ALL", main.StatusText);
             Assert.False(scope.Pins.Any);
             Assert.False(scope.IsActive(Button(ScopeButtonId.Auto)));
             Assert.Equal(1, scope.EffectiveBand.VectorMin);
@@ -226,7 +226,7 @@ public class ScopeVectorHistTests : IDisposable
             scope.Press(Button(ScopeButtonId.Vector));
 
             Assert.Equal(ScopeVectorOwnership.Own, scope.VectorOwnership);
-            Assert.Equal("Scope vector OWN", main.StatusText);
+            Assert.Equal("Radar vector OWN", main.StatusText);
         }
         finally
         {
@@ -241,11 +241,11 @@ public class ScopeVectorHistTests : IDisposable
         try
         {
             main.RunScopeCommand(".scope vector 2");
-            Assert.Equal("Scope vector 2 MIN (pinned)", main.StatusText);
+            Assert.Equal("Radar vector 2 MIN (pinned)", main.StatusText);
             Assert.Equal(2, scope.Pins.VectorMin);
 
             main.RunScopeCommand(".scope VECTOR All");
-            Assert.Equal("Scope vector ALL", main.StatusText);
+            Assert.Equal("Radar vector ALL", main.StatusText);
             Assert.Equal(ScopeVectorOwnership.All, scope.VectorOwnership);
             Assert.Equal(new ScopeBandPins(null, 2, null, null), scope.Pins);
         }
@@ -288,7 +288,7 @@ public class ScopeVectorHistTests : IDisposable
         {
             main.RunScopeCommand(".scope hist 3");
 
-            Assert.Equal("Scope history 3 (pinned)", main.StatusText);
+            Assert.Equal("Radar history 3 (pinned)", main.StatusText);
             Assert.Equal(3, scope.Pins.History);
             Assert.Equal(3, scope.EffectiveBand.History);
         }

@@ -45,7 +45,7 @@ public class ScopeCommandTests
             Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
             Assert.Equal(ScopeProfileKind.Eram, scope.ProfileKind);
             Assert.Equal("eram", scope.TemplateId);
-            Assert.Equal("Scope profile ERAM", main.StatusText);
+            Assert.Equal("Radar profile ERAM", main.StatusText);
         }
         finally
         {
@@ -63,7 +63,7 @@ public class ScopeCommandTests
 
             Assert.Equal(ScopeProfile.OthersFull, scope.Pins.OthersLevel);
             Assert.Equal(ScopeProfile.OthersFull, scope.EffectiveBand.OthersLevel);
-            Assert.Equal("Scope others FULL (pinned)", main.StatusText);
+            Assert.Equal("Radar others FULL (pinned)", main.StatusText);
         }
         finally
         {
@@ -82,7 +82,7 @@ public class ScopeCommandTests
             main.RunScopeCommand(".scope auto");
 
             Assert.Equal(ScopeBandPins.None, scope.Pins);
-            Assert.Equal("Scope AUTO", main.StatusText);
+            Assert.Equal("Radar AUTO", main.StatusText);
         }
         finally
         {
@@ -130,7 +130,7 @@ public class ScopeCommandTests
     }
 
     [AvaloniaTheory]
-    [InlineData(".scope profile wx", "Unknown scope profile 'wx'")]
+    [InlineData(".scope profile wx", "Unknown Radar profile 'wx'")]
     [InlineData(".scope profile", "Usage: .scope profile <stars|eram|mixed>")]
     public async Task Profile_BadIdOrArity_SaysSo_AndKeepsTheProfile(string command, string expected)
     {
@@ -244,7 +244,7 @@ public class ScopeCommandTests
 
             main.RunScopeCommand(".scope template radar");
 
-            Assert.Equal("Unknown scope template: radar", main.StatusText);
+            Assert.Equal("Unknown Radar template: radar", main.StatusText);
             Assert.Equal(before, scope.TemplateId);
         }
         finally
@@ -537,7 +537,7 @@ public class ScopeCommandTests
 
             main.RunScopeCommand(command);
 
-            Assert.Equal($"Unknown scope DB item: {item}", main.StatusText);
+            Assert.Equal($"Unknown Radar DB item: {item}", main.StatusText);
             Assert.Equal(before, scope.DbSettings);
         }
         finally
@@ -618,10 +618,10 @@ public class ScopeCommandTests
     [InlineData(".scope tearoff range tr -1 2", TearoffUsage)]
     [InlineData(".scope tearoff range tr 1 2.5", TearoffUsage)]
     [InlineData(".scope tearoff delete", TearoffUsage)]
-    [InlineData(".scope tearoff NoSuch tr 1 2", "Unknown scope button: NoSuch")]
-    [InlineData(".scope tearoff deletetearoff tr 1 2", "Unknown scope button: deletetearoff")]
+    [InlineData(".scope tearoff NoSuch tr 1 2", "Unknown Radar button: NoSuch")]
+    [InlineData(".scope tearoff deletetearoff tr 1 2", "Unknown Radar button: deletetearoff")]
     [InlineData(".scope tearoff map99 tr 1 2", "Unknown video map: 99")]
-    [InlineData(".scope tearoff delete range Nope", "Unknown scope button: Nope")]
+    [InlineData(".scope tearoff delete range Nope", "Unknown Radar button: Nope")]
     [InlineData(".scope tearoff delete range db", "No tear-off: db")]
     public async Task Tearoff_Errors_SaySo_AndLeaveTheTearoffs(string command, string expected)
     {

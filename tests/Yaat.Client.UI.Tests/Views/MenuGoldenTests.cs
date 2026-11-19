@@ -31,7 +31,7 @@ public class MenuGoldenTests
     public MenuGoldenTests() => _navDb = MenuGoldenFixtures.EnsureNavData();
 
     [AvaloniaFact]
-    public Task ScopeMenus_MatchGoldens() => AssertGoldens(MenuView.Radar);
+    public Task ScopeMenus_MatchGoldens() => AssertGoldens(MenuView.Scope);
 
     [AvaloniaFact]
     public Task GroundMenus_MatchGoldens() => AssertGoldens(MenuView.Ground);
@@ -79,7 +79,7 @@ public class MenuGoldenTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
         main.DisplayFavorites.Clear();
-        MenuFixture fixture = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "ifr-enroute");
+        MenuFixture fixture = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "ifr-enroute");
         main.Aircraft.Clear();
         main.Aircraft.Add(fixture.Aircraft);
         main.Preferences.SetShowQuickCommandIcons(false);
@@ -89,7 +89,7 @@ public class MenuGoldenTests
 
         ContextMenu menu = MenuHostHarness.BuildScopePointMenu(main, fixture.Aircraft, point);
 
-        AssertGolden("filled", "radar-point-icons-off", $"# radar point, icons off\n{MenuTreeSnapshot.Render(menu)}");
+        AssertGolden("filled", "scope-point-icons-off", $"# scope point, icons off\n{MenuTreeSnapshot.Render(menu)}");
     }
 
     /// <summary>
@@ -128,7 +128,7 @@ public class MenuGoldenTests
     /// <summary>
     /// Every fixture's menu is the same on every view that renders it, once each view's own section (its Display submenu
     /// and Draw route, with the separator before them) and the golden's title line are set aside. A fixture is the
-    /// fixture name plus the right-clicked aircraft's callsign, since the radar and ground relative selections right-click
+    /// fixture name plus the right-clicked aircraft's callsign, since the Scope and ground relative selections right-click
     /// different aircraft; every list fixture must also be rendered by another view, so the list is always compared. The
     /// callsign keys the fixture, not the rendered title row, so the title row stays inside the compared text.
     /// </summary>
@@ -314,7 +314,7 @@ public class MenuGoldenTests
             main.Preferences.SetShowQuickCommandIcons(fixture.ShowQuickCommandIcons);
             ContextMenu menu = view switch
             {
-                MenuView.Radar => MenuHostHarness.BuildScopeMenu(main, fixture.Aircraft, fixture.Selected),
+                MenuView.Scope => MenuHostHarness.BuildScopeMenu(main, fixture.Aircraft, fixture.Selected),
                 MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected),
                 _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, fixture.Selected, [fixture.Aircraft]),
             };

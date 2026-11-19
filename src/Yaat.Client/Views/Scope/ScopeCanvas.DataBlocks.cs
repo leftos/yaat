@@ -12,7 +12,7 @@ namespace Yaat.Client.Views.Scope;
 /// </summary>
 public sealed partial class ScopeCanvas
 {
-    /// <summary>The squared pointer travel a block drag needs before the block follows it (the Radar's 4 px).</summary>
+    /// <summary>The squared pointer travel a block drag needs before the block follows it (4 px).</summary>
     private const double BlockDragThresholdSq = 16.0;
 
     private bool _isDraggingBlock;

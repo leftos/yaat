@@ -249,7 +249,7 @@ public class ScopeBandPinTests : IDisposable
 
             Assert.Equal(ScopeProfile.OthersPartial, scope.Pins.OthersLevel);
             Assert.Equal("PARTIAL", scope.SpinnerValue(Button(ScopeButtonId.Others)));
-            Assert.Equal("Scope others PARTIAL (pinned)", main.StatusText);
+            Assert.Equal("Radar others PARTIAL (pinned)", main.StatusText);
         }
         finally
         {

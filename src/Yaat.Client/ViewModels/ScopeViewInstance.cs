@@ -10,7 +10,7 @@ namespace Yaat.Client.ViewModels;
 public sealed class ScopeViewInstance
 {
     /// <summary>The start of every Scope window's title; an extra window adds its number.</summary>
-    public const string TitlePrefix = "YAAT Scope";
+    public const string TitlePrefix = "YAAT Radar";
 
     /// <summary>Instance number, always ≥ 2: the primary Scope is #1.</summary>
     public required int Ordinal { get; init; }

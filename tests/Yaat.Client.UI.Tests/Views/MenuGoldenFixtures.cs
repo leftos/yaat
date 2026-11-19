@@ -12,7 +12,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>The three views whose aircraft context menus the goldens pin; the value's lower-case name is the golden folder.</summary>
 internal enum MenuView
 {
-    Radar,
+    Scope,
     Ground,
     List,
 }
@@ -93,8 +93,8 @@ internal static class MenuGoldenFixtures
         ];
         switch (view)
         {
-            case MenuView.Radar:
-                fixtures.Add(RadarRelativeSelection());
+            case MenuView.Scope:
+                fixtures.Add(ScopeRelativeSelection());
                 break;
             case MenuView.Ground:
             case MenuView.List:
@@ -541,10 +541,10 @@ internal static class MenuGoldenFixtures
         };
 
     /// <summary>
-    /// Radar: the selected arrival has reported the right-clicked one in sight, so both the report-in-sight and the
+    /// Scope: the selected arrival has reported the right-clicked one in sight, so both the report-in-sight and the
     /// follow items appear.
     /// </summary>
-    private static MenuFixture RadarRelativeSelection()
+    private static MenuFixture ScopeRelativeSelection()
     {
         AircraftModel rightClicked = AirborneJet("AAL601", "FinalApproach", AircraftSituation.Final, new LatLon(37.6800, -122.1500), 1500);
         AircraftModel selected = AirborneJet("AAL602", "ApproachNav", AircraftSituation.Approach, new LatLon(37.6200, -122.0500), 3000);

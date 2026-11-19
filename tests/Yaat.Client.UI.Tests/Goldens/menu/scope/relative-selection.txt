@@ -1,0 +1,181 @@
+# scope relative-selection
+AAL601 · B738 [disabled]
+Final · 1,500 ft · 180 kt · KOAK rwy 30 [disabled]
+---
+For AAL602 (selected) [disabled]
+AAL601 is at its 12 o'clock, 6 nm, 1,500 ft below [disabled]
+Report in sight alias:RTIS
+Follow alias:FOLLOW
+---
+For AAL601 [disabled]
+strip row 1: Runway: tower.cleared-to-land tower.go-around | Vectors: speed.final-approach
+---
+Command…
+Note…
+All Commands
+  Runway
+    Cleared to land 30 alias:CLAND
+    Force landing 30 alias:CLANDF
+    Go around 30 alias:GA
+  Vectors
+    Heading [disabled]
+    Present heading alias:FPH
+    Fly heading alias:FH
+      heading flyout
+    Turn left alias:TL
+      heading flyout
+    Turn right alias:TR
+      heading flyout
+    Turn left (degrees) alias:RELL
+      heading flyout
+    Turn right (degrees) alias:RELR
+      heading flyout
+    Altitude [disabled]
+    Maintain altitude alias:CM / DM
+      maintain altitude flyout
+    Speed [disabled]
+    Assign speed alias:SPD …
+      speed flyout
+    Speed… alias:SPD …
+      speed flyout
+    Resume normal speed alias:RNS
+    Reduce to final approach speed alias:RFAS
+    Route [disabled]
+    Direct to… alias:DCT
+      direct to flyout
+    Proceed on course alias:OC
+    Cross fix… alias:CFIX
+      cross fix flyout
+    Depart fix… alias:DEPART
+      depart fix flyout
+    Join airway… alias:JAWY
+      join airway flyout
+    Join radial outbound… alias:JRADO
+      join radial flyout
+    Join radial inbound… alias:JRADI
+      join radial flyout
+    Climb via SID alias:CVIA
+  Approach
+    Cleared approach alias:CAPP …
+      approach flyout, built when it opens
+    Join approach alias:JAPP
+      approach flyout, built when it opens
+    Cleared straight-in alias:CAPPSI
+      approach flyout, built when it opens
+    Join straight-in alias:JAPPSI
+      approach flyout, built when it opens
+    Cleared approach (force) alias:CAPPF
+      approach flyout, built when it opens
+    Join approach (force) alias:JAPPF
+      approach flyout, built when it opens
+    Join final approach course alias:JFAC
+      approach flyout, built when it opens
+    Expect approach alias:EAPP
+      approach flyout, built when it opens
+    Cleared visual approach alias:CVA / CVAF
+      approach flyout, built when it opens
+    ---
+    Join STAR alias:JARR / DVIA
+      join STAR flyout
+    PTAC… alias:PTAC / PTACF
+      ptac flyout
+    ---
+    Hold at fix… alias:HOLDP
+      hold at fix flyout
+    Hold present position (left) alias:HPPL
+    Hold present position (right) alias:HPPR
+  Pattern
+    Make straight-in alias:EF
+      Runway 10R — EF 10R
+      Runway 12 — EF 12
+      Runway 28L — EF 28L
+      Runway 30 — EF 30
+      Runway 10L · short — EF 10L
+      Runway 15 · short — EF 15
+      Runway 28R · short — EF 28R
+      Runway 33 · short — EF 33
+  Pilot reports
+    Report field in sight… alias:RFIS
+      report field in sight flyout
+    Report traffic in sight… alias:RTIS
+      report traffic in sight flyout
+    ---
+    Report when… alias:REPORT
+      Report when… · AAL601 · RWY 30 [disabled]
+      Mile final — ···
+      Passing a fix — ···
+    ---
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+  ---
+  Warp… alias:WARP
+    Warp · AAL601 · now 281° · 1,500 ft · 180 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
+  ---
+  Display
+    Hide datablock
+    Show nav route
+    Measure from AAL601
+    ---
+    Leader direction
+      1
+      2
+      3
+      4
+      5 (default)
+      6
+      7
+      8
+      9
+    J-ring
+    Cone
+    ---
+    Blank target
+    Unblank target
+  Draw route
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL
+---
+Settings for this view…

@@ -3,8 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// One of the Scope's own video-map toggles: a copy of a Radar map toggle's data, taken once when the Scope is seeded, with
-/// the Scope's own on/off state. Turning it on or off never touches the Radar's toggle.
+/// One of the Scope's own video-map toggles: a copy of a facility video map's data, taken once when the Scope is seeded, with
+/// the Scope's own on/off state. Turning it on or off touches no other Scope's toggle.
 /// </summary>
 public sealed partial class ScopeMapToggle : ObservableObject
 {

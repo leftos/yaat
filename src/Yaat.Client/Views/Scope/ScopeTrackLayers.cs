@@ -43,7 +43,7 @@ public static class ScopeVectorOwnerships
 }
 
 /// <summary>
-/// Pure: the screen geometry of a track's vector line and history dots, as the Radar's PTL and history trails draw them,
+/// Pure: the screen geometry of a track's vector line and history dots,
 /// with the vector projected along the ground track rather than the heading.
 /// </summary>
 internal static class ScopeTrackLayers

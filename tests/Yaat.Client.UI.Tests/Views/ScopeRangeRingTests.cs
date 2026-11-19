@@ -76,25 +76,25 @@ public class ScopeRangeRingTests
         {
             main.RunScopeCommand(".scope rr off");
             Assert.False(scope.ShowRangeRing);
-            Assert.Equal("Scope RR OFF", main.StatusText);
+            Assert.Equal("Radar RR OFF", main.StatusText);
 
             main.RunScopeCommand(".scope rr on");
             Assert.True(scope.ShowRangeRing);
-            Assert.Equal("Scope RR ON", main.StatusText);
+            Assert.Equal("Radar RR ON", main.StatusText);
 
             main.RunScopeCommand(".scope rr size 10");
             Assert.Equal(10, scope.RangeRingSizeNm);
-            Assert.Equal("Scope RR SIZE 10", main.StatusText);
+            Assert.Equal("Radar RR SIZE 10", main.StatusText);
 
             main.RunScopeCommand(".scope rr place");
             Assert.True(scope.IsPlacingRangeRing);
             Assert.True(scope.IsActive(Button(ScopeButtonId.RrPlace)));
-            Assert.Equal("Scope RR PLACE: click the map", main.StatusText);
+            Assert.Equal("Radar RR PLACE: click the map", main.StatusText);
 
             scope.PlaceRangeRing(new LatLon(37.5, -122.1));
             main.RunScopeCommand(".scope rr center");
             Assert.Null(scope.RangeRingCenter);
-            Assert.Equal("Scope RR CNTR", main.StatusText);
+            Assert.Equal("Radar RR CNTR", main.StatusText);
 
             foreach (string bad in new[] { ".scope rr", ".scope rr size 7", ".scope rr size", ".scope rr maybe" })
             {
@@ -118,7 +118,7 @@ public class ScopeRangeRingTests
         main.RunScopeCommand(".scope rr on");
 
         Assert.True(main.PrimaryScope.ShowRangeRing);
-        Assert.Equal("Scope RR ON", main.StatusText);
+        Assert.Equal("Radar RR ON", main.StatusText);
     }
 
     [AvaloniaFact]
@@ -155,7 +155,7 @@ public class ScopeRangeRingTests
             scope.Press(Button(ScopeButtonId.RrCenter));
 
             Assert.Equal(new LatLon(HomeLat, HomeLon), scope.RangeRingCenterShown);
-            Assert.Equal("Scope RR CNTR", main.StatusText);
+            Assert.Equal("Radar RR CNTR", main.StatusText);
         }
     }
 

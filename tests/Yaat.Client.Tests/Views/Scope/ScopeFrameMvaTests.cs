@@ -10,7 +10,7 @@ using Yaat.Sim.Data.Mva;
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// Pins <see cref="ScopeFrame.MvaRelationFor"/> against the committed MVA data, with today's radar's inhibit rule (tint
+/// Pins <see cref="ScopeFrame.MvaRelationFor"/> against the committed MVA data, with its inhibit rule (tint
 /// off, on the ground, established on an approach, VFR) and its ±100 ft at-band, and that the frame carries the relation
 /// onto the Altitude field's token.
 /// </summary>

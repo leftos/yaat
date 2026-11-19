@@ -91,7 +91,7 @@
             <WrapPanel Orientation="Horizontal" Margin="12,0,0,0">
               <CheckBox Content="Main Window" IsChecked="{Binding MainWindowTopmost}" Margin="0,0,16,4" />
               <CheckBox Content="Ground View" IsChecked="{Binding GroundViewTopmost}" Margin="0,0,16,4" />
-              <CheckBox Content="Scope" IsChecked="{Binding ScopeTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Radar" IsChecked="{Binding ScopeTopmost}" Margin="0,0,16,4" />
               <CheckBox Content="Aircraft List" IsChecked="{Binding DataGridTopmost}" Margin="0,0,16,4" />
               <CheckBox Content="Terminal" IsChecked="{Binding TerminalTopmost}" Margin="0,0,16,4" />
               <CheckBox Content="Flight Strips" IsChecked="{Binding VStripsTopmost}" Margin="0,0,16,4" />

@@ -230,7 +230,7 @@ public class AircraftMenuBuilderTests
     public void DelayedSpawn_KeepsItsOrder()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "delayed-spawn").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "delayed-spawn").Aircraft;
 
         List<string> items = Sequence(Build(ac, new RecordingMenuHost(""), _ => []));
 
@@ -257,7 +257,7 @@ public class AircraftMenuBuilderTests
     public void DelayedSpawn_HeldForRelease_GetsAStripOfTheReleaseIconUnderTheHeader()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "delayed-spawn-held").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "delayed-spawn-held").Aircraft;
 
         ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
 
@@ -286,7 +286,7 @@ public class AircraftMenuBuilderTests
     public void SurfaceShadow_KeepsItsOrder()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "live-traffic-surface").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "live-traffic-surface").Aircraft;
 
         ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]);
         List<string> items = Sequence(menu);
@@ -520,7 +520,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_WithOtherSelected_ForSectionSitsUnderHeader()
+    public void ScopeMenu_WithOtherSelected_ForSectionSitsUnderHeader()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         MenuFixture fixture = RelativeFixture();
@@ -545,7 +545,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_ForSectionSendsAsTheSelectedAircraft()
+    public void ScopeMenu_ForSectionSendsAsTheSelectedAircraft()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         MenuFixture fixture = RelativeFixture();
@@ -561,7 +561,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_FollowOnlyAfterReportedInSight()
+    public void ScopeMenu_FollowOnlyAfterReportedInSight()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         MenuFixture fixture = RelativeFixture();
@@ -574,7 +574,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_AllCommandsHoldsNoRelativeItemsForAirbornePair()
+    public void ScopeMenu_AllCommandsHoldsNoRelativeItemsForAirbornePair()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         MenuFixture fixture = RelativeFixture();
@@ -587,7 +587,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_MixedPair_HasNoForSection()
+    public void ScopeMenu_MixedPair_HasNoForSection()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         MenuFixture fixture = RelativeFixture();
@@ -686,10 +686,10 @@ public class AircraftMenuBuilderTests
         );
 
     /// <summary>
-    /// The radar relative-selection fixture: AAL601 right-clicked with AAL602 selected, both airborne, AAL602 having
+    /// The Scope relative-selection fixture: AAL601 right-clicked with AAL602 selected, both airborne, AAL602 having
     /// reported AAL601 in sight.
     /// </summary>
-    private static MenuFixture RelativeFixture() => MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "relative-selection");
+    private static MenuFixture RelativeFixture() => MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "relative-selection");
 
     private static ContextMenu BuildWithSelection(MenuFixture fixture, RecordingMenuHost host) =>
         AircraftMenuBuilder.Build(fixture.Aircraft, new MenuClick(fixture.Aircraft.Callsign, fixture.Selected, null, []), host, _ => []);
@@ -697,8 +697,8 @@ public class AircraftMenuBuilderTests
     private static ContextMenu Build(AircraftModel ac, RecordingMenuHost host, Func<MenuContext, IReadOnlyList<Control>> section) =>
         AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, null, []), host, section);
 
-    /// <summary>The radar golden fixture of that name: its aircraft, the same on every view.</summary>
-    private static AircraftModel Fixture(string name) => MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == name).Aircraft;
+    /// <summary>The Scope golden fixture of that name: its aircraft, the same on every view.</summary>
+    private static AircraftModel Fixture(string name) => MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == name).Aircraft;
 
     private static string Label(string id) => MenuCatalog.Get(id).Label;
 

@@ -225,7 +225,7 @@ public class ClientMenuHostTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var main = new MainViewModel(new FakeFilePickerService());
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "taxiing").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "taxiing").Aircraft;
         main.Aircraft.Add(ac);
         main.SelectedTabIndex = 0;
         Assert.False(main.IsGroundViewPoppedOut);

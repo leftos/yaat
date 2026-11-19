@@ -4,7 +4,7 @@ using Yaat.Sim.Data.Mva;
 
 namespace Yaat.Client.Views.Scope;
 
-/// <summary>The Ctrl-hover MVA readout's text: the MVA floor and sector at a point, as the Radar's hover label words it.</summary>
+/// <summary>The Ctrl-hover MVA readout's text: the MVA floor and sector at a point.</summary>
 internal static class ScopeMvaReadout
 {
     /// <summary>

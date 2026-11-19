@@ -108,7 +108,7 @@ internal readonly struct DataBlockLayout
         // Flight-plan gate from the remarks, its own line directly under the type/fix line.
         string gateLine = ac.GateLine;
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
-        // Beacon-code mismatch: reported code + assigned code on their own line, sharing the radar's
+        // Beacon-code mismatch: reported code + assigned code on their own line, sharing the Scope's
         // gate (discrete code assigned, codes differ, Mode C, no emergency code, no SQVFR latch) so a
         // departure still on 1200 after being assigned a code is visible before it ever hits the radar.
         // The renderer dim-pulses the assigned code; the condition itself does not flash, so the
@@ -437,7 +437,7 @@ public sealed class GroundRenderer : IDisposable
     /// <summary>Font + paint pair for ground datablock text. Mirrored by GroundCanvas's hit-test pair.</summary>
     private TextStyle DataBlockStyle => new(_dataBlockTextFont, _dataBlockTextPaint);
 
-    // Bubble pill paints — mirror the radar palette so SAY overlays read the same on both views.
+    // Bubble pill paints — mirror the Scope's palette so SAY overlays read the same on both views.
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
     private static readonly SKColor SpeechBubbleBorderColor = new(80, 220, 140);
 
@@ -2835,7 +2835,7 @@ public sealed class GroundRenderer : IDisposable
             row++;
         }
 
-        // Beacon-code mismatch: reported code solid, assigned code dim-pulsing — the radar's drawer,
+        // Beacon-code mismatch: reported code solid, assigned code dim-pulsing, as the Scope draws it,
         // so both views pulse in the same cadence and color treatment.
         if (layout.SquawkLine.Length > 0)
         {

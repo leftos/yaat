@@ -477,7 +477,7 @@ public class ScopeAircraftMenuTests
         }
     }
 
-    // The Scope's twin of the radar's whole-menu seam: its view section ends All Commands, Display before Draw route.
+    // The Scope's whole-menu seam: its view section ends All Commands, Display before Draw route.
     [AvaloniaFact]
     public async Task BuildAircraftMenu_EndsAllCommandsWithDisplayThenDrawRoute()
     {

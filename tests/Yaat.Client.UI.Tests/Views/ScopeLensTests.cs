@@ -93,20 +93,20 @@ public class ScopeLensTests
             Assert.Empty(WithIntentPath(view.Canvas));
 
             main.RunScopeCommand(".scope lens on");
-            Assert.Equal("Scope lens ON", main.StatusText);
+            Assert.Equal("Radar lens ON", main.StatusText);
             Assert.Empty(WithIntentPath(view.Canvas));
 
             main.RunScopeCommand(".scope lens path on");
-            Assert.Equal("Scope lens path ON", main.StatusText);
+            Assert.Equal("Radar lens path ON", main.StatusText);
             Assert.Equal(["N123AB"], WithIntentPath(view.Canvas));
 
             main.RunScopeCommand(".scope lens path ual1");
-            Assert.Equal("Scope lens path UAL1", main.StatusText);
+            Assert.Equal("Radar lens path UAL1", main.StatusText);
             Assert.Equal(["UAL1"], scope.LensPathCallsigns);
             Assert.Equal(["N123AB", "UAL1"], WithIntentPath(view.Canvas));
 
             main.RunScopeCommand(".scope lens path UAL1");
-            Assert.Equal("Scope lens path UAL1 removed", main.StatusText);
+            Assert.Equal("Radar lens path UAL1 removed", main.StatusText);
             Assert.Equal(["N123AB"], WithIntentPath(view.Canvas));
         }
         finally
@@ -288,7 +288,7 @@ public class ScopeLensTests
 
             main.RunScopeCommand(".scope lens queue on");
 
-            Assert.Equal("Scope lens queue ON", main.StatusText);
+            Assert.Equal("Radar lens queue ON", main.StatusText);
             Assert.Equal(["N123AB"], WithQueueBadge(view.Canvas));
             ScopeTrack track = view.Canvas.CurrentFrame.Tracks.Single(t => t.Aircraft.Callsign == "N123AB");
             Assert.Equal(2, track.QueueBadge?.Count);
@@ -421,7 +421,7 @@ public class ScopeLensTests
 
             main.RunScopeCommand(".scope lens checkin on");
 
-            Assert.Equal("Scope lens checkin ON", main.StatusText);
+            Assert.Equal("Radar lens checkin ON", main.StatusText);
             Assert.Equal([("N123AB", (string?)"NO CALL")], WithCheckInTag(view.Canvas));
         }
         finally
@@ -450,7 +450,7 @@ public class ScopeLensTests
             Assert.Empty(WithCheckInTag(view.Canvas));
             if (command == ".scope lens checkin off")
             {
-                Assert.Equal("Scope lens checkin OFF", main.StatusText);
+                Assert.Equal("Radar lens checkin OFF", main.StatusText);
             }
         }
         finally

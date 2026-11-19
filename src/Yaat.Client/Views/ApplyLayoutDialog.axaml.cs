@@ -459,13 +459,13 @@ public partial class ApplyLayoutDialog : Window
 
         if (TryInstanceOrdinal(key, ViewInstanceOrdinals.ScopePrefix, out int scopeOrdinal))
         {
-            return $"Scope window #{scopeOrdinal}";
+            return $"Radar window #{scopeOrdinal}";
         }
 
         return key switch
         {
             "Main" => "Main window",
-            MainViewModel.ScopeViewKey => "Scope window",
+            MainViewModel.ScopeViewKey => "Radar window",
             "Terminal" => "Terminal window",
             "DataGrid" => "Aircraft List window",
             "GroundView" => "Ground View window",

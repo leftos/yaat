@@ -432,21 +432,21 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void RadarMenu_StartsWithTheSharedHeader_ItsOwnRowsUnderTheTitle_ThenTheStrip()
+    public void ScopeMenu_StartsWithTheSharedHeader_ItsOwnRowsUnderTheTitle_ThenTheStrip()
     {
-        List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", out ContextMenu _);
+        List<string> items = TopLevel(MenuView.Scope, "ifr-enroute", out ContextMenu _);
 
         Assert.Equal("AAL202 · B738", items[0]);
         int separator = items.IndexOf("---");
-        Assert.True(separator > 1, "The separator should follow the title and any radar rows.");
+        Assert.True(separator > 1, "The separator should follow the title and any Scope rows.");
         Assert.Equal(StripRow, items[separator + 1]);
         AssertCommandNoteAllCommandsFavorites(items);
     }
 
     [AvaloniaFact]
-    public void RadarTrackAndCoordinationGroup_HasNoNote()
+    public void ScopeTrackAndCoordinationGroup_HasNoNote()
     {
-        TopLevel(MenuView.Radar, "ifr-enroute", out ContextMenu menu);
+        TopLevel(MenuView.Scope, "ifr-enroute", out ContextMenu menu);
 
         MenuItem trackAndCoordination = AllCommandsPath.Group(menu, MenuCategory.TrackAndCoordination);
         List<string> children = [.. trackAndCoordination.Items.Select(Describe)];
@@ -467,7 +467,7 @@ public class MenuHeaderTests
     // The taxiing list names no Track and coordination entry, so the release icon, added after the list, is the strip's last.
     private void AssertReleaseInTrackAndCoordination(string fixture, string title, string releaseId, string releaseLabel)
     {
-        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        foreach (MenuView view in new[] { MenuView.Scope, MenuView.Ground, MenuView.List })
         {
             List<string> items = TopLevel(view, fixture, out ContextMenu menu);
 
@@ -506,16 +506,16 @@ public class MenuHeaderTests
         Assert.DoesNotContain("Check release window", items);
     }
 
-    // A surface live-traffic shadow is not controllable, so the radar header offers neither release row even with both flags set.
+    // A surface live-traffic shadow is not controllable, so the Scope header offers neither release row even with both flags set.
     [AvaloniaFact]
-    public void Header_ShadowWithReleaseFlags_ShowsNoReleaseRow_OnTheRadar()
+    public void Header_ShadowWithReleaseFlags_ShowsNoReleaseRow_OnTheScope()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
         main.DisplayFavorites.Clear();
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "live-traffic-surface").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "live-traffic-surface").Aircraft;
         ac.IsHeldForRelease = true;
         ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
         main.Aircraft.Add(ac);
@@ -529,14 +529,14 @@ public class MenuHeaderTests
 
     // The hold status row ends the header; Release (HFR), after the taxiing list's own icons, is the last icon of the strip under it.
     [AvaloniaFact]
-    public void Header_Radar_HoldRowEndsTheHeader_ReleaseInTheStripUnderIt()
+    public void Header_Scope_HoldRowEndsTheHeader_ReleaseInTheStripUnderIt()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
         main.DisplayFavorites.Clear();
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
-        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "held-for-release").Aircraft;
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Scope).Single(f => f.Name == "held-for-release").Aircraft;
         ac.HoldKind = "HoldPosition";
         main.Aircraft.Add(ac);
 
@@ -552,7 +552,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Header_RouteSummary_UnderTheStateLine_OnEveryView()
     {
-        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        foreach (MenuView view in new[] { MenuView.Scope, MenuView.Ground, MenuView.List })
         {
             List<string> items = TopLevel(view, "ifr-enroute", ac => ac.NavigationRoute = ["OAK", "SUNOL", "MOD"], out _);
 
@@ -566,7 +566,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Header_HoldStatus_UnderTheStateLine_OnEveryView()
     {
-        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        foreach (MenuView view in new[] { MenuView.Scope, MenuView.Ground, MenuView.List })
         {
             List<string> items = TopLevel(view, "ifr-enroute", ac => ac.HoldKind = "HoldPosition", out _);
 
@@ -580,7 +580,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Header_TitleThenStateThenRouteSummaryThenHoldStatus_OnEveryView()
     {
-        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        foreach (MenuView view in new[] { MenuView.Scope, MenuView.Ground, MenuView.List })
         {
             List<string> items = TopLevel(
                 view,
@@ -619,7 +619,7 @@ public class MenuHeaderTests
 
         menu = view switch
         {
-            MenuView.Radar => MenuHostHarness.BuildScopeMenu(main, ac, null),
+            MenuView.Scope => MenuHostHarness.BuildScopeMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };

@@ -1566,8 +1566,8 @@ public partial class SettingsViewModel : ObservableObject
         ),
         new(
             "PopOutRadarView",
-            "Pop out Scope",
-            "Pops the Scope out into its own window, or docks it back into the main window's Scope tab.",
+            "Pop out Radar",
+            "Pops the Radar out into its own window, or docks it back into the main window's Radar tab.",
             PopOutSearchWords,
             KeybindKind.WindowHotkey,
             p => p.PopOutRadarViewKey,

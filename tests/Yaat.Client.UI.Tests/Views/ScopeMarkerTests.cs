@@ -32,7 +32,7 @@ public class ScopeMarkerTests
             main.RunScopeMarkerCommand(".ff SUNOL");
             Assert.Equal(["SUNOL"], scope.Markers.Select(m => m.Name));
             Assert.True(scope.HasMarkers);
-            Assert.Equal("Scope markers updated", main.StatusText);
+            Assert.Equal("Radar markers updated", main.StatusText);
 
             main.RunScopeMarkerCommand(".ff sunol");
             Assert.Empty(scope.Markers);
@@ -49,7 +49,7 @@ public class ScopeMarkerTests
             main.RunScopeMarkerCommand(".marker NOTAFIXX");
 
             Assert.Empty(scope.Markers);
-            Assert.Equal("Scope markers updated; unknown fix: NOTAFIXX", main.StatusText);
+            Assert.Equal("Radar markers updated; unknown fix: NOTAFIXX", main.StatusText);
         }
     }
 
@@ -64,7 +64,7 @@ public class ScopeMarkerTests
 
             main.RunScopeMarkerCommand(".nomarkers");
             Assert.Empty(scope.Markers);
-            Assert.Equal("Scope markers cleared", main.StatusText);
+            Assert.Equal("Radar markers cleared", main.StatusText);
 
             main.RunScopeMarkerCommand(".ff");
             Assert.Equal("Usage: .ff <fix> [fix ...]", main.StatusText);
@@ -81,7 +81,7 @@ public class ScopeMarkerTests
 
         main.RunScopeMarkerCommand(".nomarkers");
         Assert.Empty(main.PrimaryScope.MarkerTokens);
-        Assert.Equal("Scope markers cleared", main.StatusText);
+        Assert.Equal("Radar markers cleared", main.StatusText);
     }
 
     [AvaloniaFact]

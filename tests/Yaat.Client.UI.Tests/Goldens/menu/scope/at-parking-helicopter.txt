@@ -1,0 +1,87 @@
+# scope at-parking-helicopter
+N812HL · EC35 [disabled]
+At parking · HELI1 [disabled]
+---
+strip row 1: Taxi: ground.air-taxi ground.taxi-preset ground.draw-taxi-route
+---
+Command…
+Note…
+All Commands
+  Taxi
+    Push back alias:PUSH
+    Push back to… alias:PUSH
+      Computing targets… [disabled]
+    Push route…
+    Taxi to runway alias:TAXI
+      Finding runway entries…
+    Preset taxi route alias:TAXI
+      TERMINAL to 30 · via T U W · ~14,300 ft — TAXI T U W RWY 30
+    Air taxi alias:ATXI
+      Air taxi to · Filter pads, parking, spots, runways
+    Follow… · no other aircraft on the ground [disabled]
+    Draw taxi route…
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+  ---
+  Display
+    Hide datablock
+    Show nav route
+    Measure from N812HL
+    ---
+    Leader direction
+      1
+      2
+      3
+      4
+      5 (default)
+      6
+      7
+      8
+      9
+    J-ring
+    Cone
+    ---
+    Blank target
+    Unblank target
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL
+---
+Settings for this view…

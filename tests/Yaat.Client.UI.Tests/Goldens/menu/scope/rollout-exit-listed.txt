@@ -1,0 +1,86 @@
+# scope rollout-exit-listed
+SWA110 · B738 [disabled]
+Landing · runway 30 · 60 kt [disabled]
+---
+strip row 1: Runway: tower.exit-left tower.exit-right | Taxi: ground.draw-taxi-route
+---
+Command…
+Note…
+All Commands
+  Runway
+    Exit left alias:EL
+      Exits ahead, left side · from the aircraft [disabled]
+      Taxiway W1 · ~900 ft — EL W1
+      ---
+      Pilot's choice — EL
+    Exit right alias:ER
+      Exits ahead, right side · from the aircraft [disabled]
+      Taxiway W2 · planned · ~1,800 ft — ER W2
+      Taxiway W3 · ~3,600 ft — ER W3
+      ---
+      Pilot's choice — ER
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+  ---
+  Display
+    Hide datablock
+    Show nav route
+    Measure from SWA110
+    ---
+    Leader direction
+      1
+      2
+      3
+      4
+      5 (default)
+      6
+      7
+      8
+      9
+    J-ring
+    Cone
+    ---
+    Blank target
+    Unblank target
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL
+---
+Settings for this view…

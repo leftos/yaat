@@ -130,11 +130,11 @@ public class ScopeTdmTests : IDisposable
 
             main.RunScopeCommand(".scope tdm on");
             Assert.True(scope.IsTdm);
-            Assert.Equal("Scope TDM ON", main.StatusText);
+            Assert.Equal("Radar TDM ON", main.StatusText);
 
             main.RunScopeCommand(".scope TDM Off");
             Assert.False(scope.IsTdm);
-            Assert.Equal("Scope TDM OFF", main.StatusText);
+            Assert.Equal("Radar TDM OFF", main.StatusText);
 
             main.RunScopeCommand(".scope tdm");
             Assert.Equal(TdmUsage, main.StatusText);
@@ -275,13 +275,13 @@ public class ScopeTdmTests : IDisposable
             Assert.Null(scope.OpenMenu);
             Assert.True(scope.IsTdm);
             Assert.True(scope.IsActive(tdm));
-            Assert.Equal("Scope TDM ON", main.StatusText);
+            Assert.Equal("Radar TDM ON", main.StatusText);
 
             scope.Press(tdm);
 
             Assert.False(scope.IsTdm);
             Assert.False(scope.IsActive(tdm));
-            Assert.Equal("Scope TDM OFF", main.StatusText);
+            Assert.Equal("Radar TDM OFF", main.StatusText);
         }
         finally
         {
@@ -304,7 +304,7 @@ public class ScopeTdmTests : IDisposable
             window.DispatchKey(Key.T, action);
 
             Assert.True(scope.IsTdm);
-            Assert.Equal("Scope TDM ON", main.StatusText);
+            Assert.Equal("Radar TDM ON", main.StatusText);
             Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Tdm).Classes);
 
             window.DispatchKey(Key.T, action);

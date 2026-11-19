@@ -129,7 +129,7 @@ public class ScopePrefCommandTests : IDisposable
 
             main.RunScopeCommand(".scope pref load TWO");
 
-            Assert.Equal(".scope pref load TWO (1 map not on this scope)", main.StatusText);
+            Assert.Equal(".scope pref load TWO (1 map not on this Radar)", main.StatusText);
             Assert.True(scope.MapToggles.Single(t => t.StarsId == 2).IsOn);
         }
         finally
@@ -162,7 +162,7 @@ public class ScopePrefCommandTests : IDisposable
 
         main.RunScopeCommand(".scope pref load HOLD");
 
-        Assert.Equal(".scope pref load HOLD (its maps apply once the scope's maps load)", main.StatusText);
+        Assert.Equal(".scope pref load HOLD (its maps apply once the Radar's maps load)", main.StatusText);
 
         SeedSource(main, 40.0, -100.0, "m2");
 
@@ -622,7 +622,7 @@ public class ScopePrefCommandTests : IDisposable
 
             main.RunScopeCommand(".scope pref load TWO");
 
-            Assert.Equal(".scope pref load TWO (2 maps not on this scope)", main.StatusText);
+            Assert.Equal(".scope pref load TWO (2 maps not on this Radar)", main.StatusText);
         }
         finally
         {
@@ -649,7 +649,7 @@ public class ScopePrefCommandTests : IDisposable
         using var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         main.RunScopeCommand(".scope pref load HOLD");
-        Assert.Equal(".scope pref load HOLD (its maps apply once the scope's maps load)", main.StatusText);
+        Assert.Equal(".scope pref load HOLD (its maps apply once the Radar's maps load)", main.StatusText);
 
         main.ScopeMaps.ApplyVideoMapsDtoForTesting(
             new FacilityVideoMapsDto("ZOA", "NCT", [new StarsAreaDto("A", "Area A", 40.0, -100.0, 60, [])], [], []),
@@ -821,7 +821,7 @@ public class ScopePrefCommandTests : IDisposable
         try
         {
             main.RunScopeCommand(".scope pref load HOLD");
-            Assert.Equal(".scope pref load HOLD (its maps apply once the scope's maps load)", main.StatusText);
+            Assert.Equal(".scope pref load HOLD (its maps apply once the Radar's maps load)", main.StatusText);
             Assert.Equal(50, scope.RangeNm);
 
             main.ScopeMaps.FinishLoadForTesting(load, Facility(38.0, -121.0), null);

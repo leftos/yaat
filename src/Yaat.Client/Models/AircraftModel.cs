@@ -606,7 +606,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// <summary>
     /// Full flown lateral route as projected by the server: each fix's geographic position (arc
     /// vertices, custom fixes, and FRD fixes included) plus any per-fix crossing-restriction label
-    /// lines. Drives the radar "Show nav route" overlay so it draws the exact path the aircraft flies.
+    /// lines. Drives the Scope's intent path (the pilot lens path and "Show nav route") so it draws the exact path the aircraft flies.
     /// Synthetic arc vertices carry an empty <see cref="NavRouteFixDto.Name"/>; <see cref="NavigationRoute"/>
     /// is the human-readable fix-name list derived from this (arc vertices filtered out).
     /// </summary>
@@ -615,7 +615,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// <summary>
     /// Server-projected geometry for the active procedure phase (hold racetracks, procedure turns,
     /// open-ended SID coded legs, military route corridors, VFR and airspace-boundary orbit circles) and
-    /// for each hold queued at a fix ahead, drawn by the "Show nav route" overlay — paths the flat
+    /// for each hold queued at a fix ahead, drawn by the Scope's intent path — paths the flat
     /// <see cref="NavRouteFixes"/> route can't express. Empty unless the aircraft is in such a phase or
     /// has such a hold queued.
     /// </summary>

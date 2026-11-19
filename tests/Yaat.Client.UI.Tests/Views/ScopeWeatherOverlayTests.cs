@@ -101,11 +101,11 @@ public class ScopeWeatherOverlayTests
 
             main.RunScopeCommand(".scope wx off");
             Assert.False(scope.ShowWeather);
-            Assert.Equal("Scope WX OFF", main.StatusText);
+            Assert.Equal("Radar WX OFF", main.StatusText);
 
             scope.Press(wx);
             Assert.True(scope.ShowWeather);
-            Assert.Equal("Scope WX ON", main.StatusText);
+            Assert.Equal("Radar WX ON", main.StatusText);
 
             main.RunScopeCommand(".scope wx");
             Assert.Equal("Usage: .scope wx <on|off>", main.StatusText);

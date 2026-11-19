@@ -91,11 +91,11 @@ public class ScopePtlTests
 
             main.RunScopeCommand(".scope ptl N123AB");
             Assert.Equal(["N123AB"], scope.LocalPtlCallsigns);
-            Assert.Equal("Scope PTL N123AB", main.StatusText);
+            Assert.Equal("Radar PTL N123AB", main.StatusText);
 
             main.RunScopeCommand(".scope ptl N123AB");
             Assert.Empty(scope.LocalPtlCallsigns);
-            Assert.Equal("Scope PTL N123AB removed", main.StatusText);
+            Assert.Equal("Radar PTL N123AB removed", main.StatusText);
         }
         finally
         {
@@ -177,11 +177,11 @@ public class ScopePtlTests
             main.RunScopeCommand(".scope ptl UAL2");
 
             main.RunScopeCommand(".scope ptl clear ual1");
-            Assert.Equal("Scope PTL cleared UAL1", main.StatusText);
+            Assert.Equal("Radar PTL cleared UAL1", main.StatusText);
             Assert.Equal(["UAL2"], scope.LocalPtlCallsigns);
 
             main.RunScopeCommand(".scope ptl clear");
-            Assert.Equal("Scope PTL cleared", main.StatusText);
+            Assert.Equal("Radar PTL cleared", main.StatusText);
             Assert.Empty(scope.LocalPtlCallsigns);
         }
         finally

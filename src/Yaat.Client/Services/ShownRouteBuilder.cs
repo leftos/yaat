@@ -5,9 +5,9 @@ using Yaat.Sim;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Builds the polyline and the optional heading tail that the radar's "Show nav route" overlay and the Scope's pilot lens
-/// draw for an aircraft. Pure helpers, no UI dependency beyond <see cref="DrawnWaypoint"/> and <see cref="VectorTail"/>.
-/// Everything else the overlay draws (route-end courses, final approach courses, coded legs, holds, queued vectors) arrives
+/// Builds the polyline and the optional heading tail that the Scope's intent path (the pilot lens path and the Display
+/// submenu's "Show nav route") draws for an aircraft. Pure helpers, no UI dependency beyond <see cref="DrawnWaypoint"/> and <see cref="VectorTail"/>.
+/// Everything else the lens draws (route-end courses, final approach courses, coded legs, holds, queued vectors) arrives
 /// from the server as <see cref="AircraftModel.NavRouteShapes"/>; nothing here reads CIFP.
 /// </summary>
 internal static class ShownRouteBuilder

@@ -492,7 +492,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(37.7213, scope.CenterLat, 6);
         Assert.Equal(-122.2208, scope.CenterLon, 6);
         Assert.Equal(15.5, scope.RangeNm, 6);
-        Assert.Equal("Primary Scope centred on UAL123 (37.7213, -122.2208) at 15.5 nm.", result.GetProperty("message").GetString());
+        Assert.Equal("Primary Radar centred on UAL123 (37.7213, -122.2208) at 15.5 nm.", result.GetProperty("message").GetString());
     }
 
     // The tools frame the primary Scope whatever Scope last had the focus, so an agent's picture does not depend on it.
@@ -816,7 +816,7 @@ public sealed class AppToolsTests : AutomationHostFixture
             response =>
             {
                 Assert.False(Result(response).GetProperty("available").GetBoolean(), response.GetRawText());
-                Assert.Equal("The Scope is still loading its maps.", Result(response).GetProperty("reason").GetString());
+                Assert.Equal("The Radar is still loading its maps.", Result(response).GetProperty("reason").GetString());
             }
         );
         Assert.Equal(rangeBefore, viewModel.PrimaryScope.RangeNm);
@@ -1269,7 +1269,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "set_leader_direction", new { callsign = "UAL123", direction = 9 }));
 
         Assert.EndsWith(
-            " The Scope shows it only while the student leader direction sync preference is on; it is off.",
+            " The Radar shows it only while the student leader direction sync preference is on; it is off.",
             result.GetProperty("message").GetString(),
             StringComparison.Ordinal
         );
@@ -1351,7 +1351,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         );
 
         Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
-        Assert.Equal("Primary Scope centred on (37.5000, -122.2500) at 30 nm.", result.GetProperty("message").GetString());
+        Assert.Equal("Primary Radar centred on (37.5000, -122.2500) at 30 nm.", result.GetProperty("message").GetString());
         Assert.Equal(37.5, viewModel.PrimaryScope.CenterLat, 6);
         Assert.Equal(-122.25, viewModel.PrimaryScope.CenterLon, 6);
         Assert.Equal(30, viewModel.PrimaryScope.RangeNm, 6);
@@ -1460,7 +1460,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(oak.Value.Lat, viewModel.PrimaryScope.CenterLat, 6);
         Assert.Equal(oak.Value.Lon, viewModel.PrimaryScope.CenterLon, 6);
         Assert.Equal(20, viewModel.PrimaryScope.RangeNm, 6);
-        Assert.StartsWith("Primary Scope centred on OAK (", result.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.StartsWith("Primary Radar centred on OAK (", result.GetProperty("message").GetString(), StringComparison.Ordinal);
     }
 
     [AvaloniaFact]

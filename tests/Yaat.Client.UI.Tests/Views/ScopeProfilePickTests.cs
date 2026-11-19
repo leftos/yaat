@@ -160,7 +160,7 @@ public class ScopeProfilePickTests : IDisposable
         main.RunScopeCommand(".scope profile mixed");
 
         Assert.Equal("mixed", main.Preferences.GetScopeProfileOverride("TWR"));
-        Assert.Equal("Scope profile MIXED", main.StatusText);
+        Assert.Equal("Radar profile MIXED", main.StatusText);
         Assert.Equal(ScopeProfileKind.Mixed, main.ScopeProfile);
     }
 
@@ -238,7 +238,7 @@ public class ScopeProfilePickTests : IDisposable
         Assert.Equal(ScopeProfileKind.Eram, scope.ProfileKind);
         Assert.Equal("stars", scope.TemplateId);
         // The scope has no maps yet, so the load's map note comes before the profile's.
-        Assert.Equal(".scope pref load ENROUTE (its maps apply once the scope's maps load); Scope profile ERAM", main.StatusText);
+        Assert.Equal(".scope pref load ENROUTE (its maps apply once the Radar's maps load); Radar profile ERAM", main.StatusText);
         Assert.Null(main.Preferences.GetScopeProfileOverride("APP"));
     }
 
@@ -398,7 +398,7 @@ public class ScopeProfilePickTests : IDisposable
         main.RunScopeCommand(".scope pref load ENR");
 
         Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
-        Assert.EndsWith("; Scope profile ERAM", main.StatusText);
+        Assert.EndsWith("; Radar profile ERAM", main.StatusText);
     }
 
     [AvaloniaFact]
@@ -414,7 +414,7 @@ public class ScopeProfilePickTests : IDisposable
 
         Assert.Equal(ScopeProfileKind.Stars, main.ScopeProfile);
         Assert.StartsWith(".scope pref load DAY", main.StatusText);
-        Assert.DoesNotContain("Scope profile", main.StatusText);
+        Assert.DoesNotContain("Radar profile", main.StatusText);
     }
 
     [AvaloniaFact]

@@ -26,7 +26,7 @@ public class MenuFootTests
     [AvaloniaFact]
     public void ScopeMenu_EndsWithDeleteThenRpoItemsThenViewSettings_WarpAndReleaseCloseAllCommands()
     {
-        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Scope, "ifr-enroute", assumedFromLiveFeed: true);
 
         Assert.Equal(["Favorite Commands", "---", "Delete", "---", "Give control", "Unassign", "---", "Settings for this view…"], items[^8..]);
         Assert.Equal(["---", "Warp…", "Release to live feed", "---", "Display", "Draw route"], commands[^6..]);
@@ -35,7 +35,7 @@ public class MenuFootTests
     [AvaloniaFact]
     public void ScopeMenu_HasNoSimControlSubmenu()
     {
-        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: false);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Scope, "ifr-enroute", assumedFromLiveFeed: false);
 
         Assert.DoesNotContain("Sim Control", items);
         Assert.DoesNotContain("Sim Control", commands);
@@ -47,7 +47,7 @@ public class MenuFootTests
     [AvaloniaFact]
     public void ScopeSurfaceShadowMenu_OffersNoWarp()
     {
-        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "live-traffic-surface", assumedFromLiveFeed: false);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Scope, "live-traffic-surface", assumedFromLiveFeed: false);
 
         Assert.Equal(
             ["---", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign", "---", "Settings for this view…"],
@@ -115,7 +115,7 @@ public class MenuFootTests
 
         return view switch
         {
-            MenuView.Radar => MenuHostHarness.BuildScopeMenu(main, ac, null),
+            MenuView.Scope => MenuHostHarness.BuildScopeMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };

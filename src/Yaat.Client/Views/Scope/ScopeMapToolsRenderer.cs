@@ -92,7 +92,7 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
     private readonly SKPaint _weatherPaint = new() { Color = new SKColor(0x00, 0xC8, 0x00), IsAntialias = true };
     private readonly SKFont _weatherFont = PlatformHelper.MonospaceFont(WeatherFontSize);
 
-    // The stroke paints put in the radar's line style each frame; each carries its base width in DIPs.
+    // The stroke paints put in the Scope's line style each frame; each carries its base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
     public ScopeMapToolsRenderer() => _strokePaints = [(_ringPaint, 1f), (_fixPaint, 1f), (_programmedFixPaint, 2f), (_markerPaint, 2f)];
@@ -139,7 +139,7 @@ internal sealed class ScopeMapToolsRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws the map tools under the tracks, in the radar's line style like every other map stroke: the range ring of
+    /// Draws the map tools under the tracks, in the Scope's line style like every other map stroke: the range ring of
     /// <paramref name="overlays"/> at the RINGS brightness of <paramref name="brightness"/>, then its fixes and its pinned
     /// markers at the MAP B brightness.
     /// </summary>

@@ -45,23 +45,23 @@ public sealed partial class AutomationTools
     // The flat parameter list is what list_app_tools/call_app_tool binding requires: one scalar argument per parameter, by name.
     [AutomationTool(
         "prepare_take",
-        "Loads a recording and frames it for a take on the primary Scope: waits for the video maps, seeks, pauses, sets the maps, "
-            + "centre, range, vector, the Scope's RBLs and sim rate, selects the Scope tab, and returns the framing. Leaves the sim "
+        "Loads a recording and frames it for a take on the primary Radar: waits for the video maps, seeks, pauses, sets the maps, "
+            + "centre, range, vector, the Radar's RBLs and sim rate, selects the Radar tab, and returns the framing. Leaves the sim "
             + "paused; start the take with play.",
         nameof(CannotLoadRecording)
     )]
     public async Task<AppToolOutcome> PrepareTake(
         [Description("The recording's full path: a .yaat-recording.zip/.br/.json or a .yaat-bug-report-bundle.zip.")] string path,
-        [Description("The Scope centre's latitude in degrees, from -90 to 90.")] double centerLat,
-        [Description("The Scope centre's longitude in degrees, from -180 to 180.")] double centerLon,
-        [Description("The Scope range to show, in nm, from 1 to 256.")] double rangeNm,
+        [Description("The Radar centre's latitude in degrees, from -90 to 90.")] double centerLat,
+        [Description("The Radar centre's longitude in degrees, from -180 to 180.")] double centerLon,
+        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm,
         [Description("The STARS ids of the video maps to show, comma-separated (e.g. \"5,12\"); every other map is turned off. May be empty.")]
             string videoMaps,
         [Description("The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.")] double ptlMinutes,
         [Description("True to draw vectors on all tracks (ALL), false on the viewer's own tracks only (OWN).")] bool ptlAll,
         [Description(
-            "The Scope's RBLs, ';'-separated 'from,to' pairs of callsigns, fixes or FRDs (e.g. \"UAL1,AAL9;OAK,SFO\"); they "
-                + "replace the Scope view's RBLs. May be empty."
+            "The Radar's RBLs, ';'-separated 'from,to' pairs of callsigns, fixes or FRDs (e.g. \"UAL1,AAL9;OAK,SFO\"); they "
+                + "replace the Radar view's RBLs. May be empty."
         )]
             string rbls,
         [Description("The sim rate to set, one the room accepts (e.g. 1, 2, 4, 8).")] int simRate,

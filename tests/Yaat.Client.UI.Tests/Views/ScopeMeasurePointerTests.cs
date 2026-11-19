@@ -162,7 +162,7 @@ public class ScopeMeasurePointerTests
     }
 
     // Ladder row 1, tool armed: the Alt-drag still places the whole line at once, and placing it disarms the tool, as the
-    // shared store's Add does for every whole-line placement (the Radar's Alt-drag too).
+    // shared store's Add does for every whole-line placement (a Ground view's Alt-drag too).
     [AvaloniaFact]
     public async Task AltDrag_WhileTheToolIsArmed_PlacesTheLine()
     {

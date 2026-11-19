@@ -7,7 +7,7 @@ public sealed partial class AutomationTools
 {
     [AutomationTool(
         "place_rbl",
-        "Place a range-bearing line on the Scope view between two endpoints, each a callsign, fix or FRD; returns its slot number.",
+        "Place a range-bearing line on the Radar view between two endpoints, each a callsign, fix or FRD; returns its slot number.",
         nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> PlaceRbl(
@@ -31,8 +31,8 @@ public sealed partial class AutomationTools
             _viewModel.Measure.Remove(slot) ? AppToolOutcome.Done($"RBL {slot} removed.") : AppToolOutcome.Unavailable($"No RBL in slot {slot}.")
         );
 
-    /// <summary>Removes the Scope view's lines only; the Radar's and the Ground view's lines in the shared store keep their slots.</summary>
-    [AutomationTool("clear_rbls", "Remove every range-bearing line from the Scope view.", nameof(ScopeNotReady))]
+    /// <summary>Removes the Scope's lines only; the Ground view's lines in the shared store keep their slots.</summary>
+    [AutomationTool("clear_rbls", "Remove every range-bearing line from the Radar view.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> ClearRbls() => Task.FromResult(AppToolOutcome.Done($"Cleared {ClearPrimaryScopeRbls()} RBL(s)."));
 
     /// <summary>

@@ -1237,9 +1237,9 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// Pushes the speech-bubble display preference to the ground canvas. The radar view syncs this
-    /// via <c>SyncAssignmentTint</c>; the ground canvas otherwise only picks it up through the
-    /// font-size path, so this gives MainWindow a dedicated seam to keep both views in lockstep
+    /// Pushes the speech-bubble display preference to the ground canvas. The Scope reads it from the preferences
+    /// itself (<c>ScopeCanvas.BubbleOptions</c>); the ground canvas otherwise only picks it up through the
+    /// font-size path, so this gives MainWindow a dedicated seam to keep every Ground view current
     /// when a speech-bubble setting changes without a font-size change.
     /// </summary>
     public void SyncSpeechBubblePreferences()

@@ -30,7 +30,7 @@ public class MainViewModelScopeInstancesTests
         {
             Assert.Equal(2, extra.Ordinal);
             Assert.Equal("ScopeView#2", extra.GeometryKey);
-            Assert.Equal("YAAT Scope #2", extra.Title);
+            Assert.Equal("YAAT Radar #2", extra.Title);
             Assert.Equal(2, extra.Vm.Ordinal);
             Assert.Equal(1, main.PrimaryScope.Ordinal);
             Assert.NotSame(main.PrimaryScope, extra.Vm);

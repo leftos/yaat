@@ -94,7 +94,7 @@ public class PointMenuTests
         Assert.All(host.DescribedPoints, described => Assert.Equal(point.Position, described));
     }
 
-    // The radar strip's Warp here button opens the Warp flyout over the strip, its FRD box taking the focus with the clicked
+    // The Scope strip's Warp here button opens the Warp flyout over the strip, its FRD box taking the focus with the clicked
     // point's FRD selected, so the first keystroke replaces it.
     [AvaloniaFact]
     public void PointStrip_WarpHereButton_OpensTheWarpFlyout_FrdBoxFocusedWithTheSeedSelected()
@@ -222,7 +222,7 @@ public class PointMenuTests
     }
 
     // WARP leaves the aircraft airborne, so a ground aircraft gets no Warp here at a map point (its ground warp is Warp here
-    // at a taxi node, WARPG), and no radar icons.
+    // at a taxi node, WARPG), and no Scope icons.
     [AvaloniaFact]
     public void RadarPoint_GroundAircraft_OffersNoWarpHere()
     {
@@ -267,7 +267,7 @@ public class PointMenuTests
     // --- Header ------------------------------------------------------------------------------
 
     [AvaloniaFact]
-    public void Header_RadarPoint_NamesTheAircraftThePointAndItsFrdDistanceBearing()
+    public void Header_ScopePoint_NamesTheAircraftThePointAndItsFrdDistanceBearing()
     {
         var koak = new LatLon(37.7213, -122.2208);
         AircraftModel ac = Airborne(koak);
@@ -287,7 +287,7 @@ public class PointMenuTests
     }
 
     [AvaloniaFact]
-    public void Header_RadarPointUnderOneMile_ShowsTenths()
+    public void Header_ScopePointUnderOneMile_ShowsTenths()
     {
         var koak = new LatLon(37.7213, -122.2208);
         var point = new MenuPoint(new LatLon(koak.Lat + 0.005, koak.Lon), null, null, [], null);
@@ -298,7 +298,7 @@ public class PointMenuTests
     }
 
     [AvaloniaFact]
-    public void Header_RadarPointWithoutFrd_ShowsDistanceAndBearingAlone()
+    public void Header_ScopePointWithoutFrd_ShowsDistanceAndBearingAlone()
     {
         var koak = new LatLon(37.7213, -122.2208);
         var point = new MenuPoint(new LatLon(koak.Lat + 0.15, koak.Lon), null, null, [], null);
@@ -920,7 +920,7 @@ public class PointMenuTests
     }
 
     /// <summary>
-    /// The point menu at a radar point due north of KOAK with an airborne aircraft there whose current heading is
+    /// The point menu at a Scope point due north of KOAK with an airborne aircraft there whose current heading is
     /// <paramref name="currentOffsetDeg"/> right of (negative: left of) the heading Fly heading sends, and that heading.
     /// </summary>
     private static (ContextMenu Menu, int Heading) FlyHeadingMenu(double currentOffsetDeg)
@@ -939,7 +939,7 @@ public class PointMenuTests
     private static string NorthBearing(LatLon from) => new TrueHeading(0).ToMagnetic(MagneticDeclination.GetDeclination(from)).ToDisplayString();
 
     /// <summary>
-    /// The point menu's items after its header: the title, the strip's header line when there is a strip, the radar detail
+    /// The point menu's items after its header: the title, the strip's header line when there is a strip, the Scope detail
     /// row when there is one, and the separator.
     /// </summary>
     private static List<object?> Body(ContextMenu menu)

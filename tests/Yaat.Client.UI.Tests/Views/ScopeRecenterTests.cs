@@ -157,7 +157,7 @@ public class ScopeRecenterTests
             Assert.Equal(25, scope.RangeNm);
             Assert.False(scope.IsOffCenter);
             Assert.False(scope.IsActive(OffCntr));
-            Assert.Equal("Scope centred", main.StatusText);
+            Assert.Equal("Radar centred", main.StatusText);
         }
     }
 }

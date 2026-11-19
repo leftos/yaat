@@ -10,7 +10,7 @@ public sealed partial class AutomationTools
 
     private const int MaxLeaderDirection = 9;
 
-    private const string LeaderSyncOffNote = " The Scope shows it only while the student leader direction sync preference is on; it is off.";
+    private const string LeaderSyncOffNote = " The Radar shows it only while the student leader direction sync preference is on; it is off.";
 
     /// <summary>The command <c>set_leader_direction</c> sends, as the leader menu item does.</summary>
     public static string LeaderDirectionCommand(int direction) => $"LDR {direction}";
@@ -18,7 +18,7 @@ public sealed partial class AutomationTools
     [AutomationTool(
         "set_leader_direction",
         "Send LDR to set an aircraft's leader direction (1-9 as on the keypad, 5 = default); "
-            + "the Scope shows it only while the student leader direction sync preference is on.",
+            + "the Radar shows it only while the student leader direction sync preference is on.",
         nameof(NoScenario)
     )]
     public async Task<AppToolOutcome> SetLeaderDirection(
@@ -54,7 +54,7 @@ public sealed partial class AutomationTools
 
     [AutomationTool(
         "set_datablock_offset",
-        "Move an aircraft's data block on the primary Scope to a screen-pixel offset from its target symbol, as dragging it does.",
+        "Move an aircraft's data block on the primary Radar to a screen-pixel offset from its target symbol, as dragging it does.",
         nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> SetDatablockOffset(
@@ -72,7 +72,7 @@ public sealed partial class AutomationTools
         return Task.FromResult(AppToolOutcome.Done($"Data block of {aircraft.Callsign} offset to ({dxPx}, {dyPx}) px."));
     }
 
-    [AutomationTool("reset_datablock_offset", "Return an aircraft's data block on the primary Scope to its default position.", nameof(ScopeNotReady))]
+    [AutomationTool("reset_datablock_offset", "Return an aircraft's data block on the primary Radar to its default position.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> ResetDatablockOffset([Description("The aircraft's callsign.")] string callsign)
     {
         if (FindAircraft(callsign) is not { } aircraft)

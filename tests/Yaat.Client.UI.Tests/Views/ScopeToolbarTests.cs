@@ -32,7 +32,7 @@ public class ScopeToolbarTests
     private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenAsync(Size? size = null) =>
         OpenScopeAsync(size, _ => { });
 
-    /// <summary>Opens the Scope at <paramref name="size"/> after <paramref name="beforeScope"/> has set the radar up.</summary>
+    /// <summary>Opens the Scope at <paramref name="size"/> after <paramref name="beforeScope"/> has set the Scope up.</summary>
     private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenWithSourceAsync(
         Size size,
         Action<MainViewModel> beforeScope
@@ -199,7 +199,7 @@ public class ScopeToolbarTests
             Click(ButtonOf(window, ScopeButtonId.ProfileEram));
 
             Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
-            Assert.Equal("Scope profile ERAM", main.StatusText);
+            Assert.Equal("Radar profile ERAM", main.StatusText);
             Assert.Empty(TrayButtons(window));
             Assert.Equal("ERAM", ((TextBlock)ButtonOf(window, ScopeButtonId.Profile).Content!).Inlines!.OfType<Run>().Last().Text);
             Click(ButtonOf(window, ScopeButtonId.Profile));
@@ -347,7 +347,7 @@ public class ScopeToolbarTests
             Button range = ButtonOf(window, ScopeButtonId.Range);
             Point centre = range.TranslatePoint(new Point(range.Bounds.Width / 2, range.Bounds.Height / 2), window)!.Value;
 
-            // Wheel up zooms in, as the Radar DCB's RANGE does.
+            // Wheel up zooms in.
             window.MouseWheel(centre, new Vector(0, 1));
             Dispatcher.UIThread.RunJobs();
 
@@ -646,16 +646,16 @@ public class ScopeToolbarTests
             Assert.Equal(["ON", "PATH", "QUEUE", "CHECKIN"], TrayButtons(window).Select(DrawnText));
 
             Click(ButtonOf(window, ScopeButtonId.LensOn));
-            Assert.Equal("Scope lens ON", main.StatusText);
+            Assert.Equal("Radar lens ON", main.StatusText);
             Assert.True(scope.Lens.Enabled);
             Assert.Contains("active", ButtonOf(window, ScopeButtonId.LensOn).Classes);
 
             Click(ButtonOf(window, ScopeButtonId.LensPath));
-            Assert.Equal("Scope lens path ON", main.StatusText);
+            Assert.Equal("Radar lens path ON", main.StatusText);
             Assert.True(scope.Lens.Path);
 
             Click(ButtonOf(window, ScopeButtonId.LensPath));
-            Assert.Equal("Scope lens path OFF", main.StatusText);
+            Assert.Equal("Radar lens path OFF", main.StatusText);
             Assert.False(scope.Lens.Path);
             Assert.Equal(ScopeButtonId.Lens, scope.OpenMenu);
 
@@ -665,7 +665,7 @@ public class ScopeToolbarTests
 
             Click(ButtonOf(window, ScopeButtonId.Lens));
             Click(ButtonOf(window, ScopeButtonId.LensOn));
-            Assert.Equal("Scope lens OFF", main.StatusText);
+            Assert.Equal("Radar lens OFF", main.StatusText);
             Assert.False(scope.Lens.Enabled);
         }
         finally
@@ -683,12 +683,12 @@ public class ScopeToolbarTests
             Click(ButtonOf(window, ScopeButtonId.Lens));
 
             Click(ButtonOf(window, ScopeButtonId.LensQueue));
-            Assert.Equal("Scope lens queue ON", main.StatusText);
+            Assert.Equal("Radar lens queue ON", main.StatusText);
             Assert.True(scope.Lens.Queue);
             Assert.Contains("active", ButtonOf(window, ScopeButtonId.LensQueue).Classes);
 
             Click(ButtonOf(window, ScopeButtonId.LensQueue));
-            Assert.Equal("Scope lens queue OFF", main.StatusText);
+            Assert.Equal("Radar lens queue OFF", main.StatusText);
             Assert.False(scope.Lens.Queue);
         }
         finally

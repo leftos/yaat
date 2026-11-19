@@ -9,7 +9,7 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="LineHeight">Baseline-to-baseline spacing.</param>
 public sealed record ScopeTextMetrics(Func<string, float> Measure, float Size, float LineHeight)
 {
-    /// <summary>Measures with <paramref name="style"/>, as today's radar layouts do.</summary>
+    /// <summary>Measures with <paramref name="style"/>.</summary>
     public static ScopeTextMetrics FromStyle(TextStyle style) => new(style.Measure, style.Size, style.LineHeight);
 }
 

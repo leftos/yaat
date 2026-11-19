@@ -63,8 +63,8 @@ public sealed partial class ScopeViewModel
     private bool _showWeather = true;
 
     /// <summary>
-    /// How overlapping datablocks spread apart (DISPLAY's DCNF): a new scope takes the Radar's mode
-    /// (<c>UserPreferences.RadarDeconflictMode</c>, Off unless the user changed it there) and never writes it back. Kept in a
+    /// How overlapping datablocks spread apart (DISPLAY's DCNF): a new Scope takes the saved default mode
+    /// (<c>UserPreferences.RadarDeconflictMode</c>, Off unless it was changed) and never writes it back. Kept in a
     /// pref set.
     /// </summary>
     [ObservableProperty]

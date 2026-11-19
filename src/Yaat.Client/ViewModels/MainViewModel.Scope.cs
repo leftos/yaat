@@ -79,7 +79,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// The main facility's map and display source for the Scope: video maps, map group, weather airports, primary airport,
-    /// centre, fixes and MVA facility, fed on the same scenario, recording and room paths as the main radar.
+    /// centre, fixes and MVA facility, fed on the scenario, recording and room paths.
     /// </summary>
     public ScopeMapSource ScopeMaps { get; }
 
@@ -272,7 +272,7 @@ public partial class MainViewModel
 
         if (!ScopeViewModel.IsDbToggleItem(item))
         {
-            return $"Unknown scope DB item: {parts[2]}";
+            return $"Unknown Radar DB item: {parts[2]}";
         }
 
         if ((parts.Length != 4) || (ParseOnOff(parts[3]) is not { } on))
@@ -317,7 +317,7 @@ public partial class MainViewModel
 
         if (!ScopeToolbarButtons.TryParseKey(parts[2], out ScopeButtonKey? key))
         {
-            return $"Unknown scope button: {parts[2]}";
+            return $"Unknown Radar button: {parts[2]}";
         }
 
         if ((key.Id == ScopeButtonId.MapToggle) && (scope.FindMapToggle(key.Value ?? "") is null))
@@ -362,7 +362,7 @@ public partial class MainViewModel
         {
             if (!ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? key))
             {
-                return $"Unknown scope button: {name}";
+                return $"Unknown Radar button: {name}";
             }
 
             if (!scope.IsTornOff(key))
@@ -386,7 +386,7 @@ public partial class MainViewModel
         }
 
         scope.IsTdm = on;
-        return on ? "Scope TDM ON" : "Scope TDM OFF";
+        return on ? "Radar TDM ON" : "Radar TDM OFF";
     }
 
     /// <summary><c>on</c> is true and <c>off</c> false (case-insensitive); any other word is null.</summary>
@@ -439,7 +439,7 @@ public partial class MainViewModel
         string id = parts[2].ToLowerInvariant();
         if (!ScopeTemplates.IsSelectable(id))
         {
-            return $"Unknown scope template: {parts[2]}";
+            return $"Unknown Radar template: {parts[2]}";
         }
 
         scope.PickTemplateCommand.Execute(id);
@@ -456,7 +456,7 @@ public partial class MainViewModel
 
         if (!ScopeProfilePicker.TryParseKind(parts[2], out ScopeProfileKind kind))
         {
-            return $"Unknown scope profile '{parts[2]}'";
+            return $"Unknown Radar profile '{parts[2]}'";
         }
 
         scope.Main.PickScopeProfileByHand(kind);
@@ -473,7 +473,7 @@ public partial class MainViewModel
         }
 
         scope.PinOthersLevel(level);
-        return $"Scope others {level.ToUpperInvariant()} (pinned)";
+        return $"Radar others {level.ToUpperInvariant()} (pinned)";
     }
 
     /// <summary>
@@ -490,7 +490,7 @@ public partial class MainViewModel
         if (ScopeVectorOwnerships.TryParse(parts[2], out ScopeVectorOwnership ownership))
         {
             scope.VectorOwnership = ownership;
-            return $"Scope vector {ScopeVectorOwnerships.NameOf(ownership).ToUpperInvariant()}";
+            return $"Radar vector {ScopeVectorOwnerships.NameOf(ownership).ToUpperInvariant()}";
         }
 
         if (!int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int minutes) || !ScopeViewModel.IsVectorMinutes(minutes))
@@ -499,7 +499,7 @@ public partial class MainViewModel
         }
 
         scope.PinVectorMin(minutes);
-        return $"Scope vector {minutes.ToString(CultureInfo.InvariantCulture)} MIN (pinned)";
+        return $"Radar vector {minutes.ToString(CultureInfo.InvariantCulture)} MIN (pinned)";
     }
 
     /// <summary><c>.scope hist &lt;0-10&gt;</c>: pins the history dot count until <c>.scope auto</c>.</summary>
@@ -515,7 +515,7 @@ public partial class MainViewModel
         }
 
         scope.PinHistory(count);
-        return $"Scope history {count.ToString(CultureInfo.InvariantCulture)} (pinned)";
+        return $"Radar history {count.ToString(CultureInfo.InvariantCulture)} (pinned)";
     }
 
     /// <summary><c>.scope auto</c>: clears every pinned band value, so each follows the zoom band again.</summary>
@@ -527,7 +527,7 @@ public partial class MainViewModel
         }
 
         scope.ClearPins();
-        return "Scope AUTO";
+        return "Radar AUTO";
     }
 
     /// <summary>
@@ -607,7 +607,7 @@ public partial class MainViewModel
         if (parts.Length == 3)
         {
             scope.ClearRings();
-            return "Scope rings cleared";
+            return "Radar rings cleared";
         }
 
         if (FindTypedAircraft(scope, parts[3]) is not { } ac)
@@ -616,7 +616,7 @@ public partial class MainViewModel
         }
 
         scope.ClearRings(ac.Callsign);
-        return $"Scope rings cleared {ac.Callsign}";
+        return $"Radar rings cleared {ac.Callsign}";
     }
 
     /// <summary>
@@ -649,7 +649,7 @@ public partial class MainViewModel
         if (parts.Length == 3)
         {
             scope.ClearPtl();
-            return "Scope PTL cleared";
+            return "Radar PTL cleared";
         }
 
         if (FindTypedAircraft(scope, parts[3]) is not { } ac)
@@ -658,7 +658,7 @@ public partial class MainViewModel
         }
 
         scope.ClearPtl(ac.Callsign);
-        return $"Scope PTL cleared {ac.Callsign}";
+        return $"Radar PTL cleared {ac.Callsign}";
     }
 
     /// <summary>
@@ -686,7 +686,7 @@ public partial class MainViewModel
     private static string SetScopeLens(ScopeViewModel scope, bool enabled)
     {
         scope.SetLensEnabled(enabled);
-        return $"Scope lens {(enabled ? "ON" : "OFF")}";
+        return $"Radar lens {(enabled ? "ON" : "OFF")}";
     }
 
     /// <summary>
@@ -698,7 +698,7 @@ public partial class MainViewModel
         if (ParseOnOff(word) is { } on)
         {
             scope.SetLensOverlay(item, on);
-            return $"Scope lens {item} {(on ? "ON" : "OFF")}";
+            return $"Radar lens {item} {(on ? "ON" : "OFF")}";
         }
 
         if (item != ScopeToolbarButtons.LensPathItem)
@@ -712,11 +712,11 @@ public partial class MainViewModel
         }
 
         bool shown = scope.ToggleLensPath(ac.Callsign);
-        return $"Scope lens path {ac.Callsign}{(shown ? "" : " removed")}";
+        return $"Radar lens path {ac.Callsign}{(shown ? "" : " removed")}";
     }
 
     /// <summary>The status line's echo of a PTL change: <c>Scope PTL N123AB</c>, with <c> removed</c> on a removal.</summary>
-    internal static string ScopePtlEcho(string callsign, bool on) => $"Scope PTL {callsign}{(on ? "" : " removed")}";
+    internal static string ScopePtlEcho(string callsign, bool on) => $"Radar PTL {callsign}{(on ? "" : " removed")}";
 
     /// <summary>The status line's echo of a ring change: <c>Scope J-ring 3.0 NM N123AB</c>, with <c> removed</c> on a removal.</summary>
     internal static string ScopeRingEcho(ScopeRingTool tool, double sizeNm, string callsign, bool placed)
@@ -727,11 +727,11 @@ public partial class MainViewModel
             ScopeRingTool.Cone => $"cone {ScopeRingGeometry.FormatSize(sizeNm)}",
             _ => $"DRI {sizeNm.ToString("0", CultureInfo.InvariantCulture)}",
         };
-        return $"Scope {what} NM {callsign}{(placed ? "" : " removed")}";
+        return $"Radar {what} NM {callsign}{(placed ? "" : " removed")}";
     }
 
     /// <summary>The status line's echo of a profile change: <c>Scope profile ERAM</c>.</summary>
-    internal static string ScopeProfileEcho(ScopeProfileKind kind) => $"Scope profile {ScopeProfilePicker.NameOf(kind).ToUpperInvariant()}";
+    internal static string ScopeProfileEcho(ScopeProfileKind kind) => $"Radar profile {ScopeProfilePicker.NameOf(kind).ToUpperInvariant()}";
 
     /// <summary>
     /// <c>.scope pref save</c>, <c>saveas &lt;name&gt;</c>, <c>load &lt;name&gt;</c>, <c>rename &lt;old&gt; &lt;new&gt;</c>
@@ -847,14 +847,14 @@ public partial class MainViewModel
     {
         if (scope.IsWaitingForMapSource)
         {
-            return " (its maps apply once the scope's maps load)";
+            return " (its maps apply once the Radar's maps load)";
         }
 
         return missing switch
         {
             0 => "",
-            1 => " (1 map not on this scope)",
-            _ => $" ({missing} maps not on this scope)",
+            1 => " (1 map not on this Radar)",
+            _ => $" ({missing} maps not on this Radar)",
         };
     }
 

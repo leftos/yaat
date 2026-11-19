@@ -58,10 +58,10 @@ public static class ViewSettingsCopyCatalog
     public const string LayoutColumnsKey = "layout.columns";
 
     /// <summary>The label of the primary Scope's pop-out row.</summary>
-    public const string ScopeViewLabel = "Scope view";
+    public const string ScopeViewLabel = "Radar view";
 
     /// <summary>The label of the extra Scope windows' row.</summary>
-    public const string ExtraScopeWindowsLabel = "Extra Scope windows";
+    public const string ExtraScopeWindowsLabel = "Extra Radar windows";
 
     private const string NotSaved = "not saved";
 

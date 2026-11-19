@@ -25,7 +25,7 @@ public partial class MainViewModel
     private const string ScopeDcnfUsage = "Usage: .scope dcnf <off|snap|free>";
 
     /// <summary>The answer of <c>.scope center</c> while the Scope's map source has no centre to return to.</summary>
-    internal const string ScopeNoHomeCenter = "The Scope has no home centre yet";
+    internal const string ScopeNoHomeCenter = "The Radar has no home centre yet";
 
     // The map tools' verbs, upper-cased, each with its handler.
     private static readonly Dictionary<string, Func<ScopeViewModel, string[], string>> MapToolVerbs = new(StringComparer.Ordinal)
@@ -61,7 +61,7 @@ public partial class MainViewModel
         if (verb == ".NOMARKERS")
         {
             scope.ClearMarkers();
-            sink.ReportStatus("Scope markers cleared");
+            sink.ReportStatus("Radar markers cleared");
         }
         else
         {
@@ -81,7 +81,7 @@ public partial class MainViewModel
         }
 
         List<string> unresolved = [.. parts.Skip(1).Where(token => !scope.ToggleMarker(token)).Select(token => token.ToUpperInvariant())];
-        sink.ReportStatus(unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated");
+        sink.ReportStatus(unresolved.Count > 0 ? $"Radar markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Radar markers updated");
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public partial class MainViewModel
         }
 
         scope.ShowMvaHints = on;
-        return on ? "Scope MVA ON" : "Scope MVA OFF";
+        return on ? "Radar MVA ON" : "Radar MVA OFF";
     }
 
     /// <summary><c>.scope lock on|off</c>: locks or unlocks wheel zoom and right-drag pan.</summary>
@@ -128,7 +128,7 @@ public partial class MainViewModel
         }
 
         scope.IsPanZoomLocked = on;
-        return on ? "Scope LOCK ON" : "Scope LOCK OFF";
+        return on ? "Radar LOCK ON" : "Radar LOCK OFF";
     }
 
     /// <summary><c>.scope center</c>: pans back to the facility's home centre, keeping the range (OFF CNTR).</summary>
@@ -139,7 +139,7 @@ public partial class MainViewModel
             return ScopeCenterUsage;
         }
 
-        return scope.Recenter() ? "Scope centred" : ScopeNoHomeCenter;
+        return scope.Recenter() ? "Radar centred" : ScopeNoHomeCenter;
     }
 
     /// <summary><c>.scope wx on|off</c>: turns the weather overlay on or off.</summary>
@@ -151,7 +151,7 @@ public partial class MainViewModel
         }
 
         scope.ShowWeather = on;
-        return on ? "Scope WX ON" : "Scope WX OFF";
+        return on ? "Radar WX ON" : "Radar WX OFF";
     }
 
     /// <summary><c>.scope fix on|off</c>: turns the FIX overlay on or off.</summary>
@@ -163,7 +163,7 @@ public partial class MainViewModel
         }
 
         scope.ShowFixes = on;
-        return on ? "Scope FIX ON" : "Scope FIX OFF";
+        return on ? "Radar FIX ON" : "Radar FIX OFF";
     }
 
     /// <summary><c>.scope dcnf off|snap|free</c>: sets datablock deconfliction, as DISPLAY's DCNF steps it.</summary>
@@ -175,7 +175,7 @@ public partial class MainViewModel
         }
 
         scope.DeconflictMode = mode;
-        return $"Scope DCNF {ScopeDeconfliction.NameOf(mode).ToUpperInvariant()}";
+        return $"Radar DCNF {ScopeDeconfliction.NameOf(mode).ToUpperInvariant()}";
     }
 
     /// <summary><c>.scope rr on|off|place|center</c> and <c>.scope rr size 2|5|10|15|20</c>: the range ring.</summary>
@@ -196,17 +196,17 @@ public partial class MainViewModel
         if (ParseOnOff(action) is { } on)
         {
             scope.ShowRangeRing = on;
-            return on ? "Scope RR ON" : "Scope RR OFF";
+            return on ? "Radar RR ON" : "Radar RR OFF";
         }
 
         switch (action.ToUpperInvariant())
         {
             case "PLACE":
                 scope.ArmRangeRingPlacement();
-                return "Scope RR PLACE: click the map";
+                return "Radar RR PLACE: click the map";
             case "CENTER":
                 scope.CenterRangeRing();
-                return "Scope RR CNTR";
+                return "Radar RR CNTR";
             default:
                 return ScopeRrUsage;
         }
@@ -221,6 +221,6 @@ public partial class MainViewModel
         }
 
         scope.RangeRingSizeNm = sizeNm;
-        return $"Scope RR SIZE {sizeNm.ToString(CultureInfo.InvariantCulture)}";
+        return $"Radar RR SIZE {sizeNm.ToString(CultureInfo.InvariantCulture)}";
     }
 }

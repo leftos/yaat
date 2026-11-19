@@ -548,7 +548,7 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The Radar's collapsed LDB (<see cref="DatablockText.BuildCollapsedLines"/>): the beacon code in the squawk slot
+    /// The collapsed LDB (<see cref="DatablockText.BuildCollapsedLines"/>): the beacon code in the squawk slot
     /// (empty when none), the altitude and the ident.
     /// </summary>
     private static List<ScopeField> StarsLimitedFields(TrackPresenterInput input)
@@ -563,7 +563,7 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The Radar's collapsed PDB (<see cref="DatablockText.BuildCollapsedLines"/>): the altitude, the handoff peer, the
+    /// The collapsed PDB (<see cref="DatablockText.BuildCollapsedLines"/>): the altitude, the handoff peer, the
     /// ground speed and the ident, then scratchpad 1.
     /// </summary>
     private static List<ScopeField> StarsPartialFields(TrackPresenterInput input)
@@ -657,7 +657,7 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The block's colour role with today's radar precedence: the middle-click highlight, then the RPO assignment tint,
+    /// The block's colour role, in order: the middle-click highlight, then the RPO assignment tint,
     /// then the student's STARS colour when sync is on, then the default. Selection does not change it.
     /// </summary>
     private static ScopeBlockColor BlockColorFor(TrackPresenterInput input, ScopeTintRole tint)
@@ -676,7 +676,7 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The RPO tint that applies to the track whatever its highlight, as today's radar judges it: with the user's initials
+    /// The RPO tint that applies to the track whatever its highlight: with the user's initials
     /// set, an aircraft assigned to them takes the assignment tint and any other the unassigned tint, each when enabled.
     /// </summary>
     private static ScopeTintRole TintFor(TrackPresenterInput input)

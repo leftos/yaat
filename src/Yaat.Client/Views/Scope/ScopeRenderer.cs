@@ -1028,7 +1028,7 @@ public sealed partial class ScopeRenderer : IDisposable
 
     private readonly SKPath _lensPath = new();
 
-    // Stroke paints drawn in the radar's line style (no AA, device-pixel width) each frame; each carries its base width in DIPs.
+    // Stroke paints drawn in the Scope's line style (no AA, device-pixel width) each frame; each carries its base width in DIPs.
     private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
 
     private SKFont? _font;

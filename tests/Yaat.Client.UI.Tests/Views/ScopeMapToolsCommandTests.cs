@@ -25,11 +25,11 @@ public class ScopeMapToolsCommandTests
         {
             main.RunScopeCommand(".scope mva on");
             Assert.True(scope.ShowMvaHints);
-            Assert.Equal("Scope MVA ON", main.StatusText);
+            Assert.Equal("Radar MVA ON", main.StatusText);
 
             main.RunScopeCommand(".scope mva off");
             Assert.False(scope.ShowMvaHints);
-            Assert.Equal("Scope MVA OFF", main.StatusText);
+            Assert.Equal("Radar MVA OFF", main.StatusText);
 
             main.RunScopeCommand(".scope mva");
             Assert.Equal("Usage: .scope mva <on|off>", main.StatusText);
@@ -110,11 +110,11 @@ public class ScopeMapToolsCommandTests
             main.RunScopeCommand(".scope lock on");
             Assert.True(scope.IsPanZoomLocked);
             Assert.True(scope.IsActive(lockTile));
-            Assert.Equal("Scope LOCK ON", main.StatusText);
+            Assert.Equal("Radar LOCK ON", main.StatusText);
 
             scope.Press(lockTile);
             Assert.False(scope.IsPanZoomLocked);
-            Assert.Equal("Scope LOCK OFF", main.StatusText);
+            Assert.Equal("Radar LOCK OFF", main.StatusText);
 
             main.RunScopeCommand(".scope lock maybe");
             Assert.Equal("Usage: .scope lock <on|off>", main.StatusText);
@@ -132,11 +132,11 @@ public class ScopeMapToolsCommandTests
 
         main.RunScopeCommand(".scope mva on");
         Assert.True(main.PrimaryScope.ShowMvaHints);
-        Assert.Equal("Scope MVA ON", main.StatusText);
+        Assert.Equal("Radar MVA ON", main.StatusText);
 
         main.RunScopeCommand(".scope lock on");
         Assert.True(main.PrimaryScope.IsPanZoomLocked);
-        Assert.Equal("Scope LOCK ON", main.StatusText);
+        Assert.Equal("Radar LOCK ON", main.StatusText);
     }
 
     [AvaloniaFact]

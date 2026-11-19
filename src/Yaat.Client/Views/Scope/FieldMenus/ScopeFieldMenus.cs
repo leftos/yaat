@@ -117,7 +117,7 @@ internal static class ScopeFieldMenus
         };
 
     /// <summary>
-    /// The runway rows the Radar's runway picker offers: clear the assignment, then every runway end at the airport
+    /// The runway rows the runway picker offers: clear the assignment, then every runway end at the airport
     /// (<see cref="AirportFor"/>), each sending <c>RWY</c> and its designator.
     /// </summary>
     private static MenuItem RunwayEntry(AircraftModel aircraft, MenuContext context, IMenuHost host)

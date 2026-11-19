@@ -14,16 +14,16 @@ namespace Yaat.Client.Views;
 public partial class MainWindow
 {
     /// <summary>The main window's Scope tab header.</summary>
-    public const string ScopeTabHeader = "Scope";
+    public const string ScopeTabHeader = "Radar";
 
     /// <summary>The main window's Scope tab, the third: Aircraft List, Ground View, Scope.</summary>
     public const int ScopeTabIndex = 2;
 
     /// <summary>The View › Windows check item that pops the Scope out and docks it back.</summary>
-    public const string ScopePopOutMenuHeader = "Sco_pe";
+    public const string ScopePopOutMenuHeader = "_Radar";
 
     /// <summary>The View › Windows item that opens another Scope window.</summary>
-    public const string NewScopeWindowMenuHeader = "New Scope _window…";
+    public const string NewScopeWindowMenuHeader = "New Radar _window…";
 
     private ScopeWindow? _scopeWindow;
 
