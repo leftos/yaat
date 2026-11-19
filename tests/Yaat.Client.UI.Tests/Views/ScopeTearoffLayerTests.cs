@@ -706,6 +706,48 @@ public class ScopeTearoffLayerTests
         return (main, vm, vm.PrimaryScope);
     }
 
+    /// <summary>The bar's right chevron, which shows while the bar is wider than the docked tab.</summary>
+    private static Button ScrollRightChevron(MainWindow main) => main.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ScrollRight");
+
+    /// <summary>Presses the bar's right chevron until it disables itself, at most five times: the bar's right end.</summary>
+    private static void PressScrollRightUntilDisabled(MainWindow main)
+    {
+        Button right = ScrollRightChevron(main);
+        for (int i = 0; (i < 5) && right.IsEnabled; i++)
+        {
+            ClickAt(main, CentreOf(right, main));
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Docked_AtTheDefaultWidth_TheRightChevronScrollsDelTearoffIntoView()
+    {
+        (MainWindow main, _, _) = await BootDockedAsync();
+        try
+        {
+            main.Width = 1200;
+            Settle(main);
+
+            Button right = ScrollRightChevron(main);
+            Assert.True(right.IsEffectivelyVisible, "the bar is wider than the docked tab, so the right chevron shows");
+            Assert.True(right.IsEnabled, "the bar starts at its left end, so the right chevron can scroll it");
+
+            PressScrollRightUntilDisabled(main);
+
+            Assert.False(right.IsEnabled, "the right chevron disables at the bar's right end");
+            ScopeButtonControl del = BarControl(main, ScopeButtonId.DeleteTearoff);
+            Point centre = CentreOf(del.Button, main);
+            Assert.True(
+                (main.InputHitTest(centre) is Visual hit) && ((hit == del.Button) || hit.GetVisualAncestors().Contains(del.Button)),
+                "a click at DEL TEAROFF's centre lands on the button once the bar is scrolled to its right end"
+            );
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
     private static TextBox CommandBox(MainWindow main) => main.GetVisualDescendants().OfType<TextBox>().First(t => t.Name == "CommandInput");
 
     private static void FocusCommandBox(MainWindow main)
@@ -763,9 +805,10 @@ public class ScopeTearoffLayerTests
         (MainWindow main, _, ScopeViewModel scope) = await BootDockedAsync();
         try
         {
-            // At the default width the docked tab clips the bar's right end, where DEL TEAROFF sits.
-            main.Width = 1920;
+            // At the default width DEL TEAROFF sits past the bar's right edge; the bar's right chevron scrolls it into view.
+            main.Width = 1200;
             Settle(main);
+            PressScrollRightUntilDisabled(main);
             FocusCommandBox(main);
 
             ClickAt(main, CentreOf(BarControl(main, ScopeButtonId.DeleteTearoff).Button, main));
