@@ -233,4 +233,4 @@ What it does:
 - **Three condition-keyword tables must stay in sync** — `IsConditionKeyword`, `HasConditionPrefix`, and the `StripConditionPrefix` switch.
 - **`FindBestOverload` is hand-tuned scoring** (`+30`/`+20`/`+10`/`+8`/`+5`/`+2`). Adjust against the signature-help and registry tests, not by eyeballing.
 - **Two `CommandInputView` instances share one VM.** Popup `IsOpen` is gated on `IsVisible` in code-behind so the hidden instance never pops at (0,0).
-- **`ShownRouteBuilder.cs` is not input UX.** It lives in `Services/` but builds the radar "Show flight path" overlay. Do not document or wire it here.
+- **`ShownRouteBuilder.cs` is not input UX.** It lives in `Services/` but builds the Radar's pilot-lens intent path (consumed by `ScopeIntentPaths`). Do not document or wire it here.

@@ -11,28 +11,28 @@
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
 - Favorite buttons can be cut and pasted onto another slot, and Delete settings empties a button into a blank of the same place and size.
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.
-- The YAAT Scope replaces the old Radar view in the main tab, pop-out and extra windows, drawing video maps with STARS, ERAM or EuroScope datablocks.
-- The Scope pops out into its own window and back (View > Windows > Scope, Ctrl+Shift+R), and New Scope window opens more, each keeping its own state.
-- Layouts save and reopen the Scope's pop-out and its extra windows; copying another scenario's views brings its Ground view settings.
-- Saved layouts and window positions from before the Scope open a Scope window wherever a Radar window used to be.
-- A scenario's old Radar maps, range, centre, ring, fixes, pins and brightness carry into the Scope when first loaded at a facility with none saved.
-- A CRC STARS-style toolbar of compact tiles, with tear-offs, per-facility pref sets and profiles picked from the student position, runs the Scope.
+- A new Radar replaces the old one in the main tab, pop-out and extra windows, drawing video maps with STARS, ERAM or EuroScope datablocks.
+- The Radar pops out into its own window and back (View > Windows > Radar, Ctrl+Shift+R), and New Radar window opens more, each keeping its own state.
+- Layouts save and reopen the Radar's pop-out and its extra windows; copying another scenario's views brings its Ground view settings.
+- Saved layouts and window positions from before the new Radar open a Radar window wherever an old Radar window used to be.
+- A scenario's old Radar maps, range, centre, fixes, pins and brightness carry into the new Radar on first load at a facility with none saved.
+- A CRC STARS-style toolbar of compact tiles, with tear-offs, per-facility pref sets and profiles picked from the student position, runs the Radar.
 - Zoom bands set others' block level, vector length and history dots until pinned, and VECTOR and HIST controls set them by hand.
 - DISPLAY tiles toggle MVA with its Ctrl readout, LOCK, OFF CNTR, a range ring, the METAR (WX), chart fixes (FIX) and datablock deconfliction (DCNF).
-- A TOOLS tray's Rings tool places Scope-only J-rings, cones and DRI halos; Ctrl+M, Alt-drag or .rbl draw measure lines, and STARS MIN shows minimum separation.
-- A measure started in one Scope or Ground window is finished, shown and cancelled only in that window.
+- A TOOLS tray's Rings tool places Radar-only J-rings, cones and DRI halos; Ctrl+M, Alt-drag or .rbl draw measure lines, and STARS MIN shows minimum separation.
+- A measure started in one Radar or Ground window is finished, shown and cancelled only in that window.
 - A datablock field click (ERAM: middle-click) opens a menu pairing scope-data entries such as QZ and QS with the matching pilot commands.
 - Clicking an ERAM block's HSF or VCI cell sends QS or QN //, toggling the fourth line's HSF data for CRC too.
-- Commands typed on the Scope, STARS and ERAM entries included, show in CRC's preview and feedback areas; left-click fills a track, middle-click runs it.
+- Commands typed on the Radar, STARS and ERAM entries included, show in CRC's preview and feedback areas; left-click fills a track, middle-click runs it.
 - The PILOT LENS draws tracks' intent paths, queued-command counts and check-in tags, and the RPO QUEUE view lists pending calls and queued commands.
-- The Scope draws ERAM CRR range data blocks with a CRR view, STARS per-track predicted track lines (MF R) and, under TDM (Ctrl+Shift+T), ground targets.
-- The aircraft menu with its Display submenu, the map point menu, Draw route and the EuroScope elastic heading vector work on the Scope.
-- Drag a Scope datablock to move it, Shift+click to hide it, Ctrl+click for its flight plan, and right-click stacked targets to pick one.
-- Speech bubbles, menu cues, .marker diamonds and dashed live-traffic shadows draw on the Scope.
-- An ERAM datablock on the Scope flashes whole while its pair's conflict alert shows on the student's ERAM, following the facility's and the sector's CA settings.
-- Scope conflict alerts keep the pair's blocks full, draw CA rings (ERAM rings under the DB menu's CA RING) and label list rows CA, MCI or ERAM.
-- Suppressed Scope CAs draw steady and dimmed, acknowledged ones steady; a CA inhibited from the Scope marks the STARS block and says "(student display)".
-- The Scope's DB menu splits ATPA into DIST, ALERT CONES and MONITOR CONES, and STARS blocks show the in-trail distance at line 2's end.
+- The Radar draws ERAM CRR range data blocks with a CRR view, STARS per-track predicted track lines (MF R) and, under TDM (Ctrl+Shift+T), ground targets.
+- The aircraft menu with its Display submenu, the map point menu, Draw route and the EuroScope elastic heading vector work on the Radar.
+- Drag a Radar datablock to move it, Shift+click to hide it, Ctrl+click for its flight plan, and right-click stacked targets to pick one.
+- Speech bubbles, menu cues, .marker diamonds and dashed live-traffic shadows draw on the Radar.
+- An ERAM datablock on the Radar flashes whole while its pair's conflict alert shows on the student's ERAM, following the facility's and the sector's CA settings.
+- Radar conflict alerts keep the pair's blocks full, draw CA rings (ERAM rings under the DB menu's CA RING) and label list rows CA, MCI or ERAM.
+- Suppressed Radar CAs draw steady and dimmed, acknowledged ones steady; a CA inhibited from the Radar marks the STARS block and says "(student display)".
+- The Radar's DB menu splits ATPA into DIST, ALERT CONES and MONITOR CONES, and STARS blocks show the in-trail distance at line 2's end.
 
 ### Changed
 

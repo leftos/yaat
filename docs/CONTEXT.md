@@ -796,144 +796,147 @@ Mode C intruder: an untracked target reporting Mode C altitude, drawn with its o
 
 ## Radar display
 
-**YAAT Scope**:
-The instructor radar view that mixes STARS and ERAM presentation (docs/plans/yaat-scope/README.md); it is the main window's Scope tab and replaces today's Radar view once it reaches parity.
-_Avoid_: scope alone (the router's **Scope** is a different thing)
+**Radar**:
+The instructor's radar view that mixes STARS, ERAM and EuroScope presentation (docs/plans/yaat-scope/README.md); it is the main window's Radar tab. The menus, windows and docs call it the Radar; the code word is Scope (`ScopeViewModel`, `ScopeCanvas`, `Views/Scope/`, `MainViewModel.Scope.cs`) and the typed verbs stay `.scope` and `.view`.
+_Avoid_: Scope in menus and docs, and scope alone (the router's **Scope** is a different thing)
 
-**Primary Scope (YAAT Scope)**:
-The one `ScopeViewModel` the main view model builds at startup (`MainViewModel.PrimaryScope`) and keeps until the app exits: shown as the main window's Scope tab, or in its own window while popped out.
+**Primary Scope (the Radar)**:
+The one `ScopeViewModel` the main view model builds at startup (`MainViewModel.PrimaryScope`) and keeps until the app exits: shown as the main window's Radar tab, or in its own window while popped out.
 
-**Extra Scope window (YAAT Scope)**:
-Another Scope window ("YAAT Scope #2", "#3", …; View › Windows › New Scope window…) over a `ScopeViewInstance` with its own `ScopeViewModel` and state, saved in its own slot of the facility's current state; the primary Scope is the implicit #1, and extra windows are not reopened at startup.
+**Extra Radar window**:
+Another Radar window ("YAAT Radar #2", "#3", …; View › Windows › New Radar window…) over a `ScopeViewInstance` with its own `ScopeViewModel` and state, saved in its own slot of the facility's current state; the primary Scope is the implicit #1, and extra windows are not reopened at startup.
 
 **Profile**:
-A YAAT Scope display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mixed}.json`) that sets the datablock template, the zoom bands, the toolbar order and the views order; picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`; a pref set is the same shape with one user's values.
+A Radar display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mixed}.json`) that sets the datablock template, the zoom bands, the toolbar order and the views order; picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`; a pref set is the same shape with one user's values.
 
 **Layout**:
-A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows (the Scope's included), extra Scope/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
-_Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
+A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows (the Scope's included), extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
+_Avoid_: window profile (its old name); Profile (a Radar display file)
 
-**Alert cones (YAAT Scope)**:
+**Alert cones (Radar)**:
 The DB menu's ALERT CONES toggle (`.scope db alertcones`): whether an ATPA pair in the Warning or Alert state draws its cone on the Scope; on at open. The Monitor state has its own toggle, **Monitor cones**, and ATPA DIST gates only the in-trail distance text.
 
 **Altitude-mismatch mark**:
-The `≠` cell after the altitude on an ERAM block's line 2 in YAAT Scope while the ERAM plan altitude and the filed altitude are both set and differ (never on a VFR or OTP plan); YAAT-only, CRC has no such marker. The dwelled block names the other side's altitude on an extra line (`TrackPresenter.EramAltitudeDiffers`).
+The `≠` cell after the altitude on an ERAM block's line 2 in Radar while the ERAM plan altitude and the filed altitude are both set and differ (never on a VFR or OTP plan); YAAT-only, CRC has no such marker. The dwelled block names the other side's altitude on an extra line (`TrackPresenter.EramAltitudeDiffers`).
 
-**`$` prefix (YAAT Scope)**:
+**`$` prefix (Radar)**:
 The marker that starts a YAAT command on the Scope's entry line (`$DM 110`, `$ UAL1 DM 110`, `$ ** UAL1 FH 270`): what follows goes to the YAAT command pipeline, and a click's callsign goes right after it. An entry that is neither a dialect entry nor a `$` one sends nothing and answers `FORMAT - $ FOR A YAAT COMMAND`. The old `PILOT` word is no longer a prefix.
 
-**Brightness group (YAAT Scope)**:
-One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Scope window, never saved or sent.
+**Brightness group (Radar)**:
+One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Radar window, never saved or sent.
 
 **CRC alias (YAAT)**:
 A line in a `.aliases` file that CRC, and YAAT's dot handlers, expand into a command; not a CRC dialect.
 
-**CRC dialect (YAAT Scope)**:
+**CRC dialect (Radar)**:
 The typed-entry grammar of the Scope's profile as CRC's own scope reads it (STARS entries such as `+100` or `INIT`, ERAM verbs such as `QQ`); the preview reads it beside `$` YAAT commands and dot commands; a YAAT command needs its `$`, so the dialect never competes with one. Not a CRC alias.
 
 **CRR group (ERAM)**:
-A named ERAM continuous range readout group (`LF`): a point and its member aircraft, each shown its distance to the point in a range data block; listed on the YAAT Scope's CRR view.
+A named ERAM continuous range readout group (`LF`): a point and its member aircraft, each shown its distance to the point in a range data block; listed on the Radar's CRR view.
 
-**Feedback area (YAAT Scope)**:
+**Feedback area (Radar)**:
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
-**Field menu (YAAT Scope)**:
+**Field menu (Radar)**:
 The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held. A middle click on an ERAM block with an empty preview opens it too. An ERAM altitude, ground speed (Field E) and each line-4 token open a popup (Scope data column beside PILOT column) instead.
 
 **Field style**:
-A per-field draw flag in YAAT Scope (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
+A per-field draw flag in Radar (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
 
 **Block level**:
-How much of a YAAT Scope datablock shows: Limited, Partial, Full, or Dwell (Full with the hover emphasis); YAAT's scale, composed from CRC's ERAM paired LDB, enhanced LDB and FDB and the STARS levels (`ScopeBlockLevel`).
+How much of a Radar datablock shows: Limited, Partial, Full, or Dwell (Full with the hover emphasis); YAAT's scale, composed from CRC's ERAM paired LDB, enhanced LDB and FDB and the STARS levels (`ScopeBlockLevel`).
 
 **FieldRect**:
-One laid-out datablock field in YAAT Scope: its slot, screen rect, text, color token and field style; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
+One laid-out datablock field in Radar: its slot, screen rect, text, color token and field style; `DatablockTemplate` returns one list of them per block, and drawing and hit-testing both read it.
 
 **Ground-target block**:
-The two-line block the YAAT Scope draws for an on-ground aircraft in top-down mode on the STARS and ERAM templates: the aircraft ID, then the destination (else the beacon code) and the pilot's aircraft type; the same at every zoom level and on dwell (`ScopeBlockLevel.Ground`).
+The two-line block the Radar draws for an on-ground aircraft in top-down mode on the STARS and ERAM templates: the aircraft ID, then the destination (else the beacon code) and the pilot's aircraft type; the same at every zoom level and on dwell (`ScopeBlockLevel.Ground`).
 
 **HSF (ERAM)**:
 The heading, speed and free-text notes of an ERAM track, entered with `QS`; while any is set the datablock shows the ↴ HSF indicator after the line-3 status and line 4 shows the notes.
 
-**Kind label (YAAT Scope)**:
+**Kind label (Radar)**:
 The words the Preview area shows before the entry to say how it will be read (`$ FH fly heading`, `DOT .scope`, `STARS +100 temporary altitude`); `ScopeEntryClassifier` picks it. A STARS entry's label is `STARS <first word> <gloss>`, an ERAM entry's `ERAM <first word>`; the Scope's STARS entries are read by shape and key words, not by verb.
 
 **MCA (Message Composition Area)**:
-ERAM's boxed text entry area at the bottom left of the display; in YAAT Scope on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.
+ERAM's boxed text entry area at the bottom left of the display; in Radar on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.
 
-**Mixed (YAAT Scope template)**:
+**Mixed (Radar template)**:
 The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
-**Monitor cones (YAAT Scope)**:
+**Monitor cones (Radar)**:
 The DB menu's MONITOR CONES toggle (`.scope db monitorcones`): whether an ATPA pair in the Monitor state draws its cone on the Scope; on at open. The Warning and Alert states have their own toggle, **Alert cones**.
 
-**PILOT column (YAAT Scope)**:
+**OTHERS level (Radar)**:
+The level (Full or Partial) that tracks the viewer does not own draw at: the zoom band's `othersLevel` for the current range (ERAM Partial, STARS Limited, EuroScope tags unchanged) until the OTHERS button or `.scope others` pins it; the viewer's own tracks and the one under the cursor stay Full.
+
+**PILOT column (Radar)**:
 The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain altitude panel on the altitude popup, Fly heading and Assign speed on the fourth-line ones (none on the free-text popup); a row click sends for the clicked aircraft and Shift+click stages `$ {callsign} {command}`; beside the Scope data column.
 
-**Pin (YAAT Scope)**:
+**Pin (Radar)**:
 A value set by hand over the zoom band's default (others' level, vector minutes, history, rings) that stands until AUTO or `.scope auto` clears every pin; kept in pref sets and the saved state (`pinOthersLevel`, `pinVectorMin`, `pinHistory`, `pinRings`) and across a profile change.
 
-**Pref set (YAAT Scope)**:
-A named snapshot of a YAAT Scope's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
+**Pref set (Radar)**:
+A named snapshot of a Radar's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
 
-**Press ladder (YAAT Scope)**:
+**Press ladder (Radar)**:
 The ordered list of rungs a pointer press on the Scope runs through (`ScopeCanvas.RunPressLadder`); the first rung that handles the press ends it, so an interactive mode inserted at the wrong place steals clicks from a lower rung. The release ladder and the move hooks are the same shape.
 
-**Preview area (YAAT Scope)**:
+**Preview area (Radar)**:
 The part of the Scope's entry area that shows the entry being typed, with its Kind label and a trailing `_`; on STARS one unboxed area at the top left below the SSA's default place, on ERAM/Mixed the upper half of the MCA.
 
 **Range data block (RDB)**:
 The small text beside an ERAM full data block's target giving the track's distance to its CRR group's point, in the group's colour, placed by CRC's RdbOrientation table.
 
 **Response Area (RA)**:
-ERAM's message area above the MCA; in YAAT Scope on ERAM and Mixed an empty box above the MCA, kept for readouts.
+ERAM's message area above the MCA; in Radar on ERAM and Mixed an empty box above the MCA, kept for readouts.
 
-**Rung (YAAT Scope)**:
+**Rung (Radar)**:
 One step of the press, release or move ladder: a partial method of `ScopeCanvas` that a feature implements in its own file (`PressBlockHide`, the heading-vector press, the draw-route press) and that reports whether it handled the event.
 
-**Scope data column (YAAT Scope)**:
+**Scope data column (Radar)**:
 The left column of an ERAM popup (cyan, "runs an ERAM entry"). On the altitude popup (`ScopeDataAltitudePopup`) it is an altitude box and rows for the FP altitude, interim, local interim, procedure, interim plus CERA and CERA-only entries and the three clears. On the fourth-line popups (`ScopeDataHsfPopup`) it is a Heading, Speed or Free text section: a box opening on the stored value, a Set row and a Clear row (Clear all HSF for free text).
 
 Each row shows its entry; a row click runs it at once, Shift+click stages the bare entry in the Preview area. Beside the PILOT column.
 
-**SSA (YAAT Scope)**:
+**SSA (Radar)**:
 The status area, a view of the Scope, open by default and floating at the scope's top-left: two lines in CRC's format, the UTC time with the primary airport's altimeter and id, then `OK/OK/NA FUSED {range}NM` (or `NA/NA/NA` in red when not in a room with an active position) (`SsaLines`).
 
-**Status slot (YAAT Scope)**:
+**Status slot (Radar)**:
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
-**TDM (YAAT Scope)**:
-Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+Shift+T in the Scope window) that draws on-ground aircraft (with the ground-target block on STARS and ERAM), below-the-display-floor aircraft and the TDM-only maps; a saved display setting, not a pin.
+**TDM (Radar)**:
+Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+Shift+T in the Radar window) that draws on-ground aircraft (with the ground-target block on STARS and ERAM), below-the-display-floor aircraft and the TDM-only maps; a saved display setting, not a pin.
 
 **TDM-only map**:
-A video map vNAS flags `TdmOnly` (an airport diagram): the YAAT Scope draws it only while TDM is on, even with its toggle on; the Radar ignores the flag.
+A video map vNAS flags `TdmOnly` (an airport diagram): the Radar draws it only while TDM is on, even with its toggle on.
 
-**Tear-off (YAAT Scope)**:
+**Tear-off (Radar)**:
 A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs. A button copy (left press on the button's *Tear-off strip*) behaves like its bar button, is one per button and removed with the DEL TEAROFF mode; a view floats as its card (left press on its title to move it, `▸` to dock it again). Either is anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.scope tearoff` or `.view … tear` (`ScopeTearoffLayer`).
 
-**Tear-off strip (YAAT Scope)**:
+**Tear-off strip (Radar)**:
 The narrow band over a tile's left edge, the tile's full height, that shows gold under the pointer; a left press on it copies the button onto the scope as a *Tear-off*.
 
-**Template (YAAT Scope)**:
+**Template (Radar)**:
 A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile or by the Template button on the Scope's toolbar.
 
-**Tile (YAAT Scope)**:
+**Tile (Radar)**:
 One button of the Scope's toolbar or of a tray: a full-height tile on the bar, or a half tile stacked in a pair with another; a tray's tiles are half height with one line.
 _Avoid_: cell, chip
 
-**Toolbar (YAAT Scope)**:
-The full-width navy row of buttons across the top of the Scope window (`Views/Scope/Toolbar/`), one theme for every template with a cyan active state; a menu button opens a tray below the bar while the main row stays visible, and every action is also a `.scope` or `.view` dot command.
+**Toolbar (Radar)**:
+The full-width navy row of buttons across the top of the Radar window (`Views/Scope/Toolbar/`), one theme for every template with a cyan active state; a menu button opens a tray below the bar while the main row stays visible, and every action is also a `.scope` or `.view` dot command.
 
 **TrackPresenter**:
-The pure YAAT Scope step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
+The pure Radar step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
 
-**Tray (YAAT Scope)**:
+**Tray (Radar)**:
 The grid of a menu button's children shown under the toolbar while the main row stays visible: two rows of one-line tiles filled column by column, continued in a further two-row block when wider than the window.
 
-**Viewer (YAAT Scope)**:
+**Viewer (Radar)**:
 The position the Scope is viewed from: the instructor's active position (the scenario's student position by default, changed with `AS`), whose ERAM sector decides VCI, R and the handoff text (`ScopeViewer`).
 
-**Views dock (YAAT Scope)**:
+**Views dock (Radar)**:
 The fixed-width right-hand column of the Scope under the toolbar that holds its docked views and hides when none is docked: today the SSA and the LA/CA/MCI list, each a card opened and closed by the VIEWS tray or `.view`, and floating off the dock when torn off (`Views/Scope/Dock/`); the Tab list is planned (docs/plans/yaat-scope/README.md).
 
 **Zoom band**:
@@ -943,16 +946,16 @@ A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets 
 An aircraft's ERAM position as of its last 12 s sweep (`EramSweptPosition` in yaat-server's `AircraftChangeTracker`): what CRC's ERAM display shows, and where a coverage coast and a QT without a location start from, rather than the live position.
 
 **Dwell**:
-ERAM's hover emphasis on a data block; in YAAT Scope, hovering a track (within 8 px of its symbol, or on its block) shows the block's Full content drawn on top, undimmed and boxed, and moving off releases it.
+ERAM's hover emphasis on a data block; in Radar, hovering a track (within 8 px of its symbol, or on its block) shows the block's Full content drawn on top, undimmed and boxed, and moving off releases it.
 
 **Dwell lock**:
 A hold of an ERAM data block at Dwell, toggled by left-clicking its callsign (Field A). Two locks exist: the student's per-sector lock set in CRC (the server keeps it per aircraft and sector, and the Scope shows it only for its viewer's ERAM sector), and the instructor's local Scope lock, which lives on that scope only, needs no ERAM position and is never sent to CRC.
 
 **Pilot lens**:
-YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path (PATH), queued pilot commands (QUEUE, a count badge with the pending lines on hover), actual check-in state (CHECKIN, a tag: an open request, no call, VCI mismatch), the RPO queue view. Off by default; the PILOT LENS menu (`.scope lens`) switches it.
+Radar overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path (PATH), queued pilot commands (QUEUE, a count badge with the pending lines on hover), actual check-in state (CHECKIN, a tag: an open request, no call, VCI mismatch), the RPO queue view. Off by default; the PILOT LENS menu (`.scope lens`) switches it.
 
 **Min sep**:
-The STARS minimum separation readout on the YAAT Scope (`MIN`): for one pair of tracks, the lateral closest approach their current ground tracks and speeds project, drawn as the predicted points and boxed as `0.00 NM`, or `NO XING` over the current distance when they do not close. One pair at a time, the Scope's own, never saved; not a conflict alert.
+The STARS minimum separation readout on the Radar (`MIN`): for one pair of tracks, the lateral closest approach their current ground tracks and speeds project, drawn as the predicted points and boxed as `0.00 NM`, or `NO XING` over the current distance when they do not close. One pair at a time, the Scope's own, never saved; not a conflict alert.
 
 **Scope entry**:
 Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad, `CRUISE`/`QZ`): it changes what the displays show and never moves the aircraft, unlike a pilot command. A cruise-altitude entry changes the plan and never the climb (Filed cruise altitude (pilot's copy)).
@@ -1038,7 +1041,7 @@ A quick command's strip flyout built from rows with their own layout (glyph or b
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.
 
 **Map cue**:
-What a pointed or focused menu row draws on the radar and Scope views (`MapCue`, sent through `IMenuHost.SetMapCue`): a solid ring on the aircraft the row names, a dashed bearing line to it from the commanded aircraft labelled with its clock position and miles, and a dashed ring on the aircraft the call resolves to when that is another one, with the named aircraft's datablock highlighted. It clears when the menu closes; the radar and Scope counterpart of the **scope preview**, which only the ground views draw.
+What a pointed or focused menu row draws on the Radar (`MapCue`, sent through `IMenuHost.SetMapCue`): a solid ring on the aircraft the row names, a dashed bearing line to it from the commanded aircraft labelled with its clock position and miles, and a dashed ring on the aircraft the call resolves to when that is another one, with the named aircraft's datablock highlighted. It clears when the menu closes; the radar and Scope counterpart of the **scope preview**, which only the ground views draw.
 
 **Point menu**:
 The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: on the ground, an icon strip of the taxi items that apply, then the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to runway, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
@@ -1065,7 +1068,7 @@ A run of one task category's icons on one icon-strip row (`QuickCommandStripSegm
 The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping; Taxi to runway has one tab per runway end.
 
 **View section**:
-The few canvas-only items a view adds to the shared aircraft menu, which the builder places last in All Commands after a separator, or at the root of the point menu (the radar's Display and Draw route, the Scope's Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
+The few canvas-only items a view adds to the shared aircraft menu, which the builder places last in All Commands after a separator, or at the root of the point menu (the Radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
 
 **Menu session**:
 The session settings an aircraft menu's predicates read (`MenuSession`): the user's initials, solo training mode and the VFR-commands-for-IFR mode.
@@ -1228,7 +1231,7 @@ The `## File map` section that ends a subsystem doc: one entry per file the doc 
 `tools/gate.ps1` (the gate wrapper, which hands every call to the installed `gate.exe` and on a machine without one runs the command directly; called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
 
 **Golden (menu golden)**:
-A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden (the test process pins the magnetic evaluation day to the one the goldens were rendered on, so bearings do not follow the run date), and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
+A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{scope,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden (the test process pins the magnetic evaluation day to the one the goldens were rendered on, so bearings do not follow the run date), and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
 
 **Heavy slot**:
 One of the `(logical processors - 1) / 4` slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps many threads busy: a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1` (which gates itself). Every yaat gate call is heavy.

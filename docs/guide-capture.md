@@ -10,13 +10,13 @@ How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the sa
 - Re-running a guide scene with no `--out` rewrites its tracked PNG byte-identically, so it is a safe check that a change did not move the picture.
 - A fresh worktree's first capture downloads CIFP, which adds to that run's time.
 - Output is deterministic, from four pins set in `Program.cs` and `Capture/Runner.cs`:
-  - The clocks: `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server's terminal stamps, the terminal and every wall-clock view; the live-traffic sync reads `SimLockedClock` (that instant plus the bound room's elapsed sim seconds, through yaat-server's `LiveTrafficClock`), which is also the clock `LiveTrafficScene` stamps its samples with; and the Scope's blinking tokens are pinned on (`MapBlink.Clock`), so they are always drawn.
+  - The clocks: `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server's terminal stamps, the terminal and every wall-clock view; the live-traffic sync reads `SimLockedClock` (that instant plus the bound room's elapsed sim seconds, through yaat-server's `LiveTrafficClock`), which is also the clock `LiveTrafficScene` stamps its samples with; and the Radar's blinking tokens are pinned on (`MapBlink.Clock`), so they are always drawn.
   - The scenario seed (`CaptureRngSeed`).
   - The navigation data, loaded once before any window opens (`CaptureStartupLoads`), so no window's radar races its own load against the scenario bootstrap.
   - A full redraw before each capture (`Runner.ForceFullRedraw`): the retained frame is redrawn with the background swapped, so no pixel depends on the redraw history.
 
   A scene that reads `DateTime.Now`, `Random.Shared`, `Environment.TickCount64` or real time breaks this.
-- GuideCapture keeps no Scope state between scenes (`Program.cs` sets `MainViewModel.ScopeStoreFactory` to a factory that returns no stores), so every scene opens the Scope with its default range, maps and template.
+- GuideCapture keeps no Radar state between scenes (`Program.cs` sets `MainViewModel.ScopeStoreFactory` to a factory that returns no stores), so every scene opens the Radar with its default range, maps and template.
 - A full-catalogue run shares process state across scenes (the server, its rooms, static clocks and preferences a scene did not put back), so a picture fault can appear only in the full run and not with `--scene`. GuideCapture writes no client log; debug a scene with its own console lines.
 - Each run pays the server boot, the room, the scenario load and whatever sim time the scene advances. A scenario-based scene that advances 480 s costs about 1.5 to 2.5 minutes before its own step runs, so every retry pays it again.
 
@@ -40,7 +40,7 @@ Put exactly the aircraft the shot needs where it needs them with `ADD` through `
 | Airborne at a bearing and distance from the airport | `ADD IFR H J -270 15 10000` |
 | At a fix or FRD | `ADD IFR L J @SUNOL 8000` |
 
-`ADD` needs an active scenario. Loading a full example scenario and advancing hundreds of seconds until traffic happens to be in the picture is slow and fragile: the Scope example's (`radar-view`) picture after 480 s holds only two drawn tracks (SKW3422, KFB7). No empty-scenario fixture or base class is committed yet (YAAT-541 adds one); until then, spawn into the default scenario and choose a part of the airport its traffic does not crowd.
+`ADD` needs an active scenario. Loading a full example scenario and advancing hundreds of seconds until traffic happens to be in the picture is slow and fragile: the Radar example's (`radar-view`) picture after 480 s holds only two drawn tracks (SKW3422, KFB7). No empty-scenario fixture or base class is committed yet (YAAT-541 adds one); until then, spawn into the default scenario and choose a part of the airport its traffic does not crowd.
 
 ## Staging an aircraft for a menu entry
 
@@ -50,7 +50,7 @@ A menu entry appears only in the state that offers it, so a scene's staging is d
 2. **Which situation the aircraft must be in.** `SituationClassifier.cs` decides it from the aircraft's phase, rules and flight plan. Print `aircraft.Situation` before opening the menu and throw unless it is the one the entry needs: a wrong state then fails in seconds with the reason, not after a capture.
 3. **What the spawn files.** The airborne, fix and parking `ADD` forms file no departure, destination or route (`AircraftGenerator.cs:137-142,400,454`); only the lined-up, departure, on-final and STAR forms do. A command that needs a destination (`JFAC`, `CAPP`) needs an `FP` first: `FP <type> <alt> <dep> <route…> <dest>`, as `FP B739 040 KSJC DCT KOAK`.
 4. **What must not be sent.** A command that changes the state the entry depends on hides it: an approach or descent clearance hides Cleared approach (`QuickCommandResolver.cs:45-47`), so never send `CAPP` to stage that shot.
-5. **Where it sits on the Scope.** The aircraft must be inside the Scope canvas's drawn area, which sits under a toolbar beside a dock and scales with the range (`ScopeViewModel.RangeNm`), so it has no fixed NM box: `ScopeScreenPicks` throws, listing each drawn track's position, when none is drawn in the region, and an aircraft outside the canvas has its menu clamp into a corner. The menu opens to the right of and below the target, so a target left of centre keeps its symbol and data block clear of it. An `@fix` or bearing spawn heads straight at the airport.
+5. **Where it sits on the Radar.** The aircraft must be inside the Radar canvas's drawn area, which sits under a toolbar beside a dock and scales with the range (`ScopeViewModel.RangeNm`), so it has no fixed NM box: `ScopeScreenPicks` throws, listing each drawn track's position, when none is drawn in the region, and an aircraft outside the canvas has its menu clamp into a corner. The menu opens to the right of and below the target, so a target left of centre keeps its symbol and data block clear of it. An `@fix` or bearing spawn heads straight at the airport.
 
 Run captures one at a time (two GuideCapture builds collide on file locks), each once: a failed check or a wrong picture means the staging is wrong, which is fixed at step 1–5, not by trying placements.
 
@@ -78,7 +78,7 @@ Approach rows read "short" when the runway is under 1.15 × the type's landing d
 - **A flyout on a menu's strip icon** opens with `QuickCommandStrip.OpenSubmenu` on the icon after `SceneActions.PointAt`, never `SceneActions.Click`: a pointer click on a strip icon closes the headless menu first, and `Click` is only for a control that opens its own popup. It is placed beside the menu, clear of its rows; `Scenes/WhatsNewExitsAheadScene.cs` shows the result and stages the shot around it.
 - `SceneActions.OpenStripFlyoutAsync(window, menu, entryId, …)` does that for the strip icon of a `MenuIds` entry and returns the flyout's `MenuFlyoutPresenter` once its rows are laid out; a flyout that refills while open (Push back to…) is then waited on for its settled rows, as `Scenes/WhatsNewPushBackScene.cs` does.
 - `SceneActions.PlaceInGroundView(window, vm, position, x, y)` moves the zoomed ground view so a point sits at fractions of its width and height, near the upper left to leave a menu and its flyouts room to the right.
-- **A Scope range/bearing shot needs two aircraft** to latch the line to; `Scenes/WhatsNewRblLabelScene.cs` picks the pair through `ScopeScreenPicks`.
+- **A Radar range/bearing shot needs two aircraft** to latch the line to; `Scenes/WhatsNewRblLabelScene.cs` picks the pair through `ScopeScreenPicks`.
 - Menu-bar menus, submenus and button flyouts: `SceneActions.OpenMenuAsync`, `OpenSubmenuAsync`, `OpenButtonFlyoutAsync`. A control's `ContextMenu` in a host window: `Scenes/TerminalRewindMenuScene.cs`.
 - An aircraft whose strip has no icon for an entry opens it through All Commands: `SceneActions.OpenAllCommandsEntryAsync(window, menu, label, timeout)` opens All Commands and each submenu down to the entry headed `label` (through `OpenSubmenuAsync`) and returns that entry, as `Scenes/WhatsNewTaxiToRunwayTabsScene.cs` does.
 

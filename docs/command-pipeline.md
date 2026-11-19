@@ -494,7 +494,7 @@ Commands/EramEntryErrors.cs         # Error ids EramEntryEngine answers a refuse
                                     # each is an id from docs/eram/error-responses.yaml — yaat-server maps the id back to CRC's error-table text (EramErrors), so
                                     # the Sim carries no display wording. The All list backs yaat-server's EramReferenceConformanceTests, which holds every id
                                     # to the reference.
-Commands/EramEntryVerbs.cs          # `EramEntryVerbs`: the ERAM entry verbs yaat-server dispatches (All), read by the server so a verb with no dispatch arm fails loudly and by the YAAT Scope so
+Commands/EramEntryVerbs.cs          # `EramEntryVerbs`: the ERAM entry verbs yaat-server dispatches (All), read by the server so a verb with no dispatch arm fails loudly and by the Radar so
                                     # an entry with one of them as its first word reads as ERAM; Readouts (QF, LA-LE, UR) and BareReadouts (SM, RK with no operands) only answer and write nothing,
                                     # `IsReadoutEntry` says so for an entry's tokens (they never take control of a tape in playback).
 Commands/ConsolidationRedirect.cs   # Where a handoff or point-out addressed to an unattended TCP lands: TryRedirect(target) → the attended position whose

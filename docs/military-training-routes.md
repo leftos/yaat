@@ -99,7 +99,7 @@ refuses to reverse along a military route.
 
 Points live in a separate `_militaryRoutePoints` dictionary consulted by `GetFixPosition` only after
 `_navDb` misses. That keeps ~8,600 synthetic names out of `AllFixNames` *and* `GetFixTuples`, so they
-never reach autocomplete, the DIST suggester, the scope's fix overlay, or FRD anchoring — and a real
+never reach autocomplete, the DIST suggester, the Radar's fix overlay, or FRD anchoring — and a real
 fix always wins a clash by construction.
 
 Names are `{designator}{label}` (`IR149A`, `AR1ARIP`). AP/1B labels always start with a letter, so a

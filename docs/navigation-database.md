@@ -350,7 +350,7 @@ context menu's `MenuCatalog.FiledAirways` (`Yaat.Client.Core`) work without eith
 
 Their points live in a separate `_militaryRoutePoints` dictionary that `GetFixPosition` consults only
 after `_navDb` misses. That keeps ~8,600 synthetic names (`IR149A`, `AR1ARIP`) out of `AllFixNames`
-*and* `GetFixTuples` — so they never reach autocomplete, the DIST suggester, the scope's fix overlay,
+*and* `GetFixTuples` — so they never reach autocomplete, the DIST suggester, the Radar's fix overlay,
 or FRD anchoring — and a real fix always wins a name clash by construction. AP/1B labels always start
 with a letter, so a minted name never ends in three or six digits and `FrdResolver.ParseFrd` can
 never read one as an FRD anchor (see "FRD-named fixes are never FRD anchors" below).

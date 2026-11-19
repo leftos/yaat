@@ -1,6 +1,6 @@
 # Ground View Rendering
 
-The **Ground View** is the top-down airport surface map (taxiways, runways, parking, aircraft) used for tower/ground control. It is a **distinct control tree** from the en-route Radar View — a separate canvas, renderer, and view-model — though both extend the same `MapCanvasBase` and share its two-thread snapshot pipeline, pan/zoom, and datablock deconfliction.
+The **Ground View** is the top-down airport surface map (taxiways, runways, parking, aircraft) used for tower/ground control. It is a **distinct control tree** from the en-route Radar (`ScopeCanvas`) — a separate canvas, renderer, and view-model — though both extend the same `MapCanvasBase` and share its two-thread snapshot pipeline, pan/zoom, and datablock deconfliction.
 
 > Read [`radar-rendering.md`](radar-rendering.md) first for the shared `MapCanvasBase` mechanics: the **two-thread render pipeline**, the **no-StyledProperty rule** (styled-property values must be copied into the immutable render snapshot before the render thread touches them), the 100 ms force-repaint timer, `MapViewport`, and the `ScrollSensitivity` scroll-zoom scaling. This doc covers only what is ground-specific.
 
@@ -45,7 +45,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 
    Unlike the five route overlays these are **not** graph-snapped: a measurement is a plain two-point line between arbitrary lat/lons, so it cannot use `DrawRoute`. The snapshot carries them already resolved (`ResolvedRbl`) because an endpoint latched to an aircraft has to be looked up against the live aircraft list on the UI thread.
 
-   Only lines tagged `RblView.Ground` are resolved into the snapshot — radar-view measurements never render here. When a line's far endpoint is off-screen, `RblLabelPlacement` anchors the readout where the line exits the viewport and clamps it fully inside.
+   Only lines tagged `RblView.Ground` are resolved into the snapshot — Radar measurements (`RblView.Scope`) never render here. When a line's far endpoint is off-screen, `RblLabelPlacement` anchors the readout where the line exits the viewport and clamps it fully inside.
 
    The readout's spot, and any **nudge** it gives an auto-placed data block, come from the shared `RblReadoutPlacement`, exactly as on the radar ([radar-rendering.md](radar-rendering.md), step 11 and "Readout nudges"); `GroundCanvas.ResolvedDataBlockOffset` folds the nudge in for both the draw and the hit-test (`DataBlockRect`).
 
@@ -291,9 +291,9 @@ Aircraft hit-testing runs on **click** (`OnPointerPressed`) and on **hover** (`O
 
 The three measuring events sit at the **top** of `OnPointerPressed`, above the datablock and route-drawing rungs: Alt+left starts a drag measurement and, while the tool is armed (`IsMeasuring`), a left click picks an endpoint. `MeasureEndpointAt` deliberately does **not** snap to the ground graph — measuring a wingtip-to-hold-bar gap means using the exact point clicked.
 
-**Ctrl node label.** The Ground View copies the Radar View's Ctrl+hover MVA tooltip (`docs/minimum-vectoring-altitude.md`). `OnPointerMoved` samples Ctrl from `e.KeyModifiers` into `_ctrlHeldAtPointer`. `OnKeyDown`/`OnKeyUp` set the flag too, so pressing or releasing Ctrl takes effect without moving the pointer.
+**Ctrl node label.** The Ground View mirrors the Radar's Ctrl+hover MVA readout (`ScopeMvaReadout`; `docs/minimum-vectoring-altitude.md`). `OnPointerMoved` samples Ctrl from `e.KeyModifiers` into `_ctrlHeldAtPointer`. `OnKeyDown`/`OnKeyUp` set the flag too, so pressing or releasing Ctrl takes effect without moving the pointer.
 
-The Radar View handles its MVA tooltip the same way. `CreateRenderSnapshot` checks that flag, `IsPointerOver` and `ShowYaatLayout` (no marker when the layout is hidden), then resolves `FindCtrlHoverNode(_pointerPos)`: the nearest node of any type within `CtrlHoverNodeRadiusPx` (40).
+The Ground View's `CreateRenderSnapshot` checks that flag, `IsPointerOver` and `ShowYaatLayout` (no marker when the layout is hidden), then resolves `FindCtrlHoverNode(_pointerPos)`: the nearest node of any type within `CtrlHoverNodeRadiusPx` (40).
 
 The label comes from `FormatCtrlNodeLabel`, as `#<id> · <Type>` plus the name when there is one. `#<id>` is the `NodeRefToken` form `PUSH`/`PUSHM` take. The label and the node's screen point go into the snapshot's last field. `GroundRenderer.DrawCtrlNodeHover` draws it last in the frame, on top of everything, outside the label-deconfliction pass. The label moves to the node's left side when it would run past the canvas's right edge.
 
@@ -381,7 +381,7 @@ A search voided by a layout change or a failure returns its ends to NotSearched,
 
 Draw taxi route… and Push route… are on every view, and `EnterDrawRoute` / `EnterPushRoute` show the primary ground view first (its tab, or its popped-out window brought forward), so picking one from the radar or the list starts the draw there. The **Taxi route** submenu is a `MenuItemToggleType.Radio` group whose checked item reflects `GroundViewModel.GetTaxiRouteMode(callsign)`; selecting one calls `SetTaxiRouteMode`.
 
-**Point menus.** With an aircraft selected, a right-click on a taxi node, a runway threshold or a runway surface runs `AircraftMenuBuilder.Build` with a `MenuPoint`, the same builder the radar's map click uses. A taxi node goes `OnNodeRightClicked` → `BuildNodePointMenu`, with the node as the point.
+**Point menus.** With an aircraft selected, a right-click on a taxi node, a runway threshold or a runway surface runs `AircraftMenuBuilder.Build` with a `MenuPoint`, the same builder the Radar's map click uses. A taxi node goes `OnNodeRightClicked` → `BuildNodePointMenu`, with the node as the point.
 
 A taxiway node inside a runway's hold line, off its centerline (`FollowingPhase.IsInsideHoldLine`, the sim's own test), stands for that exit's hold short instead: `GroundViewModel.FindHoldShortForNodeInsideHoldLine` walks out along taxiway edges, never along the centerline, to the runway's hold shorts bounding the exit on either side, and takes the one the selected aircraft reaches at the lowest route cost. The point is that hold short with its runway's End1 as the runway end, so Taxi here offers For Departure and Hold short and never a stop past the line; its `WarpNode` is the clicked node, so Warp here still goes where the click landed. An aircraft already at one of the exit's hold shorts keeps the node's own menu.
 
@@ -393,7 +393,7 @@ Like a painted-runway click it needs runways drawn (`ShowYaatLayout` or `ShowVid
 
 The menu opens with the point header (`SharedMenuGroups.AddPointHeader`), the bold title `{callsign} · {type} → {place}`. At the hold short a threshold click resolves to, the place is `HS 30 at W3` (`IMenuHost.GetHoldShortTaxiwayName`; `HS 30` when no named taxiway leads to it). At a named stand or spot it is `parking {name}` or `spot {name}`.
 
-At any other node it is the taxiways meeting there, ordinal-sorted and joined with ` / ` (`IMenuHost.GetNodeTaxiwayNames`; `this point` when none does), and on a runway surface `runway 28R`, the first runway's first end. The ground view's point menu has no detail row; the radar's does.
+At any other node it is the taxiways meeting there, ordinal-sorted and joined with ` / ` (`IMenuHost.GetNodeTaxiwayNames`; `this point` when none does), and on a runway surface `runway 28R`, the first runway's first end. The ground view's point menu has no detail row; the Radar's does.
 
 Then an icon strip of the ground point items that apply (Taxi here, Taxi to runway, Push to, Custom taxi…), a separator, and the text items by the aircraft's predicate; no strip for an airborne aircraft, and "No route found" stays a text row (its strip button stays too, faded and inert).
 

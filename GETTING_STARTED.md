@@ -104,13 +104,13 @@ YAAT has three main views, accessible via tabs or pop-out windows (**View** menu
 
 - **Aircraft List** — data grid with all aircraft state (altitude, speed, heading, phase, etc.)
 - **Ground View** — airport surface map for tower operations. Right-click aircraft or taxiway nodes for context menus (taxi routes, hold short, cross runway).
-- **Scope** — STARS-style scope for approach/departure. Shows targets, video maps, and data blocks. Right-click for heading, altitude, and approach options.
+- **Radar** — STARS, ERAM and EuroScope radar display for approach/departure and en-route. Shows targets, video maps, and data blocks. Right-click for heading, altitude, and approach options.
 
 ![The Aircraft List](docs/user-guide/img/aircraft-list.png)
 
 ![The Ground View at Oakland](docs/user-guide/img/ground-view.png)
 
-![The Radar View](docs/user-guide/img/radar-view.png)
+![The Radar](docs/user-guide/img/radar-view.png)
 
 ## Step 7: Load Weather (Optional)
 

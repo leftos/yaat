@@ -1,6 +1,6 @@
 # Minimum Vectoring Altitude (MVA)
 
-> Read this before touching `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, or the Scope MVA
+> Read this before touching `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, or the Radar MVA
 > display surfaces (`TrackPresenter`'s altitude tint, the `ScopeView.OnMapRightClicked` MVA item, the Ctrl+hover
 > tooltip in `ScopeCanvas`/`ScopeMapToolsRenderer`).
 
@@ -91,7 +91,7 @@ point.
   belongs to the separately-charted inner sector. Do not reuse `AirspaceVolume`'s OR-of-rings logic.
 - **Coverage has gaps.** Between charted sectors (and outside the FAA's ~148-facility footprint) every
   query returns null — callers must treat "no MVA here" as a non-event, never an error.
-- **Overlaps resolve to the Scope's own facility chart.** Adjacent facilities' charts overlap, and NCT's Castle/Merced chart covers most of Fresno's terminal area, so highest-wins mislabelled it (2,000 ft where FAT charts 1,900). The Scope passes `ScopeMapSource.MvaFacilityId` (from `FacilityVideoMapsDto.FacilityId`, as `MainViewModel.ScopeMaps.MvaFacilityId`) as the preference to the altitude tint, the Ctrl-hover readout, the point-menu MVA row and the aircraft-menu altitude flyout (`ClientMenuHost.GetMva` reads `MainViewModel.ScopeMaps.MvaFacilityId` on each call, for Scope, Ground and DataGrid menus alike). Where that chart does not cover the point, or before video maps load, the highest floor across every chart applies. Live-traffic descent floors and the military-route terrain proxy pass a null preference and keep highest-wins. Composite FAA chart ids (`D01_DEN_PUB`, `BOI_BZN`) never match a facility id, so those radars keep highest-wins (YAAT-2297).
+- **Overlaps resolve to the Radar's own facility chart.** Adjacent facilities' charts overlap, and NCT's Castle/Merced chart covers most of Fresno's terminal area, so highest-wins mislabelled it (2,000 ft where FAT charts 1,900). The Radar passes `ScopeMapSource.MvaFacilityId` (from `FacilityVideoMapsDto.FacilityId`, as `MainViewModel.ScopeMaps.MvaFacilityId`) as the preference to the altitude tint, the Ctrl-hover readout, the point-menu MVA row and the aircraft-menu altitude flyout (`ClientMenuHost.GetMva` reads `MainViewModel.ScopeMaps.MvaFacilityId` on each call, for Scope, Ground and DataGrid menus alike). Where that chart does not cover the point, or before video maps load, the highest floor across every chart applies. Live-traffic descent floors and the military-route terrain proxy pass a null preference and keep highest-wins. Composite FAA chart ids (`D01_DEN_PUB`, `BOI_BZN`) never match a facility id, so those radars keep highest-wins (YAAT-2297).
 - **Refresh drift.** The FAA charts update on no fixed cycle; re-run `--all` and commit the regenerated
   Brotli file to refresh. The `source`/`generatedAt`/`facilityCount` metadata records provenance.
 

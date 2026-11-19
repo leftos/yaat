@@ -11,7 +11,7 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 - **Scenario management** — load predefined traffic scenarios with automatic aircraft spawning
 - **Command input** — text-based ATC commands with autocomplete, macros, and compound syntax
 - **Ground view** — SkiaSharp-rendered airport surface map with taxi routing and context menus
-- **Radar view** — STARS-style radar display with video maps, range rings, and data blocks
+- **Radar** — instructor radar display with video maps, range rings, and STARS, ERAM or EuroScope data blocks
 - **Weather** — load ATCTrainer-compatible wind/weather profiles; wind affects aircraft physics
 - **Full nav data** — VNAS protobuf nav data, FAA CIFP procedures (SIDs, STARs, approaches), and aircraft performance specs downloaded automatically
 - **CRC integration** — CRC clients, and Tower Cab 3D, connect to the same server and see all simulated traffic
@@ -67,7 +67,7 @@ See the [Installation Guide](INSTALL.md) for step-by-step instructions. Contribu
 src/Yaat.Client/    Avalonia desktop app (instructor/RPO UI)
   Models/           Observable data models (aircraft, terminal entries)
   Services/         SignalR client, command scheme, macros, nav data
-  ViewModels/       MVVM view models (main, ground, radar, settings)
+  ViewModels/       MVVM view models (main, ground, scope (the Radar), settings)
   Views/            Avalonia AXAML views, SkiaSharp canvases
 
 src/Yaat.Sim/       Shared simulation library (no UI dependencies)
@@ -83,7 +83,7 @@ tests/              Unit tests for both projects
 
 - [.NET 10](https://dotnet.microsoft.com/) / C# with nullable reference types
 - [Avalonia UI 12](https://avaloniaui.net/) — cross-platform desktop framework (Fluent dark theme)
-- [SkiaSharp](https://github.com/mono/SkiaSharp) — 2D rendering for ground and radar views
+- [SkiaSharp](https://github.com/mono/SkiaSharp) — 2D rendering for the ground view and the Radar
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) — MVVM source generators
 - [ASP.NET SignalR Client](https://learn.microsoft.com/en-us/aspnet/core/signalr/) — real-time server communication
 - [Google.Protobuf](https://protobuf.dev/) — VNAS nav data deserialization

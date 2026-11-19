@@ -98,9 +98,9 @@ A track must pass all four gates to be considered (`ConflictAlertDetector.cs:116
   identical payload per tick. `TrainingHub`'s `RoomStateDto` seeds the same list so a client joining mid-conflict sees it
   immediately. `TrainingRoom.LastBroadcastConflictSignature` starts at `""` (not null) so a conflict-free room doesn't
   push a pointless empty payload on its first tick. Client-side rendering: see
-  [radar-rendering.md](radar-rendering.md) § Conflict alerts. The YAAT Scope's LA/CA/MCI list reads the same pair
+  [radar-rendering.md](radar-rendering.md) § Conflict alerts. The Radar's LA/CA/MCI list reads the same pair
   list from `MainViewModel.ConflictAlerts` (a row reads CA, MCI, ERAM or ERAM MCI; no LA exists on the client).
-- **ERAM STCA reaches only the YAAT Scope, as a flash.** `EramConflictDetector`'s separate set (`ESTCA_` ids, 4-minute
+- **ERAM STCA reaches only the Radar, as a flash.** `EramConflictDetector`'s separate set (`ESTCA_` ids, 4-minute
   lookahead, 5 nm minima) rides `ConflictAlertsChanged` with `Kind` `Eram` (`TrainingBroadcastService.BuildConflictAlerts`
   applies the room's ERAM CA settings and drops a `CO`-suppressed pair or one with no ERAM owner). The client keeps
   ERAM pairs out of `AircraftModel.ConflictPeerCallsign`, so the Radar's CA line and fixed 3 nm ring never draw for an
