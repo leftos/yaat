@@ -1172,8 +1172,6 @@ public partial class MainViewModel
             // Fires only on a standalone AS [TCP] (not a one-shot AS [TCP] [command]), so the
             // active-position indicator follows persistent position changes but not per-command ones.
             SetActivePositionFromServer(config);
-            // Stashed so a Radar View window opened later starts on the same position's display config.
-            _lastPositionDisplayConfig = config;
             // An ERAM position's config names the position only; the Radar keeps the maps it has.
             if (!config.NoStarsDisplay)
             {

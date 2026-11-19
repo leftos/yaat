@@ -2027,10 +2027,10 @@ public partial class MainViewModel : ObservableObject
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsScopePoppedOut = _preferences.IsScopePoppedOut;
-        // Extra Radar/Ground View windows that were open at shutdown. With no scenario active this just
+        // Extra Ground View windows that were open at shutdown. With no scenario active this just
         // constructs and seeds the view-models; the window layer materializes a window per instance.
         ExtraGroundViews.CollectionChanged += OnExtraGroundViewsChanged;
-        ReconcileExtraViews(_preferences.ExtraRadarViews, _preferences.ExtraGroundViews);
+        ReconcileExtraViews(_preferences.ExtraGroundViews);
         IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
         IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
         IsTerminalPoppedOut = _preferences.IsTerminalPoppedOut;
@@ -2153,7 +2153,7 @@ public partial class MainViewModel : ObservableObject
             NavigationDatabase navDb = NavigationDatabase.Instance;
 
             MarkNavDbReady();
-            // Stashed so a Radar/Ground window opened after this point gets the same lookup (SeedExtraRadar).
+            // Stashed so a Ground window opened after this point gets the same lookup (SeedExtraGround).
             _airportElevationLookup = navDb.GetAirportElevation;
             foreach (RadarViewModel radar in AllRadarViews)
             {
@@ -2167,16 +2167,6 @@ public partial class MainViewModel : ObservableObject
             foreach (GroundViewModel ground in AllGroundViews)
             {
                 ground.SetElevationLookup(navDb.GetAirportElevation);
-            }
-
-            // An extra Radar View opened before the nav db was ready has no centre yet: its airport could
-            // not be resolved then. Each one resolves its own airport, never the scenario's.
-            foreach (RadarViewInstance instance in ExtraRadarViews)
-            {
-                if (NavigationDatabase.Instance.GetAirportPosition(instance.AirportId) is { } position)
-                {
-                    instance.Vm.SetPrimaryAirportPosition(position.Lat, position.Lon);
-                }
             }
 
             // A scenario bootstrap that ran before the nav db was ready could not place the main radar on its primary
@@ -3290,8 +3280,6 @@ public partial class MainViewModel : ObservableObject
         (double Lat, double Lon)? pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetAirportPosition(airportId) : null;
         if (pos.HasValue)
         {
-            // Primary only: an extra Radar View is centred on the airport it was opened with, not on the
-            // scenario's — SeedRadarAirport pushes each extra its own.
             Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
             ScopeMaps.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
         }

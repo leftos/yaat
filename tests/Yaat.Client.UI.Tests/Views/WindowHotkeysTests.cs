@@ -79,34 +79,6 @@ public class WindowHotkeysTests
         Assert.True(window.Topmost);
     }
 
-    [AvaloniaFact]
-    public void CtrlF8_InExtraRadarWindow_TogglesThatWindowsDcb()
-    {
-        WindowHotkeys.EnsureRegistered();
-        var vm = new MainViewModel(new FakeFilePickerService());
-        try
-        {
-            vm.OpenExtraRadarView("KOAK");
-            RadarViewInstance instance = vm.ExtraRadarViews.Single();
-            var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
-            window.SetViewModel(instance.Vm);
-            window.ShowAndRunLayout();
-
-            bool dockedBefore = vm.Radar.IsDcbVisible;
-            bool extraBefore = instance.Vm.IsDcbVisible;
-
-            window.DispatchKey(Key.F8, RawInputModifiers.Control);
-
-            // The hotkey acts on the focused window's own view-model, never on the docked view.
-            Assert.Equal(!extraBefore, instance.Vm.IsDcbVisible);
-            Assert.Equal(dockedBefore, vm.Radar.IsDcbVisible);
-        }
-        finally
-        {
-            vm.ReconcileExtraViews([], []);
-        }
-    }
-
     // One panel hotkey: the keybind it reads and writes, and the main-view-model flag it toggles.
     private sealed record PanelHotkey(
         Func<UserPreferences, string> Keybind,

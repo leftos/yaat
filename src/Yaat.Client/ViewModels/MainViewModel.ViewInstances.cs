@@ -9,32 +9,18 @@ namespace Yaat.Client.ViewModels;
 public partial class MainViewModel
 {
     /// <summary>
-    /// The extra Radar View windows (#2, #3, …) this session has open. The docked Radar View is the
-    /// implicit #1 (<see cref="Radar"/>) and has no entry here. Each instance owns its own
-    /// <see cref="RadarViewModel"/> — center, range, filters and datablock offsets are per-window — while
-    /// the aircraft collection and the selected aircraft stay app-wide.
-    /// </summary>
-    public ObservableCollection<RadarViewInstance> ExtraRadarViews { get; } = [];
-
-    /// <summary>
-    /// The extra Ground View windows (#2, #3, …) this session has open; same convention as
-    /// <see cref="ExtraRadarViews"/>. An instance on the primary's airport mirrors its layout
-    /// (<see cref="GroundViewModel.MirrorLayoutFrom"/>) instead of fetching its own copy; an instance on
-    /// any other airport loads that airport's layout itself.
+    /// The extra Ground View windows (#2, #3, …) this session has open. The docked Ground View is the
+    /// implicit #1 (<see cref="Ground"/>) and has no entry here. Each instance owns its own
+    /// <see cref="GroundViewModel"/> while the aircraft collection and the selected aircraft stay app-wide.
+    /// An instance on the primary's airport mirrors its layout (<see cref="GroundViewModel.MirrorLayoutFrom"/>)
+    /// instead of fetching its own copy; an instance on any other airport loads that airport's layout itself.
     /// </summary>
     public ObservableCollection<GroundViewInstance> ExtraGroundViews { get; } = [];
 
-    /// <summary>Every Radar View driven by this view-model: the docked primary first, then the extra windows.</summary>
+    /// <summary>Every Radar View driven by this view-model: only the docked primary.</summary>
     public IEnumerable<RadarViewModel> AllRadarViews
     {
-        get
-        {
-            yield return Radar;
-            foreach (RadarViewInstance instance in ExtraRadarViews)
-            {
-                yield return instance.Vm;
-            }
-        }
+        get { yield return Radar; }
     }
 
     /// <summary>Every Ground View driven by this view-model: the docked primary first, then the extra windows.</summary>
@@ -55,9 +41,7 @@ public partial class MainViewModel
     // seeding methods below. The scenario-scoped entries are dropped in ClearScenarioState.
     private Func<string, double?>? _airportElevationLookup;
     private string? _lastRadarPrimaryAirportId;
-    private string? _lastScenarioArtccId;
     private string? _lastScenarioId;
-    private PositionDisplayConfigDto? _lastPositionDisplayConfig;
 
     /// <summary>
     /// Builds a <see cref="GroundViewModel"/> wired to this view-model's connection, services and
@@ -107,7 +91,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Builds a <see cref="RadarViewModel"/> wired to this view-model's connection, services and
-    /// selection callback; the counterpart of <see cref="CreateGroundViewModel"/>.
+    /// selection callback, for the docked Radar View; the counterpart of <see cref="CreateGroundViewModel"/>.
     /// </summary>
     private RadarViewModel CreateRadarViewModel(bool isPrimary, string settingsKeySuffix)
     {
@@ -127,26 +111,10 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Opens another Radar View instance on the lowest free ordinal, based on
-    /// <paramref name="airportId"/>, and persists the new set. The airport decides the instance's
-    /// centre and video maps — a second Radar View has no scenario-inferred target, so the caller
-    /// (the View menu) asks the user for one first.
-    /// </summary>
-    public RadarViewInstance OpenExtraRadarView(string airportId)
-    {
-        RadarViewInstance instance = OpenRadarInstance(
-            ViewInstanceOrdinals.NextFree(ExtraRadarViews.Select(i => i.Ordinal)),
-            NormalizeAirportId(airportId)
-        );
-        PersistExtraViews();
-        return instance;
-    }
-
-    /// <summary>
     /// Opens another Ground View instance on the lowest free ordinal, based on
-    /// <paramref name="airportId"/>, and persists the new set. Same convention as
-    /// <see cref="OpenExtraRadarView"/>; the airport decides whether the instance mirrors the primary
-    /// view's layout or loads its own.
+    /// <paramref name="airportId"/>, and persists the new set. The airport decides whether the instance
+    /// mirrors the primary view's layout or loads its own; a second Ground View has no scenario-inferred
+    /// target, so the caller (the View menu) asks the user for one first.
     /// </summary>
     public GroundViewInstance OpenExtraGroundView(string airportId)
     {
@@ -211,17 +179,6 @@ public partial class MainViewModel
         return trimmed;
     }
 
-    /// <summary>Drops an extra Radar View instance. A no-op when it was already removed.</summary>
-    public void CloseExtraRadarView(RadarViewInstance instance)
-    {
-        if (!ExtraRadarViews.Remove(instance))
-        {
-            return;
-        }
-
-        PersistExtraViews();
-    }
-
     /// <summary>
     /// Drops an extra Ground View instance, detaching it from the primary's layout so the closed
     /// window's view-model stops tracking it. A no-op when it was already removed.
@@ -238,36 +195,20 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Brings the open extra views in line with the given entries: instances not listed are closed,
+    /// Brings the open extra Ground Views in line with the given entries: instances not listed are closed,
     /// missing ones are opened and seeded, and survivors are left untouched so applying a layout
     /// doesn't reset a window the layout also has. An instance survives only when an entry has both its
     /// ordinal and its airport — a window whose airport changed is a different window, so it is closed and
     /// reopened on the new one. Persists the resulting set once, at the end.
     /// </summary>
-    public void ReconcileExtraViews(IReadOnlyList<SavedExtraView> radar, IReadOnlyList<SavedExtraView> ground)
+    public void ReconcileExtraViews(IReadOnlyList<SavedExtraView> ground)
     {
-        for (int i = ExtraRadarViews.Count - 1; i >= 0; i--)
-        {
-            if (!radar.Any(entry => Matches(entry, ExtraRadarViews[i].Ordinal, ExtraRadarViews[i].AirportId)))
-            {
-                ExtraRadarViews.RemoveAt(i);
-            }
-        }
-
         for (int i = ExtraGroundViews.Count - 1; i >= 0; i--)
         {
             if (!ground.Any(entry => Matches(entry, ExtraGroundViews[i].Ordinal, ExtraGroundViews[i].AirportId)))
             {
                 ExtraGroundViews[i].Vm.StopMirroring();
                 ExtraGroundViews.RemoveAt(i);
-            }
-        }
-
-        foreach (SavedExtraView entry in radar)
-        {
-            if (!ExtraRadarViews.Any(instance => Matches(entry, instance.Ordinal, instance.AirportId)))
-            {
-                OpenRadarInstance(entry.Ordinal, NormalizeAirportId(entry.AirportId));
             }
         }
 
@@ -284,20 +225,6 @@ public partial class MainViewModel
 
     private static bool Matches(SavedExtraView entry, int ordinal, string airportId) =>
         (entry.Ordinal == ordinal) && string.Equals(entry.AirportId, airportId, StringComparison.OrdinalIgnoreCase);
-
-    private RadarViewInstance OpenRadarInstance(int ordinal, string airportId)
-    {
-        RadarViewModel vm = CreateRadarViewModel(isPrimary: false, settingsKeySuffix: OrdinalSuffix(ordinal));
-        var instance = new RadarViewInstance
-        {
-            Ordinal = ordinal,
-            AirportId = airportId,
-            Vm = vm,
-        };
-        SeedExtraRadar(instance);
-        ExtraRadarViews.Add(instance);
-        return instance;
-    }
 
     private GroundViewInstance OpenGroundInstance(int ordinal, string airportId)
     {
@@ -316,66 +243,8 @@ public partial class MainViewModel
     /// <summary>The per-scenario settings-key suffix for an extra view instance, e.g. <c>"#2"</c>.</summary>
     private static string OrdinalSuffix(int ordinal) => "#" + ordinal.ToString(CultureInfo.InvariantCulture);
 
-    private void PersistExtraViews()
-    {
-        _preferences.SetExtraRadarViews([.. ExtraRadarViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId))]);
+    private void PersistExtraViews() =>
         _preferences.SetExtraGroundViews([.. ExtraGroundViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId))]);
-    }
-
-    /// <summary>
-    /// Catches a newly-created Radar View up on everything the docked view was told before it existed:
-    /// the measuring tool, the navigation database, the MVA tint, its own base airport (id, position and
-    /// video maps, which also restores its per-scenario settings), the position display config, weather,
-    /// and the app-wide selected aircraft.
-    /// </summary>
-    private void SeedExtraRadar(RadarViewInstance instance)
-    {
-        RadarViewModel vm = instance.Vm;
-        vm.SetMeasureState(Measure);
-        if (_airportElevationLookup is { } elevationLookup)
-        {
-            vm.SetElevationLookup(elevationLookup);
-            vm.SetNavDbReady();
-        }
-
-        vm.ShowMvaHints = Radar.ShowMvaHints;
-        SeedRadarAirport(instance);
-        if (_lastPositionDisplayConfig is { NoStarsDisplay: false } positionConfig)
-        {
-            vm.ApplyPositionDisplayConfig(positionConfig);
-        }
-
-        vm.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, vm.WeatherAirports);
-        vm.WeatherNote = RadarWeatherNote(_allWeatherInfo, vm.WeatherAirports);
-        _isSyncingSelection = true;
-        vm.SelectedAircraft = SelectedAircraft;
-        _isSyncingSelection = false;
-    }
-
-    /// <summary>
-    /// Points an extra Radar View at its own base airport: the airport id, its position from the
-    /// navigation database, and the video maps for it (the load also restores this instance's
-    /// per-scenario settings and, on its first run, centres the view on the airport). Re-run on every
-    /// scenario bootstrap and recording load, because those replace the maps and the settings key —
-    /// never with the primary's airport, which belongs to the docked view alone.
-    /// </summary>
-    private void SeedRadarAirport(RadarViewInstance instance)
-    {
-        RadarViewModel vm = instance.Vm;
-        vm.SetPrimaryAirportId(instance.AirportId);
-        if (_commandInput.NavDbReady && (NavigationDatabase.Instance.GetAirportPosition(instance.AirportId) is { } position))
-        {
-            vm.SetPrimaryAirportPosition(position.Lat, position.Lon);
-        }
-
-        // The ARTCC and scenario id the docked view was given — a recording load can carry an ARTCC other
-        // than the preference, and the scenario id keys this instance's own saved view.
-        string artccId = _lastScenarioArtccId ?? _preferences.ArtccId;
-        if (!string.IsNullOrEmpty(artccId))
-        {
-            _ = vm.LoadVideoMapsForArtccAsync(artccId, instance.AirportId, _lastScenarioId);
-        }
-    }
 
     /// <summary>
     /// Catches a newly-created Ground View up on the measuring tool, the navigation database, the active

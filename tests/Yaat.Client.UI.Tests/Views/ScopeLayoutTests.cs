@@ -166,8 +166,6 @@ public class ScopeLayoutTests
             await main.ApplyLayoutAsync(vm, layout, ViewSettingsCopyCatalog.AllLayoutKeys(layout));
             MainWindowHost.Pump();
 
-            Assert.Empty(main.ExtraRadarWindows);
-            Assert.Empty(vm.ExtraRadarViews);
             Assert.False(vm.IsRadarViewPoppedOut);
         }
         finally

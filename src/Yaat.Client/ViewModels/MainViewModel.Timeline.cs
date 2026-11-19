@@ -1071,18 +1071,12 @@ public partial class MainViewModel
             }
         }
 
-        // Stashed so an extra window opened later keys its saved view on this recording's scenario and
-        // loads the recording's ARTCC, exactly as the docked views just did.
-        _lastScenarioArtccId = artccId;
+        // Stashed so an extra window opened later keys its saved view on this recording's scenario,
+        // exactly as the docked views just did.
         _lastScenarioId = result.ScenarioId;
 
-        // Extra windows follow their own airport, not the recording's: each reloads its own video maps
-        // (Radar) and re-evaluates whether it mirrors the primary's layout (Ground).
-        foreach (RadarViewInstance instance in ExtraRadarViews)
-        {
-            SeedRadarAirport(instance);
-        }
-
+        // Extra Ground windows follow their own airport, not the recording's: each re-evaluates whether it
+        // mirrors the primary's layout.
         foreach (GroundViewInstance instance in ExtraGroundViews)
         {
             instance.Vm.SetScenarioId(result.ScenarioId);

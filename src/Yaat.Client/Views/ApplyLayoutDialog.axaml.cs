@@ -365,11 +365,6 @@ public partial class ApplyLayoutDialog : Window
             IsEnabled = spec.Enabled,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        if (spec.Tooltip is not null)
-        {
-            ToolTip.SetTip(check, spec.Tooltip);
-        }
-
         Grid.SetColumn(check, 0);
 
         var current = new TextBlock
@@ -457,11 +452,6 @@ public partial class ApplyLayoutDialog : Window
             return $"vTDLS ({key["VTdlsView:".Length..]})";
         }
 
-        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.RadarPrefix, out int radarOrdinal))
-        {
-            return $"Radar View window #{radarOrdinal}";
-        }
-
         if (TryInstanceOrdinal(key, ViewInstanceOrdinals.GroundPrefix, out int groundOrdinal))
         {
             return $"Ground View window #{groundOrdinal}";
@@ -479,7 +469,6 @@ public partial class ApplyLayoutDialog : Window
             "Terminal" => "Terminal window",
             "DataGrid" => "Aircraft List window",
             "GroundView" => "Ground View window",
-            "RadarView" => "Radar View window",
             "Settings" => "Settings window",
             "Metar" => "METAR window",
             "Controllers" => "Controllers window",
@@ -547,6 +536,5 @@ public partial class ApplyLayoutDialog : Window
         public bool Differs { get; init; }
         public bool Enabled { get; init; } = true;
         public bool Warn { get; init; }
-        public string? Tooltip { get; init; }
     }
 }

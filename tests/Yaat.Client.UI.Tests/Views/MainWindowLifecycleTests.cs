@@ -5,7 +5,6 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.VStrips;
 using Yaat.Sim.Testing;
@@ -194,33 +193,6 @@ public class MainWindowLifecycleTests
     }
 
     [AvaloniaFact]
-    public void ExtraRadarWindow_OpensWithInstanceVmAndMainViewModelContext()
-    {
-        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
-        MarkNavDataReady(vm);
-        try
-        {
-            vm.OpenExtraRadarView("KOAK");
-            Dispatcher.UIThread.RunJobs();
-
-            RadarViewInstance instance = Assert.Single(vm.ExtraRadarViews);
-            KeyValuePair<RadarViewInstance, RadarViewWindow> entry = Assert.Single(main.ExtraRadarWindows);
-            Assert.Same(instance, entry.Key);
-
-            // The window DataContext stays the MainViewModel (the inner view binds Aircraft through
-            // $parent[Window]); only the hosted RadarView gets the per-instance view-model.
-            Assert.IsType<MainViewModel>(entry.Value.DataContext);
-            Assert.Same(instance.Vm, entry.Value.RadarVm);
-            Assert.NotSame(vm.Radar, entry.Value.RadarVm);
-            Assert.Equal("Radar View #2 — OAK", entry.Value.Title);
-        }
-        finally
-        {
-            CloseAllExtraViews(vm);
-        }
-    }
-
-    [AvaloniaFact]
     public void ExtraGroundWindow_OpensWithInstanceVmAndMainViewModelContext()
     {
         (MainWindow? main, MainViewModel? vm) = BootMainWindow();
@@ -238,30 +210,6 @@ public class MainWindowLifecycleTests
             Assert.Same(instance.Vm, entry.Value.GroundVm);
             Assert.NotSame(vm.Ground, entry.Value.GroundVm);
             Assert.Equal("Ground View #2 — OAK", entry.Value.Title);
-        }
-        finally
-        {
-            CloseAllExtraViews(vm);
-        }
-    }
-
-    [AvaloniaFact]
-    public void ExtraRadarWindow_ClosedViaChrome_RemovesInstanceWithoutReenteringClose()
-    {
-        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
-        try
-        {
-            vm.OpenExtraRadarView("KOAK");
-            Dispatcher.UIThread.RunJobs();
-            RadarViewWindow window = main.ExtraRadarWindows.Values.Single();
-
-            // Title-bar X: the Closing handler drops the window BEFORE removing the instance, whose
-            // CollectionChanged fan-out re-enters the close path on this same call stack.
-            window.Close();
-            Dispatcher.UIThread.RunJobs();
-
-            Assert.Empty(vm.ExtraRadarViews);
-            Assert.Empty(main.ExtraRadarWindows);
         }
         finally
         {
@@ -297,22 +245,18 @@ public class MainWindowLifecycleTests
         // The ordinals live in the preferences file, which the MainViewModel constructor reads — so
         // writing them here is what a previous session's shutdown looks like.
         var seed = new UserPreferences();
-        seed.SetExtraRadarViews([new SavedExtraView(2, "KOAK")]);
         seed.SetExtraGroundViews([new SavedExtraView(3, "KSFO")]);
         try
         {
             (MainWindow? main, MainViewModel? vm) = BootMainWindow();
 
-            Assert.Equal([2], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
             Assert.Equal([3], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
-            Assert.Equal("Radar View #2 — KOAK", main.ExtraRadarWindows.Values.Single().Title);
             Assert.Equal("Ground View #3 — KSFO", main.ExtraGroundWindows.Values.Single().Title);
 
             CloseAllExtraViews(vm);
         }
         finally
         {
-            seed.SetExtraRadarViews([]);
             seed.SetExtraGroundViews([]);
         }
     }
@@ -362,7 +306,7 @@ public class MainWindowLifecycleTests
     // Closes the extra view windows a test opened, which outlive the test otherwise.
     private static void CloseAllExtraViews(MainViewModel vm)
     {
-        vm.ReconcileExtraViews([], []);
+        vm.ReconcileExtraViews([]);
         Dispatcher.UIThread.RunJobs();
     }
 }

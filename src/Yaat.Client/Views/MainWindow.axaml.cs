@@ -1880,19 +1880,16 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    // One window per extra Radar/Ground View instance (#2, #3, …). The docked view and its pop-out are
-    // instance #1 and stay in _radarViewWindow / _groundViewWindow. Keyed by the instance record so the
+    // One window per extra Ground View instance (#2, #3, …). The docked view and its pop-out are
+    // instance #1 and stay in _groundViewWindow. Keyed by the instance record so the
     // collection-changed handler can find the window a removed instance owned.
-    private readonly Dictionary<RadarViewInstance, RadarViewWindow> _extraRadarWindows = [];
     private readonly Dictionary<GroundViewInstance, GroundViewWindow> _extraGroundWindows = [];
 
     // Each window's Closing handler, kept so the programmatic close path can unsubscribe before calling
     // Close() — the handler would otherwise report a close the view-model itself just ordered.
-    private readonly Dictionary<RadarViewInstance, EventHandler<WindowClosingEventArgs>> _extraRadarClosingHandlers = [];
     private readonly Dictionary<GroundViewInstance, EventHandler<WindowClosingEventArgs>> _extraGroundClosingHandlers = [];
 
     // Test hooks — same rationale as StripsWindows above.
-    internal IReadOnlyDictionary<RadarViewInstance, RadarViewWindow> ExtraRadarWindows => _extraRadarWindows;
     internal IReadOnlyDictionary<GroundViewInstance, GroundViewWindow> ExtraGroundWindows => _extraGroundWindows;
 
     /// <summary>
@@ -1902,47 +1899,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// </summary>
     private void WireViewInstanceWindows(MainViewModel vm)
     {
-        foreach (RadarViewInstance instance in vm.ExtraRadarViews)
-        {
-            OpenExtraRadarWindow(vm, instance);
-        }
-
         foreach (GroundViewInstance instance in vm.ExtraGroundViews)
         {
             OpenExtraGroundWindow(vm, instance);
         }
 
-        vm.ExtraRadarViews.CollectionChanged += (_, e) => OnExtraRadarViewsChanged(vm, e);
         vm.ExtraGroundViews.CollectionChanged += (_, e) => OnExtraGroundViewsChanged(vm, e);
-    }
-
-    private void OnExtraRadarViewsChanged(MainViewModel vm, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action == NotifyCollectionChangedAction.Reset)
-        {
-            foreach (RadarViewInstance? instance in _extraRadarWindows.Keys.ToList())
-            {
-                CloseExtraRadarWindow(instance);
-            }
-
-            return;
-        }
-
-        if (e.OldItems is not null)
-        {
-            foreach (RadarViewInstance removed in e.OldItems)
-            {
-                CloseExtraRadarWindow(removed);
-            }
-        }
-
-        if (e.NewItems is not null)
-        {
-            foreach (RadarViewInstance added in e.NewItems)
-            {
-                OpenExtraRadarWindow(vm, added);
-            }
-        }
     }
 
     private void OnExtraGroundViewsChanged(MainViewModel vm, NotifyCollectionChangedEventArgs e)
@@ -1972,50 +1934,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 OpenExtraGroundWindow(vm, added);
             }
         }
-    }
-
-    private void OpenExtraRadarWindow(MainViewModel vm, RadarViewInstance instance)
-    {
-        if (_extraRadarWindows.ContainsKey(instance))
-        {
-            return;
-        }
-
-        var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
-        window.SetViewModel(instance.Vm);
-        void onClosing(object? _1, WindowClosingEventArgs _2)
-        {
-            // Drop the bookkeeping BEFORE telling the view-model: CloseExtraRadarView removes the
-            // instance, and that CollectionChanged fan-out re-enters CloseExtraRadarWindow on this same
-            // call stack — it must miss the dictionary instead of re-Closing a window that is already
-            // inside its own Closing event. Under shutdown the instance stays in the collection so its
-            // ordinal persists and the window comes back next launch.
-            _extraRadarWindows.Remove(instance);
-            _extraRadarClosingHandlers.Remove(instance);
-            if (!IsClosingFromShutdown(_isMainWindowClosing))
-            {
-                vm.CloseExtraRadarView(instance);
-            }
-        }
-        _extraRadarWindows[instance] = window;
-        _extraRadarClosingHandlers[instance] = onClosing;
-        window.Closing += onClosing;
-        window.Show();
-    }
-
-    private void CloseExtraRadarWindow(RadarViewInstance instance)
-    {
-        if (!_extraRadarWindows.Remove(instance, out RadarViewWindow? window))
-        {
-            return;
-        }
-
-        if (_extraRadarClosingHandlers.Remove(instance, out EventHandler<WindowClosingEventArgs>? handler))
-        {
-            window.Closing -= handler;
-        }
-
-        window.Close();
     }
 
     private void OpenExtraGroundWindow(MainViewModel vm, GroundViewInstance instance)
@@ -2543,7 +2461,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        vm.ReconcileExtraViews([.. vm.ExtraRadarViews.Select(i => new SavedExtraView(i.Ordinal, i.AirportId))], layout.ExtraGroundViews);
+        vm.ReconcileExtraViews(layout.ExtraGroundViews);
     }
 
     /// <summary>
@@ -3686,13 +3604,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         foreach (RadarView rv in this.GetVisualDescendants().OfType<RadarView>())
         {
             rv.SyncAssignmentTint();
-        }
-
-        // Extra Radar View windows (#2, #3, …) — same preferences, own canvases.
-        foreach (RadarViewWindow extra in _extraRadarWindows.Values)
-        {
-            RadarView? extraRadar = extra.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
-            extraRadar?.SyncAssignmentTint();
         }
     }
 

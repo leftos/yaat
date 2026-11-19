@@ -10,7 +10,7 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
-/// The extra Radar/Ground View instances <see cref="MainViewModel"/> owns (issue #434). Ordinal
+/// The extra Ground View instances <see cref="MainViewModel"/> owns (issue #434). Ordinal
 /// allocation and persistence, the one app-wide selected aircraft every instance mirrors, the mirrored
 /// ground layout, profile reconciliation, and the restore-on-construction path.
 /// </summary>
@@ -58,36 +58,30 @@ public class MainViewModelViewInstancesTests
         );
     }
 
-    private static void ClearPersistedViews(UserPreferences preferences)
-    {
-        preferences.SetExtraRadarViews([]);
-        preferences.SetExtraGroundViews([]);
-    }
+    private static void ClearPersistedViews(UserPreferences preferences) => preferences.SetExtraGroundViews([]);
 
     [AvaloniaFact]
-    public void OpenExtraRadarView_AllocatesLowestFreeOrdinalAndPersists()
+    public void OpenExtraGroundView_AllocatesLowestFreeOrdinalAndPersists()
     {
         using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.MarkNavDbReady();
         try
         {
-            vm.OpenExtraRadarView("KOAK");
-            vm.OpenExtraRadarView("KOAK");
+            vm.OpenExtraGroundView("KOAK");
+            vm.OpenExtraGroundView("KOAK");
 
             // The docked view is #1, so the first two extra windows are #2 and #3.
-            Assert.Equal([2, 3], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
-            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], vm.Preferences.ExtraRadarViews);
-            Assert.Equal("#3", vm.ExtraRadarViews[1].Vm.SettingsKeySuffix);
-            Assert.False(vm.ExtraRadarViews[1].Vm.IsPrimary);
+            Assert.Equal([2, 3], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
+            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], vm.Preferences.ExtraGroundViews);
 
-            vm.CloseExtraRadarView(vm.ExtraRadarViews.Single(i => i.Ordinal == 2));
-            Assert.Equal([new SavedExtraView(3, "OAK")], vm.Preferences.ExtraRadarViews);
+            vm.CloseExtraGroundView(vm.ExtraGroundViews.Single(i => i.Ordinal == 2));
+            Assert.Equal([new SavedExtraView(3, "OAK")], vm.Preferences.ExtraGroundViews);
 
             // The gap the closed window left is reused before a new number is taken.
-            vm.OpenExtraRadarView("KOAK");
-            Assert.Contains(vm.ExtraRadarViews, i => i.Ordinal == 2);
-            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], vm.Preferences.ExtraRadarViews);
+            vm.OpenExtraGroundView("KOAK");
+            Assert.Equal([2, 3], vm.ExtraGroundViews.Select(i => i.Ordinal).Order().ToList());
+            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], vm.Preferences.ExtraGroundViews);
         }
         finally
         {
@@ -109,8 +103,8 @@ public class MainViewModelViewInstancesTests
             AircraftModel first = vm.Aircraft.Single(a => a.Callsign == "AAL1");
             AircraftModel second = vm.Aircraft.Single(a => a.Callsign == "UAL2");
 
-            vm.OpenExtraRadarView("KOAK");
-            RadarViewInstance extra = vm.ExtraRadarViews.Single();
+            vm.OpenExtraGroundView("KOAK");
+            GroundViewInstance extra = vm.ExtraGroundViews.Single();
 
             // One app-wide selection: MainViewModel is the source of truth and every instance mirrors it.
             vm.SelectedAircraft = first;
@@ -159,17 +153,17 @@ public class MainViewModelViewInstancesTests
         vm.MarkNavDbReady();
         try
         {
-            vm.OpenExtraRadarView("KOAK");
-            vm.OpenExtraRadarView("KOAK");
-            RadarViewInstance survivor = vm.ExtraRadarViews.Single(i => i.Ordinal == 3);
+            vm.OpenExtraGroundView("KOAK");
+            vm.OpenExtraGroundView("KOAK");
+            GroundViewInstance survivor = vm.ExtraGroundViews.Single(i => i.Ordinal == 3);
 
-            vm.ReconcileExtraViews([new SavedExtraView(3, "OAK"), new SavedExtraView(4, "OAK")], []);
+            vm.ReconcileExtraViews([new SavedExtraView(3, "OAK"), new SavedExtraView(4, "OAK")]);
 
-            Assert.Equal([3, 4], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
+            Assert.Equal([3, 4], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
             // A survivor keeps its view-model, so applying a profile doesn't reset that window's view state.
-            Assert.Same(survivor, vm.ExtraRadarViews.Single(i => i.Ordinal == 3));
-            Assert.Same(survivor.Vm, vm.ExtraRadarViews.Single(i => i.Ordinal == 3).Vm);
-            Assert.Equal([new SavedExtraView(3, "OAK"), new SavedExtraView(4, "OAK")], vm.Preferences.ExtraRadarViews);
+            Assert.Same(survivor, vm.ExtraGroundViews.Single(i => i.Ordinal == 3));
+            Assert.Same(survivor.Vm, vm.ExtraGroundViews.Single(i => i.Ordinal == 3).Vm);
+            Assert.Equal([new SavedExtraView(3, "OAK"), new SavedExtraView(4, "OAK")], vm.Preferences.ExtraGroundViews);
         }
         finally
         {
@@ -185,12 +179,10 @@ public class MainViewModelViewInstancesTests
         MainViewModel? vm = null;
         try
         {
-            preferences.SetExtraRadarViews([new SavedExtraView(2, "KOAK")]);
             preferences.SetExtraGroundViews([new SavedExtraView(2, "KOAK"), new SavedExtraView(5, "KSFO")]);
 
             vm = new MainViewModel(new FakeFilePickerService());
 
-            Assert.Equal([2], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
             Assert.Equal([2, 5], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
             Assert.Equal("#5", vm.ExtraGroundViews[1].Vm.SettingsKeySuffix);
             Assert.False(vm.ExtraGroundViews[1].Vm.IsPrimary);
@@ -230,30 +222,6 @@ public class MainViewModelViewInstancesTests
         );
 
     [AvaloniaFact]
-    public void OpenExtraRadarView_SeedsChosenAirportIdAndCentre()
-    {
-        using IDisposable navScope = SeedNavDb();
-        var vm = new MainViewModel(new FakeFilePickerService());
-        try
-        {
-            vm.MarkNavDbReady();
-
-            RadarViewInstance instance = vm.OpenExtraRadarView("koak");
-
-            // The picked airport is the instance's, canonicalized to the FAA form the ARTCC config and
-            // the video-map facilities use — not the scenario's airport (there is no scenario here).
-            Assert.Equal("OAK", instance.AirportId);
-            Assert.Equal("OAK", instance.Vm.PrimaryAirportId);
-            // The centre itself is not observable: SetPrimaryAirportPosition stores a private field that
-            // only the video-map load (a server round-trip) copies into CenterLat/CenterLon.
-        }
-        finally
-        {
-            ClearPersistedViews(vm.Preferences);
-        }
-    }
-
-    [AvaloniaFact]
     public void OpenExtraView_TakesFaaOrIcaoFormIdentically()
     {
         using IDisposable navScope = SeedNavDb();
@@ -262,14 +230,14 @@ public class MainViewModelViewInstancesTests
         {
             vm.MarkNavDbReady();
 
-            RadarViewInstance faaForm = vm.OpenExtraRadarView("OAK");
-            RadarViewInstance icaoForm = vm.OpenExtraRadarView("KOAK");
+            GroundViewInstance faaForm = vm.OpenExtraGroundView("OAK");
+            GroundViewInstance icaoForm = vm.OpenExtraGroundView("KOAK");
 
             // "OAK" (as the ARTCC config lists it) and "KOAK" are the same airport and the same window.
             Assert.Equal("OAK", faaForm.AirportId);
             Assert.Equal("OAK", icaoForm.AirportId);
-            Assert.Equal("Radar View #2 — OAK", faaForm.Title);
-            Assert.Equal("Radar View #3 — OAK", icaoForm.Title);
+            Assert.Equal("Ground View #2 — OAK", faaForm.Title);
+            Assert.Equal("Ground View #3 — OAK", icaoForm.Title);
         }
         finally
         {
@@ -409,17 +377,16 @@ public class MainViewModelViewInstancesTests
         vm.MarkNavDbReady();
         try
         {
-            RadarViewInstance original = vm.OpenExtraRadarView("KOAK");
+            GroundViewInstance original = vm.OpenExtraGroundView("KOAK");
 
-            vm.ReconcileExtraViews([new SavedExtraView(2, "KSFO")], []);
+            vm.ReconcileExtraViews([new SavedExtraView(2, "KSFO")]);
 
             // Same ordinal, different airport: the window is rebuilt on the new airport rather than kept,
             // because the airport decides what the instance shows.
-            RadarViewInstance reopened = Assert.Single(vm.ExtraRadarViews);
+            GroundViewInstance reopened = Assert.Single(vm.ExtraGroundViews);
             Assert.NotSame(original, reopened);
             Assert.Equal(2, reopened.Ordinal);
             Assert.Equal("SFO", reopened.AirportId);
-            Assert.Equal("SFO", reopened.Vm.PrimaryAirportId);
         }
         finally
         {

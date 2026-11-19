@@ -153,7 +153,7 @@ ViewModels/
   ActiveRunwaysAnswer.cs        # ToCommand's result record: the ARWY command to send (null when nothing to send) or the refusal to show under the row
   ActiveRunwaysWindowViewModel.cs # The Scenario › Active Runways… window's editor: rows from RoomActiveRunways (the primary airport first) following the room's list until a row is typed in; ApplyAsync sends one ARWY per changed row through ActiveRunwaysEditor.ReadRows and keeps the window open; closes on an ActiveScenarioId change (unload, leaving the room, another load, a recording load)
   FavoriteSetEditorModel.cs     # Pure list surgery behind the Favorites Editor: generic multi-select MoveUp/MoveDown (contiguous-block aware) over a set's ordered id list
-  MapViewInstance.cs            # RadarViewInstance / GroundViewInstance (ordinal ≥ 2 + its own view-model) and ViewInstanceOrdinals (RadarView#n / GroundView#n / ScopeView#n geometry keys, lowest free ordinal)
+  MapViewInstance.cs            # GroundViewInstance (ordinal ≥ 2 + its own view-model) and ViewInstanceOrdinals (GroundView#n / ScopeView#n geometry keys, lowest free ordinal)
   ScopeViewInstance.cs          # One extra YAAT Scope window (ordinal ≥ 2, its own ScopeViewModel, "YAAT Scope #n" title, ScopeView#n geometry key); the primary Scope is the implicit #1 with no record
   VStripsDockEntryViewModel.cs  # One strips tab/window entry: facility-scoped VStripsViewModel + pop-out flag + TabTitle (facility name + duplicate suffix) + split state (SplitMode / SplitRatio / SecondaryVm)
   StripsSplitMode.cs            # Split layout of a strips entry: None / SideBySide / Stacked — named by pane arrangement because "split horizontally" is ambiguous

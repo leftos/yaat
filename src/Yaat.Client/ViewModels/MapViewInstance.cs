@@ -3,32 +3,6 @@ using System.Globalization;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// One extra Radar View window (instance #2, #3, …) and the <see cref="RadarViewModel"/> it owns. Each
-/// instance keeps its own center, range, filters and datablock offsets; the selected aircraft stays app-wide.
-/// The docked Radar View is the implicit #1 and has no instance record.
-/// </summary>
-public sealed class RadarViewInstance
-{
-    /// <summary>Instance number, always ≥ 2 — the docked primary view is #1.</summary>
-    public required int Ordinal { get; init; }
-
-    /// <summary>
-    /// The base airport this window was opened on (the user picks it before the window appears). It
-    /// decides the instance's data: the centre, the video maps loaded for it, and its elevation.
-    /// </summary>
-    public required string AirportId { get; init; }
-
-    /// <summary>Window-geometry and preference key for this instance, e.g. <c>RadarView#2</c>.</summary>
-    public string GeometryKey => ViewInstanceOrdinals.RadarKey(Ordinal);
-
-    /// <summary>Window title shown to the user.</summary>
-    public string Title => $"Radar View #{Ordinal} — {AirportId}";
-
-    /// <summary>The view-model driving this window. Not shared with any other view.</summary>
-    public required RadarViewModel Vm { get; init; }
-}
-
-/// <summary>
 /// One extra Ground View window (instance #2, #3, …) and the <see cref="GroundViewModel"/> it owns. Each
 /// instance keeps its own center, zoom, rotation, filters and datablock offsets. An instance whose airport
 /// is the primary view's mirrors its layout (<see cref="GroundViewModel.MirrorLayoutFrom"/>) rather than
@@ -57,15 +31,12 @@ public sealed class GroundViewInstance
 }
 
 /// <summary>
-/// The ordinal and key conventions shared by the extra Radar/Ground view instances. A key is the prefix
-/// plus the ordinal verbatim ("RadarView#2"), which <see cref="Services.UserPreferences.GetWindowGeometry"/>
+/// The ordinal and key conventions shared by the extra Ground View and YAAT Scope instances. A key is the
+/// prefix plus the ordinal verbatim ("GroundView#2"), which <see cref="Services.UserPreferences.GetWindowGeometry"/>
 /// routes through its dictionary store like any other non-fixed window name.
 /// </summary>
 public static class ViewInstanceOrdinals
 {
-    /// <summary>Key prefix for an extra Radar View instance.</summary>
-    public const string RadarPrefix = "RadarView#";
-
     /// <summary>Key prefix for an extra Ground View instance.</summary>
     public const string GroundPrefix = "GroundView#";
 
@@ -87,9 +58,6 @@ public static class ViewInstanceOrdinals
 
         return ordinal;
     }
-
-    /// <summary>The geometry/preference key for extra Radar View instance <paramref name="ordinal"/>.</summary>
-    public static string RadarKey(int ordinal) => RadarPrefix + ordinal.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>The geometry/preference key for extra Ground View instance <paramref name="ordinal"/>.</summary>
     public static string GroundKey(int ordinal) => GroundPrefix + ordinal.ToString(CultureInfo.InvariantCulture);

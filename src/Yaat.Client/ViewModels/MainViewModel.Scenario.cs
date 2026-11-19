@@ -848,19 +848,11 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = delayed;
 
         string artccId = _preferences.ArtccId;
-        // Stashed so a Radar/Ground window opened later in this scenario bootstraps from the same data.
-        _lastScenarioArtccId = artccId;
+        // Stashed so a Ground window opened later in this scenario bootstraps from the same data.
         _lastRadarPrimaryAirportId = bootstrap.PrimaryAirportId;
         _lastScenarioId = bootstrap.ScenarioId;
         Radar.ApplyScenarioBootstrap(bootstrap, artccId);
         ScopeMaps.ApplyScenarioBootstrap(bootstrap, artccId);
-        foreach (RadarViewInstance instance in ExtraRadarViews)
-        {
-            // An extra window stays on the airport it was opened with — the scenario's airport is the
-            // docked view's. Re-seeding reloads this instance's own video maps and per-scenario settings.
-            SeedRadarAirport(instance);
-        }
-
         Ground.ApplyScenarioBootstrap(bootstrap, artccId);
         foreach (GroundViewInstance instance in ExtraGroundViews)
         {
@@ -1055,12 +1047,10 @@ public partial class MainViewModel
         }
 
         // Nothing a window opened after the unload should inherit from the scenario that just went away.
-        _lastScenarioArtccId = null;
         _lastScenarioId = null;
         _lastRadarPrimaryAirportId = null;
         // A late nav-data load must not recentre the scope on the airport of the scenario just unloaded.
         _radarAirportId = null;
-        _lastPositionDisplayConfig = null;
         foreach (ScopeViewModel scope in AllScopeViews)
         {
             scope.ClearTrackState();

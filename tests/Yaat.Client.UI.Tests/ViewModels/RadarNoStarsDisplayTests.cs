@@ -1,5 +1,4 @@
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
@@ -29,23 +28,6 @@ public class RadarNoStarsDisplayTests
 
         Assert.Equal(before, main.Radar.MapShortcuts.Select(s => s.StarsId));
         Assert.Equal(["SFO"], main.Radar.WeatherAirports);
-    }
-
-    /// <summary>
-    /// The extra Radar View is not handed the ERAM config, so once its maps load it builds its shortcuts from the facility's
-    /// first map group, not from the ERAM config's empty one.
-    /// </summary>
-    [AvaloniaFact]
-    public void ExtraRadarView_OpenedAfterANoStarsConfig_DoesNotTakeItsEmptyGroup()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        main.OnPositionDisplayChanged(Eram);
-        Dispatcher.UIThread.RunJobs();
-
-        RadarViewModel extra = main.OpenExtraRadarView("OAK").Vm;
-        extra.ApplyVideoMapsDtoForTesting(new FacilityVideoMapsDto("ZOA", "NCT", [], [], [new MapGroupDto([7, 8], ["4U"])]));
-
-        Assert.Equal([7, 8], extra.MapShortcuts.Select(s => s.StarsId).Order());
     }
 
     private static ScenarioBootstrap Bootstrap(PositionDisplayConfigDto config) =>
