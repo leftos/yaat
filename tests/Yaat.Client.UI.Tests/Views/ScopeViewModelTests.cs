@@ -5,7 +5,6 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
-using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
@@ -16,7 +15,7 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The scope's view model: it takes its maps, centre, range and MVA-tint default from the Scope's own map source
-/// (<see cref="ScopeMapSource"/>) at every facility load and never from the radar; it shares the app-wide selection both
+/// (<see cref="ScopeMapSource"/>) at every facility load; it shares the app-wide selection both
 /// ways while open and lets go of it on close.
 /// </summary>
 public class ScopeViewModelTests
@@ -65,30 +64,10 @@ public class ScopeViewModelTests
         Assert.Equal((AreaLat, AreaLon), (scope.CenterLat, scope.CenterLon));
         Assert.Equal(40, scope.RangeNm);
         Assert.Equal(3, scope.MapToggles.Count);
+        Assert.Equal([2, 10, 31], scope.MapToggles.Select(t => t.StarsId));
         Assert.All(scope.MapToggles, t => Assert.False(t.IsOn));
         Assert.Empty(scope.VideoMaps);
         Assert.Equal("A", scope.BrightnessLookup["m2"]);
-    }
-
-    [AvaloniaFact]
-    public void Scope_DoesNotFollowTheRadar()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-        LoadSource(main);
-
-        // A radar pan, zoom, toggle or map change leaves the scope where it is.
-        main.Radar.CenterLat = 40.0;
-        main.Radar.CenterLon = -100.0;
-        main.Radar.RangeNm = 20;
-        RadarMapToggles.Add(main.Radar, 5);
-        main.Radar.MapToggles[0].IsEnabled = true;
-        main.Radar.ActiveVideoMaps = [Map("m5")];
-
-        Assert.Equal((AreaLat, AreaLon), (scope.CenterLat, scope.CenterLon));
-        Assert.Equal(40, scope.RangeNm);
-        Assert.Equal([2, 10, 31], scope.MapToggles.Select(t => t.StarsId));
-        Assert.Empty(scope.VideoMaps);
     }
 
     [AvaloniaFact]
@@ -136,25 +115,6 @@ public class ScopeViewModelTests
 
         Assert.Equal([("m5", true), ("m6", false)], scope.MapToggles.Select(t => (t.MapId, t.TdmOnly)));
         Assert.Equal(["m5"], scope.TdmOnlyMapIds);
-    }
-
-    [AvaloniaFact]
-    public void ScopeMapToggle_LeavesTheRadarsTogglesAndMapsAlone()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        RadarMapToggles.Add(main.Radar, 31, 2, 10);
-        main.Radar.MapToggles[2].IsEnabled = true;
-        main.Radar.ActiveVideoMaps = [Map("m10")];
-        IReadOnlyList<VideoMapData>? radarMaps = main.Radar.ActiveVideoMaps;
-        LoadSource(main);
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-
-        scope.MapToggles[0].IsOn = true;
-        scope.MapToggles[1].IsOn = true;
-        scope.MapToggles[1].IsOn = false;
-
-        Assert.Equal([false, false, true], main.Radar.MapToggles.Select(t => t.IsEnabled));
-        Assert.Same(radarMaps, main.Radar.ActiveVideoMaps);
     }
 
     [AvaloniaFact]

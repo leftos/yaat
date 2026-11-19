@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Prefs;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -176,83 +177,26 @@ public class MainViewModelGroundWeatherTests
     }
 
     [AvaloniaFact]
-    public void RadarView_PositionFilterWithNoMatch_ShowsNoWeatherAndANote()
-    {
-        var vm = new MainViewModel(new FakeFilePickerService());
-
-        vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["SFO", "OAK"], "SFO", null, 3));
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], null, null, null));
-
-        Assert.NotNull(vm.Radar.WeatherInfo);
-        Assert.Empty(vm.Radar.WeatherInfo);
-        Assert.Equal("No METAR for SFO OAK", vm.Radar.WeatherNote);
-    }
-
-    [AvaloniaFact]
-    public void RadarView_PPrefixedMetar_MatchesTheFaaAirportId()
-    {
-        var vm = new MainViewModel(new FakeFilePickerService());
-
-        vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["HNL"], "HNL", null, 3));
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [HnlMetar], null, null, null));
-
-        Assert.Equal("HNL", Assert.Single(vm.Radar.WeatherInfo!).StationId);
-        Assert.Null(vm.Radar.WeatherNote);
-    }
-
-    [AvaloniaFact]
-    public void RadarView_NoPositionFilter_ShowsAllStations()
-    {
-        var vm = new MainViewModel(new FakeFilePickerService());
-
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null, null, null));
-
-        Assert.Equal(2, vm.Radar.WeatherInfo?.Count);
-        Assert.Null(vm.Radar.WeatherNote);
-    }
-
-    [AvaloniaFact]
-    public void RadarView_WeatherLoadedBeforePositionChange_ReFiltersAndNotes()
-    {
-        var vm = new MainViewModel(new FakeFilePickerService());
-
-        // Weather first: with no position filter every station shows and no note is owed.
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], null, null, null));
-        Assert.Equal(1, vm.Radar.WeatherInfo?.Count);
-        Assert.Null(vm.Radar.WeatherNote);
-
-        // Then the position change (the server's AS <TCP>): the same re-filter OnPositionDisplayChanged runs.
-        vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["SFO"], "SFO", null, 3));
-        vm.UpdateRadarWeatherDisplay();
-
-        Assert.NotNull(vm.Radar.WeatherInfo);
-        Assert.Empty(vm.Radar.WeatherInfo);
-        Assert.Equal("No METAR for SFO", vm.Radar.WeatherNote);
-
-        vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["AUN"], "AUN", null, 3));
-        vm.UpdateRadarWeatherDisplay();
-
-        Assert.Equal("AUN", Assert.Single(vm.Radar.WeatherInfo!).StationId);
-        Assert.Null(vm.Radar.WeatherNote);
-    }
-
-    [AvaloniaFact]
     public void ClearScenarioState_DropsAStaleNoMetarNote()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
+        using var scope = new ScopeViewModel(vm, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
+        vm.OpenScope = scope;
 
-        vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["SFO"], "SFO", null, 3));
+        vm.ScopeMaps.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["SFO"], "SFO", null, 3));
         // A loaded profile, JSON and all: that is what keeps the synthetic defaults (which would otherwise
         // rebuild the readout on unload) out of the picture and leaves the stale note the only thing to clear.
         vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], "{\"name\":\"Live Weather\"}", null, null));
-        Assert.Equal("No METAR for SFO", vm.Radar.WeatherNote);
+        Assert.Equal(["No METAR for SFO"], scope.WeatherLines);
+        var changed = new List<string?>();
+        scope.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
         // Unloading the scenario clears the maps, and with them the position's airport filter — the note
-        // it justified must not outlive it.
+        // it justified must not outlive it, and the open Scope is told to redraw its weather.
         vm.ClearScenarioState();
 
-        Assert.Null(vm.Radar.WeatherNote);
-        Assert.Equal(1, vm.Radar.WeatherInfo?.Count);
+        Assert.Contains(nameof(ScopeViewModel.WeatherLines), changed);
+        Assert.StartsWith("AUN ", Assert.Single(scope.WeatherLines), StringComparison.Ordinal);
     }
 
     private static void ClearPersistedViews(UserPreferences preferences)

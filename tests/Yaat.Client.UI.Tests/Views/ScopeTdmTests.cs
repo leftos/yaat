@@ -213,10 +213,9 @@ public class ScopeTdmTests : IDisposable
     {
         VideoMapData ordinary = new() { MapId = "m2", Lines = [] };
         VideoMapData diagram = new() { MapId = "m3", Lines = [] };
-        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeWith(m => LoadSourceWithMaps(m, ordinary, diagram));
+        (_, _, ScopeView view, Window window) = await ShowScopeWith(m => LoadSourceWithMaps(m, ordinary, diagram));
         try
         {
-            Assert.Null(main.Radar.MvaFacilityId);
             Assert.Equal("NCT", view.Canvas.MvaFacilityId);
         }
         finally

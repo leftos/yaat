@@ -67,7 +67,12 @@ public class ScopeMeasureTests
     [Fact]
     public void Resolve_WithTheScopeView_ReturnsOnlyTheScopesLines()
     {
-        RangeBearingLine[] lines = [Line(1, RblView.Radar), Line(2, RblView.Ground), Line(3, RblView.Scope)];
+        RangeBearingLine[] lines =
+        [
+            Line(1, RblView.Ground),
+            new RangeBearingLine(2, RblEndpoint.AtPoint(West, "W"), RblEndpoint.AtPoint(East, "E"), RblView.Scope, new object()),
+            Line(3, RblView.Scope),
+        ];
 
         List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(lines, NoTracks, RblUnits.NauticalMiles, RblView.Scope, Owner);
 
@@ -79,7 +84,7 @@ public class ScopeMeasureTests
     {
         var canvas = new ScopeCanvas
         {
-            RangeBearingLines = [Line(1, RblView.Radar), Line(2, RblView.Scope)],
+            RangeBearingLines = [Line(1, RblView.Ground), Line(2, RblView.Scope)],
             MeasureCursor = new Avalonia.Point(10, 10),
         };
         try
@@ -88,7 +93,7 @@ public class ScopeMeasureTests
             Assert.Empty(snapshot.RangeBearingLines);
             Assert.Null(snapshot.PendingRangeBearingLine);
 
-            canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Radar, null);
+            canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Ground, null);
             Assert.Null(canvas.RenderSnapshotForTesting().PendingRangeBearingLine);
 
             canvas.MeasureAnchor = new RblPendingAnchor(RblEndpoint.AtPoint(West, "W"), RblView.Scope, Owner);

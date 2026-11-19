@@ -10,7 +10,7 @@ namespace Yaat.Client.Tests.Services;
 
 /// <summary>
 /// Unit tests for <see cref="ShownRouteBuilder"/>: the server's fix list drawn verbatim, the heading tail of a vectored
-/// aircraft with no route fixes, and the shown-path cache key over what it reads.
+/// aircraft with no route fixes, and the restriction tokens drawn at each fix.
 /// </summary>
 public class ShownRouteBuilderTests
 {
@@ -158,84 +158,6 @@ public class ShownRouteBuilderTests
         DrawnWaypoint skunk = Assert.Single(waypoints);
         Assert.Equal("SKUNK", skunk.ResolvedName);
         Assert.Null(skunk.RestrictionTokens);
-    }
-
-    /// <summary>
-    /// The shown-path cache key moves when only a token's latency flips (same fix, same text), so the overlay redraws a
-    /// restriction that became active or latent.
-    /// </summary>
-    [Fact]
-    public void ShownPathFingerprint_ChangesWhenOnlyTokenLatencyFlips()
-    {
-        static AircraftModel Aircraft(bool latent) =>
-            new()
-            {
-                Callsign = "UAL911",
-                NavRouteFixes =
-                [
-                    new NavRouteFixDto(
-                        "SKUNK",
-                        37.90,
-                        -122.40,
-                        ["≥6000  250"],
-                        [
-                            [Token("≥6000", latent), Token("250")],
-                        ]
-                    ),
-                ],
-            };
-
-        Assert.NotEqual(
-            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: false)),
-            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: true))
-        );
-        Assert.Equal(
-            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: true)),
-            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: true))
-        );
-    }
-
-    /// <summary>
-    /// The same for a speed token: a published speed turning latent under an ATC speed or DSR, with the altitude token and
-    /// the route unchanged, moves the shown-path cache key.
-    /// </summary>
-    [Fact]
-    public void ShownPathFingerprint_ChangesWhenOnlySpeedTokenLatencyFlips()
-    {
-        static AircraftModel Aircraft(bool speedLatent) =>
-            new()
-            {
-                Callsign = "UAL911",
-                NavRouteFixes =
-                [
-                    new NavRouteFixDto(
-                        "SKUNK",
-                        37.90,
-                        -122.40,
-                        ["≥6000  250"],
-                        [
-                            [Token("≥6000"), Token("250", speedLatent)],
-                        ]
-                    ),
-                ],
-            };
-
-        Assert.NotEqual(
-            RadarViewModel.BuildShownPathFingerprint(Aircraft(speedLatent: false)),
-            RadarViewModel.BuildShownPathFingerprint(Aircraft(speedLatent: true))
-        );
-    }
-
-    /// <summary>A new assigned heading moves the shown-path cache key, so a vectored aircraft's heading tail is rebuilt.</summary>
-    [Fact]
-    public void ShownPathFingerprint_ChangesWithTheAssignedHeading()
-    {
-        var ac = new AircraftModel { Callsign = "UAL912", AssignedHeading = new MagneticHeading(250.0) };
-        string before = RadarViewModel.BuildShownPathFingerprint(ac);
-
-        ac.AssignedHeading = new MagneticHeading(270.0);
-
-        Assert.NotEqual(before, RadarViewModel.BuildShownPathFingerprint(ac));
     }
 
     private static NavRouteRestrictionToken Token(string text, bool latent = false) => new(text, latent);

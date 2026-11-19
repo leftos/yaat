@@ -7,8 +7,8 @@ using Yaat.Client.ViewModels;
 namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
-/// The main radar's centre when the navigation data finishes loading after a scenario bootstrap set its primary airport
-/// (YAAT-1744): the scope ends on the airport, as it would had the data loaded first, unless the user moved it meanwhile.
+/// The Scope map source's centre when the navigation data finishes loading after a scenario bootstrap set its primary
+/// airport: the maps end on the airport, as they would had the data loaded first.
 /// </summary>
 public class MainViewModelLateNavDataRecenterTests
 {
@@ -36,8 +36,10 @@ public class MainViewModelLateNavDataRecenterTests
         );
 
     private static void ApplyNctVideoMaps(MainViewModel vm) =>
-        vm.Radar.ApplyVideoMapsDtoForTesting(
-            new FacilityVideoMapsDto("ZOA", "NCT", [new StarsAreaDto("A", "Area A", AreaLat, AreaLon, 60, [])], [], [])
+        vm.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto("ZOA", "NCT", [new StarsAreaDto("A", "Area A", AreaLat, AreaLon, 60, [])], [], []),
+            null,
+            null
         );
 
     private static void BootstrapOakWithAreaFallback(MainViewModel vm)
@@ -45,13 +47,13 @@ public class MainViewModelLateNavDataRecenterTests
         BootstrapOak(vm);
         ApplyNctVideoMaps(vm);
 
-        // The airport was not known yet, so the scope took the area's centre.
-        Assert.Equal(AreaLat, vm.Radar.CenterLat);
-        Assert.Equal(AreaLon, vm.Radar.CenterLon);
+        // The airport was not known yet, so the maps took the area's centre.
+        Assert.Equal(AreaLat, vm.ScopeMaps.CenterLat);
+        Assert.Equal(AreaLon, vm.ScopeMaps.CenterLon);
     }
 
     [AvaloniaFact]
-    public async Task NavDataAfterBootstrap_RecentresMainRadarOnPrimaryAirport()
+    public async Task NavDataAfterBootstrap_RecentresTheScopeMapsOnPrimaryAirport()
     {
         (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
 
@@ -61,39 +63,8 @@ public class MainViewModelLateNavDataRecenterTests
         await vm.NavDataInitialization;
 
         Assert.Equal("Navigation data loaded", vm.StatusText);
-        Assert.Equal(OakLat, vm.Radar.CenterLat, 0.01);
-        Assert.Equal(OakLon, vm.Radar.CenterLon, 0.01);
-    }
-
-    [AvaloniaFact]
-    public async Task NavDataAfterBootstrap_LeavesAPannedScopeAlone()
-    {
-        (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
-
-        BootstrapOakWithAreaFallback(vm);
-        vm.Radar.CenterLat = 38.5;
-        vm.Radar.CenterLon = -121.5;
-
-        loads.Gate.SetResult();
-        await vm.NavDataInitialization;
-
-        Assert.Equal(38.5, vm.Radar.CenterLat);
-        Assert.Equal(-121.5, vm.Radar.CenterLon);
-    }
-
-    [AvaloniaFact]
-    public async Task NavDataAfterBootstrap_LeavesAZoomedScopeOnTheFallback()
-    {
-        (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
-
-        BootstrapOakWithAreaFallback(vm);
-        vm.Radar.RangeNm = 20;
-
-        loads.Gate.SetResult();
-        await vm.NavDataInitialization;
-
-        Assert.Equal(AreaLat, vm.Radar.CenterLat);
-        Assert.Equal(AreaLon, vm.Radar.CenterLon);
+        Assert.Equal(OakLat, vm.ScopeMaps.CenterLat, 0.01);
+        Assert.Equal(OakLon, vm.ScopeMaps.CenterLon, 0.01);
     }
 
     [AvaloniaFact]
@@ -106,7 +77,7 @@ public class MainViewModelLateNavDataRecenterTests
         await vm.NavDataInitialization;
         ApplyNctVideoMaps(vm);
 
-        Assert.Equal(OakLat, vm.Radar.CenterLat, 0.01);
-        Assert.Equal(OakLon, vm.Radar.CenterLon, 0.01);
+        Assert.Equal(OakLat, vm.ScopeMaps.CenterLat, 0.01);
+        Assert.Equal(OakLon, vm.ScopeMaps.CenterLon, 0.01);
     }
 }

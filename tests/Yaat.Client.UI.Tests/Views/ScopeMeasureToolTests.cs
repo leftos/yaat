@@ -115,7 +115,7 @@ public class ScopeMeasureToolTests
         {
             for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
             {
-                PlaceFixedLine(main, RblView.Radar);
+                PlaceFixedLine(main, RblView.Ground);
             }
 
             window.DispatchKey(Key.M, ActionModifier);
@@ -170,7 +170,7 @@ public class ScopeMeasureToolTests
         try
         {
             main.Measure.Arm();
-            main.SetActiveMeasureView(RblView.Radar);
+            main.SetActiveMeasureView(RblView.Ground);
 
             window.DispatchKey(Key.Escape);
 
@@ -273,16 +273,16 @@ public class ScopeMeasureToolTests
     }
 
     [AvaloniaFact]
-    public async Task Esc_OnTheActiveScope_LeavesARadarAnchor()
+    public async Task Esc_OnTheActiveScope_LeavesAGroundAnchor()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        main.Measure.Pick(AtPoint(37.7, -122.2), main.MeasureSurface(RblView.Radar, null));
+        main.Measure.Pick(AtPoint(37.7, -122.2), main.MeasureSurface(RblView.Ground, null));
         scope.ActivateMeasureSurface();
 
         Assert.False(scope.CancelMeasure());
 
         Assert.True(main.Measure.IsMeasuring);
-        Assert.Equal(RblView.Radar, Assert.NotNull(main.Measure.Anchor).View);
+        Assert.Equal(RblView.Ground, Assert.NotNull(main.Measure.Anchor).View);
     }
 
     [AvaloniaFact]
@@ -380,7 +380,7 @@ public class ScopeMeasureToolTests
         {
             AddAircraft(main, "UAL1", 5000);
             AddAircraft(main, "UAL2", 6000);
-            main.SetActiveMeasureView(RblView.Radar);
+            main.SetActiveMeasureView(RblView.Ground);
             FocusCanvas(window, view);
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
 
@@ -396,7 +396,7 @@ public class ScopeMeasureToolTests
     }
 
     [AvaloniaFact]
-    public async Task TypedRbl_AfterARadarFocus_PlacesOnTheRadar()
+    public async Task TypedRbl_AfterAGroundFocus_PlacesOnTheGround()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
         try
@@ -404,11 +404,11 @@ public class ScopeMeasureToolTests
             AddAircraft(main, "UAL1", 5000);
             AddAircraft(main, "UAL2", 6000);
             FocusCanvas(window, view);
-            main.SetActiveMeasureView(RblView.Radar);
+            main.SetActiveMeasureView(RblView.Ground);
 
             await TypeAndEnterAsync(window, scope, ".rbl UAL1 UAL2");
 
-            Assert.Equal(RblView.Radar, Assert.Single(main.Measure.Lines).View);
+            Assert.Equal(RblView.Ground, Assert.Single(main.Measure.Lines).View);
             Assert.Empty(view.Canvas.RenderSnapshotForTesting().RangeBearingLines);
         }
         finally
@@ -591,7 +591,7 @@ public class ScopeMeasureToolTests
             FocusCanvas(window, view);
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
 
-            main.Radar.StartMeasureCommand.Execute(null);
+            main.Ground.StartMeasureCommand.Execute(null);
             Assert.Null(scope.EntryResponse);
             Assert.Equal(ArmedStatus, main.StatusText);
 

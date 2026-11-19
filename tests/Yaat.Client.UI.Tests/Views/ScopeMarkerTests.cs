@@ -72,7 +72,7 @@ public class ScopeMarkerTests
     }
 
     [AvaloniaFact]
-    public async Task Ff_WithNoOtherScope_PinsOnThePrimaryScope_AndLeavesTheRadarAlone()
+    public async Task Ff_WithNoOtherScope_PinsOnThePrimaryScope()
     {
         MainViewModel main = await MainAsync();
 
@@ -82,8 +82,6 @@ public class ScopeMarkerTests
         main.RunScopeMarkerCommand(".nomarkers");
         Assert.Empty(main.PrimaryScope.MarkerTokens);
         Assert.Equal("Scope markers cleared", main.StatusText);
-
-        Assert.False(main.Radar.HasMarkers);
     }
 
     [AvaloniaFact]

@@ -125,13 +125,13 @@ public class ScopeMeasurePointerTests
 
     // Ladder row 1, tool not armed: Alt+left-drag from an aircraft to the map places one Scope line, latched to the aircraft.
     [AvaloniaFact]
-    public async Task AltDrag_PlacesAScopeLine_NotARadarLine()
+    public async Task AltDrag_PlacesAScopeLine_NotAGroundLine()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
         try
         {
             AircraftModel ac = AddAt300(main, view.Canvas, "UAL1");
-            main.SetActiveMeasureView(RblView.Radar);
+            main.SetActiveMeasureView(RblView.Ground);
 
             AltDrag(window, view.Canvas, SymbolOf(view.Canvas, ac), MapB);
 
@@ -145,7 +145,7 @@ public class ScopeMeasurePointerTests
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
             Assert.Null(main.SelectedAircraft);
             Assert.Equal(1, Assert.Single(view.Canvas.RenderSnapshotForTesting().RangeBearingLines).Slot);
-            Assert.Empty(RangeBearingLineResolver.Resolve(main.Measure.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar, null));
+            Assert.Empty(RangeBearingLineResolver.Resolve(main.Measure.Lines, _ => null, RblUnits.NauticalMiles, RblView.Ground, null));
             // The reading the line itself is labelled with, resolved against the Scope's traffic.
             ResolvedRbl resolved = Assert.Single(
                 RangeBearingLineResolver.Resolve(main.Measure.Lines, scope.MeasureTrackLookup, RblUnits.NauticalMiles, RblView.Scope, scope)
@@ -609,10 +609,10 @@ public class ScopeMeasurePointerTests
         {
             var a = RblEndpoint.AtPoint(new LatLon(37.6, -122.4), "");
             var b = RblEndpoint.AtPoint(new LatLon(37.8, -122.0), "");
-            RblTrackLookup lookup = main.MeasureSurface(RblView.Radar, null).Lookup;
+            RblTrackLookup lookup = main.MeasureSurface(RblView.Ground, null).Lookup;
             for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
             {
-                main.Measure.Place(a, b, new MeasureTarget(RblView.Radar, lookup, RblUnits.NauticalMiles, null));
+                main.Measure.Place(a, b, new MeasureTarget(RblView.Ground, lookup, RblUnits.NauticalMiles, null));
             }
 
             Point at = InWindow(window, view.Canvas, MapA);

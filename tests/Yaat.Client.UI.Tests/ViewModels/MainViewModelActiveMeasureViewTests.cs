@@ -53,19 +53,6 @@ public class MainViewModelActiveMeasureViewTests
     }
 
     [AvaloniaFact]
-    public async Task ARadarFocus_AfterTheScope_MakesItTheRadar()
-    {
-        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        using (scope)
-        {
-            scope.ActivateMeasureSurface();
-            main.SetActiveMeasureView(RblView.Radar);
-
-            Assert.Equal(RblView.Radar, main.ActiveMeasureView);
-        }
-    }
-
-    [AvaloniaFact]
     public async Task AGroundFocus_MakesItTheGround()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
@@ -122,7 +109,7 @@ public class MainViewModelActiveMeasureViewTests
     }
 
     [AvaloniaFact]
-    public async Task APlacementGivenTheRadar_PlacesOnTheRadar_WhateverIsActive()
+    public async Task APlacementGivenTheGround_PlacesOnTheGround_WhateverIsActive()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         using (scope)
@@ -131,10 +118,10 @@ public class MainViewModelActiveMeasureViewTests
             AddAircraft(main, "UAL2", 6000);
             scope.ActivateMeasureSurface();
 
-            MeasurePlacement placed = main.PlaceMeasurementFromText("UAL1", "UAL2", new StatusSink(), RblView.Radar, null);
+            MeasurePlacement placed = main.PlaceMeasurementFromText("UAL1", "UAL2", new StatusSink(), RblView.Ground, null);
 
             Assert.Equal(1, placed.Slot);
-            Assert.Equal(RblView.Radar, Assert.Single(main.Measure.Lines).View);
+            Assert.Equal(RblView.Ground, Assert.Single(main.Measure.Lines).View);
             Assert.Equal(RblView.Scope, main.ActiveMeasureView);
         }
     }

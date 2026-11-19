@@ -345,9 +345,7 @@ public class ScopeMapSourceTests
 
         Assert.NotNull(vm.ScopeMaps.Fixes);
         Assert.NotEmpty(vm.ScopeMaps.Fixes);
-        string? expected = RadarViewModel.TryToFrd(vm.Radar.Fixes, 37.80, -122.30);
-        Assert.NotNull(expected);
-        Assert.Equal(expected, vm.ScopeMaps.DescribePoint(37.80, -122.30));
+        Assert.Equal("VPBDR014001", vm.ScopeMaps.DescribePoint(37.80, -122.30));
     }
 
     [AvaloniaFact]

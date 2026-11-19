@@ -13,7 +13,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>
 /// The scope's viewer: the instructor's active position (the scenario's student position, or the one a persistent <c>AS</c>
 /// picked), rebuilt from the main view model whenever the server or the dropdown changes it, with the ERAM sector it names.
-/// An ERAM position's display config carries no STARS maps, so it sets the active position and leaves the Radar's maps alone.
+/// An ERAM position's display config carries no STARS maps, so it sets the active position and leaves the Scope's maps alone.
 /// </summary>
 public class ScopeViewModelViewerTests
 {
@@ -83,18 +83,16 @@ public class ScopeViewModelViewerTests
     }
 
     [AvaloniaFact]
-    public void NoStarsDisplayConfig_KeepsTheRadarMaps_AndStillSetsTheActivePosition()
+    public void NoStarsDisplayConfig_KeepsTheScopeMaps_AndStillSetsTheActivePosition()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        main.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([1, 2, 3], ["4U"], ["SFO"], "4U", null, 3));
-        List<int> before = [.. main.Radar.MapShortcuts.Select(s => s.StarsId)];
-        Assert.NotEmpty(before);
+        main.ScopeMaps.ApplyPositionDisplayConfig(new([1, 2, 3], ["4U"], ["SFO"], "4U", null, 3));
 
         main.OnPositionDisplayChanged(EramConfig("C44", Sector44));
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(before, main.Radar.MapShortcuts.Select(s => s.StarsId));
-        Assert.Equal(["SFO"], main.Radar.WeatherAirports);
+        Assert.Equal([1, 2, 3], main.ScopeMaps.MapGroupMapIds);
+        Assert.Equal(["SFO"], main.ScopeMaps.WeatherAirports);
         Assert.Equal("C44", main.ActiveTcp);
         Assert.Same(Sector44, main.ActivePosition);
     }
