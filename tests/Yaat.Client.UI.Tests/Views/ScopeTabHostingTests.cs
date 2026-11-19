@@ -6,16 +6,13 @@ using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Xunit;
-using Yaat.Client.Logging;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
-using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -289,13 +286,12 @@ public class ScopeTabHostingTests
     [AvaloniaFact]
     public async Task ClosingThePopOut_SavesThePrimaryScopesState()
     {
-        string root = NewStoreRoot();
-        Func<(ScopePrefSetStore?, ScopeProfileStore?)> previous = MainViewModel.ScopeStoreFactory;
-        MainViewModel.ScopeStoreFactory = () => (Store(root), null);
+        string root = ScopeStoreFixture.NewStoreRoot();
+        using IDisposable store = ScopeStoreFixture.UseStore(root);
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
-            await OnSector44Async(vm);
+            await ScopeStoreFixture.OnSector44Async(vm);
             vm.IsScopePoppedOut = false;
             vm.IsScopePoppedOut = true;
             MainWindowHost.Pump();
@@ -304,73 +300,38 @@ public class ScopeTabHostingTests
             main.ScopeWindow!.Close();
             MainWindowHost.Pump();
 
-            Assert.Equal(33, Store(root).LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+            Assert.Equal(33, ScopeStoreFixture.Store(root).LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {
-            MainViewModel.ScopeStoreFactory = previous;
             MainWindowHost.CloseAll(main);
-            DeleteStoreRoot(root);
+            ScopeStoreFixture.DeleteStoreRoot(root);
         }
     }
 
     [AvaloniaFact]
     public async Task AppExit_SavesThePrimaryScopesState()
     {
-        string root = NewStoreRoot();
-        Func<(ScopePrefSetStore?, ScopeProfileStore?)> previous = MainViewModel.ScopeStoreFactory;
-        MainViewModel.ScopeStoreFactory = () => (Store(root), null);
+        string root = ScopeStoreFixture.NewStoreRoot();
+        using IDisposable store = ScopeStoreFixture.UseStore(root);
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
-            await OnSector44Async(vm);
+            await ScopeStoreFixture.OnSector44Async(vm);
             vm.PrimaryScope.RangeNm = 44;
 
             MainWindowHost.CloseAll(main);
 
-            Assert.Equal(44, Store(root).LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+            Assert.Equal(44, ScopeStoreFixture.Store(root).LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot)!.RangeNm);
         }
         finally
         {
-            MainViewModel.ScopeStoreFactory = previous;
             if (main.IsVisible)
             {
                 MainWindowHost.CloseAll(main);
             }
 
-            DeleteStoreRoot(root);
-        }
-    }
-
-    private static readonly ActivePositionDto Sector44 = new(
-        Callsign: "OAK_44_CTR",
-        Name: "Sector 44",
-        RadioName: null,
-        Frequency: "135.100",
-        FacilityId: "ZOA",
-        FacilityName: "Oakland Center",
-        PositionType: "Artcc",
-        HandoffCode: "C44",
-        EramSectorId: "44"
-    );
-
-    // The primary Scope's state is saved per ERAM facility, so it needs a viewer on one: ZOA's sector 44.
-    private static async Task OnSector44Async(MainViewModel vm)
-    {
-        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        vm.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], Sector44.HandoffCode, Sector44, 3, NoStarsDisplay: true));
-        Assert.Equal("ZOA", vm.PrimaryScope.Viewer.EramFacilityId);
-    }
-
-    private static string NewStoreRoot() => Path.Combine(Path.GetTempPath(), "yaat-scope-hosting-tests", Guid.NewGuid().ToString("N"));
-
-    private static ScopePrefSetStore Store(string root) => new(root, AppLog.CreateLogger<ScopePrefSetStore>());
-
-    private static void DeleteStoreRoot(string root)
-    {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
+            ScopeStoreFixture.DeleteStoreRoot(root);
         }
     }
 }
