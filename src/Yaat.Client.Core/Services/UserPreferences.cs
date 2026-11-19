@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -2390,6 +2391,34 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    /// <summary>The old per-scenario Radar settings saved for <paramref name="scenarioId"/>, or false when it has none.</summary>
+    public bool TryGetRadarSettings(string scenarioId, [NotNullWhen(true)] out SavedRadarSettings? settings) =>
+        _data.RadarSettings.TryGetValue(scenarioId, out settings);
+
+    /// <summary>
+    /// Removes the old per-scenario Radar settings saved for <paramref name="scenarioId"/>, with its extra-window entries
+    /// (<c>{scenarioId}#n</c>), saving the file when it removed one.
+    /// </summary>
+    public void RemoveRadarSettings(string scenarioId)
+    {
+        bool removed = _data.RadarSettings.Remove(scenarioId);
+        foreach (string key in _data.RadarSettings.Keys.Where(key => IsRadarSettingsExtraKey(key, scenarioId)).ToList())
+        {
+            removed |= _data.RadarSettings.Remove(key);
+        }
+
+        if (removed)
+        {
+            Save();
+        }
+    }
+
+    /// <summary>Whether <paramref name="key"/> is an extra-window entry (<c>{scenarioId}#n</c>) of <paramref name="scenarioId"/>.</summary>
+    private static bool IsRadarSettingsExtraKey(string key, string scenarioId) =>
+        (key.Length > scenarioId.Length + 1)
+        && (key.StartsWith(scenarioId + "#", StringComparison.Ordinal))
+        && (key[(scenarioId.Length + 1)..].All(char.IsAsciiDigit));
+
     public string? GetScenarioAirport(string scenarioId) => _data.ScenarioAirports.TryGetValue(scenarioId, out string? airport) ? airport : null;
 
     public void SetScenarioAirport(string scenarioId, string airportId)
@@ -2928,7 +2957,12 @@ public sealed partial class UserPreferences
         public bool IsVTdlsDarkMode { get; set; }
         public bool IsTerminalPoppedOut { get; set; }
 
-        /// <summary>The old Radar view's per-scenario settings, no longer read or written; kept so an old file round-trips.</summary>
+        /// <summary>
+        /// The old Radar view's per-scenario settings. A scenario load copies the entry it finds into the Scope's saved
+        /// state for the student position's facility when that facility has none, and removes it; a facility with state
+        /// loses the entry without a copy. The entry stays when there is no student position, the facility id is unusable,
+        /// or the write fails, so entries for scenarios never loaded again stay too.
+        /// </summary>
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, List<string>> FavoriteVideoMapsByArtcc { get; set; } = [];

@@ -15,6 +15,7 @@
 - The Scope pops out into its own window and back (View > Windows > Scope, Ctrl+Shift+R), and New Scope window opens more, each keeping its own state.
 - Layouts save and reopen the Scope's pop-out and its extra windows; copying another scenario's views brings its Ground view settings.
 - Saved layouts and window positions from before the Scope open a Scope window wherever a Radar window used to be.
+- A scenario's old Radar maps, range, centre, ring, fixes, pins and brightness carry into the Scope when first loaded at a facility with none saved.
 - A CRC STARS-style toolbar of compact tiles, with tear-offs, per-facility pref sets and profiles picked from the student position, runs the Scope.
 - Zoom bands set others' block level, vector length and history dots until pinned, and VECTOR and HIST controls set them by hand.
 - DISPLAY tiles toggle MVA with its Ctrl readout, LOCK, OFF CNTR, a range ring, the METAR (WX), chart fixes (FIX) and datablock deconfliction (DCNF).

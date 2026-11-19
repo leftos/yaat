@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 
@@ -20,6 +22,19 @@ public partial class MainViewModel
     public const string ScopeViewKey = "ScopeView";
 
     private ScopeViewModel? _activeScope;
+
+    /// <summary>The old Radar BRITE targets that have a Scope group, and the group each one feeds.</summary>
+    private static readonly (string BriteTarget, string Group)[] MigratedBrightnessGroups =
+    [
+        ("MapA", "mapa"),
+        ("MapB", "mapb"),
+        ("RangeRing", "rings"),
+        ("Fdb", "fdb"),
+        ("Hst", "hist"),
+    ];
+
+    /// <summary>The sizes a Scope range ring takes, in NM.</summary>
+    private static readonly double[] MigratedRingSizes = [2, 5, 10, 15, 20];
 
     /// <summary>
     /// Where the primary Scope's pref-set and profile stores come from: the stores on disk, by default. A headless test sets
@@ -164,6 +179,134 @@ public partial class MainViewModel
     {
         (ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore) = ScopeStoreFactory();
         return new ScopeViewModel(this, prefStore, profileStore, ScopePrefSetStore.PrimarySlot);
+    }
+
+    /// <summary>
+    /// Copies a scenario's old per-scenario Radar settings into the primary Scope's saved state for the student position's
+    /// facility, once, when that facility has none, then drops the entry from the preferences. A facility the primary Scope
+    /// was already on counts as having state, so the first old scenario loaded at a facility wins.
+    /// </summary>
+    /// <param name="scenarioId">The scenario whose settings to migrate.</param>
+    /// <param name="facilityBefore">The primary Scope's facility before the load set the student position.</param>
+    private void MigrateRadarSettings(string? scenarioId, string? facilityBefore)
+    {
+        if ((string.IsNullOrEmpty(scenarioId)) || (PrimaryScope.PrefStore is not { } store))
+        {
+            return;
+        }
+
+        string? facility = PrimaryScope.Viewer.EramFacilityId;
+        if ((!ScopePrefSetStore.IsSafeFacility(facility)) || (!_preferences.TryGetRadarSettings(scenarioId, out SavedRadarSettings? settings)))
+        {
+            return;
+        }
+
+        bool live = string.Equals(facilityBefore, facility, StringComparison.Ordinal);
+        if ((live) || (store.LoadCurrent(facility, ScopePrefSetStore.PrimarySlot) is not null))
+        {
+            _preferences.RemoveRadarSettings(scenarioId);
+            return;
+        }
+
+        ScopePrefSet migrated = BuildMigratedPrefSet(PrimaryScope.CapturePrefSet(null), settings);
+        PrimaryScope.ApplyPrefSet(migrated);
+        try
+        {
+            store.SaveCurrent(facility, ScopePrefSetStore.PrimarySlot, migrated);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning(ex, "Could not migrate scenario {ScenarioId}'s old Radar settings to the {Facility} Scope state", scenarioId, facility);
+            return;
+        }
+
+        _preferences.RemoveRadarSettings(scenarioId);
+        _log.LogInformation("Migrated scenario {ScenarioId}'s old Radar settings into the {Facility} Scope state", scenarioId, facility);
+    }
+
+    /// <summary>
+    /// <paramref name="captured"/> with the rows of the old per-scenario Radar settings <paramref name="old"/> that have a
+    /// Scope equivalent, and a value inside the Scope's gates, overridden. The capture supplies what has no old row: the
+    /// template, the DB, the lens and the map tools the Scope shows. The centre is copied as stored, so the Scope's
+    /// <c>IsCentre</c> gate drops a zero one and the map source's seed stands; a range outside 1-256 NM takes
+    /// <see cref="ScopeViewModel.DefaultRangeNm"/>, never the captured range, which may belong to the facility being left.
+    /// PTL has no Scope equivalent and is dropped.
+    /// </summary>
+    private ScopePrefSet BuildMigratedPrefSet(ScopePrefSet captured, SavedRadarSettings old) =>
+        captured with
+        {
+            Maps = [.. old.EnabledStarsIds],
+            CenterLat = old.CenterLat,
+            CenterLon = old.CenterLon,
+            RangeNm = (old.RangeNm is >= 1 and <= 256) ? old.RangeNm : ScopeViewModel.DefaultRangeNm,
+            MapTools = captured.MapTools with
+            {
+                Lock = old.IsPanZoomLocked,
+                RangeRing = MigrateRangeRing(old),
+                FixesAndMarkers = MigrateFixesAndMarkers(old),
+            },
+            Tdm = old.ShowTopDown,
+            Brightness = MigrateBrightness(captured.Brightness, old.BrightnessValues),
+            PinHistory = (old.HistoryCount is > 0 and <= ScopeViewModel.MaxHistory) ? old.HistoryCount : captured.PinHistory,
+        };
+
+    /// <summary>Whether the old range ring's centre is placed: not both latitude and longitude zero, the old "no centre".</summary>
+    private static bool IsRingCentrePlaced(double lat, double lon) => (lat != 0) || (lon != 0);
+
+    /// <summary>The old range ring as a Scope one, or null for the Scope's default (on, 5 NM, the facility's home centre).</summary>
+    private static ScopePrefRangeRing? MigrateRangeRing(SavedRadarSettings old)
+    {
+        int size = (Array.IndexOf(MigratedRingSizes, old.RangeRingSizeNm) >= 0) ? (int)old.RangeRingSizeNm : 5;
+        bool placed = IsRingCentrePlaced(old.RangeRingCenterLat, old.RangeRingCenterLon);
+        if ((old.ShowRangeRings) && (size == 5) && (!placed))
+        {
+            return null;
+        }
+
+        return new ScopePrefRangeRing(old.ShowRangeRings, size, placed ? old.RangeRingCenterLat : null, placed ? old.RangeRingCenterLon : null);
+    }
+
+    /// <summary>The old FIX overlay and markers as a Scope entry, or null for the Scope's default (FIX off, no marker).</summary>
+    private static ScopePrefFixesAndMarkers? MigrateFixesAndMarkers(SavedRadarSettings old) =>
+        ((!old.ShowFixes) && (old.PinnedMarkers.Count == 0))
+            ? null
+            : new ScopePrefFixesAndMarkers(old.ShowFixes, [.. old.PinnedMarkers.Select(marker => marker.ToUpperInvariant())]);
+
+    /// <summary>
+    /// <paramref name="captured"/> with the old BRITE values that have a Scope group and lie inside its range overridden; a
+    /// value outside the range keeps the captured one, with a warning, and a target with no Scope group is dropped.
+    /// </summary>
+    private IReadOnlyDictionary<string, int> MigrateBrightness(IReadOnlyDictionary<string, int> captured, Dictionary<string, int>? values)
+    {
+        if (values is null)
+        {
+            return captured;
+        }
+
+        Dictionary<string, int> brightness = new(captured);
+        foreach ((string briteTarget, string groupName) in MigratedBrightnessGroups)
+        {
+            if (!values.TryGetValue(briteTarget, out int value))
+            {
+                continue;
+            }
+
+            if (ScopeBrightness.FindGroup(groupName)?.Contains(value) == true)
+            {
+                brightness[groupName] = value;
+            }
+            else
+            {
+                _log.LogWarning(
+                    "The old {Target} brightness {Value} is outside the Scope's {Group} range; keeping the captured value",
+                    briteTarget,
+                    value,
+                    groupName
+                );
+            }
+        }
+
+        return brightness;
     }
 
     private static (ScopePrefSetStore?, ScopeProfileStore?) DiskScopeStores() =>

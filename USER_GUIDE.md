@@ -1719,7 +1719,7 @@ The instructor radar can color and shape each aircraft's data block to match wha
 
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
 
-**No per-scenario settings** — the Radar view does not save its settings per scenario; the Scope keeps its own state per facility.
+**No per-scenario settings** — the Scope keeps its own state per facility. The old Radar view's per-scenario settings (range, centre, maps, range ring, FIX overlay, pins, pan/zoom lock, TDM, history and the brightness groups the Scope has) carry into the Scope the first time each scenario loads, where the facility has no Scope state yet; a facility that already has state keeps it.
 
 When weather is loaded, wind and altimeter are displayed in the top-left corner in STARS green.
 

@@ -875,7 +875,9 @@ public partial class MainViewModel
         _ = BootstrapStudentTdlsAsync(bootstrap.PrimaryAirportId);
 
         // Seed the active-position indicator with the student position (server default) before any AS.
+        string? scopeFacilityBefore = PrimaryScope.Viewer.EramFacilityId;
         SetActivePositionFromServer(bootstrap.PositionDisplayConfig);
+        MigrateRadarSettings(bootstrap.ScenarioId, scopeFacilityBefore);
 
         // Scenario auto-connect ATC positions appear in the controller list.
         _ = RefreshOnlineControllersAsync();
