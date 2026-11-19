@@ -545,11 +545,10 @@ assigned token's brightness pulses), the reserved line slot and width stay stabl
 rect never pulses. Both codes format with `.ToString("0000")` (the raw octal-as-decimal beacon convention).
 
 The assigned code reaches the client via `AircraftDto.AssignedBeaconCode` (see
-[training-hub-contract.md](training-hub-contract.md)); the STARS datablock previously carried no beacon code at all in the
-full block, so this line is purely additive — a normal (matching) aircraft shows nothing.
+[training-hub-contract.md](training-hub-contract.md)). On the Scope two consumers read the gate: `TrackPresenter`'s `Squawk` slot (STARS and EuroScope; `SquawkText` builds `1200 0301`, and `AlertFields` dims the assigned tail on the off-phase only) and `EramStatusLine.Beacon` (ERAM line 3, which shows the reported code, for a correlated track only). A normal (matching) aircraft shows nothing.
 
 **YAAT flashes at any datablock level; CRC only in an FDB.** The mismatch line is an RPO aid, so — unlike CRC, which builds it only inside a Full Data Block — YAAT surfaces it at FDB/PDB/LDB alike (an assigned-but-not-yet-squawked code is worth flagging to the RPO regardless of who tracks the aircraft). It is therefore **not** gated on track ownership. Instead a per-aircraft latch, `AircraftDto.CommandedSquawkVfr` (server `Transponder.CommandedSquawkVfr`), turns the flash off: it latches when the pilot is told to squawk VFR (`SQVFR`/`SQV`, or `SQ 1200`) — at which point the stale assigned discrete code is noise the
-RPO should ignore — and releases when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`, an FP amendment, or a CRC beacon assign) or the pilot is told `SQ` any other code or `SQ` alone (back to the assigned code). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`. `TryGetSquawkMismatch` returns false while the latch is set.
+RPO should ignore — and releases when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`, an FP amendment, or a CRC beacon assign) or the pilot is told `SQ` any other code or `SQ` alone (back to the assigned code). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`. `TryGetSquawkMismatch` returns false while the latch is set, so the Scope's `Squawk` slot is empty (style `None` in both flash phases) and ERAM line 3's status is empty for a correlated Mode C aircraft latched by `SQVFR`/`SQV`/`SQ 1200`; releasing the latch brings `1200 0301` back. `TrackPresenterTests` pins this (`Squawk_Mismatch_IsHidden_WhileCommandedSquawkVfr`, `Squawk_Mismatch_Returns_WhenTheLatchIsReleased`) and `EramStatusLineTests` pins the ERAM side (`Mismatch_IsHidden_WhileCommandedSquawkVfr`).
 
 ## Student-scope datablock view
 

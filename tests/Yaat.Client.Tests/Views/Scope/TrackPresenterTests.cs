@@ -409,6 +409,22 @@ public class TrackPresenterTests
     }
 
     [Theory]
+    [MemberData(nameof(TemplateIds))]
+    public void Squawk_Mismatch_IsHidden_WhileCommandedSquawkVfr(string templateId)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateSquawkMismatch();
+        ac.CommandedSquawkVfr = true;
+
+        foreach (bool flashOn in new[] { true, false })
+        {
+            ScopeField squawk = Field(TrackPresenter.Present(ScopeTestAircraft.Input(ac, templateId, flashOn: flashOn)), ScopeFieldSlot.Squawk);
+
+            Assert.Equal("", squawk.Text);
+            Assert.Equal(ScopeFieldStyle.None, squawk.Style);
+        }
+    }
+
+    [Theory]
     [InlineData(ScopeTemplates.StarsId, true)]
     [InlineData(ScopeTemplates.StarsId, false)]
     [InlineData(ScopeTemplates.EuroScopeId, true)]

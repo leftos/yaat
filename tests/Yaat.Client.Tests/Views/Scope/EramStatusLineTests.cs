@@ -157,6 +157,16 @@ public class EramStatusLineTests
     }
 
     [Fact]
+    public void Mismatch_IsHidden_WhileCommandedSquawkVfr()
+    {
+        AircraftModel ac = Plain();
+        Mismatch(ac);
+        ac.CommandedSquawkVfr = true;
+
+        Assert.Equal(("", false), Build(ac));
+    }
+
+    [Fact]
     public void None_CorrelatedWithAnAssignedCodeAndNoBeacon()
     {
         AircraftModel ac = Plain();
