@@ -363,7 +363,7 @@ public static partial class TrackEngine
     /// recipient's data block yellow (forced full) from the moment they slew to accept until they slew
     /// a second time to clear; that transient window is carried entirely by this per-TCP flag, which
     /// CRC reads back from the track DTO and never originates locally. Setting it here keeps the
-    /// accepted pointout yellow on both CRC and YAAT's Radar View until the recipient dismisses it
+    /// accepted pointout yellow on both CRC and YAAT's Scope until the recipient dismisses it
     /// (see <see cref="ClearDismissedIncomingPointout"/>).
     /// </summary>
     private static void AcceptIncomingPointout(AircraftState ac)

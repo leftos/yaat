@@ -5,7 +5,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Map;
 
 /// <summary>
-/// The STARS full-datablock text builders and placement rules the Scope, the Ground view and the Radar share: the
+/// The STARS full-datablock text builders and placement rules the Scope and the Ground view share: the
 /// owner/scratchpad, conflict and ATPA fields, the cwt/type token, the collapsed LDB/PDB lines, the student-level
 /// marker and the block offset from the symbol.
 /// </summary>

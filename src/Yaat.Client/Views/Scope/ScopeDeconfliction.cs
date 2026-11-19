@@ -5,7 +5,7 @@ using Yaat.Client.Views.Map;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// The Scope's datablock deconfliction (DCNF), over the engine the Radar and Ground share
+/// The Scope's datablock deconfliction (DCNF), over the engine the Ground view shares
 /// (<see cref="DatablockDeconfliction"/>): a frame is laid out once as without it, its blocks go to the engine at the offsets
 /// they took there (a manual offset, else the student's leader direction, else the default), and the frame is laid out
 /// again at the offsets the engine gives back, so the rings, the CRR readout and the hit-test follow the block. A block the

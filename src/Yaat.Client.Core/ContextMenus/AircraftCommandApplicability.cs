@@ -11,7 +11,7 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// Single source of truth for whether a tower / ground / landing / pattern command
 /// is contextually valid for an aircraft's current state. The three right-click menu
-/// surfaces (aircraft list, ground view, radar view) all consult these predicates so
+/// surfaces (the aircraft list, the Ground view and the Scope) all consult these predicates so
 /// they show only commands that make sense for the aircraft, and stay consistent.
 ///
 /// The aircraft phase strings and IFR/VFR rules encoded here were validated against

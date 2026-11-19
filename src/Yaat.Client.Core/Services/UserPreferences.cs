@@ -1968,13 +1968,6 @@ public sealed partial class UserPreferences
         Save();
     }
 
-    /// <summary>Persists the radar-view datablock deconfliction mode. Written from the radar view's DCNF button.</summary>
-    public void SetRadarDeconflictMode(DatablockDeconflictMode mode)
-    {
-        _data.RadarDeconflictMode = (int)mode;
-        Save();
-    }
-
     public void SetGroundHideDataBlocksByDefault(bool hide)
     {
         _data.GroundHideDataBlocksByDefault = hide;
@@ -3453,8 +3446,8 @@ public sealed class SavedMacro
 }
 
 /// <summary>
-/// Scope a favorited Radar View video map is saved under: the whole ARTCC, the scenario's
-/// primary airport, or one specific scenario.
+/// Scope a favorited video map is saved under: the whole ARTCC, the scenario's primary
+/// airport, or one specific scenario.
 /// </summary>
 public enum FavoriteMapScope
 {

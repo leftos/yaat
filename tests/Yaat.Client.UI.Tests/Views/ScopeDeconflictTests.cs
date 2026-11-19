@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -7,6 +8,7 @@ using Avalonia.Threading;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
@@ -41,8 +43,8 @@ public class ScopeDeconflictTests
     [AvaloniaFact]
     public void TheModeIsSeededFromTheSavedDefault_AndNeverWrittenBack()
     {
+        WriteSavedDeconflictMode(DatablockDeconflictMode.FreeForm);
         var main = new MainViewModel(new FakeFilePickerService());
-        main.Preferences.SetRadarDeconflictMode(DatablockDeconflictMode.FreeForm);
         ScopeMapToolsCommandTests.LoadSource(main);
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
@@ -127,7 +129,8 @@ public class ScopeDeconflictTests
     [AvaloniaFact]
     public void TheMode_IsKeptInAPrefSet_ASetWithoutItTakingTheSeed()
     {
-        (MainViewModel main, ScopeViewModel scope) = SeededScope();
+        WriteSavedDeconflictMode(DatablockDeconflictMode.FreeForm);
+        (_, ScopeViewModel scope) = SeededScope();
         using (scope)
         {
             scope.DeconflictMode = DatablockDeconflictMode.CompassSnap;
@@ -138,7 +141,6 @@ public class ScopeDeconflictTests
             scope.ApplyPrefSet(set);
             Assert.Equal(DatablockDeconflictMode.CompassSnap, scope.DeconflictMode);
 
-            main.Preferences.SetRadarDeconflictMode(DatablockDeconflictMode.FreeForm);
             scope.ApplyPrefSet(set with { MapTools = new ScopePrefMapTools(false, false, null, null, null) });
             Assert.Equal(DatablockDeconflictMode.FreeForm, scope.DeconflictMode);
 
@@ -229,6 +231,13 @@ public class ScopeDeconflictTests
         SKRect a = frame.Tracks[0].Block.Bounds;
         SKRect b = frame.Tracks[1].Block.Bounds;
         return (Math.Min(a.Right, b.Right) > Math.Max(a.Left, b.Left)) && (Math.Min(a.Bottom, b.Bottom) > Math.Max(a.Top, b.Top));
+    }
+
+    /// <summary>Writes a preferences file whose only setting is the saved datablock deconfliction mode, before any is read.</summary>
+    private static void WriteSavedDeconflictMode(DatablockDeconflictMode mode)
+    {
+        var file = new JsonObject { ["preferencesVersion"] = 1, ["radarDeconflictMode"] = (int)mode };
+        File.WriteAllText(UserPreferences.FilePath, file.ToJsonString());
     }
 
     /// <summary>A scope seeded from one STARS area, with no window.</summary>

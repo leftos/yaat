@@ -4,7 +4,7 @@ using Yaat.Client.Services;
 namespace Yaat.Client.Views.Map;
 
 /// <summary>
-/// Draws the distance measuring tool's range/bearing lines. Shared by the Radar and Ground renderers so
+/// Draws the distance measuring tool's range/bearing lines. Shared by the Scope and Ground renderers so
 /// a measurement looks the same wherever it is read.
 /// </summary>
 /// <remarks>

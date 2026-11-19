@@ -1792,7 +1792,8 @@ public sealed partial class ScopeRenderer : IDisposable
 
     /// <summary>
     /// Draws the text before the first space at <paramref name="color"/>, then the rest (its leading space included) at
-    /// <paramref name="tailColor"/>, placed as today's <c>TargetColors.DrawSquawkMismatchLine</c> places its head and tail.
+    /// <paramref name="tailColor"/>, placed as <c>TargetColors.DrawSquawkMismatchLine</c> places its head and tail, which the
+    /// Ground view still uses for its squawk-mismatch lines.
     /// </summary>
     private void DrawDimTail(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, SKColor tailColor)
     {
