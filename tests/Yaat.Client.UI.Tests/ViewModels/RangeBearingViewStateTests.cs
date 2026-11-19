@@ -245,4 +245,161 @@ public class RangeBearingViewStateTests
 
         Assert.Throws<ArgumentException>(Place);
     }
+
+    // --- A measure anchor belongs to the surface that set it -------------------------------------------------------------
+
+    private const string AnchoredStatus = "Measure: click the second point or aircraft (Esc to cancel)";
+
+    private static readonly RblEndpoint PointA = RblEndpoint.AtPoint(Oakland, "A");
+    private static readonly RblEndpoint PointB = RblEndpoint.AtPoint(PointNorth, "B");
+
+    private static MeasureTarget GroundTarget => new(RblView.Ground, NoAircraft, RblUnits.FeetThenNauticalMiles, null);
+
+    private static MeasureTarget ScopeTarget(object scope) => new(RblView.Scope, NoAircraft, RblUnits.NauticalMiles, scope);
+
+    // A Scope's anchor is that Scope's only: another Scope and the Ground view see none.
+    [Fact]
+    public void HasAnchorFor_AScopeAnchor_IsTrueOnlyOnThatScope()
+    {
+        RangeBearingViewState state = NewState(out _);
+        object scope = new();
+        object otherScope = new();
+
+        state.Pick(PointA, ScopeTarget(scope));
+
+        Assert.True(state.HasAnchorFor(RblView.Scope, scope));
+        Assert.False(state.HasAnchorFor(RblView.Scope, otherScope));
+        Assert.False(state.HasAnchorFor(RblView.Ground, null));
+    }
+
+    // A Ground anchor is the Ground view's only: no Scope sees it.
+    [Fact]
+    public void HasAnchorFor_AGroundAnchor_IsTrueOnlyOnGround()
+    {
+        RangeBearingViewState state = NewState(out _);
+
+        state.Pick(PointA, GroundTarget);
+
+        Assert.True(state.HasAnchorFor(RblView.Ground, null));
+        Assert.False(state.HasAnchorFor(RblView.Scope, new object()));
+    }
+
+    [Fact]
+    public void HasAnchorFor_NoAnchor_IsFalseEverywhere()
+    {
+        RangeBearingViewState state = NewState(out _);
+        state.Arm();
+
+        Assert.False(state.HasAnchorFor(RblView.Ground, null));
+        Assert.False(state.HasAnchorFor(RblView.Scope, new object()));
+    }
+
+    // Pick on a Scope while the Ground view holds the anchor: the pick anchors anew on this Scope and places no line.
+    [Fact]
+    public void Pick_OnAScope_WithAGroundAnchor_AnchorsAnew_AndPlacesNoLine()
+    {
+        RangeBearingViewState state = NewState(out _);
+        var reported = new List<string>();
+        state.Pick(PointA, GroundTarget);
+        object scope = new();
+        state.StatusReported += reported.Add;
+
+        state.Pick(PointB, ScopeTarget(scope));
+
+        Assert.Empty(state.Lines);
+        Assert.Equal(new RblPendingAnchor(PointB, RblView.Scope, scope), state.Anchor);
+        Assert.True(state.IsMeasuring);
+        Assert.Equal([AnchoredStatus], reported);
+    }
+
+    // Pick on Ground while a Scope holds the anchor: the pick anchors anew on Ground and places no line.
+    [Fact]
+    public void Pick_OnGround_WithAScopeAnchor_AnchorsAnew_AndPlacesNoLine()
+    {
+        RangeBearingViewState state = NewState(out _);
+        var reported = new List<string>();
+        state.Pick(PointA, ScopeTarget(new object()));
+        state.StatusReported += reported.Add;
+
+        state.Pick(PointB, GroundTarget);
+
+        Assert.Empty(state.Lines);
+        Assert.Equal(new RblPendingAnchor(PointB, RblView.Ground, null), state.Anchor);
+        Assert.True(state.IsMeasuring);
+        Assert.Equal([AnchoredStatus], reported);
+    }
+
+    // Pick on a Scope while another Scope holds the anchor: the pick anchors anew on this Scope.
+    [Fact]
+    public void Pick_OnAScope_WithAnotherScopesAnchor_AnchorsAnew_AndPlacesNoLine()
+    {
+        RangeBearingViewState state = NewState(out _);
+        state.Pick(PointA, ScopeTarget(new object()));
+        object scope = new();
+
+        state.Pick(PointB, ScopeTarget(scope));
+
+        Assert.Empty(state.Lines);
+        Assert.Equal(new RblPendingAnchor(PointB, RblView.Scope, scope), state.Anchor);
+    }
+
+    // Pick on the Scope that holds the anchor: the pick completes one line on that Scope.
+    [Fact]
+    public void Pick_OnAScope_WithItsOwnAnchor_PlacesOneScopeLine()
+    {
+        RangeBearingViewState state = NewState(out _);
+        object scope = new();
+        state.Pick(PointA, ScopeTarget(scope));
+
+        state.Pick(PointB, ScopeTarget(scope));
+
+        Assert.Equal([new RangeBearingLine(1, PointA, PointB, RblView.Scope, scope)], state.Lines);
+        Assert.Null(state.Anchor);
+        Assert.False(state.IsMeasuring);
+    }
+
+    // A whole line a Scope places (Alt-drag, place_rbl) leaves the Ground view's anchor pending and the tool armed.
+    [Fact]
+    public void Place_ByAScope_LeavesAGroundAnchor()
+    {
+        RangeBearingViewState state = NewState(out _);
+        state.Pick(PointA, GroundTarget);
+        object scope = new();
+
+        (int? slot, _) = state.PlaceSilently(PointA, PointB, ScopeTarget(scope));
+
+        Assert.Equal(1, slot);
+        Assert.Equal([new RangeBearingLine(1, PointA, PointB, RblView.Scope, scope)], state.Lines);
+        Assert.Equal(new RblPendingAnchor(PointA, RblView.Ground, null), state.Anchor);
+        Assert.True(state.IsMeasuring);
+    }
+
+    // A whole line Ground places (Alt-drag) leaves a Scope's anchor pending and the tool armed.
+    [Fact]
+    public void Place_OnGround_LeavesAScopeAnchor()
+    {
+        RangeBearingViewState state = NewState(out _);
+        object scope = new();
+        state.Pick(PointA, ScopeTarget(scope));
+
+        (int? slot, _) = state.PlaceSilently(PointA, PointB, GroundTarget);
+
+        Assert.Equal(1, slot);
+        Assert.Equal([new RangeBearingLine(1, PointA, PointB, RblView.Ground, null)], state.Lines);
+        Assert.Equal(new RblPendingAnchor(PointA, RblView.Scope, scope), state.Anchor);
+        Assert.True(state.IsMeasuring);
+    }
+
+    // A whole line placed by the surface that holds the anchor drops the anchor and disarms the tool.
+    [Fact]
+    public void Place_ByTheOwner_ClearsItsAnchor()
+    {
+        RangeBearingViewState state = NewState(out _);
+        state.Pick(PointA, GroundTarget);
+
+        state.PlaceSilently(PointA, PointB, GroundTarget);
+
+        Assert.Null(state.Anchor);
+        Assert.False(state.IsMeasuring);
+    }
 }

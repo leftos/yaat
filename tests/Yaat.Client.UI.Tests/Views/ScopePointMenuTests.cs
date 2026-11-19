@@ -311,6 +311,34 @@ public class ScopePointMenuTests
         }
     }
 
+    // An anchor the Ground view picked counts as no anchor on a Scope: the menu starts a measurement, and picking here moves
+    // the one anchor to this Scope without placing a line.
+    [AvaloniaFact]
+    public async Task Map_AGroundAnchor_OffersMeasureFromHere_AndAPickHereTakesTheAnchor()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            main.Measure.Pick(RblEndpoint.AtPoint(new LatLon(37.70, -122.20), ""), main.MeasureSurface(RblView.Ground, null));
+
+            ContextMenu menu = view.BuildMapContextMenu(scope, new LatLon(37.60, -121.90), new Point(10, 10));
+
+            List<string> labels = Labels(menu.Items);
+            Assert.Contains("Measure from here", labels);
+            Assert.DoesNotContain("Measure to here", labels);
+
+            var here = RblEndpoint.AtPoint(new LatLon(37.60, -121.90), "");
+            scope.PickMeasurePoint(here);
+
+            Assert.Empty(main.Measure.Lines);
+            Assert.Equal(new RblPendingAnchor(here, RblView.Scope, scope), main.Measure.Anchor);
+        }
+        finally
+        {
+            Close(window, view);
+        }
+    }
+
     // A measurement the click lands on is offered for removal, and the store's lines for clearing.
     [AvaloniaFact]
     public async Task Map_MeasuredLineNearTheClick_OffersItsRemoveAndClearRows()

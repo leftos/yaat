@@ -42,7 +42,14 @@ public sealed record RangeBearingLine(int Slot, RblEndpoint A, RblEndpoint B, Rb
 /// that picked it (<paramref name="Surface" />; null for every other view). The surface is part of the anchor: two anchors
 /// picked at one point on two Scope windows differ.
 /// </summary>
-public readonly record struct RblPendingAnchor(RblEndpoint Endpoint, RblView View, object? Surface);
+public readonly record struct RblPendingAnchor(RblEndpoint Endpoint, RblView View, object? Surface)
+{
+    /// <summary>
+    /// Whether the anchor belongs to <paramref name="view"/>'s <paramref name="surface"/>: the same view and, for a Scope, the
+    /// same Scope window (null for every other view). Only the owning surface offers, completes, draws or cancels it.
+    /// </summary>
+    public bool BelongsTo(RblView view, object? surface) => (View == view) && ReferenceEquals(Surface, surface);
+}
 
 /// <summary>Live state of an aircraft an endpoint is latched to.</summary>
 public readonly record struct RblTrack(LatLon Position, double? GroundSpeedKts);
@@ -210,7 +217,8 @@ public sealed class RangeBearingLineStore
     /// <summary>
     /// Places a whole line at once, for the modifier-drag and text-command paths where both endpoints
     /// arrive together. <paramref name="surface"/> is the Scope window that placed it, null for every other view. Returns the
-    /// slot number, or null when full.
+    /// slot number, or null when full. It drops the pending anchor and disarms the tool only when the placing surface owns the
+    /// anchor (or there is none); an anchor another surface holds stays pending, with the tool armed.
     /// </summary>
     /// <exception cref="ArgumentException">A Scope line with no <paramref name="surface"/>.</exception>
     public int? Add(RblEndpoint a, RblEndpoint b, RblView view, object? surface)
@@ -224,8 +232,12 @@ public sealed class RangeBearingLineStore
 
         int slot = index + 1;
         _slots[index] = new RangeBearingLine(slot, a, b, view, surface);
-        IsArmed = false;
-        PendingAnchor = null;
+        if ((PendingAnchor is not { } anchor) || anchor.BelongsTo(view, surface))
+        {
+            IsArmed = false;
+            PendingAnchor = null;
+        }
+
         Changed?.Invoke();
         return slot;
     }

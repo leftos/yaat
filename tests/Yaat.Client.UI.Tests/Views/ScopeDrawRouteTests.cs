@@ -9,6 +9,7 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -582,6 +583,31 @@ public class ScopeDrawRouteTests
     {
         FieldRect field = Assert.Single(s.Canvas.CurrentFrame.Tracks).Block.Fields.First(f => f.Slot == ScopeFieldSlot.Destination);
         return new Point(field.Rect.MidX, field.Rect.MidY);
+    }
+
+    // An anchor the Ground view holds is not this Scope's: a right press on a waypoint while drawing still opens its menu.
+    [AvaloniaFact]
+    public async Task RightClick_OnAWaypoint_WithAGroundAnchor_OpensItsMenu()
+    {
+        Shown s = await ShowScopeAsync();
+        try
+        {
+            DrawRoute(s, MapA, MapB);
+            s.Main.Measure.Pick(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""), s.Main.MeasureSurface(RblView.Ground, null));
+            var raised = new List<int>();
+            s.View.Canvas.RouteWaypointRightClicked += (index, _) => raised.Add(index);
+
+            Click(s, MapA, MouseButton.Right);
+
+            Assert.Equal([0], raised);
+            ContextMenu menu = Assert.IsType<ContextMenu>(s.View.ActiveContextMenu);
+            Assert.Equal("Confirm route", menu.Items.OfType<MenuItem>().Select(m => m.Header as string).ElementAt(1));
+            Assert.Equal(RblView.Ground, s.Main.Measure.Anchor?.View);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
     }
 
     // Opens the menu of the first of two waypoints.

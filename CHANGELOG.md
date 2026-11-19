@@ -19,6 +19,7 @@
 - Zoom bands set others' block level, vector length and history dots until pinned, and VECTOR and HIST controls set them by hand.
 - DISPLAY tiles toggle MVA with its Ctrl readout, LOCK, OFF CNTR, a range ring, the METAR (WX), chart fixes (FIX) and datablock deconfliction (DCNF).
 - A TOOLS tray's Rings tool places Scope-only J-rings, cones and DRI halos; Ctrl+M, Alt-drag or .rbl draw measure lines, and STARS MIN shows minimum separation.
+- A measure started in one Scope or Ground window is finished, shown and cancelled only in that window.
 - A datablock field click (ERAM: middle-click) opens a menu pairing scope-data entries such as QZ and QS with the matching pilot commands.
 - Clicking an ERAM block's HSF or VCI cell sends QS or QN //, toggling the fourth line's HSF data for CRC too.
 - Commands typed on the Scope, STARS and ERAM entries included, show in CRC's preview and feedback areas; left-click fills a track, middle-click runs it.

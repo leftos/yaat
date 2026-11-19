@@ -1783,7 +1783,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private bool HandleRightClick(Point screenPos)
     {
-        if (IsMeasuring)
+        // The armed tool is the Ground view's to cancel only with no anchor or the anchor picked on Ground; with an anchor a
+        // Scope window holds, the right-click is not the tool's and opens the menu.
+        if (IsMeasuring && ((MeasureAnchor is not { } anchor) || anchor.BelongsTo(RblView.Ground, null)))
         {
             MeasureCancelled?.Invoke();
             return true;

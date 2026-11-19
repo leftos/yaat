@@ -12,6 +12,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
+using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -178,6 +179,52 @@ public class PointMenuViewTests
                     label
                 )
         );
+    }
+
+    // An anchor a Scope picked is not the Ground view's: the ground map menu starts a measurement rather than completing it.
+    [AvaloniaFact]
+    public void GroundMap_AScopeAnchor_OffersMeasureFromHere()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (GroundView view, MainViewModel main) = RunwaysOnlyGround();
+        main.Measure.Pick(
+            RblEndpoint.AtPoint(new LatLon(37.70, -122.20), ""),
+            new MeasureTarget(RblView.Scope, main.Ground.MeasureTrackLookup, RblUnits.NauticalMiles, new object())
+        );
+
+        ContextMenu? menu = view.BuildMapMenu(main.Ground, default);
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+
+        Assert.Equal("Measure from here", labels[0]);
+        Assert.DoesNotContain("Measure to here", labels);
+    }
+
+    // The Ground view's own anchor: the ground map menu completes it.
+    [AvaloniaFact]
+    public void GroundMap_AGroundAnchor_OffersMeasureToHere()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (GroundView view, MainViewModel main) = RunwaysOnlyGround();
+        main.Measure.Pick(RblEndpoint.AtPoint(new LatLon(37.70, -122.20), ""), main.MeasureSurface(RblView.Ground, null));
+
+        ContextMenu? menu = view.BuildMapMenu(main.Ground, default);
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+
+        Assert.Equal("Measure to here", labels[0]);
+        Assert.DoesNotContain("Measure from here", labels);
+    }
+
+    // A shown ground view over a runways-only OAK layout, whose empty-ground menu is the measure and view items.
+    private static (GroundView View, MainViewModel Main) RunwaysOnlyGround()
+    {
+        GroundNodeDto start = OakNode("Spot", "I30");
+        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        GroundRunwayDto runway = MenuGoldenFixtures.OakLayoutForClient.Runways![0];
+        main.Ground.SetLayoutForTesting(new GroundLayoutDto("OAK", [], [], null, [runway], null, IsRunwaysOnly: true));
+        Show(Parent(view));
+        return (view, main);
     }
 
     [AvaloniaFact]

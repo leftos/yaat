@@ -11,6 +11,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -353,6 +354,24 @@ public class ScopeAircraftMenuTests
 
             Assert.NotNull(s.Scope.Measure.Anchor);
             Assert.NotNull(Find(Display(s.Menu()), $"Measure to {Callsign}"));
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    // An anchor the Ground view picked is not this Scope's: the row still starts a measurement from the aircraft.
+    [AvaloniaFact]
+    public async Task MeasureRow_AGroundAnchor_StillOffersMeasureFromTheAircraft()
+    {
+        Shown s = await ShowScopeAsync(_ => { });
+        try
+        {
+            s.Main.Measure.Pick(RblEndpoint.AtPoint(new LatLon(37.70, -122.20), ""), s.Main.MeasureSurface(RblView.Ground, null));
+
+            Assert.NotNull(Find(Display(s.Menu()), $"Measure from {Callsign}"));
+            Assert.Null(Find(Display(s.Menu()), $"Measure to {Callsign}"));
         }
         finally
         {

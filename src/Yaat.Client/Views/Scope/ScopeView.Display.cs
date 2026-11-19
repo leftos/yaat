@@ -71,7 +71,7 @@ public partial class ScopeView
     }
 
     // The Scope's measure tool is never absent, so the row offers "Measure to" once something is anchored and "Measure from" before;
-    // an anchor another Scope window holds counts as none here.
+    // an anchor another Scope window or the Ground view holds counts as none here.
     private static MenuMeasureState MeasureState(ScopeViewModel vm) =>
         vm.Measure.HasAnchorFor(ScopeViewModel.MeasureView, vm) ? MenuMeasureState.HasAnchor : MenuMeasureState.NoAnchor;
 

@@ -87,23 +87,29 @@ public sealed partial class ScopeViewModel
         ActivateMeasureSurface();
         (_, string status) = Measure.PlaceSilently(from, to, MeasureTarget);
         Main.StatusText = status;
-        ShowMeasureResponse(status);
+        // A placed reading is never the tool's prompt, even while another surface's anchor keeps the tool armed.
+        ShowMeasureResponse(status, isPrompt: false);
     }
 
     /// <summary>
-    /// A right press on the Scope while the tool is armed: makes the Scope the active surface and cancels the tool, which is
-    /// global, with the anchor wherever it was picked (unlike Esc, which takes only this Scope's own); the status line says
-    /// so and the Scope's response keeps what it shows, less the tool's own prompt.
+    /// A right press on the Scope while the tool is armed: makes the Scope the active surface and cancels the anchor this Scope
+    /// picked, or the armed tool with no anchor. An anchor another Scope window or the Ground view holds stays (the canvas
+    /// opens its menu for that press instead). The status line says so and the Scope's response keeps what it shows, less the
+    /// tool's own prompt.
     /// </summary>
     public void CancelMeasureFromPointer()
     {
         ActivateMeasureSurface();
-        Measure.Cancel();
+        if ((Measure.Anchor is not { } anchor) || anchor.BelongsTo(MeasureView, this))
+        {
+            Measure.Cancel();
+        }
     }
 
-    // A Scope-started measure status in the response: an error for a full store, text otherwise. While the tool stays armed it
-    // is the tool's own prompt, which Esc takes with the measurement and a disarm elsewhere takes down.
-    private void ShowMeasureResponse(string status)
+    // A Scope-started measure status in the response: an error for a full store, text otherwise. A pick's status while the tool
+    // stays armed is the tool's own prompt, which Esc takes with the measurement and a disarm elsewhere takes down; a placed
+    // reading (isPrompt false) never is.
+    private void ShowMeasureResponse(string status, bool isPrompt = true)
     {
         var response = new ScopeEntryResponse(
             status == RangeBearingViewState.FullStatus ? ScopeResponseKind.Error : ScopeResponseKind.Text,
@@ -111,7 +117,7 @@ public sealed partial class ScopeViewModel
             "",
             []
         );
-        _measureResponse = Measure.IsMeasuring ? response : null;
+        _measureResponse = (isPrompt && Measure.IsMeasuring) ? response : null;
         _entrySeq++;
         EntryResponse = response;
     }
@@ -155,7 +161,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Esc's measure step: cancels the half-placed line this Scope anchored, whichever surface is active, or the armed tool
-    /// with no anchor while this Scope is the active surface. An anchor another Scope window or the Radar or Ground view
+    /// with no anchor while this Scope is the active surface. An anchor another Scope window or the Ground view
     /// holds stays, as does a tool armed on another surface, and the key passes on to the next Esc step. The status line
     /// says so; the Scope's response is left as it is, so each Esc peels one layer.
     /// </summary>
@@ -163,7 +169,7 @@ public sealed partial class ScopeViewModel
     public bool CancelMeasure()
     {
         RblPendingAnchor? anchor = Measure.Anchor;
-        bool ownsAnchor = (anchor is { View: MeasureView } mine) && ReferenceEquals(mine.Surface, this);
+        bool ownsAnchor = (anchor is { } pending) && pending.BelongsTo(MeasureView, this);
         bool armedHere = (anchor is null) && Measure.IsMeasuring && IsActiveMeasureSurface;
         if (!ownsAnchor && !armedHere)
         {

@@ -836,8 +836,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     // The measuring tool's presses, ahead of the fill, the Rings tool and the aircraft rungs: Alt+left starts a drag whether or
-    // not the tool is armed; while it is armed a left press picks an endpoint and a right press cancels it (no menu, no pan).
-    // False for any other press.
+    // not the tool is armed; while it is armed a left press picks an endpoint and a right press cancels it (no menu, no pan),
+    // unless another surface holds the anchor. False for any other press.
     // Each rung reads the button this press went down with (PointerUpdateKind), so a second button pressed while the left is
     // held neither re-anchors nor picks.
     private bool TryMeasurePress(PointerPointProperties props, KeyModifiers modifiers, Point pos)
@@ -861,7 +861,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
-        if (props.PointerUpdateKind == PointerUpdateKind.RightButtonPressed)
+        if ((props.PointerUpdateKind == PointerUpdateKind.RightButtonPressed) && IsMeasuringHere)
         {
             MeasureCancelled?.Invoke();
             return true;
@@ -869,6 +869,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
         return false;
     }
+
+    // The armed tool is this Scope's to cancel: no anchor anywhere, or the anchor this canvas's Scope picked. With an anchor
+    // another surface holds, a right press is not the tool's (it opens the Scope's menu and the anchor stays), and the draw-route
+    // rungs take their presses as with the tool disarmed.
+    private bool IsMeasuringHere => IsMeasuring && ((MeasureAnchor is null) || (OwnMeasureAnchor() is not null));
 
     // A press that went down with the left button while Alt is held: it starts a measurement drag.
     private static bool IsAltLeftPress(PointerPointProperties props, KeyModifiers modifiers) =>
@@ -951,11 +956,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     // The half-placed anchor when this canvas's Scope picked it (the Scope view, and its ScopeViewModel DataContext), else
     // null; a canvas with no ScopeViewModel owns none.
     private RblPendingAnchor? OwnMeasureAnchor() =>
-        (
-            (MeasureAnchor is { View: ScopeViewModel.MeasureView } pending)
-            && (DataContext is ScopeViewModel owner)
-            && ReferenceEquals(pending.Surface, owner)
-        )
+        ((MeasureAnchor is { } pending) && (DataContext is ScopeViewModel owner) && pending.BelongsTo(ScopeViewModel.MeasureView, owner))
             ? pending
             : null;
 

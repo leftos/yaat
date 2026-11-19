@@ -54,7 +54,8 @@ public sealed partial class ScopeCanvas
 
     partial void PressDrawRoute(in ScopePress press, ref bool handled)
     {
-        if (handled || (_drawRoute is not { IsDrawing: true } route) || IsMeasuring || IsAltLeftPress(press.Props, press.Event.KeyModifiers))
+        // Only this Scope's own measuring takes the presses: an anchor another surface holds leaves the route's rungs as they are.
+        if (handled || (_drawRoute is not { IsDrawing: true } route) || IsMeasuringHere || IsAltLeftPress(press.Props, press.Event.KeyModifiers))
         {
             return;
         }

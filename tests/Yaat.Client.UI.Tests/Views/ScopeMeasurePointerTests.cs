@@ -22,8 +22,8 @@ namespace Yaat.Client.UI.Tests.Views;
 /// The measuring tool's pointer gestures on the Scope canvas, first match wins: Alt+left-drag measures whether or not the tool
 /// is armed (a release within the drag threshold anchors and leaves the tool armed); a left press while the tool is armed
 /// picks an endpoint before the Rings tool, the fill, the field menus and the dwell lock; a right press while it is armed
-/// cancels it and opens no menu; with the tool not armed the presses act as before. A move records the cursor the half-placed
-/// line runs to.
+/// cancels it and opens no menu, unless another surface holds the anchor (then the menu opens and the anchor stays); with
+/// the tool not armed the presses act as before. A move records the cursor the half-placed line runs to.
 /// </summary>
 public class ScopeMeasurePointerTests
 {
@@ -300,17 +300,98 @@ public class ScopeMeasurePointerTests
         }
     }
 
-    // The armed right press is an explicit click on the global tool: it cancels it even when another Scope window holds the
-    // anchor, unlike Esc, which leaves an anchor this Scope does not show.
+    // An anchor belongs to the surface that set it: a right press on this Scope while another Scope window holds the anchor
+    // leaves the anchor and the armed tool, and opens this Scope's menu.
     [AvaloniaFact]
-    public async Task ArmedRightClick_WithAnotherScopesAnchor_StillCancelsTheTool()
+    public async Task ArmedRightClick_WithAnotherScopesAnchor_LeavesTheAnchor_AndOpensTheMenu()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeAsync();
         ScopeViewInstance other = main.OpenExtraScopeView();
         try
         {
-            other.Vm.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""));
-            Assert.Same(other.Vm, Assert.NotNull(main.Measure.Anchor).Surface);
+            var endpoint = RblEndpoint.AtPoint(new LatLon(37.7, -122.2), "");
+            other.Vm.PickMeasurePoint(endpoint);
+            string status = main.StatusText;
+
+            Click(window, view.Canvas, MapA, MouseButton.Right);
+
+            Assert.True(main.Measure.IsMeasuring);
+            Assert.Equal(new RblPendingAnchor(endpoint, RblView.Scope, other.Vm), main.Measure.Anchor);
+            Assert.NotNull(view.ActiveContextMenu);
+            Assert.Equal(status, main.StatusText);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+            CloseWindow(window, view);
+        }
+    }
+
+    // A right press on the Scope while the Ground view holds the anchor leaves the anchor and the armed tool, and opens the
+    // Scope's menu.
+    [AvaloniaFact]
+    public async Task RightClick_WithAGroundAnchor_LeavesIt_AndOpensTheMenu()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            var endpoint = RblEndpoint.AtPoint(new LatLon(37.7, -122.2), "");
+            main.Measure.Pick(endpoint, main.MeasureSurface(RblView.Ground, null));
+            string status = main.StatusText;
+
+            Click(window, view.Canvas, MapA, MouseButton.Right);
+
+            Assert.True(main.Measure.IsMeasuring);
+            Assert.Equal(new RblPendingAnchor(endpoint, RblView.Ground, null), main.Measure.Anchor);
+            Assert.NotNull(view.ActiveContextMenu);
+            Assert.Equal(status, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // An Alt-drag on the Scope while the Ground view holds the anchor places a Scope line and leaves the tool armed. Its reading
+    // is a response, never the tool's prompt: it stays when the Ground anchor is cancelled, and Esc's prompt step passes it by.
+    [AvaloniaFact]
+    public async Task AltDrag_WithAGroundAnchor_ShowsTheReading_WhichIsNotThePrompt()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            main.Measure.Pick(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""), main.MeasureSurface(RblView.Ground, null));
+
+            AltDrag(window, view.Canvas, MapA, MapB);
+
+            Assert.Equal(RblView.Scope, Assert.Single(main.Measure.Lines).View);
+            Assert.True(main.Measure.IsMeasuring);
+            ScopeEntryResponse? reading = scope.EntryResponse;
+            Assert.NotNull(reading);
+            Assert.Equal(ScopeResponseKind.Text, reading.Kind);
+            Assert.Equal(main.StatusText, reading.Message);
+            Assert.StartsWith("Measurement ", reading.Message, StringComparison.Ordinal);
+
+            main.Measure.Cancel();
+
+            Assert.Same(reading, scope.EntryResponse);
+            Assert.False(scope.TakeMeasurePrompt());
+            Assert.Same(reading, scope.EntryResponse);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The tool armed with no anchor anywhere: a right press on the Scope cancels it and opens no menu.
+    [AvaloniaFact]
+    public async Task ArmedRightClick_WithNoAnchor_CancelsTheTool_NoMenu()
+    {
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            main.Measure.Arm();
 
             Click(window, view.Canvas, MapA, MouseButton.Right);
 
@@ -318,11 +399,32 @@ public class ScopeMeasurePointerTests
             Assert.Null(main.Measure.Anchor);
             Assert.Null(view.ActiveContextMenu);
             Assert.Equal("Measure cancelled", main.StatusText);
-            Assert.True(scope.IsActiveMeasureSurface);
         }
         finally
         {
-            main.CloseExtraScopeView(other);
+            CloseWindow(window, view);
+        }
+    }
+
+    // An armed left press on the Scope while the Ground view holds the anchor anchors anew on this Scope: no line is placed.
+    [AvaloniaFact]
+    public async Task ArmedLeftClick_WithAGroundAnchor_AnchorsOnTheScope_NoLine()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        try
+        {
+            main.Measure.Pick(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""), main.MeasureSurface(RblView.Ground, null));
+
+            Click(window, view.Canvas, MapA, MouseButton.Left);
+
+            Assert.Empty(main.Measure.Lines);
+            RblPendingAnchor anchor = Assert.NotNull(main.Measure.Anchor);
+            Assert.Equal(RblView.Scope, anchor.View);
+            Assert.Same(scope, anchor.Surface);
+            Assert.Equal(AnchoredStatus, main.StatusText);
+        }
+        finally
+        {
             CloseWindow(window, view);
         }
     }

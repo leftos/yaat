@@ -5,7 +5,7 @@ using Yaat.Client.Views.Map;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// Observable mirror of the shared <see cref="RangeBearingLineStore" />, bound by the Radar, Ground and
+/// Observable mirror of the shared <see cref="RangeBearingLineStore" />, bound by the Ground and
 /// Scope canvases. Slot numbers are globally unique across the views, but each measurement is
 /// tagged with the view it was created in and only renders there.
 /// </summary>
@@ -64,25 +64,26 @@ public sealed partial class RangeBearingViewState : ObservableObject
 
     /// <summary>
     /// Whether a half-placed measurement waits for its second point on <paramref name="view"/>'s <paramref name="surface"/>:
-    /// an anchor another Scope window picked counts as none on a Scope, and the next pick there anchors anew.
+    /// only an anchor that surface picked counts (<see cref="RblPendingAnchor.BelongsTo"/>); one another Scope window or the
+    /// Ground view holds counts as none, and the next pick here anchors anew.
     /// </summary>
-    public bool HasAnchorFor(RblView view, object? surface) => (Anchor is { } anchor) && !IsOtherScopesAnchor(anchor, view, surface);
+    public bool HasAnchorFor(RblView view, object? surface) => (Anchor is { } anchor) && anchor.BelongsTo(view, surface);
 
     /// <summary>
     /// Feeds the tool a clicked endpoint on <paramref name="target"/>: the first click anchors, the second completes the
-    /// measurement, which belongs to the view and surface the anchor was picked on. A pick on a Scope while another Scope
-    /// window holds the anchor cancels that anchor and anchors here.
+    /// measurement on the surface that owns the anchor. A pick on a surface that does not own the pending anchor (another
+    /// Scope window, or Ground against a Scope's and the reverse) replaces that anchor with one here.
     /// </summary>
     public void Pick(RblEndpoint endpoint, MeasureTarget target)
     {
-        if ((_store.PendingAnchor is not { } anchor) || IsOtherScopesAnchor(anchor, target.View, target.Surface))
+        if ((_store.PendingAnchor is not { } anchor) || !anchor.BelongsTo(target.View, target.Surface))
         {
             Report(_store.SetAnchor(endpoint, target.View, target.Surface) ? AnchoredStatus : FullStatus);
             return;
         }
 
         int? slot = _store.Complete(endpoint);
-        Report(slot is { } placed ? DescribePlaced(placed, target with { View = anchor.View, Surface = anchor.Surface }) : FullStatus);
+        Report(slot is { } placed ? DescribePlaced(placed, target) : FullStatus);
     }
 
     /// <summary>Places a whole measurement at once on <paramref name="target"/>, for the modifier-drag and text-command paths.</summary>
@@ -158,10 +159,6 @@ public sealed partial class RangeBearingViewState : ObservableObject
             AircraftModel? aircraft = findAircraft(callsign);
             return aircraft is null ? null : new RblTrack(aircraft.Position, aircraft.GroundSpeed);
         };
-
-    // Whether a Scope pick on surface meets an anchor another Scope window picked.
-    private static bool IsOtherScopesAnchor(RblPendingAnchor anchor, RblView view, object? surface) =>
-        (view == RblView.Scope) && (anchor.View == RblView.Scope) && !ReferenceEquals(anchor.Surface, surface);
 
     private string DescribePlaced(int slot, MeasureTarget target)
     {

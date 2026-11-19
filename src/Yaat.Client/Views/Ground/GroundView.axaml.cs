@@ -148,7 +148,8 @@ public partial class GroundView : UserControl
         }
 
         RblEndpoint endpoint = _canvas.MeasureEndpointAt(screenPos);
-        string startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
+        // Only the Ground view's own anchor completes here; one a Scope window holds counts as none.
+        string startLabel = vm.HasGroundMeasureAnchor ? "Measure to here" : "Measure from here";
         items.Add(
             CreateMenuItem(
                 startLabel,
@@ -207,15 +208,15 @@ public partial class GroundView : UserControl
         }
     }
 
-    private void OnMeasureCancelled() => (DataContext as GroundViewModel)?.Measure?.Cancel();
+    private void OnMeasureCancelled() => (DataContext as GroundViewModel)?.CancelMeasure();
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
 
-        if (DataContext is GroundViewModel { Measure.IsMeasuring: true } measuringVm && e.Key == Key.Escape)
+        // Esc cancels only the Ground view's own measurement; an anchor a Scope window holds stays and the key passes on.
+        if ((e.Key == Key.Escape) && (DataContext is GroundViewModel groundVm) && groundVm.CancelMeasure())
         {
-            measuringVm.Measure?.Cancel();
             e.Handled = true;
             return;
         }
@@ -671,13 +672,16 @@ public partial class GroundView : UserControl
     /// </summary>
     internal MenuItem BuildCanvasDisplay(GroundViewModel vm, MenuContext context) => CanvasMenuItems.Display([BuildCanvasItems(vm, context)]);
 
-    /// <summary>What the ground view's measure tool is doing, which decides whether the display items offer a measure item.</summary>
+    /// <summary>
+    /// What the ground view's measure tool is doing, which decides whether the display items offer a measure item. An anchor a
+    /// Scope window holds counts as none here.
+    /// </summary>
     private static MenuMeasureState MeasureState(GroundViewModel vm) =>
         vm.Measure switch
         {
             null => MenuMeasureState.None,
-            { Anchor: null } => MenuMeasureState.NoAnchor,
-            _ => MenuMeasureState.HasAnchor,
+            _ when vm.HasGroundMeasureAnchor => MenuMeasureState.HasAnchor,
+            _ => MenuMeasureState.NoAnchor,
         };
 
     /// <summary>Latches the ground view's pending measurement to <paramref name="callsign"/>, so the line follows it.</summary>
