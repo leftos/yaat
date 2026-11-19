@@ -4,7 +4,7 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Client.Views.Map;
 
 /// <summary>
-/// The target and datablock colours the Radar, the Scope and the Ground view share, with the beacon-mismatch line
+/// The target and datablock colours the Scope and the Ground view share, with the beacon-mismatch line
 /// they all draw the same way.
 /// </summary>
 internal static class TargetColors
@@ -34,8 +34,7 @@ internal static class TargetColors
     /// <summary>
     /// The colour of an ATPA cone and its in-trail distance line for a pairing's advisory state:
     /// Monitor keeps the STARS TPA blue, Warning goes yellow, Alert goes red-orange (CRC's STARS ATPA
-    /// palette). A Monitor datablock line uses the block's own colour instead — see
-    /// <c>TargetRenderer.DrawLeaderAndDataBlock</c>.
+    /// palette). A Monitor datablock line uses the block's own colour instead.
     /// </summary>
     internal static SKColor AtpaConeColorFor(AtpaConeState state) =>
         state switch

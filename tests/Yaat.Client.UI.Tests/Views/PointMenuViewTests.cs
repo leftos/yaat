@@ -12,7 +12,6 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -344,34 +343,7 @@ public class PointMenuViewTests
         Assert.Equal("Draw taxi route…", labels[^1]);
     }
 
-    // --- Radar map --------------------------------------------------------------------------
-
-    /// <summary>
-    /// The navigation-data load is held open: once it lands, the radar's fixes name the clicked point and the section gains
-    /// its FRD rows, so the test would be racing the load rather than asserting what the app shows before it finishes.
-    /// </summary>
-    [AvaloniaFact]
-    public void Map_NoMainViewModel_OpensOnlyTheViewSection()
-    {
-        (MainViewModel main, _) = GatedStartupLoads.Create();
-        AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
-        main.Aircraft.Add(ac);
-        main.Radar.SelectedAircraft = ac;
-        var view = new RadarView { DataContext = main.Radar };
-
-        ContextMenu menu = view.BuildMapPointMenu(main.Radar, new LatLon(37.60, -121.90), default);
-
-        AssertOnlyMapSection(Labels(menu.Items));
-    }
-
     // --- Fixtures ---------------------------------------------------------------------------
-
-    /// <summary>The radar's own point section with no fixes loaded: the measuring items, then the MVA row, and no point item.</summary>
-    private static void AssertOnlyMapSection(List<string> labels)
-    {
-        Assert.StartsWith("MVA", labels[^1]);
-        Assert.All(labels[..^1], label => Assert.True((label == Separator) || label.StartsWith("Measure", StringComparison.Ordinal), label));
-    }
 
     /// <summary>
     /// A ground view over the main view model's primary ground view model with the OAK layout, parented to a host carrying

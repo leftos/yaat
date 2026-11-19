@@ -5,15 +5,12 @@ using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
-// An extra Radar/Ground view window (#2, #3, …) drives its own view-model: an extra Ground View's per-scenario
+// An extra Ground view window (#2, #3, …) drives its own view-model: an extra Ground View's per-scenario
 // settings key off "{scenarioId}#n" so the windows don't overwrite each other's center, global preference writes
 // are gated to the primary view so an extra window's toggles never rewrite the app-wide defaults, and an extra
 // Ground View mirrors the primary's layout instead of fetching and decoding its own copy.
 public class ViewInstanceViewModelTests
 {
-    private static RadarViewModel ExtraRadarVm() =>
-        new(new ServerConnection(), new VideoMapService(), (_, _, _) => Task.CompletedTask) { SettingsKeySuffix = "#2", IsPrimary = false };
-
     private static GroundViewModel GroundVm(bool isPrimary) =>
         new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
         {
@@ -64,29 +61,6 @@ public class ViewInstanceViewModelTests
         SavedGroundSettings? saved = prefs.GetGroundSettings(scenarioId + "#2");
         Assert.NotNull(saved);
         Assert.Equal(37.62, saved.CenterLat);
-    }
-
-    [Fact]
-    public void ExtraRadarView_DoesNotWriteGlobalPreferences()
-    {
-        var prefs = new UserPreferences();
-        bool before = prefs.RadarDcbVisible;
-        RadarViewModel vm = ExtraRadarVm();
-        vm.SetPreferences(prefs);
-
-        try
-        {
-            vm.ToggleDcbVisibleCommand.Execute(null);
-
-            // The window's own DCB flips; the app-wide default keeps its value, on this instance and on disk.
-            Assert.NotEqual(before, vm.IsDcbVisible);
-            Assert.Equal(before, prefs.RadarDcbVisible);
-            Assert.Equal(before, new UserPreferences().RadarDcbVisible);
-        }
-        finally
-        {
-            prefs.SetRadarDcbVisible(before);
-        }
     }
 
     [Fact]

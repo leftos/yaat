@@ -125,11 +125,10 @@ public partial class MainViewModel : ObservableObject
         (_studentPositionType is "GND" or "TWR" or "APP" or "CTR") ? $"{label} ({_studentPositionType})" : label;
 
     public GroundViewModel Ground { get; }
-    public RadarViewModel Radar { get; }
 
     /// <summary>
-    /// The distance measuring tool's placed range/bearing lines. One store shared by the Radar and
-    /// Ground views, so a measurement taken in either shows up in both under the same slot number.
+    /// The distance measuring tool's placed range/bearing lines. One store shared by the Ground view and
+    /// the Scopes, so a measurement taken in one shows up in the others under the same slot number.
     /// </summary>
     private readonly RangeBearingLineStore _rangeBearingStore = new();
 
@@ -161,7 +160,7 @@ public partial class MainViewModel : ObservableObject
     /// airport when the ground view is visible (popped out, the selected docked tab, or shown in an
     /// extra Ground View window), else null. Returning null is what surfaces that airport's
     /// ground-aircraft speech bubbles on the radar — including the case where the ground view is docked
-    /// but a different tab (Aircraft List, Strips, Radar, …) is in focus. An extra Ground View window is
+    /// but a different tab (Aircraft List, Strips, Scope, …) is in focus. An extra Ground View window is
     /// always visible, so one being open shows the airport regardless of the tab and pop-out state.
     /// Pure and static so the focus rule can be unit-tested.
     /// </summary>
@@ -728,9 +727,6 @@ public partial class MainViewModel : ObservableObject
     private bool _isGroundViewPoppedOut;
 
     [ObservableProperty]
-    private bool _isRadarViewPoppedOut;
-
-    [ObservableProperty]
     private bool _isControllersPoppedOut;
 
     [ObservableProperty]
@@ -758,12 +754,6 @@ public partial class MainViewModel : ObservableObject
     }
 
     partial void OnSelectedTabIndexChanged(int value) => OnPropertyChanged(nameof(GroundShownAirportId));
-
-    partial void OnIsRadarViewPoppedOutChanged(bool value)
-    {
-        _preferences.SetPoppedOut("RadarView", value);
-        OnTabPoppedOutChanged();
-    }
 
     partial void OnIsControllersPoppedOutChanged(bool value)
     {
@@ -795,7 +785,7 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Re-evaluates <see cref="SelectedTabIndex"/> against the current pop-out
-    /// state of every tab — static (DataGrid / Ground / Radar) and dynamic
+    /// state of every tab — static (DataGrid / Ground) and dynamic
     /// (StripsEntries / TdlsEntries) alike. If the current selection points
     /// at a popped-out tab, advances to the next docked one. Called both
     /// internally when any tab's pop-out flag flips, and externally by
@@ -1979,15 +1969,13 @@ public partial class MainViewModel : ObservableObject
         _showTdlsEntries = !hidden.Contains(TerminalEntryKind.Tdls);
         _showStripEntries = !hidden.Contains(TerminalEntryKind.Strip);
         _terminalTimestampMode = _preferences.TerminalTimestampMode;
-        // The docked views are instance #1 and go through the same factories as the extra Radar/Ground
+        // The docked Ground view is instance #1 and goes through the same factory as the extra Ground
         // windows (MainViewModel.ViewInstances.cs), so a window opened later is wired identically.
         Ground = CreateGroundViewModel(isPrimary: true, settingsKeySuffix: "");
-        Radar = CreateRadarViewModel(isPrimary: true, settingsKeySuffix: "");
         ScopeMaps = new ScopeMapSource(_connection, _videoMapService, _preferences);
         Measure = new RangeBearingViewState(_rangeBearingStore);
         Measure.StatusReported += status => StatusText = status;
         Ground.SetMeasureState(Measure);
-        Radar.SetMeasureState(Measure);
         _commandInput.TaxiwayNamesProvider = CollectLoadedTaxiwayNames;
         _commandInput.SpotNamesProvider = () => CollectLoadedNodeNames(SpotNodeTypes);
         _commandInput.ParkingNamesProvider = () => CollectLoadedNodeNames(AddPositionNodeTypes);
@@ -2155,12 +2143,6 @@ public partial class MainViewModel : ObservableObject
             MarkNavDbReady();
             // Stashed so a Ground window opened after this point gets the same lookup (SeedExtraGround).
             _airportElevationLookup = navDb.GetAirportElevation;
-            foreach (RadarViewModel radar in AllRadarViews)
-            {
-                radar.SetElevationLookup(navDb.GetAirportElevation);
-                radar.SetNavDbReady();
-            }
-
             ScopeMaps.SetElevationLookup(navDb.GetAirportElevation);
             ScopeMaps.SetNavDbReady();
 
@@ -2169,11 +2151,10 @@ public partial class MainViewModel : ObservableObject
                 ground.SetElevationLookup(navDb.GetAirportElevation);
             }
 
-            // A scenario bootstrap that ran before the nav db was ready could not place the main radar on its primary
+            // A scenario bootstrap that ran before the nav db was ready could not place the scope on its primary
             // airport, so the scope took the ARTCC area's centre: put it where a nav-db-first order would have.
             if ((_radarAirportId is { } radarAirportId) && (navDb.GetAirportPosition(radarAirportId) is { } primaryPosition))
             {
-                Radar.RecenterOnPrimaryAirport(primaryPosition.Lat, primaryPosition.Lon);
                 ScopeMaps.RecenterOnPrimaryAirport(primaryPosition.Lat, primaryPosition.Lon);
             }
 
@@ -2352,17 +2333,12 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
-        // One app-wide selection: every Radar/Ground instance mirrors it, and each writes back through
+        // One app-wide selection: every Ground instance mirrors it, and each writes back through
         // OnChildSelectionChanged, which this guard keeps from echoing.
         _isSyncingSelection = true;
         foreach (var ground in AllGroundViews)
         {
             ground.SelectedAircraft = value;
-        }
-
-        foreach (var radar in AllRadarViews)
-        {
-            radar.SelectedAircraft = value;
         }
 
         _isSyncingSelection = false;
@@ -3261,7 +3237,7 @@ public partial class MainViewModel : ObservableObject
         _commandInput.Macros = _preferences.Macros;
 
     /// <summary>
-    /// The primary airport the last scenario bootstrap gave the main radar, kept for <see cref="InitializeNavDataAsync"/>
+    /// The primary airport the last scenario bootstrap gave the scope, kept for <see cref="InitializeNavDataAsync"/>
     /// when the nav db was not ready to resolve it; null for a bootstrap with none and after a scenario unload.
     /// </summary>
     private string? _radarAirportId;
@@ -3280,7 +3256,6 @@ public partial class MainViewModel : ObservableObject
         (double Lat, double Lon)? pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetAirportPosition(airportId) : null;
         if (pos.HasValue)
         {
-            Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
             ScopeMaps.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
         }
     }

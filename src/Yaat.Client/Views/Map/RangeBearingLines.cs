@@ -26,7 +26,6 @@ public readonly record struct RblEndpoint(string? Callsign, LatLon FixedPosition
 /// <summary>Which map view a measurement belongs to. A line only renders in the view it was created in.</summary>
 public enum RblView
 {
-    Radar,
     Ground,
     Scope,
 }
@@ -54,7 +53,7 @@ public delegate RblTrack? RblTrackLookup(string callsign);
 /// <summary>Which units a view labels distances in.</summary>
 public enum RblUnits
 {
-    /// <summary>Always nautical miles to two decimals (Radar View).</summary>
+    /// <summary>Always nautical miles to two decimals (the Scopes).</summary>
     NauticalMiles,
 
     /// <summary>Feet below one mile, nautical miles above it (Ground View).</summary>
@@ -68,7 +67,7 @@ public enum RblUnits
 public sealed record ResolvedRbl(int Slot, LatLon A, LatLon B, string Label, bool ALatched, bool BLatched);
 
 /// <summary>
-/// The instructor's placed range/bearing lines. One store serves every map view (the Radar, the Ground and the YAAT
+/// The instructor's placed range/bearing lines. One store serves every map view (the Ground and the YAAT
 /// Scope) — slot numbers are
 /// globally unique, so <c>.rbl 3</c> is unambiguous — but each line is tagged with the view it was
 /// created in and only renders there.

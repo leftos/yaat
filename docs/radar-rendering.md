@@ -1,8 +1,8 @@
 # Radar Display and Rendering
 
-> Read this before touching anything under `src/Yaat.Client/Views/Radar/` or the shared `src/Yaat.Client/Views/Map/`
-> base: `RadarCanvas`, `RadarRenderer`, `TargetRenderer`, `VideoMapRenderer`, the datablock/tag layout structs,
-> the radar context menus, the EuroScope interactive tag flyouts, or `MapViewport`. The two-thread snapshot split and the
+> Read this before touching the map canvases under `src/Yaat.Client/Views/Scope/` and the shared `src/Yaat.Client/Views/Map/`
+> base: `ScopeCanvas`, `ScopeRenderer`, `VideoMapRenderer`, the Scope's datablock templates and field menus,
+> the Scope's context menus, or `MapViewport`. The two-thread snapshot split and the
 > draw-vs-hit-test geometry duplication are unenforced invariants — break one and you get a cross-thread race or clicks that
 > miss text, with no compiler signal.
 
@@ -14,58 +14,45 @@ All paths are under `src/Yaat.Client/`.
 
 | File | Role |
 |---|---|
-| `Views/NavRouteShapeLook.cs` | Internal `NavRouteShapeLook.For(kind)` → `(Dashed, Arrow)`: the one place the Radar's "Show nav route" and the Scope's pilot-lens intent path take a `NavRouteShapeKind`'s look from |
+| `Views/NavRouteShapeLook.cs` | Internal `NavRouteShapeLook.For(kind)` → `(Dashed, Arrow)`: the one place the Scope's pilot-lens intent path takes a `NavRouteShapeKind`'s look from |
 | `Views/Map/MapCanvasBase.cs` | Abstract `ICustomDrawOperation` base: pan/zoom input handling, the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
 | `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection shared by the map views: rotation, zoom |
-| `Views/Radar/RadarCanvas.cs` | The radar `Control` (SkiaSharp canvas): styled properties, pointer handlers, hit-testing, Range/Zoom sync and the pan/zoom lock, datablock drag; `MenuCue` (the row's `MapCue`, resolved into the snapshot) and a repaint on a highlight change |
-| `Views/Radar/RadarRenderer.cs` | Stateless per-frame orchestrator: clears, then draws maps → rings → fixes → paths → targets → overlays; `DrawMenuCue` hands the menu cue to `MapCueRenderer` |
-| `Views/Radar/TargetRenderer.cs` | Aircraft symbols (dashed for live-traffic shadows, half alpha while coasting — [live-traffic.md](live-traffic.md)), leader lines, datablocks, PTLs, history trails, speech bubbles |
-| `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines): line/field geometry shared by the renderer and click hit-testing, alongside the EuroScope tag layout |
-| `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc): `TagFieldId` and per-field rects for hit testing and flyout dispatch |
-| `Views/Radar/RadarView.axaml.cs` | The radar view control: wires canvas events; dispatches EuroScope field clicks to flyouts; the DCB (range, map shortcuts, FIX, LOCK) and brightness buttons |
-| `Views/Radar/RadarView.ContextMenus.cs` | Partial: the radar's right-click menus, both through `AircraftMenuBuilder`: the aircraft menu with the radar's view section (Display ▸, Draw route), and the map point menu (`BuildMapPointMenu`: the selected aircraft's point header and items, then FRD (left out when the header shows it), markers, Measure and the dimmed MVA row (`MvaRow`), left out where no MVA sector covers the point) |
 | `Yaat.Client.Core/ContextMenus/QuickCommandResolver.cs` / `QuickCommandDefaults.cs` / `QuickCommandStrip.cs` | Situation → the quick commands (icon strip, then text entries) at the top of the aircraft menu ([client-context-menus.md](client-context-menus.md)) |
-| `Views/Radar/Flyouts/*.cs` | EuroScope interactive-tag pickers (altitude, speed, runway, squawk, scratchpad, handoff) + heading mode |
-| `ViewModels/RadarViewModel.cs` | Radar view (its draw-route mode is a `DrawRouteState`); video map loading, toggle items (`VideoMapToggleItem`, with `TdmOnly` from the map's vNAS flag; the Radar ignores it), DCB, persistence |
-| `ViewModels/DrawRouteState.cs` | One view's draw-route mode, shared by the Radar and the Scope (each view model owns its own): `IsDrawing`, `Callsign`, the placed waypoints (`DrawnWaypoint`) and each one's `WaypointCondition`, the FRD-or-`lat,lon` naming of a placed point, undo, remove, remove-after and cancel, and the `DCTF …;AT …` a confirm sends; `Changed` fires after every change |
-| `ViewModels/RadarViewModel.Measure.cs` | Partial: distance measuring tool on the radar (nautical miles) |
+| `ViewModels/DrawRouteState.cs` | One view's draw-route mode, held by the Scope's view model: `IsDrawing`, `Callsign`, the placed waypoints (`DrawnWaypoint`) and each one's `WaypointCondition`, the FRD-or-`lat,lon` naming of a placed point, undo, remove, remove-after and cancel, and the `DCTF …;AT …` a confirm sends; `Changed` fires after every change |
 | `ViewModels/RangeBearingViewState.cs` | Observable mirror of the one RangeBearingLineStore behind both map views (shared slot pool, per-view visibility); owns the tool's behaviour |
 | `Views/Map/VideoMapRenderer.cs` | Video-map polylines (A/B brightness categories) and labels |
 | `Views/Map/MapBlink.cs` | The one on/off phase (half a second each) every blinking map token follows; Clock is pinned by the screenshot harness |
 | `Views/Map/MapLineStyle.cs` | Line-width scale for the map canvases (`GetScale`, `Apply`) |
-| `Views/Map/AircraftVisibility.cs` | `FilterAircraft`, the one rule for which aircraft the Radar and the Scope draw and hit-test (`IsDrawable` under it) |
-| `Views/Map/DatablockText.cs` | The STARS full-block text builders and placement rules the Scope, Ground view and Radar share: owner/scratchpad, conflict and ATPA lines, cwt/type, collapsed lines, student-level marker, `ResolveBlockOffset` |
-| `Views/Map/TargetColors.cs` | The target and datablock colours the three views share (`StaleAlpha`, TPA, ATPA cone colours) and `DrawSquawkMismatchLine` |
+| `Views/Map/AircraftVisibility.cs` | `FilterAircraft`, the one rule for which aircraft the Scope draws and hit-tests (`IsDrawable` under it) |
+| `Views/Map/DatablockText.cs` | The STARS full-block text builders and placement rules the Scope and Ground view share: owner/scratchpad, conflict and ATPA lines, cwt/type, collapsed lines, student-level marker, `ResolveBlockOffset` |
+| `Views/Map/TargetColors.cs` | The target and datablock colours the Scope and Ground views share (`StaleAlpha`, TPA, ATPA cone colours) and `DrawSquawkMismatchLine` |
 | `Views/Map/TextStyle.cs` | Paired (SKFont, SKPaint) for measuring + drawing text; keeps draw and hit-test metrics identical |
-| `Views/Map/DatablockDeconfliction.cs` | Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form) |
-| `Views/Map/RangeBearingLines.cs` | Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — radar, ground and Scope each render only their own, and a Scope line or anchor, carrying the Scope that placed it, only on that Scope window), label formatting, resolver, readout anchor + viewport clamp (RblLabelPlacement), hit-test |
-| `Views/Map/RblReadoutPlacement.cs` | Places each range/bearing readout at the least-covered of eight spots around its anchor and nudges auto-placed datablocks clear when every spot is covered; shared by radar + ground canvases |
-| `Views/Map/RangeBearingRenderer.cs` | Draws measurement lines + readouts at the rects RblReadoutPlacement chose; shared by radar + ground renderers |
-| `Views/Map/MapCueRenderer.cs` | Draws a menu row's `ResolvedMapCue` (the solid ring, the dashed bearing line with its label, the dashed resolved ring); the Radar's `DrawMenuCue` and the Scope's `ScopeRenderer.Cue.cs` both call it |
-| `Views/Map/AssignedSpeedText.cs` | The assigned-speed field text of a datablock tag (`SMAX`, `S{nnn}`, `ASP`); the EuroScope tag layout and the Scope's `TrackPresenter` both call it |
-| `Views/Map/RightClickGesture.cs` | Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise |
+| `Views/Map/DatablockDeconfliction.cs` | Pure opt-in datablock overlap resolver shared by Scope + ground (snap / free-form) |
+| `Views/Map/RangeBearingLines.cs` | Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — ground and Scope each render only their own, and a Scope line or anchor, carrying the Scope that placed it, only on that Scope window), label formatting, resolver, readout anchor + viewport clamp (RblLabelPlacement), hit-test |
+| `Views/Map/RblReadoutPlacement.cs` | Places each range/bearing readout at the least-covered of eight spots around its anchor and nudges auto-placed datablocks clear when every spot is covered; shared by Scope + ground canvases |
+| `Views/Map/RangeBearingRenderer.cs` | Draws measurement lines + readouts at the rects RblReadoutPlacement chose; shared by Scope + ground renderers |
+| `Views/Map/MapCueRenderer.cs` | Draws a menu row's `ResolvedMapCue` (the solid ring, the dashed bearing line with its label, the dashed resolved ring); the Scope's `ScopeRenderer.Cue.cs` calls it |
+| `Views/Map/AssignedSpeedText.cs` | The assigned-speed field text of a datablock tag (`SMAX`, `S{nnn}`, `ASP`); the Scope's `TrackPresenter` calls it |
+| `Views/Map/RightClickGesture.cs` | Right-button click-vs-drag tracker shared by Scope + ground: menu on release-without-drag, pan otherwise |
 | `Views/Map/RightClickTarget.cs` | One thing a right click hit (aircraft or parking/spot/helipad node) and its picker label |
 | `Views/Map/RightClickPicker.cs` | Small menu listing several right-click targets; choosing one raises that target's own right-click event |
 | `Views/Map/RightClickTargetOrder.cs` | Static HoveredFirst: puts the target the hover label names first in the picker list (moved if listed, else inserted), the rest in order |
-| `Views/Radar/RadarView.Popups.cs` | Partial: the waypoint-condition popup (the menu pickers are Views/MenuPopups.cs) |
-| `Views/Radar/RadarViewWindow.axaml.cs` | Pop-out radar window; takes a geometry key + title and hosts a RadarViewModel via SetViewModel (geometry key "RadarView"/vm.Radar, exposed as RadarVm for the Ctrl+F8 hotkey); window DataContext stays MainViewModel |
-| `Views/Radar/Flyouts/RadarSpeedFlyout.cs` | The EuroScope tag's assigned-speed picker (80..350 kt in tens, Resume Normal Speed, Final Approach Speed), opened by a click on the speed fields; not the quick-command Assign speed flyout (ContextMenus/SpeedFlyout.cs) |
-| `ViewModels/ScopeViewModel.cs` | The YAAT Scope window's view-model: its own centre, range, video maps, MVA-tint flag (ShowMvaHints) and datablock template pick (TemplateId, PickTemplateCommand; a template id or Mixed; the toolbar state is in ScopeViewModel.Toolbar.cs: tray open, range wheel step, button echo) and the Viewer (a ScopeViewer rebuilt when the active TCP, position or acting callsign/facility changes); seeds from `MainViewModel.ScopeMaps` (`SeedFromMapSource`) on every facility load, never from the Radar: toggles from the new facility with the maps already on kept on by map id, 40 NM range (`DefaultRangeNm`), the facility's centre and MVA-tint default; opened before a facility loads it waits (`IsWaitingForMapSource`) for the first load; a cleared source empties its maps and keeps centre and range, and a late primary-airport recentre moves a Scope still at its seeded centre and range |
+| `ViewModels/ScopeViewModel.cs` | The YAAT Scope window's view-model: its own centre, range, video maps, MVA-tint flag (ShowMvaHints) and datablock template pick (TemplateId, PickTemplateCommand; a template id or Mixed; the toolbar state is in ScopeViewModel.Toolbar.cs: tray open, range wheel step, button echo) and the Viewer (a ScopeViewer rebuilt when the active TCP, position or acting callsign/facility changes); seeds from `MainViewModel.ScopeMaps` (`SeedFromMapSource`) on every facility load: toggles from the new facility with the maps already on kept on by map id, 40 NM range (`DefaultRangeNm`), the facility's centre and MVA-tint default; opened before a facility loads it waits (`IsWaitingForMapSource`) for the first load; a cleared source empties its maps and keeps centre and range, and a late primary-airport recentre moves a Scope still at its seeded centre and range |
 | `ViewModels/ScopeViewModel.Tools.cs` | Partial: the TOOLS tray's Rings tool: ArmedRingTool (set from the band's rings value when the tray opens; cleared by Esc, a second press of the lit button, the tray closing or another tray opening), RingSizeNm (SIZE), the per-callsign rings (`RingsOf`, `SetRings`, `ClearRings`, published as `LocalRings`) and `PlaceRing`, which runs `.scope rings`; never saved or sent, cleared with the aircraft; `ClearTrackState` drops the Scope's whole per-track view state (its `DataBlockState`: dwell locks, block offsets, highlights, z-order; the rings and the PTLs) and runs on scenario unload, restart and any rewind, this client's own included |
 | `ViewModels/ScopeViewModel.Ptl.cs` | Partial: the per-track PTLs (`TogglePtl`, `ClearPtl`, published as `LocalPtlCallsigns` to `ScopeCanvas.LocalPtlCallsignsProperty`); what `.scope ptl` and a STARS `MF R` entry run; never saved or sent, cleared with the aircraft and by `ClearTrackState` |
 | `ViewModels/ScopeViewModel.Lens.cs` | Partial: the pilot lens — `Lens` (a `ScopeLensSettings` record: Enabled, Path, Queue and CheckIn, `DrawsPath`, `DrawsQueue` and `DrawsCheckIn` when the lens and that switch are on; all off on a fresh scope), `SetLensEnabled` and `SetLensOverlay` (what `.scope lens` calls), the toggled intent-path callsigns (`ToggleLensPath`, `ClearLensPath`, `ClearLensPaths`, published as `LensPathCallsigns` to `ScopeCanvas.LensPathCallsignsProperty`); the switches are saved, the toggled tracks are not, and they drop with the aircraft (`MainViewModel.Aircraft.cs`) and in `ClearTrackState` |
-| `ViewModels/ShownRouteRecords.cs` | The records the Radar's route overlay and the Scope's intent path share: `DrawnWaypoint` (a resolved fix with its crossing-restriction token lines; empty name for an arc-densification vertex) and `VectorTail` (a heading arrow from a point) |
+| `ViewModels/ShownRouteRecords.cs` | The records the Scope's intent path builds from: `DrawnWaypoint` (a resolved fix with its crossing-restriction token lines; empty name for an arc-densification vertex) and `VectorTail` (a heading arrow from a point) |
 | `ViewModels/ScopeViewModel.MinSep.cs` | Partial: the STARS min-sep pair (`MIN`): `MinSep`, `ClearMinSep`, `CompletesMinSep`, `FillTrackFromClick`, `TryRunMinSep`, CRC's error texts, the recompute on either aircraft's change |
 | `Views/Scope/MinSepRenderer.cs` | `ScopeMinSep` (the pair and its projection) and its renderer: the predicted-point lines, markers and the boxed `0.00 NM` / `NO XING` readout (`LabelLines`, `FormatNm`) |
 | `ViewModels/ScopeViewModel.Menus.cs` | Partial: the Display submenu's rows as they reach the view model: `IsNavRouteShown` and `ToggleNavRoute` (the pilot lens's per-track intent path; turning it on also turns the lens and PATH on when either is off), `HasRing` and `ToggleRing` (the Scope-local J-ring and cone: a checked row removes the ring at any size, an unchecked one places it at the Rings tool's current SIZE) |
 | `ViewModels/ScopeViewModel.Measure.cs` | Partial: the Scope's side of the distance measuring tool — MeasureView (`RblView.Scope`), MeasureUnits (nautical miles), the shared `Measure` store, MeasureTrackLookup, `ActivateMeasureSurface`/`IsActiveMeasureSurface`, `ArmMeasure` (Ctrl+M: arms the tool and writes the prompt to the Scope's response and the status line), `TakeMeasurePrompt` and `CancelMeasure` (Esc's measure step: cancels only the anchor this Scope placed, or the armed tool with no anchor while this Scope is the active surface, else returns false so Esc passes on and other surfaces' anchors stay), `PickMeasurePoint`, `PlaceMeasurement` and `CancelMeasureFromPointer` (the pointer's picks, Alt-drags and right-click cancel, with their status shown in the response); the lines and anchors it places carry this Scope as their surface, so they draw only on its window; the lines are session state in the shared 15-slot pool, never saved, and not part of `ClearTrackState` |
 | `ViewModels/ScopeViewModel.Display.cs` | Partial: the Scope's display state — Brightness (a ScopeBrightness, opening at Default; never sent, kept in a pref set) and SetBrightness, which `.scope brite` calls; MapToggles (the Scope's own ScopeMapToggle list, rebuilt from `ScopeMapSource.Maps` at every seed) with SetMapOn/ClearMaps for `.scope map`; IsTdm (top-down mode; saved in a pref set); DbSettings (a ScopeDbSettings record: 4th line, hover dwell, ATPA distance, ATPA alert cones, ATPA monitor cones, ERAM CA ring, CHAR size; the cone toggles and CA RING open on, ATPA and CHAR seeded from the preferences, never written back) with SetDbToggle/SetDbCharSize for `.scope db` |
-| `Services/ScopeMapSource.cs` | The main facility's map and display catalogue for the Scope (`MainViewModel.ScopeMaps`): `ScopeMapInfo` records, brightness categories, map group, weather airports, primary airport, centre, fixes, `MvaFacilityId`, `ShowMvaHintsDefault`, `DescribePoint`, `GetFieldElevation`; it fetches the facility's maps itself (`LoadAsync`), `MainViewModel` feeds it beside the primary Radar; raises `Loaded` and `Cleared` |
-| `ViewModels/ScopeMapToggle.cs` | One of the Scope's own video-map toggles (MapId, StarsId, ShortName, Name, BrightnessCategory, TdmOnly, Label `{StarsId} {ShortName}`, IsOn); toggling it never touches the Radar's |
+| `Services/ScopeMapSource.cs` | The main facility's map and display catalogue for the Scope (`MainViewModel.ScopeMaps`): `ScopeMapInfo` records, brightness categories, map group, weather airports, primary airport, centre, fixes, `MvaFacilityId`, `ShowMvaHintsDefault`, `DescribePoint`, `GetFieldElevation`; it fetches the facility's maps itself (`LoadAsync`), raises `Loaded` and `Cleared` |
+| `ViewModels/ScopeMapToggle.cs` | One of the Scope's own video-map toggles (MapId, StarsId, ShortName, Name, BrightnessCategory, TdmOnly, Label `{StarsId} {ShortName}`, IsOn) |
 | `ViewModels/ScopeViewModel.Tearoffs.cs` | Partial: the Scope's button tear-offs — Tearoffs (ScopeTearoff copies by ScopeButtonKey), IsTornOff, PlaceTearoff and DeleteTearoffs (what `.scope tearoff` calls), the delete-mode marks (ToggleTearoffMark) and ButtonFor |
 | `ViewModels/ScopeViewModel.Bands.cs` | Partial: the Scope's zoom bands — Pins, EffectiveBand (the profile's band for the range with the pins over it), PinOthersLevel, FlippedOthersLevel, the pin clear `.scope auto` runs, and the pins' apply from a pref set |
 | `ViewModels/ScopeViewModel.Profile.cs` | Partial: follows the room's profile (MainViewModel.ScopeProfile) — ProfileKind, ToolbarButtons (the bar in the profile's order), the views' order and the profile's template (kept when the facility has a saved state); ApplyPrefSetProfile for `.scope pref load` |
-| `ViewModels/ScopeViewModel.PrefSets.cs` | Partial: the Scope's pref sets — ActivePrefSet, PrefSetNames, CapturePrefSet, ApplyPrefSet (views opened as saved through RestoreViewPlace, tear-offs replaced, a set applied once the Scope seeds when it loads before the Radar's maps), and the saved state per facility (written on Dispose and when the viewer changes facility, restored when the Scope opens for or moves to a facility) |
+| `ViewModels/ScopeViewModel.PrefSets.cs` | Partial: the Scope's pref sets — ActivePrefSet, PrefSetNames, CapturePrefSet, ApplyPrefSet (views opened as saved through RestoreViewPlace, tear-offs replaced, a set applied once the Scope seeds when it loads before the facility's maps), and the saved state per facility (written on Dispose and when the viewer changes facility, restored when the Scope opens for or moves to a facility) |
 | `ViewModels/ScopeViewModel.Views.cs` | Partial: the Scope's views dock state — DockViews (open and docked), FloatingViews (open and torn off), OpenViews, HasDockedViews, IsViewOpen, SetViewOpen, SetViewPlace, ApplyOpenViews — and the ScopeDockViewModel base of a card (name, title, Place, DockCommand, StartReading/StopReading while open) |
 | `ViewModels/SsaViewModel.cs` | The SSA card's view-model: refreshes its SsaLines every second while open |
 | `ViewModels/ConflictListViewModel.cs` | The LA/CA/MCI card's view-model: ConflictListRows (rows resolved against the room's aircraft) from MainViewModel.ConflictAlerts, refreshed on ConflictAlertsApplied, AircraftModelUpdated and the aircraft list changing (rows reassigned only when they differ) |
@@ -93,23 +80,23 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Scope/ScopeBubbleRenderer.cs` | Draws the bubbles: a green pill for SAY / pilot, an amber one for WARN, wrapped monospace lines |
 | `Views/Scope/ScopeRenderer.Bubbles.cs` | Partial of `ScopeRenderer`: the `DrawBubbles` slot, over every block and under the menu cue and the measure layer, and its disposal |
 | `ViewModels/ScopeViewModel.MapCue.cs` | Partial: `MenuCue`, the `MapCue` `IMenuHost.SetMapCue` sets |
-| `ViewModels/MainViewModel.ScopeHosting.cs` | Partial of `MainViewModel`: `PrimaryScope`, `IsScopePoppedOut`, `ActiveScope`, `OpenScope` (the active Scope, else the primary; never null) and `AllScopeViews` (the primary, then each extra), which `ClientMenuHost` loops over beside `AllRadarViews`; `ExtraScopeViews` with `OpenExtraScopeView` (lowest free number) / `CloseExtraScopeView` (disposes the view model, which saves its slot; the typed verbs and the measuring surface fall back to the primary) / `DisposeScopes`; the measuring surface is held as the Scope that took it (`ActiveMeasureScope`) |
+| `ViewModels/MainViewModel.ScopeHosting.cs` | Partial of `MainViewModel`: `PrimaryScope`, `IsScopePoppedOut`, `ActiveScope`, `OpenScope` (the active Scope, else the primary; never null) and `AllScopeViews` (the primary, then each extra), which `ClientMenuHost` loops over; `ExtraScopeViews` with `OpenExtraScopeView` (lowest free number) / `CloseExtraScopeView` (disposes the view model, which saves its slot; the typed verbs and the measuring surface fall back to the primary) / `DisposeScopes`; the measuring surface is held as the Scope that took it (`ActiveMeasureScope`) |
 | `Views/Scope/ScopeView.Features.cs` | Partial of `ScopeView`: per-feature `Wire*`, `Attach*` and `Detach*` hooks, `BuildViewSection` (the Scope's rows of the aircraft menu), `RunKeyHooks` and the Esc chain `HandleEscape` |
 | `ViewModels/ScopeViewModel.Features.cs` | Partial of `ScopeViewModel`: `EscapeModes`, `EscapeTools` and `ClearFeatureTrackState` (run by `ClearTrackState`), each calling per-feature partial methods |
 | `ViewModels/ScopeViewModel.DrawRoute.cs` | Partial: the Scope's draw-route mode — `DrawRoute` (its own `DrawRouteState`, made on first use), `EnterDrawRoute` (selects the aircraft and disarms the Rings tool), `ConfirmDrawRouteAsync`, the `SendPilotCommand` test seam, `FlyHeadingAsync` (the heading vector's `FH`) and `CloseRouteConditionPopup` (Esc closes the popup before it cancels the route); left by Esc, by a selection that leaves the drawn aircraft and by `ClearTrackState` |
 | `Views/Scope/ScopeCanvas.DrawRoute.cs` | Partial of `ScopeCanvas`: the draw-route press rung (left places a waypoint unless one is within 20 px, middle on a waypoint raises `RoutePointConditionRequested`, right on a waypoint raises `RouteWaypointRightClicked`; Alt+left and the armed measuring tool go on to the measure rung), the move hook that redraws the rubber band, the cross cursor and `PointNamer` |
 | `Views/Scope/ScopeOverlays.DrawRoute.cs` | Partial of `ScopeOverlays`: `ScopeDrawRouteOverlay`, one frame of the route being drawn (waypoints, conditions, the aircraft it starts from, the pointer named by FRD) |
 | `Views/Scope/ScopeRenderer.DrawRoute.cs` | Partial of `ScopeRenderer`: the draw-route slot, above the pilot lens and below the measure lines |
-| `Views/Scope/ScopeDrawRouteRenderer.cs` | Draws the route being drawn as the Radar does, in amber: a dashed leg from the aircraft to the first waypoint, solid legs, a dashed rubber band to the pointer labelled with its FRD, a diamond at each waypoint with its name and condition summary |
+| `Views/Scope/ScopeDrawRouteRenderer.cs` | Draws the route being drawn in amber: a dashed leg from the aircraft to the first waypoint, solid legs, a dashed rubber band to the pointer labelled with its FRD, a diamond at each waypoint with its name and condition summary |
 | `Views/Scope/ScopeView.Display.cs` | Partial of `ScopeView`: the aircraft menu's Display submenu (`BuildCanvasDisplay`, through `AddDisplaySection`) from the Scope's own state: Hide/Show datablock, Reset datablock position, Show/Hide nav route, Measure from/to, then Leader direction, J-ring and Cone as check-marked toggles, then Blank and Unblank, for every aircraft, live-traffic shadows included; and `AppendViewSettings`, the menu's last item "Settings for this view…" |
 | `Views/Scope/ScopeView.DrawRoute.cs` | Partial of `ScopeView`: Draw route as the Scope's view-section row and the EuroScope Destination field's `StartFieldDrawRoute`, both through `AcceptsFlightCommands`, which the AHDG field shares (not a surface live-traffic shadow, not a phase that hides the flight commands); Enter (sends) and Backspace (undoes) ahead of the entry; the waypoint right-click menu (Confirm route, Delete waypoint, Delete waypoints after, Cancel route) and the condition popup |
 | `Views/Scope/ScopeHeadingVector.cs` | `ScopeHeadingVectorState`, the elastic heading vector's pure state machine (`Begin`, `MovedTo`, `Released`, `Pressed`: a drag past 4 px confirms at the release, a short press arms the next left press, which confirms toward its own press point) and its helpers (`MagneticHeading`, `SnapHeadingTo5`, `TurnRadiusNm`, `ArcPoint`, `Geometry` (the arc's end and the straight leg's end, as a `ScopeHeadingVectorGeometry`), `FormatEta`); the drag origin is one `Point` |
 | `Views/Scope/ScopeCanvas.HeadingVector.cs` | Partial of `ScopeCanvas`: the heading-vector press (first rung of the press ladder), release and move rungs, `EnterHeadingVector`, `CancelHeadingVector`, the Esc step in `EscapeModes`, the cross cursor and the `HeadingVectorConfirmed` event; an armed vector's left press confirms whatever is under it (another aircraft, Alt+left and the armed measuring tool included, none reaching a later rung) and a right press cancels |
 | `Views/Scope/ScopeOverlays.HeadingVector.cs` | Partial of `ScopeOverlays`: `HeadingVector` and the `ScopeHeadingVectorOverlay` record (the aircraft's position, heading, ground speed and type turn rate, and the cursor) |
 | `Views/Scope/ScopeRenderer.HeadingVector.cs` | Partial of `ScopeRenderer`: the `DrawHeadingVector` slot, drawn by a `ScopeHeadingVectorRenderer` it disposes with the renderer |
-| `Views/Scope/ScopeHeadingVectorRenderer.cs` | Draws the heading vector as the Radar's heading preview does, in amber: the turn arc at the aircraft type's turn rate (`AircraftPerformance.TurnRate`), the straight leg from the arc's end along the snapped heading to the cursor's along-track distance (none when the cursor is behind the arc's end) and the "heading, distance, time" label |
+| `Views/Scope/ScopeHeadingVectorRenderer.cs` | Draws the heading vector in amber: the turn arc at the aircraft type's turn rate (`AircraftPerformance.TurnRate`), the straight leg from the arc's end along the snapped heading to the cursor's along-track distance (none when the cursor is behind the arc's end) and the "heading, distance, time" label |
 | `Views/Scope/ScopeView.HeadingVector.cs` | Partial of `ScopeView`: `StartFieldHeadingVector` (the EuroScope AHDG field's `ScopeFieldAction.StartHeadingVector`, which cancels a route being drawn and is inert where `AcceptsFlightCommands` refuses), the cancel when a route starts or the view detaches, and the confirm, which sends `FH {heading}` through the view model's pilot-command seam |
-| `Views/Scope/ScopeWaypointConditionPopup.cs` | The waypoint-condition popup a middle click on a drawn waypoint opens, as the Radar's: crossing altitude and commands boxes with OK, Clear and Cancel, in the canvas's overlay layer |
+| `Views/Scope/ScopeWaypointConditionPopup.cs` | The waypoint-condition popup a middle click on a drawn waypoint opens: crossing altitude and commands boxes with OK, Clear and Cancel, in the canvas's overlay layer |
 | `ViewModels/MainViewModel.ScopeFeatures.cs` | Partial of `MainViewModel`: `RunFeatureVerb`, which offers a `.scope` verb to each feature's verbs after every built-in verb |
 | `ViewModels/MainViewModel.ScopeMapTools.cs` | Partial of `MainViewModel`: the map tools' `.scope` verbs `mva`, `lock`, `center`, `rr`, `wx`, `fix` and `dcnf` (`RunMapToolsVerb`); the marker verbs `.ff`, `.marker`, `.markers` and `.nomarkers` (`TryHandleScopeMarkerCommand`), which act on the open Scope; `ScopeWeatherLines`, the METAR lines the overlay draws |
 | `ViewModels/ScopeViewModel.MapTools.cs` | Partial of `ScopeViewModel`: LOCK (`IsPanZoomLocked`), OFF CNTR (`Recenter`, `IsOffCenter` against `OffCenterThresholdNm`), the range ring (`ShowRangeRing`, `RangeRingSizeNm`, `RangeRingCenter` / `RangeRingCenterShown`, `IsPlacingRangeRing` for PLACE RR), WX (`ShowWeather`, `WeatherLines`), DCNF (`DeconflictMode`, seeded from `UserPreferences.RadarDeconflictMode` and never written back) and the map-tool settings a pref set captures and applies |
@@ -158,14 +145,14 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Scope/ScopeView.axaml(.cs)` | Hosts ScopeCanvas, the ScopeTearoffLayer and the ScopeEntryLayer; selection, the shared aircraft menu (with Display and Draw route in its view section and "Settings for this view…" last, see `ScopeView.Display.cs`) on right click; a Field-A click on an ERAM block also calls `ScopeViewModel.ToggleDwellLock` (it opens no menu; a left click on any other field with an action opens its pick menu or, on an ERAM altitude, ground speed or line-4 token, its popup, see Field menus; the instructor's client-only lock, `DataBlockViewState.DwellLockedCallsigns`; no hub call); the canvas taking focus makes the Scope the active measure surface; `OnTopLevelKeyDown` takes Esc (in order: cancel a tear-off move, else take the measure prompt and cancel the tool when nothing is typed, else clear the entry and response, else cancel the Scope's measurement, else disarm the Rings tool), Ctrl+M (Cmd+M on macOS; `ScopeViewModel.ArmMeasure`) and Ctrl+Shift+T (Cmd+Shift+T on macOS; flips TDM), and routes the typing keys (Enter, Backspace, Up/Down, Ctrl+R / Cmd+R) to `ScopeViewModel.Entry.cs` while the canvas has focus |
 | `Views/Scope/ScopeViewer.cs` | Record ScopeViewer(Acting, EramFacilityId, EramSectorId) + None: the position the Scope is viewed from, bound to ScopeCanvas.Viewer (a change rebuilds the frame) and carried in ScopeDisplayOptions.Viewer |
 | `Views/Scope/ScopeBrightness.cs` | Record ScopeBrightness (the BRITE groups, LENS last; `Default`, `Apply` scales a colour's channels, `Lift` is the DWELL rule, the `Groups` table `.scope brite` and the spinners read) and ScopeBrightnessGroup (name, range, step) |
-| `Views/Scope/ScopeIntentPath.cs` | The pilot lens's intent path: `ScopeIntentPaths` (`Routes` builds a track's `ScopeIntentRoute`s, the nav route as the Radar's "Show nav route" draws it, from its `DrawnWaypoint`s, shapes and `VectorTail`; `Project` turns them into a screen `ScopeIntentPath` of segments, fixes, shapes and tail; a `ScopeIntentShape` carries `Dashed` and `Arrow` from `NavRouteShapeLook`) and `ScopeIntentPathCache` (per canvas: the routes are rebuilt only when the aircraft's route scalars change, so a frame only projects; `Sweep` drops the tracks no longer drawn) |
+| `Views/Scope/ScopeIntentPath.cs` | The pilot lens's intent path: `ScopeIntentPaths` (`Routes` builds a track's `ScopeIntentRoute`s, the nav route, from its `DrawnWaypoint`s, shapes and `VectorTail`; `Project` turns them into a screen `ScopeIntentPath` of segments, fixes, shapes and tail; a `ScopeIntentShape` carries `Dashed` and `Arrow` from `NavRouteShapeLook`) and `ScopeIntentPathCache` (per canvas: the routes are rebuilt only when the aircraft's route scalars change, so a frame only projects; `Sweep` drops the tracks no longer drawn) |
 | `Views/Scope/ScopeTrackLayers.cs` | ScopeVectorOwnership (Own, All) and its `ScopeVectorOwnerships` text names; the history-dot and vector-line layers the renderer draws after the maps and before the targets (a callsign in `ScopeFrameInput.LocalPtlCallsigns` draws its vector whatever the ownership says) |
 | `Views/Scope/ScopeCrrReadout.cs` | ERAM's continuous range readout (CRC `RdbRenderObject`, `RdbOrientation`): `ScopeCompass`, `ScopeRdbOffset`, `ScopeCrrReadoutView` (text, group colour, text box), `Content` (the distance text and group colour for a track drawn with an FDB-level ERAM block, Mixed only when ERAM-owned, whose `EramCrrGroup` is among `ScopeFrameInput.CrrGroups`; else null), `DistanceText` (F1, `>999.9` past 999.9 NM), `ColorOf` (CRC's raw ERAM Green, Coral, Yellow, White) and `Place` (the box by the ported RdbOrientation table from the nearest of 8 compass points of the block offset, exact boundaries clockwise); `ScopeRenderer.DrawCrrReadout` draws it at FDB brightness with the DWELL lift, after each track |
 | `Views/Scope/ScopeRingGeometry.cs` | The Rings tool's pure geometry and records: ScopeRingTool (None, JRing, Cone, Dri5, Dri3) and its `ScopeRingTools` words, ScopeDriKind, ScopeTrackRings (a track's J-ring, cone and DRI), the screen shapes the renderer draws, CRC's SIZE grid (`SizeGrid`, `StepSize`, `IsRingSize`, `FormatSize`) and the FL230 limit on a DRI 3 (`AllowsReducedDri`) |
 | `Views/Scope/ScopeCanvas.cs` | SkiaSharp canvas (MapCanvasBase): `Dispose` sets `IsDisposed` under a render lock the render thread holds for a whole draw, so a queued draw after it returns at once, `CreateRenderSnapshot` returns null and `CurrentFrame` is empty; the palette parses each colour preference once per value and logs "Scope: {Pref} colour {Value} does not parse; using the default" once per distinct bad value; focusable, a click gives it keyboard focus and its text input feeds the entry; left click selects (a field with a `ScopeFieldAction` raises `FieldClicked` instead of `AircraftLeftClicked`; `BlockBoundsOf` gives a track's block bounds for placing its popup), right-drag pans, wheel zooms; hit-tests the same FieldRect list the renderer draws; a pointer move dwells the track under the pointer or previews the VCI it is on (`ScopeFrame.HoverAt` → `ScopeHoverHit`), leaving the canvas releases both, panning holds them; a left click on an ERAM block's callsign raises `AircraftDwellLockToggleRequested` before selecting, `TryMeasurePress` (Alt+left drag; armed left pick and right cancel) comes before that and the fill, raising `MeasurePointPicked`, `MeasureDragCompleted` and `MeasureCancelled` (pinned by `ScopeMeasurePointerTests`), and a frame carries the local lock in `ScopeFrameInput.LocalDwellLockedCallsigns`; `DbSettingsProperty` carries the Scope's DB settings into `BuildFrame` and the hover; `ShowTopDownProperty` carries TDM into `BuildFrame`'s `AircraftVisibility.FilterAircraft` call and into `ScopeFrameInput.ShowTopDown`; `TdmOnlyMapIdsProperty` (from `ScopeViewModel.TdmOnlyMapIds`) makes `DrawnVideoMaps` leave the TDM-only maps out of the frame while TDM is off; `LensProperty` and `LensPathCallsignsProperty` (layer properties) carry the pilot lens into `ScopeFrameInput` (`LensPath`, `LensPathCallsigns`, `NavDb` only while the path draws, `LensQueue`, `QueueHoveredCallsign` from the hovered queued-commands badge, and `LensCheckIn`) with the canvas's `ScopeIntentPathCache` |
 | `Views/Scope/ScopeQueueBadge.cs` | The pilot lens's queued-commands badge: `ScopeQueueBadge.PendingLines` (an aircraft's `PendingCommands` lines, verbatim and in order, without the `[Active]` ones) and `SymbolGapPx`, and the `ScopeQueueBadgeView` a track carries (count, lines, text box, hovered) |
 | `Views/Scope/ScopeCheckIn.cs` | The pilot lens's check-in truth: `ScopeCheckIn.StateOf` (an aircraft's `ScopeCheckInState` as a viewer sees it, the highest that holds: Calling, VciMismatch, NotCheckedIn, VciUnset, else None), `LabelOf` (the tag text) and `SymbolGapPx` |
-| `Views/Scope/ScopeRenderer.cs` | Stateless renderer: video maps, targets, leaders, STARS blocks, ERAM blocks or EuroScope tags in the radar's line style (ERAM altitude arrows drawn as SKPaths); also holds ScopeFrame, ScopeFrameInput (with `LocalRings`, `HoveredCallsign`, `VciHoveredCallsign`, `DefaultLevel`, `ShowTopDown`), ScopeTrack (`Level`, `ShowsLeader`, `IsDwelled`, `Dwelled`, `IsDwellLocked` (the instructor's or the student's dwell lock, the pick tier; hover alone is not), `DwellBox`, `IntentPath` for the selected or lens-toggled track while the path draws, `QueueBadge` while the queue draws, `CheckInTag` while the check-in draws; the lens layer draws after the blocks and before the measure lines, in magenta at the LENS group), `LevelFor` (Ground for a ground target), `ScopeFrame.HoverAt` (`DwellAt` is its dwell half), `ScopeFrame.IndicatorPickAt` (the HSF indicator or VCI cell a left press picks, a `ScopeIndicatorPick`; it and the hover share `IndicatorsAt`), ScopeRenderSnapshot and ScopePalette (the user tint and selected colours the render thread resolves block and symbol colours from) |
+| `Views/Scope/ScopeRenderer.cs` | Stateless renderer: video maps, targets, leaders, STARS blocks, ERAM blocks or EuroScope tags (ERAM altitude arrows drawn as SKPaths); also holds ScopeFrame, ScopeFrameInput (with `LocalRings`, `HoveredCallsign`, `VciHoveredCallsign`, `DefaultLevel`, `ShowTopDown`), ScopeTrack (`Level`, `ShowsLeader`, `IsDwelled`, `Dwelled`, `IsDwellLocked` (the instructor's or the student's dwell lock, the pick tier; hover alone is not), `DwellBox`, `IntentPath` for the selected or lens-toggled track while the path draws, `QueueBadge` while the queue draws, `CheckInTag` while the check-in draws; the lens layer draws after the blocks and before the measure lines, in magenta at the LENS group), `LevelFor` (Ground for a ground target), `ScopeFrame.HoverAt` (`DwellAt` is its dwell half), `ScopeFrame.IndicatorPickAt` (the HSF indicator or VCI cell a left press picks, a `ScopeIndicatorPick`; it and the hover share `IndicatorsAt`), ScopeRenderSnapshot and ScopePalette (the user tint and selected colours the render thread resolves block and symbol colours from) |
 | `Views/Scope/ScopeEramConflictGate.cs` | Pure: the Scope's half of the ERAM §377 facility gate: `IsShown` (an unsuppressed ERAM pair with an owner facility equal to the viewer's `ScopeViewer.EramFacilityId`, every pair when the viewer has none) and `FlashingCallsigns` (both members of each shown pair but its Mode C intruder), which `ScopeRenderer` hands to `TrackPresenter` as `InEramConflict` |
 | `Views/Scope/ScopeFieldSlot.cs` | Enum of the fixed named datablock slots a template places and a field fills (incl. `AltitudeMismatch`, `OtherAltitude`, `AircraftType`, the ERAM line-4 slots `Line4FreeText`, `Line4Heading`, `Line4Pad`, `Line4Speed` and the fallback `Line4Notes`), and `ScopeFieldSlotExtensions.IsLine4` |
 | `Views/Scope/ScopeOwnerKind.cs` | Static: `TemplateIdFor` / `Resolve` map a track's owner sector code (`C…` ERAM, leading digit STARS, none ERAM) to the template a Mixed pick draws it with |
@@ -189,9 +176,9 @@ All paths are under `src/Yaat.Client/`.
 
 ## YAAT Scope engine
 
-Beside the Radar layouts, `Views/Scope/` holds the YAAT Scope datablock engine (plan: [plans/yaat-scope/README.md](plans/yaat-scope/README.md)).
+`Views/Scope/` holds the YAAT Scope datablock engine (plan: [plans/yaat-scope/README.md](plans/yaat-scope/README.md)).
 
-The engine is pure; the window around it (`ScopeWindow` → `ScopeView` → `ScopeCanvas` over `ScopeRenderer`, view-model `ScopeViewModel`) is the main window's Scope tab, or its pop-out window (View > Windows > Sco_pe), and draws video maps, targets, leaders and STARS blocks, ERAM blocks or EuroScope tags in the radar's line style.
+The engine is pure; the window around it (`ScopeWindow` → `ScopeView` → `ScopeCanvas` over `ScopeRenderer`, view-model `ScopeViewModel`) is the main window's Scope tab, or its pop-out window (View > Windows > Sco_pe), and draws video maps, targets, leaders and STARS blocks, ERAM blocks or EuroScope tags.
 
 The scope's toolbar (`Views/Scope/Toolbar/`: `ScopeToolbarButtons` is the data-driven button model, state in `ScopeViewModel.Toolbar.cs`) has a TEMPLATE tray (`ScopeViewModel.TemplateId`, `PickTemplateCommand`) that picks among them or Mixed, starts on the room's profile's template (STARS, EuroScope when the EuroScope-mode preference is on, until the room has a profile) and is never written back to the preferences. Every toolbar, tear-off and card action runs through `ScopeViewModel.RunCommand`, which hands the dot command to `MainViewModel.RunScopeCommand(ScopeViewModel, string)` or `RunViewCommand(ScopeViewModel, string)` for that Scope, so it acts on its own window whichever Scope has the focus; the typed line's `.scope` / `.view` verbs take the overloads without a Scope and act on `OpenScope`.
 
@@ -207,7 +194,7 @@ VIEWS toggles the views dock (`Views/Scope/Dock/`: `ScopeDock` and its `ScopeVie
 
 The dock holds the SSA card (`SsaViewModel`, text from `SsaLines`, refreshed every second) and the LA/CA/MCI card (`ConflictListViewModel`, rows from `ConflictListRows` over `MainViewModel.ConflictAlerts`, so every pair is listed whatever `ShowConflictAlerts` says) and, third, the RPO QUEUE card (`RpoQueueViewModel`, closed by default, rows from `RpoQueueRows`: the check-in exceptions by the CHECKIN tag's `ScopeCheckIn` rules, then the queued commands still waiting on a trigger) and, fourth, the CRR card (`CrrViewModel`, closed by default and read-only, rows from `CrrRows` over `MainViewModel.CrrGroups`). Opening or closing the dock keeps the scope's scale, so the range follows the scope's width as a window resize does.
 
-MAPS: the Scope keeps its own `ScopeViewModel.MapToggles`, `ScopeMapToggle`s built by `SeedMaps` from `MainViewModel.ScopeMaps.Maps` (`ScopeMapInfo`: id, STARS id, short and full name, brightness category) at every facility load, in STARS id order, each on only when a toggle with its map id was on before (so the first seed opens with every map off); toggling one (`SetMapOn` by STARS id, `ClearMaps`, from `.scope map`) never touches the Radar, and the map data comes from `MainViewModel.GetCachedVideoMap`. A scenario clear (`ScopeMapSource.Cleared`) empties the toggles and maps through `ClearSeededMaps`. The tray (`TrayChildren`: CLR ALL, then one toggle per map labelled `{StarsId} {ShortName}` in STARS id order) is a two-row grid like every tray, overlays the scope and never resizes it.
+MAPS: the Scope keeps its own `ScopeViewModel.MapToggles`, `ScopeMapToggle`s built by `SeedMaps` from `MainViewModel.ScopeMaps.Maps` (`ScopeMapInfo`: id, STARS id, short and full name, brightness category) at every facility load, in STARS id order, each on only when a toggle with its map id was on before (so the first seed opens with every map off); toggling one (`SetMapOn` by STARS id, `ClearMaps`, from `.scope map`) and the map data comes from `MainViewModel.GetCachedVideoMap`. A scenario clear (`ScopeMapSource.Cleared`) empties the toggles and maps through `ClearSeededMaps`. The tray (`TrayChildren`: CLR ALL, then one toggle per map labelled `{StarsId} {ShortName}` in STARS id order) is a two-row grid like every tray, overlays the scope and never resizes it.
 
 DB: `ScopeViewModel.DbSettings` is a `ScopeDbSettings` record (`ScopeViewModel.Display.cs`) of seven settings, changed through `SetDbToggle` and `SetDbCharSize` (`.scope db`) and carried by `ScopeCanvas.DbSettingsProperty` into `BuildFrame` and `Hover`. 4TH LINE off drops ERAM line 4's type and destination (the HSF notes stay); DWELL off stops the hover dwell (a locked block still dwells, and the VCI preview still follows the pointer); ATPA DIST shows or hides the ATPA in-trail distance text and gates nothing else; ALERT CONES and MONITOR CONES (on at open, kept in a pref set) gate a Scope ATPA cone by its state, Warning and Alert for the first and Monitor for the second (`ScopeFrame.AtpaConeLead`); CA RING (on at open, kept in a pref set) draws an ERAM pair's ring on each member (`ScopeRingGeometry.EramConflictRingNm`) and governs ERAM rings only: a track also in a STARS pair keeps the STARS 3 NM ring while CA RING is off; CHAR is the datablock point size (8 to 24). ATPA DIST and CHAR are seeded from the preferences when the Scope opens and never written back, so a later preference change does not reach an open Scope. LDR DIR, LDR, CWT, REQ ALT and PORTAL are not built (`.scope db` answers `Unknown scope DB item`).
 
@@ -221,11 +208,11 @@ The Rings tool (TOOLS, `ScopeViewModel.Tools.cs`): opening the tray arms the ban
 
 PTLs (`ScopeViewModel.Ptl.cs`): `.scope ptl <callsign>` toggles a track's PTL and `.scope ptl clear [callsign]` removes one or all; a STARS `MF R [callsign]` runs the toggle. A track with a PTL draws its vector whatever VECTOR OWN or ALL says, at the VECTOR length (0 minutes or a stationary track draws none). PTLs are the instructor's own overlay, never saved or sent, and are cleared with their aircraft and on scenario unload, restart and rewind.
 
-The pilot lens (`ScopeViewModel.Lens.cs`): `.scope lens on|off` sets `ScopeLensSettings.Enabled`, `.scope lens path on|off` its `Path`, `.scope lens queue on|off` its `Queue` and `.scope lens checkin on|off` its `CheckIn` (`MainViewModel.TryHandleScopeCommand`, echoes `Scope lens ON`, `Scope lens path ON`, `Scope lens queue ON`, `Scope lens checkin ON`), and `.scope lens path <callsign>` toggles that track in `LensPathCallsigns`. An overlay draws only while the lens and its own switch are on (`ScopeLensSettings.DrawsPath`). `ScopeRenderer.ScopeFrame.Build` asks `ScopeIntentPathCache.PathFor` for the intent path of the selected track and each toggled one, on every drawn track whatever its block level; the routes come from `ShownRouteBuilder`, the Radar's "Show nav route" builder, through the same `DrawnWaypoint` and `VectorTail` records (straight legs, no predicted turn arcs); the cache keys only on the fix list and the assigned heading, and the builder reads no CIFP. The renderer draws it after the blocks and before the measure layer, in magenta scaled by the LENS group, so LENS 0 draws nothing: a dashed leader from the symbol, solid legs, diamonds with the fix name and crossing restrictions (a latent token dimmed), the server's shapes (looks per kind in the Nav-route overlay wire contract) and a dashed vector tail. The queued-commands badge (`ScopeQueueBadge`) draws only while the lens and QUEUE are on: `ScopeFrame.Build` gives every drawn track whose `PendingCommands` holds a line that is not `[Active]` a `ScopeTrack.QueueBadge`, the count in magenta at the LENS group (LENS 0 draws nothing) in a text box 6 px left of and 6 px below the symbol, and a hovered badge's lines draw verbatim with their `[n]` prefix on a dark box below it, over every badge; it has no click action. The check-in tag (`ScopeCheckIn`) draws only while the lens and CHECKIN are on: `ScopeFrame.Build` sets `ScopeTrack.CheckInTag` from `ScopeCheckIn.StateOf` (the aircraft's `PendingPilotRequest` and `HasMadeInitialContact` against the viewer's VCI, `EramColumn0.VciLit`, and ownership, `EramColumn0.IsViewersTrack`) and draws it as one magenta text at the LENS group (LENS 0 draws nothing), its left edge 6 px right of and its top 6 px below the symbol: `CALL <KIND>` for an open request, else `VCI NO CALL` (VCI lit, no initial contact), else `NO CALL` (viewer's track, no initial contact), else `VCI UNSET` (ERAM viewer's track, initial contact, VCI not lit); it has no hover or click. A track handed to the viewer whose pilot already called the previous sector shows `VCI UNSET`, since `HasMadeInitialContact` is not per sector. The switches are `ScopePrefSet.Lens` (`lens`: `enabled`, `path`, `queue`, `checkIn`, all four required, so a set missing any is skipped as unreadable) and BRITE's `lens` key; the toggled tracks are never saved or sent.
+The pilot lens (`ScopeViewModel.Lens.cs`): `.scope lens on|off` sets `ScopeLensSettings.Enabled`, `.scope lens path on|off` its `Path`, `.scope lens queue on|off` its `Queue` and `.scope lens checkin on|off` its `CheckIn` (`MainViewModel.TryHandleScopeCommand`, echoes `Scope lens ON`, `Scope lens path ON`, `Scope lens queue ON`, `Scope lens checkin ON`), and `.scope lens path <callsign>` toggles that track in `LensPathCallsigns`. An overlay draws only while the lens and its own switch are on (`ScopeLensSettings.DrawsPath`). `ScopeRenderer.ScopeFrame.Build` asks `ScopeIntentPathCache.PathFor` for the intent path of the selected track and each toggled one, on every drawn track whatever its block level; the routes come from `ShownRouteBuilder` through the same `DrawnWaypoint` and `VectorTail` records (straight legs, no predicted turn arcs); the cache keys only on the fix list and the assigned heading, and the builder reads no CIFP. The renderer draws it after the blocks and before the measure layer, in magenta scaled by the LENS group, so LENS 0 draws nothing: a dashed leader from the symbol, solid legs, diamonds with the fix name and crossing restrictions (a latent token dimmed), the server's shapes (looks per kind in the Nav-route overlay wire contract) and a dashed vector tail. The queued-commands badge (`ScopeQueueBadge`) draws only while the lens and QUEUE are on: `ScopeFrame.Build` gives every drawn track whose `PendingCommands` holds a line that is not `[Active]` a `ScopeTrack.QueueBadge`, the count in magenta at the LENS group (LENS 0 draws nothing) in a text box 6 px left of and 6 px below the symbol, and a hovered badge's lines draw verbatim with their `[n]` prefix on a dark box below it, over every badge; it has no click action. The check-in tag (`ScopeCheckIn`) draws only while the lens and CHECKIN are on: `ScopeFrame.Build` sets `ScopeTrack.CheckInTag` from `ScopeCheckIn.StateOf` (the aircraft's `PendingPilotRequest` and `HasMadeInitialContact` against the viewer's VCI, `EramColumn0.VciLit`, and ownership, `EramColumn0.IsViewersTrack`) and draws it as one magenta text at the LENS group (LENS 0 draws nothing), its left edge 6 px right of and its top 6 px below the symbol: `CALL <KIND>` for an open request, else `VCI NO CALL` (VCI lit, no initial contact), else `NO CALL` (viewer's track, no initial contact), else `VCI UNSET` (ERAM viewer's track, initial contact, VCI not lit); it has no hover or click. A track handed to the viewer whose pilot already called the previous sector shows `VCI UNSET`, since `HasMadeInitialContact` is not per sector. The switches are `ScopePrefSet.Lens` (`lens`: `enabled`, `path`, `queue`, `checkIn`, all four required, so a set missing any is skipped as unreadable) and BRITE's `lens` key; the toggled tracks are never saved or sent.
 
-The measure layer (`ScopeViewModel.Measure.cs`): lines tagged `RblView.Scope` in the shared `RangeBearingViewState` store (the 15-slot pool; Radar and Ground lines never draw here, and a Scope line carries the Scope that placed it, `RangeBearingLine.Surface`, and draws only on that window: `ScopeCanvas.ResolveMeasurements` resolves against its own view model, and an anchor previews only on the canvas whose Scope picked it) are bound into `ScopeCanvas` (`RangeBearingLinesProperty`, `MeasureAnchorProperty`, `IsMeasuringProperty`), resolved per frame against the traffic the canvas draws and carried in `ScopeRenderSnapshot`. `ScopeRenderer` draws them last, after the tracks, through the shared `RangeBearingRenderer`, white and not scaled by BRITE. Readouts are placed by `RblReadoutPlacement` against every block and symbol of the frame (`ScopeCanvas.BuildRblObstacles`); the Scope deconflicts no block, so a readout never nudges one. Ctrl+M arms the tool (global, like the main window's) and writes the prompt to the Scope's response; a typed `.rbl A B` lands on the active measure Scope (`MainViewModel.ActiveMeasureScope`: the Scope that took the surface, else the primary) unless a Radar or Ground canvas took the surface last (`MainViewModel.ActiveMeasureView`; the primary Scope before any), and `place_rbl` places on the primary Scope. Scope lines are never saved and survive the primary Scope's pop-out closing and its unload, restart and rewind clear; closing an extra Scope window drops its lines and anchor (`CloseExtraScopeView` calls `Measure.RemoveSurface`). Points are placed by pointer through `ScopeCanvas.TryMeasurePress`, the step of `OnPointerPressed` after the middle-click one and ahead of the fill, the Rings tool and every aircraft rung: Alt+left records the endpoint under the press (`MeasureEndpointAt`: an aircraft's block or target latches, else the map point, unlabelled) and the release (`OnPointerReleased`) places the line when it is past 5 px (`MeasureDragCompleted`) or anchors it (`MeasurePointPicked`) when it is not, leaving the tool armed; while armed (`IsMeasuring`) a left press raises `MeasurePointPicked` and a right press `MeasureCancelled` (which cancels the whole tool, `Measure.Cancel`, wherever the anchor was picked, unlike Esc), opening no menu and starting no pan. `ScopeView` wires the three events to `ScopeViewModel.PickMeasurePoint`, `PlaceMeasurement` and `CancelMeasureFromPointer`, each of which makes the Scope the active measure surface first; the status they report goes to the status line and the Scope's response (an Error for a full store), and while the tool stays armed the response is the tool's prompt that Esc takes. Every pointer move records `MeasureCursor`, and `ResolveMeasurements` previews the half-placed line (the Alt-drag in flight, else an anchor picked on the Scope) to it.
+The measure layer (`ScopeViewModel.Measure.cs`): lines tagged `RblView.Scope` in the shared `RangeBearingViewState` store (the 15-slot pool; Ground lines never draw here, and a Scope line carries the Scope that placed it, `RangeBearingLine.Surface`, and draws only on that window: `ScopeCanvas.ResolveMeasurements` resolves against its own view model, and an anchor previews only on the canvas whose Scope picked it) are bound into `ScopeCanvas` (`RangeBearingLinesProperty`, `MeasureAnchorProperty`, `IsMeasuringProperty`), resolved per frame against the traffic the canvas draws and carried in `ScopeRenderSnapshot`. `ScopeRenderer` draws them last, after the tracks, through the shared `RangeBearingRenderer`, white and not scaled by BRITE. Readouts are placed by `RblReadoutPlacement` against every block and symbol of the frame (`ScopeCanvas.BuildRblObstacles`); the Scope deconflicts no block, so a readout never nudges one. Ctrl+M arms the tool (global, like the main window's) and writes the prompt to the Scope's response; a typed `.rbl A B` lands on the active measure Scope (`MainViewModel.ActiveMeasureScope`: the Scope that took the surface, else the primary) unless a Ground canvas took the surface last (`MainViewModel.ActiveMeasureView`; the primary Scope before any), and `place_rbl` places on the primary Scope. Scope lines are never saved and survive the primary Scope's pop-out closing and its unload, restart and rewind clear; closing an extra Scope window drops its lines and anchor (`CloseExtraScopeView` calls `Measure.RemoveSurface`). Points are placed by pointer through `ScopeCanvas.TryMeasurePress`, the step of `OnPointerPressed` after the middle-click one and ahead of the fill, the Rings tool and every aircraft rung: Alt+left records the endpoint under the press (`MeasureEndpointAt`: an aircraft's block or target latches, else the map point, unlabelled) and the release (`OnPointerReleased`) places the line when it is past 5 px (`MeasureDragCompleted`) or anchors it (`MeasurePointPicked`) when it is not, leaving the tool armed; while armed (`IsMeasuring`) a left press raises `MeasurePointPicked` and a right press `MeasureCancelled` (which cancels the whole tool, `Measure.Cancel`, wherever the anchor was picked, unlike Esc), opening no menu and starting no pan. `ScopeView` wires the three events to `ScopeViewModel.PickMeasurePoint`, `PlaceMeasurement` and `CancelMeasureFromPointer`, each of which makes the Scope the active measure surface first; the status they report goes to the status line and the Scope's response (an Error for a full store), and while the tool stays armed the response is the tool's prompt that Esc takes. Every pointer move records `MeasureCursor`, and `ResolveMeasurements` previews the half-placed line (the Alt-drag in flight, else an anchor picked on the Scope) to it.
 
-The draw-route layer (`ScopeViewModel.DrawRoute.cs`, `ScopeCanvas.DrawRoute.cs`, `ScopeView.DrawRoute.cs`): the Radar's draw-route mode on the Scope, over the same `DrawRouteState`. The aircraft menu's Draw route and the EuroScope Destination field (`ScopeFieldAction.StartDrawRoute`) start it for an aircraft `ScopeView.AcceptsFlightCommands` allows; the canvas's draw-route press rung sits ahead of the middle-button and measuring-tool rungs and leaves Alt+left and the armed tool to the measure rung; the route reaches the render thread as `ScopeOverlays.DrawRoute` and `ScopeDrawRouteRenderer` draws it. Enter and Backspace act ahead of the entry, and the Esc chain cancels the route (or only closes the condition popup) before it clears the entry. Starting turns the Rings tool off.
+The draw-route layer (`ScopeViewModel.DrawRoute.cs`, `ScopeCanvas.DrawRoute.cs`, `ScopeView.DrawRoute.cs`): the Scope's draw-route mode, over a `DrawRouteState`. The aircraft menu's Draw route and the EuroScope Destination field (`ScopeFieldAction.StartDrawRoute`) start it for an aircraft `ScopeView.AcceptsFlightCommands` allows; the canvas's draw-route press rung sits ahead of the middle-button and measuring-tool rungs and leaves Alt+left and the armed tool to the measure rung; the route reaches the render thread as `ScopeOverlays.DrawRoute` and `ScopeDrawRouteRenderer` draws it. Enter and Backspace act ahead of the entry, and the Esc chain cancels the route (or only closes the condition popup) before it clears the entry. Starting turns the Rings tool off.
 
 The min-sep layer (`ScopeViewModel.MinSep.cs`): one pair of tracks, the Scope's own state outside the measure pool, never saved. The STARS `MIN` entry (`StarsEntryParser`, `StarsEntryNeed.MinimumSeparation`) runs on the Scope and sends nothing: `RunEntryAsync` hands it to `TryRunMinSep`, which clears the pair (bare `MIN`), answers `Must click two tracks.` (one track), or sets the pair (two tracks).
 
@@ -245,7 +232,7 @@ The dwell locks, the MVA tint, the selection and the open menu are not saved. `S
 
 `ScopeViewModel.PrefSets.cs` holds `CapturePrefSet`, `ApplyPrefSet` (a load replaces the state: views open exactly as saved through `RestoreViewPlace`, tear-offs are replaced, an out-of-range value keeps the current one, maps the scope lacks are skipped and counted) and `ActivePrefSet` and `PrefSetNames`.
 
-A load while the Scope waits for the Radar's maps is held as a pending set and applied once the Scope seeds from the Radar (`ApplyPendingPrefSet`).
+A load while the Scope waits for the facility's maps is held as a pending set and applied once the Scope seeds (`ApplyPendingPrefSet`).
 
 The viewer's facility keys the files: the state is saved when the primary Scope's pop-out window closes, at app exit (`DisposePrimaryScopeAtExit`) and, in `SyncStateFacility`, for the old facility when the viewer changes facility, and restored when the Scope starts for a facility or the viewer moves to it, with the active set's name when that set still exists; a facility with no saved state keeps the screen and clears the active set. `ScopeViewModel(MainViewModel main, ScopePrefSetStore? prefStore)` takes the store, and null means no pref sets.
 
@@ -269,11 +256,11 @@ A view's place is `ScopeDockViewModel.Place` (`SetViewPlace`; null means docked)
 
 `TrackPresenter` turns an `AircraftModel` (plus template id, ATPA lead/conflict peer, flash phase, selection) into a `TrackPresentation` of slotted fields; `DatablockTemplate` lays that into a template's lines (`ScopeTemplates`: "stars", "eram", "euroscope") and returns one `ScopeBlockLayout` of the bounds and one `FieldRect` list (each field's slot, rect, text, color token and `ScopeFieldStyle`), which drawing and hit-testing are to share, so the draw-vs-hit-test duplication below does not recur there: `ScopeCanvas` hit-tests the same `ScopeRenderer` frame it draws (`ScopeFrame`, built from `ScopeFrameInput` into a `ScopeRenderSnapshot`; the render thread reads no StyledProperty).
 
-A STARS hit finds a flashing reserved field in both blink phases, EuroScope only in the on phase. Left click selects the aircraft, and on a field with an action also opens that field's pick menu (Field menus below), as does a middle click on an ERAM block with an empty preview; Ctrl (Cmd on macOS) with a left click on a target, block or indicator opens the flight-plan editor instead (`AircraftCtrlClicked`; `PressMenuGesture`, below the fill and Shift-hide rungs, so Ctrl+Shift leaves the press to the hide); a left press on empty map clears the selection (`EmptySpaceClicked`, `PressEmptyMap`, after the fill, measuring and Rings rungs, and not while the Rings tool is armed); right click opens the shared aircraft menu, or, over two or more stacked targets, the shared `RightClickPicker` first (`FindRightClickTargets`, the same order as the Radar), right-drag pans, the wheel zooms.
+A STARS hit finds a flashing reserved field in both blink phases, EuroScope only in the on phase. Left click selects the aircraft, and on a field with an action also opens that field's pick menu (Field menus below), as does a middle click on an ERAM block with an empty preview; Ctrl (Cmd on macOS) with a left click on a target, block or indicator opens the flight-plan editor instead (`AircraftCtrlClicked`; `PressMenuGesture`, below the fill and Shift-hide rungs, so Ctrl+Shift leaves the press to the hide); a left press on empty map clears the selection (`EmptySpaceClicked`, `PressEmptyMap`, after the fill, measuring and Rings rungs, and not while the Rings tool is armed); right click opens the shared aircraft menu, or, over two or more stacked targets, the shared `RightClickPicker` first (`FindRightClickTargets`), right-drag pans, the wheel zooms.
 
 With text in the preview (Rings tool not armed) `ScopeCanvas.FillsOnLeftClick` makes a left press raise `AircraftFillRequested` (or `MapFillRequested` on the map) instead of any other left-click event: `ScopeView` fills the track (`ScopeViewModel.FillTrack`, `ScopeEntryFill.Track`) and selects it, or fills the point (`FillPoint`); no menu, no dwell-lock toggle. A track the entry already names (`ScopeEntryFill.ChangesTrack` false) takes the ordinary left-click path.
 
-A middle press raises `AircraftMiddleClicked` (with a `ScopeMiddleHit`: whether it is on the ERAM Field A, and the field action under it, an HSF indicator or VCI cell first) or `MapMiddleClicked`; `ScopeView` runs the row `ScopeMiddleClick` picks (`ToggleHighlight`, `FillTrack` then `ExecuteEntry`, `RunQuickFlight`, `FillPoint` then `ExecuteEntry`). The highlight is the Scope's own `DataBlockState`, never the Radar's.
+A middle press raises `AircraftMiddleClicked` (with a `ScopeMiddleHit`: whether it is on the ERAM Field A, and the field action under it, an HSF indicator or VCI cell first) or `MapMiddleClicked`; `ScopeView` runs the row `ScopeMiddleClick` picks (`ToggleHighlight`, `FillTrack` then `ExecuteEntry`, `RunQuickFlight`, `FillPoint` then `ExecuteEntry`). The highlight is the Scope's own `DataBlockState`.
 
 **Field menus.** `TrackPresenter.ActionFor` sets each field's `ScopeFieldAction` per template and slot (ground targets get none) and `DatablockTemplate` carries it on the `FieldRect`. `ScopeCanvas` raises `FieldClicked` instead of `AircraftLeftClicked` for a left click on a field with an action, only for a field of the clicked aircraft's own block (a lower block seen through it only selects).
 
@@ -301,7 +288,7 @@ Right after the ERAM altitude, Full, Dwell and ERAM Partial line 2 carries the `
 
 ERAM Limited and the STARS block carry no mark (the STARS line 2 is the Mode C altitude). The mark is YAAT's own: CRC shows one display at a time and has none.
 
-The STARS full block carries the ATPA in-trail distance (the `Atpa` slot) at the right end of line 2, between the cwt/type and the ident (`230 25 D/B738 3.2 ID`), as CRC places it, with no row of its own; the Radar's datablock keeps its separate ATPA line.
+The STARS full block carries the ATPA in-trail distance (the `Atpa` slot) at the right end of line 2, between the cwt/type and the ident (`230 25 D/B738 3.2 ID`), as CRC places it, with no row of its own.
 
 Line 3 is the `StatusLine3` slot filled by `EramStatusLine.Build` (CRC's Field E, by strict priority: special-purpose code, `H` handoff, recently accepted `O`/`K` for the handing-off viewer only, beacon mismatch, `NONE`, `FRZN`, `CST`; the viewer's sector falls back to the digits of a `C`-prefixed active TCP when the server sent none), followed by the `HsfIndicator` slot (↴, drawn as a path in its `EramArrowCell`, in a fixed column because the status pads to four) whenever an HSF note is set; the status blinks only for `H`, `CST` and a correlated special-purpose code in its blink window, never in conflict.
 
@@ -319,7 +306,7 @@ Block levels are a presenter input (`TrackPresenterInput.Level`, `ScopeFrameInpu
 
 ERAM Limited is the aircraft id, the padded Mode C or CERA (`090#`) and the special-code label (`EramStatusLine.SpcText`), with no leader, no column 0 and no alert lines, the whole block blinking while a special code shows (CRC's paired LDB).
 
-ERAM Partial is the id, Field B and Field C without character 4 (`TrackPresenter.EramFieldsBAndC`) and the special-code label (CRC's enhanced LDB). STARS Limited and Partial are the Radar's collapsed lines with the leader; EuroScope shows the full tag at every level; the `(LDB)`/`(PDB)` mark shows only at Full and Dwell.
+ERAM Partial is the id, Field B and Field C without character 4 (`TrackPresenter.EramFieldsBAndC`) and the special-code label (CRC's enhanced LDB). STARS Limited and Partial are the collapsed lines (`DatablockText.BuildCollapsedLines`) with the leader; EuroScope shows the full tag at every level; the `(LDB)`/`(PDB)` mark shows only at Full and Dwell.
 
 Hover: `ScopeCanvas` tracks the hovered callsign, the VCI-previewed callsign and the callsign of the queued-commands badge the pointer is on (`ScopeHoverHit.QueueHovered`), and `ScopeFrame.HoverAt` hit-tests the drawn frame in one stage at a time across all tracks, topmost first (CRC's `ViewDataBlocks.HandleMouseMove`): within 8 px of a symbol dwells that track; else inside a lens badge's text box inflated 3 px shows its pending lines without dwelling; else a block's VCI cell (`ScopeBlockLayout.VciCell`, inflated 5 px left and down and 3 px up and right as CRC's `OnFrequencyIndicatorBounds`; ERAM Full and Dwell blocks only, with a viewer ERAM sector) lights the VCI glyph without dwelling the block, unless the cell is a plain track's and a dwell-locked block's `DwellBox` holds the point, or a qualifying HSF indicator takes it (`ScopeFrame.IndicatorsAt`) (the same cell is the click target, see Field menus); else 2 px outside a block's text bounds dwells it (`ScopeHoverHit`; `DwellAt` is its dwell half). A dwelled track is dwelled at once and released on the next move off it or when the pointer leaves the canvas, and panning holds it.
 
@@ -333,53 +320,47 @@ A field's `ScopeFieldStyle` ([Flags]: `DimTail`, `Strikethrough`, `ArrowUp`, `Ar
 
 **Feature seams.** The Scope's input and rendering take new features as partial methods, so a feature adds its own partial files rather than editing the shared ones. `ScopeCanvas.RunPressLadder` offers a press to its rungs in this order, the first to set `handled` ending it: heading vector, draw route, middle button, measuring tool, entry fill, block hide, menu gesture, block drag, range ring, aircraft, empty map, bubbles (`RunReleaseLadder` and `RunMoveHooks` work the same way, the move hooks all running). A feature implements the rung's `partial void Press…(in ScopePress, ref bool handled)` in its own `ScopeCanvas.*.cs`; the rung's place in the ladder is its place in `ScopeCanvas.Ladder.cs`, and a rung that must sit elsewhere moves there. Rendering has the same shape: a feature's data is built in its `Collect…` hook (`ScopeCanvas.CollectOverlays`) into `ScopeOverlays` on the UI thread, and drawn by its `Draw…` slot in `ScopeRenderer.Features.cs` (map tools under the tracks, the route, heading-vector, bubble and menu-cue overlays after the pilot lens and before the measure lines, map tools over everything) with its resources freed in its `Dispose…`. `ScopeView.Features.cs` (wiring, view-model attach and detach, menu rows, keys, the Esc chain), `ScopeViewModel.Features.cs` (Esc modes and tools, per-track state) and `MainViewModel.ScopeFeatures.cs` (`.scope` verbs) carry the rest. An unimplemented partial method compiles away, so the hooks cost nothing until a feature fills them.
 
-The Radar skips a `PositionDisplayConfigDto` marked `NoStarsDisplay` (an ERAM sector's), so its DCB map shortcuts and weather airports stay as they were. The Radar layouts above stay the live path until the view replaces them.
+The Scope's map source skips a `PositionDisplayConfigDto` marked `NoStarsDisplay` (an ERAM sector's), so its map shortcuts and weather airports stay as they were.
 
-`Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX — it builds the
-"show nav route" path segments (waypoints + the optional assigned-heading tail + crossing-restriction labels) that `RadarViewModel` assembles into the
-`ShownPathEntry` overlay list drawn by `RadarRenderer.DrawShownPaths`. It only shares the `Services/` folder with other code.
+`Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX: it builds the "show nav route" path segments (waypoints + the optional assigned-heading tail + crossing-restriction labels) that `ScopeIntentPaths` turns into the Scope's intent path.
 
 ## Two-thread render pipeline
 
-`RadarCanvas` extends `MapCanvasBase`, which splits every frame across two threads
-(`MapCanvasBase.cs:59-65`, `:70-78`, `:162-195`):
+`ScopeCanvas` extends `MapCanvasBase`, which splits every frame across two threads:
 
-1. **UI thread — `CreateRenderSnapshot()`** (`MapCanvasBase.Render` calls it; `RadarCanvas` overrides at
-   `RadarCanvas.cs:730`). It reads all Avalonia `StyledProperty` values and mutable canvas fields and copies them into an
-   immutable `RenderSnapshot` record (`RadarCanvas.cs:697-728`). `MapCanvasBase.Render` also clones the viewport
+1. **UI thread — `CreateRenderSnapshot()`** (`MapCanvasBase.Render` calls it; `ScopeCanvas` overrides it). It reads all Avalonia `StyledProperty` values and mutable canvas fields, builds the `ScopeFrame` and copies everything the renderer needs into an
+   immutable `ScopeRenderSnapshot` record. `MapCanvasBase.Render` also clones the viewport
    (`_viewport.Clone()`) and hands both to a `MapDrawOperation` (an `ICustomDrawOperation`).
-2. **Render thread — `RenderFromSnapshot(SKCanvas, MapViewport, object?)`** (`RadarCanvas.cs:821`). The draw operation
-   leases the SkiaSharp canvas (`ISkiaSharpApiLeaseFeature`, `MapCanvasBase.cs:184-194`) and calls `RenderFromSnapshot`,
-   which unpacks the `RenderSnapshot` and forwards every field to `RadarRenderer.Render`.
+2. **Render thread — `RenderFromSnapshot(SKCanvas, MapViewport, object?)`**. The draw operation
+   leases the SkiaSharp canvas (`ISkiaSharpApiLeaseFeature`) and calls `RenderFromSnapshot`,
+   which forwards the `ScopeRenderSnapshot` to `ScopeRenderer.Render`.
 
 ### The no-StyledProperty rule
 
 `RenderFromSnapshot` runs on the render thread and **must never read a `StyledProperty` or a mutable canvas field**.
-This is stated only in the `MapCanvasBase` doc-comments (`MapCanvasBase.cs:53-65`); nothing enforces it. Because of it, mutable interaction state that the renderer needs is **defensively copied into the snapshot**: the per-callsign datablock state (`ScopeDataBlockViewState` — manual offsets, minified, hidden, highlighted, z-order) is copied into fresh `HashSet`s / `Dictionary`s, and the aircraft list is filtered + z-ordered into a new list. Reading any of it directly inside `RenderFromSnapshot` would be a nondeterministic cross-thread access.
+This is stated only in the `MapCanvasBase` doc-comments; nothing enforces it. Because of it, mutable interaction state that the renderer needs is **defensively copied into the snapshot**: the per-callsign datablock state (`ScopeDataBlockViewState` — manual offsets, minified, hidden, highlighted, z-order) is copied into fresh `HashSet`s / `Dictionary`s, and the aircraft list is filtered + z-ordered into a new list. Reading any of it directly inside `RenderFromSnapshot` would be a nondeterministic cross-thread access.
 
 ### Session-persistent datablock state (`DataBlockViewState`)
 
-Per-callsign datablock UI state — manual drag offsets, highlights, minified choices, hidden datablocks, z-order — lives in `RadarViewModel.DataBlockState` (`ScopeDataBlockViewState`, `ViewModels/DataBlockViewState.cs`), **not** on the canvas (issue #350). The canvas binds it via the `DataBlockState` styled property (`RadarView.axaml`) and mutates it in place; a private local instance backs bare-canvas tests and detached windows. Two rules follow:
+Per-callsign datablock UI state — manual drag offsets, highlights, minified choices, hidden datablocks, z-order — lives in `ScopeViewModel.DataBlockState` (`ScopeDataBlockViewState`, `ViewModels/DataBlockViewState.cs`; `GroundViewModel.DataBlockState` for the Ground view), **not** on the canvas (issue #350). The canvas gets it through its `DataBlockState` property and mutates it in place; a private local instance backs bare-canvas tests and detached windows. Two rules follow:
 
-- The `DataBlockState` property-changed handler only marks dirty — it must **never clear** the store, because the binding
-  churns to null and back when the docked tab detaches/reattaches its content.
+- The canvas's `DataBlockState` setter only marks dirty — it must **never clear** the store, because the property churns to null and back when the docked tab detaches/reattaches its content.
 - Lifecycle clears belong to the view-model layer: scenario restart/rewind (`MainViewModel.ReplaceAircraftFromManifest`)
-  and scenario unload (`ClearScenarioState`) call `DataBlockState.Clear()`. The open YAAT Scope has its own state, dropped
-  with its rings, PTLs and toggled lens paths by `ScopeViewModel.ClearTrackState()` on unload, restart and every rewind, this client's own included. Because the state is shared by every
-  `RadarCanvas` bound to the view-model, the embedded tab and the pop-out window see the same offsets. There are no extra Radar windows: a second view is an extra Scope window — see [client-mainviewmodel.md](client-mainviewmodel.md#extra-view-instances-new-ground-window).
+  and scenario unload (`ClearScenarioState`) call the Ground views' `DataBlockState.Clear()`. Each open YAAT Scope has its own state, dropped
+  with its rings, PTLs and toggled lens paths by `ScopeViewModel.ClearTrackState()` on unload, restart and every rewind, this client's own included. Because the state is the view model's, the docked tab and the pop-out window of one Scope see the same offsets. A second view is an extra Scope window — see [client-mainviewmodel.md](client-mainviewmodel.md#extra-view-instances-new-ground-window).
 
-**Hidden datablocks.** `ScopeDataBlockViewState.HiddenCallsigns` is independent of the minified choice: a hidden block hides whatever form it has (full, collapsed, minified or EuroScope tag). `TargetRenderer` reads the snapshot's copy and skips the block and its leader line of a hidden aircraft unless it is selected; the target symbol, history trail, PTL and overlays stay drawn, and a speech bubble anchors at the symbol.
+**Hidden datablocks.** `ScopeDataBlockViewState.HiddenCallsigns` is independent of the minified choice: a hidden block hides whatever form it has (full, collapsed, minified or EuroScope tag). `ScopeFrame.IsBlockHidden` lays out no block for a hidden aircraft unless it is selected, so the renderer draws neither the block nor its leader line; the target symbol, history trail, PTL and overlays stay drawn, and a speech bubble anchors at the symbol.
 
-The canvas's hit-test (`FindDataBlockAtPoint`, `DataBlocksAtPoint`), the deconfliction inputs and the measurement-readout obstacles skip the same blocks through `RadarCanvas.IsBlockUndrawn`, so a hidden block catches no click and takes no room while its symbol still does. Shift+left on the symbol or block toggles it (see the ladder below), the Display submenu carries Hide/Show datablock, and the map's background menu carries "Show all datablocks", which clears the set; `Clear()` empties it with the rest of the state.
+The Scope's hit tests, the deconfliction inputs and the measurement-readout obstacles read the same frame, so a hidden block catches no click and takes no room while its symbol still does. Shift+left on the symbol or block toggles it (`PressBlockHide`), the Display submenu carries Hide/Show datablock, and the map's background menu carries "Show all datablocks", which clears the set; `Clear()` empties it with the rest of the state.
 
 ### The 100 ms force-repaint timer
 
-`MapCanvasBase` starts a `DispatcherTimer` at a 100 ms interval (`InvalidateInterval`, `MapCanvasBase.cs:19,31`) that calls
-`InvalidateVisual()` every tick (`OnInvalidateTick`, `:153-160`). This exists because aircraft positions update via
+`MapCanvasBase` starts a `DispatcherTimer` at a 100 ms interval (`InvalidateInterval`) that calls
+`InvalidateVisual()` every tick (`OnInvalidateTick`). This exists because aircraft positions update via
 property changes on items **inside** the bound `ObservableCollection` (`AircraftModel` instances), which do **not** raise
-styled-property change notifications on the canvas itself. Without the timer the radar would freeze between user
-interactions. `MarkDirty()` (`:48-51`) triggers an immediate extra repaint when a non-bound field changes (brightness,
-EuroScope mode, datablock drag, etc.).
+styled-property change notifications on the canvas itself. Without the timer the Scope would freeze between user
+interactions. `MarkDirty()` triggers an immediate extra repaint when a non-bound field changes (brightness,
+datablock drag, etc.).
 
 ## Viewport transform — `MapViewport`
 
@@ -388,87 +369,77 @@ equirectangular projection — valid because at TRACON scale (<120 nm) the disto
 (`MapViewport.cs:3-6`). Key members:
 
 - `LatLonToScreen(lat, lon)` / `ScreenToLatLon(x, y)` — the projection pair. Longitude is scaled by
-  `cos(CenterLat)` so east-west distance matches north-south at the display center (`MapViewport.cs:26,32`).
+  `cos(CenterLat)` so east-west distance matches north-south at the display center.
 - `Pan` / `ZoomAt` — mutate `CenterLat/CenterLon/Zoom`; `ZoomAt` keeps the point under the cursor fixed.
   Scroll-wheel zoom in `MapCanvasBase.OnPointerWheelChanged` scales its per-event step by the
   `MapCanvasBase.ScrollSensitivity` CLR property (`factor = Math.Pow(step, direction * ScrollSensitivity)`;
   1.0 = one full notch = historical speed). Views push `UserPreferences.ScrollSensitivity` into the canvas
-  via `RadarView.SyncAssignmentTint` / `GroundView` prefs-apply. Discrete DCB spinners (range/PTL/history/
+  through their prefs-apply. The Scope toolbar's discrete spinners (range/PTL/history/
   brightness) and the range-ring-size step gate through `ScrollStepAccumulator` instead, so a Mac trackpad's
   burst of small-delta events doesn't race them (#275).
-- `RotationDeg` — **set to the local magnetic declination** (east-positive) so the display is magnetic-north-up
-  (`MapViewport.cs:19-23`). `RadarCanvas` sets it from `MagneticDeclination.GetDeclination(centerLat, centerLon)` whenever
-  the center changes (`RadarCanvas.cs:669`, `:1413`).
+- `RotationDeg` — **set to the local magnetic declination** (east-positive) so the display is magnetic-north-up.
+  `ScopeCanvas` sets it from `MagneticDeclination.GetDeclination(centerLat, centerLon)` whenever
+  the center changes.
 
 Because the display is magnetic-north-up, any UI bearing (a fly-heading vector, a PTL) is in **magnetic** degrees and must
 round-trip through `MagneticDeclination.MagneticToTrue` / `TrueToMagnetic` before projecting, so the drawn angle matches
-the published bearing regardless of local declination. See `RadarRenderer.DrawVectorTail` (`RadarRenderer.cs:451`) and
-`RadarCanvas.ConfirmHeadingAt` (`RadarCanvas.cs:513-515`).
+the published bearing regardless of local declination. See `ScopeIntentPaths`' vector tail and the heading vector's `MagneticHeading`
+(`ScopeHeadingVector.cs`).
 
-### `DefaultPixelsPerDeg = 5000` is duplicated three times
+### `DefaultPixelsPerDeg = 5000` is duplicated twice
 
-The base pixels-per-degree constant is `5000.0`, defined as a `private const` in **three** places that must stay in sync:
-`MapViewport.DefaultPixelsPerDeg` (`MapViewport.cs:11`), `RadarCanvas.ZoomToRange` (`RadarCanvas.cs:1429`), and
-`RadarCanvas.UpdateViewRangeNm` (`RadarCanvas.cs:1552`). `ZoomToRange` converts the RANGE spinner (nm) into a viewport
-`Zoom`; `UpdateViewRangeNm` does the inverse. Changing one without the others desyncs the RANGE spinner from the actual
+The base pixels-per-degree constant is `5000.0`, defined as a `private const` in **two** places that must stay in sync:
+`MapViewport.DefaultPixelsPerDeg` and `ScopeCanvas.DefaultPixelsPerDeg` (used by `ZoomToRange` and `UpdateViewRangeNm`). `ZoomToRange` converts the RANGE value (nm) into a viewport
+`Zoom`; `UpdateViewRangeNm` does the inverse. Changing one without the other desyncs the RANGE from the actual
 on-screen zoom.
 
 ### Range/Zoom ⇄ Center/Viewport feedback-loop guards
 
-The RANGE spinner (`RangeNm`, default 40 — `RadarCanvas.cs:38`), the bound center (`RadarCenterLat/Lon`), and the live
+The RANGE (`RangeNm`), the bound center (`CenterLat/Lon`), and the live
 viewport sync **bidirectionally**, guarded by three flags to prevent infinite loops:
 
 - `_initialFitDone` — gates whether a viewport change should sync back to `RangeNm`/center, and ensures the one-time
   zoom-to-range fit happens exactly once.
 - `_suppressRangeFit` — set while writing `RangeNm` back from a viewport zoom, so the property-changed handler doesn't
-  re-fit the zoom (`OnViewportChanged`, `RadarCanvas.cs:1460-1462`).
-- `_suppressCenterSync` — set while writing `RadarCenterLat/Lon` from the viewport (or vice versa), so neither side
-  re-triggers the other (`RadarCanvas.cs:664`, `:1466-1471`).
+  re-fit the zoom (`OnViewportChanged`).
+- `_suppressCenterSync` — set while writing `CenterLat/Lon` from the viewport (or vice versa), so neither side
+  re-triggers the other.
 
-The flow: the property-changed handler (`OnPropertyChanged`, `:628-695`) syncs an incoming center into the viewport and,
-on the first valid center, calls `ZoomToRange`; a RANGE-spinner change re-zooms; a user pan/zoom fires `OnViewportChanged`,
-which writes the rounded `ViewRangeNm` back to `RangeNm` and the panned center back to `RadarCenterLat/Lon`.
+The flow: the property-changed handler (`OnPropertyChanged`) syncs an incoming center into the viewport and,
+on the first valid center, calls `ZoomToRange`; a RANGE change re-zooms; a user pan/zoom fires `OnViewportChanged`,
+which writes the rounded `ViewRangeNm` back to `RangeNm` and the panned center back to `CenterLat/Lon`.
 
-**Initial fit is deferred** because the radar tab may be laid out at 0×0 before it is shown. `OnPropertyChanged` only
-performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >= 1 && PixelHeight >= 1`,
-`RadarCanvas.cs:671`); otherwise `OnSizeChanged` (`:1436-1448`) does the fit when the canvas first gets real dimensions.
+**Initial fit is deferred** because the Scope tab may be laid out at 0×0 before it is shown. `OnPropertyChanged` only
+performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >= 1 && PixelHeight >= 1`);
+otherwise `OnSizeChanged` does the fit when the canvas first gets real dimensions.
 
 ## Render order (one frame)
 
-`RadarRenderer.Render` (`RadarRenderer.cs:274-376`) draws strictly back-to-front:
+`ScopeRenderer.Render` draws strictly back-to-front:
 
 1. `canvas.Clear(BackgroundColor)` — black.
-2. **Video maps** — `VideoMapRenderer.Render`, A/B brightness category per map (`RadarRenderer.cs:312`).
-3. **Range rings** — concentric circles at the dedicated range-ring center/size, if `showRangeRings` (`:315-321`).
-4. **Fixes** — crosses + labels; programmed fixes get a distinct color and always-on label (`:324-327`, `DrawFixes`). The source
-   list is `RadarViewModel.BuildVisibleFixes`, which drops vNAS-adapted identifiers that are themselves FRD strings
-   (`OAK169001`) via `FrdResolver.IsFrdIdentifier` — ~6,900 of them would otherwise carpet the scope. They remain typeable
-   through the command bar and the fix flyouts' boxes (`AllFixNames` still holds them).
-5. **Shown nav routes** — the "show nav route" overlay, drawn behind aircraft (`:330-333`, `DrawShownPaths`).
-6. **Aircraft targets** — `TargetRenderer.Render` (`:336-349`).
-7. **Heading-mode preview** — the live elastic vector when EuroScope heading mode is active; above aircraft, below the
-   drawn route (`:352-359`, `Flyouts.HeadingPreviewRenderer.Render`).
-8. **Drawn route overlay** — the in-progress draw-route waypoints + rubber-band line (`:362-369`).
-9. **Weather overlay** — METAR text block, top-left (`:372-375`). When the position's weather airports have no METAR in the loaded weather, the block is replaced by the `WeatherNote` line (`No METAR for SFO OAK`), never every station; both go through `DrawWeatherLines`. Stations match on the FAA id (`AirportAirlines.NormalizeAirportId` strips a 4-letter id's leading K or P).
-10. **Menu cue** — the map cue of the menu row under the pointer or holding focus (`MapCue`, set through `IMenuHost.SetMapCue` onto `RadarViewModel.MenuCue` and `ScopeViewModel.MenuCue`), drawn *after* `Render` returns, from `RadarCanvas.RenderFromSnapshot` via `RadarRenderer.DrawMenuCue`, which delegates to `MapCueRenderer` (the Scope's `ScopeRenderer.DrawMenuCue` slot calls the same renderer, so the cue reads alike on both), so it shows over targets and datablocks, and before the range/bearing lines.
+2. **Video maps** — `VideoMapRenderer.Render`, A/B brightness category per map.
+3. **Map tools under the tracks** — `DrawMapToolsUnder` (the range ring, among others).
+4. **Per track, behind its symbol** — rings (the J-ring, the manual and ATPA cones), the conflict ring, history dots and the vector line, each at its BRITE group.
+5. **Aircraft targets** — `DrawTrack` (symbol, leader, block) and the CRR readout, in z-order, a dwelled block last.
+6. **Pilot lens** — the intent path, queue badge and check-in tag, a hovered badge's lines over every badge.
+7. **Route, heading vector, speech bubbles** — the drawn-route overlay, the heading vector and the bubbles (`DrawRouteOverlay`, `DrawHeadingVector`, `DrawBubbles`), over every block.
+8. **Menu cue** — the map cue of the menu row under the pointer or holding focus (`MapCue`, set through `IMenuHost.SetMapCue` onto `ScopeViewModel.MenuCue`), drawn by `ScopeRenderer.DrawMenuCue`, which delegates to `MapCueRenderer`, so it shows over targets and datablocks, and before the range/bearing lines.
 
     It is a solid `#8fc1ff` ring (radius 13 px, 2 px) on the pointed target, a dashed (5/4) 1.4 px `#8fc1ff` bearing line to it from the commanded aircraft with `{clock} o'clock · {nm} nm` in 11 px monospace right of the midpoint (left out when the cue's `ShowBearingLabel` is false), and a dashed (4/3) `#7fd1b9` ring on the aircraft the call resolves to when that is another one. A cue with no pointed target (`MapCue.TargetCallsign` null, the solo advisory flyout with no row pointed at) draws only that dashed ring: no solid ring, bearing line or datablock highlight.
 
-    The snapshot carries it already resolved (`MapCue.ResolveAgainst`, the same filtered list the frame draws), as the range/bearing lines are: an end whose aircraft the view does not draw draws nothing. The pointed target's datablock also takes the menu highlight (`DataBlockState.SetMenuHighlight`, which `RadarCanvas` repaints on through `HighlightsChanged`). On the Scope `ScopeCanvas.CollectMenuCue` resolves it against the frame's tracks into `ScopeOverlays.MenuCue`, and `ScopeView` repaints on a cue or highlight change.
-11. **Range/bearing lines** — the distance measuring tool, drawn *after* `Render` returns, from `RadarCanvas.RenderFromSnapshot` via `RadarRenderer.DrawRangeBearingLines` → the shared `Views/Map/RangeBearingRenderer`. Last so a measurement stays legible over targets and datablocks. The snapshot carries them already resolved (`ResolvedRbl`), because a latched endpoint has to be looked up against the live aircraft list on the UI thread.
+    `ScopeCanvas.CollectMenuCue` resolves the cue against the frame's tracks into `ScopeOverlays.MenuCue` (`MapCue.ResolveAgainst`), as the range/bearing lines are resolved: an end whose aircraft the view does not draw draws nothing. The pointed target's datablock also takes the menu highlight (`DataBlockState.SetMenuHighlight`), and `ScopeView` repaints on a cue or highlight change.
+9. **Range/bearing lines** — the distance measuring tool, drawn last through the shared `Views/Map/RangeBearingRenderer`, then the min-sep pair and the map tools over everything (`DrawMapToolsOverlay`). Last so a measurement stays legible over targets and datablocks. The snapshot carries them already resolved (`RangeBearingLines`), because a latched endpoint has to be looked up against the live aircraft list on the UI thread.
 
-    Only lines tagged `RblView.Radar` are resolved into the snapshot — measurements taken in the ground view never render here. The readout is anchored at the far endpoint, or, when that endpoint is off-screen, where the line exits the viewport (`RblLabelPlacement.Anchor`), and every candidate spot is clamped fully inside the view (`RblLabelPlacement.ClampIntoView`), so a partially visible line always shows its reading.
+    Only lines tagged `RblView.Scope` for this Scope window are resolved into the snapshot — measurements taken in the ground view never render here. The readout is anchored at the far endpoint, or, when that endpoint is off-screen, where the line exits the viewport (`RblLabelPlacement.Anchor`), and every candidate spot is clamped fully inside the view (`RblLabelPlacement.ClampIntoView`), so a partially visible line always shows its reading.
 
     `RblReadoutPlacement` then picks one of eight spots around the anchor, East first (CRC's spot, 9 px out): the spot with the least overlap with data blocks, aircraft symbols (except the symbol of the aircraft the far end is latched to) and readouts already placed, scored as clamped, and kept frame to frame unless another spot is clearly cheaper.
 
-    When every spot is covered, it takes the spot the fixed obstacles (manually dragged blocks, EuroScope tags, other readouts) leave freest and **nudges** the auto-placed blocks under it just clear (the shortest left/right/up/down move whose leader stays within `MaxLeaderLength`); a block no such move clears counts as fixed for that spot.
+    The Ground view goes further: when every spot is covered, it takes the spot the fixed obstacles (manually dragged blocks, other readouts) leave freest and **nudges** the auto-placed blocks under it just clear (the shortest left/right/up/down move whose leader stays within `MaxLeaderLength`); a block no such move clears counts as fixed for that spot. The Scope moves no block for a readout.
 
     A nudged block stays nudged until it clears the readout by 6 px, and readouts placed later in the frame treat it as fixed; a later readout's nudge never moves a block onto an earlier readout or a block it nudged (`RblObstacles.PlacedThisFrame`). The half-placed (pending) line uses the same spots but never nudges. CRC does not deconflict its readout; this is a YAAT departure.
 
-Inside step 6, `TargetRenderer` first draws **history trails** behind all symbols (`TargetRenderer.cs:198-202`), then does a
-**two-pass deferred render**: aircraft with an active speech bubble are held back to a second pass so their symbol,
-datablock, and bubble pill paint on top of neighboring aircraft (`:207-258`). The deferred list is allocated only when
-speech bubbles are enabled.
+Inside step 5, history dots draw behind all symbols, and aircraft with an active speech bubble are drawn after the rest so their symbol and block paint on top of neighboring aircraft (`ScopeCanvas.OrderBubbledLast`).
 
 Solo training suppresses SAY and pilot-speech bubbles (`AircraftSpeechBubble.TryBuild`'s solo-mode gate, fed by
 `MainViewModel.MaybeAttachSpeechBubble`). The environment variable `YAAT_DEV_SOLO_SPEECH_BUBBLES=1` lifts that
@@ -476,9 +447,7 @@ suppression; it is a capture-only switch for recording demo videos of solo repla
 
 ## Datablock and tag layout
 
-Two layout families, selected by the `EuroScopeMode` preference:
-
-**STARS — `RadarDatablockLayout.Compute`** (`RadarDatablockLayout.cs:48`). Lines, top to bottom:
+The Scope lays each block out once, in `ScopeFrame`, from the text `TrackPresenter` builds for the track's template (`ScopeTemplates.cs`, `DatablockTemplate.cs`, `FieldRect.cs`); the renderer, the hit tests and the deconfliction all read that one layout. The YAAT Scope engine section lists the files and the STARS, ERAM and EuroScope slots. The STARS full block's lines, top to bottom:
 1. Callsign (`*`-suffixed for VFR).
 2. Altitude-hundreds + speed-tens + CWT/type, with a flashing `ID` appended while the aircraft is identing
    (see **IDENT** below).
@@ -491,61 +460,38 @@ Two layout families, selected by the `EuroScopeMode` preference:
    set, otherwise the server-resolved `AutoScratchpad1` (the STARS destination fallback). The two render identically,
    deliberately: CRC does not distinguish them, so the instructor mirror shows exactly what the student's scope shows.
    See [crc-display-state.md](crc-display-state.md#automatic-primary-scratchpad) for the gating rules. The same helper
-   backs the EuroScope layout and `DatablockText.BuildCollapsedLines`, so all three stay in lockstep.
+   backs the EuroScope template and `DatablockText.BuildCollapsedLines`, so all three stay in lockstep.
 5. `ModeC` (rendered struck-through) when the transponder is in Standby.
 6. `NoLndgClnc` warning (red, flashing).
 7. Conflict alert (`ConflictLine`, red, flashing) — `CA 2.4/800` / `MCI 2.4/800`. See **Conflict alerts** below.
-8. Instructor note (`Line6`, amber) at the bottom of the block.
+8. Instructor note (amber) at the bottom of the block.
 
-An ATPA in-trail distance line (`AtpaLine`, steady, state-coloured) sits after the owner/scratchpad line when the aircraft is the trailing member of an ATPA pair and `ShowAtpa` is on. See **ATPA cones** below.
+An ATPA in-trail distance (steady, state-coloured) sits at the right end of line 2 when the aircraft is the trailing member of an ATPA pair and ATPA is on. See **ATPA cones** below.
 
-**EuroScope — `EuroScopeTagLayout.Layout`** (`EuroScopeTagLayout.cs:52`). Four lines plus optional squawk-mismatch / ModeC / NoLndgClnc:
-1. Owner initials (or `--`) + callsign.
-2. Type/CWT + destination + a flashing `ID` (`TagFieldId.Ident`) while identing.
-3. Current altitude + assigned altitude `(NNN)` + assigned speed `Snnn`/`ASP` + assigned heading `Hnnn`/`AHDG`.
-4. `Rrwy` + scratchpads + flashing handoff (only when at least one is set).
-5. Beacon-code mismatch — a `TagFieldId.Squawk` field (`1200 0301`, reported solid + assigned dim-pulsing), only when
-   the codes differ. Clicking it opens the `SquawkFlyout` via the existing dispatch.
-6/7/8. `ModeC` (struck-through), `NoLndgClnc`, and the conflict alert (`TagFieldId.ConflictAlert`) as needed.
-
-The EuroScope layout returns a `EuroScopeTagResult` carrying the tag `Bounds` plus a list of `TagFieldRect`
-(`field id, rect, text`) — one per clickable field (`EuroScopeTagLayout.cs:31-35`). Empty assigned fields still emit their
-identifier (`ASP`, `AHDG`, `(---)`) so the click target stays stable when nothing is assigned.
+The EuroScope template is the upstream four-line tag: owner initials (or `--`) + callsign; type/CWT + destination + a flashing `ID` while identing; current altitude + assigned altitude `(NNN)` + assigned speed `Snnn`/`ASP` + assigned heading `Hnnn`/`AHDG`; `Rrwy` + scratchpads + flashing handoff (only when at least one is set); then the beacon-code mismatch, `ModeC`, `NoLndgClnc` and the conflict alert as needed. Each is a clickable field with a `ScopeFieldAction`, and an empty assigned field still emits its placeholder (`ASP`, `AHDG`, `(---)`) so the click target stays stable when nothing is assigned. The frozen text of this block is `tests/Yaat.Client.Tests/Views/Scope/Golden/euroscope-block.json`, which `ScopeTemplateParityTests` compares the template with, as `Golden/stars-full-block.json` does for the STARS block.
 
 ### Flash slots
 
-The handoff indicator (both layouts), the `NoLndgClnc` warning, the conflict alert, and the `ID` ident token blink on a 500 ms cycle:
-`Environment.TickCount64 / 500 % 2 == 0` (`RadarDatablockLayout.cs:66,119`; `EuroScopeTagLayout.cs:148,187`). The
-`NoLndgClnc` slot **reserves its width and a line slot even when the flash is off-phase**, so the datablock height and the
-hit-rect width don't pulse with the flash (`RadarDatablockLayout.cs:73-90`; `EuroScopeTagLayout.cs:181-185`). The handoff
-indicator does **not** reserve when off — the STARS hit-test path compensates by always sizing line 3 as if the handoff
-were present (`RadarCanvas.cs:1333-1334`, `DatablockText.BuildOwnerScratchpadLine` always includes the handoff for width).
+The handoff indicator, the `NoLndgClnc` warning, the conflict alert, and the `ID` ident token blink on the shared 500 ms cycle (`MapBlink`). A flashing field **reserves its width and line slot even when the flash is off-phase** (the text is built unconditionally while the condition holds, and the renderer blanks it on the off-phase), so the datablock height and the hit-rect width don't pulse with the flash.
 
 The conflict field reserves the same way, but note **what** it measures: the reserved width comes from the *stable* text
 (`DatablockText.BuildConflictLine` called unconditionally while the conflict is active), not from the currently-drawn string. The field
 carries live separation values that change as the pair moves, so measuring the drawn string would collapse the rect to
-zero on every off-phase. Both layouts also expose the reservation as an explicit flag — `ReserveWarningSlot` /
-`ReserveConflictSlot` on the STARS layout — because the draw path has to advance its row past a reserved-but-blank
-`NoLndgClnc` slot to place the conflict field, and `Line5.Length > 0` can't distinguish "inactive" from "off-phase".
+zero on every off-phase.
 
 ### IDENT
 
 `ID` blinks fully on/off on the shared 500 ms cycle, and it **reserves its width the same way `NoLndgClnc` reserves its
-line slot** — but the reservation lives in the *string*, not in a flag. Every builder
-(`Compute`'s line 2, `BuildCollapsedLines`, `BuildMinifiedLine`) appends the token unconditionally while the ident is
-active, so measurement and hit-testing always see it; only `TargetRenderer` skips drawing it on the off-phase. Because it
-is the **last** token on its line, skipping it shifts nothing to its right
-(`RadarDatablockLayoutTests.Line2_ReservesIdWidthAcrossFlashCycle`,
-`DatablockHitTestParityTests.HitTestRect_StableAcrossIdentFlashCycle`).
+line slot** — the reservation lives in the *string*. Every builder
+(`TrackPresenter`'s line 2, `BuildCollapsedLines`, the minified line) appends the token unconditionally while the ident is
+active, so measurement and hit-testing always see it; only the renderer skips drawing it on the off-phase. Because it
+is the **last** token on its line, skipping it shifts nothing to its right.
 
 It is **appended after** the CWT/type token (`230 25 D/B738 ID`), not substituted for it — CRC's `BuildFdb` suppresses
 `track.Category` while identing, but YAAT keeps the type because the instructor mirror is also a diagnostic surface. The
 block widens for the duration.
 
-`RadarDatablockLayout.IdentActive` tells the draw path that line 2 carries the token, and
-`TargetRenderer.DrawDatablockLine` splits the line into an MVA-tinted altitude head, a plain middle, and the flashing
-ident tail. All four block forms show it — STARS full, collapsed LDB/PDB, minified, and the EuroScope tag
-(`TagFieldId.Ident`, whose `TagFieldRect` is emitted on both phases so the click target holds still). The **Ground view**
+All the block forms show it — STARS full, collapsed LDB/PDB, minified, and the EuroScope tag. The **Ground view**
 does not, matching CRC: `DtoConverter.ToAsdexTrack` carries no ident field.
 
 State arrives as `AircraftModel.IsIdenting` (from `AircraftStateDto.IsIdenting`); the sim clears it after
@@ -554,18 +500,17 @@ side and why the field must stay in `TrainingDtoFingerprint`.
 
 ### Conflict alerts
 
-`ConflictLine` (STARS) / `TagFieldId.ConflictAlert` (EuroScope) render when
+`ConflictLine` (STARS) and the EuroScope conflict field render when
 `AircraftModel.ConflictPeerCallsign` is set and the `ShowConflictAlerts` preference is on.
-`TargetRenderer.DrawConflictRing` additionally strokes a geo-anchored 3 nm ring around the target, built the same way as
-`DrawTpaJRing` (73 projected vertices, not a pixel-scaled circle) so the radius stays true at any zoom.
+`ScopeRenderer.DrawConflictRing` additionally strokes a geo-anchored 3 nm ring around the target (projected vertices, not a pixel-scaled circle) so the radius stays true at any zoom.
 
 On the Scope, with `ShowConflictAlerts` on, a track in a conflict pair draws its block Full whatever the zoom band's others level (`ScopeFrame.IsForcedFullForConflict`: any STARS pair, or an ERAM-template block in a gate-shown ERAM pair that flashes it). A STARS pair's CA line is steady at half ALERTS brightness while `ConflictSuppressed` (`ScopeFieldStyle.Dimmed`), steady at full brightness once `ConflictAcknowledged`, and flashing otherwise. `ScopeRenderer.DrawConflictRing` strokes the 3 NM ring (`ScopeRingGeometry.StarsConflictRingNm`) at the ALERTS brightness, halved for a suppressed pair. A CA inhibit's answer is `ScopeViewModel.CaInhibitAnswer`, and `TrackPresenter.WithCaInhibitMark` adds the filled triangle after the callsign on an inhibited track's STARS full block.
 
-The CA line and the Radar's ring are STARS pairs only. An ERAM STCA pair (`ConflictAlertDto.Kind` `Eram`) never sets
+The CA line and the STARS ring are STARS pairs only. An ERAM STCA pair (`ConflictAlertDto.Kind` `Eram`) never sets
 `ConflictPeerCallsign`; `MainViewModel.EramConflictAlerts` hands it to the Scope (`ScopeCanvas.EramConflicts`), where a
 track drawn with the ERAM template flashes its whole datablock on the blink phase, with no CA line, when
 `ScopeEramConflictGate` passes the pair for the viewer's ERAM facility and sector (no facility passes every pair; a sector in the pair's `HiddenSectors` for that facility does not) and
-`ShowConflictAlerts` is on. The Mode C intruder does not flash, and the Ground level never does. The Scope also rings each gate-shown member but the intruder (5 NM, 3 NM when both are at or below FL230) while the DB menu's CA RING is on; a STARS CA line on an ERAM-template block shows only for an unsuppressed STARS pair. The Radar draws nothing for an ERAM pair.
+`ShowConflictAlerts` is on. The Mode C intruder does not flash, and the Ground level never does. The Scope also rings each gate-shown member but the intruder (5 NM, 3 NM when both are at or below FL230) while the DB menu's CA RING is on; a STARS CA line on an ERAM-template block shows only for an unsuppressed STARS pair.
 
 Two things about this field are unlike every other datablock field:
 
@@ -576,9 +521,8 @@ Two things about this field are unlike every other datablock field:
   race (broadcast arrives before the aircraft's first update).
 - **Separation is computed per frame, not carried on the wire.** The broadcast is signature-guarded and only fires when
   the pair set changes, so DTO-carried values would freeze at the moment the conflict opened. `BuildConflictLine`
-  derives them from the pair's live positions instead, which is why both layouts need the peer `AircraftModel` passed in
-  — resolved by `TargetRenderer.ResolveConflictPeer` (per-pass callsign index) on the draw path and
-  `RadarCanvas.ResolveConflictPeer` (scan of the bound collection) on the hit-test path.
+  derives them from the pair's live positions instead, which is why the layout needs the peer `AircraftModel` passed in
+  — `ScopeRenderer` resolves it from a per-frame callsign index (`Peer`).
 
 `BuildConflictLine` quantizes each altitude to hundreds **before** differencing rather than differencing and rounding —
 otherwise the field can read `200` while the two truncated altitude readouts above it are `100` apart. The label follows
@@ -591,13 +535,13 @@ overlap from 6 nm apart, so the overlap is not the alert condition; the peer's *
 
 ### Beacon-code mismatch (squawk mismatch)
 
-`AircraftCommandApplicability.TryGetSquawkMismatch(ac, out reported, out assigned)` (`Yaat.Client.Core/ContextMenus`, over `IMenuAircraft`) is the **single shared gate** used by the STARS datablock (`Compute`), the EuroScope tag (`Layout`), **and the Ground View datablock** (`Ground/GroundRenderer.cs` `DataBlockLayout.SquawkLine`, drawn through the static `TargetColors.DrawSquawkMismatchLine` overload — see [ground-rendering.md](ground-rendering.md#datablock-composition)), so a change to the gate or the pulse treatment lands on all three surfaces at once. The same gate decides the quick-command strip's Squawk assigned code (`ShowsSquawkAssigned`, see [client-context-menus.md](client-context-menus.md#when-a-quick-command-shows)). It emulates CRC STARS (`DisplayElementTracks.BuildFdb`): when an aircraft is squawking a code that differs from its ATC-assigned code, the block shows the **reported code solid** followed by the **assigned code**, and the renderer draws the assigned token **dim-pulsing** — dimmed to ~25% brightness on the 500 ms off-phase (`TargetColors.DimColor`, mirroring CRC's `ApplyColorBrightness(color, 25)`), *not* fully blanked like the handoff / `NoLndgClnc` flash. The reported code stays solid.
+`AircraftCommandApplicability.TryGetSquawkMismatch(ac, out reported, out assigned)` (`Yaat.Client.Core/ContextMenus`, over `IMenuAircraft`) is the **single shared gate** used by the Scope's STARS datablock and EuroScope tag (`TrackPresenter`), the ERAM status line (`EramStatusLine`), **and the Ground View datablock** (`Ground/GroundRenderer.cs` `DataBlockLayout.SquawkLine`, drawn through the static `TargetColors.DrawSquawkMismatchLine` overload — see [ground-rendering.md](ground-rendering.md#datablock-composition)), so a change to the gate or the pulse treatment lands on every surface at once. The same gate decides the quick-command strip's Squawk assigned code (`ShowsSquawkAssigned`, see [client-context-menus.md](client-context-menus.md#when-a-quick-command-shows)). It emulates CRC STARS (`DisplayElementTracks.BuildFdb`): when an aircraft is squawking a code that differs from its ATC-assigned code, the block shows the **reported code solid** followed by the **assigned code**, and the renderer draws the assigned token **dim-pulsing** — dimmed to ~25% brightness on the 500 ms off-phase (`TargetColors.DimColor`, mirroring CRC's `ApplyColorBrightness(color, 25)`), *not* fully blanked like the handoff / `NoLndgClnc` flash. The reported code stays solid.
 
 The gate returns true only when **all** hold: an assigned code exists (`AssignedBeaconCode > 0`); reported ≠ assigned;
 the transponder is actively squawking (`TransponderMode` is not `Standby`/`Off`); and the reported code is not a
 special-purpose/emergency code (`7400/7500/7600/7700/7777`). A VFR aircraft still squawking `1200` after being assigned a
 discrete code **does** surface — that is the primary case. Because the mismatch *condition* never flashes (only the
-assigned token's brightness pulses), the reserved line slot and width in `Compute` stay stable across the cycle, so the
+assigned token's brightness pulses), the reserved line slot and width stay stable across the cycle, so the
 rect never pulses. Both codes format with `.ToString("0000")` (the raw octal-as-decimal beacon convention).
 
 The assigned code reaches the client via `AircraftDto.AssignedBeaconCode` (see
@@ -611,59 +555,31 @@ RPO should ignore — and releases when a new beacon code is assigned (Flight Pl
 
 When the scenario has a student position, the server projects how that student's STARS scope shows each track —
 computed by `StarsDatablockClassifier` (Yaat.Sim) and carried on `AircraftStateDto.StudentDatablockColor` /
-`StudentDatablockLevel` / `StudentLeaderDirection`, surfaced on `AircraftModel`. `TargetRenderer` consumes these, gated
-by four `UserPreferences` toggles synced via `RadarView.SyncAssignmentTint`:
+`StudentDatablockLevel` / `StudentLeaderDirection`, surfaced on `AircraftModel`. `TrackPresenter` consumes these, gated
+by `UserPreferences` toggles that `ScopeCanvas` passes into the frame's display options:
 
-- **`SyncStudentColors`** (default on) — `DrawOneAircraft` colors the datablock from `StudentDatablockColor`
+- **`SyncStudentDatablockColors`** (default on) — colors the datablock from `StudentDatablockColor`
   (Owned→white, Unowned→green, Pointout→yellow, Highlighted→cyan) as the base color, below an RPO assignment tint but above
-  the ground/white defaults (`TargetRenderer.cs:283-304`).
+  the ground/white defaults.
 - **`MarkStudentLimitedDatablocks`** (default on) — appends `(LDB)`/`(PDB)` to the callsign line for the student's
-  Limited/Partial levels.
-- **`CollapseStudentDatablocks`** (default off) — renders the reduced block the student sees (`BuildCollapsedLines`) instead
-  of the full block + marker.
+  Limited/Partial levels (`DatablockText.StudentLevelMarker`).
 - **`SyncStudentLeaderDirection`** (default off) — places the block in the student's leader direction via
   `ResolveBlockOffset`/`LeaderDirectionOffset`; a manual drag offset always wins, and the data block's right-click
-  **Display > Reset datablock position** clears the manual offset (`RadarCanvas.ResetDataBlockOffset`).
+  **Display > Reset datablock position** clears the manual offset (`ScopeViewModel.ResetDataBlockPosition`).
+
+The Settings window still offers **`CollapseStudentDatablocks`** (the reduced block the student sees), but nothing reads it now that the Scope is the only radar view.
 
 The projection is null when there is no student position, so the renderer falls back to its prior behavior.
 
 ## Geometry — draw vs hit-test (single source of truth)
 
-The full-datablock rectangle has **one source of truth**: `RadarDatablockLayout.Compute`. Both paths call it:
+The Scope's block rectangle has **one source of truth**: the `ScopeFrame` layout built from `TrackPresenter`'s fields (`FieldRect.cs`). The renderer paints from it, and the hit tests (`ScopeFrameHits`, the field-action lookup) read the same frame, so no second derivation of the rect exists to drift. Block placement (`DatablockText.ResolveBlockOffset`, through `ScopeFrame.PlaceBlock`) and the collapsed line strings (`DatablockText.BuildCollapsedLines`) are pure static helpers both sides go through.
 
-- **Draw path** — `TargetRenderer.DrawLeaderAndDataBlock` calls `RadarDatablockLayout.Compute` (STARS) or
-  `EuroScopeTagLayout.Layout` (EuroScope) and paints from the result (`TargetRenderer.cs:356-506`).
-- **Hit-test path** — `RadarCanvas.ComputeDataBlockPlacement` (`ComputeDataBlockRect` is a thin `.Rect` wrapper) routes the
-  full block through `ComputeStableRectAtOrigin` → `ComputeStableFullRectAtOrigin`, which now just calls
-  `RadarDatablockLayout.Compute(ac, 0, 0, HitTestStyle, …).Rect` (no hand-mirrored line-string re-derivation). It returns
-  `(Offset, Rect)`: the rect feeds hit-testing, and the offset feeds drag-start so a leader-placed block whose position
-  hasn't been dragged doesn't jump on the first drag.
-
-`Compute` reserves the owner/handoff slot **stably** (`ReserveOwnerSlot` + the stable `line3` width), mirroring how it
-already reserves the `NoLndgClnc` slot — so the rect (and thus the selection border, leader endpoint, and hit area) never
-pulses with the 500 ms handoff flash. The draw loop steps its row by `ReserveOwnerSlot`, not by `Line3`'s current
-emptiness, so `ModeC`/`NoLndgClnc` don't jump during the flash off-phase. `RadarDatablockLayoutTests` guards this
-(`HandoffOnly_ReservesOwnerSlot…`, `OwnerHandoff_RectStableAcrossFlashCycle`) plus the translation invariant
-(`Compute_RectIsTranslationInvariant`) that deconfliction relies on.
-
-`ComputeStableRectAtOrigin` is shared by `ComputeDataBlockPlacement` **and** the deconfliction input assembly
-(`BuildDeconflictItems`), so hit-test geometry and the deconfliction layout never diverge.
-
-**The student-scope additions ARE shared too.** Block placement (`ResolveBlockOffset`), the minified/collapsed
-line strings (`BuildMinifiedLine`/`BuildCollapsedLines`), the `(LDB)`/`(PDB)` marker (`StudentLevelMarker`), and the reduced
-rect (`ReducedRect`) are pure static helpers (`BuildMinifiedLine` and `ReducedRect` on `RadarDatablockLayout`, the rest on `DatablockText`) that **both** the draw path and
-`ComputeDataBlockPlacement` call. Only the reduced (minified/collapsed) block still builds its line strings on each path,
-but through the same shared `ReducedRect`/`BuildMinifiedLine`/`BuildCollapsedLines` helpers.
-
-**EuroScope mode avoids the re-derivation.** When EuroScope mode is on (and the block isn't minified),
-`ComputeDataBlockRect` returns the `Bounds` the renderer cached during the last frame
-(`LastEuroScopeTags`, `RadarCanvas.cs:1287-1292`). The renderer populates `_lastEuroScopeTags[callsign]` on every draw
-(`TargetRenderer.cs:475`). The trade-off: a frame in which an aircraft's tag was **not** rendered (it was filtered out)
-leaves stale or absent bounds, so `FindTagFieldAtPoint` returns `None` for it until the next frame draws it.
+The layout reserves the owner/handoff slot **stably**, as it reserves the `NoLndgClnc` slot — so the rect (and thus the selection border, leader endpoint, and hit area) never pulses with the 500 ms handoff flash. The layout is translation-invariant, which the deconfliction relies on: it lays each block out at the origin and offsets it.
 
 ## Datablock deconfliction
 
-`DatablockDeconfliction` (`Views/Map/DatablockDeconfliction.cs`) is a **pure, UI-agnostic** helper shared by the radar and
+`DatablockDeconfliction` (`Views/Map/DatablockDeconfliction.cs`) is a **pure, UI-agnostic** helper shared by the Scope and
 ground views that repositions overlapping datablocks so labels stay readable. It is **opt-in** per view via a 3-way
 `DatablockDeconflictMode` (`Off` / `CompassSnap` / `FreeForm`, persisted globally as `UserPreferences.RadarDeconflictMode`
 / `GroundDeconflictMode`, cycled by the DCNF button). `CompassSnap` greedily snaps each block to one of the eight STARS
@@ -682,60 +598,45 @@ hugging it. Both bias the layout toward the aircraft's lateral order — a soft 
 cost and a gentle restoring force in `FreeForm` keep repositioned blocks reading in the same left-to-right / top-to-bottom
 order as their anchors — and both are deterministic given the same inputs + previous result.
 
-**Where it runs (and why):** the pass runs on the **UI thread** inside `RadarCanvas.CreateRenderSnapshot` (and the ground
-equivalent), not on the render thread. The hit-test path (`ComputeDataBlockPlacement` / `FindDataBlockAtPoint`) is also
-UI-thread and must read the **same** resolved offsets the draw used, or clicking/dragging a deconflicted block breaks. The
-result lives in a per-canvas `_resolvedDeconflictOffsets` dictionary: written once per snapshot build, copied immutably into
-the snapshot for the render thread, and read live by the UI-thread hit-test. It also persists across frames as the
-stability seed for the next pass. When the mode is `Off` the pass is skipped entirely and the map is empty — existing
+**Where it runs (and why):** the pass runs on the **UI thread** while the canvas builds the frame (`ScopeCanvas.BuildFrame`; the ground equivalent likewise), not on the render thread. The hit-test path reads the same frame, so it sees the **same** resolved offsets the draw used, or clicking/dragging a deconflicted block would break. The
+result persists across frames as the stability seed for the next pass. When the mode is `Off` the pass is skipped entirely and the map is empty — existing
 placement is untouched.
 
 **Offset precedence** (extended in `DatablockText.ResolveBlockOffset`): **manual drag > deconfliction > leader
-direction > default**. Manually-dragged blocks are *pinned* (immovable obstacles others avoid); EuroScope tags are pinned
-for v1 because their per-field hit rects are cached from the draw. A non-overlapping block resolves to its preferred
-offset, so deconfliction only moves labels that actually collide. `BuildDeconflictItems` assembles the input list (anchor,
-rect-at-origin, preferred offset, pinned/priority flags) using the same `ComputeStableRectAtOrigin` the hit-test uses.
+direction > default**. Manually-dragged blocks are *pinned* (immovable obstacles others avoid). A non-overlapping block resolves to its preferred
+offset, so deconfliction only moves labels that actually collide. `ScopeDeconfliction` assembles the input list (anchor,
+rect-at-origin, preferred offset, pinned/priority flags) from the same layout the hit-test reads.
 
-**On the Scope**, `ScopeDeconfliction` (`Views/Scope/ScopeDeconfliction.cs`) runs the same engine: `ScopeCanvas` builds each frame through it, so the rings, the CRR readout and the hit-test follow the moved block, a manually dragged block is pinned and a hidden block is left out. Free-form advances one damped step per drawn frame (a hit-test's build reuses the last frame's offsets, so a click lands where the block is drawn); Snap runs on every build. The Scope's mode (`ScopeViewModel.DeconflictMode`) is its own: a new Scope takes `UserPreferences.RadarDeconflictMode` and never writes it back, and a pref set keeps it.
+`ScopeDeconfliction` (`Views/Scope/ScopeDeconfliction.cs`) runs the engine for the Scope: `ScopeCanvas` builds each frame through it, so the rings, the CRR readout and the hit-test follow the moved block, a manually dragged block is pinned and a hidden block is left out. Free-form advances one damped step per drawn frame (a hit-test's build reuses the last frame's offsets, so a click lands where the block is drawn); Snap runs on every build. The Scope's mode (`ScopeViewModel.DeconflictMode`) is its own: a new Scope takes `UserPreferences.RadarDeconflictMode` and never writes it back, and a pref set keeps it.
 
-**Free-form limit (shared engine):** a same-row pair whose anchors are closer than about the block width less twice its height settles crossed, with a sliver of overlap, on the Radar, Ground and Scope alike; `CompassSnap` separates them.
+**Free-form limit (shared engine):** a same-row pair whose anchors are closer than about the block width less twice its height settles crossed, with a sliver of overlap, on the Ground view and the Scope alike; `CompassSnap` separates them.
 
-**Readout nudges** sit on top of that precedence: after the deconfliction pass, `RadarCanvas` places the range/bearing readouts (`RblReadoutPlacement.PlaceAll`, see step 11 above) and keeps the nudges they gave auto-placed blocks in a separate `_rblNudgeOffsets` map (callsign → `RblNudge`: the delta and the readout slot that made it, so each readout's hysteresis keeps only its own nudges), never in `_resolvedDeconflictOffsets`, so a nudge does not seed the next deconfliction pass.
-
-The snapshot ships the deconflicted offsets with every nudge folded in, and the UI-thread hit-test reads the same layer (`DeconflictOffsetFor`, `ComputeDataBlockPlacement(includeNudge: true)`), so a nudged block is clicked and dragged where it is drawn. A manually dragged block is never nudged. `GroundCanvas` keeps the same layer (`ResolvedDataBlockOffset` with the nudge included).
+**Readout nudges** sit on top of that precedence on the Ground view: after the deconfliction pass, `GroundCanvas` places the range/bearing readouts (`RblReadoutPlacement.PlaceAll`, see step 9 above) and keeps the nudges they gave auto-placed blocks in a separate map (callsign → `RblNudge`: the delta and the readout slot that made it, so each readout's hysteresis keeps only its own nudges), never in the deconfliction offsets, so a nudge does not seed the next deconfliction pass. The ground hit-test reads the same layer (`ResolvedDataBlockOffset` with the nudge included), so a nudged block is clicked and dragged where it is drawn. A manually dragged block is never nudged. The Scope places readouts with `PlaceAll` but moves no block.
 
 ## Hit-testing and visibility
 
-`RadarCanvas` exposes four "find" helpers, all of which re-run the same filter + z-order so what's clickable matches what's
-drawn:
+The Scope's hit tests read the frame the canvas drew, so what is clickable matches what is drawn: `ScopeFrameHits.BlocksAt` (every block under a point, topmost first), `ScopeFrameHits.TargetsNear` (every symbol within `ScopeFrame.TargetHitRadiusPx`, nearest first), `ScopeCanvas.FindBubbleAt` (the speech bubble under a point) and `ScopeFrame.IsBlockHidden` (a hidden, unselected block lays out no rect, so it catches no click while its symbol still does).
 
-- `FindDataBlockAtPoint` (`:1259`) — topmost datablock whose rect contains the point.
-- `FindAircraftAtPoint` (`:1367`) — nearest position symbol within a 28 px radius.
-- `FindTagFieldAtPoint` (`:1206`) — EuroScope per-field hit (aircraft + `TagFieldId`); `(null, None)` outside any field.
-- `FindBubbleAircraftAtPoint` (`:449`) — aircraft whose speech-bubble rect contains the point (uses `LastBubbleRects`).
-
-`SortByZOrder` orders by the shared state's `DataBlockZOrder` so the last-surfaced (topmost) datablock wins a hit;
-`SurfaceDataBlock` bumps a callsign to the top on any interaction. `DataBlockState.MinifiedCallsigns` toggles a callsign
-between full and single-line (altitude + CWT) datablock (`ToggleMinifiedDataBlock`).
+`DataBlockState.DataBlockZOrder` orders the blocks so the last-surfaced (topmost) one wins a hit; `SurfaceDataBlock` bumps a callsign to the top on any interaction. `DataBlockState.MinifiedCallsigns` toggles a callsign between full and single-line (altitude + CWT) datablock (`ToggleMinifiedDataBlock`).
 
 **`FilterAircraft` is the single source of which aircraft are drawable AND hit-testable** (`AircraftVisibility`, pure + static so it's
-unit-testable). It hides delayed aircraft always, and on-ground aircraft in the non-top-down (radar) view — **except**
+unit-testable). It hides delayed aircraft always, and on-ground aircraft in the non-top-down view — **except**
 ground aircraft with an active speech bubble whose airport isn't shown on a ground view, so a SAY/pilot/WARN prompt for a
 taxiing aircraft isn't missed (`ShouldSurfaceGroundBubble`; the `AlwaysShowGroundBubblesOnRadar` preference forces
 all ground bubbles to surface). It also hides an airborne aircraft whose displayed altitude still rounds to `000`
 (`AircraftModel.BelowDisplayFloor`, server-stamped from `FieldElevationResolver`: AGL < 100 ft, field-elevation adjusted) in
-the non-top-down view, so a departure doesn't appear on the radar before it climbs above the acquisition floor — matching
-CRC STARS' coast/skip below the same floor. Every `Find*` helper and `CreateRenderSnapshot` re-invokes `FilterAircraft`, so a
+the non-top-down view, so a departure doesn't appear on the Scope before it climbs above the acquisition floor — matching
+CRC STARS' coast/skip below the same floor. `ScopeCanvas.BuildFrame` invokes `FilterAircraft` once and every hit test reads that frame, so a
 visibility change goes in one place — but you must preserve that draw/hit symmetry.
 
 ### Ghost / unsupported tracks — per-view visibility
 
-`FilterAircraft` above is the **radar** view's filter; the Ground View and Aircraft List each have their *own* filter, and ghost / "unsupported" STARS tracks (`AircraftGhostTrack.IsUnsupported`) render differently on each — don't assume a shared rule. Two ghost kinds: pure **phantom** (CRC `DA`/`VP`, no real body, `IsOverlay=false`) and **overlay** (`GHOST`/AID slew on a real aircraft, `IsOverlay=true`).
+`FilterAircraft` above is the Scope's filter; the Ground View and Aircraft List each have their *own* filter, and ghost / "unsupported" STARS tracks (`AircraftGhostTrack.IsUnsupported`) render differently on each — don't assume a shared rule. Two ghost kinds: pure **phantom** (CRC `DA`/`VP`, no real body, `IsOverlay=false`) and **overlay** (`GHOST`/AID slew on a real aircraft, `IsOverlay=true`).
 
 | Surface | Filter | Rule |
 |---|---|---|
-| Radar / STARS | `AircraftVisibility.FilterAircraft` | Hides airborne below the acquisition floor via server-stamped `BelowDisplayFloor`; otherwise shows ghosts. |
-| YAAT Scope | `ScopeCanvas.BuildFrame` calling `AircraftVisibility.FilterAircraft` | Same rule as Radar with `showTopDown` taken from `ScopeCanvas.ShowTopDown` (the Scope's TDM; `ScopeCanvas.DrawnVideoMaps` drops TDM-only maps the same way); the speech-bubble switches come from the preferences through `ScopeCanvas.FilterVisible`, so a ground aircraft carrying a bubble surfaces by the Radar's rule against `GroundShownAirportIdProvider`. |
+| STARS blocks | `AircraftVisibility.FilterAircraft` | Hides airborne below the acquisition floor via server-stamped `BelowDisplayFloor`; otherwise shows ghosts. |
+| YAAT Scope | `ScopeCanvas.BuildFrame` calling `AircraftVisibility.FilterAircraft` | The rule above with `showTopDown` taken from `ScopeCanvas.ShowTopDown` (the Scope's TDM; `ScopeCanvas.DrawnVideoMaps` drops TDM-only maps the same way); the speech-bubble switches come from the preferences through `ScopeCanvas.FilterVisible`, so a ground aircraft carrying a bubble surfaces against `GroundShownAirportIdProvider`. |
 | Ground / Tower-Cab | `GroundCanvas.FilterActiveAircraft` (render + both hit-testers) | Out-the-window picture: shows real aircraft, drops **only** pure phantoms (`IsUnsupported && !IsGhostOverlay`). An overlay is a real aircraft → shown airborne or on-ground (no `IsOnGround` coupling, so no flicker at rotation); the ≤10 nm / ≤ min(ceiling, 6000 ft) AGL bound lives in `GroundRenderer.IsAirborneVisible`, not the filter. |
 | Aircraft List | `MainViewModel.IsAircraftVisible` | Hides pure phantoms, keeps overlays. |
 
@@ -745,74 +646,27 @@ An overlay can stay `IsUnsupported` while airborne below the floor until it auto
 
 ## Pointer-handler priority ladder
 
-`RadarCanvas.OnPointerPressed` (`:864-1080`) is a strict ladder of early-returns guarded by `e.Handled`. Inserting a mode at
-the wrong rung silently steals clicks from a lower one. The order, top to bottom:
+The Scope's press, release and move handling is the ladder `ScopeCanvas.RunPressLadder` (and `RunReleaseLadder`, `RunMoveHooks`) described under **Feature seams** above. Every rung early-returns once it has handled the press, so inserting a mode at the wrong rung silently steals clicks from a lower one; a rung's place is its place in `ScopeCanvas.Ladder.cs`. The Ground canvas keeps its own early-return handlers.
 
-1. **Heading-mode click-to-confirm** — when heading mode is active and the button was already released, a left click
-   confirms / a right click cancels (`:873-888`).
-2. **Distance measuring** (the Radar and Ground here; the Scope's own `ScopeCanvas.TryMeasurePress` puts the same gestures ahead of its fill, Rings and aircraft rungs, see the measure layer) — Alt+left starts a drag measurement; while the tool is armed (`IsMeasuring`) a left click picks
-   an endpoint and a right click cancels. Exclusive, so it sits above route drawing and every aircraft rung.
-3. **Draw-route placement** — left click places a waypoint, middle click sets a condition, right click on a waypoint edits
-   it (`:890-931`). The Scope's rung is `ScopeCanvas.DrawRoute.cs`, second in `RunPressLadder`.
-4. **Shift+left hide toggle** — Shift+left on a drawn datablock or a symbol toggles that datablock hidden or shown (`TryToggleHiddenOnShiftClick`), without selecting or dragging. It sits below route drawing, so Shift+left there still places a waypoint.
-5. **Middle-click highlight** — toggle the cyan highlight on the hit datablock/aircraft (`:933-948`).
-6. **EuroScope field left-click** — if a `TagFieldId` is hit and `EuroScopeFieldClicked` has a subscriber, fire and return
-   (`:954-964`).
-7. **EuroScope field right-click** — owner-cell handoff/drop; returns `true` to suppress the fallback menu (`:968-980`).
-8. **Datablock** — left click selects (Ctrl = open FP editor) and begins a drag; right click opens the aircraft context
-   menu (`:982-1013`).
-9. **Aircraft symbol (right)** — right click on a symbol opens the context menu (`:1015-1023`).
-
-   Rungs 8 and 9 first gather every aircraft the right click hits (`FindRightClickTargets`: each datablock containing the
-   point, topmost first, then each symbol within `AircraftHitRadiusPx` = 28 px by distance, an aircraft hit both ways
-   listed once). Two or more open the shared `Views/Map/RightClickPicker` (labels `"{callsign} ({type})"` from
-   `DisplayAircraftType`, else the bare callsign); choosing one raises its `AircraftRightClicked` with the original
-   point after the picker closes. One or none falls through to the rungs unchanged. `docs/ground-rendering.md` ("Right-click
-   vs right-drag") has the ground version, which adds parking/spot/helipad markers.
-9. **Range-ring placement (left)** — places the range ring when in placing mode (`:1037-1046`).
-10. **Aircraft symbol (left)** — select / Ctrl-open (`:1048-1062`).
-11. **Bubble dismiss / empty-space** — record a bubble-press for release-side dismiss, else fire `EmptySpaceClicked`
-    (`:1064-1077`).
-12. **Base pan/zoom** — `base.OnPointerPressed` starts a right-button pan (`:1079`).
-
-Two drag thresholds disambiguate clicks from drags: a `25 px²` right-button threshold decides quick-right-click (open
-map menu) vs right-drag (pan), and a `16 px²` datablock-drag threshold (`:1090`) decides select vs reposition. The same
-`16 px²` value (`HeadingModeState.DragThresholdPxSq`) decides drag-confirm vs click-confirm in heading mode.
+Right-click rungs first gather every aircraft the click hits (`ScopeCanvas.FindRightClickTargets`: each datablock containing the
+point, topmost first, then each symbol within `ScopeFrame.TargetHitRadiusPx` by distance, an aircraft hit both ways
+listed once). Two or more open the shared `Views/Map/RightClickPicker` (labels `"{callsign} ({type})"` from
+`DisplayAircraftType`, else the bare callsign); choosing one raises its `AircraftRightClicked` with the original
+point after the picker closes. One or none falls through to the rungs unchanged. `docs/ground-rendering.md` ("Right-click
+vs right-drag") has the ground version, which adds parking/spot/helipad markers.
 
 The right-button click-vs-drag decision lives in `Views/Map/RightClickGesture`, shared with `GroundCanvas`: press
 records the position and lets panning start, movement past the threshold latches the press as a drag, and `Release()`
-returns the press position when a menu is owed or null when the gesture was a pan. Note the map menu is the only radar
+returns the press position when a menu is owed or null when the gesture was a pan. Note the map menu is the only
 right-click that defers — a right-click on an aircraft or datablock still opens its menu on **press**.
 
 ## EuroScope interactive tag mode
 
-When `EuroScopeMode` is on, clicking a tag field opens a contextual editor instead of the full aircraft menu.
-`RadarCanvas.FindTagFieldAtPoint` returns the hit `TagFieldId`; the canvas raises `EuroScopeFieldClicked`
-(`RadarCanvas.cs:1250`), which `RadarView.axaml.cs:107` dispatches by field (`OnEuroScopeFieldClicked`):
-
-| `TagFieldId` | Action |
-|---|---|
-| `Owner` | Take control (`TakeControlAsync`); right-click → RPO control menu |
-| `CurrentAltitude` / `AssignedAltitude` | `RadarAltitudeFlyout` (FL010–FL400 picker; selection dispatches CM or DM by current alt) |
-| `AssignedHeading` | `EnterHeadingMode` — live elastic vector (the Scope's EuroScope tag: `ScopeFieldAction.StartHeadingVector`) |
-| `CurrentSpeed` / `AssignedSpeed` | `RadarSpeedFlyout` (80..350 kt picker; the menu's Assign speed flyout is `ContextMenus/SpeedFlyout`) |
-| `Destination` | Enter draw-route mode (the Scope's EuroScope tag: `ScopeFieldAction.StartDrawRoute`) |
-| `Scratchpad1` / `Scratchpad2` | `ScratchpadFlyout` text popup |
-| `Squawk` | `SquawkFlyout` |
-| `AssignedRunway` | `RunwayFlyout` |
-| `Handoff` | `HandoffFlyout` text popup |
-
-**Heading mode has two confirm paths** (`Flyouts/HeadingMode.cs:14-18`, driven from `RadarCanvas`): drag-style — mouse-down
-on `AHDG`, drag past `DragThresholdPxSq` (16 px²) while held, release confirms; click-style — mouse-down then release
-without dragging leaves the mode armed (`ButtonHeld = false`) and a subsequent left-click on the map confirms. Both call
-`ConfirmHeadingAt`, which computes the true bearing to the clicked point, converts true→magnetic via `TrueToMagnetic`, then
-snaps to the nearest 5°, and raises
-`HeadingModeConfirmed(callsign, magneticHeading)` → `RadarVm.FlyHeadingAsync` (`RadarView.axaml.cs:200-208`). Escape exits
-(`RadarCanvas.OnKeyDown`, `:1491`).
+On the EuroScope template, clicking a tag field opens a contextual editor instead of the full aircraft menu. `ScopeCanvas` hit-tests the field to a `ScopeFieldAction` and `ScopeView` dispatches it: Owner takes control (right-click → RPO control menu), the altitude, speed, runway, squawk, scratchpad and handoff fields open the pick menus under `Views/Scope/FieldMenus/`, AHDG starts the elastic heading vector (`StartFieldHeadingVector`) and Destination starts draw-route mode (`StartFieldDrawRoute`). The heading vector's confirm paths and the draw route are in the file map rows for `ScopeHeadingVector.cs` and `ScopeView.DrawRoute.cs`; the upstream behaviour is in [euroscope/overview.md](euroscope/overview.md).
 
 ## Context menus
 
-The right-click aircraft menu is the one the ground view and the aircraft list show too. `OnAircraftRightClicked` → `BuildAircraftContextMenu` (`RadarView.ContextMenus.cs`) runs `AircraftMenuBuilder.Build` (`Yaat.Client.Core/ContextMenus/`) over a `ClientMenuHost`, with the right-clicked callsign, the earlier selection as the sender of the For section's items, and the radar's **view section** (`BuildViewSection`): Display ▸ (`BuildCanvasDisplay`: Mini/Full datablock, Reset datablock position, Show/Hide nav route, Measure from/to {callsign}; Leader direction, J-ring, Cone; Blank, Unblank), then Draw route, which a surface live-traffic shadow and an aircraft whose phase hides the flight commands (`AircraftMenuBuilder.HidesFlightCommands`: on the ground, landing or rolling) go without. The menu's top level is the header (title, Command…, Note…), the **For section** while another aircraft is selected, the aircraft's **quick commands** (the icon strip, then the text entries; [client-context-menus.md](client-context-menus.md)), Track, Data Block, Squawk, the view section, Favorites, **All Commands ▸**, then Delete and the RPO items; everything but the view section comes from the Core catalog and is the same on every view. With no main view model the radar logs a warning and opens no menu. The quick commands are **situation-driven**: `QuickCommandResolver` takes the server-classified situation's list (`QuickCommandDefaults`) and keeps the entries that fit the aircraft. All Commands holds the full tree: the ground-movement block, then Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern in that fixed order (all but Tower left out while `HidesFlightCommands` holds), Preset taxi route, Draw taxi route…, Ask pilot, Coordination, Edit flight plan, then Warp… and Release to live feed. Within the **Tower** and **Pattern** groups, individual *items* are filtered by `AircraftCommandApplicability` (departure clearances only for ground departures, landing/option clearances only while a landing is pending with VFR options hidden for IFR, runway-exit items only after touchdown, pattern maneuvers gated per leg). `SharedMenuGroups.Tower` and `SharedMenuGroups.Pattern` return `null` when nothing applies, so the group is dropped. Every item in All Commands shows by its own predicate, never by the view or the situation flags.
+The right-click aircraft menu is the one the ground view and the aircraft list show too. `ScopeView.OnAircraftRightClicked` (`ScopeView.axaml.cs`) runs `AircraftMenuBuilder.Build` (`Yaat.Client.Core/ContextMenus/`) over a `ClientMenuHost`, with the right-clicked callsign, the earlier selection as the sender of the For section's items, and the Scope's **view section** (`ScopeView.BuildViewSection`): Display ▸ (`ScopeView.BuildCanvasDisplay`: Hide/Show datablock, Reset datablock position, Show/Hide nav route, Measure from/to {callsign}; Leader direction, J-ring, Cone; Blank, Unblank), then Draw route, which a surface live-traffic shadow and an aircraft whose phase hides the flight commands (`AircraftMenuBuilder.HidesFlightCommands`: on the ground, landing or rolling) go without. The menu's top level is the header (title, Command…, Note…), the **For section** while another aircraft is selected, the aircraft's **quick commands** (the icon strip, then the text entries; [client-context-menus.md](client-context-menus.md)), Track, Data Block, Squawk, the view section, Favorites, **All Commands ▸**, then Delete and the RPO items; everything but the view section comes from the Core catalog and is the same on every view. The quick commands are **situation-driven**: `QuickCommandResolver` takes the server-classified situation's list (`QuickCommandDefaults`) and keeps the entries that fit the aircraft. All Commands holds the full tree: the ground-movement block, then Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern in that fixed order (all but Tower left out while `HidesFlightCommands` holds), Preset taxi route, Draw taxi route…, Ask pilot, Coordination, Edit flight plan, then Warp… and Release to live feed. Within the **Tower** and **Pattern** groups, individual *items* are filtered by `AircraftCommandApplicability` (departure clearances only for ground departures, landing/option clearances only while a landing is pending with VFR options hidden for IFR, runway-exit items only after touchdown, pattern maneuvers gated per leg). `SharedMenuGroups.Tower` and `SharedMenuGroups.Pattern` return `null` when nothing applies, so the group is dropped. Every item in All Commands shows by its own predicate, never by the view or the situation flags.
 
 ### Smart-default convention
 
@@ -844,7 +698,7 @@ New pickers must follow this rule (echoes the `feedback_no_global_navdata_picker
 
 ### Map right-click
 
-Right-clicking empty map space (`OnMapRightClicked` → `BuildMapPointMenu`) opens the **point menu**. The radar's point section (`BuildMapPointSection`) is a bold fix-radial-distance row from `FrdResolver.ToFrd(lat, lon, fixes, navDb)` (client helper `RadarViewModel.TryToFrd`) with "Copy FRD" and the scope-marker pins (Pin marker here, Remove marker near a pin, Clear pinned markers), the measuring items, then a dimmed MVA row (`MvaRow`: `MVA 2,000 ft (sector {name})`, or `MVA 2,000 ft` for a sector with no name). Where no MVA sector covers the point there is no MVA row, with or without a selection.
+Right-clicking empty map space (`ScopeView.OnMapRightClicked` → `BuildMapPointMenu`, `ScopeView.PointMenu.cs`) opens the **point menu**. The Scope's point section (`BuildMapPointSection`) is a bold fix-radial-distance row from `FrdResolver.ToFrd(lat, lon, fixes, navDb)` (client helper `ScopeMapSource.ToFrd`) with "Copy FRD" and the scope-marker pins (Pin marker here, Remove marker near a pin, Clear pinned markers), the measuring items, then a dimmed MVA row (`MvaRow`: `MVA 2,000 ft (sector {name})`, or `MVA 2,000 ft` for a sector with no name). Where no MVA sector covers the point there is no MVA row, with or without a selection.
 
 With an aircraft selected, `AircraftMenuBuilder.Build` with a `MenuPoint` at the click opens with the point header (`SharedMenuGroups.AddPointHeader`): the bold title `{callsign} · {type} → this point`, then a dimmed row `{FRD} · {d} nm, bearing {brg} from the aircraft` (great-circle distance in whole nm, one decimal under 1 nm; the bearing magnetic at the aircraft's position, three digits), without the FRD where `DescribePoint` cannot name the point. When the header carries the FRD (`SharedMenuGroups.PointHeaderShowsFrd`) the section leaves out its bold FRD row; Copy FRD and the pins stay.
 
@@ -852,38 +706,19 @@ For an airborne aircraft it may command (`SharedMenuGroups.IsRadarPoint` and `Is
 
 A ground aircraft selected gets no strip and only the Warp here ({FRD}) text row, which opens the warp popup: the taxi items need a taxi node, which only the ground view's clicks carry. With nothing selected, or with no main view model (logged), the section is the whole menu, its FRD row included.
 
-The shared items name the point through `ClientMenuHost.DescribePoint` (read from `MainViewModel.ScopeMaps`, as `GetFieldElevation` is, on Radar and Scope menus alike), the same `ToFrd`, so that one FRD string feeds the header, Pin marker, Direct to, Append direct, the holds and Warp here alike, and anything wrong with it propagates to all of them — see [navigation-database.md](navigation-database.md) for why `ToFrd` refuses to anchor on an FRD-named fix.
+The shared items name the point through `ClientMenuHost.DescribePoint` (read from `MainViewModel.ScopeMaps`, as `GetFieldElevation` is), the same `ToFrd`, so that one FRD string feeds the header, Pin marker, Direct to, Append direct, the holds and Warp here alike, and anything wrong with it propagates to all of them — see [navigation-database.md](navigation-database.md) for why `ToFrd` refuses to anchor on an FRD-named fix.
 
-## DCB and brightness
+## Brightness and the toolbar
 
-The DCB (display control bar) buttons are wired in `RadarView.axaml.cs`. `BriteButtons` maps each `BriteTarget`
-(`DCB, BKC, MapA, MapB, FDB, … HST, WX, WXC`) to a button + text block (`:410-428`). Clicking a BRITE button latches it as
-the active adjust target; the mouse wheel then steps that target's brightness (`OnDcbPointerWheelChanged`, `:535-567`).
-RANGE / range-ring-size / PTL-length / history-count use the same latch-then-scroll pattern.
-
-**Hiding the DCB:** `Ctrl+F8` toggles the whole bar via `RadarViewModel.ToggleDcbVisible` (`IsDcbVisible`, persisted as
-`UserPreferences.RadarDcbVisible`), mirroring CRC's `StarsSpecialKey.Dcb`. The `DcbContainer` border binds
-`IsVisible="{Binding IsDcbVisible}"`; collapsing it lets `RadarCanvas` (the `DockPanel` fill) reclaim the strip. Hiding
-resets the sub-menu to `Main`. The keybind is a fixed binding dispatched by `WindowHotkeys.OnWindowKeyDown`.
-
-Brightness flows to the canvas via `SyncCanvasBrightness` (map A/B, range-ring, history) and the per-map A/B category lookup
-via `SetBrightnessLookup` (`:75`). `SyncAssignmentTint` (`:494-518`) pushes the rest of the radar-relevant
-`UserPreferences` into the canvas: `LocalUserInitials`, assignment/unassigned/selected tint colors, `EuroScopeMode`,
-`FlashNoLandingClearance`, `ShowSpeechBubbles`, `AlwaysShowGroundBubblesOnRadar`, `DatablockTextSize`, and the flyout font
-size. The tint colors drive `TargetRenderer`'s per-aircraft symbol/datablock color (assigned-to-me vs others).
+The Scope's toolbar buttons (`Views/Scope/Toolbar/`) carry the brightness, range, PTL-length and history controls. A BRITE spinner latches its group and the mouse wheel then steps it (`ScopeButtonControl`, through `ScopeViewModel.SpinnerScroll`'s `ScrollStepAccumulator`). Brightness reaches the renderer in the frame's `Brightness` (a `ScopeBrightness`), and `ScopeCanvas` reads the remaining `UserPreferences` into the frame's display options: `LocalUserInitials`, the assignment/unassigned/selected tint colours, `FlashNoLandingClearance`, `ShowSpeechBubbles`, `AlwaysShowGroundBubblesOnRadar` and `DatablockTextSize`. The tint colours drive the per-aircraft symbol/datablock colour (assigned-to-me vs others). There is no Ctrl+F8 bar toggle: `WindowHotkeys` has no DCB chord.
 
 ## Adding a datablock field or interactive tag field
 
-For a new datablock line or EuroScope tag field, touch all of:
+For a new datablock line or EuroScope tag field on the Scope, touch all of:
 
-1. **Draw** — add the line/field to `RadarDatablockLayout.Compute` (STARS) and/or `EuroScopeTagLayout.Layout` (EuroScope),
-   including width/line-slot reservation if it flashes.
-2. **Hit-test** — mirror the new line in `RadarCanvas.ComputeDataBlockRect` so the click rect still matches (STARS only;
-   EuroScope reuses the cached `LastEuroScopeTags` bounds).
-3. **`TagFieldId`** — for an interactive EuroScope field, add the enum member (`EuroScopeTagLayout.cs:10-29`) and emit a
-   `TagFieldRect` in `Layout`.
-4. **Dispatch** — handle the new `TagFieldId` in `OnEuroScopeFieldClicked` (and, if right-clickable,
-   `OnEuroScopeFieldRightClicked`) in `RadarView.axaml.cs`, opening the relevant flyout.
+1. **Slot and text** — add the slot to the template that carries it (`ScopeFieldSlot.cs`, `ScopeTemplates.cs`, `DatablockTemplate.cs`) and its text to `TrackPresenter`, including width reservation if it flashes (the string is built on both phases and the renderer blanks it off-phase).
+2. **Layout and hit-test** — `FieldRect.cs` and `ScopeFrame` lay the block out once and the renderer and the hit tests both read that layout, so there is no second geometry to keep in step; the parity test `ScopeTemplateParityTests` compares each template with its frozen golden block text (`Golden/stars-full-block.json`, `Golden/euroscope-block.json`).
+3. **Action** — for a clickable field add the `ScopeFieldAction` (`ScopeCanvas` maps the slot to it) and handle it in `ScopeView`, opening the relevant menu from `Views/Scope/FieldMenus/`.
 
 The data shown comes from `AircraftModel` (the client mirror of the wire `AircraftDto`); a brand-new field also needs the
 underlying state on the wire — see [aircraft-data-model.md](aircraft-data-model.md) and
@@ -891,7 +726,7 @@ underlying state on the wire — see [aircraft-data-model.md](aircraft-data-mode
 
 ## Nav-route overlay wire contract
 
-The Radar Display's **Show nav route** overlay (`ToggleShowPath` / `IsPathShown` / `_shownPathCallsigns` internally) draws
+The Scope's pilot-lens **Show nav route** intent path draws
 **server-provided fix positions verbatim** — `ShownRouteBuilder` does not re-resolve fix names through the navigation database.
 Two wire channels feed it, both defined once in `Yaat.Sim` and carried on the training-hub aircraft DTO:
 
@@ -901,20 +736,20 @@ Two wire channels feed it, both defined once in `Yaat.Sim` and carried on the tr
     recognizes the naming, the server-side DTO builder blanks it, `AircraftStatusDescriber` skips it). The overlay draws it as a bare polyline
     point — no diamond, label, or restriction — and the derived name list filters it out.
   - **Crossing restrictions are formatted server-side** into `RestrictionLines` by `Yaat.Sim.Data.Vnas.CrossingRestrictionLabel` (≥/≤ glyphs per
-    AIM 5-4-5, `FL` at or above 18000, speed bare except an at-or-above floor `≥kts`, a window as two lines). Both the server route fingerprint
-    and the client `BuildShownPathFingerprint` include the restriction text, so a CFIX-only change re-broadcasts and invalidates the overlay cache.
+    AIM 5-4-5, `FL` at or above 18000, speed bare except an at-or-above floor `≥kts`, a window as two lines). The server route fingerprint
+    includes the restriction text, so a CFIX-only change re-broadcasts.
   - **`RestrictionTokens` carries the same lines with latency.** Each line is a list of `NavRouteRestrictionToken` (`Text`, `Latent`) from `CrossingRestrictionLabel.BuildTokenLines`; `RestrictionLines` is unchanged, so an older client still draws from it. It is null for an unrestricted fix or a synthetic arc vertex, and System.Text.Json supplies null when an older server omits it. A client that gets lines but no tokens draws no restriction label for that fix.
-  - **A latent altitude or speed draws dimmed.** `DtoConverter.BuildNavigationRoute` marks an altitude latent through `AltitudeRestrictionInForce.IsShownLatent` (not in force by its source, or a published floor above a climb via's "except maintain" top, or a published ceiling below a descend via's bottom). It marks a published SID/STAR speed latent through `NavRouteSpeedLatency.LatentAlongRoute`, which walks the route fix by fix and asks `FlightPhysics.PublishedSpeedApplies` (the judge physics shares) whether an ATC speed (SPD, MACH, SMAX, a bound) or DELETE SPEED RESTRICTIONS is in force there, past crossings that revert or resume; a controller crossing speed is never latent. A queued `AT fix` speed block (`SPD n until E`, `AT N SPD`) is not read by the walk. `RadarRenderer.DrawRestrictionTokens` draws a line's tokens left to right two spaces apart, a latent one in the route colour at about 45% opacity. The server route fingerprint includes each altitude's and speed's latency, so a CM/DM, DVIA, CVIA, DSR, SPD, RNS, RPS or a revert sequencing re-sends the route for a stationary aircraft, and `BuildShownPathFingerprint` hashes the token latency.
+  - **A latent altitude or speed draws dimmed.** `DtoConverter.BuildNavigationRoute` marks an altitude latent through `AltitudeRestrictionInForce.IsShownLatent` (not in force by its source, or a published floor above a climb via's "except maintain" top, or a published ceiling below a descend via's bottom). It marks a published SID/STAR speed latent through `NavRouteSpeedLatency.LatentAlongRoute`, which walks the route fix by fix and asks `FlightPhysics.PublishedSpeedApplies` (the judge physics shares) whether an ATC speed (SPD, MACH, SMAX, a bound) or DELETE SPEED RESTRICTIONS is in force there, past crossings that revert or resume; a controller crossing speed is never latent. A queued `AT fix` speed block (`SPD n until E`, `AT N SPD`) is not read by the walk. `ScopeRenderer` draws a fix's restriction tokens left to right two spaces apart, a latent one in the route colour at about 45% opacity. The server route fingerprint includes each altitude's and speed's latency, so a CM/DM, DVIA, CVIA, DSR, SPD, RNS, RPS or a revert sequencing re-sends the route for a stationary aircraft, and the Scope's intent-path cache re-keys on it.
 - **`NavRouteShapes` is `List<NavRouteShapeDto>`** (`Kind`/`Points`/`Labels`/`LabelLat`/`LabelLon`), computed by `NavRouteOverlayProjector.BuildShapes` from the
   aircraft's current phase for geometry the flat route cannot express: holding racetracks (`HoldingPatternPhase`), procedure turns
   (`ProcedureTurnPhase`), open-ended SID coded-leg vectors (`DepartureProcedurePhase.Legs`, dashed, each labeled via
-  `CrossingRestrictionLabel`), and the military route corridor (`MilitaryRoutePhase`, see [military-training-routes.md](military-training-routes.md)). The client renders them as `ShownShapeEntry` in `RadarViewModel.RefreshShownPaths` → `RadarRenderer.DrawShownShapes`,
-  through the same `ShownPaths` plumbing. Beyond those four phase types the projector also reads the command queue and two orbit phases (below); coded-leg endpoints are nominal.
+  `CrossingRestrictionLabel`), and the military route corridor (`MilitaryRoutePhase`, see [military-training-routes.md](military-training-routes.md)). The client projects them in `ScopeIntentPaths.Project` and `ScopeRenderer.DrawIntentShape` draws them.
+  Beyond those four phase types the projector also reads the command queue and two orbit phases (below); coded-leg endpoints are nominal.
   - **A queued hold draws dashed** (`NavRouteShapeKind.PendingHoldRacetrack`): every unapplied `CommandBlock` with a `ReachFix` trigger and parsed commands contributes a racetrack per `HoldingPatternCommand`, in queue order, also while the aircraft already holds (the current hold stays a solid `HoldRacetrack`). It uses the dashed `[10, 5]` paint and turns solid when `HoldingPatternPhase` takes over. The leg with none given and the course conversion are the dispatch's own (`NavigationCommandHandler.StandardHoldLegMinutes`, `HoldInboundTrueCourse`, `ResolveHoldLeg`), so the drawn and flown holds cannot differ; the leg is judged at the altitude the same block assigns (a climb, descend or force altitude command), else `Targets.AssignedAltitude`, else the present altitude.
   - **An orbit draws as a dashed circle** (`NavRouteShapeKind.OrbitCircle`) of the projector's standard-rate turn radius at the present altitude: a `VfrHoldPhase` HFIX orbit centred on the fix (before and at the fix), and an `AirspaceBoundaryHoldPhase` in `Orbit` mode centred on its reference position. Hover, HPP and `LevelOff` draw nothing (HPP is booked as YAAT-1910). A hold-in-lieu future phase draws nothing (booked as YAAT-1907).
   - **Wire and fingerprint.** The two kinds are appended to `NavRouteShapeKind` with no other DTO change; an older client reads the unknown integer and draws them solid. The server route fingerprint (`DtoConverter.BuildNavigationRouteFingerprint`) appends `NavRouteOverlayProjector.BuildPendingShapeKey`, also when the route is empty, so adding, editing or removing a queued hold or orbit re-sends a stationary aircraft.
-  - **Course and vector kinds.** `NavRouteShapeKind` also holds `RouteEndCourse`, `HeadingVector`, `FinalApproachCourse`, `ExpectedFinalApproachCourse`, `PendingDepartHeading` and `PendingJoinRadial`; the server produces all six (below). `NavRouteShapeLook.For(kind)` gives each look, and both the Radar (`RadarRenderer.DrawShownShapes`, through `DrawShownShapeStroke`) and the Scope (`ScopeRenderer.DrawIntentShape`) draw from it: `RouteEndCourse`, `HeadingVector` and `PendingDepartHeading` dashed with a filled arrowhead at the last point (the vector tail's 14x7 px head, `RadarRenderer.DrawArrowhead` / `ScopeRenderer.DrawIntentArrowhead`); `FinalApproachCourse` solid; `ExpectedFinalApproachCourse` and `PendingJoinRadial` dashed with no arrow; an unknown kind solid with no arrow.
-  - **Route-end course and heading vector.** `NavRouteOverlayProjector` draws a `RouteEndCourse` (a two-point 5 NM line from the last route fix along its terminal course, FM or VM, made true) only when `FlightPhysics.ClassifyRouteEnd` returns `TerminalCourse` and no approach clearance is pending; the projector and `FlightPhysics.ApplyRouteEndLateral` share that one classifier, so the drawn and flown branch cannot differ. A `HeadingVector` (a two-point 5 NM line from the aircraft along `TargetTrueHeading`) is drawn only for an airborne aircraft with no route, no assigned FH heading and a phase of `InitialClimbPhase` or none; an assigned FH heading is still drawn by the client's own tail. The client's `ShownRouteBuilder` reads no CIFP and draws no procedure vector tail of its own; its only tail is the assigned-heading one, anchored at the aircraft on every Radar refresh as on the Scope. The server route fingerprint appends `|E{fix}:{true course}` when a route-end course is drawn. The course is not sent while a hold queued at the route's last fix fires as that fix is sequenced (the aircraft will hold, not fly on); a WAIT at that fix keeps it.
+  - **Course and vector kinds.** `NavRouteShapeKind` also holds `RouteEndCourse`, `HeadingVector`, `FinalApproachCourse`, `ExpectedFinalApproachCourse`, `PendingDepartHeading` and `PendingJoinRadial`; the server produces all six (below). `NavRouteShapeLook.For(kind)` gives each look, and the Scope (`ScopeRenderer.DrawIntentShape`) draws from it: `RouteEndCourse`, `HeadingVector` and `PendingDepartHeading` dashed with a filled arrowhead at the last point (the vector tail's 14x7 px head, `ScopeRenderer.DrawIntentArrowhead`); `FinalApproachCourse` solid; `ExpectedFinalApproachCourse` and `PendingJoinRadial` dashed with no arrow; an unknown kind solid with no arrow.
+  - **Route-end course and heading vector.** `NavRouteOverlayProjector` draws a `RouteEndCourse` (a two-point 5 NM line from the last route fix along its terminal course, FM or VM, made true) only when `FlightPhysics.ClassifyRouteEnd` returns `TerminalCourse` and no approach clearance is pending; the projector and `FlightPhysics.ApplyRouteEndLateral` share that one classifier, so the drawn and flown branch cannot differ. A `HeadingVector` (a two-point 5 NM line from the aircraft along `TargetTrueHeading`) is drawn only for an airborne aircraft with no route, no assigned FH heading and a phase of `InitialClimbPhase` or none; an assigned FH heading is still drawn by the client's own tail. The client's `ShownRouteBuilder` reads no CIFP and draws no procedure vector tail of its own; its only tail is the assigned-heading one, anchored at the aircraft on every refresh. The server route fingerprint appends `|E{fix}:{true course}` when a route-end course is drawn. The course is not sent while a hold queued at the route's last fix fires as that fix is sequenced (the aircraft will hold, not fly on); a WAIT at that fix keeps it.
   - **Final approach course.** `NavRouteOverlayProjector` draws a solid `FinalApproachCourse` for an approach that is cleared and flown, or cleared and pending at the route's end: a line from the stored FAC anchor (else the runway threshold) out along the reciprocal of the course, to the greater of 5 NM and the aircraft's along-course distance. An aircraft with an EA (expect approach) and no clearance draws a dashed `ExpectedFinalApproachCourse` instead: a 5 NM line out from the FAC anchor, else from the first common-leg fix, to the anchor or threshold.
   - **When no final draws.** Never for a visual approach, a pattern entry or an aircraft on the ground. Not once a go-around, the missed approach (its fixes, its hold, or a hold at the clearance's `MapHold` fix), a low approach, a touch-and-go or a stop-and-go has started, until a new approach clearance: the one judge is `AirborneFollowHelper.HasEndedTheApproach`. The route fingerprint appends `|AC:{id}:{course}` (cleared), `|AP:{id}:{course}` (pending) or `|AX:{Expected}` (expected) from stored state only, so a new clearance, EA or course re-sends a stationary aircraft.
   - **Queued depart heading and join radial.** `NavRouteOverlayProjector` draws a `PendingDepartHeading` for each queued `DEPART {fix} {heading}`: a dashed 5 NM line from the fix along the depart heading, made true with the aircraft's declination. It draws a `PendingJoinRadial` for each queued `JRADO` or `JRADI`: a dashed 5 NM line from the fix out along the radial's true bearing. Both come after the final approach course and before the queued hold racetracks. The route fingerprint appends `|D{fix}:{heading}`, `|O{fix}:{radial}` (JRADO) or `|I{fix}:{radial}` (JRADI), the value as issued (magnetic), so a new, edited or removed one re-sends a stationary aircraft.
@@ -925,7 +760,7 @@ DME-arc legs with no charted turn direction take the minor (≤180°) arc via `G
 
 ## Instructor TPA overlays — `JRING` / `CONE`
 
-Instructor `JRING`/`CONE` are TPA proximity overlays drawn on **YAAT's own radar only**, never projected to the student's CRC. State lives on `ac.Stars.TpaType` (1 = J-Ring, 2 = Cone) + `ac.Stars.TpaSize` (nm, 1–30, parser-validated), flows client-ward via `AircraftStateDto.TpaType`/`TpaSize` → `AircraftModel` → `TargetRenderer.DrawTpaGraphic`, and is snapshotted on `AircraftStarsStateDto` so it replays.
+Instructor `JRING`/`CONE` are TPA proximity overlays drawn on **YAAT's own Scope only**, never projected to the student's CRC. State lives on `ac.Stars.TpaType` (1 = J-Ring, 2 = Cone) + `ac.Stars.TpaSize` (nm, 1–30, parser-validated), flows client-ward via `AircraftStateDto.TpaType`/`TpaSize` → `AircraftModel` → `ScopeRenderer.DrawRings`, and is snapshotted on `AircraftStarsStateDto` so it replays.
 
 Geometry (from the decompiled CRC `DrawTpaCone`/`DrawTpaJRing`): a J-Ring is a geo circle of radius `TpaSize`; a Cone is a ±`UserPreferences.TpaConeHalfAngleDegrees` (default 2°) needle of length `TpaSize`, drawn along `ac.Heading` (YAAT's leader-line axis — not ground track, unlike CRC, for visual consistency with the YAAT leader). STARS TCW TPA color = `(90, 180, 255)`.
 
@@ -937,14 +772,14 @@ CRC controllers draw their own `*J`/`*P` locally and sync via shared track state
 
 The server's `AtpaResultsChanged` broadcast (see [training-hub-contract.md](training-hub-contract.md)) is projected the same way conflict alerts are: `MainViewModel.ApplyAtpaResults` visits every aircraft and sets `AircraftModel.AtpaLeadCallsign` / `AtpaAllowedSeparationNm` / `AtpaConeState` on the **trailing** aircraft only (absent → null / 0 / `Monitor`); `SeedAtpaResult` covers an aircraft added after the broadcast.
 
-These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct from the instructor's manual `TpaType`/`TpaSize` (the #189 footgun). Rendering is gated by the `ShowAtpa` preference (Settings › Radar, default off), plumbed like `ShowConflictAlerts`: `RadarView.SyncAssignmentTint` → `RadarCanvas` → `RadarRenderer` → `TargetRenderer.ShowAtpa`, no `RenderSnapshot` field.
+These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct from the instructor's manual `TpaType`/`TpaSize` (the #189 footgun). Rendering is gated by the `ShowAtpa` preference (Settings › Radar, default off), plumbed like `ShowConflictAlerts`: `ScopeCanvas` reads it into the frame's display options, where the DB menu's ATPA setting overrides it.
 
-- **Actual separation is computed per frame**, not carried on the wire — the broadcast is signature-guarded on pair / allowed separation / cone state, so a wire value would freeze. `DatablockText.BuildAtpaLine` reads `GeoMath.DistanceNm` between the two models; `Compute` takes the resolved lead model (`TargetRenderer.ResolvePeer` on the draw path, `RadarCanvas` on the hit-test path) exactly as `BuildConflictLine` takes the conflict peer.
+- **Actual separation is computed per frame**, not carried on the wire — the broadcast is signature-guarded on pair / allowed separation / cone state, so a wire value would freeze. `DatablockText.BuildAtpaLine` reads `GeoMath.DistanceNm` between the two models; `TrackPresenter` takes the resolved lead model exactly as it takes the conflict peer for `BuildConflictLine`.
 
   The line is drawn only when the lead resolves; it carries the in-trail distance in tenths (`3.2`) after the owner/scratchpad line, steady (not flashing), coloured Monitor = block colour, Warning = yellow, Alert = `(255, 55, 0)` — CRC's `DisplayElementTracks` FDB line-3 rule.
 - **Cone geometry follows CRC's `DrawAtpaCone`**: vertex at the trailing aircraft, axis = true bearing to the lead (`GeoMath.BearingTo`; `ProjectPoint` takes true headings and the viewport applies rotation), length = `AtpaAllowedSeparationNm`, half-angle = the `TpaConeHalfAngleDegrees` preference (CRC uses ±2° for both), the allowed separation labelled at the midpoint in the state colour (Monitor = `TpaColor`).
 - **Supersession**: an ATPA cone in any state replaces a manual `CONE` on that track; a manual `JRING` still draws (CRC draws the J-ring unconditionally and the manual cone only when `RemoteTpaType == None`).
-- Every pair the server computes is shown; the volume's Monitor/Alert TCP adaptation (who may see which cone in STARS) is not applied on YAAT's radar.
+- Every pair the server computes is shown; the volume's Monitor/Alert TCP adaptation (who may see which cone in STARS) is not applied on the Scope.
 
 ## Pitfalls
 
@@ -952,40 +787,26 @@ These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct fr
   `RenderFromSnapshot` (render thread) must never read a `StyledProperty` or mutable canvas field. The rule lives only in
   `MapCanvasBase` doc-comments. Mutable interaction state (the shared `DataBlockViewState` collections, the filtered
   aircraft list) is defensively copied into the snapshot for exactly this reason — don't reach past the snapshot.
-- **Per-callsign datablock state must not live on the canvas.** It belongs to `RadarViewModel.DataBlockState` /
+- **Per-callsign datablock state must not live on the canvas.** It belongs to `ScopeViewModel.DataBlockState` /
   `GroundViewModel.DataBlockState` (see "Session-persistent datablock state" above); canvas-local fields are lost on
   pop-out (fresh canvas) and were wiped by Layout-binding churn on tab switches (#350). Never clear the store from a
   canvas property-changed handler.
-- **Datablock geometry is computed twice.** The draw path (`RadarDatablockLayout.Compute` /
-  `EuroScopeTagLayout.Layout`) and the hit-test path (`RadarCanvas.ComputeStableRectAtOrigin`, which re-measures with its
-  own `HitTestStyle`) must stay consistent. Edit one without the other and clicks miss the rect.
-  `DatablockHitTestParityTests` (Yaat.Client.UI.Tests) now pins this: it asserts the two rects match at the default font
-  size and at 9 / 14 / 18 px. It was written after finding that `RadarCanvas.DatablockTextSize` resized only the
-  renderer's font and left the hit-test font pinned at 12 px, so every non-default `RadarDatablockFontSize` measured
-  clicks against different metrics than the drawn glyphs. **Both canvases' size setters must push the new size into their
-  hit-test font** (`RadarCanvas`/`GroundCanvas`), or the parity tests fail.
-- **Flash slots reserve space; handoff does not.** The `NoLndgClnc` warning reserves its width and line slot even when the
-  500 ms flash is off-phase so the block doesn't pulse. The handoff indicator does not reserve — the STARS hit-test path
-  compensates by always sizing line 3 as if the handoff were present. Forget either compensation and the click target
-  flickers with the flash.
-- **`DefaultPixelsPerDeg = 5000.0` is copied in three places** (`MapViewport`, `RadarCanvas.ZoomToRange`,
-  `RadarCanvas.UpdateViewRangeNm`). Change one and the RANGE spinner desyncs from the actual zoom.
+- **Datablock geometry is computed once.** The Scope's draw and hit-test paths both read the `ScopeFrame` layout; a new reader must go through it rather than re-measure text with its own font, or clicks miss the rect at a non-default `DatablockTextSize`. The Ground canvas still keeps a hit-test font that **its size setter must push the new size into**, or its parity checks fail.
+- **Flash slots reserve space.** A flashing field's text is built on both phases and only the renderer blanks it off-phase, so the block doesn't pulse. Forget that and the click target flickers with the flash.
+- **`DefaultPixelsPerDeg = 5000.0` is copied in two places** (`MapViewport`, `ScopeCanvas`). Change one and the RANGE desyncs from the actual zoom.
 - **Don't touch the Range/Zoom sync without the guards.** `_suppressRangeFit`, `_suppressCenterSync`, and `_initialFitDone`
   exist to break the bidirectional feedback loop between the RANGE spinner, the bound center, and the live viewport.
   Mis-setting a guard causes an infinite pan/zoom oscillation. Initial fit is deferred until the canvas has pixel
-  dimensions because the radar tab can be laid out at 0×0 before it's shown.
+  dimensions because the Scope tab can be laid out at 0×0 before it's shown.
 - **`RotationDeg` is magnetic declination; UI bearings are magnetic.** Round-trip every fly-heading vector / PTL through
   `MagneticToTrue` / `TrueToMagnetic` before projecting, or vectors draw at the wrong angle in high-declination areas.
-- **EuroScope-mode hit-testing uses last frame's cached bounds.** `ComputeDataBlockRect` / `FindTagFieldAtPoint` read
-  `LastEuroScopeTags`, populated during the previous render. An aircraft filtered out of a frame has stale or absent bounds
-  and won't hit-test until it draws again. STARS mode recomputes live instead.
-- **`FilterAircraft` is the one place visibility lives.** Both draw and every `Find*` re-invoke it. Change what's visible
+- **`FilterAircraft` is the one place visibility lives.** `ScopeCanvas.BuildFrame` calls it once and the hit tests read that frame. Change what's visible
   there, but preserve the draw-equals-hit-test symmetry (especially the #169 ground-bubble exception).
-- **The pointer ladder is order-sensitive.** Every rung early-returns with `e.Handled`. Insert a new interactive mode at the
+- **The pointer ladder is order-sensitive.** Every rung of `ScopeCanvas.RunPressLadder` can end the press. Insert a new interactive mode at the
   wrong position and it silently steals clicks from a lower rung.
 - **`ShownRouteBuilder.cs` is not in this stack and not command-input UX** — it builds the route path segments that
-  `RadarViewModel` assembles into the `ShownPathEntry` overlay drawn by `RadarRenderer.DrawShownPaths`.
-- **Don't re-attempt SSAA / TAA / MSAA on the Radar or Ground views.** 2×/3× supersampling was implemented (offscreen GPU
+  `ScopeIntentPaths` turns into the Scope's intent path.
+- **Don't re-attempt SSAA / TAA / MSAA on the Scope or Ground views.** 2×/3× supersampling was implemented (offscreen GPU
   `SKSurface` at N× device resolution, downscaled) and **reverted** — the downscale softens the crisp edges and text more
   than the original jaggies bother. Every paint already sets `IsAntialias = true` (per-primitive analytic coverage) and text
   uses subpixel glyph positioning, which is the ceiling for crisp 2D vector content; supersampling only trades sharpness for smoothness.
@@ -1002,7 +823,7 @@ These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct fr
   `[Obsolete]`. Alignment is now a per-draw argument, not paint state, so anything that used to set
   `SKPaint.TextAlign` must carry the alignment itself (see `GroundRenderer`'s `LabelCandidate.Align`).
 - **`SKPaint.IsAntialias` does not control text antialiasing.** With an explicit `SKFont`, glyph AA comes from
-  `SKFont.Edging` (default `Antialias`, which is what the radar/ground text uses). Don't "fix" text AA by touching
+  `SKFont.Edging` (default `Antialias`, which is what the Scope/ground text uses). Don't "fix" text AA by touching
   `IsAntialias`, and don't reach for `SKFontEdging.SubpixelAntialias` — that's LCD subpixel AA (the old `LcdRenderText`,
   never used here) and it visibly changes text rendering.
 - **Image sampling uses `SKSamplingOptions`.** `SKFilterQuality` is gone. The tower-cab blit uses

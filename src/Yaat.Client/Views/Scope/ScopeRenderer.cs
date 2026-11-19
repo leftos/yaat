@@ -21,7 +21,7 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="ManualOffsets">Per-callsign block offsets from the symbol; a callsign absent here takes the default offset.</param>
 /// <param name="HighlightedCallsigns">Callsigns whose blocks are highlighted (middle-click).</param>
 /// <param name="MvaFacilityId">
-/// The facility whose MVA chart wins where charts overlap (the Radar's <c>RadarViewModel.MvaFacilityId</c>, copied on the UI
+/// The facility whose MVA chart wins where charts overlap (<c>ScopeMapSource.MvaFacilityId</c>, copied on the UI
 /// thread); null for none.
 /// </param>
 /// <param name="OthersLevel">
@@ -260,7 +260,7 @@ public sealed record ScopeFieldHit(AircraftModel Aircraft, FieldRect Field);
 /// <param name="Tracks">Tracks in draw order: the last one is drawn on top.</param>
 public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTrack> Tracks)
 {
-    /// <summary>How near a symbol a click must land to hit it, as today's radar uses.</summary>
+    /// <summary>How near a symbol a click must land to hit it.</summary>
     public const float TargetHitRadiusPx = 28f;
 
     /// <summary>How near a symbol the pointer must be to dwell its track (CRC <c>ViewDataBlocks.GetDataBlockByPosition</c>).</summary>
@@ -269,7 +269,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// <summary>How far a queued-commands badge's hover box sits outside its text box, on every side.</summary>
     private const float QueueBadgeHoverInflatePx = 3f;
 
-    /// <summary>How near the MVA floor an altitude reads as at it, as today's radar uses.</summary>
+    /// <summary>How near the MVA floor an altitude reads as at it.</summary>
     private const int MvaAtBandFt = 100;
 
     /// <summary>
@@ -615,8 +615,8 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
 
     /// <summary>
     /// The altitude's relation to the MVA floor at <paramref name="ac"/>'s position, or null when the tint does not apply:
-    /// it is off, the aircraft is on the ground, established on an approach, or VFR (MSAW-inhibited), as today's radar rules.
-    /// Where MVA charts overlap, <paramref name="mvaFacilityId"/>'s chart wins, as on the radar; null for none.
+    /// it is off, the aircraft is on the ground, established on an approach, or VFR (MSAW-inhibited).
+    /// Where MVA charts overlap, <paramref name="mvaFacilityId"/>'s chart wins; null for none.
     /// </summary>
     internal static MvaRelation? MvaRelationFor(AircraftModel ac, bool showTint, string? mvaFacilityId)
     {
@@ -851,7 +851,7 @@ public sealed partial class ScopeRenderer : IDisposable
 
     private static readonly SKColor SymbolColor = new(0, 176, 255);
 
-    // The history dots' colour, as the Radar's history trails.
+    // The history dots' colour.
     private static readonly SKColor HistoryColor = new(0, 176, 255);
 
     private static readonly SKColor VectorColor = SKColors.White;
@@ -859,7 +859,7 @@ public sealed partial class ScopeRenderer : IDisposable
     // The pilot lens's colour: apart from every other Scope colour, so an intent path never reads as a map, a track or an alert.
     private static readonly SKColor LensColor = SKColors.Magenta;
 
-    // The half-size of an intent path's fix diamond, and its label lines' spacing, as the Radar's nav route draws them.
+    // The half-size of an intent path's fix diamond, and its label lines' spacing.
     private const float IntentDiamondSize = 5f;
     private const float IntentLabelLineHeight = 11f;
 
@@ -867,7 +867,7 @@ public sealed partial class ScopeRenderer : IDisposable
     private const float QueueDetailGapPx = 2f;
     private const float QueueDetailPadPx = 3f;
 
-    // The size labels' font size, as the Radar's TPA labels.
+    // The size labels' font size.
     private const float RingLabelSize = 11f;
 
     /// <summary>The VCI's three arc radii as fractions of the largest.</summary>
@@ -879,7 +879,7 @@ public sealed partial class ScopeRenderer : IDisposable
     private static readonly SKColor SelectedBorderColor = SKColors.White;
     private static readonly SKColor HighlightColor = SKColors.Cyan;
 
-    // The student's STARS block colours, as today's radar mirrors them from CRC (DisplayElementTracks).
+    // The student's STARS block colours, from CRC (DisplayElementTracks).
     private static readonly SKColor StarsOwnedColor = SKColors.White;
     private static readonly SKColor StarsUnownedColor = new(50, 205, 50);
     private static readonly SKColor StarsPointoutColor = SKColors.Yellow;
@@ -893,10 +893,10 @@ public sealed partial class ScopeRenderer : IDisposable
     private static readonly SKColor MvaBelowColor = new(255, 90, 90);
     private static readonly SKColor MvaAtColor = new(255, 200, 60);
 
-    // The squawk pulse's off-phase brightness, as today's radar (CRC ApplyColorBrightness(color, 25)).
+    // The squawk pulse's off-phase brightness (CRC ApplyColorBrightness(color, 25)).
     private const float DimTailBrightness = 0.25f;
 
-    // A coasting live-traffic shadow's alpha, as today's radar.
+    // A coasting live-traffic shadow's alpha.
     private const byte StaleAlpha = 128;
 
     private readonly VideoMapRenderer _videoMapRenderer = new();
@@ -972,7 +972,7 @@ public sealed partial class ScopeRenderer : IDisposable
 
     private readonly SKPaint _textPaint = new() { IsAntialias = true };
 
-    // Antialiased like today's radar strike paint, and outside the radar line style: its width comes from the font each draw.
+    // Antialiased, and outside the radar line style: its width comes from the font each draw.
     private readonly SKPaint _strikethroughPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
 
     // The ERAM climb/descend arrow, drawn as a path in its monospace cell; its width comes from the font each draw.
@@ -984,7 +984,7 @@ public sealed partial class ScopeRenderer : IDisposable
         StrokeJoin = SKStrokeJoin.Round,
     };
 
-    // The pilot lens's intent path, as the Radar's "Show nav route" draws it: solid legs and diamonds, a dashed leader from
+    // The pilot lens's intent path: solid legs and diamonds, a dashed leader from
     // the symbol, dashed tails and open-ended shapes.
     private readonly SKPaint _lensLinePaint = new()
     {
@@ -1102,14 +1102,14 @@ public sealed partial class ScopeRenderer : IDisposable
         DrawBubbles(canvas, snapshot, vp);
         DrawMenuCue(canvas, snapshot, vp);
 
-        // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE, as on the Radar.
+        // Last, so measurements stay legible over targets and blocks: white and unscaled by BRITE.
         _rangeBearingRenderer.Draw(canvas, vp, snapshot.RangeBearingLines, snapshot.PendingRangeBearingLine, snapshot.RblReadoutRects);
         _minSepRenderer.Draw(canvas, vp, snapshot.MinSep);
         DrawMapToolsOverlay(canvas, snapshot, vp);
     }
 
     /// <summary>
-    /// Draws <paramref name="track"/>'s history dots at HIST, as the Radar's history trails: the oldest faintest, the alpha
+    /// Draws <paramref name="track"/>'s history dots at HIST: the oldest faintest, the alpha
     /// ramping to full at the newest. DWELL never lifts them.
     /// </summary>
     private void DrawHistory(SKCanvas canvas, ScopeTrack track, int percent)
@@ -1226,7 +1226,7 @@ public sealed partial class ScopeRenderer : IDisposable
         DrawRingLabel(canvas, wedge.LabelAt, wedge.Label, color);
     }
 
-    /// <summary>Draws <paramref name="text"/> centred on <paramref name="center"/> on a black box, as the Radar's TPA labels.</summary>
+    /// <summary>Draws <paramref name="text"/> centred on <paramref name="center"/> on a black box.</summary>
     private void DrawRingLabel(SKCanvas canvas, SKPoint center, string text, SKColor color)
     {
         float width = _ringLabelFont.MeasureText(text);
@@ -1272,7 +1272,7 @@ public sealed partial class ScopeRenderer : IDisposable
     }
 
     /// <summary>
-    /// Draws <paramref name="track"/>'s intent path at LENS, as the Radar's "Show nav route" draws it: each segment's dashed
+    /// Draws <paramref name="track"/>'s intent path at LENS: each segment's dashed
     /// leader from the symbol, its legs, a diamond with name and crossing-restriction lines at each named fix, and its vector
     /// tail, then the shapes. DWELL never lifts it; LENS 0 draws nothing.
     /// </summary>
@@ -1813,7 +1813,7 @@ public sealed partial class ScopeRenderer : IDisposable
         canvas.DrawText(text[space..], x + headWidth, baseline, SKTextAlign.Left, font, _textPaint);
     }
 
-    /// <summary>A line across <paramref name="field"/> at the font's strikeout position, as today's radar strikes ModeC.</summary>
+    /// <summary>A line across <paramref name="field"/> at the font's strikeout position (the ModeC strike).</summary>
     private void DrawStrikethrough(SKCanvas canvas, FieldRect field, SKFont font, SKColor color)
     {
         SKFontMetrics metrics = font.Metrics;
@@ -1845,7 +1845,7 @@ public sealed partial class ScopeRenderer : IDisposable
 
     /// <summary>
     /// The colour of <paramref name="track"/>'s symbol: the selected colour when selected, else its tint, else the symbol blue,
-    /// at the stale alpha when it coasts. The highlight and student colours leave the symbol alone, as on today's radar.
+    /// at the stale alpha when it coasts. The highlight and student colours leave the symbol alone.
     /// </summary>
     internal static SKColor SymbolColorOf(ScopeTrack track, ScopePalette palette)
     {

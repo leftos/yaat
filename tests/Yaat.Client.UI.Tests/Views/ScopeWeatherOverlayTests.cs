@@ -79,11 +79,11 @@ public class ScopeWeatherOverlayTests
             Assert.Single(scope.WeatherLines);
 
             Position(main, "SFO");
-            main.UpdateRadarWeatherDisplay();
+            main.RefreshScopeWeather();
             Assert.Equal(["No METAR for SFO"], scope.WeatherLines);
 
             Position(main, "AUN");
-            main.UpdateRadarWeatherDisplay();
+            main.RefreshScopeWeather();
             Assert.StartsWith("AUN ", Assert.Single(scope.WeatherLines));
         }
     }

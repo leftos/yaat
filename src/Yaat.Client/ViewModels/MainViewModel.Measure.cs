@@ -3,7 +3,7 @@ using Yaat.Client.Views.Map;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// Which map surface the distance measuring tool's typed <c>.rbl A B</c> places on: the last surface (a Radar, Ground or
+/// Which map surface the distance measuring tool's typed <c>.rbl A B</c> places on: the last surface (a Ground or
 /// Scope canvas) that took the focus or a press, the primary Scope before any, and the primary Scope again once the Scope that
 /// took it closes.
 /// A Scope line draws only on the Scope window that placed it, a typed one on the Scope holding the surface; the surface is
@@ -42,7 +42,7 @@ public partial class MainViewModel
     /// <summary>The Scope recorded as having taken the measuring surface, open or not. Test seam.</summary>
     internal ScopeViewModel? HeldMeasureScope => _activeMeasureScope;
 
-    /// <summary>Records that the Radar or Ground <paramref name="view"/> surface took the focus or a press.</summary>
+    /// <summary>Records that the Ground <paramref name="view"/> surface took the focus or a press.</summary>
     /// <exception cref="ArgumentException"><paramref name="view"/> is the Scope's, which <see cref="SetActiveMeasureScope"/> sets.</exception>
     public void SetActiveMeasureView(RblView view)
     {
@@ -71,9 +71,6 @@ public partial class MainViewModel
         view switch
         {
             RblView.Ground => new MeasureTarget(GroundViewModel.MeasureView, Ground.MeasureTrackLookup, GroundViewModel.MeasureUnits, null),
-            RblView.Scope => (scope ?? ActiveMeasureScope ?? PrimaryScope).MeasureTarget,
-            // The primary radar's track lookup is deliberate: Measure is one shared store, so the line renders in every Radar
-            // View window without the extra instances needing their own lookup.
-            _ => new MeasureTarget(RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits, null),
+            _ => (scope ?? ActiveMeasureScope ?? PrimaryScope).MeasureTarget,
         };
 }

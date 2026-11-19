@@ -15,7 +15,7 @@
         <StackPanel Spacing="12">
           <TextBlock Text="Keybinds" FontWeight="SemiBold" />
           <!-- One row per configurable key, from SettingsViewModel's keybind list. A combo another row or a fixed
-               chord (Ctrl+F8, Ctrl+M) already uses is kept and named here; OK and Apply stay disabled until it clears. -->
+               chord (Ctrl+M) already uses is kept and named here; OK and Apply stay disabled until it clears. -->
           <ItemsControl ItemsSource="{Binding KeysSectionKeybindRows}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>

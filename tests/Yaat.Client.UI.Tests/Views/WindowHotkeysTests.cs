@@ -11,7 +11,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Find;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Settings;
 using Yaat.Client.Views.VStrips;
@@ -29,8 +29,8 @@ public class WindowHotkeysTests
     {
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
-        // A main-view-model-backed pop-out (Radar) — the default focus key is OemTilde.
-        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        // A main-view-model-backed pop-out (Ground) — the default focus key is OemTilde.
+        var window = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         bool raised = false;
@@ -69,7 +69,7 @@ public class WindowHotkeysTests
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         // Default always-on-top keybind is Ctrl+Shift+T.
-        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        var window = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         Assert.False(window.Topmost);
@@ -172,7 +172,7 @@ public class WindowHotkeysTests
         Assert.Equal(defaultKey, hotkey.Keybind(UserPreferences.CreateDefaults()));
         hotkey.Bind(vm.Preferences, defaultKey);
         bool before = hotkey.Get(vm);
-        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        var window = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         try
@@ -228,7 +228,7 @@ public class WindowHotkeysTests
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Preferences.SetPopOutRadarViewKey("Ctrl+Alt+R");
         bool before = vm.IsScopePoppedOut;
-        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        var window = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         try
@@ -324,7 +324,7 @@ public class WindowHotkeysTests
         var vm = new MainViewModel(new FakeFilePickerService());
         List<SettingsSectionId?> requests = [];
         vm.SettingsRequested += requests.Add;
-        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        var window = new GroundViewWindow(vm.Preferences, "GroundView", "Ground View") { DataContext = vm };
         window.ShowAndRunLayout();
 
         try

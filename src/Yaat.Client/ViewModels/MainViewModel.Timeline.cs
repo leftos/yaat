@@ -1004,8 +1004,6 @@ public partial class MainViewModel
         ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(result.PrimaryAirportId);
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
         _lastRadarPrimaryAirportId = result.PrimaryAirportId;
-        // Primary only: an extra Radar View keeps the airport it was opened with (re-seeded below).
-        Radar.SetPrimaryAirportId(result.PrimaryAirportId);
         ScopeMaps.SetPrimaryAirportId(result.PrimaryAirportId);
         SetRadarAirportPosition(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate, result.ElapsedSeconds, result.IsPlayback, result.TapeEnd);
@@ -1034,11 +1032,6 @@ public partial class MainViewModel
             );
         }
 
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
-        }
-
         ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
 
         Aircraft.Clear();
@@ -1062,7 +1055,6 @@ public partial class MainViewModel
         string artccId = result.ArtccId ?? _preferences.ArtccId;
         if (!string.IsNullOrEmpty(artccId))
         {
-            _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
             _ = ScopeMaps.LoadAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
 
             if (!string.IsNullOrEmpty(result.PrimaryAirportId))

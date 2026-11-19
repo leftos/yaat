@@ -527,8 +527,8 @@ harness shows is what the server did.
   The server picks candidates (`ShadowAssumeSelector`): every shadow for All, those within `RadiusNm` of a resolved airport/fix/FRD for WithinRadius, both narrowed by the Both / VFR / IFR rules (`RulesOf(AircraftState)`, the store's three-state reading), or the listed callsigns for Selected.
 
   It skips on-ground shadows always and stale ones for All / WithinRadius (an unattended bulk action does not take a coasting track; a hand-picked one does), then issues one recorded `ASSUME` per aircraft under a single room gate. The client prints `Assumed X of Y live aircraft (n on the ground, n stale, n refused)`.
-- **Rendering** — `TargetRenderer.DrawPositionSymbol` draws a shadow with `_shadowSymbolPaint` (dashed outline circle);
-  `ResolveTargetColors` applies `TargetColors.StaleAlpha` (128) to symbol and datablock when `LiveTrafficStale`. `GroundRenderer.DrawAircraft`
+- **Rendering** — `ScopeRenderer` draws a shadow's symbol as a dashed outline circle;
+  `TargetColors.StaleAlpha` (128) applies to symbol and datablock when `LiveTrafficStale`. `GroundRenderer.DrawAircraft`
   uses the stroke `_shadowAircraftPaint` for shadows with the same stale alpha. Datablock content is untouched (`Status` = `LIVE` /
   `LIVE CST` from `AircraftStatusDescriber`).
 - **Aircraft List** — `MainViewModel.IsAircraftVisible(ac, showOnlyActive, filter, LiveTrafficListFilter)`; the tri-state
@@ -559,8 +559,8 @@ harness shows is what the server did.
 ## Tests
 
 `tests/Yaat.Client.Tests/`: `AircraftCommandApplicabilityTests` (shadow → only Assume; surface shadow → nothing; assumed →
-normal; `CanUnassume` only for an assumed simulated aircraft), `AircraftModelAssumedFromLiveTrafficTests` (DTO → model, both edges), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`; `tests/Yaat.Client.UI.Tests/Views/TargetRendererColorTests`
-(stale alpha); `tests/Yaat.Client.UI.Tests/ViewModels/MainViewModelLiveSessionTests` (badge projection, Go Live chrome) and
+normal; `CanUnassume` only for an assumed simulated aircraft), `AircraftModelAssumedFromLiveTrafficTests` (DTO → model, both edges), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`;
+`tests/Yaat.Client.UI.Tests/ViewModels/MainViewModelLiveSessionTests` (badge projection, Go Live chrome) and
 `Services/LiveSessionAirportDefaultsTests` (tower / TRACON / center airport defaults). yaat-server
 `tests/Yaat.Server.Tests/LiveTraffic/LiveSessionTests`: the synthesized scenario round-trips through `ScenarioLoader`, `StartLiveSessionAsync`
 loads + enables + resumes, refusals (no feed / unknown position / unknown airport), the facility tree, the live-session tape-end rule

@@ -301,7 +301,7 @@ The label comes from `FormatCtrlNodeLabel`, as `#<id> · <Type>` plus the name w
 
 The right button does two jobs — a **click** opens a context menu, a **drag** pans — and they are indistinguishable at press time. `OnPointerPressed` therefore decides nothing: it hands the press to the shared `Views/Map/RightClickGesture`, lets `base.OnPointerPressed` start the pan, and returns.
 
-`OnPointerMoved` feeds movement in; past 5 px the press latches as a drag and cannot revert. `OnPointerReleased` asks `RightClickGesture.Release()`, which returns the **press** position when a menu is owed (so a pixel of jitter can't slide the menu off a small node) and null when the gesture was a pan. `RadarCanvas` uses the same helper.
+`OnPointerMoved` feeds movement in; past 5 px the press latches as a drag and cannot revert. `OnPointerReleased` asks `RightClickGesture.Release()`, which returns the **press** position when a menu is owed (so a pixel of jitter can't slide the menu off a small node) and null when the gesture was a pan. `ScopeCanvas` uses the same helper.
 
 Because of this, **`HandleRightClick` is the single place every ground right-click menu is decided**, and it is only ever called from the release path — never on press.
 
@@ -431,7 +431,7 @@ An **extra** Ground window has its own `GroundViewModel` (`IsPrimary=false`, `Se
 - **Per-callsign datablock state must not live on the canvas.** Canvas-local fields are lost on pop-out (fresh canvas) and were wiped by Layout-binding churn on tab switches (#350). See "Session-persistent datablock state" above.
 - **Text draws through a `TextStyle`, not a bare `SKPaint`.** SkiaSharp 3 keeps text state on `SKFont`; `GroundRenderer` pairs each text paint with a font (`_taxiLabelFont`, `_nodeLabelFont`, `_dataBlockTextFont`, …) and `DataBlockLayout.Compute` takes a `Views/Map/TextStyle`.
 
-  `LabelTextSize`/`DatablockTextSize` resize the **fonts**, and `GroundCanvas`'s hit-test font must be resized alongside the renderer's or ground datablock clicks miss at non-default sizes (guarded for the radar by `DatablockHitTestParityTests`). See [radar-rendering.md](radar-rendering.md#pitfalls) for the full `SKFont` contract.
+  `LabelTextSize`/`DatablockTextSize` resize the **fonts**, and `GroundCanvas`'s hit-test font must be resized alongside the renderer's or ground datablock clicks miss at non-default sizes . See [radar-rendering.md](radar-rendering.md#pitfalls) for the full `SKFont` contract.
 - **Alignment is a draw argument now.** `SKPaint.TextAlign` is gone, so `LabelCandidate` carries its own `Align` and `DrawLabels` passes it to `canvas.DrawText(..., label.Align, style.Font, style.Paint)`. Runway labels are centered; everything else is left-aligned. Add a new label kind without setting `Align` and it silently left-aligns.
 - **Never `Dispose()` an `SKImage` a `RenderSnapshot` may still hold — drop the reference instead.** `CreateRenderSnapshot` (UI thread) captures
   `BackgroundImage` (the `TowerCabImage`'s `SKImage`) into the immutable snapshot that `RenderFromSnapshot` reads later on the compositor thread.

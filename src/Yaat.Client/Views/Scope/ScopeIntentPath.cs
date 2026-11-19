@@ -63,8 +63,8 @@ public sealed record ScopeIntentShape(IReadOnlyList<SKPoint> Points, bool Dashed
 internal sealed record ScopeIntentRoute(IReadOnlyList<DrawnWaypoint> Waypoints, VectorTail? Tail);
 
 /// <summary>
-/// Pure: one track's intent path for the pilot lens, from the nav route and the heading tail as the Radar's "Show nav route"
-/// builds them (<see cref="ShownRouteBuilder"/>) and the shapes the server sends: straight legs, no predicted turn arcs, and
+/// Pure: one track's intent path for the pilot lens, from the nav route and the heading tail as
+/// <see cref="ShownRouteBuilder"/> builds them and the shapes the server sends: straight legs, no predicted turn arcs, and
 /// nothing re-derived from CIFP. <see cref="Routes"/> builds its route in latitudes and longitudes and
 /// <see cref="Project"/> puts it and the shapes on screen.
 /// </summary>
@@ -106,8 +106,8 @@ internal static class ScopeIntentPaths
     }
 
     /// <summary>
-    /// The scalar inputs <see cref="ShownRouteBuilder"/> reads, as the Radar's nav-route cache keys them
-    /// (<see cref="RadarViewModel.BuildShownPathFingerprint"/>); the cache keys the fix list by identity beside them.
+    /// The scalar inputs <see cref="ShownRouteBuilder"/> reads, as the Scope's intent-path cache keys them;
+    /// the cache keys the fix list by identity beside them.
     /// </summary>
     internal static string RouteScalars(AircraftModel ac) => ac.AssignedHeading?.Degrees.ToString("F1", CultureInfo.InvariantCulture) ?? "";
 

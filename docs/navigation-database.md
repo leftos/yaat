@@ -474,7 +474,7 @@ An `AT {fix}{radial}{dist}` condition (and `JRADO`, `JRADI`, `AT {fix}{radial}`)
 
 vNAS NavData publishes ~6,900 adapted fixes whose *identifiers are themselves FRD strings* — `OAK169001`, `ABI037030`,
 `OAK163001`. `BuildIndex` loads every one into `_navDb`, so they reach `AllFixNames`, `GetFixTuples()`, and the client's
-`RadarViewModel.Fixes` alongside real waypoints. Left unguarded, `ToFrd` picks one as the nearest fix and emits an
+`ScopeMapSource.Fixes` alongside real waypoints. Left unguarded, `ToFrd` picks one as the nearest fix and emits an
 FRD-of-an-FRD (`DCTF OAK169001231001`) that nothing downstream can render sensibly.
 
 `FrdResolver.IsFrdIdentifier(name)` classifies them: a **2–5 ASCII-letter anchor followed by exactly six digits whose leading
@@ -487,7 +487,7 @@ Two consumers:
   `OAK169001` is a real, resolvable fix and naming it directly is correct), and separately the nearest **non-FRD-named** fix,
   which is the only thing allowed to anchor a constructed FRD. `IsFrdIdentifier` is evaluated only when a candidate beats the
   current best distance, because `ToFrd` runs per render frame over the whole fix list while a route is being drawn.
-- `RadarViewModel.BuildVisibleFixes` skips them, so the Show Fixes overlay and its hover label don't paint 6,900 FRD strings
+- `ScopeMapSource` leaves them out of its `Fixes` list, so the Show Fixes overlay and its hover label don't paint 6,900 FRD strings
   across the scope. `AllFixNames` is **not** filtered — typing `OAK169001` in a DCT still resolves.
 
 This covers every deduction site at once: the map right-click menu (FRD header, Copy FRD, Pin marker, Direct to, Warp), the

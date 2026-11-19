@@ -144,7 +144,7 @@ Pure transformations from internal state to wire DTOs:
 - `ToStarsTrack(ac)` — `AircraftState` → `StarsTrackDto` (coast phase, ATPA targets, owner, line, scratchpads, temp alt, cruise, …). The `AtpaResult` it takes comes from `TrainingRoom.AtpaResults`, the per-wall-tick cache `AtpaEvaluator` fills in `RoomTickLoopService.DetectChanges` (the subscribe-time `BuildInitialData` computes its own via `AtpaEvaluator.Compute`); the same cache feeds the training hub's `AtpaResultsChanged`.
   - `StarsTrackDto.TpaType` (Key 30, CRC's `RemoteTpaType`) is **reserved for the automatic ATPA cone** — it is set only from the server-computed `AtpaResult` cone state via `MapAtpaTpaType`.
 
-    The instructor's manual `JRING`/`CONE` (`ac.Stars.TpaType` + `TpaSize`) is **not** mapped here: it is an instructor-only overlay drawn on YAAT's own radar (`AircraftStateDto.TpaType`/`TpaSize` → `TargetRenderer`), never projected to the student's CRC. CRC controllers draw their own manual TPA graphics locally and sync them via shared track state.
+    The instructor's manual `JRING`/`CONE` (`ac.Stars.TpaType` + `TpaSize`) is **not** mapped here: it is an instructor-only overlay drawn on YAAT's own Scope (`AircraftStateDto.TpaType`/`TpaSize` → `ScopeRenderer.DrawRings`), never projected to the student's CRC. CRC controllers draw their own manual TPA graphics locally and sync them via shared track state.
 - `ToParkedDataBlock(ac)` — STARS Track Reposition (`TRK RPOS`) Form 2: when `ac.DataBlock.Binding == Parked`, the broadcast loop emits a **second** `StarsTrackDto` (id `RPOS{callsign}`, `IsUnsupported`, no surveillance) at the parked location carrying the flight plan, while `ToStarsTrack` renders the aircraft's own track as a bare unassociated LDB (blank `AircraftId`, `Owner = null`).
 
   `CrcVisibilityTracker` keeps a parked aircraft visible regardless of the floor; `AircraftChangeTracker` fingerprints `DataBlock`, and the broadcast layer deletes the stale `RPOS{callsign}` id on un-park or removal (CRC is additive).
@@ -644,7 +644,7 @@ Three things to preserve:
 - **`ScratchpadRuleEngine.Apply` honors the cleared flag too** — it runs at every track-acquisition event, so without
   that guard an accepted handoff would silently re-populate a scratchpad the controller had just cleared.
 
-Tests: `AutoScratchpadResolverTests` (branch matrix against the real ZOA snapshot), `RadarDatablockLayoutTests`.
+Tests: `AutoScratchpadResolverTests` (branch matrix against the real ZOA snapshot).
 
 ## Scenario unload — resetting per-room CRC state
 

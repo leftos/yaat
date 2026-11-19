@@ -26,7 +26,7 @@ public class ScopeRendererStyleTests
     private static readonly SKColor BlockColor = SKColors.White;
     private static readonly SKColor TypeMismatchColor = new(0xFF, 0xB0, 0x30);
 
-    // The Scope's own copies of TargetColors.MvaBelowColor and TargetRenderer.MvaAtColor; the tests pin they match.
+    // The MVA tint colours the Scope draws below and at the MVA; the tests pin the drawn pixels to them.
     private static readonly SKColor MvaBelowColor = new(255, 90, 90);
     private static readonly SKColor MvaAtColor = new(255, 200, 60);
 

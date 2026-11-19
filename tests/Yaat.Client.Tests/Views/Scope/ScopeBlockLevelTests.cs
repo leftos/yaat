@@ -10,7 +10,8 @@ namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
 /// The four block levels: ERAM Limited is CRC's paired LDB and Partial its enhanced paired LDB, STARS Limited and Partial are
-/// the Radar's collapsed blocks, EuroScope draws the Full tag at every level, and Dwell shows the Full block's content.
+/// the collapsed blocks <see cref="DatablockText.BuildCollapsedLines"/> builds, EuroScope draws the Full tag at every level,
+/// and Dwell shows the Full block's content.
 /// </summary>
 [Collection(MapBlinkClockCollection.Name)]
 public class ScopeBlockLevelTests
@@ -207,7 +208,7 @@ public class ScopeBlockLevelTests
 
     [Theory]
     [MemberData(nameof(StarsCollapsedCases))]
-    public void StarsReducedBlock_MatchesRadarDatablockLayoutCollapsedLines(string caseName)
+    public void StarsReducedBlock_MatchesTheCollapsedLines(string caseName)
     {
         (AircraftModel ac, ScopeBlockLevel level) = StarsCollapsed(caseName);
         TextStyle style = Style();

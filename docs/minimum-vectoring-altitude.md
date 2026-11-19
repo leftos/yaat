@@ -1,8 +1,8 @@
 # Minimum Vectoring Altitude (MVA)
 
-> Read this before touching `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, or the radar MVA
-> display surfaces (`TargetRenderer` altitude tint, the `OnMapRightClicked` MVA item, the Ctrl+hover
-> tooltip in `RadarCanvas`/`RadarRenderer`).
+> Read this before touching `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, or the Scope MVA
+> display surfaces (`TrackPresenter`'s altitude tint, the `ScopeView.OnMapRightClicked` MVA item, the Ctrl+hover
+> tooltip in `ScopeCanvas`/`ScopeMapToolsRenderer`).
 
 YAAT knows the **Minimum Vectoring Altitude** — the lowest MSL altitude at which ATC may radar-vector
 an IFR aircraft (7110.65 §5-6-1.a.3) — for any airborne aircraft's position, and surfaces it on the
@@ -48,7 +48,7 @@ scope the controller sees.
 
 All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no server change:
 
-- **Datablock altitude tint** (`TargetRenderer`): the altitude field is drawn red when the aircraft is
+- **Datablock altitude tint** (`ScopeCanvas`'s `ShowMvaAltitudeTint`, read by `TrackPresenter`): the altitude field is drawn red when the aircraft is
   below the sector floor, amber within ±100 ft ("at"), normal otherwise. Both the STARS datablock and
   the EuroScope tag. Color only — no geometry change, so the draw-vs-hit-test parity is untouched.
   Gated on airborne + IFR (VFR is MSAW-inhibited by default, 7110.65 §5-14-7) + **not established on an
@@ -57,8 +57,8 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
   the aircraft is on final or cleared for a full approach and flying the procedure — the published
   procedure then owns obstacle clearance below the MVA (AIM 4-1-16.a.1). A lateral-only localizer join
   (JFAC/JLOC, holding its assigned altitude) and a go-around still warn. The live
-  toggle is `RadarViewModel.ShowMvaHints` (bound to `RadarCanvas.ShowMvaAltitudeTint`), flipped by the
-  **MVA** button on the radar DCB. It is **session state, not persisted**: each scenario load re-seeds it
+  toggle is `ScopeViewModel.ShowMvaHints` (bound to `ScopeCanvas.ShowMvaAltitudeTint`), flipped by the
+  **MVA** toolbar button (`.scope mva`). It is **session state, not persisted**: each scenario load re-seeds it
   from `UserPreferences.GetMvaHintDefault(studentPositionType)` — the four per-type defaults (Approach/
   Center on, Ground/Tower off) configured in Settings › Radar › Overlays. The reset is wired alongside
   the auto-cleared-to-land seed in `ApplyScenarioResult` / `OnScenarioLoaded` / the timeline path, **and**
@@ -66,9 +66,9 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
   per-type default — unlike room-shared auto-cleared-to-land, which the joiner inherits from the room. The
   join path needs the student position type, so `RoomStateDto` carries `StudentPositionType` (server +
   client).
-- **Right-click MVA-at-point** (`RadarView.ContextMenus.OnMapRightClicked`): an informational line in
+- **Right-click MVA-at-point** (`ScopeView.OnMapRightClicked`, `ScopeView.PointMenu.cs`): an informational line in
   the empty-map menu showing the floor + sector at the clicked geo point.
-- **Ctrl+hover tooltip** (`RadarCanvas` → `RadarRenderer.DrawMvaHoverLabel`): holding Ctrl while moving
+- **Ctrl+hover tooltip** (`ScopeCanvas.MapTools.cs` → `ScopeMapToolsRenderer.DrawMvaHover`): holding Ctrl while moving
   the cursor draws a label with the MVA floor + sector under the cursor. Threaded through the render
   snapshot (`MvaHover`) like `HoveredFixName`. `OnKeyDown`/`OnKeyUp` also track Ctrl, so pressing or
   releasing it shows or clears the label without moving the pointer. The Ground View's Ctrl node label
@@ -91,7 +91,7 @@ point.
   belongs to the separately-charted inner sector. Do not reuse `AirspaceVolume`'s OR-of-rings logic.
 - **Coverage has gaps.** Between charted sectors (and outside the FAA's ~148-facility footprint) every
   query returns null — callers must treat "no MVA here" as a non-event, never an error.
-- **Overlaps resolve to the radar's own facility chart.** Adjacent facilities' charts overlap, and NCT's Castle/Merced chart covers most of Fresno's terminal area, so highest-wins mislabelled it (2,000 ft where FAT charts 1,900). The radar passes `RadarViewModel.MvaFacilityId` (from `FacilityVideoMapsDto.FacilityId`) as the preference to the altitude tint, the Ctrl-hover readout, the point-menu MVA row and the aircraft-menu altitude flyout (`RadarView.CreateMenuHost` hands it to `ClientMenuHost` as `mvaFacilityId`; Ground and DataGrid menus pass `MainViewModel.ScopeMaps.MvaFacilityId` too). Where that chart does not cover the point, or before video maps load, the highest floor across every chart applies. Live-traffic descent floors and the military-route terrain proxy pass a null preference and keep highest-wins. Composite FAA chart ids (`D01_DEN_PUB`, `BOI_BZN`) never match a facility id, so those radars keep highest-wins (YAAT-2297).
+- **Overlaps resolve to the Scope's own facility chart.** Adjacent facilities' charts overlap, and NCT's Castle/Merced chart covers most of Fresno's terminal area, so highest-wins mislabelled it (2,000 ft where FAT charts 1,900). The Scope passes `ScopeMapSource.MvaFacilityId` (from `FacilityVideoMapsDto.FacilityId`, as `MainViewModel.ScopeMaps.MvaFacilityId`) as the preference to the altitude tint, the Ctrl-hover readout, the point-menu MVA row and the aircraft-menu altitude flyout (`ScopeView` hands it to `ClientMenuHost` as `mvaFacilityId`; Ground and DataGrid menus pass `MainViewModel.ScopeMaps.MvaFacilityId` too). Where that chart does not cover the point, or before video maps load, the highest floor across every chart applies. Live-traffic descent floors and the military-route terrain proxy pass a null preference and keep highest-wins. Composite FAA chart ids (`D01_DEN_PUB`, `BOI_BZN`) never match a facility id, so those radars keep highest-wins (YAAT-2297).
 - **Refresh drift.** The FAA charts update on no fixed cycle; re-run `--all` and commit the regenerated
   Brotli file to refresh. The `source`/`generatedAt`/`facilityCount` metadata records provenance.
 

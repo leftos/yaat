@@ -6,7 +6,7 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// The YAAT Radar View's assigned-vs-reported beacon-code mismatch flash is an RPO aid that fires at
+/// YAAT's assigned-vs-reported beacon-code mismatch flash is an RPO aid that fires at
 /// any datablock level (unlike CRC, which only shows the reported/assigned line in a Full Data Block).
 /// Once the pilot is told to squawk VFR (<c>SQVFR</c>/<c>SQV</c>), the stale assigned discrete code is
 /// noise the RPO should ignore, so a latch (<see cref="AircraftTransponder.CommandedSquawkVfr"/>)
@@ -16,7 +16,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Repro: bundle S2-OAK-4 (VFR Transitions/Radar Concepts) — N427MX is issued <c>SQVFR</c> at t=1610
 /// while assigned 0303 and squawking 1200, and the datablock kept flashing 1200/0303 afterward.
-/// The client-side render gate is covered by <c>RadarDatablockLayoutTests</c> (Yaat.Client.Tests).
+/// The Ground view's render gate is covered by <c>GroundDataBlockLayoutTests</c> (Yaat.Client.Tests).
 /// </summary>
 public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
 {

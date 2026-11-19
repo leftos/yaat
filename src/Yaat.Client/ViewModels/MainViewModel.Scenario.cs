@@ -714,11 +714,6 @@ public partial class MainViewModel
         ResetScopeProfile();
         SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
-        }
-
         ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
 
         ApplyScenarioBootstrap(
@@ -767,11 +762,6 @@ public partial class MainViewModel
 
             SetStudentPositionType(dto.StudentPositionType);
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-            foreach (RadarViewModel radar in AllRadarViews)
-            {
-                radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
-            }
-
             ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
 
             ApplyScenarioBootstrap(
@@ -851,7 +841,6 @@ public partial class MainViewModel
         // Stashed so a Ground window opened later in this scenario bootstraps from the same data.
         _lastRadarPrimaryAirportId = bootstrap.PrimaryAirportId;
         _lastScenarioId = bootstrap.ScenarioId;
-        Radar.ApplyScenarioBootstrap(bootstrap, artccId);
         ScopeMaps.ApplyScenarioBootstrap(bootstrap, artccId);
         Ground.ApplyScenarioBootstrap(bootstrap, artccId);
         foreach (GroundViewInstance instance in ExtraGroundViews)
@@ -1027,19 +1016,7 @@ public partial class MainViewModel
         _richPresenceStartUnixSeconds = 0;
         SetStudentPositionType(null);
         _isAutoClearedToLand = false;
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.ShowMvaHints = false;
-        }
-
         _commandInput.PrimaryAirportId = null;
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.SetPrimaryAirportId(null);
-            radar.ClearShownPaths();
-            radar.DataBlockState.Clear();
-        }
-
         foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.ClearShownTaxiRoutes();
@@ -1075,16 +1052,11 @@ public partial class MainViewModel
             ground.ClearLayout();
         }
 
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.ClearVideoMaps();
-        }
-
         ScopeMaps.Clear();
 
         // Clearing the maps drops each position's airport filter, so the weather readout has to be re-derived
         // from it: without this the last position's "No METAR for …" note outlives the filter that justified it.
-        UpdateRadarWeatherDisplay();
+        RefreshScopeWeather();
 
         // Strips and PDCs are pushed state that nothing retracts once the session they belong to is gone, so
         // every open view drops its content here — the docked tabs, the split panes and the popped-out windows

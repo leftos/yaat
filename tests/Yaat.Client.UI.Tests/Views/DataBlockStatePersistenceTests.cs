@@ -13,7 +13,6 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -98,18 +97,6 @@ public class DataBlockStatePersistenceTests
     }
 
     [AvaloniaFact]
-    public void RadarViews_BoundToSameViewModel_ShareMinifiedState()
-    {
-        var vm = new RadarViewModel(new ServerConnection(), new VideoMapService(), (_, _, _) => Task.CompletedTask);
-        RadarCanvas canvas1 = BindRadarView(vm);
-        RadarCanvas canvas2 = BindRadarView(vm);
-
-        canvas1.ToggleMinifiedDataBlock(Callsign);
-
-        Assert.True(canvas2.IsMinified(Callsign), "a second radar view over the same view-model must see the minified choice");
-    }
-
-    [AvaloniaFact]
     public void MainWindow_GroundTabSwitchAwayAndBack_PreservesManualDataBlockOffset()
     {
         // The literal user repro: drag a Ground datablock, switch to another docked tab, switch
@@ -123,7 +110,6 @@ public class DataBlockStatePersistenceTests
         // pop-out window instead of the docked tab this test drives.
         vm.IsDataGridPoppedOut = false;
         vm.IsGroundViewPoppedOut = false;
-        vm.IsRadarViewPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         TabControl? tabs = window.FindControl<TabControl>("MainTabControl");
@@ -173,19 +159,15 @@ public class DataBlockStatePersistenceTests
     }
 
     [AvaloniaFact]
-    public void ScenarioRestart_ClearsBothViewsDataBlockState()
+    public void ScenarioRestart_ClearsTheGroundViewsDataBlockState()
     {
         // Respawned aircraft are back at their start positions, so stale offsets/choices don't apply.
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Ground.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
-        vm.Radar.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
-        vm.Radar.DataBlockState.MinifiedCallsigns.Add(Callsign);
 
         vm.ApplyScenarioRestart([], null);
 
         Assert.Empty(vm.Ground.DataBlockState.ManualOffsets);
-        Assert.Empty(vm.Radar.DataBlockState.ManualOffsets);
-        Assert.Empty(vm.Radar.DataBlockState.MinifiedCallsigns);
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -342,15 +324,6 @@ public class DataBlockStatePersistenceTests
         canvas.Aircraft = [ac];
         Dispatcher.UIThread.RunJobs();
         return (canvas, window);
-    }
-
-    private static RadarCanvas BindRadarView(RadarViewModel vm)
-    {
-        var view = new RadarView { DataContext = vm };
-        _ = ShowInWindow(view);
-        RadarCanvas? canvas = view.FindControl<RadarCanvas>("Canvas");
-        Assert.NotNull(canvas);
-        return canvas!;
     }
 
     /// <summary>Drags the aircraft's datablock 40 px down-right with the headless mouse.</summary>

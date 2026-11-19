@@ -154,7 +154,7 @@ public class TrackPresenterTests
         Assert.Contains(idle.Fields, f => f.Action != ScopeFieldAction.None);
     }
 
-    // The block-colour precedence, mirroring today's TargetRenderer.ResolveTargetColors and its tint logic:
+    // The block-colour precedence:
     // middle-click highlight, then the RPO assignment tint, then the student STARS colour (sync on), then Default.
     private const string Initials = "AB";
 
@@ -678,7 +678,7 @@ internal static class ScopeTestAircraft
         };
     }
 
-    /// <summary>ATPA lead 3.2 nm due east of <see cref="CreateModel"/>, as in <c>RadarDatablockLayoutTests</c>.</summary>
+    /// <summary>ATPA lead 3.2 nm due east of <see cref="CreateModel"/>.</summary>
     public static AircraftModel CreateAtpaLead()
     {
         return new AircraftModel

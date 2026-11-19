@@ -3,31 +3,25 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// Acceptance for the step-1 templates: the STARS template's Full block reads the same lines and bounds as today's
-/// <see cref="RadarDatablockLayout.Compute"/>, and the EuroScope template produces the same drawn fields, texts,
-/// relative rects and bounds as today's <see cref="EuroScopeTagLayout.Layout"/>. Today's layouts read the flash
-/// phase from <see cref="MapBlink.Clock"/>, which each row pins to the phase it passes the presenter.
+/// Pins the Scope's block templates to frozen text: the STARS template's Full block reads the lines in
+/// <c>Golden/stars-full-block.json</c>, and the EuroScope template draws the fields and texts in
+/// <c>Golden/euroscope-block.json</c>. The presenter reads the flash phase it is passed, one row per phase.
 /// </summary>
 [Collection(MapBlinkClockCollection.Name)]
 public class ScopeTemplateParityTests
 {
-    private const float OriginX = 137f;
-    private const float OriginY = -52f;
-
-    /// <param name="Marker">The student-level marker today's renderer appends to line 1.</param>
+    /// <param name="Marker">The student-level marker line 1 carries.</param>
     /// <param name="MarkLevel">Whether the student-level marker preference is on.</param>
     private sealed record Case(AircraftModel Ac, AircraftModel? Lead, AircraftModel? Peer, string Marker, bool MarkLevel)
     {
         /// <summary>
-        /// The Scope's STARS block carries the ATPA distance at line 2's right end, where the Radar draws it on its own row:
-        /// the one place the two layouts differ on purpose (<see cref="RadarLinesAsScope"/>).
+        /// An ATPA trailer: the Scope's STARS block carries the ATPA distance at line 2's right end, with no extra row.
         /// </summary>
         public bool AtpaOnLine2 { get; init; }
     }
@@ -109,28 +103,6 @@ public class ScopeTemplateParityTests
         }
     }
 
-    private static readonly Dictionary<ScopeFieldSlot, TagFieldId> EuroScopeIds = new()
-    {
-        [ScopeFieldSlot.Owner] = TagFieldId.Owner,
-        [ScopeFieldSlot.Callsign] = TagFieldId.Callsign,
-        [ScopeFieldSlot.TypeCwt] = TagFieldId.TypeCwt,
-        [ScopeFieldSlot.Destination] = TagFieldId.Destination,
-        [ScopeFieldSlot.Ident] = TagFieldId.Ident,
-        [ScopeFieldSlot.Altitude] = TagFieldId.CurrentAltitude,
-        [ScopeFieldSlot.AssignedAltitude] = TagFieldId.AssignedAltitude,
-        [ScopeFieldSlot.AssignedSpeed] = TagFieldId.AssignedSpeed,
-        [ScopeFieldSlot.AssignedHeading] = TagFieldId.AssignedHeading,
-        [ScopeFieldSlot.AssignedRunway] = TagFieldId.AssignedRunway,
-        [ScopeFieldSlot.Scratchpad1] = TagFieldId.Scratchpad1,
-        [ScopeFieldSlot.Scratchpad2] = TagFieldId.Scratchpad2,
-        [ScopeFieldSlot.Handoff] = TagFieldId.Handoff,
-        [ScopeFieldSlot.Squawk] = TagFieldId.Squawk,
-        [ScopeFieldSlot.ModeC] = TagFieldId.ModeC,
-        [ScopeFieldSlot.NoLandingClearance] = TagFieldId.NoLandingClearance,
-        [ScopeFieldSlot.ConflictAlert] = TagFieldId.ConflictAlert,
-        [ScopeFieldSlot.InstructorNote] = TagFieldId.Note,
-    };
-
     private static AircraftModel With(Action<AircraftModel> setup)
     {
         AircraftModel ac = ScopeTestAircraft.CreateModel();
@@ -178,59 +150,6 @@ public class ScopeTemplateParityTests
         return DatablockTemplate.Layout(presentation, ScopeTextMetrics.FromStyle(style));
     }
 
-    private static RadarDatablockLayout Today(Case c, bool flashOn, TextStyle style)
-    {
-        using var pin = MapBlinkPin.Phase(flashOn);
-        return RadarDatablockLayout.Compute(
-            c.Ac,
-            new DatablockPlacement(0, 0, style, true),
-            new DatablockOverlays(true, c.Peer, true, c.Lead),
-            callsignMarker: c.Marker
-        );
-    }
-
-    /// <summary>The lines today's renderer draws for a layout, in draw order; the ident token blanks off-phase.</summary>
-    private static List<string> DrawnLines(RadarDatablockLayout layout, bool flashOn)
-    {
-        string line2 = (layout.IdentActive && !flashOn) ? layout.Line2[..^(DatablockText.IdentText.Length + 1)] : layout.Line2;
-        var lines = new List<string> { layout.Line1, line2 };
-        AddIf(lines, layout.SquawkLine, layout.SquawkLine.Length > 0);
-        AddIf(lines, layout.Line3, layout.ReserveOwnerSlot);
-        AddIf(lines, layout.AtpaLine, layout.AtpaLine.Length > 0);
-        AddIf(lines, layout.Line4, layout.Line4.Length > 0);
-        AddIf(lines, layout.Line5, layout.ReserveWarningSlot);
-        AddIf(lines, layout.ConflictLine, layout.ReserveConflictSlot);
-        AddIf(lines, layout.Line6, layout.Line6.Length > 0);
-        return lines;
-    }
-
-    /// <summary>
-    /// Today's drawn lines as the Scope's STARS template carries them. The same as <see cref="DrawnLines"/> but for an
-    /// <see cref="Case.AtpaOnLine2"/> case: there the Radar's own ATPA row moves to line 2's right end, after the cwt/type and
-    /// before the ident. A narrow, deliberate exception: the Scope follows CRC's block, the Radar keeps its row until it is
-    /// deleted, and every other line still matches.
-    /// </summary>
-    private static List<string> RadarLinesAsScope(RadarDatablockLayout layout, bool flashOn, Case c)
-    {
-        List<string> lines = DrawnLines(layout, flashOn);
-        if ((!c.AtpaOnLine2) || (layout.AtpaLine.Length == 0))
-        {
-            return lines;
-        }
-
-        lines.RemoveAt(lines.IndexOf(layout.AtpaLine, 2));
-        lines[1] = lines[1].Insert(layout.TypeTokenStart + layout.TypeTokenLength, " " + layout.AtpaLine);
-        return lines;
-    }
-
-    private static void AddIf(List<string> lines, string line, bool present)
-    {
-        if (present)
-        {
-            lines.Add(line);
-        }
-    }
-
     /// <summary>The scope block's lines: each row's field rects, top to bottom.</summary>
     private static List<FieldRect[]> Rows(ScopeBlockLayout layout) => [.. layout.Fields.GroupBy(f => f.Rect.Top).Select(g => g.ToArray())];
 
@@ -246,43 +165,8 @@ public class ScopeTemplateParityTests
         return text;
     }
 
-    [Theory]
-    [MemberData(nameof(CasesByPhase))]
-    public void StarsTemplate_FullBlock_MatchesRadarDatablockLayout(string caseName, bool flashOn)
-    {
-        TextStyle style = Style(12);
-        Case c = Cases[caseName]();
-        RadarDatablockLayout today = Today(c, flashOn, style);
-        List<string> stableLines = RadarLinesAsScope(Today(c, flashOn: true, style), flashOn: true, c);
-
-        ScopeBlockLayout scope = ScopeLayout(ScopeTemplates.StarsId, c, flashOn, style);
-        List<FieldRect[]> rows = Rows(scope);
-
-        Assert.Equal(RadarLinesAsScope(today, flashOn, c), rows.Select(JoinRow));
-        if (c.AtpaOnLine2)
-        {
-            // The Radar's ATPA row is gone from the Scope's block: same corner, one row shorter.
-            Assert.Equal(today.Rect.Location, scope.Bounds.Location);
-            Assert.Equal(today.Rect.Height - style.LineHeight, scope.Bounds.Height, precision: 3);
-        }
-        else
-        {
-            Assert.Equal(today.Rect, scope.Bounds);
-        }
-        for (int i = 0; i < rows.Count; i++)
-        {
-            Assert.Equal(style.Measure(stableLines[i]), rows[i][^1].Rect.Right, precision: 3);
-        }
-        if (today.TypeTokenStart >= 0)
-        {
-            FieldRect cwtType = Assert.Single(scope.Fields, f => f.Slot == ScopeFieldSlot.CwtType);
-            Assert.Equal(style.Measure(today.Line2[..today.TypeTokenStart]), cwtType.Rect.Left, precision: 3);
-            Assert.Equal(style.Measure(today.Line2.Substring(today.TypeTokenStart, today.TypeTokenLength)), cwtType.Rect.Width, precision: 3);
-        }
-    }
-
     /// <summary>
-    /// One frozen STARS full block: the lines today's renderer draws, in draw order. Text only, since measured bounds
+    /// One frozen STARS full block: the lines the block draws, in draw order. Text only, since measured bounds
     /// follow the machine's default typeface.
     /// </summary>
     /// <param name="Case">The <see cref="Cases"/> key.</param>
@@ -323,22 +207,6 @@ public class ScopeTemplateParityTests
         Assert.Equal(golden.Lines, Rows(scope).Select(JoinRow));
     }
 
-    /// <summary>
-    /// Proves the frozen fixture is today's text, with the ATPA distance on line 2 (<see cref="RadarLinesAsScope"/>); it goes
-    /// with <see cref="RadarDatablockLayout"/>.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(CasesByPhase))]
-    public void FrozenStarsText_MatchesRadarDatablockLayout(string caseName, bool flashOn)
-    {
-        GoldenBlock golden = Golden(caseName, flashOn);
-        Case c = Cases[caseName]();
-
-        RadarDatablockLayout today = Today(c, flashOn, Style(12));
-
-        Assert.Equal(golden.Lines, RadarLinesAsScope(today, flashOn, c));
-    }
-
     [Theory]
     [InlineData("AtpaLead", true)]
     [InlineData("AtpaLead", false)]
@@ -368,38 +236,53 @@ public class ScopeTemplateParityTests
         Assert.Single(ScopeTemplates.Stars.Lines, l => l.Slots.Any(s => s.Slot == ScopeFieldSlot.Atpa));
     }
 
-    [Theory]
-    [MemberData(nameof(CasesBySizeAndPhase))]
-    public void EuroScopeTemplate_MatchesEuroScopeTagLayout(string caseName, float fontSize, bool flashOn)
+    /// <summary>One drawn EuroScope tag field: its slot name and text.</summary>
+    private sealed record GoldenField(string Slot, string Text);
+
+    /// <summary>
+    /// One frozen EuroScope tag: the drawn fields' slots and texts, row by row, top to bottom. Text only, since measured
+    /// rects follow the machine's default typeface; the text is the same at every font size.
+    /// </summary>
+    /// <param name="Case">The <see cref="Cases"/> key.</param>
+    /// <param name="FlashOn">The flash phase the tag was laid out in.</param>
+    /// <param name="Rows">The drawn fields, row by row.</param>
+    private sealed record GoldenTag(string Case, bool FlashOn, GoldenField[][] Rows);
+
+    private static readonly Lazy<GoldenTag[]> GoldenTags = new(() =>
+        JsonSerializer.Deserialize<GoldenTag[]>(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Views", "Scope", "Golden", "euroscope-block.json")),
+            GoldenJson
+        ) ?? throw new InvalidOperationException("euroscope-block.json deserialized to null")
+    );
+
+    /// <summary>The scope tag's drawn fields as golden rows: blank (reserved) fields are not drawn.</summary>
+    private static List<GoldenField[]> DrawnRows(ScopeBlockLayout layout) =>
+        [
+            .. layout
+                .Fields.Where(f => f.Text.Length > 0)
+                .GroupBy(f => f.Rect.Top)
+                .Select(g => g.Select(f => new GoldenField(f.Slot.ToString(), f.Text)).ToArray()),
+        ];
+
+    [Fact]
+    public void FrozenEuroScopeText_CoversExactlyTheParityCases()
     {
-        TextStyle style = Style(fontSize);
-        Case c = Cases[caseName]();
-        EuroScopeTagResult today;
-        using (MapBlinkPin.Phase(flashOn))
-        {
-            today = EuroScopeTagLayout.Layout(c.Ac, OriginX, OriginY, style, true, true, c.Peer);
-        }
+        HashSet<(string, bool)> expected = [.. Cases.Keys.SelectMany(name => new[] { (name, true), (name, false) })];
 
-        ScopeBlockLayout scope = ScopeLayout(ScopeTemplates.EuroScopeId, c, flashOn, style);
-        // Today's tag drops a flashing field off-phase, except the ident, which it keeps and its renderer blanks;
-        // the template keeps every flashing field reserved with blank text.
-        TagFieldRect[] todayDrawn = [.. today.Fields.Where(f => flashOn || (f.Field != TagFieldId.Ident))];
-        FieldRect[] drawn = [.. scope.Fields.Where(f => f.Text.Length > 0)];
+        HashSet<(string, bool)> frozen = [.. GoldenTags.Value.Select(g => (g.Case, g.FlashOn))];
 
-        Assert.DoesNotContain(scope.Fields, f => f.Slot == ScopeFieldSlot.StudentLevelMark);
-        Assert.Equal(todayDrawn.Select(f => (f.Field, f.Text)), drawn.Select(f => (EuroScopeIds[f.Slot], f.Text)));
-        for (int i = 0; i < todayDrawn.Length; i++)
-        {
-            AssertRelative(todayDrawn[i].Rect, drawn[i].Rect);
-        }
-        AssertRelative(today.Bounds, scope.Bounds);
+        Assert.Equal(expected, frozen);
     }
 
-    private static void AssertRelative(SKRect expectedAtOrigin, SKRect actualRelative)
+    [Theory]
+    [MemberData(nameof(CasesBySizeAndPhase))]
+    public void EuroScopeTemplate_MatchesFrozenEuroScopeText(string caseName, float fontSize, bool flashOn)
     {
-        Assert.Equal(expectedAtOrigin.Left - OriginX, actualRelative.Left, precision: 3);
-        Assert.Equal(expectedAtOrigin.Top - OriginY, actualRelative.Top, precision: 3);
-        Assert.Equal(expectedAtOrigin.Right - OriginX, actualRelative.Right, precision: 3);
-        Assert.Equal(expectedAtOrigin.Bottom - OriginY, actualRelative.Bottom, precision: 3);
+        GoldenTag golden = Assert.Single(GoldenTags.Value, g => (g.Case == caseName) && (g.FlashOn == flashOn));
+
+        ScopeBlockLayout scope = ScopeLayout(ScopeTemplates.EuroScopeId, Cases[caseName](), flashOn, Style(fontSize));
+
+        Assert.DoesNotContain(scope.Fields, f => f.Slot == ScopeFieldSlot.StudentLevelMark);
+        Assert.Equal(golden.Rows, DrawnRows(scope));
     }
 }

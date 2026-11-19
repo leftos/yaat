@@ -5,7 +5,6 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Tests.Views.Scope;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
@@ -149,21 +148,6 @@ public class MapCueRenderTests
         using SKBitmap bitmap = RenderScope(frame, vp, new ResolvedMapCue(TargetPosition, null, null, null));
 
         AssertSolidRing(bitmap, track.Symbol.X, track.Symbol.Y);
-    }
-
-    [Fact]
-    public void RadarRenderer_DrawsTheCueThroughTheSharedRenderer()
-    {
-        MapViewport vp = Viewport();
-        (float tx, float ty) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
-        using var bitmap = new SKBitmap(SurfacePx, SurfacePx);
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.Black);
-        using var renderer = new RadarRenderer();
-
-        renderer.DrawMenuCue(canvas, vp, new ResolvedMapCue(TargetPosition, null, null, null));
-
-        AssertSolidRing(bitmap, tx, ty);
     }
 
     private static MapViewport Viewport() =>

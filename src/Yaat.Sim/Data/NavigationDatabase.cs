@@ -46,7 +46,7 @@ public sealed class NavigationDatabase
 
     // AP/1B military training route points, kept out of _navDb on purpose. Both public projections
     // of _navDb — AllFixNames (autocomplete, the DIST suggester, PhoneticFixMatcher, the scope's fix
-    // overlay, and FRD anchoring via RadarViewModel.BuildVisibleFixes) and GetFixTuples (FRD nearest-
+    // overlay, and FRD anchoring via ScopeMapSource) and GetFixTuples (FRD nearest-
     // fix search) — would otherwise have to filter roughly 7,000 synthetic names out, and a future
     // third projection would silently leak them. Holding them separately means a real fix always
     // wins a name clash by construction, and GetFixPosition consults these only after a miss.

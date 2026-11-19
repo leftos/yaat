@@ -5,7 +5,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
@@ -25,8 +24,6 @@ namespace Yaat.Client.Views;
 /// terminal). Scoped to <see cref="MainViewModel"/>-backed windows plus Strips/TDLS and the Scope window.</item>
 /// <item><b>Always on top</b> — toggles the focused window's topmost state via
 /// <see cref="IAlwaysOnTopToggle"/>.</item>
-/// <item><b>Toggle DCB</b> — Ctrl+F8 shows/hides the radar Display Control Bar, mirroring CRC's
-/// <c>StarsSpecialKey.Dcb</c>. Fixed binding, scoped to YAAT working windows.</item>
 /// <item><b>Panel toggles</b> — the pop-out keys (aircraft list, ground, Scope, terminal, controllers, METAR)
 /// and the favorites-bar key flip their flag on the <see cref="MainViewModel"/>, the same flag the View menu's
 /// checkable item binds. Scoped to YAAT working windows.</item>
@@ -41,7 +38,6 @@ namespace Yaat.Client.Views;
 /// </summary>
 internal static class WindowHotkeys
 {
-    private const string DcbChord = "Ctrl+F8";
     private const string MeasureChord = "Ctrl+M";
 
     /// <summary>
@@ -50,7 +46,6 @@ internal static class WindowHotkeys
     /// </summary>
     internal static readonly IReadOnlyList<(string Name, string Chord)> FixedChords =
     [
-        ("Toggle DCB", DcbChord),
         ("Measure tool", MeasureChord),
         ("Strips and vTDLS find", "Ctrl+F"),
         ("Ground view debug overlay", "Ctrl+D"),
@@ -117,19 +112,8 @@ internal static class WindowHotkeys
             return;
         }
 
-        // Ctrl+F8 toggles the radar Display Control Bar (DCB), mirroring CRC's StarsSpecialKey.Dcb.
-        // Fixed (non-configurable) binding; the focus-input scope guard keeps it off modal dialogs, and the Scope window has no DCB.
-        if (IsFocusInputScope(window) && (window is not ScopeWindow) && Matches(DcbChord, e))
-        {
-            // An extra Radar window toggles its own DCB; everywhere else the hotkey means the docked view.
-            RadarViewModel radar = window is RadarViewWindow { RadarVm: { } instanceVm } ? instanceVm : vm.Radar;
-            radar.ToggleDcbVisibleCommand.Execute(null);
-            e.Handled = true;
-            return;
-        }
-
         // Ctrl+M arms the distance measuring tool. Fixed binding, and deliberately global: the tool is
-        // shared by the radar, ground and Scope views, so it arms wherever the instructor clicks next. The
+        // shared by the ground and Scope views, so it arms wherever the instructor clicks next. The
         // Scope arms it from its own key handler (ScopeView), which takes the key first where the Scope has the focus.
         if (IsFocusInputScope(window) && Matches(MeasureChord, e))
         {

@@ -303,7 +303,7 @@ public partial class MainViewModel
     /// <summary>
     /// Coalesces the global shown-route/path rebuilds. The server broadcasts one
     /// <see cref="OnAircraftUpdated"/> per aircraft, so calling the O(n)
-    /// <see cref="RadarViewModel.RefreshShownPaths"/> / <see cref="GroundViewModel.RefreshShownTaxiRoutes"/>
+    /// <see cref="GroundViewModel.RefreshShownTaxiRoutes"/>
     /// directly from each update made a busy tick O(n²) and flooded the UI thread with allocations
     /// (macOS freeze, issue #280). Instead we mark the rebuild pending and run it once at background
     /// priority, after the current burst of updates has drained.
@@ -320,11 +320,6 @@ public partial class MainViewModel
             () =>
             {
                 _shownRouteRefreshScheduled = false;
-                foreach (RadarViewModel radar in AllRadarViews)
-                {
-                    radar.RefreshShownPaths();
-                }
-
                 foreach (GroundViewModel ground in AllGroundViews)
                 {
                     ground.RefreshShownTaxiRoutes();
@@ -467,12 +462,6 @@ public partial class MainViewModel
         }
 
         FlightPlanEditorManager.Close();
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.ClearShownPaths();
-            radar.DataBlockState.Clear();
-        }
-
         foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.ClearShownTaxiRoutes();
@@ -509,11 +498,6 @@ public partial class MainViewModel
         {
             _cfrMonitor.Remove(callsign);
             FlightPlanEditorManager.HandleAircraftDeleted(callsign);
-            foreach (RadarViewModel radar in AllRadarViews)
-            {
-                radar.RemoveShownPath(callsign);
-            }
-
             foreach (GroundViewModel ground in AllGroundViews)
             {
                 ground.RemoveShownTaxiRoute(callsign);

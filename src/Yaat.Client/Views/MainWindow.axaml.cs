@@ -22,7 +22,6 @@ using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 using Yaat.Sim.Data;
@@ -1305,7 +1304,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private readonly Dictionary<VStripsDockEntryViewModel, TabItem> _stripsTabItems = [];
     private readonly Dictionary<VStripsDockEntryViewModel, VStripsViewWindow> _stripsWindows = [];
 
-    // Test hook — see note on DataGridWindow/GroundViewWindow/RadarViewWindow above.
+    // Test hook — see note on DataGridWindow/GroundViewWindow above.
     internal IReadOnlyDictionary<VStripsDockEntryViewModel, VStripsViewWindow> StripsWindows => _stripsWindows;
 
     private void WireStripsEntryWindows(MainViewModel vm)
@@ -1947,7 +1946,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         window.SetViewModel(instance.Vm);
         void onClosing(object? _1, WindowClosingEventArgs _2)
         {
-            // Same remove-then-notify ordering as the Radar twin above.
+            // Remove first, then notify: the view-model's removal reaches CloseExtraGroundWindow, which then finds no window
+            // left to close a second time.
             _extraGroundWindows.Remove(instance);
             _extraGroundClosingHandlers.Remove(instance);
             if (!IsClosingFromShutdown(_isMainWindowClosing))
@@ -2445,9 +2445,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Opens and closes the extra Scope and Ground windows to match the layout, for each kind selected. A layout never
-    /// touches the old Radar view's extra windows: their current list is passed back as it stands, as is the Ground list
-    /// when that kind is not selected. A layout saved before the Scope was a layout part leaves the Scope windows alone.
+    /// Opens and closes the extra Scope and Ground windows to match the layout, for each kind selected. A kind not
+    /// selected is left as it stands, and a layout saved before the Scope was a layout part leaves the Scope windows alone.
     /// </summary>
     private static void ApplyExtraViews(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
     {
@@ -2545,7 +2544,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         await OpenExtraViewAsync("New Ground Window", (vm, airportId) => vm.OpenExtraGroundView(airportId));
 
     /// <summary>
-    /// Asks which airport the new Radar/Ground window is based on, then opens it. A second view has no
+    /// Asks which airport the new Ground window is based on, then opens it. A second view has no
     /// scenario-inferred target, so the picker offers the ARTCC's airports with the scenario's primary
     /// preselected and accepts any airport the navigation database knows.
     /// </summary>
@@ -3312,7 +3311,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 vm.Preferences.SetAssignmentTint(settingsVm.AssignmentTintEnabled, settingsVm.AssignmentTintColor);
                 vm.Preferences.SetUnassignedTint(settingsVm.UnassignedTintEnabled, settingsVm.UnassignedTintColor);
                 vm.Preferences.SetSelectedColor(settingsVm.SelectedColor);
-                SyncAllRadarViewTint();
                 SyncAllGroundViewSpeechBubbles();
             });
         }
@@ -3333,7 +3331,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         vm.RefreshWindowTitleFromPrefs();
         vm.ReloadCrcAliases();
         ApplyKeybinds(vm.Preferences);
-        SyncAllRadarViewTint();
         SyncAllGroundViewSpeechBubbles();
         foreach (GroundViewModel ground in vm.AllGroundViews)
         {
@@ -3368,7 +3365,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         vm.Preferences.SetAssignmentTint(snapshot.AssignmentTintEnabled, snapshot.AssignmentTintColor);
         vm.Preferences.SetUnassignedTint(snapshot.UnassignedTintEnabled, snapshot.UnassignedTintColor);
         vm.Preferences.SetSelectedColor(snapshot.SelectedColor);
-        SyncAllRadarViewTint();
         SyncAllGroundViewSpeechBubbles();
     }
 
@@ -3597,15 +3593,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     // events even though the physical key is held, and we want StartPtt to fire exactly once
     // per hold-down. Flipped back to false in the KeyUp handler.
     private bool _globalPttActive;
-
-    private void SyncAllRadarViewTint()
-    {
-        // Embedded RadarView
-        foreach (RadarView rv in this.GetVisualDescendants().OfType<RadarView>())
-        {
-            rv.SyncAssignmentTint();
-        }
-    }
 
     private void SyncAllGroundViewSpeechBubbles()
     {

@@ -22,7 +22,7 @@ namespace Yaat.Client.Views.Scope;
 /// </summary>
 public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 {
-    // Copied from RadarCanvas (ZoomToRange / UpdateViewRangeNm).
+    // The zoom scale ZoomToRange and UpdateViewRangeNm convert ranges with.
     private const double DefaultPixelsPerDeg = 5000.0;
 
     public static readonly StyledProperty<IReadOnlyList<AircraftModel>?> AircraftProperty = AvaloniaProperty.Register<
@@ -208,7 +208,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
 
     // An Alt+left drag in flight: the endpoint under the press and where the press was. A release farther than the threshold
-    // from the press places the whole line; a nearer one anchors it, as on the Radar.
+    // from the press places the whole line; a nearer one anchors it.
     private RblEndpoint? _measureDragAnchor;
     private Point _measureDragStart;
     private const double MeasureDragThresholdSq = 25.0;
@@ -222,7 +222,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     // Set by Dispose on the UI thread: a draw the render thread already has queued must not touch the Skia objects it freed.
     private volatile bool _disposed;
 
-    // Range/zoom and centre feedback-loop guards, copied from RadarCanvas (docs/radar-rendering.md).
+    // Range/zoom and centre feedback-loop guards.
     private bool _initialFitDone;
     private bool _suppressRangeFit;
     private bool _suppressCenterSync;
@@ -898,7 +898,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     // A measurement endpoint at the point: the aircraft whose block, else whose target, is under it latches; else the map
-    // point, unlabelled, as the Radar labels a point with no fix near (the Scope names no FRD).
+    // point, unlabelled (the Scope names no FRD).
     private RblEndpoint MeasureEndpointAt(Point pos) =>
         HitAt(CurrentFrame, pos) is { } hit ? RblEndpoint.OnAircraft(hit.Callsign) : RblEndpoint.AtPoint(PointAt(pos), "");
 
@@ -1178,7 +1178,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     LocalPtlCallsigns: LocalPtlCallsigns,
                     LensPath: Lens.DrawsPath,
                     LensPathCallsigns: LensPathCallsigns,
-                    // Only while the lens draws a path, and null until the navigation data loads, as the Radar's nav route waits for it.
+                    // Only while the lens draws a path, and null until the navigation data loads.
                     NavDb: Lens.DrawsPath ? NavigationDatabase.InstanceOrNull : null,
                     LensQueue: Lens.DrawsQueue,
                     QueueHoveredCallsign: _hoveredQueueCallsign,
@@ -1230,7 +1230,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         );
     }
 
-    /// <summary>The user's tints and selected-symbol colour, as today's radar reads them from the preferences.</summary>
+    /// <summary>The user's tints and selected-symbol colour, read from the preferences.</summary>
     private ScopePalette BuildPalette()
     {
         UserPreferences? prefs = Preferences;

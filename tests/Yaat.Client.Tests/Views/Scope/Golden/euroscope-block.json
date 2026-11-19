@@ -1,0 +1,1220 @@
+[
+  {
+    "case": "Vfr",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Vfr",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "NoCwtIdenting",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738"
+        },
+        {
+          "slot": "Ident",
+          "text": "ID"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "NoCwtIdenting",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "AtpaLead",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "AtpaLead",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "AtpaLeadWithIdent",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        },
+        {
+          "slot": "Ident",
+          "text": "ID"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "AtpaLeadWithIdent",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "LongCallsign",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "N1234567890AB"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "LongCallsign",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "N1234567890AB"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "OwnedWithScratchpads",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "AB"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        },
+        {
+          "slot": "Destination",
+          "text": "KSFO"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(110)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "S250"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "AssignedRunway",
+          "text": "R28R"
+        },
+        {
+          "slot": "Scratchpad1",
+          "text": ".ABC"
+        },
+        {
+          "slot": "Scratchpad2",
+          "text": "\u002BXY"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "OwnedWithScratchpads",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "AB"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        },
+        {
+          "slot": "Destination",
+          "text": "KSFO"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(110)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "S250"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "AssignedRunway",
+          "text": "R28R"
+        },
+        {
+          "slot": "Scratchpad1",
+          "text": ".ABC"
+        },
+        {
+          "slot": "Scratchpad2",
+          "text": "\u002BXY"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "SquawkMismatchWithNote",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "Squawk",
+          "text": "1200 0301"
+        }
+      ],
+      [
+        {
+          "slot": "InstructorNote",
+          "text": "Watch wake"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "SquawkMismatchWithNote",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "Squawk",
+          "text": "1200 0301"
+        }
+      ],
+      [
+        {
+          "slot": "InstructorNote",
+          "text": "Watch wake"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "StandbyModeC",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "ModeC",
+          "text": "ModeC"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "StandbyModeC",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "ModeC",
+          "text": "ModeC"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Handoff",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "Handoff",
+          "text": "\u003E3E"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Handoff",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "NoLandingClearance",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "NoLandingClearance",
+          "text": "NoLndgClnc"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "NoLandingClearance",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "ConflictWithPeer",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ],
+      [
+        {
+          "slot": "ConflictAlert",
+          "text": "CA 2.0/800"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "ConflictWithPeer",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Ldb",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Ldb",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Pdb",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "Pdb",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "LdbMarkerOff",
+    "flashOn": true,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  },
+  {
+    "case": "LdbMarkerOff",
+    "flashOn": false,
+    "rows": [
+      [
+        {
+          "slot": "Owner",
+          "text": "--"
+        },
+        {
+          "slot": "Callsign",
+          "text": "UAL238"
+        }
+      ],
+      [
+        {
+          "slot": "TypeCwt",
+          "text": "B738/D"
+        }
+      ],
+      [
+        {
+          "slot": "Altitude",
+          "text": "230"
+        },
+        {
+          "slot": "AssignedAltitude",
+          "text": "(---)"
+        },
+        {
+          "slot": "AssignedSpeed",
+          "text": "ASP"
+        },
+        {
+          "slot": "AssignedHeading",
+          "text": "AHDG"
+        }
+      ]
+    ]
+  }
+]

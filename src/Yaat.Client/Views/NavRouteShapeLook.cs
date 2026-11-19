@@ -3,7 +3,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Views;
 
 /// <summary>
-/// How a nav-route shape draws on both the Scope and the Radar, from its kind: cleared or flown shapes solid, expected,
+/// How a nav-route shape draws on the Scope, from its kind: cleared or flown shapes solid, expected,
 /// pending and open-ended ones dashed, and an arrowhead at the last point of a shape that points somewhere, like a vector
 /// tail.
 /// </summary>

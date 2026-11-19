@@ -948,7 +948,9 @@ public partial class MainViewModel
 
         if (state.ScenarioId is not null)
         {
-            // Before the bootstrap, so a Scope seeded by the load it starts takes this student's MVA-tint default.
+            // Before the bootstrap, so a Scope seeded by the load it starts takes this student's MVA-tint default. MVA tint is
+            // a user-local display default (unlike room-shared auto-cleared-to-land, which arrives as its own field): a
+            // joining RPO seeds it from their own per-position-type default.
             ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(state.StudentPositionType);
             ApplyScenarioBootstrap(
                 new ScenarioBootstrap
@@ -965,14 +967,7 @@ public partial class MainViewModel
             );
             IsLiveSession = state.IsLiveSession;
             ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);
-
-            // MVA tint is a user-local display default (unlike room-shared auto-cleared-to-land, which
-            // arrives as its own field): a joining RPO seeds it from their own per-position-type default.
             SetStudentPositionType(state.StudentPositionType);
-            foreach (RadarViewModel radar in AllRadarViews)
-            {
-                radar.ShowMvaHints = _preferences.GetMvaHintDefault(state.StudentPositionType);
-            }
         }
         else
         {
@@ -1172,20 +1167,15 @@ public partial class MainViewModel
             // Fires only on a standalone AS [TCP] (not a one-shot AS [TCP] [command]), so the
             // active-position indicator follows persistent position changes but not per-command ones.
             SetActivePositionFromServer(config);
-            // An ERAM position's config names the position only; the Radar keeps the maps it has.
+            // An ERAM position's config names the position only; the scope keeps the maps it has.
             if (!config.NoStarsDisplay)
             {
-                foreach (RadarViewModel radar in AllRadarViews)
-                {
-                    radar.ApplyPositionDisplayConfig(config);
-                }
-
                 ScopeMaps.ApplyPositionDisplayConfig(config);
             }
 
             if (HasActiveWeather)
             {
-                UpdateRadarWeatherDisplay();
+                RefreshScopeWeather();
             }
             else
             {

@@ -3,7 +3,7 @@ using Yaat.Client.Models;
 namespace Yaat.Client.Views.Map;
 
 /// <summary>
-/// Which aircraft a radar-style view draws: the visibility rule the Radar, the Scope and the Scope's minimum-separation
+/// Which aircraft a radar-style view draws: the visibility rule the Scope and the Scope's minimum-separation
 /// readout share.
 /// </summary>
 public static class AircraftVisibility
@@ -41,14 +41,8 @@ public static class AircraftVisibility
         return result;
     }
 
-    /// <summary>
-    /// The per-aircraft predicate behind <see cref="FilterAircraft"/>: true when this aircraft is drawn
-    /// on the radar under the given view settings. Split out so both the visibility filter and the
-    /// conflict/ATPA peer resolution (<c>RadarCanvas.ResolveByCallsign</c>) apply the exact same rule — a
-    /// peer the draw pass filters out must not be resolved for the hit-test/deconfliction rect either,
-    /// or the block's rect no longer matches what is drawn.
-    /// </summary>
-    internal static bool IsDrawable(
+    /// <summary>The per-aircraft predicate behind <see cref="FilterAircraft"/>: true when the aircraft is drawn.</summary>
+    private static bool IsDrawable(
         AircraftModel ac,
         bool showTopDown,
         bool showSpeechBubbles,

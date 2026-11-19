@@ -98,7 +98,7 @@ Automation/
 
 Models/
   AircraftModel.cs              # ObservableObject wrapping AircraftDto; computed displays; FromDto/UpdateFromDto; CruiseMach/IsSpeedClassified show a filed Mach (`M078`) or classified (`SC`) speed read-only via FiledSpeedDisplay, EditorSpeedText, EditorSpeedPlaceholder
-  AircraftSpeechBubble.cs       # Per-aircraft speech bubble model for opt-in SAY/pilot (green) and WARN (amber) overlays on Radar/Ground views (text, severity, user-scaled duration or persist-until-clicked, dismiss state).
+  AircraftSpeechBubble.cs       # Per-aircraft speech bubble model for opt-in SAY/pilot (green) and WARN (amber) overlays on Scope/Ground views (text, severity, user-scaled duration or persist-until-clicked, dismiss state).
   FlightPlanAmendment.cs        # Immutable flight-plan amendment record (type/suffix/route/altitude/beacon/scratchpad) built by the flight plan editor and dispatched to the server
 
 Services/
@@ -160,7 +160,7 @@ ViewModels/
   TimelineMarkerVm.cs           # Per-marker view-model: timestamp, kind, severity, title, callsign, canonical command (commands only).
   TimelineBookmarkVm.cs         # Per-bookmark view-model (editable Name, gold rail tick, Rename/Delete/Jump commands delegating to MainViewModel callbacks).
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
-  DataBlockViewState.cs         # Session-persistent per-callsign datablock state (manual offsets, highlights, hide/show, minified, z-order) owned by Ground/RadarViewModel and bound into the canvases — survives tab switches and pop-outs (#350); SetMenuHighlight/HighlightsChanged carry the context menu's traffic-row hover highlight
+  DataBlockViewState.cs         # Session-persistent per-callsign datablock state (manual offsets, highlights, hide/show, minified, z-order) owned by Ground/ScopeViewModel and bound into the canvases — survives tab switches and pop-outs (#350); SetMenuHighlight/HighlightsChanged carry the context menu's traffic-row hover highlight
   WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
   ArrivalGeneratorsEditorViewModel.cs # Aircraft generator editor VM: three row lists, Apply (push to sim), Save As (write scenario JSON)
@@ -181,7 +181,7 @@ Views/
   FavoritesEditorWindow.axaml.cs # Favorites Editor (Sets → Manage sets…): container pane (Global + airports + scenarios + named sets with Loaded checkboxes + "Not in any set" orphans; named-set create/rename/duplicate/delete) + multi-select favorites pane (move up/down, link-to/duplicate-to/move-to another set, remove-from-set, delete everywhere)
   FavoriteTransferMode.cs       # Enum behind the Favorites Editor's transfer flyout: Link (same favorite in both sets), Move, Duplicate (independent copies)
   FavoriteSetNameDialog.axaml.cs # Name-entry dialog for creating/renaming/duplicating a favorite set; Save disabled on case-insensitive collision (sets never overwrite)
-  ExtraViewAirportDialog.axaml.cs # Base-airport prompt for View > New Radar/Ground Window: the ARTCC's airports (scenario primary preselected) or any nav-db airport by id; OK gated on the caller's isKnownAirport
+  ExtraViewAirportDialog.axaml.cs # Base-airport prompt for View > New Scope/Ground Window: the ARTCC's airports (scenario primary preselected) or any nav-db airport by id; OK gated on the caller's isKnownAirport
   ControllersView.axaml.cs      # Controllers tab content: CRC-style facility-grouped list (handoff id / position name / freq) over MainViewModel.ControllerGroups
   ControllersWindow.axaml.cs    # Pop-out host for ControllersView (View > Pop Out Controllers)
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle

@@ -225,7 +225,7 @@ One pair shows at a time: a new `MIN` replaces it, and `MIN` with Enter clears i
 
 On a STARS Scope `UN` rejects a point-out and Unpause is `$UN`; Circle Airport is `$CA`, as bare `CA` is no longer read. A `$ ** <command>` override entry is labelled as its YAAT command on every profile.
 
-**Esc** on the Scope does the first that applies: cancels a tear-off move, else takes the measure prompt and cancels the measuring tool (when nothing is typed), else cancels a heading vector being drawn, else cancels a route being drawn (only closing the waypoint-condition popup when one is open), else clears the entry and response, else cancels the measurement anchor this Scope placed (or the armed tool with no anchor down, when this Scope is the active surface), else disarms the Rings tool. **Ctrl+Shift+T** is still TDM. **Ctrl+M** (Cmd+M on macOS) arms the [measuring tool](#measuring-distance-and-bearing): the Scope's response shows `Measure: click the first point or aircraft (Esc to cancel)`, or `Measure: all 15 measurements in use — clear one first` when every slot is taken. The prompt clears when the tool is disarmed anywhere. The focus-command-input key, Ctrl+F8 and the pop-out keys do not act in the Scope window.
+**Esc** on the Scope does the first that applies: cancels a tear-off move, else takes the measure prompt and cancels the measuring tool (when nothing is typed), else cancels a heading vector being drawn, else cancels a route being drawn (only closing the waypoint-condition popup when one is open), else clears the entry and response, else cancels the measurement anchor this Scope placed (or the armed tool with no anchor down, when this Scope is the active surface), else disarms the Rings tool. **Ctrl+Shift+T** is still TDM. **Ctrl+M** (Cmd+M on macOS) arms the [measuring tool](#measuring-distance-and-bearing): the Scope's response shows `Measure: click the first point or aircraft (Esc to cancel)`, or `Measure: all 15 measurements in use — clear one first` when every slot is taken. The prompt clears when the tool is disarmed anywhere. The focus-command-input key and the pop-out keys do not act in the Scope window.
 
 Measure lines placed on the Scope draw white over the tracks, with each readout clear of the blocks. Radar and Ground lines do not show on the Scope, and Scope lines show only there. They share the 15-slot pool, are never saved, and survive the main window's Scope popping out and back and its unload, restart and rewind clear; closing an extra Scope window drops the lines and anchor it held; `.norbl` and `.rbl N` reach them. Points are placed by pointer on the Scope too: hold **Alt** and drag from one point or aircraft to another to place a line, armed or not; an Alt-click released within 5 px anchors the line and arms the tool, so a plain click completes it. While the tool is armed a left click picks an endpoint (an aircraft under the pointer latches), ahead of the Rings tool, the preview fill, field menus and the ERAM dwell-lock toggle, and a right click cancels it (`Measure cancelled` in the status line), opening no menu and starting no pan. Moving the pointer after the first pick, or during an Alt-drag, draws the half-placed line to the cursor. The Scope's response shows each pick's feedback as well as the status line: `Measure: click the second point or aircraft (Esc to cancel)`, then `Measurement ...` with the reading, or the error `Measure: all 15 measurements in use — clear one first`.
 
@@ -436,7 +436,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
-Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F8 DCB, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
+Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
 
 Window hotkeys need Ctrl or Alt (or an F-key), so they never fire while you type; **Esc** while capturing one cancels the capture.
 
@@ -476,7 +476,6 @@ To the left of the command box, the **active-position selector** shows the [TCP]
 | Backspace | Undo the last route waypoint |
 | Click | Place a route waypoint (while drawing) |
 | Ctrl+Click | Open the flight-plan editor for an aircraft |
-| Ctrl+F8 | Toggle the DCB (Display Control Bar) — hides it to give the scope more room |
 | Scroll | Zoom in / out |
 
 Route drawing and heading mode start from the aircraft right-click menu.

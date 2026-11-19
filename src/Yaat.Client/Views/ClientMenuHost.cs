@@ -23,11 +23,11 @@ namespace Yaat.Client.Views;
 /// <paramref name="anchor"/>. Commands go through <see cref="MainViewModel.SendCommandForViewAsync"/>, so a failed send
 /// is shown in the status line on every view; the popups and flyouts open through <see cref="MenuPopups"/> at the
 /// pointer on the anchor; the session, favorites, RPO items, ground traffic and multi-selection assume come from the main
-/// view model; fix names and field elevations from its primary radar view model; the ground choices from its primary
-/// ground view model, which owns the layout the other ground windows mirror; and a route preview shows on every ground
-/// view. Route drawing and tug moves start on the primary ground view. The MVA a menu shows (<see cref="GetMva"/>) prefers the chart
-/// of <paramref name="mvaFacilityId"/>, which is the Radar view's own facility for a Radar menu and the Scope map source's
-/// (<see cref="ScopeMapSource.MvaFacilityId"/>) for every other menu.
+/// view model; fix names and field elevations from its Scope map source (<see cref="MainViewModel.ScopeMaps"/>); the ground
+/// choices from its primary ground view model, which owns the layout the other ground windows mirror; and a route preview
+/// shows on every ground view. Route drawing and tug moves start on the primary ground view. The MVA a menu shows
+/// (<see cref="GetMva"/>) prefers the chart of <paramref name="mvaFacilityId"/>, the Scope map source's
+/// (<see cref="ScopeMapSource.MvaFacilityId"/>) for every menu.
 /// </summary>
 internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft, Control anchor, string? mvaFacilityId) : IMenuHost
 {
@@ -376,8 +376,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         && ((NavigationDatabase.Instance.GetCustomFixName(name) is not null) || name.StartsWith("VP", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>, the radar's
-    /// facility chart (the constructor's <c>mvaFacilityId</c>) winning where charts overlap.
+    /// The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>, the
+    /// constructor's <c>mvaFacilityId</c> chart winning where charts overlap.
     /// </summary>
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
         (MvaDatabase.Default.FindSector(position, mvaFacilityId) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
@@ -551,7 +551,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     }
 
     /// <summary>
-    /// Highlights <paramref name="callsign"/> on every ground, radar and scope view
+    /// Highlights <paramref name="callsign"/> on every ground and scope view
     /// (<see cref="DataBlockViewState.SetMenuHighlight"/>), or clears it with null.
     /// </summary>
     public void HighlightAircraft(string? callsign)
@@ -559,11 +559,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         foreach (GroundViewModel ground in main.AllGroundViews)
         {
             ground.DataBlockState.SetMenuHighlight(callsign);
-        }
-
-        foreach (RadarViewModel radar in main.AllRadarViews)
-        {
-            radar.DataBlockState.SetMenuHighlight(callsign);
         }
 
         foreach (ScopeViewModel scope in main.AllScopeViews)
@@ -615,7 +610,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public TaxiRoute? GetRemainingTaxiRoute(string callsign) => (FindAircraft(callsign) is { } ac) ? main.Ground.ResolveRemainingRoute(ac) : null;
 
     /// <summary>
-    /// Shows <paramref name="preview"/> on every ground view, so it shows on whichever ground window is open; the radar's
+    /// Shows <paramref name="preview"/> on every ground view, so it shows on whichever ground window is open; the scopes'
     /// cue is <see cref="SetMapCue"/>.
     /// </summary>
     public void SetScopePreview(ScopePreview? preview)
@@ -626,14 +621,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         }
     }
 
-    /// <summary>Shows <paramref name="cue"/> on every map view, so it shows on whichever radar or scope window is open.</summary>
+    /// <summary>Shows <paramref name="cue"/> on every scope view, so it shows on whichever scope window is open.</summary>
     public void SetMapCue(MapCue? cue)
     {
-        foreach (RadarViewModel radar in main.AllRadarViews)
-        {
-            radar.MenuCue = cue;
-        }
-
         foreach (ScopeViewModel scope in main.AllScopeViews)
         {
             scope.MenuCue = cue;

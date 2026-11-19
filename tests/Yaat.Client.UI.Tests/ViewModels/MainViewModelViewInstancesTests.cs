@@ -109,12 +109,10 @@ public class MainViewModelViewInstancesTests
             // One app-wide selection: MainViewModel is the source of truth and every instance mirrors it.
             vm.SelectedAircraft = first;
             Assert.Same(first, extra.Vm.SelectedAircraft);
-            Assert.Same(first, vm.Radar.SelectedAircraft);
 
             // Selecting in the extra window writes back through the same child-selection callback.
             extra.Vm.SelectedAircraft = second;
             Assert.Same(second, vm.SelectedAircraft);
-            Assert.Same(second, vm.Radar.SelectedAircraft);
         }
         finally
         {

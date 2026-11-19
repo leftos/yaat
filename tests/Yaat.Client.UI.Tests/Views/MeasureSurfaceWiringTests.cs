@@ -9,13 +9,12 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Radar and Ground views make their surface the measuring tool's active one when their canvas takes the focus or a press,
+/// The Ground view makes its surface the measuring tool's active one when its canvas takes the focus or a press,
 /// so a typed <c>.rbl A B</c> places there.
 /// </summary>
 public class MeasureSurfaceWiringTests
@@ -87,23 +86,11 @@ public class MeasureSurfaceWiringTests
         }
     }
 
-    private static (Control View, Control Canvas) Radar(MainViewModel main)
-    {
-        var view = new RadarView { DataContext = main.Radar };
-        return (view, view.FindControl<RadarCanvas>("Canvas")!);
-    }
-
     private static (Control View, Control Canvas) Ground(MainViewModel main)
     {
         var view = new GroundView { DataContext = main.Ground };
         return (view, view.FindControl<GroundCanvas>("Canvas")!);
     }
-
-    [AvaloniaFact]
-    public Task APressOnTheRadarCanvas_MakesTheRadarActive() => AssertAPressTakesTheSurface(Radar, RblView.Radar);
-
-    [AvaloniaFact]
-    public Task TheRadarCanvasTakingTheFocus_MakesTheRadarActive() => AssertAFocusTakesTheSurface(Radar, RblView.Radar);
 
     [AvaloniaFact]
     public Task APressOnTheGroundCanvas_MakesTheGroundActive() => AssertAPressTakesTheSurface(Ground, RblView.Ground);

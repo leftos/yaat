@@ -11,7 +11,6 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -113,21 +112,6 @@ public class ViewSettingsMenuTests
         {
             window.Close();
         }
-    }
-
-    [AvaloniaFact]
-    public void RadarMapMenu_WithoutAMainViewModelAncestor_HasNoSettingsForThisViewItem()
-    {
-        var mainVm = new MainViewModel(new FakeFilePickerService());
-        var view = new RadarView { DataContext = mainVm.Radar };
-        // No host carrying the main view model: the view cannot reach one, so it must not offer the item.
-        var host = new Grid();
-        host.Children.Add(view);
-
-        ContextMenu? menu = view.BuildMapContextMenu(Lat, Lon, new Point(10, 10));
-
-        Assert.NotNull(menu);
-        Assert.DoesNotContain(menu.Items, i => ((i as MenuItem)?.Header as string) == Header);
     }
 
     private static AircraftModel Aircraft() =>

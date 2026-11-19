@@ -2,7 +2,7 @@
 
 > Read this before touching `MainViewModel` (any partial), `MainWindow.axaml.cs`, or wiring up a new SignalR-driven
 > client feature. `MainViewModel` is the integration seam between `ServerConnection`, the four sub-VMs
-> (`Ground` / `Radar` / `VStrips` / `VTdls`), `UserPreferences`, the speech pipeline, and the window. Almost every
+> (`Ground` / `VStrips` / `VTdls`, and the Scope's `ScopeViewModel`s), `UserPreferences`, the speech pipeline, and the window. Almost every
 > client feature touches it, and four invariants here bite if you miss them: the **threading/marshaling contract**,
 > the **three-path scenario bootstrap**, the **session-settings echo guard**, and the **shutdown re-entrancy protocol**.
 
@@ -13,7 +13,7 @@ This doc owns the orchestration / threading / lifecycle layer. Each partial's fi
 `MainViewModel` is a single root view-model (`ObservableObject`, CommunityToolkit.Mvvm) that `MainWindow` constructs
 directly — there is **no DI** (`MainWindow.axaml.cs:57`, `new MainViewModel(new AvaloniaFilePickerService(this))`). It
 owns one `ServerConnection` (`MainViewModel.cs:26`), the `UserPreferences` mirror, the `CommandInputController`, the
-speech-recognition services, and the two visible sub-VMs `Ground` and `Radar` plus the dynamic `StripsEntries` /
+speech-recognition services, and the visible sub-VM `Ground`, the Scope view models (`PrimaryScope`, `ExtraScopeViews`) plus the dynamic `StripsEntries` /
 `TdlsEntries` collections. The View talks to the VM through bindings and a small parameterless-event bridge; the VM
 never reaches a control directly (MVVM).
 
@@ -38,11 +38,11 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.Weather.cs` | Weather load / clear commands (Load Live Weather also fetches and uploads the GFS grid; Save/Load Weather embed and restore it); `OnWeatherChanged`; `WindsAloftSource` and `WindsAloftLine` (the METAR header's winds-aloft source line, the status bar's final load message); retains the raw METARs (`Metars`) for the METAR window, sorted per-scenario favorites first, then alphabetically. |
 | `MainViewModel.LiveSession.cs` | Live-traffic sessions (no authored scenario): `IsLiveSession` (server-computed, mirrored from the three activation DTOs: `LoadScenarioResult`, `ScenarioLoaded`, `RoomState`), the `LIVE` / `PAUSED` / `PLAYBACK` badge (`LiveSessionBadgeText` / `DescribeLiveSession`), `ShowGoLive` + `GoLiveCommand`, `StartLiveSessionAsync` (opens the load overlay titled `Live session`, applies the result through `ApplyScenarioResult`, then live weather), `CanStartLiveSession` (`CanLoadScenario` and a live-traffic feed, so it is off while a load runs). See [live-traffic.md](live-traffic.md) "Live sessions". |
 | `MainViewModel.Strips.cs` / `MainViewModel.Tdls.cs` | Multi-facility strips / vTDLS tabs (`StripsEntries`): open/close per-facility entries (the same facility may be opened twice; duplicate tabs are told apart by the `DuplicateOrdinal` " #n" title suffix), split/unsplit (`SplitStripsEntryAsync` creates the entry's `SecondaryVm`; split mode + ratio persist for the student entry), strips zoom fan-out + persistence, the `Subscribe*Entry` / `Unsubscribe*Entry` collection-changed plumbing, per-entry pop-out persistence. |
-| `MainViewModel.ViewInstances.cs` | Extra Ground windows (#434): `ExtraGroundViews` (`GroundViewInstance`, ordinals ≥ 2), the `CreateRadarViewModel` / `CreateGroundViewModel` factories the primaries also use, `OpenExtraGroundView` / `CloseExtraGroundView` / `ReconcileExtraViews` (profiles; Ground only), late seeding from the stashed scenario bootstrap / airport position, and the `AllRadarViews` (the docked Radar only) / `AllGroundViews` enumerators every fan-out site loops over. One app-wide `SelectedAircraft`. See **Extra view instances** below. |
+| `MainViewModel.ViewInstances.cs` | Extra Ground windows (#434): `ExtraGroundViews` (`GroundViewInstance`, ordinals ≥ 2), the `CreateGroundViewModel` factory the primary also uses, `OpenExtraGroundView` / `CloseExtraGroundView` / `ReconcileExtraViews` (profiles; Ground only), late seeding from the stashed scenario bootstrap / airport position, and the `AllGroundViews` enumerator every Ground fan-out site loops over. One app-wide `SelectedAircraft`. See **Extra view instances** below. |
 | `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own: scope markers, `.rbl` / `.norbl`, `.reloadaliases`, `.scope`, `.view`), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings Apply + `.reloadaliases`; each start is kept as the public `CrcAliasLoad` task, which completes once its terminal line is added and which UI tests await), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
 | `MainViewModel.Scope.cs` | YAAT Scope commands: `TryHandleScopeCommand` (`.scope range <1-256>` / `.scope template <id>` / `.scope brite <group> <value>` / `.scope map <id> <on\|off>` / `.scope db <item> <value>` / `.scope tearoff <button> <corner> <dx> <dy>` / `.scope tearoff delete <button>...` / `.scope pref <save\|saveas\|load\|rename\|delete>` / `.scope profile <stars\|eram\|mixed>`; it runs on `OpenScope`, in `MainViewModel.ScopeHosting.cs`, as typed; `RunScopeCommand(ScopeViewModel, string)` is the toolbar's, tear-offs' and cards' entry and runs it on that Scope), the room's Scope profile (`ScopeProfile`, picked once when the student position first arrives; `PickScopeProfileByHand`) and `GetCachedVideoMap` (the video-map cache lookup behind the Scope's own map toggles). Client-only. |
 | `MainViewModel.ScopeHosting.cs` | Where the YAAT Scope lives: `PrimaryScope` (the `ScopeViewModel`, built with the VM and alive until app exit, shown as the main window's Scope tab or popped out), `IsScopePoppedOut` (pref key `ScopeViewKey` = "ScopeView"; its change calls `OnTabPoppedOutChanged`), `ActiveScope` (the Scope whose canvas last took focus) and `OpenScope` (`ActiveScope` else `PrimaryScope`, never null: typed `.scope` / `.view` verbs always act on it), `AllScopeViews`, `ReconcileExtraScopeViews` (a layout's apply: closes the extras it does not list, opens the missing numbers from their own saved state), and `ScopeStoreFactory` (the pref-set and profile stores; a headless test swaps it). Replaces `MainViewModel.ScopeViews.cs`. Client-only. |
-| `MainViewModel.Measure.cs` | Partial: which map surface the distance measuring tool's typed `.rbl A B` places on — `ActiveMeasureView` (the last Radar, Ground or Scope canvas to take focus or a press; the primary Scope before any, and again when the Scope that took it closes), `ActiveMeasureScope`, `SetActiveMeasureView`, and `MeasureSurface` (the view tag, track lookup, units and, for a Scope, the owning Scope a line or anchor is stamped with). Client-only. |
+| `MainViewModel.Measure.cs` | Partial: which map surface the distance measuring tool's typed `.rbl A B` places on — `ActiveMeasureView` (the last Ground or Scope canvas to take focus or a press; the primary Scope before any, and again when the Scope that took it closes), `ActiveMeasureScope`, `SetActiveMeasureView`, and `MeasureSurface` (the view tag, track lookup, units and, for a Scope, the owning Scope a line or anchor is stamped with). Client-only. |
 | `MainViewModel.Views.cs` | `TryHandleViewCommand` (`.view <ssa\|ca> <on\|off\|dock>` and `.view <ssa\|ca> tear <corner> <dx> <dy>`, after `TryHandleScopeCommand` in the dot-command chain: opens, closes, docks or tears off a view of the Scope's views dock, echoing even when the state is unchanged; `Usage: .view <ssa\|ca> <on\|off\|dock> \| .view <ssa\|ca> tear <tl\|tr\|bl\|br> <dx> <dy>` on bad input) and `RunViewCommand(ScopeViewModel, string)` (the dock and toolbar's entry: runs it on that Scope without command history; `RunViewCommand(string)` runs it on `OpenScope`). Client-only. |
 | `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel (ground overrides, blank spacers) over `FavoriteStore`. `DisplayFavorites` = the visible sets' favorites (`FavoriteDisplayEntry`: favorite + container id) in the stored bar order (`ComposeDisplayFavorites` → `FavoriteStore.ComposeDisplay`, ordered by `FavoriteSetOrdering.Normalize` over `UserPreferences.FavoriteSetOrder`); `FavoriteSetRows` feeds the Sets flyout (Global/airport/scenario slots + every named set) and `MoveFavoriteSet` swaps a row with its visible neighbour; mutators are container-aware (`FindFavoriteContainer` routes an edit to the base pool or the owning set): membership-based Add/Update/Delete, container-scoped reorder/blank-insert, `FavoriteContainerOption` picker rows (on-demand airport/scenario containers); set load/unload + all-sets bundle import and zip import/export passthroughs. The ctor subscribes `UserPreferences.FavoriteSetsChanged` → `Dispatcher.UIThread.Post(RefreshDisplayFavorites)` so Favorites Editor mutations reach the live bar. |
 | `MainViewModel.ArrivalGenerators.cs` | Live arrival-generator editing: open the editor window, push edits to the sim, Save As. |
@@ -116,13 +116,13 @@ periodic `RefreshTimelineMarkersAsync` poll. The lock guards only the list; the 
 is still mutated via `Dispatcher.UIThread.Post`.
 
 **Per-aircraft broadcasts must never trigger a global rebuild per event.** The server sends one `AircraftUpdated` per aircraft, so a
-handler that runs an O(n) rebuild (the shown nav-route / taxi-route overlays: `Radar.RefreshShownPaths()` +
+handler that runs an O(n) rebuild (the shown taxi-route overlay:
 `Ground.RefreshShownTaxiRoutes()`) inside `OnAircraftUpdated` is O(n²) per tick — a UI-thread allocation storm that pins the dispatcher
 for tens of seconds under dense ground traffic with overlays shown (#280). `OnAircraftUpdated` therefore calls `ScheduleShownRouteRefresh`
 (`MainViewModel.Aircraft.cs`), which sets a `_shownRouteRefreshScheduled` flag and posts **one** refresh at
 `DispatcherPriority.Background`; the Background job runs after the burst of Default-priority update jobs drains, collapsing N updates into one
-rebuild. Apply the same coalesce pattern to any new per-aircraft handler that fans out into global work — `RefreshShownPaths` has a fingerprint
-cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the ground path is the amplifier.
+rebuild. Apply the same coalesce pattern to any new per-aircraft handler that fans out into global work —
+`RefreshShownTaxiRoutes` reconstructs every route on each call, so the ground path is the amplifier.
 
 ## Lifecycle: constructor wiring order
 
@@ -140,19 +140,19 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
    the swap scheduler; a benchmark run swaps a stand-in engine in and rebuilds the real one after only if it was swapped out, and `MainWindow` cancels a run on close. See
    [speech-recognition-pipeline.md](speech-recognition-pipeline.md).
 3. **Aircraft view filter** — `AircraftView = new DataGridCollectionView(Aircraft)` with the active/text filter.
-4. **Sub-VM construction** — `Ground` and `Radar` built with the `SendCommandForViewAsync` callback and an aircraft
+4. **Sub-VM construction** — `Ground` built with the `SendCommandForViewAsync` callback and an aircraft
    lookup; `Ground.ShownAirportChanged` re-publishes `GroundShownAirportId`.
 5. **Strips/TDLS student entries** — `StripsEntries[0]` and `TdlsEntries[0]` are created (always element 0), then
    `Subscribe*Entry` + the `CollectionChanged` hooks are attached.
 6. **Pop-out flag restore** — the three fixed views (`IsDataGridPoppedOut`/`IsGroundViewPoppedOut`/
    `IsScopePoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences, and
-   `ReconcileExtraViews` recreates the extra Ground instances from `ExtraGroundViewOrdinals`; extra Radar windows no longer exist.
+   `ReconcileExtraViews` recreates the extra Ground instances from `ExtraGroundViewOrdinals`.
 7. **~38 `ServerConnection` event subscriptions** (`MainViewModel.cs:1769`-`1810`).
 8. **Fire-and-forget init** — `InitializeNavDataAsync()`, `_vnasConfigService.InitializeAsync()`,
    `CheckForUpdateAsync()`, all three through the internal `MainViewModel.StartupLoads` (`IMainViewModelStartupLoads` in `MainViewModelStartupLoads.cs`), read once per constructor. The default is the production behaviour; `Yaat.Client.UI.Tests` installs offline loads (committed test navdata, no vNAS config request, no update check).
 
 `InitializeNavDataAsync` (`MainViewModel.cs:1837`) loads NavData + CIFP and calls `NavigationDatabase.Initialize(...)`,
-then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `Radar` / `Ground`. The constructor keeps its task as the public `NavDataInitialization`, which tests that assert `StatusText` await. Until it completes,
+then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `ScopeMaps` / `Ground`. The constructor keeps its task as the public `NavDataInitialization`, which tests that assert `StatusText` await. Until it completes,
 `NavigationDatabase.Instance` is null and `BuildSpeechContext` degrades (see Footguns).
 
 ## Scenario activation — three paths, one router
@@ -176,7 +176,7 @@ three:
 - sets `ActiveScenarioId`/`Name`/`PrimaryAirportId`, `SessionStartUtc` and `_commandInput.PrimaryAirportId`,
 - rebuilds the `Aircraft` collection from the DTOs (recomputing `InitialDelayedSpawnCount` /
   `PendingDelayedSpawnCount`),
-- fans out to `Radar.ApplyScenarioBootstrap` / `Ground.ApplyScenarioBootstrap`, `ScopeMaps.ApplyScenarioBootstrap` (the
+- fans out to `Ground.ApplyScenarioBootstrap`, `ScopeMaps.ApplyScenarioBootstrap` (the
   YAAT Scope's facility source, `Services/ScopeMapSource.cs`, which fetches the facility's maps itself and is also fed
   on the timeline/recording load, room position config, nav-db ready and scenario clear), `VStrips.ApplyBayConfig`, and the
   vTDLS bootstrap (`BootstrapStudentTdlsAsync`),
@@ -441,7 +441,7 @@ The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewM
 
 ### Extra view instances (`New Ground Window`)
 
-The docked Ground view and its pop-out are the implicit instance #1 and keep today's `IsGroundViewPoppedOut` semantics. The main window's tab 2 is the Scope (`IsScopePoppedOut`, `MainViewModel.ScopeHosting.cs`; `MainWindow.ScopeHosting.cs` opens and closes its `ScopeWindow`), not the Radar View; **View → Windows** no longer offers New Radar Window but offers **New Scope window…**: `OpenExtraScopeView` adds a `ScopeViewInstance` (ordinal ≥ 2, lowest free, its own `ScopeViewModel` saving to its own slot of the facility's current state) to `ExtraScopeViews`, `MainWindow.ScopeHosting.cs` opens its window, and `CloseExtraScopeView` disposes it. Traffic and selection stay app-wide; unload, restart, rewind, per-aircraft clears and the weather lines loop `AllScopeViews`; extra Scope windows are not restored at startup, only reopened by applying a layout (`ReconcileExtraScopeViews`).
+The docked Ground view and its pop-out are the implicit instance #1 and keep today's `IsGroundViewPoppedOut` semantics. The main window's tab 2 is the Scope (`IsScopePoppedOut`, `MainViewModel.ScopeHosting.cs`; `MainWindow.ScopeHosting.cs` opens and closes its `ScopeWindow`); **View → Windows** offers **New Scope window…**: `OpenExtraScopeView` adds a `ScopeViewInstance` (ordinal ≥ 2, lowest free, its own `ScopeViewModel` saving to its own slot of the facility's current state) to `ExtraScopeViews`, `MainWindow.ScopeHosting.cs` opens its window, and `CloseExtraScopeView` disposes it. Traffic and selection stay app-wide; unload, restart, rewind, per-aircraft clears and the weather lines loop `AllScopeViews`; extra Scope windows are not restored at startup, only reopened by applying a layout (`ReconcileExtraScopeViews`).
 
 **View → New Ground Window** adds an instance ≥ #2 with its **own** `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target).
 
@@ -455,7 +455,7 @@ Invariants:
   `_isSyncingSelection`; every instance is constructed with the same `OnChildSelectionChanged` callback, so a click in any
   window selects everywhere, datagrid included. An instance's `SelectedAircraft` is a mirror, never its own selection.
 - **Per-instance persistence.** `SettingsKeySuffix` (`"#2"`) keys the per-scenario `GroundSettings`
-  slot (the Radar saves none), and `IsPrimary=false` gates every app-wide preference writer (DCB, deconflict mode, ground layers/labels/lock,
+  slot, and `IsPrimary=false` gates every app-wide preference writer (deconflict mode, ground layers/labels/lock,
   ground rotation) so an extra window's toggles never rewrite the primary's defaults.
 - **The base airport decides the instance's data.** A ground extra whose airport equals the primary's **mirrors** (`GroundViewModel.MirrorLayoutFrom`
   copies `Layout` / `BackgroundImage` / `TowerCabMap` / centre / elevation by reference and follows the primary's
@@ -463,7 +463,7 @@ Invariants:
   image (`SeedGroundAirport`, re-evaluated on every bootstrap). Never `Dispose()` a mirrored image. The
   `SavedExtraView(Ordinal, AirportId)` records on prefs and layouts carry the airport; `ReconcileExtraViews` matches on
   both and reopens an instance whose airport changed.
-- **Fan-out sites loop `AllRadarViews` (the docked Radar only) / `AllGroundViews`**: nav-db push, selection, weather, MVA hints, primary airport
+- **Fan-out sites loop `AllGroundViews` (and `AllScopeViews` for the Scopes)**: nav-db push, selection, weather, MVA hints, primary airport
   id/position, position display config, scenario bootstrap (ground extras get only `SetScenarioId`), recording load,
   `ClearScenarioState`, the coalesced shown-route refresh (one Background post for all instances), manifest replacement,
   aircraft deletion. **Primary-only by design**: `.rbl`
@@ -619,7 +619,7 @@ wedging the UI thread (#347):
   `Binding.Path`, and let the no-property fallback return `NoOpSortComparer.Instance` — never `Comparer<object>.Default`,
   which throws `ArgumentException: At least one object must implement IComparable` on the raw `AircraftModel` rows,
   aborting `PrepareLocalArray` mid-sort so the view is left truncated (rows silently vanish from the list while staying on
-  Radar/Ground/CRC). `PropertySortComparer` is already null-safe, so an unresolved property degrades to a no-op, not a crash.
+  Scope/Ground/CRC). `PropertySortComparer` is already null-safe, so an unresolved property degrades to a no-op, not a crash.
 - **Three scenario-activation paths, one router.** `ApplyScenarioResult` (loader), `OnScenarioLoaded` (broadcast),
   and `ApplyRoomState` (join/reconnect) all go through `ApplyScenarioBootstrap`. Wiring a new scenario-derived field
   into only the loader path silently breaks it for joiners and restart-restore rejoins. Add it to the
@@ -633,7 +633,7 @@ wedging the UI thread (#347):
   cross-window signal for shutdown paths that don't go through `MainWindow.OnClosing`.
 - **Velopack restart skips `Window.Closing`.** Call `WindowGeometryHelper.FlushAllSavedGeometries()` manually before
   `ApplyUpdateAndRestart` or per-window geometry is lost.
-- **Tab index arithmetic is positional and fragile.** `0/1/2 = Aircraft/Ground/Radar`, then Strips at base 3, then
+- **Tab index arithmetic is positional and fragile.** `0/1/2 = Aircraft/Ground/Scope`, then Strips at base 3, then
   TDLS — the same order `MainWindow.axaml.cs` appends `TabItem`s. `IsTabVisible`/`FindNextVisibleTabIndex` hard-code
   it; reordering tabs requires touching both the VM arithmetic and the View materialization. After wiring the dynamic
   tabs, `MainWindow` pushes `SelectedIndex` explicitly because Avalonia's two-way binding doesn't propagate

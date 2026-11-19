@@ -14,8 +14,8 @@ using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// The scope's clicks: a left click on a block selects its aircraft app-wide, as the radar's does, and a right
-// click on a target opens the shared aircraft menu. Modelled on RadarCanvasRightClickTargetTests.
+// The scope's clicks: a left click on a block selects its aircraft app-wide, and a right
+// click on a target opens the shared aircraft menu.
 public class ScopeCanvasClickTests
 {
     [AvaloniaFact]
@@ -113,7 +113,7 @@ public class ScopeCanvasClickTests
             Assert.NotNull(menu);
             Assert.True(menu!.IsOpen);
             Assert.NotEmpty(menu.Items);
-            // Nothing was selected, so the right-clicked aircraft becomes the selection, as on the radar.
+            // Nothing was selected, so the right-clicked aircraft becomes the selection.
             Assert.Same(ac, main.SelectedAircraft);
             Assert.Same(ac, scope.SelectedAircraft);
             menu.Close();

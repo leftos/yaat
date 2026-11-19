@@ -152,8 +152,7 @@ public static class ScopeRingGeometry
     public const double ReducedDriArcEndDeg = 82.5;
 
     /// <summary>
-    /// The STARS conflict ring's radius in NM: the detector's lateral trigger, as the Radar's
-    /// <c>TargetRenderer.ConflictRingRadiusNm</c> draws it.
+    /// The STARS conflict ring's radius in NM: the detector's lateral trigger.
     /// </summary>
     public const double StarsConflictRingNm = 3.0;
 

@@ -26,7 +26,6 @@ public class ScopeLayoutTests
         try
         {
             vm.IsScopePoppedOut = true;
-            vm.IsRadarViewPoppedOut = true;
             vm.OpenExtraScopeView();
             vm.OpenExtraScopeView();
             MainWindowHost.Pump();
@@ -151,7 +150,7 @@ public class ScopeLayoutTests
     }
 
     [AvaloniaFact]
-    public async Task ApplyLayout_NeverOpensARadarWindow()
+    public async Task ApplyLayout_WithTheOldRadarFields_Applies()
     {
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
@@ -161,12 +160,17 @@ public class ScopeLayoutTests
                 Name = "radar",
                 IsRadarViewPoppedOut = true,
                 ExtraRadarViews = [new SavedExtraView(2, "OAK")],
+                IsScopePoppedOut = false,
+                ExtraScopeViews = [new SavedExtraView(3, "")],
             };
 
             await main.ApplyLayoutAsync(vm, layout, ViewSettingsCopyCatalog.AllLayoutKeys(layout));
             MainWindowHost.Pump();
 
-            Assert.False(vm.IsRadarViewPoppedOut);
+            // The Radar fields are ignored: the Scope ends as the layout's Scope fields say.
+            Assert.False(vm.IsScopePoppedOut);
+            Assert.Equal([3], vm.ExtraScopeViews.Select(i => i.Ordinal));
+            Assert.Equal([3], main.ExtraScopeWindows.Keys.Select(i => i.Ordinal));
         }
         finally
         {
@@ -220,7 +224,6 @@ public class ScopeLayoutTests
         }
 
         vm.IsScopePoppedOut = false;
-        vm.IsRadarViewPoppedOut = false;
         MainWindowHost.Pump();
         MainWindowHost.CloseAll(main);
     }

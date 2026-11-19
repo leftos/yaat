@@ -309,7 +309,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
 
-    // Click-to-dismiss state for opt-in speech bubbles. See RadarCanvas for the same pattern.
+    // Click-to-dismiss state for opt-in speech bubbles.
     private string? _bubblePressCallsign;
     private Point _bubblePressPos;
     private const double BubbleClickMaxMovementSq = 25.0;
@@ -2479,8 +2479,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>
     /// The offset the callsign's datablock is currently drawn at: manual drag > deconfliction (plus any
     /// measurement-readout nudge) > default. Shared by hit-testing and the drag-start seed so grabbing a
-    /// deconflicted block never jumps it back to the default slot on the first move (mirrors
-    /// <c>RadarCanvas.ComputeDataBlockPlacement</c>).
+    /// deconflicted block never jumps it back to the default slot on the first move.
     /// </summary>
     public SKPoint ResolvedDataBlockOffset(string callsign) => ResolvedDataBlockOffset(callsign, includeNudge: true);
 

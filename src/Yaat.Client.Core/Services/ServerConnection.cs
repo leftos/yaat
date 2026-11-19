@@ -1453,8 +1453,8 @@ public record AircraftDto
     // overlay. Kept name-for-name in sync with AircraftStateDto.
     public List<Yaat.Sim.NavRouteShapeDto>? NavRouteShapes { get; init; } = null;
 
-    // Latched true when the pilot has been told to squawk VFR (SQVFR/SQV); the radar view then suppresses
-    // the assigned-vs-reported beacon-code mismatch flash until a new beacon code is assigned. RPO-display
+    // Latched true when the pilot has been told to squawk VFR (SQVFR/SQV); the Ground view's datablock then drops
+    // the assigned-vs-reported beacon-code mismatch line until a new beacon code is assigned. RPO-display
     // only. Kept name-for-name in sync with the server's AircraftStateDto.
     public bool CommandedSquawkVfr { get; init; } = false;
 
@@ -1799,7 +1799,7 @@ public sealed record ScenarioExportFlagDto(string Callsign, string Reason);
 /// (<see cref="ActivePosition"/>), null when the server does not find its config entry, and the most characters the facility's
 /// STARS scratchpads hold (<see cref="ScratchpadMaxLength"/>, 3 or 4); 0 from a room restored from an older checkpoint.
 /// <see cref="NoStarsDisplay"/> marks the config of a facility with no STARS configuration (an ERAM sector): it names the active
-/// position only, so the Radar keeps its maps; false for a STARS facility and from an older server or checkpoint.
+/// position only, so the scope keeps its maps; false for a STARS facility and from an older server or checkpoint.
 /// </summary>
 public record PositionDisplayConfigDto(
     List<int?> MapGroupMapIds,

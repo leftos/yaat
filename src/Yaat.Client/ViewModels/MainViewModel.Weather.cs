@@ -954,7 +954,7 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// The note a Radar View shows instead of a weather readout when the loaded weather carries no station
+    /// The note the Scope map tools' weather list shows instead of a weather readout when the loaded weather carries no station
     /// for any of the position's underlying airports. Null when there is no weather to be missing, when no
     /// position filter is set, or when a station matched.
     /// </summary>
@@ -1006,33 +1006,12 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Re-applies weather filtering when the active position changes.
-    /// Called from <see cref="OnPositionDisplayChanged"/>, and after a scenario unload drops the filter.
-    /// </summary>
-    internal void UpdateRadarWeatherDisplay()
-    {
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, radar.WeatherAirports);
-            radar.WeatherNote = RadarWeatherNote(_allWeatherInfo, radar.WeatherAirports);
-        }
-
-        RefreshScopeWeather();
-    }
-
-    /// <summary>
-    /// Pushes a freshly-extracted weather set to every Radar and Ground View instance. Each radar filters
-    /// by its own position's underlying airports and each ground view picks the report for the airport it
-    /// is showing, so the instances can legitimately end up displaying different stations.
+    /// Pushes a freshly-extracted weather set to every Ground View instance. Each ground view picks the
+    /// report for the airport it is showing, so the instances can legitimately end up displaying different
+    /// stations.
     /// </summary>
     private void ApplyWeatherToAllViews(IReadOnlyList<WeatherDisplayInfo>? allInfo)
     {
-        foreach (RadarViewModel radar in AllRadarViews)
-        {
-            radar.WeatherInfo = FilterWeatherForPosition(allInfo, radar.WeatherAirports);
-            radar.WeatherNote = RadarWeatherNote(allInfo, radar.WeatherAirports);
-        }
-
         foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.WeatherInfo = PickGroundWeather(allInfo, ground.Layout?.AirportId);
@@ -1042,8 +1021,11 @@ public partial class MainViewModel
         RefreshScopeWeather();
     }
 
-    /// <summary>Re-reads the weather lines of every Scope window.</summary>
-    private void RefreshScopeWeather()
+    /// <summary>
+    /// Re-reads the weather lines of every Scope window: after a weather load, when the active position changes
+    /// (<see cref="OnPositionDisplayChanged"/>), and after a scenario unload drops the position filter.
+    /// </summary>
+    internal void RefreshScopeWeather()
     {
         foreach (ScopeViewModel scope in AllScopeViews)
         {
@@ -1100,7 +1082,7 @@ public partial class MainViewModel
             }
         }
 
-        foreach (string airport in Radar.WeatherAirports.Concat(ScopeMaps.WeatherAirports))
+        foreach (string airport in ScopeMaps.WeatherAirports)
         {
             Add(airport);
         }

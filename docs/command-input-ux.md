@@ -13,7 +13,7 @@ Everything here lives in `src/Yaat.Client/Services/` (plus one `Yaat.Sim` record
 
 It also performs **one** server-bound mutation: `CallsignArgumentResolver.TryRewrite` rewrites partial callsign arguments to canonical form in the send path. That is the single point where this subsystem touches the server-bound flow described in [command-pipeline.md](command-pipeline.md).
 
-**Not in scope (do not document here):** `ShownRouteBuilder.cs` shares the `Services/` folder but is the radar "Show flight path" overlay (consumed by `RadarViewModel`). It has nothing to do with input UX — it belongs to a radar/route-overlay doc.
+**Not in scope (do not document here):** `ShownRouteBuilder.cs` shares the `Services/` folder but is the route builder behind the Scope's pilot-lens intent path (consumed by `ScopeIntentPaths`). It has nothing to do with input UX — it belongs to a radar/route-overlay doc.
 
 ## File map
 

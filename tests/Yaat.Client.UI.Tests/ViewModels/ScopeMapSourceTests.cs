@@ -9,7 +9,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
 /// The Scope's own map and display source (<see cref="ScopeMapSource"/>): the facility's video-map catalogue, centre, position
-/// display config, fixes and field elevation, fed by <see cref="MainViewModel"/> on the same paths as the main radar.
+/// display config, fixes and field elevation, fed by <see cref="MainViewModel"/>.
 /// </summary>
 public class ScopeMapSourceTests
 {

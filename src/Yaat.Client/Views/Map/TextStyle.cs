@@ -13,10 +13,8 @@ namespace Yaat.Client.Views.Map;
 /// callers cannot split by accident.
 /// </para>
 /// <para>
-/// This matters most for the datablock stack, where geometry is computed twice — once on the draw
-/// path (<c>TargetRenderer</c>) and once on the hit-test path (<c>RadarCanvas</c>) — against
-/// separate paint instances. Passing one <see cref="TextStyle"/> keeps both sides measuring with
-/// the same font.
+/// This matters most for the datablock stack, whose geometry both the draw path and the hit-test
+/// path read. Passing one <see cref="TextStyle"/> keeps both sides measuring with the same font.
 /// </para>
 /// <para>
 /// This is a non-owning view over two objects the renderer allocates and disposes; copying a

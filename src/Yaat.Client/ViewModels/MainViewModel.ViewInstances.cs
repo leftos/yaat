@@ -17,12 +17,6 @@ public partial class MainViewModel
     /// </summary>
     public ObservableCollection<GroundViewInstance> ExtraGroundViews { get; } = [];
 
-    /// <summary>Every Radar View driven by this view-model: only the docked primary.</summary>
-    public IEnumerable<RadarViewModel> AllRadarViews
-    {
-        get { yield return Radar; }
-    }
-
     /// <summary>Every Ground View driven by this view-model: the docked primary first, then the extra windows.</summary>
     public IEnumerable<GroundViewModel> AllGroundViews
     {
@@ -81,27 +75,6 @@ public partial class MainViewModel
         vm.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver, _towerCabMapDownloader);
         // Null only while the constructor builds the primary views — Measure is created right after
         // them and handed over there. Every later instance gets it here.
-        if (Measure is { } measure)
-        {
-            vm.SetMeasureState(measure);
-        }
-
-        return vm;
-    }
-
-    /// <summary>
-    /// Builds a <see cref="RadarViewModel"/> wired to this view-model's connection, services and
-    /// selection callback, for the docked Radar View; the counterpart of <see cref="CreateGroundViewModel"/>.
-    /// </summary>
-    private RadarViewModel CreateRadarViewModel(bool isPrimary, string settingsKeySuffix)
-    {
-        var vm = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged)
-        {
-            IsPrimary = isPrimary,
-            SettingsKeySuffix = settingsKeySuffix,
-        };
-        vm.SetPreferences(_preferences);
-        vm.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         if (Measure is { } measure)
         {
             vm.SetMeasureState(measure);

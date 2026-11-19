@@ -1157,19 +1157,19 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
-    public async Task ClearRbls_KeepsTheGroundAndRadarLines()
+    public async Task ClearRbls_KeepsTheGroundLines()
     {
         MainViewModel viewModel = ScopeReadyWithTwoAircraft();
         PlaceScopeLine(viewModel, "UAL123", "AAL9");
         PlaceGroundLine(viewModel);
         PlaceScopeLine(viewModel, "AAL9", "UAL123");
-        PlaceRadarLine(viewModel);
+        PlaceTypedGroundLine(viewModel);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
 
         Assert.Equal("Cleared 2 RBL(s).", result.GetProperty("message").GetString());
         Assert.Equal(
-            [(RblView.Ground, 2), (RblView.Radar, 4)],
+            [(RblView.Ground, 2), (RblView.Ground, 4)],
             viewModel.Measure.Lines.Select(line => (line.View, line.Slot)).OrderBy(line => line.Slot)
         );
     }
@@ -1551,7 +1551,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         PlaceScopeLine(viewModel, "UAL123", "AAL9");
         viewModel.Measure.Remove(1);
         PlaceGroundLine(viewModel);
-        PlaceRadarLine(viewModel);
+        PlaceTypedGroundLine(viewModel);
         return viewModel;
     }
 
@@ -1810,9 +1810,9 @@ public sealed class AppToolsTests : AutomationHostFixture
             )
         );
 
-    /// <summary>Places a Radar-view RBL from typed points, as a measurement placed on the Radar surface does.</summary>
-    private static void PlaceRadarLine(MainViewModel viewModel) =>
-        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9", new IgnoredSink(), RblView.Radar, null).Slot);
+    /// <summary>Places a Ground-view RBL from typed points, as a measurement typed on the Ground surface does.</summary>
+    private static void PlaceTypedGroundLine(MainViewModel viewModel) =>
+        Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9", new IgnoredSink(), RblView.Ground, null).Slot);
 
     /// <summary>A command sink that drops every report.</summary>
     private sealed class IgnoredSink : ICommandTextSink
