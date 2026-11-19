@@ -5,13 +5,12 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-namespace Yaat.Client.Views.Radar.Flyouts;
+namespace Yaat.Client.Views;
 
 /// <summary>
 /// Builds a small Popup with a focused text box plus preset/action buttons. Used by
-/// ScratchpadFlyout and HandoffFlyout where the user needs to enter free-form text but
-/// also wants quick access to common values. Enter submits, Esc cancels, click outside
-/// dismisses (Avalonia light dismiss).
+/// the note, command, scratchpad and handoff popups. Enter submits, Esc cancels, click
+/// outside dismisses (Avalonia light dismiss).
 /// </summary>
 internal static class TextEntryPopup
 {

@@ -26,7 +26,8 @@ namespace Yaat.Client.Views;
 /// view model; fix names and field elevations from its primary radar view model; the ground choices from its primary
 /// ground view model, which owns the layout the other ground windows mirror; and a route preview shows on every ground
 /// view. Route drawing and tug moves start on the primary ground view. The MVA a menu shows (<see cref="GetMva"/>) prefers the chart
-/// of <paramref name="mvaFacilityId"/>: the facility of the radar view the menu opened on, else the docked radar's.
+/// of <paramref name="mvaFacilityId"/>, which is the Radar view's own facility for a Radar menu and the Scope map source's
+/// (<see cref="ScopeMapSource.MvaFacilityId"/>) for every other menu.
 /// </summary>
 internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft, Control anchor, string? mvaFacilityId) : IMenuHost
 {

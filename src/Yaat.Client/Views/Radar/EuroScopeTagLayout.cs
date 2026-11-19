@@ -119,7 +119,7 @@ public static class EuroScopeTagLayout
         string asgnAlt = FormatAssignedAltitude(ac);
         x = AddField(fields, TagFieldId.AssignedAltitude, asgnAlt, x, y3Top, y3Bot, style);
 
-        string asp = FormatAssignedSpeed(ac);
+        string asp = AssignedSpeedText.Format(ac);
         x = AddField(fields, TagFieldId.AssignedSpeed, asp, x, y3Top, y3Bot, style);
 
         string ahdg = FormatAssignedHeading(ac);
@@ -308,20 +308,6 @@ public static class EuroScopeTagLayout
             return $"({(int)alt / 100:D3})";
         }
         return "(---)";
-    }
-
-    public static string FormatAssignedSpeed(AircraftModel ac)
-    {
-        if (ac.SpeedMax)
-        {
-            return "SMAX";
-        }
-
-        if (ac.AssignedSpeed is double spd)
-        {
-            return $"S{(int)spd:D3}";
-        }
-        return "ASP";
     }
 
     private static string FormatAssignedHeading(AircraftModel ac)

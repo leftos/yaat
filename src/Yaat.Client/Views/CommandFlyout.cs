@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Yaat.Client.Views.Radar.Flyouts;
 
 namespace Yaat.Client.Views;
 

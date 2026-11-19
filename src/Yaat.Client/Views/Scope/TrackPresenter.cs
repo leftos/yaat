@@ -2,7 +2,6 @@ using System.Globalization;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
@@ -817,7 +816,7 @@ public static class TrackPresenter
             Flashing(ScopeFieldSlot.Ident, IdentText(ac), input.FlashOn, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
             Steady(ScopeFieldSlot.AssignedAltitude, ac.AssignedAltitude is double alt ? $"({(int)alt / 100:D3})" : "(---)", ScopeColorToken.Default),
-            Steady(ScopeFieldSlot.AssignedSpeed, EuroScopeTagLayout.FormatAssignedSpeed(ac), ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.AssignedSpeed, AssignedSpeedText.Format(ac), ScopeColorToken.Default),
             Steady(
                 ScopeFieldSlot.AssignedHeading,
                 ac.AssignedHeading is MagneticHeading hdg ? $"H{hdg.ToDisplayString()}" : "AHDG",

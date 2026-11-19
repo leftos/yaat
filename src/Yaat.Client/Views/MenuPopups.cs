@@ -7,7 +7,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
-using Yaat.Client.Views.Radar.Flyouts;
 
 namespace Yaat.Client.Views;
 

@@ -633,7 +633,7 @@ public partial class RadarView : UserControl
         _canvas.TpaConeHalfAngleDegrees = prefs.TpaConeHalfAngleDegrees;
         _canvas.ScrollSensitivity = prefs.ScrollSensitivity;
         _scrollSensitivity = prefs.ScrollSensitivity;
-        Flyouts.FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
+        FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
     }
 
     private static SKColor? ParseHexColor(string hex)

@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Map;
 
 namespace Yaat.Client.Tests;
 
@@ -34,7 +34,7 @@ public class AircraftModelSpeedMaxDisplayTests
         var ac = new AircraftModel { AssignedSpeed = 250 };
 
         Assert.Equal("250", ac.AssignedSpeedDisplay);
-        Assert.Equal("S250", EuroScopeTagLayout.FormatAssignedSpeed(ac));
+        Assert.Equal("S250", AssignedSpeedText.Format(ac));
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class AircraftModelSpeedMaxDisplayTests
     {
         var ac = new AircraftModel { SpeedMax = true, AssignedSpeed = 330 };
 
-        Assert.Equal("SMAX", EuroScopeTagLayout.FormatAssignedSpeed(ac));
+        Assert.Equal("SMAX", AssignedSpeedText.Format(ac));
     }
 
     [Fact]

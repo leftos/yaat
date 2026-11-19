@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Styling;
 
-namespace Yaat.Client.Views.Radar.Flyouts;
+namespace Yaat.Client.Views;
 
 /// <summary>
 /// Shared appearance settings for the EuroScope-style tag flyouts. The radar view writes

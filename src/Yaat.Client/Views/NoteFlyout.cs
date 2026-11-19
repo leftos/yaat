@@ -1,13 +1,13 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 
-namespace Yaat.Client.Views.Radar.Flyouts;
+namespace Yaat.Client.Views;
 
 /// <summary>
 /// Instructor-note text-entry popup. Focused TextBox pre-filled with the current note;
 /// Enter submits, Esc cancels, the Clear button (and a bare submit) clears the note,
 /// click-outside dismisses. No presets — notes are free-form. View-model-agnostic: the
-/// caller supplies the command sink so both the radar and ground views can reuse it.
+/// caller supplies the command sink so every view's menu host can open it.
 /// </summary>
 internal static class NoteFlyout
 {
