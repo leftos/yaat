@@ -166,6 +166,9 @@ public class SettingsBundleHardeningTests : IDisposable
     [InlineData("layouts.json", "[null]")]
     [InlineData("layouts.json", "[{\"name\": null}]")]
     [InlineData("layouts.json", "[{\"name\": \"GC\", \"loadedFavoriteSetIds\": [null]}]")]
+    [InlineData("layouts.json", "[{\"name\": \"GC\", \"windowGeometries\": {}, \"extraRadarViews\": [null]}]")]
+    [InlineData("layouts.json", "[{\"name\": \"GC\", \"windowGeometries\": {}, \"extraScopeViews\": [null]}]")]
+    [InlineData("layouts.json", "[{\"name\": \"GC\", \"windowGeometries\": {}, \"extraGroundViews\": null}]")]
     public void NullEntries_FailNamingTheFile(string fileName, string json)
     {
         SettingsBundle bundle = SettingsBundleFile.Read(fileName, new MemoryStream(Encoding.UTF8.GetBytes(json)));

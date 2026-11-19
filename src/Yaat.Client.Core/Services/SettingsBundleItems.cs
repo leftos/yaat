@@ -129,10 +129,7 @@ public static class SettingsBundleItems
                 throw Unreadable(entry, $"layout {i + 1} is empty or has no name or window geometries", null);
             }
 
-            if ((layout.ExtraRadarViews is null) || (layout.ExtraGroundViews is null))
-            {
-                throw Unreadable(entry, $"layout '{layout.Name}' has an empty list of extra views", null);
-            }
+            CheckExtraViews(entry, layout);
 
             // A null id would break the favorite-set id remapping after favorites were already imported.
             if (layout.LoadedFavoriteSetIds?.Any(id => id is null) == true)
@@ -145,10 +142,29 @@ public static class SettingsBundleItems
                 throw Unreadable(entry, $"layout '{layout.Name}' lists an empty entry in its favorite set order", null);
             }
 
+            // An old bundle's layouts bypass the preferences file's version gate, so they migrate here.
+            UserPreferences.MigrateRadarWindows(layout);
             checkedLayouts.Add(layout);
         }
 
         return checkedLayouts;
+    }
+
+    /// <summary>
+    /// Rejects a layout whose extra Ground list is missing, or whose extra Radar or Scope list holds a null entry. A null
+    /// extra Radar list reads as empty: the Radar migration in <see cref="ReadLayouts"/> rewrites it and empties it either way.
+    /// </summary>
+    private static void CheckExtraViews(SettingsBundleEntry entry, SavedLayout layout)
+    {
+        if (layout.ExtraGroundViews is null)
+        {
+            throw Unreadable(entry, $"layout '{layout.Name}' has an empty list of extra views", null);
+        }
+
+        if ((layout.ExtraRadarViews?.Any(v => v is null) == true) || (layout.ExtraScopeViews?.Any(v => v is null) == true))
+        {
+            throw Unreadable(entry, $"layout '{layout.Name}' lists an empty extra view", null);
+        }
     }
 
     /// <summary>Parses the entry as written by its exporter above.</summary>

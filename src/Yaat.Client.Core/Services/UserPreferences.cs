@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -120,7 +121,15 @@ public sealed partial class UserPreferences
     /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
-    internal const int CurrentPreferencesVersion = 3;
+    internal const int CurrentPreferencesVersion = 4;
+
+    /// <summary>The old Radar view's primary window key and extra-window key prefix, read only by the v4 migration.</summary>
+    private const string RadarViewKey = "RadarView";
+    private const string RadarExtraPrefix = "RadarView#";
+
+    /// <summary>The primary Scope window's key and the extra Scope windows' key prefix ("ScopeView#2").</summary>
+    private const string ScopeViewKey = "ScopeView";
+    private const string ScopeExtraPrefix = "ScopeView#";
 
     /// <summary>The situations whose default list carries Altitude… with no Maintain altitude: it goes before Land.</summary>
     private static readonly AircraftSituation[] AltitudeBeforeLandSituations =
@@ -175,7 +184,8 @@ public sealed partial class UserPreferences
     /// its earlier default (on) to disk, so the TWR flag is reset to off once. v1 → v2: every stored quick-command list but
     /// Live traffic's gains the Track and coordination rows the defaults gained (<see cref="InsertTrackCoordinationRows"/>).
     /// v2 → v3: every stored quick-command list but Live traffic's gains Altitude… for VFR aircraft
-    /// (<see cref="InsertVfrAltitudeRows"/>).
+    /// (<see cref="InsertVfrAltitudeRows"/>). v3 → v4: every saved layout's Radar window rows become Scope window rows
+    /// (<see cref="MigrateRadarWindows"/>), and so do the window-geometry store's (<see cref="MigrateTopLevelRadarWindows"/>).
     /// </summary>
     private void MigratePreferences()
     {
@@ -207,6 +217,26 @@ public sealed partial class UserPreferences
             Log.LogInformation("Preferences v{From} → v3: Altitude… quick command added to {Count} stored list(s)", fromVersion, changed);
         }
 
+        if (fromVersion < 4)
+        {
+            int changed = 0;
+            foreach (SavedLayout layout in _data.Layouts)
+            {
+                if (MigrateRadarWindows(layout))
+                {
+                    changed++;
+                }
+            }
+
+            bool storeChanged = MigrateTopLevelRadarWindows();
+            Log.LogInformation(
+                "Preferences v{From} → v4: Radar windows made Scope windows in {Count} layout(s); geometry store changed: {StoreChanged}",
+                fromVersion,
+                changed,
+                storeChanged
+            );
+        }
+
         _data.PreferencesVersion = CurrentPreferencesVersion;
 
         // Runs from the constructor, so a failed write must not throw out of it: the migrated values stay in memory
@@ -219,6 +249,166 @@ public sealed partial class UserPreferences
         {
             Log.LogWarning(ex, "Could not save migrated preferences to {Path}; the migration is retried on the next launch", _filePath);
         }
+    }
+
+    /// <summary>
+    /// Rewrites a saved layout's old Radar window rows into Scope window rows at the same position and size, then drops the
+    /// Radar rows: the "RadarView" geometry becomes "ScopeView" (an existing Scope row wins), a popped-out Radar pops the
+    /// Scope out (a docked one leaves the Scope's flag as it was), and each extra Radar window #n becomes an extra Scope
+    /// window, keeping n unless a Scope window already holds it (then the lowest free ordinal ≥ 2), its "RadarView#n"
+    /// geometry following it to "ScopeView#m". Runs on every layout of a file below v4 and on every layout a settings
+    /// bundle imports; a layout with no Radar rows is left as it is, so a second run changes nothing.
+    /// </summary>
+    /// <returns>Whether the layout held a Radar row.</returns>
+    internal static bool MigrateRadarWindows(SavedLayout layout)
+    {
+        bool changed = MigrateRadarPopOut(layout);
+        Dictionary<int, int> assigned = MigrateRadarExtras(layout);
+        changed |= (assigned.Count > 0);
+
+        // A hand-edited file can hold a null geometry map: there is nothing to move then.
+        if (layout.WindowGeometries is { } geometries)
+        {
+            changed |= MigrateRadarPrimaryGeometry(geometries);
+            changed |= MigrateRadarExtraGeometries(geometries, assigned);
+        }
+
+        return changed;
+    }
+
+    /// <summary>Moves the "RadarView" geometry to "ScopeView" unless that key exists; removes "RadarView" either way.</summary>
+    private static bool MigrateRadarPrimaryGeometry(Dictionary<string, SavedWindowGeometry> geometries)
+    {
+        if (!geometries.Remove(RadarViewKey, out SavedWindowGeometry? radar))
+        {
+            return false;
+        }
+
+        geometries.TryAdd(ScopeViewKey, radar);
+        return true;
+    }
+
+    /// <summary>A popped-out Radar pops the Scope out; a docked Radar leaves the Scope's flag (null stays null).</summary>
+    private static bool MigrateRadarPopOut(SavedLayout layout)
+    {
+        if (!layout.IsRadarViewPoppedOut)
+        {
+            return false;
+        }
+
+        layout.IsScopePoppedOut = true;
+        layout.IsRadarViewPoppedOut = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Appends an extra Scope window for each distinct extra Radar ordinal n, ascending: n itself when no Scope window holds
+    /// it yet, else the lowest free ordinal ≥ 2. The airport is dropped (a Scope window has none) and the Radar list emptied.
+    /// </summary>
+    /// <returns>Each migrated Radar ordinal mapped to the Scope ordinal it was given.</returns>
+    private static Dictionary<int, int> MigrateRadarExtras(SavedLayout layout)
+    {
+        // A hand-edited file can hold a null list or null entries: they name no window, so they are skipped.
+        var assigned = new Dictionary<int, int>();
+        List<int> radarOrdinals = [.. (layout.ExtraRadarViews ?? []).OfType<SavedExtraView>().Select(v => v.Ordinal).Distinct().Order()];
+        layout.ExtraRadarViews = [];
+        if (radarOrdinals.Count == 0)
+        {
+            return assigned;
+        }
+
+        List<SavedExtraView> scope = layout.ExtraScopeViews ??= [];
+        var taken = new HashSet<int>(scope.OfType<SavedExtraView>().Select(v => v.Ordinal));
+        foreach (int ordinal in radarOrdinals)
+        {
+            int given = taken.Contains(ordinal) ? NextFreeOrdinal(taken) : ordinal;
+            taken.Add(given);
+            scope.Add(new SavedExtraView(given, ""));
+            assigned[ordinal] = given;
+        }
+
+        return assigned;
+    }
+
+    /// <summary>The lowest ordinal ≥ 2 not in <paramref name="taken"/>, the rule extra view windows are numbered by.</summary>
+    private static int NextFreeOrdinal(HashSet<int> taken)
+    {
+        int ordinal = 2;
+        while (taken.Contains(ordinal))
+        {
+            ordinal++;
+        }
+
+        return ordinal;
+    }
+
+    /// <summary>
+    /// Moves every "RadarView#n" geometry to the Scope key of the ordinal n was given in <paramref name="assigned"/>, else to
+    /// "ScopeView#n"; a migrated window's row is placed before an unlisted one, and an existing Scope row is never
+    /// overwritten (the Radar row is then dropped). Every "RadarView#..." key is removed.
+    /// </summary>
+    private static bool MigrateRadarExtraGeometries(Dictionary<string, SavedWindowGeometry> geometries, IReadOnlyDictionary<int, int> assigned)
+    {
+        List<(string Key, string Target, bool Listed)> moves =
+        [
+            .. geometries
+                .Keys.Where(k => k.StartsWith(RadarExtraPrefix, StringComparison.Ordinal))
+                .Select(k => ScopeTargetFor(k, assigned))
+                .OrderBy(m => m.Listed ? 0 : 1),
+        ];
+        foreach ((string key, string target, _) in moves)
+        {
+            geometries.TryAdd(target, geometries[key]);
+            geometries.Remove(key);
+        }
+
+        return moves.Count > 0;
+    }
+
+    private static (string Key, string Target, bool Listed) ScopeTargetFor(string radarKey, IReadOnlyDictionary<int, int> assigned)
+    {
+        string suffix = radarKey[RadarExtraPrefix.Length..];
+        if (
+            (int.TryParse(suffix, NumberStyles.None, CultureInfo.InvariantCulture, out int ordinal)) && (assigned.TryGetValue(ordinal, out int given))
+        )
+        {
+            return (radarKey, ScopeExtraPrefix + given.ToString(CultureInfo.InvariantCulture), true);
+        }
+
+        return (radarKey, ScopeExtraPrefix + suffix, false);
+    }
+
+    /// <summary>
+    /// The window-geometry store's part of the v4 migration: the Radar geometry becomes the "ScopeView" row unless one
+    /// exists, each "RadarView#n" row moves to "ScopeView#n" unless that key exists, a popped-out Radar pops the Scope out,
+    /// and the extra Radar windows list is cleared (the Scope keeps no list of extra windows to reopen).
+    /// </summary>
+    /// <returns>Whether the store held a Radar row.</returns>
+    private bool MigrateTopLevelRadarWindows()
+    {
+        bool changed = false;
+        if (_data.RadarViewWindowGeometry is { } radar)
+        {
+            _data.WindowGeometries.TryAdd(ScopeViewKey, radar);
+            _data.RadarViewWindowGeometry = null;
+            changed = true;
+        }
+
+        changed |= MigrateRadarExtraGeometries(_data.WindowGeometries, new Dictionary<int, int>());
+        if (_data.IsRadarViewPoppedOut)
+        {
+            _data.IsScopePoppedOut = true;
+            _data.IsRadarViewPoppedOut = false;
+            changed = true;
+        }
+
+        if (_data.ExtraRadarViews is not { Count: 0 })
+        {
+            _data.ExtraRadarViews = [];
+            changed = true;
+        }
+
+        return changed;
     }
 
     /// <summary>

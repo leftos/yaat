@@ -14,6 +14,7 @@
 - The YAAT Scope replaces the Radar as the main window's radar tab, drawing the facility's video maps with STARS, ERAM or EuroScope datablocks.
 - The Scope pops out into its own window and back (View > Windows > Scope, Ctrl+Shift+R), and New Scope window opens more, each keeping its own state.
 - Layouts save and reopen the Scope's pop-out and its extra windows; copying another scenario's views brings its Ground view settings.
+- Saved layouts and window positions from before the Scope open a Scope window wherever a Radar window used to be.
 - A CRC STARS-style toolbar of compact tiles, with tear-offs, per-facility pref sets and profiles picked from the student position, runs the Scope.
 - Zoom bands set others' block level, vector length and history dots until pinned, and VECTOR and HIST controls set them by hand.
 - DISPLAY tiles toggle MVA with its Ctrl readout, LOCK, OFF CNTR, a range ring, the METAR (WX), chart fixes (FIX) and datablock deconfliction (DCNF).
