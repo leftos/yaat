@@ -310,9 +310,6 @@ public partial class SettingsViewModel : ObservableObject
     private bool _markStudentLimitedDatablocks;
 
     [ObservableProperty]
-    private bool _collapseStudentDatablocks;
-
-    [ObservableProperty]
     private bool _syncStudentLeaderDirection;
 
     [ObservableProperty]
@@ -530,9 +527,6 @@ public partial class SettingsViewModel : ObservableObject
     /// <summary>Scroll-wheel/zoom sensitivity as a percentage (100 = current speed; lower slows trackpad scroll).</summary>
     [ObservableProperty]
     private double _scrollSensitivityPercent;
-
-    [ObservableProperty]
-    private int _radarFlyoutFontSize;
 
     [ObservableProperty]
     private int _groundDatablockFontSize;
@@ -852,7 +846,6 @@ public partial class SettingsViewModel : ObservableObject
         _alwaysShowGroundBubblesOnRadar = _preferences.AlwaysShowGroundBubblesOnRadar;
         _syncStudentDatablockColors = _preferences.SyncStudentDatablockColors;
         _markStudentLimitedDatablocks = _preferences.MarkStudentLimitedDatablocks;
-        _collapseStudentDatablocks = _preferences.CollapseStudentDatablocks;
         _syncStudentLeaderDirection = _preferences.SyncStudentLeaderDirection;
         _autoClearedToLandGnd = _preferences.AutoClearedToLandGnd;
         _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
@@ -976,7 +969,6 @@ public partial class SettingsViewModel : ObservableObject
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
         _tpaConeHalfAngleDegrees = _preferences.TpaConeHalfAngleDegrees;
         _scrollSensitivityPercent = _preferences.ScrollSensitivity * 100.0;
-        _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
         _groundLabelFontSize = _preferences.GroundLabelFontSize;
         _terminalFontSize = _preferences.TerminalFontSize;
@@ -1116,7 +1108,6 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAlwaysShowGroundBubblesOnRadar(AlwaysShowGroundBubblesOnRadar);
         _preferences.SetSyncStudentDatablockColors(SyncStudentDatablockColors);
         _preferences.SetMarkStudentLimitedDatablocks(MarkStudentLimitedDatablocks);
-        _preferences.SetCollapseStudentDatablocks(CollapseStudentDatablocks);
         _preferences.SetSyncStudentLeaderDirection(SyncStudentLeaderDirection);
         _preferences.SetTpaConeHalfAngleDegrees(TpaConeHalfAngleDegrees);
         _preferences.SetScrollSensitivity(ScrollSensitivityPercent / 100.0);
@@ -1271,7 +1262,6 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFontSizes(
             new FontSizePrefs(
                 RadarDatablock: RadarDatablockFontSize,
-                RadarFlyout: RadarFlyoutFontSize,
                 GroundDatablock: GroundDatablockFontSize,
                 GroundLabel: GroundLabelFontSize,
                 DataGrid: DataGridFontSize,
@@ -2023,7 +2013,6 @@ public partial class SettingsViewModel : ObservableObject
     {
         DataGridFontSize = defaults.DataGridFontSize;
         RadarDatablockFontSize = defaults.RadarDatablockFontSize;
-        RadarFlyoutFontSize = defaults.RadarFlyoutFontSize;
         GroundDatablockFontSize = defaults.GroundDatablockFontSize;
         GroundLabelFontSize = defaults.GroundLabelFontSize;
         TerminalFontSize = defaults.TerminalFontSize;
@@ -2081,7 +2070,6 @@ public partial class SettingsViewModel : ObservableObject
         AlwaysShowGroundBubblesOnRadar = defaults.AlwaysShowGroundBubblesOnRadar;
         SyncStudentDatablockColors = defaults.SyncStudentDatablockColors;
         MarkStudentLimitedDatablocks = defaults.MarkStudentLimitedDatablocks;
-        CollapseStudentDatablocks = defaults.CollapseStudentDatablocks;
         SyncStudentLeaderDirection = defaults.SyncStudentLeaderDirection;
         TpaConeHalfAngleDegrees = defaults.TpaConeHalfAngleDegrees;
         ScrollSensitivityPercent = defaults.ScrollSensitivity * 100.0;
@@ -2278,8 +2266,6 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnTpaConeHalfAngleDegreesChanged(double value) => VisualSettingsChanged?.Invoke();
 
-    partial void OnRadarFlyoutFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
-
     partial void OnGroundDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundLabelFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
@@ -2313,8 +2299,6 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSyncStudentDatablockColorsChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnMarkStudentLimitedDatablocksChanged(bool value) => VisualSettingsChanged?.Invoke();
-
-    partial void OnCollapseStudentDatablocksChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnSyncStudentLeaderDirectionChanged(bool value) => VisualSettingsChanged?.Invoke();
 

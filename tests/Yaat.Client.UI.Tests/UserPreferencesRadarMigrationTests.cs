@@ -56,9 +56,11 @@ public class UserPreferencesRadarMigrationTests
     private static void AssertNoRadarRows(SavedLayout layout)
     {
         Assert.DoesNotContain(layout.WindowGeometries.Keys, k => k.StartsWith("RadarView", StringComparison.Ordinal));
-        Assert.Empty(layout.ExtraRadarViews);
-        Assert.False(layout.IsRadarViewPoppedOut);
+        Assert.Null(layout.ExtraRadarViews);
+        Assert.Null(layout.IsRadarViewPoppedOut);
     }
+
+    private static JsonObject WrittenFile() => JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
 
     [Fact]
     public void PoppedOutRadar_BecomesPoppedOutScope()
@@ -120,7 +122,7 @@ public class UserPreferencesRadarMigrationTests
         Assert.Null(layout.IsScopePoppedOut);
         AssertNoRadarRows(layout);
         AssertGeometry(prefs.GetWindowGeometry("ScopeView"), 50, 60, 1000, 800);
-        Assert.Null(prefs.RadarViewWindowGeometry);
+        Assert.False(WrittenFile().ContainsKey("radarViewWindowGeometry"));
     }
 
     [Fact]
@@ -230,12 +232,13 @@ public class UserPreferencesRadarMigrationTests
         var prefs = new UserPreferences();
 
         AssertGeometry(prefs.GetWindowGeometry("ScopeView"), 1, 1, 111, 111);
-        Assert.Null(prefs.RadarViewWindowGeometry);
         AssertGeometry(prefs.GetWindowGeometry("ScopeView#3"), 3, 3, 333, 333);
         Assert.Null(prefs.GetWindowGeometry("RadarView#3"));
         Assert.True(prefs.IsScopePoppedOut);
-        Assert.False(prefs.IsRadarViewPoppedOut);
-        Assert.Empty(prefs.ExtraRadarViews);
+        JsonObject written = WrittenFile();
+        Assert.False(written.ContainsKey("radarViewWindowGeometry"));
+        Assert.False(written.ContainsKey("isRadarViewPoppedOut"));
+        Assert.False(written.ContainsKey("extraRadarViews"));
     }
 
     [Fact]
@@ -335,7 +338,7 @@ public class UserPreferencesRadarMigrationTests
         Assert.True(UserPreferences.MigrateRadarWindows(layout));
 
         Assert.Equal([new SavedExtraView(2, "")], layout.ExtraScopeViews);
-        Assert.Empty(layout.ExtraRadarViews);
+        Assert.Null(layout.ExtraRadarViews);
     }
 
     [Fact]
@@ -389,10 +392,10 @@ public class UserPreferencesRadarMigrationTests
 
         SavedLayout nullOnly = prefs.GetLayout("WPT-NullOnly")!;
         Assert.Null(nullOnly.ExtraScopeViews);
-        Assert.Empty(nullOnly.ExtraRadarViews);
+        Assert.Null(nullOnly.ExtraRadarViews);
         SavedLayout nullMixed = prefs.GetLayout("WPT-NullMixed")!;
         Assert.Equal(new SavedExtraView(2, ""), nullMixed.ExtraScopeViews![^1]);
-        Assert.Empty(nullMixed.ExtraRadarViews);
+        Assert.Null(nullMixed.ExtraRadarViews);
     }
 
     [Fact]
@@ -410,7 +413,7 @@ public class UserPreferencesRadarMigrationTests
         SavedLayout layout = new UserPreferences().GetLayout("WPT-NullGeometries")!;
 
         Assert.True(layout.IsScopePoppedOut);
-        Assert.False(layout.IsRadarViewPoppedOut);
+        Assert.Null(layout.IsRadarViewPoppedOut);
     }
 
     [Fact]
@@ -528,5 +531,99 @@ public class UserPreferencesRadarMigrationTests
         Assert.Null(nullExtras.ExtraScopeViews);
         AssertGeometry(nullExtras.WindowGeometries.GetValueOrDefault("ScopeView"), 5, 6, 700, 500);
         AssertNoRadarRows(nullExtras);
+    }
+
+    private static void WriteFile(int version, Action<JsonObject> fill)
+    {
+        var file = new JsonObject { ["preferencesVersion"] = version };
+        fill(file);
+        File.WriteAllText(PreferencesPath, file.ToJsonString());
+    }
+
+    // An ordinary setter saves the file, as any later change in the session would.
+    private static JsonObject SaveAndReadBack(UserPreferences prefs)
+    {
+        prefs.SetWindowGeometry("Main", new SavedWindowGeometry { Width = 800 });
+        return WrittenFile();
+    }
+
+    [Fact]
+    public void V4FileWithLeftoverRadarDefaults_MigratesNothing_AndDropsThemAtTheNextSave()
+    {
+        WriteFile(
+            4,
+            file =>
+            {
+                file["isRadarViewPoppedOut"] = false;
+                file["extraRadarViews"] = new JsonArray();
+                file["isScopePoppedOut"] = false;
+                file["windowGeometries"] = new JsonObject { ["ScopeView"] = Geometry(1, 1, 111, 111) };
+                file["layouts"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["name"] = "WPT-V4Leftover",
+                        ["isRadarViewPoppedOut"] = false,
+                        ["extraRadarViews"] = new JsonArray(),
+                    },
+                };
+            }
+        );
+
+        var prefs = new UserPreferences();
+
+        Assert.False(prefs.IsScopePoppedOut);
+        AssertGeometry(prefs.GetWindowGeometry("ScopeView"), 1, 1, 111, 111);
+        Assert.Null(prefs.GetWindowGeometry("ScopeView#2"));
+        JsonObject saved = SaveAndReadBack(prefs);
+        Assert.False(saved.ContainsKey("isRadarViewPoppedOut"));
+        Assert.False(saved.ContainsKey("extraRadarViews"));
+        Assert.False(saved["isScopePoppedOut"]!.GetValue<bool>());
+        JsonObject savedLayout = saved["layouts"]![0]!.AsObject();
+        Assert.False(savedLayout.ContainsKey("isRadarViewPoppedOut"));
+        Assert.False(savedLayout.ContainsKey("extraRadarViews"));
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void OldFileWithRemovedRadarKeys_Loads_KeepsRadarSettings_AndDropsTheRemovedKeys(int version)
+    {
+        WriteFile(
+            version,
+            file =>
+            {
+                file["radarSettings"] = new JsonObject
+                {
+                    ["S1"] = new JsonObject
+                    {
+                        ["rangeNm"] = 25,
+                        ["pinnedMarkers"] = new JsonArray { "SFO270010" },
+                    },
+                };
+                file["radarDcbVisible"] = false;
+                file["radarFlyoutFontSize"] = 16;
+                file["collapseStudentDatablocks"] = true;
+                file["radarViewWindowGeometry"] = Geometry(9, 9, 999, 999);
+                file["isRadarViewPoppedOut"] = true;
+                file["extraRadarViews"] = Extras((2, "KOAK"));
+            }
+        );
+
+        JsonObject saved = SaveAndReadBack(new UserPreferences());
+
+        JsonNode s1 = saved["radarSettings"]!["S1"]!;
+        Assert.Equal(25, s1["rangeNm"]!.GetValue<double>());
+        Assert.Equal("SFO270010", s1["pinnedMarkers"]![0]!.GetValue<string>());
+        string[] removed =
+        [
+            "radarDcbVisible",
+            "radarFlyoutFontSize",
+            "collapseStudentDatablocks",
+            "radarViewWindowGeometry",
+            "isRadarViewPoppedOut",
+            "extraRadarViews",
+        ];
+        Assert.All(removed, key => Assert.False(saved.ContainsKey(key), key));
     }
 }

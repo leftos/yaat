@@ -567,8 +567,6 @@ by `UserPreferences` toggles that `ScopeCanvas` passes into the frame's display 
   `ResolveBlockOffset`/`LeaderDirectionOffset`; a manual drag offset always wins, and the data block's right-click
   **Display > Reset datablock position** clears the manual offset (`ScopeViewModel.ResetDataBlockPosition`).
 
-The Settings window still offers **`CollapseStudentDatablocks`** (the reduced block the student sees), but nothing reads it now that the Scope is the only radar view.
-
 The projection is null when there is no student position, so the renderer falls back to its prior behavior.
 
 ## Geometry — draw vs hit-test (single source of truth)

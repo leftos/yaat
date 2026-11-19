@@ -82,7 +82,6 @@ public class ShownRouteRefreshCoalesceTests
         }
         finally
         {
-            vm.Preferences.SetExtraRadarViews([]);
             vm.Preferences.SetExtraGroundViews([]);
         }
     }

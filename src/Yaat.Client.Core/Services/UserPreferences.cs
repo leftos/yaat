@@ -37,15 +37,7 @@ public sealed partial class SavedServer : ObservableObject
 /// Bundled into one record so <see cref="UserPreferences.SetFontSizes"/> stays a
 /// single-parameter call rather than a long positional list.
 /// </summary>
-public readonly record struct FontSizePrefs(
-    int RadarDatablock,
-    int RadarFlyout,
-    int GroundDatablock,
-    int GroundLabel,
-    int DataGrid,
-    int Terminal,
-    int Interface
-);
+public readonly record struct FontSizePrefs(int RadarDatablock, int GroundDatablock, int GroundLabel, int DataGrid, int Terminal, int Interface);
 
 public sealed partial class UserPreferences
 {
@@ -97,6 +89,7 @@ public sealed partial class UserPreferences
             .. _data.HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _)).Select(s => Enum.Parse<TerminalEntryKind>(s)),
         ];
         MigratePreferences();
+        DropLegacyRadarWindowFields(_data);
     }
 
     private UserPreferences(SavedPrefs defaults)
@@ -176,6 +169,23 @@ public sealed partial class UserPreferences
         data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         data.LegacyWindowProfiles = null;
         Log.LogInformation("Renamed {Count} saved window profile(s) to layouts", moved);
+    }
+
+    /// <summary>
+    /// Nulls the old Radar window's values, top-level and in every saved layout, once the v4 migration has had its chance
+    /// to read them, so the next save drops them: a file already at v4 still carries the "isRadarViewPoppedOut": false
+    /// and "extraRadarViews": [] the build that migrated it wrote, and those are past their migration.
+    /// </summary>
+    private static void DropLegacyRadarWindowFields(SavedPrefs data)
+    {
+        data.RadarViewWindowGeometry = null;
+        data.IsRadarViewPoppedOut = null;
+        data.ExtraRadarViews = null;
+        foreach (SavedLayout layout in data.Layouts)
+        {
+            layout.IsRadarViewPoppedOut = null;
+            layout.ExtraRadarViews = null;
+        }
     }
 
     /// <summary>
@@ -291,19 +301,20 @@ public sealed partial class UserPreferences
     /// <summary>A popped-out Radar pops the Scope out; a docked Radar leaves the Scope's flag (null stays null).</summary>
     private static bool MigrateRadarPopOut(SavedLayout layout)
     {
-        if (!layout.IsRadarViewPoppedOut)
+        bool poppedOut = layout.IsRadarViewPoppedOut == true;
+        layout.IsRadarViewPoppedOut = null;
+        if (!poppedOut)
         {
             return false;
         }
 
         layout.IsScopePoppedOut = true;
-        layout.IsRadarViewPoppedOut = false;
         return true;
     }
 
     /// <summary>
     /// Appends an extra Scope window for each distinct extra Radar ordinal n, ascending: n itself when no Scope window holds
-    /// it yet, else the lowest free ordinal ≥ 2. The airport is dropped (a Scope window has none) and the Radar list emptied.
+    /// it yet, else the lowest free ordinal ≥ 2. The airport is dropped (a Scope window has none) and the Radar list nulled.
     /// </summary>
     /// <returns>Each migrated Radar ordinal mapped to the Scope ordinal it was given.</returns>
     private static Dictionary<int, int> MigrateRadarExtras(SavedLayout layout)
@@ -311,7 +322,7 @@ public sealed partial class UserPreferences
         // A hand-edited file can hold a null list or null entries: they name no window, so they are skipped.
         var assigned = new Dictionary<int, int>();
         List<int> radarOrdinals = [.. (layout.ExtraRadarViews ?? []).OfType<SavedExtraView>().Select(v => v.Ordinal).Distinct().Order()];
-        layout.ExtraRadarViews = [];
+        layout.ExtraRadarViews = null;
         if (radarOrdinals.Count == 0)
         {
             return assigned;
@@ -395,19 +406,19 @@ public sealed partial class UserPreferences
         }
 
         changed |= MigrateRadarExtraGeometries(_data.WindowGeometries, new Dictionary<int, int>());
-        if (_data.IsRadarViewPoppedOut)
+        if (_data.IsRadarViewPoppedOut == true)
         {
             _data.IsScopePoppedOut = true;
-            _data.IsRadarViewPoppedOut = false;
             changed = true;
         }
 
-        if (_data.ExtraRadarViews is not { Count: 0 })
+        if (_data.ExtraRadarViews is { Count: > 0 })
         {
-            _data.ExtraRadarViews = [];
             changed = true;
         }
 
+        _data.IsRadarViewPoppedOut = null;
+        _data.ExtraRadarViews = null;
         return changed;
     }
 
@@ -519,7 +530,6 @@ public sealed partial class UserPreferences
     public SavedWindowGeometry? SettingsWindowGeometry => _data.SettingsWindowGeometry;
     public SavedWindowGeometry? TerminalWindowGeometry => _data.TerminalWindowGeometry;
     public SavedWindowGeometry? GroundViewWindowGeometry => _data.GroundViewWindowGeometry;
-    public SavedWindowGeometry? RadarViewWindowGeometry => _data.RadarViewWindowGeometry;
     public SavedWindowGeometry? DataGridWindowGeometry => _data.DataGridWindowGeometry;
 
     /// <summary>
@@ -537,7 +547,6 @@ public sealed partial class UserPreferences
             "Settings" => _data.SettingsWindowGeometry,
             "Terminal" => _data.TerminalWindowGeometry,
             "GroundView" => _data.GroundViewWindowGeometry,
-            "RadarView" => _data.RadarViewWindowGeometry,
             "DataGrid" => _data.DataGridWindowGeometry,
             _ => _data.WindowGeometries.GetValueOrDefault(windowName),
         };
@@ -571,33 +580,16 @@ public sealed partial class UserPreferences
     public double? DepartureAutoDeleteDistanceNm => _data.DepartureAutoDeleteDistanceNm;
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
-    public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
     public bool IsScopePoppedOut => _data.IsScopePoppedOut;
     public bool IsControllersPoppedOut => _data.IsControllersPoppedOut;
     public bool IsMetarPoppedOut => _data.IsMetarPoppedOut;
 
     /// <summary>
-    /// The extra Radar View windows that were open at shutdown (ordinals always ≥ 2 — the docked view is
-    /// the implicit #1). Each ordinal keys its own window geometry ("RadarView#2") and its own
-    /// per-scenario view settings ("{scenarioId}#2"); the airport is the base the window was opened on.
+    /// The extra Ground View windows that were open at shutdown (ordinals always ≥ 2 — the docked view is the implicit
+    /// #1). Each ordinal keys its own window geometry ("GroundView#2") and its own per-scenario view settings
+    /// ("{scenarioId}#2"); the airport is the base the window was opened on.
     /// </summary>
-    public IReadOnlyList<SavedExtraView> ExtraRadarViews => _data.ExtraRadarViews;
-
-    /// <summary>The extra Ground View windows open at shutdown; same convention as
-    /// <see cref="ExtraRadarViews"/>.</summary>
     public IReadOnlyList<SavedExtraView> ExtraGroundViews => _data.ExtraGroundViews;
-
-    /// <summary>Persists which extra Radar View windows are open; a no-op when the set is unchanged.</summary>
-    public void SetExtraRadarViews(IReadOnlyList<SavedExtraView> views)
-    {
-        if (_data.ExtraRadarViews.SequenceEqual(views))
-        {
-            return;
-        }
-
-        _data.ExtraRadarViews = [.. views];
-        Save();
-    }
 
     /// <summary>Persists which extra Ground View windows are open; a no-op when the set is unchanged.</summary>
     public void SetExtraGroundViews(IReadOnlyList<SavedExtraView> views)
@@ -668,7 +660,6 @@ public sealed partial class UserPreferences
     public bool AlwaysShowGroundBubblesOnRadar => _data.AlwaysShowGroundBubblesOnRadar;
     public bool SyncStudentDatablockColors => _data.SyncStudentDatablockColors;
     public bool MarkStudentLimitedDatablocks => _data.MarkStudentLimitedDatablocks;
-    public bool CollapseStudentDatablocks => _data.CollapseStudentDatablocks;
     public bool SyncStudentLeaderDirection => _data.SyncStudentLeaderDirection;
     public double TpaConeHalfAngleDegrees => _data.TpaConeHalfAngleDegrees;
     public double ScrollSensitivity => Math.Clamp(_data.ScrollSensitivity, ScrollSensitivityMin, ScrollSensitivityMax);
@@ -931,7 +922,6 @@ public sealed partial class UserPreferences
     public bool GroundShowAllTaxiRoutes => _data.GroundShowAllTaxiRoutes;
     public DatablockDeconflictMode GroundDeconflictMode => (DatablockDeconflictMode)_data.GroundDeconflictMode;
     public DatablockDeconflictMode RadarDeconflictMode => (DatablockDeconflictMode)_data.RadarDeconflictMode;
-    public bool RadarDcbVisible => _data.RadarDcbVisible;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool GroundHideDataBlocksByDefault => _data.GroundHideDataBlocksByDefault;
     public bool GroundShowSatelliteImage => _data.GroundShowSatelliteImage;
@@ -981,7 +971,6 @@ public sealed partial class UserPreferences
     public bool AutoExpandSuggestionOnEnter => _data.AutoExpandSuggestionOnEnter;
     public int DataGridFontSize => _data.DataGridFontSize;
     public int RadarDatablockFontSize => _data.RadarDatablockFontSize;
-    public int RadarFlyoutFontSize => _data.RadarFlyoutFontSize;
     public int GroundDatablockFontSize => _data.GroundDatablockFontSize;
     public int GroundLabelFontSize => _data.GroundLabelFontSize;
     public int TerminalFontSize => _data.TerminalFontSize;
@@ -1115,9 +1104,6 @@ public sealed partial class UserPreferences
             case "GroundView":
                 _data.GroundViewWindowGeometry = geometry;
                 break;
-            case "RadarView":
-                _data.RadarViewWindowGeometry = geometry;
-                break;
             case "DataGrid":
                 _data.DataGridWindowGeometry = geometry;
                 break;
@@ -1134,7 +1120,6 @@ public sealed partial class UserPreferences
         {
             "DataGrid" => _data.IsDataGridPoppedOut,
             "GroundView" => _data.IsGroundViewPoppedOut,
-            "RadarView" => _data.IsRadarViewPoppedOut,
             "ScopeView" => _data.IsScopePoppedOut,
             "Controllers" => _data.IsControllersPoppedOut,
             "Metar" => _data.IsMetarPoppedOut,
@@ -1155,9 +1140,6 @@ public sealed partial class UserPreferences
                 break;
             case "GroundView":
                 _data.IsGroundViewPoppedOut = poppedOut;
-                break;
-            case "RadarView":
-                _data.IsRadarViewPoppedOut = poppedOut;
                 break;
             case "ScopeView":
                 _data.IsScopePoppedOut = poppedOut;
@@ -1431,12 +1413,6 @@ public sealed partial class UserPreferences
     public void SetMarkStudentLimitedDatablocks(bool enabled)
     {
         _data.MarkStudentLimitedDatablocks = enabled;
-        Save();
-    }
-
-    public void SetCollapseStudentDatablocks(bool enabled)
-    {
-        _data.CollapseStudentDatablocks = enabled;
         Save();
     }
 
@@ -1901,7 +1877,6 @@ public sealed partial class UserPreferences
     public void SetFontSizes(FontSizePrefs sizes)
     {
         _data.RadarDatablockFontSize = Math.Clamp(sizes.RadarDatablock, 8, 24);
-        _data.RadarFlyoutFontSize = Math.Clamp(sizes.RadarFlyout, 8, 24);
         _data.GroundDatablockFontSize = Math.Clamp(sizes.GroundDatablock, 8, 24);
         _data.GroundLabelFontSize = Math.Clamp(sizes.GroundLabel, 8, 24);
         _data.DataGridFontSize = Math.Clamp(sizes.DataGrid, 8, 24);
@@ -1996,13 +1971,6 @@ public sealed partial class UserPreferences
     public void SetRadarDeconflictMode(DatablockDeconflictMode mode)
     {
         _data.RadarDeconflictMode = (int)mode;
-        Save();
-    }
-
-    /// <summary>Persists radar-view DCB visibility. Toggled by Ctrl+F8.</summary>
-    public void SetRadarDcbVisible(bool visible)
-    {
-        _data.RadarDcbVisible = visible;
         Save();
     }
 
@@ -2532,9 +2500,9 @@ public sealed partial class UserPreferences
             DepartureAutoDeleteDistanceNm = GetFieldOr<double?>(obj, "departureAutoDeleteDistanceNm", null),
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
-            IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
+            IsRadarViewPoppedOut = GetFieldOr<bool?>(obj, "isRadarViewPoppedOut", null),
             IsScopePoppedOut = GetFieldOr(obj, "isScopePoppedOut", false),
-            ExtraRadarViews = GetFieldOr<List<SavedExtraView>>(obj, "extraRadarViews", []),
+            ExtraRadarViews = GetFieldOr<List<SavedExtraView>?>(obj, "extraRadarViews", null),
             ExtraGroundViews = GetFieldOr<List<SavedExtraView>>(obj, "extraGroundViews", []),
             IsControllersPoppedOut = GetFieldOr(obj, "isControllersPoppedOut", false),
             IsMetarPoppedOut = GetFieldOr(obj, "isMetarPoppedOut", false),
@@ -2575,7 +2543,6 @@ public sealed partial class UserPreferences
             ShowAtpa = GetFieldOr(obj, "showAtpa", false),
             SyncStudentDatablockColors = GetFieldOr(obj, "syncStudentDatablockColors", true),
             MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
-            CollapseStudentDatablocks = GetFieldOr(obj, "collapseStudentDatablocks", false),
             SyncStudentLeaderDirection = GetFieldOr(obj, "syncStudentLeaderDirection", false),
             TpaConeHalfAngleDegrees = GetFieldOr(obj, "tpaConeHalfAngleDegrees", 2.0),
             ScrollSensitivity = GetFieldOr(obj, "scrollSensitivity", 1.0),
@@ -2644,7 +2611,6 @@ public sealed partial class UserPreferences
             GroundShowAllTaxiRoutes = GetFieldOr(obj, "groundShowAllTaxiRoutes", false),
             GroundDeconflictMode = GetFieldOr(obj, "groundDeconflictMode", 0),
             RadarDeconflictMode = GetFieldOr(obj, "radarDeconflictMode", 0),
-            RadarDcbVisible = GetFieldOr(obj, "radarDcbVisible", true),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             GroundHideDataBlocksByDefault = GetFieldOr(obj, "groundHideDataBlocksByDefault", false),
             GroundShowSatelliteImage = GetFieldOr(obj, "groundShowSatelliteImage", false),
@@ -2682,7 +2648,6 @@ public sealed partial class UserPreferences
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
             RadarDatablockFontSize = GetFieldOr(obj, "radarDatablockFontSize", 12),
-            RadarFlyoutFontSize = GetFieldOr(obj, "radarFlyoutFontSize", 12),
             GroundDatablockFontSize = GetFieldOr(obj, "groundDatablockFontSize", 12),
             GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
@@ -2932,6 +2897,9 @@ public sealed partial class UserPreferences
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; set; }
         public SavedWindowGeometry? GroundViewWindowGeometry { get; set; }
+
+        /// <summary>The old Radar window's geometry, read only by the v4 migration; null afterwards, so a save drops it.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public SavedWindowGeometry? RadarViewWindowGeometry { get; set; }
         public SavedWindowGeometry? DataGridWindowGeometry { get; set; }
         public SavedGridLayout? GridLayout { get; set; }
@@ -2943,11 +2911,17 @@ public sealed partial class UserPreferences
         public double? DepartureAutoDeleteDistanceNm { get; set; }
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }
-        public bool IsRadarViewPoppedOut { get; set; }
+
+        /// <summary>The old Radar window's pop-out state, read only by the v4 migration; null afterwards, so a save drops it.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? IsRadarViewPoppedOut { get; set; }
         public bool IsScopePoppedOut { get; set; }
         public bool IsControllersPoppedOut { get; set; }
         public bool IsMetarPoppedOut { get; set; }
-        public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
+
+        /// <summary>The old Radar view's extra windows, read only by the v4 migration; null afterwards, so a save drops them.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<SavedExtraView>? ExtraRadarViews { get; set; }
         public List<SavedExtraView> ExtraGroundViews { get; set; } = [];
         public bool IsVStripsPoppedOut { get; set; }
         public bool IsVTdlsPoppedOut { get; set; }
@@ -2993,7 +2967,6 @@ public sealed partial class UserPreferences
         public bool AlwaysShowGroundBubblesOnRadar { get; set; }
         public bool SyncStudentDatablockColors { get; set; } = true;
         public bool MarkStudentLimitedDatablocks { get; set; } = true;
-        public bool CollapseStudentDatablocks { get; set; }
         public bool SyncStudentLeaderDirection { get; set; }
         public double TpaConeHalfAngleDegrees { get; set; } = 2.0;
         public double ScrollSensitivity { get; set; } = 1.0;
@@ -3097,7 +3070,6 @@ public sealed partial class UserPreferences
         public bool GroundShowAllTaxiRoutes { get; set; }
         public int GroundDeconflictMode { get; set; }
         public int RadarDeconflictMode { get; set; }
-        public bool RadarDcbVisible { get; set; } = true;
         public bool GroundPanZoomLocked { get; set; }
         public bool GroundHideDataBlocksByDefault { get; set; }
         public bool GroundShowSatelliteImage { get; set; }
@@ -3135,7 +3107,6 @@ public sealed partial class UserPreferences
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
         public int RadarDatablockFontSize { get; set; } = 12;
-        public int RadarFlyoutFontSize { get; set; } = 12;
         public int GroundDatablockFontSize { get; set; } = 12;
         public int GroundLabelFontSize { get; set; } = 13;
         public int TerminalFontSize { get; set; } = 12;
@@ -3266,10 +3237,10 @@ public sealed class SavedGridLayout
 }
 
 /// <summary>
-/// One extra Radar or Ground View window: its instance number (always ≥ 2 — the docked view is the
+/// One extra Ground View or Scope window: its instance number (always ≥ 2 — the docked or primary view is the
 /// implicit #1) and the base airport it was opened on. The ordinal keys the window geometry
-/// ("RadarView#2") and the per-scenario view settings ("{scenarioId}#2"); the airport decides what the
-/// window shows — the centre and video maps of a Radar View, the layout of a Ground View.
+/// ("GroundView#2", "ScopeView#2") and, for a Ground View, its per-scenario view settings ("{scenarioId}#2"); the
+/// airport decides the layout of a Ground View, and is "" for a Scope window, which has none.
 /// </summary>
 public sealed record SavedExtraView(int Ordinal, string AirportId);
 
@@ -3299,10 +3270,11 @@ public sealed class SavedLayout
     public bool IsGroundViewPoppedOut { get; set; }
 
     /// <summary>
-    /// The old Radar view's pop-out state, which layouts no longer capture or apply; kept so a layout saved with it still
-    /// loads.
+    /// The old Radar view's pop-out state, read only by the v4 migration (<see cref="UserPreferences.MigrateRadarWindows"/>),
+    /// which nulls it so a save drops it.
     /// </summary>
-    public bool IsRadarViewPoppedOut { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsRadarViewPoppedOut { get; set; }
     public bool IsControllersPoppedOut { get; set; }
     public bool IsMetarPoppedOut { get; set; }
 
@@ -3329,10 +3301,11 @@ public sealed class SavedLayout
     public double? TerminalSplitRatio { get; set; }
 
     /// <summary>
-    /// The old Radar view's extra windows, which layouts no longer capture or apply; kept so a layout saved with them
-    /// still loads.
+    /// The old Radar view's extra windows, read only by the v4 migration (<see cref="UserPreferences.MigrateRadarWindows"/>),
+    /// which nulls them so a save drops them.
     /// </summary>
-    public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SavedExtraView>? ExtraRadarViews { get; set; }
 
     /// <summary>
     /// The extra Ground View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with the airport it
@@ -3478,28 +3451,6 @@ public sealed class SavedRadarSettings
     /// <summary>Instructor scope-marker pins for this view: fix/NAVAID names or FRD strings
     /// (e.g. "SFO270010"). Resolved to lat/lon for rendering via FrdResolver. CRC "Scope Markers".</summary>
     public List<string> PinnedMarkers { get; set; } = [];
-
-    public SavedRadarSettings Clone() =>
-        new()
-        {
-            EnabledStarsIds = [.. EnabledStarsIds],
-            PinnedMarkers = [.. PinnedMarkers],
-            CenterLat = CenterLat,
-            CenterLon = CenterLon,
-            RangeNm = RangeNm,
-            RangeRingCenterLat = RangeRingCenterLat,
-            RangeRingCenterLon = RangeRingCenterLon,
-            RangeRingSizeNm = RangeRingSizeNm,
-            ShowRangeRings = ShowRangeRings,
-            ShowFixes = ShowFixes,
-            IsPanZoomLocked = IsPanZoomLocked,
-            ShowTopDown = ShowTopDown,
-            PtlLengthMinutes = PtlLengthMinutes,
-            PtlOwn = PtlOwn,
-            PtlAll = PtlAll,
-            BrightnessValues = BrightnessValues is null ? null : new Dictionary<string, int>(BrightnessValues),
-            HistoryCount = HistoryCount,
-        };
 }
 
 public sealed class SavedGroundSettings

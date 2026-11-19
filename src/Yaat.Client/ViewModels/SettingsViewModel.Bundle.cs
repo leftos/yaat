@@ -296,7 +296,6 @@ public partial class SettingsViewModel
             Field("alwaysShowGroundBubblesOnRadar", vm => vm.AlwaysShowGroundBubblesOnRadar, (vm, v) => vm.AlwaysShowGroundBubblesOnRadar = v),
             Field("syncStudentDatablockColors", vm => vm.SyncStudentDatablockColors, (vm, v) => vm.SyncStudentDatablockColors = v),
             Field("markStudentLimitedDatablocks", vm => vm.MarkStudentLimitedDatablocks, (vm, v) => vm.MarkStudentLimitedDatablocks = v),
-            Field("collapseStudentDatablocks", vm => vm.CollapseStudentDatablocks, (vm, v) => vm.CollapseStudentDatablocks = v),
             Field("syncStudentLeaderDirection", vm => vm.SyncStudentLeaderDirection, (vm, v) => vm.SyncStudentLeaderDirection = v),
             Field("assignmentTintEnabled", vm => vm.AssignmentTintEnabled, (vm, v) => vm.AssignmentTintEnabled = v),
             Field("assignmentTintColor", vm => vm.AssignmentTintColor, (vm, v) => vm.AssignmentTintColor = v),
@@ -308,7 +307,6 @@ public partial class SettingsViewModel
     private static (string Key, BundledField Field)[] DisplayFields() =>
         [
             Field("radarDatablockFontSize", vm => vm.RadarDatablockFontSize, (vm, v) => vm.RadarDatablockFontSize = v),
-            Field("radarFlyoutFontSize", vm => vm.RadarFlyoutFontSize, (vm, v) => vm.RadarFlyoutFontSize = v),
             Field("groundDatablockFontSize", vm => vm.GroundDatablockFontSize, (vm, v) => vm.GroundDatablockFontSize = v),
             Field("groundLabelFontSize", vm => vm.GroundLabelFontSize, (vm, v) => vm.GroundLabelFontSize = v),
             Field("dataGridFontSize", vm => vm.DataGridFontSize, (vm, v) => vm.DataGridFontSize = v),

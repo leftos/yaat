@@ -95,7 +95,6 @@ public static class SettingsSearchCatalog
         [
             SettingWithin(s, "DataGridFontSize", "Aircraft List", FontSizes, Font),
             SettingWithin(s, "RadarDatablockFontSize", "Radar Datablock", FontSizes, Font),
-            SettingWithin(s, "RadarFlyoutFontSize", "Radar Tag Flyouts", FontSizes, Font),
             SettingWithin(s, "GroundDatablockFontSize", "Ground Datablock", FontSizes, Font),
             SettingWithin(s, "GroundLabelFontSize", "Ground Labels (taxi/runway/node)", FontSizes, Font),
             SettingWithin(s, "TerminalFontSize", "Terminal (output + input)", FontSizes, Font),
@@ -153,7 +152,6 @@ public static class SettingsSearchCatalog
             Setting(s, "ShowAtpa", "Show ATPA cones and in-trail distance on the radar", None),
             Setting(s, "SyncStudentDatablockColors", "Sync datablock colors to the student's STARS scope", Colour),
             Setting(s, "MarkStudentLimitedDatablocks", "Mark limited datablocks with (LDB) / (PDB)", None),
-            Setting(s, "CollapseStudentDatablocks", "Collapse datablocks to match the student's LDB/PDB/FDB", None),
             Setting(s, "SyncStudentLeaderDirection", "Sync leader-line direction to the student's scope", None),
             SettingWithin(s, "MvaHintDefaultGnd", "GND", MvaTint, Tint),
             SettingWithin(s, "MvaHintDefaultTwr", "TWR", MvaTint, Tint),

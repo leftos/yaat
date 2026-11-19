@@ -92,18 +92,6 @@
               FontSize="11"
               Margin="28,0,0,0"
             />
-            <CheckBox
-              Content="Collapse datablocks to match the student's LDB/PDB/FDB"
-              IsChecked="{Binding CollapseStudentDatablocks}"
-              Margin="0,4,0,0"
-            />
-            <TextBlock
-              Text="Instead of the (LDB)/(PDB) marker, render the reduced datablock the student actually sees — a limited block for unassociated tracks and a partial block for tracks owned by another controller. Default off."
-              TextWrapping="Wrap"
-              Foreground="{DynamicResource SubtleTextBrush}"
-              FontSize="11"
-              Margin="28,0,0,0"
-            />
             <CheckBox Content="Sync leader-line direction to the student's scope" IsChecked="{Binding SyncStudentLeaderDirection}" Margin="0,4,0,0" />
             <TextBlock
               Text="Orients each datablock's leader line in the direction the student set in STARS. Datablocks you have dragged keep their position; use the radar right-click menu's 'Reset datablock position' to snap one back. Default off."

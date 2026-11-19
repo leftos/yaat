@@ -19,7 +19,6 @@ public class UserPreferencesLayoutTests
             IsTerminalPoppedOut = true,
             IsDataGridPoppedOut = true,
             IsGroundViewPoppedOut = true,
-            IsRadarViewPoppedOut = false,
             WindowGeometries = new()
             {
                 ["Main"] = new SavedWindowGeometry
@@ -68,7 +67,6 @@ public class UserPreferencesLayoutTests
         Assert.True(reloaded.IsTerminalPoppedOut);
         Assert.True(reloaded.IsDataGridPoppedOut);
         Assert.True(reloaded.IsGroundViewPoppedOut);
-        Assert.False(reloaded.IsRadarViewPoppedOut);
 
         Assert.Equal(2, reloaded.WindowGeometries.Count);
         SavedWindowGeometry main = reloaded.WindowGeometries["Main"];
@@ -110,11 +108,10 @@ public class UserPreferencesLayoutTests
         var layout = new SavedLayout
         {
             Name = "WPT-ExtraOrdinals",
-            ExtraRadarViews = [new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KSFO")],
             ExtraGroundViews = [new SavedExtraView(2, "KOAK")],
             WindowGeometries = new()
             {
-                ["RadarView#2"] = new SavedWindowGeometry
+                ["GroundView#2"] = new SavedWindowGeometry
                 {
                     X = 300,
                     Y = 400,
@@ -131,11 +128,10 @@ public class UserPreferencesLayoutTests
 
         Assert.NotNull(reloaded);
         // Ordinal and airport both ride the layout, so applying it reopens the same windows.
-        Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KSFO")], reloaded.ExtraRadarViews);
         Assert.Equal([new SavedExtraView(2, "KOAK")], reloaded.ExtraGroundViews);
         // The extra window's geometry rides in the same dictionary as any other non-fixed window name.
-        Assert.Equal(900, reloaded.WindowGeometries["RadarView#2"].Width);
-        Assert.Equal(1, reloaded.WindowGeometries["RadarView#2"].ScreenIndex);
+        Assert.Equal(900, reloaded.WindowGeometries["GroundView#2"].Width);
+        Assert.Equal(1, reloaded.WindowGeometries["GroundView#2"].ScreenIndex);
     }
 
     [Fact]
@@ -148,7 +144,6 @@ public class UserPreferencesLayoutTests
         // Empty (not null): applying such a layout closes any extra windows, since a layout is the
         // whole arrangement rather than a partial overlay.
         Assert.NotNull(reloaded);
-        Assert.Empty(reloaded.ExtraRadarViews);
         Assert.Empty(reloaded.ExtraGroundViews);
     }
 
@@ -209,7 +204,6 @@ public class UserPreferencesLayoutTests
             new SavedLayout
             {
                 Name = "WPT-OldName",
-                IsRadarViewPoppedOut = true,
                 WindowGeometries = new()
                 {
                     ["Main"] = new SavedWindowGeometry
@@ -231,7 +225,6 @@ public class UserPreferencesLayoutTests
         // pre-rename state on disk.
         SavedLayout? reloaded = prefs.GetLayout("WPT-NewName");
         Assert.NotNull(reloaded);
-        Assert.True(reloaded.IsRadarViewPoppedOut);
         Assert.Equal(300, reloaded.WindowGeometries["Main"].Width);
         Assert.Null(prefs.GetLayout("WPT-OldName"));
 

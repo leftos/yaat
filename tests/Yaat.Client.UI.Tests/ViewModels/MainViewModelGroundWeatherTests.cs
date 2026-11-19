@@ -199,9 +199,5 @@ public class MainViewModelGroundWeatherTests
         Assert.StartsWith("AUN ", Assert.Single(scope.WeatherLines), StringComparison.Ordinal);
     }
 
-    private static void ClearPersistedViews(UserPreferences preferences)
-    {
-        preferences.SetExtraRadarViews([]);
-        preferences.SetExtraGroundViews([]);
-    }
+    private static void ClearPersistedViews(UserPreferences preferences) => preferences.SetExtraGroundViews([]);
 }

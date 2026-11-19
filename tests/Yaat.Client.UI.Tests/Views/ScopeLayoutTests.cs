@@ -37,8 +37,8 @@ public class ScopeLayoutTests
             Assert.Contains("ScopeView", layout.WindowGeometries.Keys);
             Assert.Contains("ScopeView#2", layout.WindowGeometries.Keys);
             Assert.Contains("ScopeView#3", layout.WindowGeometries.Keys);
-            Assert.False(layout.IsRadarViewPoppedOut);
-            Assert.Empty(layout.ExtraRadarViews);
+            Assert.Null(layout.IsRadarViewPoppedOut);
+            Assert.Null(layout.ExtraRadarViews);
         }
         finally
         {

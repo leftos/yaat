@@ -1715,7 +1715,6 @@ The instructor radar can color and shape each aircraft's data block to match wha
 
 - **Sync datablock colors** (on by default) — each data block takes the student's STARS color: **white** = the student owns the track, **green** = owned by another controller (or untracked), **yellow** = pointed out to the student, **cyan** = highlighted by the student. An explicit RPO assignment tint still overrides the STARS color, and your own selection/highlight still take top priority.
 - **Mark limited datablocks with (LDB) / (PDB)** (on by default) — when the student sees only a limited block (an unassociated track) the callsign line is suffixed **(LDB)**; when they see a partial block (an associated track owned by another controller) it's suffixed **(PDB)**. You keep the full block; the marker just tells you what the student sees.
-- **Collapse datablocks to match the student** (off by default) — instead of the marker, render the reduced block the student actually sees: a one-line limited block for unassociated tracks, a short partial block for tracks owned by another controller.
 - **Sync leader-line direction** (off by default) — point each data block's leader line in the direction the student set in STARS. Data blocks you've dragged keep their position; use **Reset datablock position** in the data block's right-click **Display** menu to snap one back so the leader sync re-applies.
 
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
@@ -3249,7 +3248,6 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 |---------|--------------|---------|
 | **Aircraft List** | The aircraft-list rows. | 12 |
 | **Radar Datablock** | STARS/ERAM datablocks on the Radar view. | 12 |
-| **Radar Tag Flyouts** | The pop-out field editors on radar tags. | 12 |
 | **Ground Datablock** | Datablocks on the Ground view. | 12 |
 | **Ground Labels (taxi/runway/node)** | Taxiway, runway, and node labels on the Ground view. | 13 |
 | **Terminal (output + input)** | The terminal panel and command-input box. | 12 |
@@ -3324,7 +3322,6 @@ Links at the top: **Font sizes → Appearance**, **Always on top → General**.
 |---------|--------------|---------|
 | **Sync datablock colors to the student's STARS scope** | Colors each datablock the way the student sees it (white = owned by student, green = owned by another controller, yellow = pointed out, cyan = highlighted). | On |
 | **Mark limited datablocks with (LDB) / (PDB)** | Appends `(LDB)` when the student sees only a limited (unassociated) block, and `(PDB)` for a partial block owned by another controller, while you keep the full datablock. | On |
-| **Collapse datablocks to match the student's LDB/PDB/FDB** | Instead of the marker, render the reduced datablock the student actually sees. | Off |
 | **Sync leader-line direction to the student's scope** | Orients each datablock's leader line the way the student set it in STARS. Datablocks you've dragged keep their position. | Off |
 
 **Ground Display**:

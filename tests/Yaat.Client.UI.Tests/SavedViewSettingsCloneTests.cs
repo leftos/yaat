@@ -7,43 +7,6 @@ namespace Yaat.Client.UI.Tests;
 public class SavedViewSettingsCloneTests
 {
     [Fact]
-    public void RadarClone_IsIndependentDeepCopy()
-    {
-        var original = new SavedRadarSettings
-        {
-            EnabledStarsIds = [1, 2, 3],
-            PinnedMarkers = ["SFO", "OAK270010"],
-            RangeNm = 55,
-            BrightnessValues = new Dictionary<string, int> { ["MapA"] = 80 },
-            HistoryCount = 4,
-            PtlOwn = true,
-        };
-
-        SavedRadarSettings clone = original.Clone();
-        clone.EnabledStarsIds.Add(99);
-        clone.PinnedMarkers.Add("LAX");
-        clone.BrightnessValues!["MapA"] = 10;
-        clone.RangeNm = 12;
-        clone.PtlOwn = false;
-
-        Assert.Equal(new[] { 1, 2, 3 }, original.EnabledStarsIds);
-        Assert.Equal(new[] { "SFO", "OAK270010" }, original.PinnedMarkers);
-        Assert.Equal(80, original.BrightnessValues!["MapA"]);
-        Assert.Equal(55, original.RangeNm);
-        Assert.True(original.PtlOwn);
-    }
-
-    [Fact]
-    public void RadarClone_NullBrightness_StaysNull()
-    {
-        var original = new SavedRadarSettings { BrightnessValues = null };
-
-        SavedRadarSettings clone = original.Clone();
-
-        Assert.Null(clone.BrightnessValues);
-    }
-
-    [Fact]
     public void GroundClone_IsIndependentCopy()
     {
         var original = new SavedGroundSettings
