@@ -120,7 +120,10 @@ public sealed class AerialRefuelingAnchorPhase : Phase
             state.Status = MilitaryRouteStatus.Established;
             _laps++;
             LoadNames(ctx, PatternNames);
-            ctx.Logger.LogDebug("{Callsign}: {Route} anchor lap {Lap}", ctx.Aircraft.Callsign, Designator, _laps);
+            if (ctx.Logger.IsEnabled(LogLevel.Debug))
+            {
+                ctx.Logger.LogDebug("{Callsign}: {Route} anchor lap {Lap}", ctx.Aircraft.Callsign, Designator, _laps);
+            }
         }
         else if (state.Status == MilitaryRouteStatus.ClearedIn && IsAtAnchor(ctx))
         {

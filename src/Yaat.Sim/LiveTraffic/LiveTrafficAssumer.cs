@@ -185,7 +185,10 @@ public static class LiveTrafficAssumer
             aircraft.PendingWarnings.Add(note);
         }
 
-        Log.LogInformation("{Callsign} assumed: {Summary}", aircraft.Callsign, summary);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("{Callsign} assumed: {Summary}", aircraft.Callsign, summary);
+        }
         return new CommandResult(true, $"{aircraft.Callsign} assumed — {summary}");
     }
 
@@ -217,7 +220,10 @@ public static class LiveTrafficAssumer
         aircraft.PendingObservations.Clear();
         aircraft.PendingObservations.AddRange(undo.PendingObservations);
 
-        Log.LogInformation("{Callsign}: assume rolled back — the aircraft is live traffic again", aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("{Callsign}: assume rolled back — the aircraft is live traffic again", aircraft.Callsign);
+        }
     }
 
     /// <summary>Drops everything appended past <paramref name="count"/>; a no-op when nothing was.</summary>
@@ -590,7 +596,10 @@ public static class LiveTrafficAssumer
                     return $"established on final runway {display}";
                 }
 
-                Log.LogDebug("{Callsign}: no coded approach for runway {Runway}: {Reason}", ac.Callsign, display, result.Message);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("{Callsign}: no coded approach for runway {Runway}: {Reason}", ac.Callsign, display, result.Message);
+                }
             }
 
             if (distNm <= gateNm && IsFieldVmc(ctx, runway.AirportId))
@@ -607,7 +616,10 @@ public static class LiveTrafficAssumer
                     return $"visual approach runway {display}";
                 }
 
-                Log.LogDebug("{Callsign}: visual approach to {Runway} not installed: {Reason}", ac.Callsign, display, visual.Message);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("{Callsign}: visual approach to {Runway} not installed: {Reason}", ac.Callsign, display, visual.Message);
+                }
             }
 
             ac.Targets.TargetTrueHeading = ac.TrueHeading;

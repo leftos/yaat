@@ -117,12 +117,15 @@ public sealed class InterceptCoursePhase : Phase
     {
         // Aircraft continues on its current heading — no target change.
         // Approach speed set by the phase that follows (FinalApproachPhase).
-        Log.LogDebug(
-            "[InterceptCourse] {Callsign}: started, hdg={Hdg:F0}, course={Crs:F0}",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.TrueHeading.Degrees,
-            FinalApproachCourse.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[InterceptCourse] {Callsign}: started, hdg={Hdg:F0}, course={Crs:F0}",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.TrueHeading.Degrees,
+                FinalApproachCourse.Degrees
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -186,15 +189,18 @@ public sealed class InterceptCoursePhase : Phase
             double interceptSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, anticipationSpeed);
             ctx.Targets.TargetSpeed = interceptSpeed;
             _approachSpeedSet = true;
-            Log.LogDebug(
-                "[InterceptCourse] {Callsign}: {Action} {Spd:F0}kts (1.3×FAS {Anticipation:F0}, IAS {Ias:F0}, crossTrack={XT:F1}nm)",
-                ctx.Aircraft.Callsign,
-                interceptSpeed < ctx.Aircraft.IndicatedAirspeed ? "slowing to" : "holding",
-                interceptSpeed,
-                anticipationSpeed,
-                ctx.Aircraft.IndicatedAirspeed,
-                crossTrack
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[InterceptCourse] {Callsign}: {Action} {Spd:F0}kts (1.3×FAS {Anticipation:F0}, IAS {Ias:F0}, crossTrack={XT:F1}nm)",
+                    ctx.Aircraft.Callsign,
+                    interceptSpeed < ctx.Aircraft.IndicatedAirspeed ? "slowing to" : "holding",
+                    interceptSpeed,
+                    anticipationSpeed,
+                    ctx.Aircraft.IndicatedAirspeed,
+                    crossTrack
+                );
+            }
         }
 
         ApplyPreFinalSpacing(ctx, crossTrack);
@@ -260,15 +266,19 @@ public sealed class InterceptCoursePhase : Phase
                 string runwayDiffText = AlignedRunwayNumberHeading(ctx) is { } rwyMag
                     ? $"{ctx.Aircraft.MagneticHeading.AbsAngleTo(rwyMag):F1}°"
                     : "n/a";
-                Log.LogInformation(
-                    "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff}), crossTrack flipped {Prev:F3}→{Now:F3}",
-                    ctx.Aircraft.Callsign,
-                    effectiveDiff,
-                    headingDiff,
-                    runwayDiffText,
-                    prev,
-                    signedCrossTrack
-                );
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation(
+                        "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff}), "
+                            + "crossTrack flipped {Prev:F3}→{Now:F3}",
+                        ctx.Aircraft.Callsign,
+                        effectiveDiff,
+                        headingDiff,
+                        runwayDiffText,
+                        prev,
+                        signedCrossTrack
+                    );
+                }
                 HandleBustThrough(ctx);
                 return true;
             }
@@ -279,11 +289,14 @@ public sealed class InterceptCoursePhase : Phase
         // Safety timeout
         if (ElapsedSeconds >= MaxElapsedSeconds)
         {
-            Log.LogInformation(
-                "[InterceptCourse] {Callsign}: timeout after {Elapsed:F0}s — never captured course",
-                ctx.Aircraft.Callsign,
-                ElapsedSeconds
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[InterceptCourse] {Callsign}: timeout after {Elapsed:F0}s — never captured course",
+                    ctx.Aircraft.Callsign,
+                    ElapsedSeconds
+                );
+            }
             HandleInterceptTimeout(ctx);
             return true;
         }
@@ -379,23 +392,30 @@ public sealed class InterceptCoursePhase : Phase
         double gateDeg = InterceptAngleLimits.BeyondGateAngleForCategory(ctx.Category);
         if ((ForcedIntercept || RelaxedJoin) && headingDiff > gateDeg)
         {
-            Log.LogInformation(
-                "[InterceptCourse] {Callsign}: forced capture ({Reason}) — hdgDiff={HD:F1}° > {Gate:F0}°, expect lateral overshoot and S-turn recovery",
-                ctx.Aircraft.Callsign,
-                reason,
-                headingDiff,
-                gateDeg
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[InterceptCourse] {Callsign}: forced capture ({Reason}) — hdgDiff={HD:F1}° > {Gate:F0}°, expect lateral overshoot "
+                        + "and S-turn recovery",
+                    ctx.Aircraft.Callsign,
+                    reason,
+                    headingDiff,
+                    gateDeg
+                );
+            }
         }
         else
         {
-            Log.LogDebug(
-                "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
-                ctx.Aircraft.Callsign,
-                reason,
-                headingDiff,
-                crossTrack
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
+                    ctx.Aircraft.Callsign,
+                    reason,
+                    headingDiff,
+                    crossTrack
+                );
+            }
         }
         return true;
     }

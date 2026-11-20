@@ -2580,21 +2580,24 @@ public static class GroundConflictDetector
                 + $"{foul.SampleIndex}/{swept.SampleCount} {foul.AlongFt:F1}ft along {foul.ClearanceFt:F1}ft < floor({swept.FloorFt:F1}ft), "
                 + $"crossing {foul.CrossingAlongFt:F1}ft along, in the way"
         );
-        Log.LogDebug(
-            "[Outline] {Callsign}: {Kind} move comes within {ClearanceFt:F1} ft of {Other} (started {StartFt:F1} ft off, "
-                + "floor {FloorFt:F1} ft) at sample {Sample} of {Samples}, {AlongFt:F1} ft along, crossing the floor "
-                + "{CrossingFt:F1} ft along",
-            mover.Callsign,
-            tugMove.Kind,
-            foul.ClearanceFt,
-            obstacle.Callsign,
-            swept.StartClearanceFt,
-            swept.FloorFt,
-            foul.SampleIndex,
-            swept.SampleCount,
-            foul.AlongFt,
-            foul.CrossingAlongFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Outline] {Callsign}: {Kind} move comes within {ClearanceFt:F1} ft of {Other} (started {StartFt:F1} ft off, "
+                    + "floor {FloorFt:F1} ft) at sample {Sample} of {Samples}, {AlongFt:F1} ft along, crossing the floor "
+                    + "{CrossingFt:F1} ft along",
+                mover.Callsign,
+                tugMove.Kind,
+                foul.ClearanceFt,
+                obstacle.Callsign,
+                swept.StartClearanceFt,
+                swept.FloorFt,
+                foul.SampleIndex,
+                swept.SampleCount,
+                foul.AlongFt,
+                foul.CrossingAlongFt
+            );
+        }
         return foul.CrossingAlongFt;
     }
 
@@ -3407,14 +3410,17 @@ public static class GroundConflictDetector
 
         if (existing is null || maxSpeed < existing)
         {
-            Log.LogDebug(
-                "[Conflict] {Callsign}: limit={Limit:F0}kts, reason={Reason}, other={Other}, dist={Dist:F0}ft",
-                aircraft.Callsign,
-                maxSpeed,
-                cause.Reason,
-                cause.Other.Callsign,
-                cause.DistFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Conflict] {Callsign}: limit={Limit:F0}kts, reason={Reason}, other={Other}, dist={Dist:F0}ft",
+                    aircraft.Callsign,
+                    maxSpeed,
+                    cause.Reason,
+                    cause.Other.Callsign,
+                    cause.DistFt
+                );
+            }
             DebugSink?.Invoke(
                 $"    [ApplyMinLimit] {aircraft.Callsign}: limit={maxSpeed:F1} (was {existing?.ToString("F1") ?? "none"}) "
                     + $"reason={cause.Reason} other={cause.Other.Callsign} dist={cause.DistFt:F0}ft"

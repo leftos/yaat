@@ -237,7 +237,10 @@ public static class AirborneFollowHelper
 
         if (lead is null)
         {
-            Log.LogDebug("[Follow] {Callsign}: target {Target} not found, ending follow", follower.Callsign, targetCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: target {Target} not found, ending follow", follower.Callsign, targetCallsign);
+            }
             Tower.VisualApproachHelper.HandleTrafficContactLost(ctx, targetCallsign, false);
             return true;
         }
@@ -245,7 +248,10 @@ public static class AirborneFollowHelper
         if (lead.IsOnGround)
         {
             // The lead landing is the normal end of a follow, so the follower reports nothing.
-            Log.LogDebug("[Follow] {Callsign}: target {Target} on ground, ending follow", follower.Callsign, targetCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: target {Target} on ground, ending follow", follower.Callsign, targetCallsign);
+            }
             ClearFollowState(follower);
             return true;
         }
@@ -267,7 +273,15 @@ public static class AirborneFollowHelper
         VisualAcquisitionResult contact = VisualAcquisition.TryMaintainTrafficContact(follower, lead, ctx.Weather);
         if (!contact.Acquired)
         {
-            Log.LogDebug("[Follow] {Callsign}: lost visual on {Target} ({Reason}), ending follow", follower.Callsign, targetCallsign, contact.Reason);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: lost visual on {Target} ({Reason}), ending follow",
+                    follower.Callsign,
+                    targetCallsign,
+                    contact.Reason
+                );
+            }
             Tower.VisualApproachHelper.HandleTrafficContactLost(ctx, targetCallsign, false);
             return true;
         }
@@ -303,12 +317,15 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: target {Target} now landing runway {Runway}, ending follow",
-            follower.Callsign,
-            lead.Callsign,
-            changedRunway.Designator
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: target {Target} now landing runway {Runway}, ending follow",
+                follower.Callsign,
+                lead.Callsign,
+                changedRunway.Designator
+            );
+        }
         EndFollowLeadChangedRunway(follower, lead.Callsign, changedRunway);
         return true;
     }
@@ -326,7 +343,10 @@ public static class AirborneFollowHelper
 
         if (IsOnApproachBeforeFinal(follower.Phases?.CurrentPhase) && IsGoingAround(lead))
         {
-            Log.LogDebug("[Follow] {Callsign}: target {Target} went around, ending follow on the approach", follower.Callsign, targetCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: target {Target} went around, ending follow on the approach", follower.Callsign, targetCallsign);
+            }
             EndFollowLeadWentAround(follower, targetCallsign);
             return true;
         }
@@ -1116,18 +1136,24 @@ public static class AirborneFollowHelper
         if (target is null)
         {
             // Leader disappeared — clear follow state, continue with normal speed
-            Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
+            }
             CancelFollowHoldingLeg(ctx.Aircraft);
             return null;
         }
 
         if (IsLeadPatternFlowBehind(ctx.Aircraft, target))
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: lead {Target} is pattern-flow-behind on same runway, holding baseline",
-                ctx.Aircraft.Callsign,
-                targetCallsign
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: lead {Target} is pattern-flow-behind on same runway, holding baseline",
+                    ctx.Aircraft.Callsign,
+                    targetCallsign
+                );
+            }
             return null;
         }
 
@@ -1239,18 +1265,24 @@ public static class AirborneFollowHelper
         AircraftState? target = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (target is null)
         {
-            Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
+            }
             CancelFollowHoldingLeg(ctx.Aircraft);
             return null;
         }
 
         if (IsLeadPatternFlowBehind(ctx.Aircraft, target))
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: lead {Target} is pattern-flow-behind on same runway, holding baseline",
-                ctx.Aircraft.Callsign,
-                targetCallsign
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: lead {Target} is pattern-flow-behind on same runway, holding baseline",
+                    ctx.Aircraft.Callsign,
+                    targetCallsign
+                );
+            }
             return null;
         }
 
@@ -1458,12 +1490,15 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: extended {Limit:F1}nm past base behind {Target} without spacing, ending follow",
-            ctx.Aircraft.Callsign,
-            VfrFollowPhase.BaseExtensionLimitNm,
-            target
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: extended {Limit:F1}nm past base behind {Target} without spacing, ending follow",
+                ctx.Aircraft.Callsign,
+                VfrFollowPhase.BaseExtensionLimitNm,
+                target
+            );
+        }
         EndFollowExtendingDownwind(ctx, target);
         return true;
     }
@@ -1521,13 +1556,16 @@ public static class AirborneFollowHelper
         bool shouldExtend = distance < (desired * ExtendDownwindThreshold);
         if (shouldExtend)
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: extending downwind, dist={Dist:F2}nm to {Target} (desired={Desired:F1}nm)",
-                ctx.Aircraft.Callsign,
-                distance,
-                targetCallsign,
-                desired
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: extending downwind, dist={Dist:F2}nm to {Target} (desired={Desired:F1}nm)",
+                    ctx.Aircraft.Callsign,
+                    distance,
+                    targetCallsign,
+                    desired
+                );
+            }
         }
 
         return shouldExtend;
@@ -1612,14 +1650,17 @@ public static class AirborneFollowHelper
 
         if (followerEtaSec < leadEtaSec + clearanceSec)
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: holding downwind to sequence behind {Target} (followerEta={FE:F0}s leadEta={LE:F0}s clearance={C:F0}s)",
-                follower.Callsign,
-                targetCallsign,
-                followerEtaSec,
-                leadEtaSec,
-                clearanceSec
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: holding downwind to sequence behind {Target} (followerEta={FE:F0}s leadEta={LE:F0}s clearance={C:F0}s)",
+                    follower.Callsign,
+                    targetCallsign,
+                    followerEtaSec,
+                    leadEtaSec,
+                    clearanceSec
+                );
+            }
             return true;
         }
 
@@ -1636,15 +1677,18 @@ public static class AirborneFollowHelper
         bool hold = (leadRemainingAtRolloutNm > 0) && ((finalLengthNm - leadRemainingAtRolloutNm) < desired);
         if (hold)
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: holding downwind to sequence behind {Target} (rollout final={F:F2}nm, "
-                    + "lead would be {L:F2}nm out, desired={D:F1})",
-                follower.Callsign,
-                targetCallsign,
-                finalLengthNm,
-                leadRemainingAtRolloutNm,
-                desired
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: holding downwind to sequence behind {Target} (rollout final={F:F2}nm, "
+                        + "lead would be {L:F2}nm out, desired={D:F1})",
+                    follower.Callsign,
+                    targetCallsign,
+                    finalLengthNm,
+                    leadRemainingAtRolloutNm,
+                    desired
+                );
+            }
         }
 
         return hold;
@@ -1706,12 +1750,15 @@ public static class AirborneFollowHelper
         bool forward = Math.Abs(relativeBearing) <= LeadPassedRelativeBearingDeg;
         if (forward)
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: holding downwind, {Target} still forward of the 3-9 line (relative bearing {Rb:F0})",
-                follower.Callsign,
-                lead.Callsign,
-                relativeBearing
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: holding downwind, {Target} still forward of the 3-9 line (relative bearing {Rb:F0})",
+                    follower.Callsign,
+                    lead.Callsign,
+                    relativeBearing
+                );
+            }
         }
 
         return forward;
@@ -1995,7 +2042,10 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        Log.LogDebug("[Follow] {Callsign}: past {Target}'s downwind join before it joined, ending follow", follower.Callsign, target);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Follow] {Callsign}: past {Target}'s downwind join before it joined, ending follow", follower.Callsign, target);
+        }
         EndFollowExtendingDownwind(ctx, target);
         return true;
     }
@@ -2139,15 +2189,18 @@ public static class AirborneFollowHelper
         bool hold = remainingFollower < (remainingLead + desired);
         if (hold)
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: holding {Leg} to sequence behind {Target} (remFollower={RF:F2} remLead={RL:F2} desired={D:F1})",
-                ctx.Aircraft.Callsign,
-                ctx.Aircraft.Phases?.CurrentPhase?.Name,
-                targetCallsign,
-                remainingFollower,
-                remainingLead,
-                desired
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: holding {Leg} to sequence behind {Target} (remFollower={RF:F2} remLead={RL:F2} desired={D:F1})",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.Phases?.CurrentPhase?.Name,
+                    targetCallsign,
+                    remainingFollower,
+                    remainingLead,
+                    desired
+                );
+            }
         }
 
         return hold;
@@ -2203,16 +2256,19 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), "
-                + "Vref {Vref:F0}kt vs lead IAS {LeadIas:F0}kt; breaking off + going around",
-            ctx.Aircraft.Callsign,
-            targetCallsign,
-            gap,
-            FollowBreakOffGapNm,
-            followerVref,
-            lead.IndicatedAirspeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), "
+                    + "Vref {Vref:F0}kt vs lead IAS {LeadIas:F0}kt; breaking off + going around",
+                ctx.Aircraft.Callsign,
+                targetCallsign,
+                gap,
+                FollowBreakOffGapNm,
+                followerVref,
+                lead.IndicatedAirspeed
+            );
+        }
         return true;
     }
 
@@ -2444,23 +2500,29 @@ public static class AirborneFollowHelper
 
             widen.Side = side;
             widen.Active = true;
-            Log.LogDebug(
-                "[Follow] {Callsign}: spacing excursion {Side} of the lead's track, gap {Gap:F2} nm along its path, goal {Goal:F2} nm",
-                follower.Callsign,
-                widen.Side > 0 ? "right" : "left",
-                reference.GapNm,
-                goalNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: spacing excursion {Side} of the lead's track, gap {Gap:F2} nm along its path, goal {Goal:F2} nm",
+                    follower.Callsign,
+                    widen.Side > 0 ? "right" : "left",
+                    reference.GapNm,
+                    goalNm
+                );
+            }
         }
         else if (widen.Active && (reference.GapNm >= goalNm))
         {
             widen.Active = false;
-            Log.LogDebug(
-                "[Follow] {Callsign}: spacing excursion ended, gap {Gap:F2} nm along the lead's path, {Off:F2} nm off it",
-                follower.Callsign,
-                reference.GapNm,
-                offPathNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: spacing excursion ended, gap {Gap:F2} nm along the lead's path, {Off:F2} nm off it",
+                    follower.Callsign,
+                    reference.GapNm,
+                    offPathNm
+                );
+            }
         }
     }
 

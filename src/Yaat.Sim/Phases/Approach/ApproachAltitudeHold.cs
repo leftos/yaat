@@ -37,7 +37,10 @@ internal static class ApproachAltitudeHold
     {
         if (aircraft.Phases?.AssignedRunway is not { } runway)
         {
-            Log.LogDebug("{Callsign}: no assigned runway to measure the final approach fix from; treated as inside", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: no assigned runway to measure the final approach fix from; treated as inside", aircraft.Callsign);
+            }
             return false;
         }
 
@@ -61,7 +64,15 @@ internal static class ApproachAltitudeHold
         }
 
         clearance.AltitudeHeldUntilEstablished = true;
-        Log.LogDebug("{Callsign}: {Altitude} held until established on {Phase}", aircraft.Callsign, aircraft.Targets.AssignedAltitude, phase.Name);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: {Altitude} held until established on {Phase}",
+                aircraft.Callsign,
+                aircraft.Targets.AssignedAltitude,
+                phase.Name
+            );
+        }
     }
 
     /// <summary>True while a controller's altitude is held until established.</summary>
@@ -77,6 +88,9 @@ internal static class ApproachAltitudeHold
 
         clearance.AltitudeHeldUntilEstablished = false;
         aircraft.Targets.AssignedAltitude = null;
-        Log.LogDebug("{Callsign}: held altitude released ({Reason}); published altitudes resume", aircraft.Callsign, reason);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: held altitude released ({Reason}); published altitudes resume", aircraft.Callsign, reason);
+        }
     }
 }

@@ -59,13 +59,16 @@ public sealed class ApproachNavigationPhase : Phase
             NavigateToCurrentFix(ctx);
         }
 
-        Log.LogDebug(
-            "[ApproachNav] {Callsign}: started at fix {Index}, {Count} fixes [{Names}]",
-            ctx.Aircraft.Callsign,
-            _currentFixIndex,
-            Fixes.Count,
-            string.Join(" → ", Fixes.Select(f => f.Name))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ApproachNav] {Callsign}: started at fix {Index}, {Count} fixes [{Names}]",
+                ctx.Aircraft.Callsign,
+                _currentFixIndex,
+                Fixes.Count,
+                string.Join(" → ", Fixes.Select(f => f.Name))
+            );
+        }
     }
 
     /// <summary>The index of the first fix no farther from the inbound anchor, along the inbound course, than the aircraft.</summary>
@@ -140,15 +143,18 @@ public sealed class ApproachNavigationPhase : Phase
 
         if (shouldSequence)
         {
-            Log.LogDebug(
-                "[ApproachNav] {Callsign}: reached fix {Fix} ({Idx}/{Total}), alt={Alt:F0}ft, IAS={Ias:F0}kts",
-                ctx.Aircraft.Callsign,
-                fix.Name,
-                _currentFixIndex + 1,
-                Fixes.Count,
-                ctx.Aircraft.Altitude,
-                ctx.Aircraft.IndicatedAirspeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[ApproachNav] {Callsign}: reached fix {Fix} ({Idx}/{Total}), alt={Alt:F0}ft, IAS={Ias:F0}kts",
+                    ctx.Aircraft.Callsign,
+                    fix.Name,
+                    _currentFixIndex + 1,
+                    Fixes.Count,
+                    ctx.Aircraft.Altitude,
+                    ctx.Aircraft.IndicatedAirspeed
+                );
+            }
 
             _currentFixIndex++;
 

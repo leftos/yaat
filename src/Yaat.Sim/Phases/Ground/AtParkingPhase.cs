@@ -34,7 +34,10 @@ public sealed class AtParkingPhase : Phase
             ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
         }
 
-        Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.Ground.ParkingSpot ?? "unknown");
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.Ground.ParkingSpot ?? "unknown");
+        }
     }
 
     /// <summary>
@@ -91,11 +94,14 @@ public sealed class AtParkingPhase : Phase
             || (afterPushOwed && ground.HasAnnouncedReady);
         if (owedHere)
         {
-            Log.LogDebug(
-                "[Parking] {Callsign}: left the stand with its {Plan} call unmade; plan dropped",
-                ctx.Aircraft.Callsign,
-                ground.InitialCallup
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Parking] {Callsign}: left the stand with its {Plan} call unmade; plan dropped",
+                    ctx.Aircraft.Callsign,
+                    ground.InitialCallup
+                );
+            }
             ground.InitialCallup = InitialCallupPlan.None;
         }
     }

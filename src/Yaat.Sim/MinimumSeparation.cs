@@ -63,7 +63,10 @@ public static class MinimumSeparation
     {
         if (!IsValid(a) || !IsValid(b))
         {
-            Log.LogDebug("Min sep invalid: {A} / {B}", a, b);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Min sep invalid: {A} / {B}", a, b);
+            }
             return MinSepInvalid.Instance;
         }
 

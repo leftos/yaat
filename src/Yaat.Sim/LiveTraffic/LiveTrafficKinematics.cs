@@ -159,12 +159,15 @@ public static class LiveTrafficKinematics
         AircraftLiveTraffic lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         if (sample.ObservedAtSimSeconds <= lt.ObservedAtSimSeconds)
         {
-            Log.LogDebug(
-                "Ignoring stale live sample for {Callsign}: observed {Observed}s ≤ stored {Stored}s",
-                ac.Callsign,
-                sample.ObservedAtSimSeconds,
-                lt.ObservedAtSimSeconds
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Ignoring stale live sample for {Callsign}: observed {Observed}s ≤ stored {Stored}s",
+                    ac.Callsign,
+                    sample.ObservedAtSimSeconds,
+                    lt.ObservedAtSimSeconds
+                );
+            }
             return false;
         }
 
@@ -174,7 +177,10 @@ public static class LiveTrafficKinematics
             double jumpNm = GeoMath.DistanceNm(ac.Position, sample.Position);
             if (jumpNm > JumpLogThresholdNm)
             {
-                Log.LogDebug("Live sample for {Callsign} jumps {Jump:F2} nm from the dead-reckoned position", ac.Callsign, jumpNm);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Live sample for {Callsign} jumps {Jump:F2} nm from the dead-reckoned position", ac.Callsign, jumpNm);
+                }
             }
         }
 

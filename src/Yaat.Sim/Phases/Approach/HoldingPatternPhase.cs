@@ -81,15 +81,18 @@ public sealed class HoldingPatternPhase : Phase
 
         _entry = Entry ?? HoldingEntryCalculator.ComputeEntry(ctx.Aircraft.TrueHeading, InboundCourse, Direction);
 
-        Log.LogDebug(
-            "[HoldingPattern] {Callsign}: started at {Fix}, inbound={Crs:000}, {Dir}, entry={Entry}, maxCircuits={Max}",
-            ctx.Aircraft.Callsign,
-            FixName,
-            InboundCourse,
-            Direction,
-            _entry,
-            MaxCircuits?.ToString() ?? "unlimited"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HoldingPattern] {Callsign}: started at {Fix}, inbound={Crs:000}, {Dir}, entry={Entry}, maxCircuits={Max}",
+                ctx.Aircraft.Callsign,
+                FixName,
+                InboundCourse,
+                Direction,
+                _entry,
+                MaxCircuits?.ToString() ?? "unlimited"
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -143,7 +146,10 @@ public sealed class HoldingPatternPhase : Phase
         Commands.FlightCommandHandler.EndMachHoldAndSpeedMax(ctx.Aircraft);
         DecelerateToHoldingSpeed(ctx);
         ctx.Targets.NavigationRoute.Clear();
-        Log.LogDebug("[HoldingPattern] {Callsign}: at fix, entering via {Entry}", ctx.Aircraft.Callsign, _entry);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[HoldingPattern] {Callsign}: at fix, entering via {Entry}", ctx.Aircraft.Callsign, _entry);
+        }
 
         switch (_entry)
         {
@@ -218,12 +224,18 @@ public sealed class HoldingPatternPhase : Phase
         if (AtFix(ctx))
         {
             _circuitsCompleted++;
-            Log.LogDebug("[HoldingPattern] {Callsign}: circuit {N} complete", ctx.Aircraft.Callsign, _circuitsCompleted);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[HoldingPattern] {Callsign}: circuit {N} complete", ctx.Aircraft.Callsign, _circuitsCompleted);
+            }
 
             if (MaxCircuits is { } max && _circuitsCompleted >= max)
             {
                 ctx.Targets.NavigationRoute.Clear();
-                Log.LogDebug("[HoldingPattern] {Callsign}: max circuits reached, exiting", ctx.Aircraft.Callsign);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[HoldingPattern] {Callsign}: max circuits reached, exiting", ctx.Aircraft.Callsign);
+                }
                 return true;
             }
 

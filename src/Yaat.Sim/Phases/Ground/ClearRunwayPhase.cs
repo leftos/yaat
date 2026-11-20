@@ -149,14 +149,17 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
 
         _alreadyAtStop = IsAtOrPastStop(ctx.Aircraft, runwayNode, _stop);
         _initialized = true;
-        Log.LogDebug(
-            "[ClearRunway] {Callsign}: pulling forward {PastBar:F0}ft past RWY node {Rwy}, nose held short of bar {Bar}{AtStop}",
-            ctx.Aircraft.Callsign,
-            _stop.PastBarFt,
-            _runwayNodeId,
-            _stop.HeldShortOfBar?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)",
-            _alreadyAtStop ? "; already there, holding" : ""
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ClearRunway] {Callsign}: pulling forward {PastBar:F0}ft past RWY node {Rwy}, nose held short of bar {Bar}{AtStop}",
+                ctx.Aircraft.Callsign,
+                _stop.PastBarFt,
+                _runwayNodeId,
+                _stop.HeldShortOfBar?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)",
+                _alreadyAtStop ? "; already there, holding" : ""
+            );
+        }
         if (_alreadyAtStop)
         {
             _restoredNavigator = null;
@@ -239,13 +242,16 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             (_alreadyAtStop && IsNosePastBar(ctx.Aircraft, runwayNode, otherBar))
                 ? null
                 : RunwayTailClearance.HeldShortRunwayEnd(layout, otherBar, clearedInfo, ctx.Aircraft, ctx.ActiveRunways);
-        Log.LogInformation(
-            "[ClearRunway] {Callsign}: nose {Where} on {Twy}, tail still inside {Runway}'s line — holding, not clear",
-            ctx.Aircraft.Callsign,
-            otherEnd is null ? $"already past bar {otherBar.Id}" : $"at runway {otherEnd}'s line",
-            ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway",
-            clearedEnd
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[ClearRunway] {Callsign}: nose {Where} on {Twy}, tail still inside {Runway}'s line — holding, not clear",
+                ctx.Aircraft.Callsign,
+                otherEnd is null ? $"already past bar {otherBar.Id}" : $"at runway {otherEnd}'s line",
+                ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway",
+                clearedEnd
+            );
+        }
         phases.ReplaceUpcoming([new HoldingInPositionPhase(otherEnd, clearedEnd)]);
     }
 

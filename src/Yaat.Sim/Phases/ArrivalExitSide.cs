@@ -82,13 +82,16 @@ public static class ArrivalExitSide
         ExitSide? side = sidecars.GetExitDirection(layout.AirportId, runway.Designator, arrivalClass);
         if (side is not null)
         {
-            Log.LogDebug(
-                "{Callsign}: {Class} arrival on {Runway} exits {Side} by the sidecar",
-                aircraft.Callsign,
-                arrivalClass,
-                runway.Designator,
-                side
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: {Class} arrival on {Runway} exits {Side} by the sidecar",
+                    aircraft.Callsign,
+                    arrivalClass,
+                    runway.Designator,
+                    side
+                );
+            }
         }
 
         return side;
@@ -161,13 +164,16 @@ public static class ArrivalExitSide
         List<LatLon> stands = StandPositions(remark, layout, sidecars.GetParkingAreas(layout.AirportId));
         if (stands.Count == 0)
         {
-            Log.LogDebug(
-                "{Callsign}: parking remark {Area}/{Stand} names no stand of {Airport}",
-                aircraft.Callsign,
-                remark.Area,
-                remark.Stand,
-                layout.AirportId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: parking remark {Area}/{Stand} names no stand of {Airport}",
+                    aircraft.Callsign,
+                    remark.Area,
+                    remark.Stand,
+                    layout.AirportId
+                );
+            }
             return null;
         }
 
@@ -178,16 +184,19 @@ public static class ArrivalExitSide
             Math.Abs(crossTrackFt) <= ParkingDeadBandFt ? null
             : crossTrackFt > 0 ? ExitSide.Right
             : ExitSide.Left;
-        Log.LogDebug(
-            "{Callsign}: parking remark {Area}/{Stand} lies {CrossTrackFt:F0} ft right of {Runway}'s centreline ({Count} stands): {Side}",
-            aircraft.Callsign,
-            remark.Area,
-            remark.Stand,
-            crossTrackFt,
-            runway.Designator,
-            stands.Count,
-            side?.ToString() ?? "no side"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: parking remark {Area}/{Stand} lies {CrossTrackFt:F0} ft right of {Runway}'s centreline ({Count} stands): {Side}",
+                aircraft.Callsign,
+                remark.Area,
+                remark.Stand,
+                crossTrackFt,
+                runway.Designator,
+                stands.Count,
+                side?.ToString() ?? "no side"
+            );
+        }
         return side;
     }
 

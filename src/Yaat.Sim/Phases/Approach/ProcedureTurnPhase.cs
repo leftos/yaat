@@ -75,15 +75,18 @@ public sealed class ProcedureTurnPhase : Phase
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat, FixLon) });
         ClampPtSpeed(ctx);
-        Log.LogDebug(
-            "[ProcedureTurn] {Callsign}: navigating to {Fix} (inbound={Crs:000}T, ptOut={Pt:000}T, 180°{Dir}, ≥{Alt}ft)",
-            ctx.Aircraft.Callsign,
-            FixName,
-            InboundCourseDeg,
-            PtOutboundCourseDeg,
-            OneEightyTurnDirection,
-            MinAltitudeFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ProcedureTurn] {Callsign}: navigating to {Fix} (inbound={Crs:000}T, ptOut={Pt:000}T, 180°{Dir}, ≥{Alt}ft)",
+                ctx.Aircraft.Callsign,
+                FixName,
+                InboundCourseDeg,
+                PtOutboundCourseDeg,
+                OneEightyTurnDirection,
+                MinAltitudeFt
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -137,12 +140,15 @@ public sealed class ProcedureTurnPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         _state = PtState.Outbound;
 
-        Log.LogDebug(
-            "[ProcedureTurn] {Callsign}: at {Fix}, flying outbound heading {Hdg:000}T",
-            ctx.Aircraft.Callsign,
-            FixName,
-            outboundHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ProcedureTurn] {Callsign}: at {Fix}, flying outbound heading {Hdg:000}T",
+                ctx.Aircraft.Callsign,
+                FixName,
+                outboundHeading.Degrees
+            );
+        }
     }
 
     private void TickOutbound(PhaseContext ctx)
@@ -173,11 +179,14 @@ public sealed class ProcedureTurnPhase : Phase
         ctx.Targets.PreferredTurnDirection = OneEightyTurnDirection == TurnDirection.Left ? TurnDirection.Right : TurnDirection.Left;
         _state = PtState.TurnToPtOutbound;
 
-        Log.LogDebug(
-            "[ProcedureTurn] {Callsign}: outbound established, turning to PT heading {Hdg:000}T",
-            ctx.Aircraft.Callsign,
-            PtOutboundCourseDeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ProcedureTurn] {Callsign}: outbound established, turning to PT heading {Hdg:000}T",
+                ctx.Aircraft.Callsign,
+                PtOutboundCourseDeg
+            );
+        }
     }
 
     private void TickTurnToPtOutbound(PhaseContext ctx)
@@ -194,7 +203,10 @@ public sealed class ProcedureTurnPhase : Phase
         _ptOutboundTimerSeconds = DefaultPtOutboundSeconds;
         _state = PtState.PtOutbound;
 
-        Log.LogDebug("[ProcedureTurn] {Callsign}: PT outbound established, holding for {Sec}s", ctx.Aircraft.Callsign, _ptOutboundTimerSeconds);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[ProcedureTurn] {Callsign}: PT outbound established, holding for {Sec}s", ctx.Aircraft.Callsign, _ptOutboundTimerSeconds);
+        }
     }
 
     private void TickPtOutbound(PhaseContext ctx)
@@ -240,15 +252,18 @@ public sealed class ProcedureTurnPhase : Phase
         ctx.Targets.PreferredTurnDirection = OneEightyTurnDirection;
         _state = PtState.TurnToInbound;
 
-        Log.LogDebug(
-            "[ProcedureTurn] {Callsign}: starting 180° {Dir} turn to {Hdg:000}T ({Reason}, dist={Dist:F1}nm, alt={Alt:F0})",
-            ctx.Aircraft.Callsign,
-            OneEightyTurnDirection,
-            TurnBackHeading.Degrees,
-            reason,
-            distFromFix,
-            ctx.Aircraft.Altitude
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ProcedureTurn] {Callsign}: starting 180° {Dir} turn to {Hdg:000}T ({Reason}, dist={Dist:F1}nm, alt={Alt:F0})",
+                ctx.Aircraft.Callsign,
+                OneEightyTurnDirection,
+                TurnBackHeading.Degrees,
+                reason,
+                distFromFix,
+                ctx.Aircraft.Altitude
+            );
+        }
     }
 
     private void TickTurnToInbound(PhaseContext ctx)
@@ -264,7 +279,10 @@ public sealed class ProcedureTurnPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         _state = PtState.InterceptInbound;
 
-        Log.LogDebug("[ProcedureTurn] {Callsign}: turn complete, intercepting inbound", ctx.Aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[ProcedureTurn] {Callsign}: turn complete, intercepting inbound", ctx.Aircraft.Callsign);
+        }
     }
 
     private bool TickInterceptInbound(PhaseContext ctx)
@@ -296,12 +314,15 @@ public sealed class ProcedureTurnPhase : Phase
 
         // Hand off to the next phase (ApproachNavigation / FinalApproach) — clear our nav.
         ctx.Targets.NavigationRoute.Clear();
-        Log.LogDebug(
-            "[ProcedureTurn] {Callsign}: established inbound (xtrack={XT:F2}nm, deviation={Dev:F1}°), exiting",
-            ctx.Aircraft.Callsign,
-            crossTrackNm,
-            angularDeviationDeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ProcedureTurn] {Callsign}: established inbound (xtrack={XT:F2}nm, deviation={Dev:F1}°), exiting",
+                ctx.Aircraft.Callsign,
+                crossTrackNm,
+                angularDeviationDeg
+            );
+        }
         return true;
     }
 

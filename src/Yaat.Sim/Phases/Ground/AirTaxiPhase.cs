@@ -63,15 +63,18 @@ public sealed class AirTaxiPhase(double targetLat, double targetLon, string? des
             ctx.Targets.TargetAltitude = _targetAltitude;
         }
 
-        Log.LogDebug(
-            "[AirTaxi] {Callsign}: started → {Dest} at ({Lat:F6},{Lon:F6}), targetAlt={Alt:F0}, speed={Spd:F0}",
-            ctx.Aircraft.Callsign,
-            _destinationName ?? "direct",
-            _targetLat,
-            _targetLon,
-            _targetAltitude,
-            maxSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[AirTaxi] {Callsign}: started → {Dest} at ({Lat:F6},{Lon:F6}), targetAlt={Alt:F0}, speed={Spd:F0}",
+                ctx.Aircraft.Callsign,
+                _destinationName ?? "direct",
+                _targetLat,
+                _targetLon,
+                _targetAltitude,
+                maxSpeed
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -121,16 +124,19 @@ public sealed class AirTaxiPhase(double targetLat, double targetLon, string? des
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            Log.LogTrace(
-                "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}, tgtSpd={Tgt:F0}",
-                ctx.Aircraft.Callsign,
-                dist,
-                ctx.Aircraft.TrueHeading.Degrees,
-                brg,
-                ctx.Aircraft.Altitude,
-                ctx.Aircraft.GroundSpeed,
-                ctx.Targets.TargetSpeed ?? 0
-            );
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace(
+                    "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}, tgtSpd={Tgt:F0}",
+                    ctx.Aircraft.Callsign,
+                    dist,
+                    ctx.Aircraft.TrueHeading.Degrees,
+                    brg,
+                    ctx.Aircraft.Altitude,
+                    ctx.Aircraft.GroundSpeed,
+                    ctx.Targets.TargetSpeed ?? 0
+                );
+            }
         }
 
         // Complete when at the spot AND stopped.
@@ -139,7 +145,10 @@ public sealed class AirTaxiPhase(double targetLat, double targetLon, string? des
             if (!_descending)
             {
                 _descending = true;
-                Log.LogDebug("[AirTaxi] {Callsign}: arrived over {Dest}, hovering", ctx.Aircraft.Callsign, _destinationName ?? "destination");
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[AirTaxi] {Callsign}: arrived over {Dest}, hovering", ctx.Aircraft.Callsign, _destinationName ?? "destination");
+                }
             }
             return true;
         }
@@ -156,7 +165,10 @@ public sealed class AirTaxiPhase(double targetLat, double targetLon, string? des
             ctx.Targets.TurnRateOverride = null;
         }
 
-        Log.LogDebug("[AirTaxi] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[AirTaxi] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
+        }
     }
 
     /// <summary>
