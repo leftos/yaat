@@ -452,22 +452,25 @@ public sealed class PushbackPhase : Phase
             Drive(ctx, pose);
         }
 
-        Log.LogDebug(
-            "[Push] {Callsign}: started {Kind} {Shape} (tight={Tight}, creep={Creep}, dwell={Dwell}, stand={Stand}), nose={Nose:F1}, "
-                + "plannedEnd=({EndLat:F6},{EndLon:F6}), pos=({Lat:F6},{Lon:F6})",
-            aircraft.Callsign,
-            Move.Kind,
-            Move.Shape,
-            Move.Tight,
-            Move.Creep,
-            Move.DwellBefore,
-            StartsAtStand,
-            pose.NoseTrueDeg,
-            PlannedEnd.Lat,
-            PlannedEnd.Lon,
-            pose.Position.Lat,
-            pose.Position.Lon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Push] {Callsign}: started {Kind} {Shape} (tight={Tight}, creep={Creep}, dwell={Dwell}, stand={Stand}), nose={Nose:F1}, "
+                    + "plannedEnd=({EndLat:F6},{EndLon:F6}), pos=({Lat:F6},{Lon:F6})",
+                aircraft.Callsign,
+                Move.Kind,
+                Move.Shape,
+                Move.Tight,
+                Move.Creep,
+                Move.DwellBefore,
+                StartsAtStand,
+                pose.NoseTrueDeg,
+                PlannedEnd.Lat,
+                PlannedEnd.Lon,
+                pose.Position.Lat,
+                pose.Position.Lon
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -488,15 +491,18 @@ public sealed class PushbackPhase : Phase
         if (TugKinematics.IsComplete(pose, Move, _progress))
         {
             HandOver(ctx, pose);
-            Log.LogDebug(
-                "[Push] {Callsign}: {Kind} {Shape} complete after {DistanceFt:F1} ft, {OffEndFt:F2} ft off the planned end, nose={Nose:F1}",
-                aircraft.Callsign,
-                Move.Kind,
-                Move.Shape,
-                _progress.DistanceFt,
-                FeetBetween(pose.Position, PlannedEnd),
-                pose.NoseTrueDeg
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Push] {Callsign}: {Kind} {Shape} complete after {DistanceFt:F1} ft, {OffEndFt:F2} ft off the planned end, nose={Nose:F1}",
+                    aircraft.Callsign,
+                    Move.Kind,
+                    Move.Shape,
+                    _progress.DistanceFt,
+                    FeetBetween(pose.Position, PlannedEnd),
+                    pose.NoseTrueDeg
+                );
+            }
             return true;
         }
 
@@ -522,13 +528,16 @@ public sealed class PushbackPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        Log.LogDebug(
-            "[Push] {Callsign}: OnEnd ({Status}), moved {DistanceFt:F1} ft, hdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            endStatus,
-            _progress.DistanceFt,
-            ctx.Aircraft.TrueHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Push] {Callsign}: OnEnd ({Status}), moved {DistanceFt:F1} ft, hdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                endStatus,
+                _progress.DistanceFt,
+                ctx.Aircraft.TrueHeading.Degrees
+            );
+        }
 
         // Only a move that ran to completion hands its speed to the move behind it. Every other end is a command clearing
         // the move — a TAXI, TAXIAUTO, AIRTAXI, LAND, DEL or PUSHM — or an abort. One that finds the aircraft still moving
@@ -1023,16 +1032,19 @@ public sealed class PushbackPhase : Phase
         }
 
         _progressPending = false;
-        Log.LogDebug(
-            "[Push] {Callsign}: resumed a pre-tug-move pushback as {Kind} {Shape} (straight {DistanceFt:F1} ft), "
-                + "plannedEnd=({EndLat:F6},{EndLon:F6})",
-            aircraft.Callsign,
-            Move.Kind,
-            Move.Shape,
-            Move.StraightDistanceFt,
-            PlannedEnd.Lat,
-            PlannedEnd.Lon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Push] {Callsign}: resumed a pre-tug-move pushback as {Kind} {Shape} (straight {DistanceFt:F1} ft), "
+                    + "plannedEnd=({EndLat:F6},{EndLon:F6})",
+                aircraft.Callsign,
+                Move.Kind,
+                Move.Shape,
+                Move.StraightDistanceFt,
+                PlannedEnd.Lat,
+                PlannedEnd.Lon
+            );
+        }
     }
 
     private void TraceProgress(PhaseContext ctx)
@@ -1045,17 +1057,20 @@ public sealed class PushbackPhase : Phase
 
         _timeSinceLastLog = 0;
         AircraftState aircraft = ctx.Aircraft;
-        Log.LogTrace(
-            "[Push] {Callsign}: {Kind} {Shape} moved={Moved:F1}ft, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, toEnd={ToEnd:F1}ft",
-            aircraft.Callsign,
-            Move.Kind,
-            Move.Shape,
-            _progress.DistanceFt,
-            aircraft.GroundSpeed,
-            aircraft.Ground.PushbackTrueHeading?.Degrees ?? 0,
-            aircraft.TrueHeading.Degrees,
-            FeetBetween(aircraft.Position, PlannedEnd)
-        );
+        if (Log.IsEnabled(LogLevel.Trace))
+        {
+            Log.LogTrace(
+                "[Push] {Callsign}: {Kind} {Shape} moved={Moved:F1}ft, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, toEnd={ToEnd:F1}ft",
+                aircraft.Callsign,
+                Move.Kind,
+                Move.Shape,
+                _progress.DistanceFt,
+                aircraft.GroundSpeed,
+                aircraft.Ground.PushbackTrueHeading?.Degrees ?? 0,
+                aircraft.TrueHeading.Degrees,
+                FeetBetween(aircraft.Position, PlannedEnd)
+            );
+        }
     }
 
     private static PushbackPose PoseOf(AircraftState aircraft) => new(aircraft.Position, aircraft.TrueHeading.Degrees);

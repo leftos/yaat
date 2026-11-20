@@ -199,14 +199,17 @@ public static class PathPrimitiveBuilder
     {
         if (TangentExit(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, rightTurn) is not { } exit || (exit.SweepDeg > MaxAimSweepDeg))
         {
-            Log.LogDebug(
-                "[PathPrimitive] SlowTurnToPointDirected: no {Sense} tangent to ({TargetLat:F6},{TargetLon:F6}) at r={R:F0}ft from hdg {Hdg:F0}",
-                rightTurn ? "right" : "left",
-                targetLat,
-                targetLon,
-                radiusFt,
-                fromHdgDeg
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[PathPrimitive] SlowTurnToPointDirected: no {Sense} tangent to ({TargetLat:F6},{TargetLon:F6}) at r={R:F0}ft from hdg {Hdg:F0}",
+                    rightTurn ? "right" : "left",
+                    targetLat,
+                    targetLon,
+                    radiusFt,
+                    fromHdgDeg
+                );
+            }
             return null;
         }
 

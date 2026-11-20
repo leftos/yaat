@@ -89,13 +89,16 @@ public sealed class HoldingInPositionPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        Log.LogDebug(
-            "[Hold] {Callsign}: holding in position at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            ctx.Aircraft.TrueHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Hold] {Callsign}: holding in position at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                ctx.Aircraft.TrueHeading.Degrees
+            );
+        }
 
         if (TailInsideRunway is { } cleared)
         {
@@ -112,13 +115,16 @@ public sealed class HoldingInPositionPhase : Phase
     private static void ReportNotClear(PhaseContext ctx, string? other, string cleared)
     {
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
-        Log.LogDebug(
-            "[Hold] {Callsign}: nose {Where} on {Twy}, tail inside {Runway}'s line — reporting not clear",
-            ctx.Aircraft.Callsign,
-            other is null ? "past another runway's line" : $"at runway {other}'s line",
-            taxiway,
-            cleared
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Hold] {Callsign}: nose {Where} on {Twy}, tail inside {Runway}'s line — reporting not clear",
+                ctx.Aircraft.Callsign,
+                other is null ? "past another runway's line" : $"at runway {other}'s line",
+                taxiway,
+                cleared
+            );
+        }
         PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
             PilotReportRouting.From(ctx),

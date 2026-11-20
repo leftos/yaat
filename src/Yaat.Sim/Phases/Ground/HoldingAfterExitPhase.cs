@@ -86,17 +86,23 @@ public sealed class HoldingAfterExitPhase : Phase
         // runway itself, so the pilot has nothing to report clear of.
         if ((_exitTaxiway is null) && (ctx.GroundLayout is not { HasTaxiGraph: true }))
         {
-            Log.LogDebug("[Exit] {Callsign}: no taxi graph, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Exit] {Callsign}: no taxi graph, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
+            }
         }
         else if (_heldShortOfRunway is { } otherRunway)
         {
-            Log.LogDebug(
-                "[Exit] {Callsign}: nose at runway {Other}'s line on {Twy}, tail inside {Runway}'s — reporting not clear",
-                ctx.Aircraft.Callsign,
-                otherRunway,
-                twy,
-                rwy
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Exit] {Callsign}: nose at runway {Other}'s line on {Twy}, tail inside {Runway}'s — reporting not clear",
+                    ctx.Aircraft.Callsign,
+                    otherRunway,
+                    twy,
+                    rwy
+                );
+            }
             Pilot.PilotResponder.RouteByTunedPosition(
                 ctx.Aircraft,
                 Pilot.PilotReportRouting.From(ctx),
@@ -105,12 +111,15 @@ public sealed class HoldingAfterExitPhase : Phase
         }
         else if (_stoppedInsideHoldingDistance)
         {
-            Log.LogDebug(
-                "[Exit] {Callsign}: holding at bar #{Bar} inside the {Runway} holding distance — no clear-of-runway call",
-                ctx.Aircraft.Callsign,
-                _holdShortNodeId,
-                _runwayId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Exit] {Callsign}: holding at bar #{Bar} inside the {Runway} holding distance — no clear-of-runway call",
+                    ctx.Aircraft.Callsign,
+                    _holdShortNodeId,
+                    _runwayId
+                );
+            }
         }
         else
         {
@@ -120,13 +129,16 @@ public sealed class HoldingAfterExitPhase : Phase
             Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), text);
         }
 
-        Log.LogDebug(
-            "[Exit] {Callsign}: holding after exit at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            ctx.Aircraft.TrueHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: holding after exit at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                ctx.Aircraft.TrueHeading.Degrees
+            );
+        }
     }
 
     private bool IsStopInsideHoldingDistance(PhaseContext ctx)

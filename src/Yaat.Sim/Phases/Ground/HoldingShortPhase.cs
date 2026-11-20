@@ -70,13 +70,16 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
         // phases (AtParkingPhase, HoldingAfterExitPhase, etc.).
         ctx.Targets.TargetTrueHeading = null;
 
-        Log.LogDebug(
-            "[HoldShort] {Callsign}: holding short of {Target}, nodeId={NodeId}, reason={Reason}",
-            ctx.Aircraft.Callsign,
-            _holdShort.TargetName ?? "unknown",
-            _holdShort.NodeId,
-            _holdShort.Reason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HoldShort] {Callsign}: holding short of {Target}, nodeId={NodeId}, reason={Reason}",
+                ctx.Aircraft.Callsign,
+                _holdShort.TargetName ?? "unknown",
+                _holdShort.NodeId,
+                _holdShort.Reason
+            );
+        }
 
         _displayEnd = RunwayCrossingEnd.ActiveEndOf(ctx.Aircraft, _holdShort.TargetName, ctx.GroundLayout, ctx.ActiveRunways);
 
@@ -254,7 +257,11 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
                     return false;
                 }
 
-                Log.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
+                }
+
                 return true;
             }
         }
@@ -294,12 +301,17 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
         {
             _waitingForLead = waiting;
             _saidWaitForLead = false;
-            Log.LogDebug(
-                "[HoldShort] {Callsign}: {State} at {Target}",
-                ctx.Aircraft.Callsign,
-                waiting ? "released at the bar, holding for the follow's lead to be ahead on the shared route" : "the follow's lead is ahead; going",
-                _holdShort.TargetName ?? "unknown"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[HoldShort] {Callsign}: {State} at {Target}",
+                    ctx.Aircraft.Callsign,
+                    waiting
+                        ? "released at the bar, holding for the follow's lead to be ahead on the shared route"
+                        : "the follow's lead is ahead; going",
+                    _holdShort.TargetName ?? "unknown"
+                );
+            }
         }
 
         if (waiting)

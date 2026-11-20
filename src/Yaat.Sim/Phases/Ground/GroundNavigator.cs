@@ -369,25 +369,31 @@ public sealed class GroundNavigator
         _turnAboutRollOutOffsetFt = 0.0;
         if (LayStraightSquareToStop(stop, new LatLon(_segmentFromLat, _segmentFromLon), centreline))
         {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: stop at node {Node} on the offset line held {Offset:F1} ft inside the turn; re-laid the straight on "
+                        + "the centreline through it on {Bearing:F1}°",
+                    ctx.Aircraft.Callsign,
+                    TargetNodeId,
+                    offsetFt,
+                    centreline.Degrees
+                );
+            }
+            return;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
             Log.LogDebug(
-                "[Nav] {Callsign}: stop at node {Node} on the offset line held {Offset:F1} ft inside the turn; re-laid the straight on "
-                    + "the centreline through it on {Bearing:F1}°",
+                "[Nav] {Callsign}: stop at node {Node} on the offset line held {Offset:F1} ft inside the turn is not ahead on the "
+                    + "centreline {Bearing:F1}°; the offset is dropped and the straight left on its line",
                 ctx.Aircraft.Callsign,
                 TargetNodeId,
                 offsetFt,
                 centreline.Degrees
             );
-            return;
         }
-
-        Log.LogDebug(
-            "[Nav] {Callsign}: stop at node {Node} on the offset line held {Offset:F1} ft inside the turn is not ahead on the "
-                + "centreline {Bearing:F1}°; the offset is dropped and the straight left on its line",
-            ctx.Aircraft.Callsign,
-            TargetNodeId,
-            offsetFt,
-            centreline.Degrees
-        );
     }
 
     /// <summary>
@@ -1135,16 +1141,19 @@ public sealed class GroundNavigator
         _restoredForReplan = false;
         if (!WasPlaybackSavedOnSegment(seg, saved))
         {
-            Log.Log(
-                forReplan ? LogLevel.Debug : LogLevel.Warning,
-                "[Nav] {Callsign}: restored playback dropped after a {Cause} — saved on segment {SavedFrom}→{SavedTo}, set-up is for {From}→{To}",
-                ctx.Aircraft.Callsign,
-                forReplan ? "re-plan" : "restore",
-                saved.FromNodeId,
-                TargetNodeId,
-                seg.FromNodeId,
-                seg.ToNodeId
-            );
+            if (Log.IsEnabled(forReplan ? LogLevel.Debug : LogLevel.Warning))
+            {
+                Log.Log(
+                    forReplan ? LogLevel.Debug : LogLevel.Warning,
+                    "[Nav] {Callsign}: restored playback dropped after a {Cause} — saved on segment {SavedFrom}→{SavedTo}, set-up is for {From}→{To}",
+                    ctx.Aircraft.Callsign,
+                    forReplan ? "re-plan" : "restore",
+                    saved.FromNodeId,
+                    TargetNodeId,
+                    seg.FromNodeId,
+                    seg.ToNodeId
+                );
+            }
             return false;
         }
 
@@ -1164,14 +1173,17 @@ public sealed class GroundNavigator
         RestoreTurnAboutStops(saved);
         RestorePlaybackProgress(saved);
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
-        Log.LogDebug(
-            "[Nav] seg={SegIdx}/{Total}: resumed the restored {Kind} toward node {NodeId} (pendingSeg={Pending})",
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            _currentPrimitive.Kind,
-            TargetNodeId,
-            _pendingSegmentPrimitive is not null
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] seg={SegIdx}/{Total}: resumed the restored {Kind} toward node {NodeId} (pendingSeg={Pending})",
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                _currentPrimitive.Kind,
+                TargetNodeId,
+                _pendingSegmentPrimitive is not null
+            );
+        }
         return true;
     }
 
@@ -1239,21 +1251,24 @@ public sealed class GroundNavigator
     )
     {
         double segDepartureBearing = seg.Edge.DepartureBearing;
-        Log.LogDebug(
-            "[Nav] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
-                + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0}, "
-                + "sense={Sense}, reversalFlip={Flip}, aim={Aim})",
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            ctx.Aircraft.TrueHeading.Degrees,
-            segDepartureBearing,
-            new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
-            alignmentArc.RadiusFt,
-            alignmentArc.SweepDeg,
-            alignmentArc.RightTurn ? "right" : "left",
-            reversalFlip,
-            aim
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
+                    + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0}, "
+                    + "sense={Sense}, reversalFlip={Flip}, aim={Aim})",
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                ctx.Aircraft.TrueHeading.Degrees,
+                segDepartureBearing,
+                new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
+                alignmentArc.RadiusFt,
+                alignmentArc.SweepDeg,
+                alignmentArc.RightTurn ? "right" : "left",
+                reversalFlip,
+                aim
+            );
+        }
     }
 
     /// <summary>
@@ -1266,28 +1281,31 @@ public sealed class GroundNavigator
         GroundNode from = seg.Edge.FromNode;
         GroundNode to = seg.Edge.ToNode;
         double segDepartureBearing = seg.Edge.DepartureBearing;
-        Log.LogDebug(
-            "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
-                + "fromNode={FromId}@({FromLat:F6},{FromLon:F6}) toNode={ToId}@({ToLat:F6},{ToLon:F6}) "
-                + "twy={Twy} segBrg={SegBrg:F1} acHdg={Hdg:F1} hdgDelta={HdgDelta:F1} entryAlign={EntryAlign} pendingSeg={Pending}",
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            TargetNodeId,
-            _currentPrimitive?.Kind,
-            seg.Edge.DistanceNm,
-            seg.FromNodeId,
-            from.Position.Lat,
-            from.Position.Lon,
-            seg.ToNodeId,
-            to.Position.Lat,
-            to.Position.Lon,
-            seg.TaxiwayName,
-            segDepartureBearing,
-            ctx.Aircraft.TrueHeading.Degrees,
-            new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
-            _pendingSegmentPrimitive is not null,
-            _pendingSegmentPrimitive?.Kind.ToString() ?? "none"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
+                    + "fromNode={FromId}@({FromLat:F6},{FromLon:F6}) toNode={ToId}@({ToLat:F6},{ToLon:F6}) "
+                    + "twy={Twy} segBrg={SegBrg:F1} acHdg={Hdg:F1} hdgDelta={HdgDelta:F1} entryAlign={EntryAlign} pendingSeg={Pending}",
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                TargetNodeId,
+                _currentPrimitive?.Kind,
+                seg.Edge.DistanceNm,
+                seg.FromNodeId,
+                from.Position.Lat,
+                from.Position.Lon,
+                seg.ToNodeId,
+                to.Position.Lat,
+                to.Position.Lon,
+                seg.TaxiwayName,
+                segDepartureBearing,
+                ctx.Aircraft.TrueHeading.Degrees,
+                new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading),
+                _pendingSegmentPrimitive is not null,
+                _pendingSegmentPrimitive?.Kind.ToString() ?? "none"
+            );
+        }
     }
 
     /// <summary>
@@ -1359,13 +1377,16 @@ public sealed class GroundNavigator
 
         if (candidate.SegmentIndex != aim.SegmentIndex)
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: entry arc aim moved past a straight it cannot fly, {OldNode} → {NewNode} ({Delta:F0}° off it)",
-                ctx.Aircraft.Callsign,
-                route.Segments[aim.SegmentIndex].ToNodeId,
-                route.Segments[candidate.SegmentIndex].ToNodeId,
-                ExitOffAimedStraightDeg(aim.SegmentIndex, arc)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: entry arc aim moved past a straight it cannot fly, {OldNode} → {NewNode} ({Delta:F0}° off it)",
+                    ctx.Aircraft.Callsign,
+                    route.Segments[aim.SegmentIndex].ToNodeId,
+                    route.Segments[candidate.SegmentIndex].ToNodeId,
+                    ExitOffAimedStraightDeg(aim.SegmentIndex, arc)
+                );
+            }
         }
 
         return (candidate, candidateArc);
@@ -1680,17 +1701,20 @@ public sealed class GroundNavigator
         double tangentFt = (_turnAboutRollOutOffsetFt / Math.Tan(deltaRad)) + aheadFt;
         double fitFt = tangentFt / Math.Tan(deltaRad / 2.0);
         double radiusFt = Math.Clamp(fitFt, CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category), plannedRadiusFt);
-        Log.LogDebug(
-            "[Nav] {Callsign}: node turn from the offset line: node {Node} {Ahead:F1} ft ahead, {Offset:F1} ft inside; "
-                + "tangent {Tangent:F1} ft, r={R:F1}ft (planned {Planned:F0}ft)",
-            ctx.Aircraft.Callsign,
-            seg.FromNodeId,
-            aheadFt,
-            _turnAboutRollOutOffsetFt,
-            tangentFt,
-            radiusFt,
-            plannedRadiusFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: node turn from the offset line: node {Node} {Ahead:F1} ft ahead, {Offset:F1} ft inside; "
+                    + "tangent {Tangent:F1} ft, r={R:F1}ft (planned {Planned:F0}ft)",
+                ctx.Aircraft.Callsign,
+                seg.FromNodeId,
+                aheadFt,
+                _turnAboutRollOutOffsetFt,
+                tangentFt,
+                radiusFt,
+                plannedRadiusFt
+            );
+        }
         return radiusFt;
     }
 
@@ -1796,19 +1820,22 @@ public sealed class GroundNavigator
 
         TaxiwayTurnAboutPlan? mirrored = SolveTaxiwayTurnAbout(route, seg, ctx, CurrentPose(ctx), mirror: true);
         HoldLineCrossing? mirroredCrossing = (mirrored is { } other) ? PlanCrossing(footprint, seg, other, null) : null;
-        Log.LogDebug(
-            "[Nav] {Callsign}: from rest, {Part} would pass runway {Runway} hold line turning about {Sense}; the other way {Other}",
-            ctx.Aircraft.Callsign,
-            AircraftBody.Describe(crossing.Part),
-            crossing.Runway.Id,
-            plan.Reversal.RightTurn ? "right" : "left",
-            (mirrored, mirroredCrossing) switch
-            {
-                (null, _) => "does not solve",
-                (_, { } c) => $"its {AircraftBody.Describe(c.Part)} would pass runway {c.Runway.Id} hold line",
-                _ => "clears every line; turns about that way",
-            }
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: from rest, {Part} would pass runway {Runway} hold line turning about {Sense}; the other way {Other}",
+                ctx.Aircraft.Callsign,
+                AircraftBody.Describe(crossing.Part),
+                crossing.Runway.Id,
+                plan.Reversal.RightTurn ? "right" : "left",
+                (mirrored, mirroredCrossing) switch
+                {
+                    (null, _) => "does not solve",
+                    (_, { } c) => $"its {AircraftBody.Describe(c.Part)} would pass runway {c.Runway.Id} hold line",
+                    _ => "clears every line; turns about that way",
+                }
+            );
+        }
         if ((mirrored is { } clear) && (mirroredCrossing is null))
         {
             return clear;
@@ -1994,22 +2021,25 @@ public sealed class GroundNavigator
         double jogDeg = plan.Jog?.SweepDeg ?? 0.0;
         string sense = plan.Reversal.RightTurn ? "right" : "left";
         string aim = reAimed ? "re-aimed past the bend" : "rolled out on the edge's bearing";
-        Log.LogDebug(
-            "[Nav] {Callsign}: turn about on {Taxiway} edge {A}-{B}: r={R:F0}ft at {Speed:F2}kt, jog {Jog:F0}° then reversal {Sweep:F0}° {Sense} "
-                + "({Aim}, aimed at segment {AimSegment}'s node, holding the edge's bearing after it: {AlongEdge})",
-            ctx.Aircraft.Callsign,
-            plan.Edge.TaxiwayName,
-            plan.Edge.Nodes[0].Id,
-            plan.Edge.Nodes[1].Id,
-            plan.Reversal.RadiusFt,
-            plan.Reversal.MaxSpeedKts,
-            jogDeg,
-            plan.Reversal.SweepDeg,
-            sense,
-            aim,
-            plan.AimSegmentIndex,
-            plan.RollsOutAlongEdge
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: turn about on {Taxiway} edge {A}-{B}: r={R:F0}ft at {Speed:F2}kt, jog {Jog:F0}° then reversal {Sweep:F0}° {Sense} "
+                    + "({Aim}, aimed at segment {AimSegment}'s node, holding the edge's bearing after it: {AlongEdge})",
+                ctx.Aircraft.Callsign,
+                plan.Edge.TaxiwayName,
+                plan.Edge.Nodes[0].Id,
+                plan.Edge.Nodes[1].Id,
+                plan.Reversal.RadiusFt,
+                plan.Reversal.MaxSpeedKts,
+                jogDeg,
+                plan.Reversal.SweepDeg,
+                sense,
+                aim,
+                plan.AimSegmentIndex,
+                plan.RollsOutAlongEdge
+            );
+        }
     }
 
     /// <summary>
@@ -2258,31 +2288,37 @@ public sealed class GroundNavigator
                 && rolling.Clears(seg, plan, brake)
             )
             {
-                Log.LogDebug(
-                    "[Nav] {Callsign}: rolling at {Speed:F1} kt into a turn about on {Taxiway}; "
-                        + "brakes {Brake:F0} ft at {Rate:F1} kt/s to {Pivot:F2} kt first",
-                    ctx.Aircraft.Callsign,
-                    speedKts,
-                    rolling.Edge.TaxiwayName,
-                    brakeFt,
-                    rate,
-                    rolling.PivotKts
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Nav] {Callsign}: rolling at {Speed:F1} kt into a turn about on {Taxiway}; "
+                            + "brakes {Brake:F0} ft at {Rate:F1} kt/s to {Pivot:F2} kt first",
+                        ctx.Aircraft.Callsign,
+                        speedKts,
+                        rolling.Edge.TaxiwayName,
+                        brakeFt,
+                        rate,
+                        rolling.PivotKts
+                    );
+                }
                 return (plan, brake);
             }
         }
 
         if (rolling.FirstCrossing is { } crossing)
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: rolling at {Speed:F1} kt: no room to brake to {Pivot:F2} kt and turn about with its {Part} short of "
-                    + "runway {Runway} hold line",
-                ctx.Aircraft.Callsign,
-                speedKts,
-                rolling.PivotKts,
-                AircraftBody.Describe(crossing.Part),
-                crossing.Runway.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: rolling at {Speed:F1} kt: no room to brake to {Pivot:F2} kt and turn about with its {Part} short of "
+                        + "runway {Runway} hold line",
+                    ctx.Aircraft.Callsign,
+                    speedKts,
+                    rolling.PivotKts,
+                    AircraftBody.Describe(crossing.Part),
+                    crossing.Runway.Id
+                );
+            }
             return null;
         }
 
@@ -2371,15 +2407,18 @@ public sealed class GroundNavigator
         var brake = new TurnAboutBrakeLeg(nodeAhead.Position, forwardDeg, pivotKts, rate);
         if ((SolveTurnAboutAt(route, seg, ctx, atNode) is { } plan) && rolling.Clears(seg, plan, brake))
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: rolling at {Speed:F1} kt, {ToNode:F0} ft short of node {Node}: no room to turn about before it; "
-                    + "rolls on to it at {Rate:F1} kt/s and turns about there",
-                ctx.Aircraft.Callsign,
-                speedKts,
-                toNodeFt,
-                nodeAhead.Id,
-                rate
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: rolling at {Speed:F1} kt, {ToNode:F0} ft short of node {Node}: no room to turn about before it; "
+                        + "rolls on to it at {Rate:F1} kt/s and turns about there",
+                    ctx.Aircraft.Callsign,
+                    speedKts,
+                    toNodeFt,
+                    nodeAhead.Id,
+                    rate
+                );
+            }
             return (plan, brake);
         }
 
@@ -2388,12 +2427,15 @@ public sealed class GroundNavigator
             return onContinuation;
         }
 
-        Log.LogDebug(
-            "[Nav] {Callsign}: no room to turn about before node {Node} on {Taxiway}, at it on its pavement, or on a straight edge beyond it",
-            ctx.Aircraft.Callsign,
-            nodeAhead.Id,
-            edge.TaxiwayName
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: no room to turn about before node {Node} on {Taxiway}, at it on its pavement, or on a straight edge beyond it",
+                ctx.Aircraft.Callsign,
+                nodeAhead.Id,
+                edge.TaxiwayName
+            );
+        }
         return null;
     }
 
@@ -2462,17 +2504,20 @@ public sealed class GroundNavigator
                 continue;
             }
 
-            Log.LogDebug(
-                "[Nav] {Callsign}: no turn about at node {Node}; rolls on {Past:F0} ft past it onto {Taxiway} edge {A}-{B} "
-                    + "at {Rate:F1} kt/s and turns about there",
-                ctx.Aircraft.Callsign,
-                nodeAhead.Id,
-                PastNodeFt(rate),
-                next.TaxiwayName,
-                next.Nodes[0].Id,
-                next.Nodes[1].Id,
-                rate
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: no turn about at node {Node}; rolls on {Past:F0} ft past it onto {Taxiway} edge {A}-{B} "
+                        + "at {Rate:F1} kt/s and turns about there",
+                    ctx.Aircraft.Callsign,
+                    nodeAhead.Id,
+                    PastNodeFt(rate),
+                    next.TaxiwayName,
+                    next.Nodes[0].Id,
+                    next.Nodes[1].Id,
+                    rate
+                );
+            }
             return (plan, brake);
         }
 
@@ -2514,14 +2559,17 @@ public sealed class GroundNavigator
             return true;
         }
 
-        Log.LogDebug(
-            "[Nav] {Callsign}: no turn about past node {Node}: the brake leg's chord onto the edge beyond leaves its pavement ({Bound:F1} ft), "
-                + "from {Offset:F1} ft off it",
-            ctx.Aircraft.Callsign,
-            nodeAhead.Id,
-            boundFt,
-            JunctionPavement(nodeAhead).Min(l => GeoMath.DistanceToSegmentFt(ctx.Aircraft.Position, l.A, l.B))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: no turn about past node {Node}: the brake leg's chord onto the edge beyond leaves its pavement ({Bound:F1} ft), "
+                    + "from {Offset:F1} ft off it",
+                ctx.Aircraft.Callsign,
+                nodeAhead.Id,
+                boundFt,
+                JunctionPavement(nodeAhead).Min(l => GeoMath.DistanceToSegmentFt(ctx.Aircraft.Position, l.A, l.B))
+            );
+        }
         return false;
     }
 
@@ -2795,17 +2843,20 @@ public sealed class GroundNavigator
             && StopStaysOnJunctionPavement(nodeAhead, ctx.Aircraft.Position, stopPoint, boundFt, TurnAboutFitOf(ctx).RadiusFt);
         if (!stays)
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: a taxi-rate stop {Overrun:F0} ft past node {Node} does not end on {Taxiway} edge {A}-{B} beyond it "
-                    + "({Length:F0} ft) or on the junction's pavement",
-                ctx.Aircraft.Callsign,
-                overrunFt,
-                nodeAhead.Id,
-                next.TaxiwayName,
-                nodeAhead.Id,
-                farNode.Id,
-                continuationFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: a taxi-rate stop {Overrun:F0} ft past node {Node} does not end on {Taxiway} edge {A}-{B} beyond it "
+                        + "({Length:F0} ft) or on the junction's pavement",
+                    ctx.Aircraft.Callsign,
+                    overrunFt,
+                    nodeAhead.Id,
+                    next.TaxiwayName,
+                    nodeAhead.Id,
+                    farNode.Id,
+                    continuationFt
+                );
+            }
         }
 
         return stays;
@@ -2962,12 +3013,15 @@ public sealed class GroundNavigator
         double boundFt = JunctionPavementBoundFt(ctx);
         IEnumerable<LatLon> samples = (plan.Jog is { } jog ? ArcSamples(jog) : []).Concat(ArcSamples(plan.Reversal));
         bool stays = SamplesStayOnPavement(samples, pavement, boundFt);
-        Log.LogDebug(
-            "[Nav] {Callsign}: turn about at a junction {Stays} within {Bound:F1} ft of its centrelines and corner fillets",
-            ctx.Aircraft.Callsign,
-            stays ? "stays" : "does not stay",
-            boundFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: turn about at a junction {Stays} within {Bound:F1} ft of its centrelines and corner fillets",
+                ctx.Aircraft.Callsign,
+                stays ? "stays" : "does not stay",
+                boundFt
+            );
+        }
         return stays;
     }
 
@@ -2994,13 +3048,16 @@ public sealed class GroundNavigator
             return true;
         }
 
-        Log.LogDebug(
-            "[Nav] {Callsign}: no turn about on {Taxiway} at r={R:F0}ft (jog {Jog:F0}°): the reversal has no tangent to its aim node",
-            ctx.Aircraft.Callsign,
-            start.Edge.TaxiwayName,
-            start.RadiusFt,
-            start.Jog?.SweepDeg ?? 0.0
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: no turn about on {Taxiway} at r={R:F0}ft (jog {Jog:F0}°): the reversal has no tangent to its aim node",
+                ctx.Aircraft.Callsign,
+                start.Edge.TaxiwayName,
+                start.RadiusFt,
+                start.Jog?.SweepDeg ?? 0.0
+            );
+        }
         return false;
     }
 
@@ -3065,21 +3122,27 @@ public sealed class GroundNavigator
 
         if (IsBarNode(route, ctx, seg.ToNodeId))
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: turn about ends at the bar at node {Node}; it re-centres after its reversal to stop on the centreline",
-                ctx.Aircraft.Callsign,
-                seg.ToNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: turn about ends at the bar at node {Node}; it re-centres after its reversal to stop on the centreline",
+                    ctx.Aircraft.Callsign,
+                    seg.ToNodeId
+                );
+            }
             return false;
         }
 
         if (MainGearWidthFt(ctx.Aircraft.AircraftType) is not { } gearWidthFt)
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: no FAA main-gear width for {Type}; the turn about re-centres after its reversal",
-                ctx.Aircraft.Callsign,
-                ctx.Aircraft.AircraftType
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: no FAA main-gear width for {Type}; the turn about re-centres after its reversal",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.AircraftType
+                );
+            }
             return false;
         }
 
@@ -3107,17 +3170,20 @@ public sealed class GroundNavigator
         bool gearFits = (offsetFt + (gearWidthFt / 2.0)) <= TurnAboutFitOf(ctx).HalfWidthFt;
         double maxFt = RollOutHoldMaxFt(reversal.RadiusFt, offsetFt, MainGearRadiusFt(ctx), nextTurnDeg);
         bool shortEnough = straightFt <= maxFt;
-        Log.LogDebug(
-            "[Nav] {Callsign}: turn about ends {Offset:F0} ft inside the turn at node {Node}, {Straight:F0} ft short of it: "
-                + "gear fits {GearFits}, short enough {Short} (hold up to {Max:F0} ft)",
-            ctx.Aircraft.Callsign,
-            offsetFt,
-            seg.ToNodeId,
-            straightFt,
-            gearFits,
-            shortEnough,
-            maxFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: turn about ends {Offset:F0} ft inside the turn at node {Node}, {Straight:F0} ft short of it: "
+                    + "gear fits {GearFits}, short enough {Short} (hold up to {Max:F0} ft)",
+                ctx.Aircraft.Callsign,
+                offsetFt,
+                seg.ToNodeId,
+                straightFt,
+                gearFits,
+                shortEnough,
+                maxFt
+            );
+        }
         return gearFits && shortEnough;
     }
 
@@ -3210,14 +3276,17 @@ public sealed class GroundNavigator
         }
 
         bool fits = CutStaysOnPavement(arc, aimNode, centrelines, boundFt);
-        Log.LogDebug(
-            "[Nav] {Callsign}: bend at segment {Seg}'s node against the reversal; cut to segment {Aim}'s node {Fits} within {Bound:F1} ft",
-            ctx.Aircraft.Callsign,
-            bendSegmentIndex,
-            aim.SegmentIndex,
-            fits ? "stays" : "does not stay",
-            boundFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: bend at segment {Seg}'s node against the reversal; cut to segment {Aim}'s node {Fits} within {Bound:F1} ft",
+                ctx.Aircraft.Callsign,
+                bendSegmentIndex,
+                aim.SegmentIndex,
+                fits ? "stays" : "does not stay",
+                boundFt
+            );
+        }
         return fits ? (arc, aim.SegmentIndex) : null;
     }
 
@@ -3236,11 +3305,14 @@ public sealed class GroundNavigator
         int bendNodeId = route.Segments[bendSegmentIndex].ToNodeId;
         if ((outgoingIndex >= route.Segments.Count) || IsBarNode(route, ctx, bendNodeId))
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: no re-aim past node {Node}: the route ends there or holds short of it",
-                ctx.Aircraft.Callsign,
-                bendNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: no re-aim past node {Node}: the route ends there or holds short of it",
+                    ctx.Aircraft.Callsign,
+                    bendNodeId
+                );
+            }
             return null;
         }
 
@@ -3255,27 +3327,39 @@ public sealed class GroundNavigator
 
         if (MainGearWidthFt(ctx.Aircraft.AircraftType) is not { } gearWidthFt)
         {
-            Log.LogDebug("[Nav] {Callsign}: no re-aim: no FAA main-gear width for {Type}", ctx.Aircraft.Callsign, ctx.Aircraft.AircraftType);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Nav] {Callsign}: no re-aim: no FAA main-gear width for {Type}", ctx.Aircraft.Callsign, ctx.Aircraft.AircraftType);
+            }
             return null;
         }
 
         if (FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.WheelbaseFt is not { } wheelbaseFt)
         {
-            Log.LogDebug("[Nav] {Callsign}: no re-aim: no FAA wheelbase for {Type}", ctx.Aircraft.Callsign, ctx.Aircraft.AircraftType);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Nav] {Callsign}: no re-aim: no FAA wheelbase for {Type}", ctx.Aircraft.Callsign, ctx.Aircraft.AircraftType);
+            }
             return null;
         }
 
         double boundFt = ReAimCutBoundFt(TurnAboutFitOf(ctx), gearWidthFt, wheelbaseFt);
-        Log.LogDebug(
-            "[Nav] {Callsign}: bend {Bend:F0}° at node {Node} against the reversal; cut bound {Bound:F1} ft",
-            ctx.Aircraft.Callsign,
-            bendDeg,
-            bendNodeId,
-            boundFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: bend {Bend:F0}° at node {Node} against the reversal; cut bound {Bound:F1} ft",
+                ctx.Aircraft.Callsign,
+                bendDeg,
+                bendNodeId,
+                boundFt
+            );
+        }
         if (boundFt <= 0.0)
         {
-            Log.LogDebug("[Nav] {Callsign}: no re-aim: gear reaches past the type's taxiway half-width", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Nav] {Callsign}: no re-aim: gear reaches past the type's taxiway half-width", ctx.Aircraft.Callsign);
+            }
             return null;
         }
 
@@ -3610,16 +3694,19 @@ public sealed class GroundNavigator
         double halfSpanFt = AircraftFootprint.ResolveWingspanFt(ctx.Aircraft.AircraftType) / 2.0;
         bool decides = Math.Abs(rightRoomFt - leftRoomFt) > halfSpanFt;
         bool right = rightRoomFt > leftRoomFt;
-        Log.LogDebug(
-            "[Nav] {Callsign} reversal back over ramp lane {Lane}: {RightRoom:F0} ft to the nearest other centreline on the right, "
-                + "{LeftRoom:F0} ft on the left, a {Radius:F0} ft turning radius out; {Verdict}",
-            ctx.Aircraft.Callsign,
-            seg.TaxiwayName,
-            rightRoomFt,
-            leftRoomFt,
-            radiusFt,
-            decides ? $"turns {(right ? "right" : "left")}, the side with more room" : $"within the {halfSpanFt:F0} ft half-span: the short way"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign} reversal back over ramp lane {Lane}: {RightRoom:F0} ft to the nearest other centreline on the right, "
+                    + "{LeftRoom:F0} ft on the left, a {Radius:F0} ft turning radius out; {Verdict}",
+                ctx.Aircraft.Callsign,
+                seg.TaxiwayName,
+                rightRoomFt,
+                leftRoomFt,
+                radiusFt,
+                decides ? $"turns {(right ? "right" : "left")}, the side with more room" : $"within the {halfSpanFt:F0} ft half-span: the short way"
+            );
+        }
         return decides ? right : null;
     }
 
@@ -3670,18 +3757,21 @@ public sealed class GroundNavigator
         bool onEdge =
             GeoMath.DistanceToSegmentFt(position, edge.Nodes[0].Position, edge.Nodes[1].Position) <= AirportGroundLayout.OnTaxiEdgeMaxOffsetFt;
         bool fits = onEdge && (roomFt >= reachFt);
-        Log.LogDebug(
-            "[Nav] {Callsign} reversal at ramp-lane node {Node} on {Lane}: {Room:F0} ft to the nearest other centreline, wingtip circle "
-                + "{Reach:F1} ft, {ToNode:F0} ft from the node, {Where} the edge: {Verdict}",
-            ctx.Aircraft.Callsign,
-            seg.FromNodeId,
-            edge.TaxiwayName,
-            roomFt,
-            reachFt,
-            GeoMath.DistanceNm(position, node.Position) * GeoMath.FeetPerNm,
-            onEdge ? "on" : "off",
-            fits ? "ramp-lane turn about at the node" : "comfortable-radius arc"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign} reversal at ramp-lane node {Node} on {Lane}: {Room:F0} ft to the nearest other centreline, wingtip circle "
+                    + "{Reach:F1} ft, {ToNode:F0} ft from the node, {Where} the edge: {Verdict}",
+                ctx.Aircraft.Callsign,
+                seg.FromNodeId,
+                edge.TaxiwayName,
+                roomFt,
+                reachFt,
+                GeoMath.DistanceNm(position, node.Position) * GeoMath.FeetPerNm,
+                onEdge ? "on" : "off",
+                fits ? "ramp-lane turn about at the node" : "comfortable-radius arc"
+            );
+        }
         if (!fits || !TryRampLaneBrakeLeg(ctx, node, arrived.Edge.ArrivalBearing, out TurnAboutBrakeLeg? brake))
         {
             return null;
@@ -3718,15 +3808,18 @@ public sealed class GroundNavigator
                 return true;
             }
 
-            Log.LogDebug(
-                "[Nav] {Callsign}: {ToNode:F1} ft from ramp-lane node {Node} at {Speed:F1} kt, pivot {Pivot:F2} kt: "
-                    + "overrun or above pivot speed at the ramp-lane node: comfortable-radius arc",
-                ctx.Aircraft.Callsign,
-                toNodeFt,
-                node.Id,
-                ctx.Aircraft.IndicatedAirspeed,
-                pivotKts
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: {ToNode:F1} ft from ramp-lane node {Node} at {Speed:F1} kt, pivot {Pivot:F2} kt: "
+                        + "overrun or above pivot speed at the ramp-lane node: comfortable-radius arc",
+                    ctx.Aircraft.Callsign,
+                    toNodeFt,
+                    node.Id,
+                    ctx.Aircraft.IndicatedAirspeed,
+                    pivotKts
+                );
+            }
             return false;
         }
 
@@ -3734,14 +3827,17 @@ public sealed class GroundNavigator
         double[] byTheNode = [.. RollingTurnAboutBrakeRates(ctx.Category).Where(r => BrakeToPivotFt(speedKts, pivotKts, r) <= toNodeFt)];
         if (byTheNode.Length == 0)
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: at {Speed:F1} kt, {ToNode:F0} ft short of ramp-lane node {Node}, no brake rate reaches {Pivot:F2} kt by it",
-                ctx.Aircraft.Callsign,
-                speedKts,
-                toNodeFt,
-                node.Id,
-                pivotKts
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: at {Speed:F1} kt, {ToNode:F0} ft short of ramp-lane node {Node}, no brake rate reaches {Pivot:F2} kt by it",
+                    ctx.Aircraft.Callsign,
+                    speedKts,
+                    toNodeFt,
+                    node.Id,
+                    pivotKts
+                );
+            }
             return false;
         }
 
@@ -3889,15 +3985,18 @@ public sealed class GroundNavigator
 
         if ((fromStartFt > AirportGroundLayout.AtNodeToleranceFt) || (_bezierLeadInRemainingFt > 0.0))
         {
-            Log.LogDebug(
-                "[Nav] Bezier entry: cs={Callsign} t={T:F3} traveled={Trav:F1}ft leadIn={LeadIn:F1}ft "
-                    + "(aircraft {Dist:F1}ft from the curve start)",
-                ctx.Aircraft.Callsign,
-                _bezierT,
-                _bezierTraveledFt,
-                _bezierLeadInRemainingFt,
-                fromStartFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] Bezier entry: cs={Callsign} t={T:F3} traveled={Trav:F1}ft leadIn={LeadIn:F1}ft "
+                        + "(aircraft {Dist:F1}ft from the curve start)",
+                    ctx.Aircraft.Callsign,
+                    _bezierT,
+                    _bezierTraveledFt,
+                    _bezierLeadInRemainingFt,
+                    fromStartFt
+                );
+            }
         }
     }
 
@@ -4053,7 +4152,10 @@ public sealed class GroundNavigator
         _currentPrimitive = reversal;
         BeginPrimitive(reversal);
         PrevDistToTarget = double.MaxValue;
-        Log.LogDebug("[Nav] {Callsign}: turn-about jog complete; engaging the {Sweep:F0}° reversal", ctx.Aircraft.Callsign, reversal.SweepDeg);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Nav] {Callsign}: turn-about jog complete; engaging the {Sweep:F0}° reversal", ctx.Aircraft.Callsign, reversal.SweepDeg);
+        }
         return true;
     }
 
@@ -4074,12 +4176,15 @@ public sealed class GroundNavigator
         if ((speedKts <= (brake.PivotKts + TurnSpeedOvershootKts)) && (toEndFt <= Math.Max(BrakeEndToleranceFt, thisTickFt)))
         {
             _turnAboutBrake = null;
-            Log.LogDebug(
-                "[Nav] {Callsign}: brake leg done at {Speed:F2} kt, {ToEnd:F1} ft from its end point; turning about",
-                ctx.Aircraft.Callsign,
-                speedKts,
-                toEndFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: brake leg done at {Speed:F2} kt, {ToEnd:F1} ft from its end point; turning about",
+                    ctx.Aircraft.Callsign,
+                    speedKts,
+                    toEndFt
+                );
+            }
             return _currentPrimitive is PathPrimitiveSlowTurn arc ? TickSlowTurn(ctx, arc) : NavigatorResult.Navigating;
         }
 
@@ -4199,7 +4304,10 @@ public sealed class GroundNavigator
         // A new primitive begins — give it its own full-circle budget so a legitimate
         // entry-alignment turn plus the segment's own turn don't sum across the swap.
         _cumulativeTurnSinceAdvanceDeg = 0.0;
-        Log.LogDebug("[Nav] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Nav] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
+        }
     }
 
     /// <summary>
@@ -4229,14 +4337,17 @@ public sealed class GroundNavigator
         if (_currentNodeRequiredSpeed <= 0.0)
         {
             TrueHeading centreline = (_currentPrimitive is PathPrimitiveStraight edgeLine) ? new TrueHeading(edgeLine.BearingDeg) : bearing;
-            Log.LogDebug(
-                "[Nav] {Callsign}: turn about rolled out toward a stop at node {Node}; re-centring on the centreline {Centreline:F1}° "
-                    + "through it instead of holding {Bearing:F1}°",
-                ctx.Aircraft.Callsign,
-                TargetNodeId,
-                centreline.Degrees,
-                bearing.Degrees
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: turn about rolled out toward a stop at node {Node}; re-centring on the centreline {Centreline:F1}° "
+                        + "through it instead of holding {Bearing:F1}°",
+                    ctx.Aircraft.Callsign,
+                    TargetNodeId,
+                    centreline.Degrees,
+                    bearing.Degrees
+                );
+            }
             return LayStraightSquareToStop(new LatLon(TargetLat, TargetLon), from, centreline);
         }
 
@@ -4248,12 +4359,15 @@ public sealed class GroundNavigator
         double aheadNm = GeoMath.AlongTrackDistanceNm(new LatLon(TargetLat, TargetLon), from, bearing);
         if (aheadNm <= 0.0)
         {
-            Log.LogDebug(
-                "[Nav] {Callsign}: turn about rolled out past abeam node {Node}; re-centring instead of holding {Bearing:F1}°",
-                ctx.Aircraft.Callsign,
-                TargetNodeId,
-                bearing.Degrees
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Nav] {Callsign}: turn about rolled out past abeam node {Node}; re-centring instead of holding {Bearing:F1}°",
+                    ctx.Aircraft.Callsign,
+                    TargetNodeId,
+                    bearing.Degrees
+                );
+            }
             return false;
         }
 
@@ -4263,15 +4377,18 @@ public sealed class GroundNavigator
         _segmentFromLon = from.Lon;
         TargetLat = abeam.Lat;
         TargetLon = abeam.Lon;
-        Log.LogDebug(
-            "[Nav] {Callsign}: turn about rolled out on {Bearing:F1}°; holding it {Ahead:F0} ft to abeam node {Node}, "
-                + "{Offset:F1} ft inside the turn there",
-            ctx.Aircraft.Callsign,
-            bearing.Degrees,
-            aheadNm * GeoMath.FeetPerNm,
-            TargetNodeId,
-            _turnAboutRollOutOffsetFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: turn about rolled out on {Bearing:F1}°; holding it {Ahead:F0} ft to abeam node {Node}, "
+                    + "{Offset:F1} ft inside the turn there",
+                ctx.Aircraft.Callsign,
+                bearing.Degrees,
+                aheadNm * GeoMath.FeetPerNm,
+                TargetNodeId,
+                _turnAboutRollOutOffsetFt
+            );
+        }
         return true;
     }
 
@@ -4316,11 +4433,14 @@ public sealed class GroundNavigator
             return false;
         }
 
-        Log.LogDebug(
-            "[Nav] Entry alignment complete; retiring segments {From}..{To} the aimed arc rolled out past",
-            route.CurrentSegmentIndex,
-            _aimedPastThroughSegmentIndex - 1
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] Entry alignment complete; retiring segments {From}..{To} the aimed arc rolled out past",
+                route.CurrentSegmentIndex,
+                _aimedPastThroughSegmentIndex - 1
+            );
+        }
 
         _pendingSegmentPrimitive = null;
         route.CurrentSegmentIndex = _aimedPastThroughSegmentIndex;
@@ -4391,16 +4511,19 @@ public sealed class GroundNavigator
         ReleaseHeadingHold(ctx, straight);
         BeginPrimitive(straight);
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
-        Log.LogDebug(
-            "[Nav] seg={SegIdx}/{Total}: fillet {FromId}->{ToId} flown as the aimed line ({LengthFt:F0} ft from ({Lat:F6},{Lon:F6}))",
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            fillet.FromNodeId,
-            fillet.ToNodeId,
-            straight.LengthFt,
-            lineFrom.Lat,
-            lineFrom.Lon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] seg={SegIdx}/{Total}: fillet {FromId}->{ToId} flown as the aimed line ({LengthFt:F0} ft from ({Lat:F6},{Lon:F6}))",
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                fillet.FromNodeId,
+                fillet.ToNodeId,
+                straight.LengthFt,
+                lineFrom.Lat,
+                lineFrom.Lon
+            );
+        }
     }
 
     /// <summary>
@@ -4981,20 +5104,23 @@ public sealed class GroundNavigator
         PrevDistToTarget = distToNode;
         UpdateDiag(ctx, distToNode, tangentDeg, targetSpeed, onArc: true);
 
-        Log.LogDebug(
-            "[Nav] TickBezier cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} t={T:F3} "
-                + "ds={Ds:F2}ft v={V:F1}kt traveledFt={Trav:F1} distFt={Dist:F1}",
-            ctx.Aircraft.Callsign,
-            TargetNodeId,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            tangentDeg,
-            _bezierT,
-            dsFt,
-            vKts,
-            _bezierTraveledFt,
-            distToNode * GeoMath.FeetPerNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] TickBezier cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} t={T:F3} "
+                    + "ds={Ds:F2}ft v={V:F1}kt traveledFt={Trav:F1} distFt={Dist:F1}",
+                ctx.Aircraft.Callsign,
+                TargetNodeId,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                tangentDeg,
+                _bezierT,
+                dsFt,
+                vKts,
+                _bezierTraveledFt,
+                distToNode * GeoMath.FeetPerNm
+            );
+        }
 
         if (_bezierT >= 1.0 - 1e-9)
         {
@@ -5353,25 +5479,28 @@ public sealed class GroundNavigator
         double arcCap
     )
     {
-        Log.LogDebug(
-            "[Nav] {Callsign} t={Elapsed:F2}: node={Node} dist={DistFt:F0}ft target={Target:F1} bind={Bind} "
-                + "heading={HeadingCap:F1} (max={Max:F1} err={AngleDiff:F0}deg frac={Frac:F2}) "
-                + "braking={Braking:F1} (nodeReq={NodeReq:F1}) connector={Connector} arc={Arc}",
-            ctx.Aircraft.Callsign,
-            ctx.ScenarioElapsedSeconds,
-            TargetNodeId,
-            distToEndpointNm * GeoMath.FeetPerNm,
-            target,
-            BindingCapName(headingCap, brakingLimit, connectorCap, arcCap),
-            headingCap,
-            MaxSpeedKts,
-            angleDiff,
-            speedFraction,
-            brakingLimit,
-            _currentNodeRequiredSpeed,
-            CapText(connectorCap),
-            CapText(arcCap)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign} t={Elapsed:F2}: node={Node} dist={DistFt:F0}ft target={Target:F1} bind={Bind} "
+                    + "heading={HeadingCap:F1} (max={Max:F1} err={AngleDiff:F0}deg frac={Frac:F2}) "
+                    + "braking={Braking:F1} (nodeReq={NodeReq:F1}) connector={Connector} arc={Arc}",
+                ctx.Aircraft.Callsign,
+                ctx.ScenarioElapsedSeconds,
+                TargetNodeId,
+                distToEndpointNm * GeoMath.FeetPerNm,
+                target,
+                BindingCapName(headingCap, brakingLimit, connectorCap, arcCap),
+                headingCap,
+                MaxSpeedKts,
+                angleDiff,
+                speedFraction,
+                brakingLimit,
+                _currentNodeRequiredSpeed,
+                CapText(connectorCap),
+                CapText(arcCap)
+            );
+        }
     }
 
     /// <summary>A speed ceiling for the per-tick diagnostic, or <c>none</c> when that ceiling is not in play this tick.</summary>
@@ -5483,13 +5612,16 @@ public sealed class GroundNavigator
         _onShortConnector = true;
         _connectorFlowSpeedKts = Math.Max(behindSpeed.Value, aheadSpeed.Value);
 
-        Log.LogDebug(
-            "[Nav] short-connector transit seg={SegIdx}/{Total} runFt={Run:F0} flowKts={Flow:F1}",
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            runFt,
-            _connectorFlowSpeedKts
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Nav] short-connector transit seg={SegIdx}/{Total} runFt={Run:F0} flowKts={Flow:F1}",
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                runFt,
+                _connectorFlowSpeedKts
+            );
+        }
     }
 
     /// <summary>
@@ -5676,7 +5808,10 @@ public sealed class GroundNavigator
         // this guards against could ever bind.
         if (stopsAtTarget)
         {
-            Log.LogDebug("[Nav] {Callsign}: target node {Node} is a stop; no constraint past it is planned", ctx.Aircraft.Callsign, TargetNodeId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Nav] {Callsign}: target node {Node} is a stop; no constraint past it is planned", ctx.Aircraft.Callsign, TargetNodeId);
+            }
         }
         else
         {

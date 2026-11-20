@@ -26,13 +26,16 @@ public sealed class HoldingAfterPushbackPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        Log.LogDebug(
-            "[Push] {Callsign}: holding after pushback at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            ctx.Aircraft.TrueHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Push] {Callsign}: holding after pushback at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                ctx.Aircraft.TrueHeading.Degrees
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -75,7 +78,10 @@ public sealed class HoldingAfterPushbackPhase : Phase
         AircraftGroundOps ground = ctx.Aircraft.Ground;
         if ((ground.InitialCallup == InitialCallupPlan.AfterPush) && !ground.InitialCallupDecisionProcessed)
         {
-            Log.LogDebug("[PostPush] {Callsign}: left the post-push hold with its after-push call unmade; plan dropped", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[PostPush] {Callsign}: left the post-push hold with its after-push call unmade; plan dropped", ctx.Aircraft.Callsign);
+            }
             ground.InitialCallup = InitialCallupPlan.None;
         }
     }
