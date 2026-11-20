@@ -273,14 +273,12 @@ Stateless singleton; every method takes the `TrainingRoom`. It keeps **no list**
 spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost` — the base of `LiveRoomHost` and
 `ReconstructionHost` — maps each host step and consumer onto one `internal` method here:
 
-- **Pre-physics**: `HandlePrePhysicsResult` broadcasts each newly-spawned aircraft (the spawn hooks — the PDC auto-queue
-  and the strip auto-print — are the engine's `SimulationEngine.AfterAircraftSpawned`, run before the result reaches
-  the host; with AI Ground active the hook also plans the spawn's push-back stand into `TrainingRoom.PushPlans`, while placing a load's aircraft goes through `AfterLoadedAircraftPlaced`, which never plans), and records generator spawns *after* their autotrack so the recorded snapshot carries the
-  owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
-  `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
+- **Pre-physics**: `HandlePrePhysicsResult` broadcasts each newly-spawned aircraft (the spawn hooks — the PDC auto-queue and the strip auto-print — are the engine's `SimulationEngine.AfterAircraftSpawned`, run before the result reaches the host; with AI Ground active the hook also plans the spawn's push-back stand into `TrainingRoom.PushPlans`, while placing a load's aircraft goes through `AfterLoadedAircraftPlaced`, which never plans).
+
+  It records generator spawns *after* their autotrack so the recorded snapshot carries the owner, and `BroadcastTerminalEntries` takes the spine's drain. The delayed-handoff queue and the live-traffic sync are Sim spine steps (`SimulationEngine.TickDelayedHandoffs`, `TickLiveTrafficSync`, fed by the host's `LiveTrafficFeed` port) — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
 - **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`).
 
-  It runs the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, and the changed hold bars through `RoomHost.OnAsdexHoldBarsChanged` → `ICrcBroadcast.BroadcastAsdexHoldBarsAsync`, with no `TickProcessor` body) and `ProcessSoloTrainingEvaluation`.
+  It runs the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, and the changed hold bars through `RoomHost.OnAsdexHoldBarsChanged` → `ICrcBroadcast.BroadcastAsdexHoldBarsAsync`, with no `TickProcessor` body) and `BroadcastSoloTrainingEvents`.
 
   Then come the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` / `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`), `HandleAutoDeleted` (reached through `RoomHost.OnAutoDeleted` with the aircraft `SimulationEngine.TickAutoDelete` removed; it tears down each callsign's assignment and change-tracker entry, then broadcasts the delete), and the rundown / live-traffic-status / timers "broadcast if changed" tail.
 
@@ -317,7 +315,7 @@ The fingerprint structs (`:28`-`191`) — one per broadcast topic (except `EramD
 |---|---|---|
 | `StarsTrackFingerprint` | STARS track DTO (position, beacon, owner/handoff/pointout, shared display state) | `StarsTrack` |
 | `FlightPlanFingerprint` | CRC flight-plan DTO (filed type, route, beacon, …) | `FlightPlan` |
-| `EramTargetFingerprint` | ERAM target (the data-block flag is the `EramDataBlockSent` bool, not a struct) | `EramTarget` (+ `EramDataBlock`) |
+| `EramTargetStateFingerprint` | ERAM target (the data-block flag is the `EramDataBlockSent` bool, not a struct) | `EramTarget` (+ `EramDataBlock`) |
 | `AsdexTargetFingerprint` / `AsdexTrackFingerprint` | ASDE-X primary target / full track | `AsdexTarget` / `AsdexTrack` |
 | `TowerCabFingerprint` | Tower-Cab target | `TowerCab` |
 | `GroundTargetFingerprint` | ground target | `GroundTarget` |
@@ -357,14 +355,13 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). `Broadcast
 
 ## `TrainingRoom` — the unit of isolation (`Simulation/TrainingRoom.cs`)
 
-Each room owns its own `ActiveSim` / `ActiveScenario` / `World` (`:22`-`28`, falling back to a bare world when no
-scenario is loaded), its `RoomEngine`, and a bag of per-room state: `ChangeTracker`, `TickChanges`, `StripState`,
-`TdlsState`, `AsdexState`, `EramState`, `LineNumbers`, `AircraftAssignments` (callsign → connectionId), and
-`PositionSelections` (the Yaat.Sim map of connectionId → the position a bare `AS` selected; the room owns it for
-its lifetime and every engine it creates reads it — see the yaat repo's `command-pipeline.md` § one identity). **Callsigns are per-room, not global** — `RoomEngine.FindAircraft` searches
-only that room's `World.GetSnapshot()` (`:786`-`789`). There is no global aircraft lookup; reaching for one is a category
-error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned`
-(`:76`) is true when no clients are connected.
+Each room owns its own `ActiveSim` / `ActiveScenario` / `World` (falling back to a bare world when no scenario is loaded), its `RoomEngine`, and a bag of per-room state: `ChangeTracker`, `TickChanges`, `CrcVisibility`, `SaidState`, `AsdexState`, `EramState`, `LineNumbers`, `AircraftAssignments` (callsign → connectionId), and `PositionSelections`.
+
+`PositionSelections` is the Yaat.Sim map of connectionId → the position a bare `AS` selected; the room owns it for its lifetime and every engine it creates reads it — see the yaat repo's `command-pipeline.md` § one identity. Strip and TDLS state live on the sim (`SimulationEngine.Strips`, `SimulationEngine.Tdls`), not in this bag.
+
+**Callsigns are per-room, not global** — `RoomEngine.FindAircraft` searches only that room's `World.GetSnapshot()`. There is no global aircraft lookup; reaching for one is a category error.
+
+`UpdatePausedSince` stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned` is true when no clients are connected.
 
 **Session settings outlive the scenario.** `SessionSettings` (`RoomSessionSettings`) holds the room's copy of everything a controller can toggle mid-session — the auto-* flags, `ValidateDctFixes`, solo mode and pacing, the auto-accept and command-run delays, the auto-delete override, the departure auto-delete distance, the dynamic-METAR intent.
 

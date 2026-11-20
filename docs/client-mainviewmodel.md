@@ -10,12 +10,11 @@ This doc owns the orchestration / threading / lifecycle layer. Each partial's fi
 
 ## Overview
 
-`MainViewModel` is a single root view-model (`ObservableObject`, CommunityToolkit.Mvvm) that `MainWindow` constructs
-directly — there is **no DI** (`MainWindow.axaml.cs:57`, `new MainViewModel(new AvaloniaFilePickerService(this))`). It
-owns one `ServerConnection` (`MainViewModel.cs:26`), the `UserPreferences` mirror, the `CommandInputController`, the
-speech-recognition services, and the visible sub-VM `Ground`, the Scope view models (`PrimaryScope`, `ExtraScopeViews`) plus the dynamic `StripsEntries` /
-`TdlsEntries` collections. The View talks to the VM through bindings and a small parameterless-event bridge; the VM
-never reaches a control directly (MVVM).
+`MainViewModel` is a single root view-model (`ObservableObject`, CommunityToolkit.Mvvm) that `MainWindow` constructs directly — there is **no DI** (`MainWindow.axaml.cs`, `new MainViewModel(new AvaloniaFilePickerService(this))`).
+
+It owns one `ServerConnection` (`MainViewModel.cs`), the `UserPreferences` mirror, the `CommandInputController`, the speech-recognition services, and the visible sub-VM `Ground`, the Scope view models (`PrimaryScope`, `ExtraScopeViews`) plus the dynamic `StripsEntries` / `TdlsEntries` collections.
+
+The View talks to the VM through bindings and a small parameterless-event bridge; the VM never reaches a control directly (MVVM).
 
 The class is split across partial files by concern. The split is purely organizational — they all compile into one
 `partial class MainViewModel`, so a private field declared in `MainViewModel.cs` is visible from
@@ -33,7 +32,7 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.Aircraft.cs` | SignalR aircraft handlers (`OnAircraftUpdated` / `OnAircraftSpawned` / `OnAircraftDeleted`); terminal-entry broadcast; speech-bubble attach; `OnPilotTransmissionReceived` → `PilotVoiceService` (the `PilotTransmissionBroadcast` gate); `OnSimulationStateChanged`. |
 | `MainViewModel.Timeline.cs` | Rewind / recording / export-progress. Timeline markers: colour-coded finding ticks (red Safety, amber Warning, blue Coach) + grey command ticks from the command-marker buffer (`_commandMarkerHistory` + `_commandMarkerLock`), the periodic poll (`RefreshTimelineMarkersAsync`), click-to-rewind (every jump refused while `IsRoomLoading`: `CanRewind` on the six jump commands, and `RewindToSeconds` itself), hover details, the per-aircraft filter from the Session Report Aircraft tab. Save/load recording injects/reads the `bookmarks.json` archive entry; `ApplyRecordingResult` is a scenario-identity writer outside the bootstrap router, so it makes its own `StartRichPresence` call. Also the shared bug-report bundle writer: `FetchRecordingForBundleAsync` (pause + export with progress) and `WriteBugReportBundleAsync` (recording entries with bookmarks folded in + client/server logs, and `server.json` — the dialled URL's scheme, host and port, host scrubbed — when connected), used by Save Bug Report Bundle and File Bug Report. |
 | `MainViewModel.Bookmarks.cs` | Shared timeline bookmarks — server-authoritative, synced across RPOs (GitHub issue #288): `Bookmarks` mirror collection; add / quick-add / rename / delete route through hub RPCs (`ServerConnection.Add/Rename/DeleteBookmarkAsync`); `ApplyBookmarks` reconciles from the `BookmarksChanged` broadcast / `RoomStateDto.Bookmarks` join seed; `BookmarkNamePromptRequested` event (view shows the name popup); `SnapshotBookmarks` for the recording-save `bookmarks.json` stitch. Cleared at session boundaries alongside `Aircraft.Clear()`. Also owns the client half of the `BM` verb (`TryHandleBookmarkLocallyAsync`): `BM LIST` prints to this client's terminal only and `BM GO/NEXT/PREV` drive `RewindToSeconds`, while add/rename/delete fall through to `MainViewModel.HandleBookmarkGlobalCommand` → `SendCommandAsync` → the server. |
-| `MainViewModel.PilotVoiceWarning.cs` | Solo missing-pilot-voice warning: `ShowPilotVoiceWarning` (banner), `ConfirmResumeAsync` (the once-per-session modal through the view's `PilotVoiceWarningPrompt` hook, called by `TogglePauseAsync`, typed `UNPAUSE` and `TogglePlayback`), the banner's Voice settings button (`RequestSettings(SettingsSectionId.Speech)`), `ResetPilotVoiceWarningSession` (scenario/recording load, room change; not a reconnect). See [solo-training-pilot-speech.md](solo-training-pilot-speech.md). |
+| `MainViewModel.PilotVoiceWarning.cs` | Solo missing-pilot-voice warning: `RefreshPilotVoiceWarning` (banner), `ConfirmResumeAsync` (the once-per-session modal through the view's `PilotVoiceWarningPrompt` hook, called by `TogglePauseAsync`, typed `UNPAUSE` and `TogglePlayback`), the banner's Voice settings button (`RequestSettings(SettingsSectionId.Speech)`), `ResetPilotVoiceWarningSession` (scenario/recording load, room change; not a reconnect). See [solo-training-pilot-speech.md](solo-training-pilot-speech.md). |
 | `MainViewModel.cs` (solo advisory settings) | `SessionSoloAdvisoryPrefill` (+ `SessionSoloAdvisoryPrefillIndex` for the combo) and `SessionSoloAdvisoryLiveCheck`: client-only session copies of the two preferences, shown while `ShowSessionSoloAdvisorySettings` (solo mode on), never sent to the server. `SeedSessionSoloAdvisorySettings` reseeds them from `_preferences` at the constructor, `OnActiveRoomIdChanged` (a non-null room, so a reconnect to the same room keeps them), the two scenario-load adapters (`ApplySessionSettingsFromScenarioLoaded`, `ApplySessionSettingsFromLoadScenarioResult`) and `ApplyRecordingResult`: the same points as `ResetPilotVoiceWarningSession`. A timeline seek and `ApplySessionSettings` leave them alone. |
 | `MainViewModel.Weather.cs` | Weather load / clear commands (Load Live Weather also fetches and uploads the GFS grid; Save/Load Weather embed and restore it); `OnWeatherChanged`; `WindsAloftSource` and `WindsAloftLine` (the METAR header's winds-aloft source line, the status bar's final load message); retains the raw METARs (`Metars`) for the METAR window, sorted per-scenario favorites first, then alphabetically. |
 | `MainViewModel.LiveSession.cs` | Live-traffic sessions (no authored scenario): `IsLiveSession` (server-computed, mirrored from the three activation DTOs: `LoadScenarioResult`, `ScenarioLoaded`, `RoomState`), the `LIVE` / `PAUSED` / `PLAYBACK` badge (`LiveSessionBadgeText` / `DescribeLiveSession`), `ShowGoLive` + `GoLiveCommand`, `StartLiveSessionAsync` (opens the load overlay titled `Live session`, applies the result through `ApplyScenarioResult`, then live weather), `CanStartLiveSession` (`CanLoadScenario` and a live-traffic feed, so it is off while a load runs). See [live-traffic.md](live-traffic.md) "Live sessions". |
@@ -41,10 +40,12 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.ViewInstances.cs` | Extra Ground windows (#434): `ExtraGroundViews` (`GroundViewInstance`, ordinals ≥ 2), the `CreateGroundViewModel` factory the primary also uses, `OpenExtraGroundView` / `CloseExtraGroundView` / `ReconcileExtraViews` (profiles; Ground only), late seeding from the stashed scenario bootstrap / airport position, and the `AllGroundViews` enumerator every Ground fan-out site loops over. One app-wide `SelectedAircraft`. See **Extra view instances** below. |
 | `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own: scope markers, `.rbl` / `.norbl`, `.reloadaliases`, `.scope`, `.view`), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings Apply + `.reloadaliases`; each start is kept as the public `CrcAliasLoad` task, which completes once its terminal line is added and which UI tests await), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
 | `MainViewModel.Scope.cs` | Radar commands: `TryHandleScopeCommand` (`.scope range <1-256>` / `.scope template <id>` / `.scope brite <group> <value>` / `.scope map <id> <on\|off>` / `.scope db <item> <value>` / `.scope tearoff <button> <corner> <dx> <dy>` / `.scope tearoff delete <button>...` / `.scope pref <save\|saveas\|load\|rename\|delete>` / `.scope profile <stars\|eram\|mixed>`; it runs on `OpenScope`, in `MainViewModel.ScopeHosting.cs`, as typed; `RunScopeCommand(ScopeViewModel, string)` is the toolbar's, tear-offs' and cards' entry and runs it on that Scope), the room's Scope profile (`ScopeProfile`, picked once when the student position first arrives; `PickScopeProfileByHand`) and `GetCachedVideoMap` (the video-map cache lookup behind the Scope's own map toggles). Client-only. |
-| `MainViewModel.ScopeHosting.cs` | Where the Radar lives: `PrimaryScope` (the `ScopeViewModel`, built with the VM and alive until app exit, shown as the main window's Radar tab or popped out), `IsScopePoppedOut` (pref key `ScopeViewKey` = "ScopeView"; its change calls `OnTabPoppedOutChanged`), `ActiveScope` (the Scope whose canvas last took focus) and `OpenScope` (`ActiveScope` else `PrimaryScope`, never null: typed `.scope` / `.view` verbs always act on it), `AllScopeViews`, `ReconcileExtraScopeViews` (a layout's apply: closes the extras it does not list, opens the missing numbers from their own saved state), and `ScopeStoreFactory` (the pref-set and profile stores; a headless test swaps it). Replaces `MainViewModel.ScopeViews.cs`. Client-only. |
+| `MainViewModel.ScopeHosting.cs` | Where the Radar lives: `PrimaryScope` (the `ScopeViewModel`, built with the VM and alive until app exit, shown as the main window's Radar tab or popped out), `IsScopePoppedOut` (pref key `ScopeViewKey` = "ScopeView"; its change calls `OnTabPoppedOutChanged`), `ActiveScope` (the Scope whose canvas last took focus) and `OpenScope` (`ActiveScope` else `PrimaryScope`, never null: typed `.scope` / `.view` verbs always act on it), `AllScopeViews`, `ReconcileExtraScopeViews` (a layout's apply: closes the extras it does not list, opens the missing numbers from their own saved state), and `ScopeStoreFactory` (the pref-set and profile stores; a headless test swaps it). Client-only. |
+| `MainViewModel.ScopeFeatures.cs` | The `.scope` verbs the Scope's features add, tried after every built-in verb: it offers the typed verb and its parts to the map tools and the datablocks features and returns the first taker's status text. Client-only. |
+| `MainViewModel.ScopeMapTools.cs` | The map tools' `.scope` verbs (`mva`, `lock`, `center`, `rr`, `wx`, `fix`, `dcnf`), the marker verbs `.ff`, `.marker`, `.markers` and `.nomarkers` on the open Scope, and the weather lines its overlay draws. Client-only. |
 | `MainViewModel.Measure.cs` | Partial: which map surface the distance measuring tool's typed `.rbl A B` places on — `ActiveMeasureView` (the last Ground or Scope canvas to take focus or a press; the primary Scope before any, and again when the Scope that took it closes), `ActiveMeasureScope`, `SetGroundMeasureActive` (the Ground canvas took focus or a press; a Scope's is `SetActiveMeasureScope`), and `MeasureSurface` (the view tag, track lookup, units and, for a Scope, the owning Scope a line or anchor is stamped with). Client-only. |
 | `MainViewModel.Views.cs` | `TryHandleViewCommand` (`.view <ssa\|ca> <on\|off\|dock>` and `.view <ssa\|ca> tear <corner> <dx> <dy>`, after `TryHandleScopeCommand` in the dot-command chain: opens, closes, docks or tears off a view of the Scope's views dock, echoing even when the state is unchanged; `Usage: .view <ssa\|ca> <on\|off\|dock> \| .view <ssa\|ca> tear <tl\|tr\|bl\|br> <dx> <dy>` on bad input) and `RunViewCommand(ScopeViewModel, string)` (the dock and toolbar's entry: runs it on that Scope without command history; `RunViewCommand(string)` runs it on `OpenScope`). Client-only. |
-| `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel (ground overrides, blank spacers) over `FavoriteStore`. `DisplayFavorites` = the visible sets' favorites (`FavoriteDisplayEntry`: favorite + container id) in the stored bar order (`ComposeDisplayFavorites` → `FavoriteStore.ComposeDisplay`, ordered by `FavoriteSetOrdering.Normalize` over `UserPreferences.FavoriteSetOrder`); `FavoriteSetRows` feeds the Sets flyout (Global/airport/scenario slots + every named set) and `MoveFavoriteSet` swaps a row with its visible neighbour; mutators are container-aware (`FindFavoriteContainer` routes an edit to the base pool or the owning set): membership-based Add/Update/Delete, container-scoped reorder/blank-insert, `FavoriteContainerOption` picker rows (on-demand airport/scenario containers); set load/unload + all-sets bundle import and zip import/export passthroughs. The ctor subscribes `UserPreferences.FavoriteSetsChanged` → `Dispatcher.UIThread.Post(RefreshDisplayFavorites)` so Favorites Editor mutations reach the live bar. |
+| `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel (ground overrides, blank spacers) over `FavoriteStore`. `DisplayFavorites` = the visible sets' favorites (`FavoriteDisplayEntry`: favorite + container id) in the stored bar order (`FavoriteStore.ComposeDisplay`, ordered by `FavoriteSetOrdering.Normalize` over `UserPreferences.FavoriteSetOrder`); `FavoriteSetRows` feeds the Sets flyout (Global/airport/scenario slots + every named set) and `MoveFavoriteSet` swaps a row with its visible neighbour; mutators are container-aware (`FindFavoriteSlot` routes an edit to the base pool or the owning set): membership-based Add/Update/Delete, container-scoped reorder/blank-insert, `FavoriteContainerOption` picker rows (on-demand airport/scenario containers); set load/unload + all-sets bundle import and zip import/export passthroughs. The ctor subscribes `UserPreferences.FavoriteSetsChanged` → `Dispatcher.UIThread.Post(RefreshDisplayFavorites)` so Favorites Editor mutations reach the live bar. |
 | `MainViewModel.ArrivalGenerators.cs` | Live arrival-generator editing: open the editor window, push edits to the sim, Save As. |
 | `ScenarioBootstrap.cs` | The `ScenarioBootstrap` record — the common projection the three activation paths feed `ApplyScenarioBootstrap`. |
 | `Views/MainWindow.axaml.cs` | View side: creates the VM, subscribes the bridge events, materializes a TabItem-or-Window per tab/entry, owns the shutdown protocol (`OnClosing`). |
@@ -70,31 +71,22 @@ the `Aircraft`, `TerminalEntries`, `CrcLobbyClients`, `CrcRoomMembers`, `RoomMem
 > **Every `ServerConnection` event handler that mutates an `ObservableCollection` or an observable property must wrap
 > its body in `Avalonia.Threading.Dispatcher.UIThread.Post(...)`.**
 
-This holds for `OnAircraftUpdated`/`Spawned`/`Deleted`, `OnSimulationStateChanged`, `OnTerminalEntry`,
-`OnReconnecting`/`OnReconnected`/`OnConnectionClosed`, `OnServerRestarting`/`ReadyComplete`, `OnRoomAvailableForCid`,
-`OnRoomMemberChanged` (**not** the only writer of `RoomMembers` — `ApplyRoomState` seeds it from
-`RoomStateDto.Members`, because the server's join-time push can land before `ActiveRoomId` is assigned and get
-dropped by this handler's room guard), `OnCrcLobbyChanged` (logs first, then posts — `MainViewModel.Rooms.cs:697`),
-`OnCrcRoomMembersChanged`, `OnWeatherChanged`, `OnArrivalGeneratorsChanged`, `OnPositionDisplayChanged`,
-`OnAircraftAssignmentsChanged`, `OnScenarioLoaded`/`OnScenarioUnloaded`, `OnSessionSettingsChanged`,
-`OnKickedFromRoom`, `OnRoomRetired`. Omit the `Post` and you get intermittent cross-thread crashes that unit tests
-will not catch.
+This holds for `OnAircraftUpdated`/`Spawned`/`Deleted`, `OnSimulationStateChanged`, `OnTerminalEntry`, `OnReconnecting`/`OnReconnected`/`OnConnectionClosed`, `OnServerRestarting`/`OnServerRestartReady`/`OnServerRestartComplete`, `OnRoomAvailableForCid`.
 
-**The deliberate exception:** `OnPilotTransmissionReceived` (`MainViewModel.Aircraft.cs:126`) does **not** marshal. It
-only reads preference/scalar state and calls `_pilotVoice.Enqueue(...)`; it never touches an `ObservableCollection`
-or observable property, so it is safe to run on the SignalR thread. The contract is "marshal before touching UI
-state," not "marshal unconditionally" — but when in doubt, marshal.
+It also holds for `OnRoomMemberChanged` (**not** the only writer of `RoomMembers` — `ApplyRoomState` seeds it from `RoomStateDto.Members`, because the server's join-time push can land before `ActiveRoomId` is assigned and get dropped by this handler's room guard).
+
+The rest are `OnCrcLobbyChanged` (logs first, then posts — `MainViewModel.Rooms.cs`), `OnCrcRoomMembersChanged`, `OnWeatherChanged`, `OnArrivalGeneratorsChanged`, `OnPositionDisplayChanged`, `OnAircraftAssignmentsChanged`, `OnScenarioLoaded`/`OnScenarioUnloaded`, `OnSessionSettingsChanged`, `OnKickedFromRoom` and `OnRoomRetired`.
+
+Omit the `Post` and you get intermittent cross-thread crashes that unit tests will not catch.
+
+**The deliberate exception:** `OnPilotTransmissionReceived` (`MainViewModel.Aircraft.cs`) does **not** marshal. It only reads preference/scalar state and calls `_pilotVoice.Enqueue(...)`; it never touches an `ObservableCollection` or observable property, so it is safe to run on the SignalR thread. The contract is "marshal before touching UI state," not "marshal unconditionally" — but when in doubt, marshal.
 
 These other thread crossings exist outside the plain SignalR handlers:
 
-- **Global PTT key hook.** `GlobalKeyHookService` fires `KeyDown`/`KeyUp` on a background thread (so PTT works while
-  another app is focused). `MainWindow.OnGlobalKeyDown`/`OnGlobalKeyUp` (`MainWindow.axaml.cs:2601`/`2624`) post to the
-  UI thread before calling `vm.SpeechService.StartPtt()`/`StopPtt()`, edge-triggered via `_globalPttActive`.
-  The hook is only installed when `App.GlobalKeyHookEnabled` is set, which `Program.Main` does; headless UI test
-  hosts leave it off so they never install a native OS-wide hook (libuiohook's X11 teardown kills a display-less
-  Linux test host with exit code 1).
-- **Speech service callbacks.** `_speechService.StatusChanged` and `CommandReady` fire off-thread;
-  `HandleSpeechServiceStatusChange` and `HandleSpeechServiceCommandReady` (`MainViewModel.cs:1535`/`1540`) both post.
+- **Global PTT key hook.** `GlobalKeyHookService` fires `KeyDown`/`KeyUp` on a background thread (so PTT works while another app is focused). `MainWindow.OnGlobalKeyDown`/`OnGlobalKeyUp` (`MainWindow.axaml.cs`) post to the UI thread before calling `vm.SpeechService.StartPtt()`/`StopPtt()`, edge-triggered via `_globalPttActive`.
+
+  The hook is only installed when `App.GlobalKeyHookEnabled` is set, which `Program.Main` does; headless UI test hosts leave it off so they never install a native OS-wide hook (libuiohook's X11 teardown kills a display-less Linux test host with exit code 1).
+- **Speech service callbacks.** `_speechService.StatusChanged` and `CommandReady` fire off-thread; `HandleSpeechServiceStatusChange` and `HandleSpeechServiceCommandReady` (`MainViewModel.cs`) both post.
 - **Speech context provider (a *pull*, not a callback).** `SpeechRecognitionService.ProcessPipelineAsync` pulls the
   context provider — `BuildSpeechContext` — on its `Task.Run` background thread at PTT release. `BuildSpeechContext`
   reads UI-thread-only state (`Aircraft`, `SelectedAircraft`, `Ground.DomainLayout`), so it self-marshals with a
@@ -105,15 +97,11 @@ These other thread crossings exist outside the plain SignalR handlers:
 - **Pre-send scenario parsing.** The parses a load runs before it sends (`ScenarioIdentity.ResolveFromJson`, `ScenarioSetupPlan.Create`, `ScenarioDifficultyHelper.FilterByDifficulty`) run under `Task.Run`, so a large scenario does not freeze the window while the overlay is up.
 
   The preference values they need are read on the UI thread before the `Task.Run`, and the view-model state they feed (the setup dialog's fields, the difficulty warnings, the per-scenario go-around preference) is applied after the await, back on the UI thread.
-- **Export-recording progress.** `_connection.ExportRecordingProgress` → `OnExportRecordingProgress`
-  (`MainViewModel.Timeline.cs:280`) posts. The download-update progress callback in `UpdateNowAsync`
-  (`MainViewModel.cs:1286`) posts too.
+- **Export-recording progress.** `_connection.ExportRecordingProgress` → `OnExportRecordingProgress` (`MainViewModel.Timeline.cs`) posts. The download-update progress callback in `UpdateNowAsync` (`MainViewModel.cs`) posts too.
 
-**The one off-UI-thread shared field:** the command-marker buffer. `RecordCommandMarker`
-(`MainViewModel.Timeline.cs:314`) appends to `_commandMarkerHistory` under `_commandMarkerLock`
-(`MainViewModel.Timeline.cs:300`, a `System.Threading.Lock`) because the same buffer is read under that lock by the
-periodic `RefreshTimelineMarkersAsync` poll. The lock guards only the list; the visible `TimelineMarkers` collection
-is still mutated via `Dispatcher.UIThread.Post`.
+**The one off-UI-thread shared field:** the command-marker buffer. `RecordCommandMarker` (`MainViewModel.Timeline.cs`) appends to `_commandMarkerHistory` under `_commandMarkerLock` (a `System.Threading.Lock`, in `MainViewModel.Timeline.cs`) because the same buffer is read under that lock by the periodic `RefreshTimelineMarkersAsync` poll.
+
+The lock guards only the list; the visible `TimelineMarkers` collection is still mutated via `Dispatcher.UIThread.Post`.
 
 **Per-aircraft broadcasts must never trigger a global rebuild per event.** The server sends one `AircraftUpdated` per aircraft, so a
 handler that runs an O(n) rebuild (the shown taxi-route overlay:
@@ -144,27 +132,24 @@ rebuild. Apply the same coalesce pattern to any new per-aircraft handler that fa
    lookup; `Ground.ShownAirportChanged` re-publishes `GroundShownAirportId`.
 5. **Strips/TDLS student entries** — `StripsEntries[0]` and `TdlsEntries[0]` are created (always element 0), then
    `Subscribe*Entry` + the `CollectionChanged` hooks are attached.
-6. **Pop-out flag restore** — the three fixed views (`IsDataGridPoppedOut`/`IsGroundViewPoppedOut`/
-   `IsScopePoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences, and
-   `ReconcileExtraViews` recreates the extra Ground instances from `ExtraGroundViewOrdinals`.
-7. **~38 `ServerConnection` event subscriptions** (`MainViewModel.cs:1769`-`1810`).
+6. **Pop-out flag restore** — the three fixed views (`IsDataGridPoppedOut`/`IsGroundViewPoppedOut`/`IsScopePoppedOut`/`IsTerminalPoppedOut`) and the **student** strips/TDLS entries restore from preferences, and `ReconcileExtraViews` recreates the extra Ground instances a layout lists from their saved ordinal and airport.
+7. **`ServerConnection` event subscriptions** — the `MainViewModel` constructor wires each handler named in the contract above.
 8. **Fire-and-forget init** — `InitializeNavDataAsync()`, `_vnasConfigService.InitializeAsync()`,
    `CheckForUpdateAsync()`, all three through the internal `MainViewModel.StartupLoads` (`IMainViewModelStartupLoads` in `MainViewModelStartupLoads.cs`), read once per constructor. The default is the production behaviour; `Yaat.Client.UI.Tests` installs offline loads (committed test navdata, no vNAS config request, no update check).
 
-`InitializeNavDataAsync` (`MainViewModel.cs:1837`) loads NavData + CIFP and calls `NavigationDatabase.Initialize(...)`,
-then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `ScopeMaps` / `Ground`. The constructor keeps its task as the public `NavDataInitialization`, which tests that assert `StatusText` await. Until it completes,
-`NavigationDatabase.Instance` is null and `BuildSpeechContext` degrades (see Footguns).
+`InitializeNavDataAsync` (`MainViewModel.cs`) loads NavData + CIFP and calls `NavigationDatabase.Initialize(...)`, then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `ScopeMaps` / `Ground`. The constructor keeps its task as the public `NavDataInitialization`, which tests that assert `StatusText` await.
+
+Until it completes, `NavigationDatabase.Instance` is null and `BuildSpeechContext` degrades (see Footguns).
 
 ## Scenario activation — three paths, one router
 
-A scenario becomes active through **three** distinct entry points, and they all **must** funnel through
-`ApplyScenarioBootstrap` (`MainViewModel.Scenario.cs:782`):
+A scenario becomes active through **three** distinct entry points, and they all **must** funnel through `ApplyScenarioBootstrap` (`MainViewModel.Scenario.cs`):
 
 | Path | Trigger | Entry method | Carries |
 |---|---|---|---|
-| **Loader** | This client invoked `LoadScenario` | `ApplyScenarioResult(LoadScenarioResultDto)` (`Scenario.cs:688`) | full `AllAircraft`, sim state, session settings, active runways and the active-runways prompt; also pushes **this RPO's** preferences to the server |
-| **Broadcast** | Another client loaded a scenario | `OnScenarioLoaded(ScenarioLoadedDto)` (`Scenario.cs:731`) | same fields and active runways; does **not** push preferences (only the loading RPO does) and never prompts |
-| **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs:823`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` and active runways |
+| **Loader** | This client invoked `LoadScenario` | `ApplyScenarioResult(LoadScenarioResultDto)` (`Scenario.cs`) | full `AllAircraft`, sim state, session settings, active runways and the active-runways prompt; also pushes **this RPO's** preferences to the server |
+| **Broadcast** | Another client loaded a scenario | `OnScenarioLoaded(ScenarioLoadedDto)` (`Scenario.cs`) | same fields and active runways; does **not** push preferences (only the loading RPO does) and never prompts |
+| **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` and active runways |
 
 `ScenarioBootstrap` (`ScenarioBootstrap.cs`) is a small record that exists precisely so the three differently-named
 DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `PositionDisplayConfig` — its `TcpCode`, `ActivePosition` and `ScratchpadMaxLength` reach `ActiveTcp`, `MainViewModel.ActivePosition` and `MainViewModel.ScratchpadMaxLength` through `SetActivePositionFromServer`, which `OnPositionDisplayChanged` and the scenario unload call too; a pick in the active-position dropdown clears `ActivePosition` until the server answers; an ERAM position sets `ActiveTcp` to `C{sector}` and raises `PropertyChanged` for `ActivePosition`, `ActingCallsign` and `ActingTrackFacilityId` after `ActiveTcp`, which `ScopeViewModel.Viewer` follows —,
@@ -196,12 +181,9 @@ ends in `ApplyAutoClearedToLandLocally`, which sets the field from the room's sh
 of its own. All three DTOs carry the four lists and all three entry methods call it; a path that skipped it would open
 the editor empty, and Apply from an empty editor replaces the room's generators with nothing (#442).
 
-**A recording load is a second scenario-identity writer.** `ApplyRecordingResult` (`MainViewModel.Timeline.cs:647`,
-reached by the loading client and by the `RecordingLoaded` broadcast) sets `ActiveScenarioId`/`Name`/`PrimaryAirportId`
-and `SessionStartUtc` (the manifest's resolved start, so the SSA shows the recorded date) itself; it does not go through the router, so it makes its own `StartRichPresence(result.ElapsedSeconds)` call — the
-tape position is where the Discord timer starts. Anything keyed on "the active scenario changed" has to be wired into
-both `ApplyScenarioBootstrap` and `ApplyRecordingResult`. A rewind or skip (`RewindToSeconds`) goes through neither,
-and leaves the published start time alone.
+**A recording load is a second scenario-identity writer.** `ApplyRecordingResult` (`MainViewModel.Timeline.cs`, reached by the loading client and by the `RecordingLoaded` broadcast) sets `ActiveScenarioId`/`Name`/`PrimaryAirportId` and `SessionStartUtc` (the manifest's resolved start, so the SSA shows the recorded date) itself; it does not go through the router, so it makes its own `StartRichPresence(result.ElapsedSeconds)` call — the tape position is where the Discord timer starts.
+
+Anything keyed on "the active scenario changed" has to be wired into both `ApplyScenarioBootstrap` and `ApplyRecordingResult`. A rewind or skip (`RewindToSeconds`) goes through neither, and leaves the published start time alone.
 
 **The session clock.** `SessionStartUtc` (the server's `SessionStartUtc`, Kind Utc, null with no scenario; cleared with the scenario identity) and `ScenarioElapsedSeconds` give `SessionNowUtc` (start plus elapsed, null with no scenario), which stops while paused and runs at the sim rate. `ApplyScenarioRestart` takes the restart's new start and sets the elapsed seconds to 0; a rewind keeps the start. `SsaViewModel` reads `SessionNowUtc`, falling back to `MainViewModel.WallClock` with no scenario. Wire side: **Session clock** in [training-hub-contract.md](training-hub-contract.md).
 
@@ -211,7 +193,7 @@ Settings window calls it on each Apply (so the `DiscordRichPresenceEnabled` togg
 is the raw scenario id). `MainViewModel.RichPresence` is a settable `IRichPresencePublisher?` that `MainWindow` assigns;
 left null (a headless test host, unless the test assigns a fake) every call is a no-op.
 
-`ClearScenarioState` (`Scenario.cs:985`) is the symmetric teardown: it nulls the active-scenario properties, clears the published Discord presence, clears the active runways and closes the session-setup popup, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral `SessionSettingsDto`.
+`ClearScenarioState` (`Scenario.cs`) is the symmetric teardown: it nulls the active-scenario properties, clears the published Discord presence, clears the active runways and closes the session-setup popup, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral `SessionSettingsDto`.
 
 ### Active runways and the load prompt
 
@@ -333,14 +315,11 @@ Note the solo-pacing rates funnel through one server call, `SetSoloPacingRatesAs
 
 The parking pace travels as a rate percent but every control shows an interval; the conversion, the "Paused" / "Once per N sec" label and the load-time defaults (`LoadDefaults`, what a load without the setup dialog sends) live in `Yaat.Client.Core/Services/SoloPacing.cs`, shared by the flyout, the scenario setup dialog and Settings › Scenario defaults. The setup dialog seeds its sliders from the stored defaults and never writes them back; only Settings changes them.
 
-The **terminal-filter solo** feature uses the identical guard pattern under a different flag,
-`_isProgrammaticTerminalToggle` (`MainViewModel.cs:821`): `ApplyVisibilityProgrammatic` sets it while flipping the
-`Show*Entries` toggles so `OnTerminalToggleChanged` skips persistence and the cancel-solo side effect. There is one
-`Show<Kind>Entries` toggle per `TerminalEntryKind` (Command/Response/System/Say/Warning/Error/Chat/Tdls/**Strip**); adding
-a channel means touching this toggle set plus `IsEntryVisible`, `CurrentVisibleKinds`, `ApplyVisibilityProgrammatic`,
-`PersistTerminalFilters`, the constructor seed, the `TerminalPanelView` toggle button + `EnumerateCategoryToggles`, and the
-`TerminalColorScheme`/colorizer/Settings color row (the `Strip` channel — strip command echoes + feedback, tagged server-side
-in `RoomEngine.HandleStripCmd` — is the most recent example).
+The **terminal-filter solo** feature uses the identical guard pattern under a different flag, `_isProgrammaticTerminalToggle` (`MainViewModel.cs`): `ApplyVisibilityProgrammatic` sets it while flipping the `Show*Entries` toggles so `OnTerminalToggleChanged` skips persistence and the cancel-solo side effect.
+
+There is one `Show<Kind>Entries` toggle per `TerminalEntryKind` (Command/Response/System/Say/Warning/Error/Chat/Tdls/**Strip**).
+
+Adding a channel means touching this toggle set plus `IsEntryVisible`, `CurrentVisibleKinds`, `ApplyVisibilityProgrammatic`, `PersistTerminalFilters`, the constructor seed, the `TerminalPanelView` toggle button + `EnumerateCategoryToggles`, and the `TerminalColorScheme`/colorizer/Settings color row (the `Strip` channel — strip command echoes and feedback tagged by the sim's `StripCommandHandler` — is one such channel).
 
 **Terminal scrub + timestamp mode.** Each `TerminalEntry` carries `ElapsedSeconds` (the scenario-elapsed second it
 occurred, stamped server-side into `TerminalBroadcastDto` or from `ScenarioElapsedSeconds` for client-local entries).
@@ -411,9 +390,9 @@ is no item-construction gate to rely on. It routes through `SendGatedCommandForV
 initials)`, which runs `VfrCommandGate` and then `SendCommandForViewAsync`. Any future menu that sends
 controller-authored text rather than a fixed verb belongs on that path too.
 
-`HandleSpeechServiceCommandReady` (`MainViewModel.cs:1540`) feeds this chain: it prepends the recognized callsign onto
-the canonical command (`"SWA123 FH 270"`) so the `CallsignPrefixResolver` path auto-dispatches on Enter, then raises
-`RequestCommandInputFocus` when the user opted in. A result with `SpeechResult.SayAgainText` (accurate mode accepted no callsign) sets `StatusText` to it and stages the raw transcript; `SendCommandAsync` then ignores Enter on that unchanged transcript and re-shows the status, and any edit clears the staging so Enter takes the normal path.
+`HandleSpeechServiceCommandReady` (`MainViewModel.cs`) feeds this chain: it prepends the recognized callsign onto the canonical command (`"SWA123 FH 270"`) so the `CallsignPrefixResolver` path auto-dispatches on Enter, then raises `RequestCommandInputFocus` when the user opted in.
+
+A result with `SpeechResult.SayAgainText` (accurate mode accepted no callsign) sets `StatusText` to it and stages the raw transcript; `SendCommandAsync` then ignores Enter on that unchanged transcript and re-shows the status, and any edit clears the staging so Enter takes the normal path.
 
 ## Tabs & pop-out windows
 
@@ -425,15 +404,13 @@ The main tab control has a fixed-index layout, hard-coded in both the VM arithme
 then TdlsEntries               = vTDLS tabs (student entry first)
 ```
 
-`GroundViewTabIndex = 1` (`MainViewModel.cs:64`) is the only named constant; the rest is positional.
+`GroundViewTabIndex = 1` (`MainViewModel.cs`) is the only named constant; the rest is positional.
+
 `IsTabVisible(index)` and `FindNextVisibleTabIndex` (`MainViewModel.cs`) compute `stripsBase` and `tdlsBase = stripsBase + StripsEntries.Count` directly. `MainWindow.axaml.cs` keeps the physical order in step: `AttachStripsEntry` inserts each strips `TabItem` before the first vTDLS tab, so a strips tab opened after the student vTDLS tab still lands in the strips block, and vTDLS tabs append at the end (`MainWindowTabOrderTests` pins it). Reordering tabs means touching both sides.
 
-`EnsureSelectedTabVisible` (`MainViewModel.cs:443`) shifts `SelectedTabIndex` off a popped-out tab to the next docked
-one (wrapping; returns the same index when everything is popped out, in which case the whole tab area is hidden via
-the `IsAnyTabVisible` binding). It's called internally on any pop-out flip (`OnTabPoppedOutChanged`) **and** externally
-by `MainWindow` once the dynamic Strips/TDLS `TabItem`s are materialized — because Avalonia's two-way
-`SelectedIndex` binding doesn't propagate VM→TabControl when the VM value was set before the dynamic tabs existed
-(`MainWindow.axaml.cs:267`-`284`).
+`EnsureSelectedTabVisible` (`MainViewModel.cs`) shifts `SelectedTabIndex` off a popped-out tab to the next docked one (wrapping; returns the same index when everything is popped out, in which case the whole tab area is hidden via the `IsAnyTabVisible` binding).
+
+It's called internally on any pop-out flip (`OnTabPoppedOutChanged`) **and** externally by `MainWindow` once the dynamic Strips/TDLS `TabItem`s are materialized — because Avalonia's two-way `SelectedIndex` binding doesn't propagate VM→TabControl when the VM value was set before the dynamic tabs existed (`MainWindow.axaml.cs`).
 
 **The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived `IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out.
 
@@ -472,11 +449,9 @@ Invariants:
 - Per-tick cost: nothing per-aircraft touches an instance; N instances add N coalesced refreshes per update burst and N
   canvases on the 10 Hz timer. `RefreshShownTaxiRoutes` short-circuits when nothing is shown.
 
-**Pop-out persistence is asymmetric.** The three fixed views and the **student** Strips/TDLS entry (index 0) persist
-their popped-out flag to `UserPreferences` (`OnStripsEntryPropertyChanged` only calls `SetPoppedOut("VStrips", …)`
-when `entry.IsStudentEntry`, `MainViewModel.Strips.cs:107`). Extra per-facility tabs are session-scoped and always
-start docked. The `Subscribe*Entry` / `Unsubscribe*Entry` pairing (driven by the `CollectionChanged` handler) must
-stay balanced or pop-out bookkeeping leaks handlers.
+**Pop-out persistence is asymmetric.** The three fixed views and the **student** Strips/TDLS entry (index 0) persist their popped-out flag to `UserPreferences` (`OnStripsEntryPropertyChanged` only calls `SetPoppedOut("VStrips", …)` when `entry.IsStudentEntry`, `MainViewModel.Strips.cs`).
+
+Extra per-facility tabs are session-scoped and always start docked. The `Subscribe*Entry` / `Unsubscribe*Entry` pairing (driven by the `CollectionChanged` handler) must stay balanced or pop-out bookkeeping leaks handlers.
 
 ## Aircraft List "Info" column
 
@@ -538,49 +513,25 @@ the single choke point that attaches `WindowGroupRaiser`. Invariants the helper 
 
 The VM cannot reach a control (MVVM), so two parameterless events let it poke the View:
 
-- **`GridLayoutReset`** (`MainViewModel.cs:761`) — raised by the `ResetGridLayout` command; `MainWindow` subscribes and
-  forwards to `ResetLiveGrid(dataGrid)` (`MainWindow.axaml.cs:217`).
-- **`RequestCommandInputFocus`** (`MainViewModel.cs:770`) — raised after a speech transcription populates `CommandText`
-  (when `AutoFocusInputAfterSpeech` is set); `MainWindow` forwards to `CommandInputView.FocusCommandInput()`
-  (`MainWindow.axaml.cs:226`). A new "VM needs to poke a control" requirement should follow this pattern, not a direct
-  control reference.
-- **`RequestCommandInputFocus` has a second trigger the bullet above omits.** The app-wide focus-input hotkey
-  (default `` ` ``/`OemTilde`, `UserPreferences.FocusInputKey`) also raises it, via a central class handler in
-  `src/Yaat.Client/Views/WindowHotkeys.cs` (`InputElement.KeyDownEvent.AddClassHandler<Window>`, registered once at
-  `App.OnFrameworkInitializationCompleted`, outside the desktop-lifetime block so headless tests run it too;
-  `WindowHotkeys.cs:70` → `vm.FocusCommandInput()`). Scope: `DataContext is MainViewModel` or
-  `VStripsViewWindow`/`VTdlsViewWindow`; modal dialogs are excluded. The actual forwarding handler,
-  `MainWindow.FocusActiveCommandInput` (`MainWindow.axaml.cs:3056`), branches on `IsTerminalDocked` — docked routes to the
-  embedded `CommandInputView`, popped-out routes to `_terminalWindow.FocusCommandInput()`. `WindowHotkeys.cs` also owns a
-  sibling always-on-top hotkey (default `Ctrl+Shift+T`) that toggles the *focused* window's topmost via `IAlwaysOnTopToggle`
-  (`Yaat.Client.Core/Views`), implemented per-window as `ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost()`.
+- **`GridLayoutReset`** (`MainViewModel.cs`) — raised by the `ResetGridLayout` command; `MainWindow` subscribes and forwards to `ResetLiveGrid(dataGrid)` (`MainWindow.axaml.cs`).
+- **`RequestCommandInputFocus`** (`MainViewModel.cs`) — raised after a speech transcription populates `CommandText` (when `AutoFocusInputAfterSpeech` is set); `MainWindow` forwards to `CommandInputView.FocusCommandInput()` (`MainWindow.axaml.cs`). A new "VM needs to poke a control" requirement should follow this pattern, not a direct control reference.
+- **`RequestCommandInputFocus` has a second trigger the bullet above omits.** The app-wide focus-input hotkey (default `` ` ``/`OemTilde`, `UserPreferences.FocusInputKey`) also raises it, via a central class handler in `src/Yaat.Client/Views/WindowHotkeys.cs` (`InputElement.KeyDownEvent.AddClassHandler<Window>`, registered once at `App.OnFrameworkInitializationCompleted`, outside the desktop-lifetime block so headless tests run it too; `WindowHotkeys.cs` → `vm.FocusCommandInput()`).
+
+  Scope: `DataContext is MainViewModel` or `VStripsViewWindow`/`VTdlsViewWindow`; modal dialogs are excluded. The actual forwarding handler, `MainWindow.FocusActiveCommandInput` (`MainWindow.axaml.cs`), branches on `IsTerminalDocked` — docked routes to the embedded `CommandInputView`, popped-out routes to `_terminalWindow.FocusCommandInput()`.
+
+  `WindowHotkeys.cs` also owns a sibling always-on-top hotkey (default `Ctrl+Shift+T`) that toggles the *focused* window's topmost via `IAlwaysOnTopToggle` (`Yaat.Client.Core/Views`), implemented per-window as `ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost()`.
 
 (`TerminalFilterChanged` is a third such event, consumed by the terminal view's filter predicate.)
 
-On the property side, `MainWindow.OnViewModelPropertyChanged` (`MainWindow.axaml.cs:1037`) switches on changed
-property names to drive side effects the bindings can't express: pop-out window create/close (`IsTerminalDocked`,
-`IsDataGridPoppedOut`, `IsGroundViewPoppedOut`, `IsScopePoppedOut`), content-grid row resizing (`IsAnyTabVisible`),
-and recent-menu enablement (`ActiveScenarioId` / `ActiveRoomId`).
+On the property side, `MainWindow.OnViewModelPropertyChanged` (`MainWindow.axaml.cs`) switches on changed property names to drive side effects the bindings can't express: pop-out window create/close (`IsTerminalDocked`, `IsDataGridPoppedOut`, `IsGroundViewPoppedOut`, `IsScopePoppedOut`), content-grid row resizing (`IsAnyTabVisible`), and recent-menu enablement (`ActiveScenarioId` / `ActiveRoomId`).
 
 ## Shutdown protocol
 
-`MainWindow.OnClosing` is `async void` (`MainWindow.axaml.cs:2495`) and **re-enters itself**: when a scenario is
-loaded it shows a confirm-exit dialog, cancels the first close (`e.Cancel = true`), and a second `OnClosing` fires
-from the inner `Close()` with a fresh args object.
+`MainWindow.OnClosing` is `async void` (`MainWindow.axaml.cs`) and **re-enters itself**: when a scenario is loaded it shows a confirm-exit dialog, cancels the first close (`e.Cancel = true`), and a second `OnClosing` fires from the inner `Close()` with a fresh args object.
 
-- **`_isMainWindowClosing` is sticky** — only ever set to `true`, never reset. Without that, when entry #1 resumes
-  after the `await dialog.ShowDialog(this)` it would overwrite the flag back to `false` using its stale
-  `e.Cancel = true`, making the child pop-out windows treat the cascade shutdown as a manual close and clobber their
-  persisted pop-out flags (`MainWindow.axaml.cs:2562`-`2575`).
-- **`AppLifetime.MarkShuttingDown()`** (`AppLifetime.cs:14`) is the cross-window signal. Pop-out `Closing` handlers
-  call `IsClosingFromShutdown(_isMainWindowClosing)` (`MainWindow.axaml.cs:1671`), which is
-  `isMainWindowClosing || AppLifetime.IsShuttingDown`, and only revert the dock flag when the user closed *that*
-  window manually — covering shutdown paths (File > Exit, Velopack restart, `CancelKeyPress`) that close pop-outs
-  before `MainWindow.OnClosing` runs.
-- **Velopack restart bypasses the close pipeline.** `UpdateNowAsync` (`MainViewModel.cs:1274`) calls
-  `WindowGeometryHelper.FlushAllSavedGeometries()` (`MainViewModel.cs:1293`) **before** `ApplyUpdateAndRestart`, because Velopack's restart
-  never fires `Window.Closing`, so the per-window geometry save (hooked there by `WindowGeometryHelper`) would
-  otherwise be lost.
+- **`_isMainWindowClosing` is sticky** — only ever set to `true`, never reset. Without that, when entry #1 resumes after the `await dialog.ShowDialog(this)` it would overwrite the flag back to `false` using its stale `e.Cancel = true`, making the child pop-out windows treat the cascade shutdown as a manual close and clobber their persisted pop-out flags (`MainWindow.axaml.cs`).
+- **`AppLifetime.MarkShuttingDown()`** (`AppLifetime.cs`) is the cross-window signal. Pop-out `Closing` handlers call `IsClosingFromShutdown(_isMainWindowClosing)` (`MainWindow.axaml.cs`), which is `isMainWindowClosing || AppLifetime.IsShuttingDown`, and only revert the dock flag when the user closed *that* window manually — covering shutdown paths (File > Exit, Velopack restart, `CancelKeyPress`) that close pop-outs before `MainWindow.OnClosing` runs.
+- **Velopack restart bypasses the close pipeline.** `UpdateNowAsync` (`MainViewModel.cs`) calls `WindowGeometryHelper.FlushAllSavedGeometries()` (`MainViewModel.cs`) **before** `ApplyUpdateAndRestart`, because Velopack's restart never fires `Window.Closing`, so the per-window geometry save (hooked there by `WindowGeometryHelper`) would otherwise be lost.
 
 When `_isMainWindowClosing` is set, `OnClosing` also disposes the global key hook and cancels the auto-connect CTS. Two rules keep that path from
 wedging the UI thread (#347):
@@ -641,11 +592,9 @@ wedging the UI thread (#347):
 - **The VM can't touch controls.** Focus / grid-reset go through the parameterless `RequestCommandInputFocus` /
   `GridLayoutReset` events that `MainWindow` forwards via `FindControl`. A new "poke a control" need follows this
   pattern, not a direct reference.
-- **`BuildSpeechContext` degrades until both NavDb and a ground layout have loaded.**
-  `GroundViewModel` owns the reconstructed domain ground layout (`Ground.DomainLayout`); `BuildSpeechContext`
-  (`MainViewModel.cs:1381`) borrows it for taxiway names and reads `NavigationDatabase.Instance` for runways /
-  custom-fix patterns / procedures. Until `InitializeNavDataAsync` completes **and** a ground layout has loaded, the
-  taxiway / runway / procedure sets come back empty and the speech rule mapper + LLM fallback skip those checks.
+- **`BuildSpeechContext` degrades until both NavDb and a ground layout have loaded.** `GroundViewModel` owns the reconstructed domain ground layout (`Ground.DomainLayout`); `BuildSpeechContext` (`MainViewModel.cs`) borrows it for taxiway names and reads `NavigationDatabase.Instance` for runways / custom-fix patterns / procedures.
+
+  Until `InitializeNavDataAsync` completes **and** a ground layout has loaded, the taxiway / runway / procedure sets come back empty and the speech rule mapper + LLM fallback skip those checks.
 - **Pop-out persistence is asymmetric.** Only the student Strips/TDLS entry (index 0) and the three fixed views
   persist their popped-out flag; extra per-facility tabs are session-scoped and always start docked. Keep the
   `Subscribe*Entry` / `Unsubscribe*Entry` pairing balanced or handler subscriptions leak.

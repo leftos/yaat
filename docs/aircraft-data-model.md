@@ -8,14 +8,13 @@
 
 ## Overview
 
-`AircraftState` (`src/Yaat.Sim/AircraftState.cs:12`) is the single mutable record that every subsystem reads and writes: physics, phases, command
-handlers, the track engine, ground ops, and three separate DTO projections. It carries a handful of top-level identity + kinematics fields directly,
-then delegates everything else to sixteen cohesive **satellite objects** plus `ControlTargets`. There is no inheritance and no interface — it is a
-plain class whose members are mutated in place.
+`AircraftState` (`src/Yaat.Sim/AircraftState.cs`) is the single mutable record that every subsystem reads and writes: physics, phases, command handlers, the track engine, ground ops, and three separate DTO projections.
 
-`SimulationWorld` (`src/Yaat.Sim/SimulationWorld.cs:10`) owns the live set of aircraft behind a single reentrant `lock`. It is the only safe surface
-for adding, removing, finding, ticking, and draining aircraft. Mutating an `AircraftState` outside the lock (or outside a tick / handler that already
-holds it) races the tick loop.
+It carries a handful of top-level identity + kinematics fields directly, then delegates everything else to cohesive **satellite objects** plus `ControlTargets`.
+
+There is no inheritance and no interface — it is a plain class whose members are mutated in place.
+
+`SimulationWorld` (`src/Yaat.Sim/SimulationWorld.cs`) owns the live set of aircraft behind a single reentrant `lock`. It is the only safe surface for adding, removing, finding, ticking, and draining aircraft. Mutating an `AircraftState` outside the lock (or outside a tick / handler that already holds it) races the tick loop.
 
 ## The aircraft schema at a glance
 
@@ -52,33 +51,34 @@ A handful of cross-phase one-shot booleans and debrief timestamps also live at t
 
 `LastPilotTransmission` (an `AircraftLastPilotTransmission`: text, spoken text, kind, source kind, canonical airtime, the second it went on air) is the latest line the aircraft spoke, null until it transmits; it is separate from `PilotPendingRequest.LastPilotLine`, which belongs to an open request. `PendingRepeat` marks a repeat of that line as owed, `PendingRepeatCallsignOnly` the callsign alone (at most one of the two is set). See [solo-training-pilot-speech.md](solo-training-pilot-speech.md) for where each is written.
 
-### The sixteen satellites + `ControlTargets`
+### The satellites + `ControlTargets`
 
 Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Read the listed file for field-level detail.
 
 | Member | Type | One-line purpose | File |
 |---|---|---|---|
-| `FlightPlan` | `AircraftFlightPlan` | Filed plan: dep/dest/route, **filed** `AircraftType`, equipment, rules, cruise, `RevisionNumber`, `CreatedByOwner`. ERAM data only, never flown (the climb ceiling is the pilot's own `FiledCruiseAltitudeFt`, above): a fix-qualified altitude's latch (`AltitudeFixApproached` / `AltitudeFixPassed` → `EramAltitudeFeet`, reset when `Altitude` changes to a different value), a filed Mach / `IsSpeedClassified` beside `CruiseSpeed` (init-only; `SetTrueAirspeed` / `SetMach` / `SetClassifiedSpeed`; a TAS of 0 keeps a Mach/SC), and remarks in two parts (`InterfacilityRemarks`, `IntrafacilityRemarks`; `Remarks` is intra then inter, and the voice marker lives in the interfacility part). | `AircraftFlightPlan.cs:10` |
-| `Ground` | `AircraftGroundOps` | Layout ref, taxi route, parking/taxiway, `Hold` directive, conflict overrides, pushback heading, the towbar heading (`TowbarTrueHeading`: the tug's pose while under tow, written by `PushbackPhase` for the ground view and read by nothing in the sim), spawn-readback gate, `TaxiEdgeTrail` (the taxi edges it drove, about 3,000 ft, written by the post-physics `TickTaxiEdgeTrails` step; read by `FollowRoutePlanner` and, with each edge's entry node, by `GroundConflictDetector`'s lead-chain closing rules), and three optional stamps in scenario-elapsed seconds that time the pilot's calls and the silent simulated tower: `LeftStudentFrequencyAtSeconds` (the student's first `CT` to a tower position or `FCA` while it is on the ground), `ClearanceObtainedAtSeconds` (its clearance request answered) and `TakeoffRollStartedAtSeconds` (its first takeoff roll, for the wake interval behind it). | `AircraftGroundOps.cs:13` |
-| `Transponder` | `AircraftTransponder` | Mode (A/C/S), assigned vs reported beacon code, IDENT timer. Both codes are projected to the training wire: `AssignedCode`→`AssignedBeaconCode` (strip / FPE BCN), `Code`→`BeaconCode` (radar / squawk). | `AircraftTransponder.cs:9` |
-| `Track` | `AircraftTrack` | Ownership + handoff: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, the H-state booleans, `Pointout`. | `AircraftTrack.cs:10` |
-| `Stars` | `AircraftStarsState` | Per-track STARS display: scratchpads (CRC + ASDE-X), temp/pilot altitudes, display inhibitions, TPA, per-TCP shared dict. | `AircraftStarsState.cs:10` |
-| `Eram` | `AircraftEramState` | ERAM-side display mirrored to CRC: leader/dwell overrides, interim/procedure altitudes, pending pointouts. | `AircraftEramState.cs:9` |
-| `Approach` | `AircraftApproachState` | Controller-issued expectation, deferred clearance pending fix arrival, visual-approach pilot reports, per-aircraft FAS-reduction distance (`FinalApproachFasReachGateNm`, lazily assigned on first final when variety is enabled). | `AircraftApproachState.cs:11` |
-| `Procedure` | `AircraftProcedure` | SID/STAR state: active proc + runway, via-mode flags, `ClimbViaTargetFt` (the top altitude a CVIA climbs to, null when none is in force; it outlives the route ending at the SID's last constrained fix and ends on reaching the top, a new altitude or a vector; `SidViaCeiling` is only its ATC-assigned "except maintain" altitude), DSR speed/expedite flags, `LastProcedureSpeedKts`, `LastCrossedPublishedSpeedKts` (the last "at"/"at or below" published speed crossed on the procedure, held as the ceiling by RNS/RPS/DVIA/CVIA; ends with the procedure). | `AircraftProcedure.cs:9` |
-| `Pattern` | `AircraftPattern` | Per-aircraft pattern overrides (downwind offset, pattern altitude); null fields fall back to category defaults. Also the two single-shot pre-arms for a pattern entry that is queued but has not built its circuit yet: `PendingEntryModifier` (EXT/SA/MNA) and `PendingLandingClearance` (CLAND/TG/SG/LA/COPT), both consumed by `TryEnterPattern`. They live here rather than on `PhaseList` precisely because that list does not exist yet. | `AircraftPattern.cs:11` |
-| `Clearance` | `AircraftClearance` | Departure-clearance fields originating from CRC; null per-field until issued. | `AircraftClearance.cs:9` |
-| `HoldAnnotation` | `AircraftHoldAnnotation` | CRC-side hold annotation drawn over the radar target. | `AircraftHoldAnnotation.cs:9` |
-| `Ghost` | `AircraftGhostTrack` | Phantom/overlay tracking: distinguishes overlaid scenario aircraft from pure DA/VP phantom data blocks; `IsVehicle`. | `AircraftGhostTrack.cs:15` |
-| `Voice` | `AircraftVoice` | CRC voice config (Unknown/Full/ReceiveOnly/TextOnly) + `TdlsDumped`. | `AircraftVoice.cs:10` |
-| `MilitaryRoute` | `AircraftMilitaryRoute` | AP/1B route clearance kept as a durable *record*: designator, published direction, entry/exit points, current segment, altitude source + assigned block, MARSA, the beacon code stashed on a VR entry. Deliberately outside `Procedure`, whose SID/STAR state `FlightPhysics.ClearProcedureState` tears down on any heading command — a route clearance has to survive a vector. See military-training-routes.md. | `AircraftMilitaryRoute.cs:47` |
+| `FlightPlan` | `AircraftFlightPlan` | Filed plan: dep/dest/route, **filed** `AircraftType`, equipment, rules, cruise, `RevisionNumber`, `CreatedByOwner`. ERAM data only, never flown (the climb ceiling is the pilot's own `FiledCruiseAltitudeFt`, above): a fix-qualified altitude's latch (`AltitudeFixApproached` / `AltitudeFixPassed` → `EramAltitudeFeet`, reset when `Altitude` changes to a different value), a filed Mach / `IsSpeedClassified` beside `CruiseSpeed` (init-only; `SetTrueAirspeed` / `SetMach` / `SetClassifiedSpeed`; a TAS of 0 keeps a Mach/SC), and remarks in two parts (`InterfacilityRemarks`, `IntrafacilityRemarks`; `Remarks` is intra then inter, and the voice marker lives in the interfacility part). | `AircraftFlightPlan.cs` |
+| `Ground` | `AircraftGroundOps` | Layout ref, taxi route, parking/taxiway, `Hold` directive, conflict overrides, pushback heading, the towbar heading (`TowbarTrueHeading`: the tug's pose while under tow, written by `PushbackPhase` for the ground view and read by nothing in the sim), spawn-readback gate, `TaxiEdgeTrail` (the taxi edges it drove, about 3,000 ft, written by the post-physics `TickTaxiEdgeTrails` step; read by `FollowRoutePlanner` and, with each edge's entry node, by `GroundConflictDetector`'s lead-chain closing rules), and three optional stamps in scenario-elapsed seconds that time the pilot's calls and the silent simulated tower: `LeftStudentFrequencyAtSeconds` (the student's first `CT` to a tower position or `FCA` while it is on the ground), `ClearanceObtainedAtSeconds` (its clearance request answered) and `TakeoffRollStartedAtSeconds` (its first takeoff roll, for the wake interval behind it). | `AircraftGroundOps.cs` |
+| `Transponder` | `AircraftTransponder` | Mode (A/C/S), assigned vs reported beacon code, IDENT timer. Both codes are projected to the training wire: `AssignedCode`→`AssignedBeaconCode` (strip / FPE BCN), `Code`→`BeaconCode` (radar / squawk). | `AircraftTransponder.cs` |
+| `Track` | `AircraftTrack` | Ownership + handoff: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, the H-state booleans, `Pointout`. | `AircraftTrack.cs` |
+| `Stars` | `AircraftStarsState` | Per-track STARS display: scratchpads (CRC + ASDE-X), temp/pilot altitudes, display inhibitions, TPA, per-TCP shared dict. | `AircraftStarsState.cs` |
+| `Eram` | `AircraftEramState` | ERAM-side display mirrored to CRC: leader/dwell overrides, interim/procedure altitudes, pending pointouts. | `AircraftEramState.cs` |
+| `Approach` | `AircraftApproachState` | Controller-issued expectation, deferred clearance pending fix arrival, visual-approach pilot reports, per-aircraft FAS-reduction distance (`FinalApproachFasReachGateNm`, lazily assigned on first final when variety is enabled). | `AircraftApproachState.cs` |
+| `Procedure` | `AircraftProcedure` | SID/STAR state: active proc + runway, via-mode flags, `ClimbViaTargetFt` (the top altitude a CVIA climbs to, null when none is in force; it outlives the route ending at the SID's last constrained fix and ends on reaching the top, a new altitude or a vector; `SidViaCeiling` is only its ATC-assigned "except maintain" altitude), DSR speed/expedite flags, `LastProcedureSpeedKts`, `LastCrossedPublishedSpeedKts` (the last "at"/"at or below" published speed crossed on the procedure, held as the ceiling by RNS/RPS/DVIA/CVIA; ends with the procedure). | `AircraftProcedure.cs` |
+| `Pattern` | `AircraftPattern` | Per-aircraft pattern overrides (downwind offset, pattern altitude); null fields fall back to category defaults. Also the two single-shot pre-arms for a pattern entry that is queued but has not built its circuit yet: `PendingEntryModifier` (EXT/SA/MNA) and `PendingLandingClearance` (CLAND/TG/SG/LA/COPT), both consumed by `TryEnterPattern`. They live here rather than on `PhaseList` precisely because that list does not exist yet. | `AircraftPattern.cs` |
+| `Clearance` | `AircraftClearance` | Departure-clearance fields originating from CRC; null per-field until issued. | `AircraftClearance.cs` |
+| `HoldAnnotation` | `AircraftHoldAnnotation` | CRC-side hold annotation drawn over the radar target. | `AircraftHoldAnnotation.cs` |
+| `Ghost` | `AircraftGhostTrack` | Phantom/overlay tracking: distinguishes overlaid scenario aircraft from pure DA/VP phantom data blocks; `IsVehicle`. | `AircraftGhostTrack.cs` |
+| `Voice` | `AircraftVoice` | CRC voice config (Unknown/Full/ReceiveOnly/TextOnly) + `TdlsDumped`. | `AircraftVoice.cs` |
+| `MilitaryRoute` | `AircraftMilitaryRoute` | AP/1B route clearance kept as a durable *record*: designator, published direction, entry/exit points, current segment, altitude source + assigned block, MARSA, the beacon code stashed on a VR entry. Deliberately outside `Procedure`, whose SID/STAR state `FlightPhysics.ClearProcedureState` tears down on any heading command — a route clearance has to survive a vector. See military-training-routes.md. | `AircraftMilitaryRoute.cs` |
 | `LiveTraffic` | `AircraftLiveTraffic?` | **Nullable, unlike the others.** Present only while the aircraft is a live-traffic shadow: the last external sample plus the dead-reckoning clock `LiveTrafficKinematics.Advance` reads instead of running `FlightPhysics`. Assuming sets it to null. See live-traffic.md. | `LiveTraffic/AircraftLiveTraffic.cs` |
 | `Situation` | `AircraftSituationState` | The context-menu situation the `Situation` spine step stores once a second (`Current`, read back as the hysteresis input), the situation flags (`Flags`, `SituationFlagCalculator`; its latches read the previous value), where its driven taxi route meets other aircraft's (`MeetPoints`, `GroundConflictDetector.MeetPointsOf`; null when none, written to the snapshot only when not null), the most recent liftoff time (`AirborneAtSeconds`, null when spawned airborne, warped up or restored from an older snapshot) and `WasOnGround`, the edge it is stamped on. | `Situation/AircraftSituationState.cs` |
-| `Targets` | `ControlTargets` | The autopilot panel physics reads each tick. See next section. | `ControlTargets.cs:13` |
+| `DataBlock` | `AircraftDataBlock` | The STARS track reposition: `Binding`, the detached block's `Latitude`/`Longitude`, its `DetachedId` and the owner that created it (`CreatedBy`). | `AircraftDataBlock.cs` |
+| `Targets` | `ControlTargets` | The autopilot panel physics reads each tick. See next section. | `ControlTargets.cs` |
 
 ### `ControlTargets` — the autopilot panel
 
-`ControlTargets` (`src/Yaat.Sim/ControlTargets.cs:13`) is what handlers and phases write and what `FlightPhysics` reads. Two conceptual groups:
+`ControlTargets` (`src/Yaat.Sim/ControlTargets.cs`) is what handlers and phases write and what `FlightPhysics` reads. Two conceptual groups:
 
 - **`Target*` (active setpoints)** — `TargetTrueHeading`, `TargetAltitude`, `TargetSpeed`, `TargetMach`, `DesiredVerticalRate`, `DesiredDecelRate`,
   `PreferredTurnDirection`, `TurnRateOverride`, plus the `*Floor`/`*Ceiling` envelope clamps (`AltitudeFloor`/`AltitudeCeiling`,
@@ -87,9 +87,15 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
   `HasExplicitTurnRate` latches. These record what the controller explicitly commanded (`AssignedAltitude`: `CM`/`DM`, `FA`, `CFIX`, the `CAPP`/`PTAC` altitude, `CTO`, military-route clearances, `WARP`, live-traffic assume) so auto-scheduling (altitude-based speed, pattern turn rate)
   does not silently override an instruction. `AssignedMagneticHeading` is the vector: it is cleared when the aircraft leaves it (direct, route and procedure joins, approach clearances, and the start of an IFR or VFR hold; a queued hold keeps it until it starts).
 
-`NavigationRoute` is a **get-only** `List<NavigationTarget>` — the DCT waypoint queue. Each `NavigationTarget` (`ControlTargets.cs:156`) carries the
-fix name, position, CIFP altitude/speed restrictions (an altitude restriction also records its writer, `CifpAltitudeRestriction.Source`: Procedure, Approach, Atc or System; see Restriction source in `CONTEXT.md`), fly-over flag, and `Revert*` fields (speed, assigned speed, floor, ceiling, SMAX, Mach, resume) used to restore target/assigned values after sequencing
-past a CFIX or drawn-route fix; the altitude pair is left null when going back would reverse the aircraft's climb or descent, and the crossing altitude then stays as `AssignedAltitude`; a CFIX or constrained DCTF whose at-or-above, at-or-below or window bound the existing `AssignedAltitude` already lies strictly beyond (or inside) leaves `AssignedAltitude` unchanged. `CrossingTransmissionId` (int?) names the transmission whose CFIX or constrained DCTF stamped the fix's crossing altitude: a DVIA in the same transmission keeps it, a later DVIA drops the reverts and restores the STAR's published altitude restriction there. `SpeedTransmissionId` (int?, the speed stamp) names the transmission that set the fix's speed (a CFIX carrying a speed, a constrained DCTF speed constraint, `DVIA SPD n FIX`; an altitude-only CFIX leaves it alone): a DVIA, CVIA or approach clearance in the same transmission keeps the speed, a later one gives the fix its published speed back, and `IsControllerSetSpeed` / `RecordCrossedPublishedSpeed` read it so a controller's speed is never taken for a published one.
+`NavigationRoute` is a **get-only** `List<NavigationTarget>` — the DCT waypoint queue.
+
+Each `NavigationTarget` (`ControlTargets.cs`) carries the fix name, position, CIFP altitude/speed restrictions (an altitude restriction also records its writer, `CifpAltitudeRestriction.Source`: Procedure, Approach, Atc or System; see Restriction source in `CONTEXT.md`), fly-over flag, and `Revert*` fields (speed, assigned speed, floor, ceiling, SMAX, Mach, resume) used to restore target/assigned values after sequencing past a CFIX or drawn-route fix.
+
+The altitude pair is left null when going back would reverse the aircraft's climb or descent, and the crossing altitude then stays as `AssignedAltitude`; a CFIX or constrained DCTF whose at-or-above, at-or-below or window bound the existing `AssignedAltitude` already lies strictly beyond (or inside) leaves `AssignedAltitude` unchanged.
+
+`CrossingTransmissionId` (int?) names the transmission whose CFIX or constrained DCTF stamped the fix's crossing altitude: a DVIA in the same transmission keeps it, a later DVIA drops the reverts and restores the STAR's published altitude restriction there.
+
+`SpeedTransmissionId` (int?, the speed stamp) names the transmission that set the fix's speed (a CFIX carrying a speed, a constrained DCTF speed constraint, `DVIA SPD n FIX`; an altitude-only CFIX leaves it alone): a DVIA, CVIA or approach clearance in the same transmission keeps the speed, a later one gives the fix its published speed back, and `IsControllerSetSpeed` / `RecordCrossedPublishedSpeed` read it so a controller's speed is never taken for a published one.
 
 ## Three field categories
 
@@ -99,8 +105,7 @@ Every field on the aircraft falls into one of three buckets. Pick the right one 
    that must survive a recording / replay / rewind. Example: almost every field above.
 2. **Runtime-only (`[JsonIgnore]`)** — deliberately not serialized on the state; reconstructed on the first tick or via a separate carrier field. Only two exist:
    - `AircraftState.DeclinationCachePosition` — carried by `AircraftSnapshotDto.DeclinationCachePosition`, so it survives a snapshot round-trip; `null` only for a cold cache.
-   - `AircraftGroundOps.Layout` (`AircraftGroundOps.cs:20`) — the heavy `AirportGroundLayout` object, stored separately in recording archives. Its
-     `LayoutAirportId` (`AircraftGroundOps.cs:28`) **does** round-trip so `SimulationEngine` can re-resolve the layout on restore.
+   - `AircraftGroundOps.Layout` (`AircraftGroundOps.cs`) — the heavy `AirportGroundLayout` object, stored separately in recording archives. Its `LayoutAirportId` (`AircraftGroundOps.cs`) **does** round-trip so `SimulationEngine` can re-resolve the layout on restore.
 3. **Transient per-tick drain lists** — get-only `List<…>` outboxes producers fill during the tick and `SimulationWorld` empties after. They are
    **not** in the snapshot tree and must not be relied on across a replay round-trip:
    `PendingWarnings`, `PendingNotifications`, `PendingPilotSpeech` (`List<PilotSpeechText>`), `PendingPilotReadbacks`, `PendingPilotTransmissions`, `PendingApproachScores`,
@@ -115,8 +120,8 @@ write the kinematics.** Phases own `ControlTargets` while active; free-flight co
 | Field group | Written by | Notes |
 |---|---|---|
 | `Position`, `TrueHeading`, `TrueTrack`, `Altitude`, `IndicatedAirspeed`, `VerticalSpeed`, `BankAngle` | `FlightPhysics.Update` | Integrated each sub-tick from `ControlTargets`. |
-| `WindComponents` | `FlightPhysics.Update` (`FlightPhysics.cs:1041`) | `internal set` — no other writer. Feeds `GroundSpeed`. |
-| `Declination`, `DeclinationCachePosition` | `FlightPhysics.Update` (`FlightPhysics.cs:82-83`) | Recomputed only when the aircraft has moved ~1 nm; out-of-range positions log and skip. |
+| `WindComponents` | `FlightPhysics.Update` (`FlightPhysics.cs`) | `internal set` — no other writer. Feeds `GroundSpeed`. |
+| `Declination`, `DeclinationCachePosition` | `FlightPhysics.Update` (`FlightPhysics.cs`) | Recomputed only when the aircraft has moved ~1 nm; out-of-range positions log and skip. |
 | `ControlTargets.Target*` (in-phase) | The active phase, each tick | Phases write `ctx.Targets` directly — see [phases.md](phases.md). |
 | `ControlTargets.Target*` / `Assigned*` (free-flight) | Command handlers via `CommandDispatcher.ApplyCommand` | `FlightCommandHandler`, `NavigationCommandHandler`, etc. — see [command-pipeline.md](command-pipeline.md). |
 | `Procedure.*`, `Pattern.*` | Approach / departure / pattern command handlers and the phases they spawn | DSR via-mode, expedite, `LastProcedureSpeedKts`. |
@@ -124,10 +129,10 @@ write the kinematics.** Phases own `ControlTargets` while active; free-flight co
 | `Stars.*`, `Eram.*`, `HoldAnnotation.*`, `Voice.*` | STARS/ERAM display command handlers | Display-only mutations; mirrored to CRC. |
 | `Track.*` | `TrackEngine` (via the `ActionRouter` track arm on every run kind — the live room included) | Ownership/handoff — bypasses `CommandDispatcher` entirely. |
 | `Ground.Hold`, `Ground.AssignedTaxiRoute`, `Ground.CurrentTaxiway`, `Ground.SpeedLimit` | Ground command handlers + `GroundConflictDetector` | `SpeedLimit` is reset each tick before conflict detection. |
-| `FlightPlan.RevisionNumber`, `FlightPlan.*` | `SimulationEngine.AmendFlightPlan` (entered via `RoomEngine.AmendFlightPlan` on the server) | `SimulationEngine.cs:1431` bumps `RevisionNumber++` on every amend, even an empty one (matches CRC). |
+| `FlightPlan.RevisionNumber`, `FlightPlan.*` | `SimulationEngine.AmendFlightPlan` (entered via `RoomEngine.AmendFlightPlan` on the server) | `SimulationEngine.AmendFlightPlan` bumps `RevisionNumber++` on every amend, even an empty one (matches CRC). |
 | `SpawnedAtSeconds` | `SimulationEngine` at every production spawn path | Tests that call `AddAircraft` directly leave it 0. |
 | `CompletedAtSeconds` / `CompletionReason` / `CompletionDetail` | `LandingPhase` (touchdown → `Landed`), `ContactCommandHandler` (CT/FCA → `HandedOff`), `SimulationEngine.DeleteAircraft` (`DEL` → `Dropped`), `SimulationEngine.TickAutoDelete` (an overflight past its exit radius → `Transited`; a departure past the session's `DepartureAutoDeleteDistanceNm` → `Departed`) | Set together; `RemoveAircraft` keys completion off `CompletionReason != Active`, so an aircraft removed unstamped (e.g. a removed live-traffic shadow) is **not** added to the completed-aircraft list. |
-| `Cid` | `SimulationWorld.AddAircraft` if empty (`SimulationWorld.cs:56-59`) | Auto-generates a unique 3-digit CID. |
+| `Cid` | `SimulationWorld.AddAircraft` if empty (`SimulationWorld.cs`) | Auto-generates a unique 3-digit CID. |
 
 ## Three projections of `AircraftState`
 
@@ -136,8 +141,8 @@ it to the others. Decide all three at add-time.
 
 | Projection | Type(s) | Built / restored by | Carries |
 |---|---|---|---|
-| **Full snapshot / replay** | `AircraftSnapshotDto` (`src/Yaat.Sim/Simulation/Snapshots/AircraftSnapshotDto.cs:8`) | `AircraftState.ToSnapshot()` / `FromSnapshot()` | The complete durable state — every serialized field above. Round-trips through recordings, rewind, and bug bundles. See [snapshots-and-replay.md](snapshots-and-replay.md). |
-| **Live SignalR wire** | server builds `AircraftStateDto` (`yaat-server: src/Yaat.Server/Dtos/TrainingDtos.cs:3`); client deserializes the same shape into the `AircraftDto` record (`src/Yaat.Client.Core/Services/ServerConnection.cs:723`) | `DtoConverter.ToTrainingDto(ac, …)` (`yaat-server: src/Yaat.Server/Simulation/DtoConverter.cs:620`) | A **flattened** per-tick view for the operator client: lat/lon, heading, the resolved phase/route/runway strings, ground state, track ownership, scratchpads, smart-status. Only what the radar/Aircraft-List UI needs — far less than the snapshot. |
+| **Full snapshot / replay** | `AircraftSnapshotDto` (`src/Yaat.Sim/Simulation/Snapshots/AircraftSnapshotDto.cs`) | `AircraftState.ToSnapshot()` / `FromSnapshot()` | The complete durable state — every serialized field above. Round-trips through recordings, rewind, and bug bundles. See [snapshots-and-replay.md](snapshots-and-replay.md). |
+| **Live SignalR wire** | server builds `AircraftStateDto` (`yaat-server: src/Yaat.Server/Dtos/TrainingDtos.cs`); client deserializes the same shape into the `AircraftDto` record (`src/Yaat.Client.Core/Services/ServerConnection.cs`) | `DtoConverter.ToTrainingDto(ac, …)` (`yaat-server: src/Yaat.Server/Simulation/DtoConverter.cs`) | A **flattened** per-tick view for the operator client: lat/lon, heading, the resolved phase/route/runway strings, ground state, track ownership, scratchpads, smart-status. Only what the radar/Aircraft-List UI needs — far less than the snapshot. |
 | **CRC display** | the `CrcDtos.cs` MessagePack types (`yaat-server: src/Yaat.Server/Dtos/CrcDtos.cs`) | `DtoConverter.ToStarsTrack` / `ToFlightPlan` / `ToTowerCab` / … (`DtoConverter.cs`) | The CRC-facing STARS track, flight plan, ERAM, and Tower Cab views. Each method hand-reads individual satellite fields. |
 
 The live-wire projection is name-distinct on each side: the server *authors* `AircraftStateDto` and the client *deserializes* it into `AircraftDto`.
@@ -146,38 +151,29 @@ the SignalR `AircraftUpdated` / `AircraftSpawned` deserialization.
 
 ## Structural quirks
 
-- **`Targets` is get-only and restored in place.** `AircraftState.Targets` is `{ get; }` (`AircraftState.cs:117`). It cannot be reassigned from a
-  snapshot — restore mutates the existing instance via the static `ControlTargets.RestoreFrom(dto, ac.Targets)` (`AircraftState.cs:327`,
-  `ControlTargets.cs:126`). The same in-place pattern applies to the get-only lists: `NavigationRoute` restores with `Clear()` + `Add` per element
-  (`ControlTargets.cs:145-152`), and `PositionHistory` / `DeferredDispatches` are appended into the existing list in `FromSnapshot`. By contrast the
-  the satellites are reassigned wholesale (`FlightPlan = AircraftFlightPlan.FromSnapshot(dto.FlightPlan)`, etc.).
-- **Two `AircraftType` fields, different drivers.** `AircraftState.AircraftType` (`AircraftState.cs:15`) is the **physical** type — fixed at spawn,
-  drives physics/performance, the Tower Cab datablock, and the operator Aircraft List. `AircraftFlightPlan.AircraftType` (`AircraftFlightPlan.cs:22`)
-  is the **filed** type — mutable by instructor amendment, displayed by STARS/ASDE-X/strips/ERAM/the FP editor. They intentionally do **not**
-  cross-fill. Both expose a `BaseAircraftType` that strips the `H/`/`J/`/`S/` wake prefix via `AircraftState.StripTypePrefix` (`AircraftState.cs:22`).
+- **`Targets` is get-only and restored in place.** `AircraftState.Targets` is `{ get; }` (`AircraftState.cs`). It cannot be reassigned from a snapshot — restore mutates the existing instance via the static `ControlTargets.RestoreFrom(dto, ac.Targets)` (`AircraftState.cs`, `ControlTargets.cs`).
+
+  The same in-place pattern applies to the get-only lists: `NavigationRoute` restores with `Clear()` + `Add` per element (`ControlTargets.cs`), and `PositionHistory` / `DeferredDispatches` are appended into the existing list in `FromSnapshot`. By contrast the satellites are reassigned wholesale (`FlightPlan = AircraftFlightPlan.FromSnapshot(dto.FlightPlan)`, etc.).
+- **Two `AircraftType` fields, different drivers.** `AircraftState.AircraftType` (`AircraftState.cs`) is the **physical** type — fixed at spawn, drives physics/performance, the Tower Cab datablock, and the operator Aircraft List. `AircraftFlightPlan.AircraftType` (`AircraftFlightPlan.cs`) is the **filed** type — mutable by instructor amendment, displayed by STARS/ASDE-X/strips/ERAM/the FP editor.
+
+  They intentionally do **not** cross-fill. Both expose a `BaseAircraftType` that strips the `H/`/`J/`/`S/` wake prefix via `AircraftState.StripTypePrefix` (`AircraftState.cs`).
 
 ## SimulationWorld as the owner
 
 `SimulationWorld` is the live container. Everything funnels through one reentrant `_lock`.
 
-- **`AddAircraft` (`SimulationWorld.cs:52`)** is **replacement-safe, not append-safe**. It `RemoveAll`s any existing entry with the same callsign
-  (case-insensitive) before appending and logs a warning, then purges any matching `CompletedAircraftRecord`. A user-typed VP/DA "ghost" is discarded
-  when a real scenario/runtime spawn arrives with the same callsign — spawn wins. Re-adding a callsign is therefore **not** idempotent
-  state-preserving. (See also the command-pipeline.md pitfall.)
-- **`RemoveAircraft` (`SimulationWorld.cs:89`)** appends a `CompletedAircraftRecord` for any aircraft whose `CompletionReason != Active`, then trims
-  the FIFO to `CompletedAircraftCapacity` (500). The debrief tab reads `GetCompletedAircraft()` after the aircraft leaves the live set.
-- **`Tick` (`SimulationWorld.cs:215`)** runs `GroundConflictDetector.ApplySpeedLimits` once for the whole set, then loops aircraft calling
-  `FlightPhysics.Update` exactly **once** per aircraft with the supplied `deltaSeconds`. It does **not** sub-tick — the 4× physics sub-stepping is
-  driven by `SimulationEngine` (`PhysicsSubTickRate = 4`), which calls `World.Tick` repeatedly with a 0.25 s delta. The local `Lookup` closure is
-  passed in so phases can resolve follow targets; the reentrant lock makes `FindAircraft` callable from inside the tick. See
-  [tick-loop.md](tick-loop.md) for the per-aircraft step order.
+- **`AddAircraft` (`SimulationWorld.cs`)** is **replacement-safe, not append-safe**. It `RemoveAll`s any existing entry with the same callsign (case-insensitive) before appending and logs a warning, then purges any matching `CompletedAircraftRecord`.
+
+  A user-typed VP/DA "ghost" is discarded when a real scenario/runtime spawn arrives with the same callsign — spawn wins. Re-adding a callsign is therefore **not** idempotent state-preserving. (See also the command-pipeline.md pitfall.)
+- **`RemoveAircraft` (`SimulationWorld.cs`)** appends a `CompletedAircraftRecord` for any aircraft whose `CompletionReason != Active`, then trims the FIFO to `CompletedAircraftCapacity` (500). The debrief tab reads `GetCompletedAircraft()` after the aircraft leaves the live set.
+- **`Tick` (`SimulationWorld.cs`)** runs `GroundConflictDetector.ApplySpeedLimits` once for the whole set, then loops aircraft calling `FlightPhysics.Update` exactly **once** per aircraft with the supplied `deltaSeconds`.
+
+  It does **not** sub-tick — the 4× physics sub-stepping is driven by `SimulationEngine` (`PhysicsSubTickRate = 4`), which calls `World.Tick` repeatedly with a 0.25 s delta. The local `Lookup` closure is passed in so phases can resolve follow targets; the reentrant lock makes `FindAircraft` callable from inside the tick. See [tick-loop.md](tick-loop.md) for the per-aircraft step order.
 - **`PushPlans`** is the `PushPlanStore` the world's constructor takes (required), a derived cache of push-back stand plans that is never snapshotted. A server room passes its own to every world it builds, so it outlives each engine; a world built without a room gets `PushPlanStore.CreateShipped()`.
-- **`GetSnapshot` (`SimulationWorld.cs:169`)** returns a shallow `List` copy — a new list whose elements are the **live mutable** `AircraftState`
-  instances. It is the read-only view every broadcast/projection iterates.
-- **Drain surface** — `DrainAllWarnings`, `DrainAllNotifications`, `DrainAllPilotSpeech` (returns `(Callsign, PilotSpeechText)`), `DrainAllPilotReadbacks`, `DrainReadyPilotTransmissions`,
-  `DrainAllApproachScores` (`SimulationWorld.cs:272-433`) each empty the corresponding per-aircraft transient list under the lock. The frequency
-  airtime serialization (`ActiveFrequency.Enqueue` / `TryDequeueReady`, plus `ExpectPilotReadback` / `AcknowledgeControllerResponse`) lives here too —
-  see [solo-training-pilot-speech.md](solo-training-pilot-speech.md).
+- **`GetSnapshot` (`SimulationWorld.cs`)** returns a shallow `List` copy — a new list whose elements are the **live mutable** `AircraftState` instances. It is the read-only view every broadcast/projection iterates.
+- **Drain surface** — `DrainAllWarnings`, `DrainAllNotifications`, `DrainAllPilotSpeech` (returns `(Callsign, PilotSpeechText)`), `DrainAllPilotReadbacks`, `DrainReadyPilotTransmissions`, `DrainAllApproachScores` (`SimulationWorld.cs`) each empty the corresponding per-aircraft transient list under the lock.
+
+  The frequency airtime serialization (`ActiveFrequency.Enqueue` / `TryDequeueReady`, plus `ExpectPilotReadback` / `AcknowledgeControllerResponse`) lives here too — see [solo-training-pilot-speech.md](solo-training-pilot-speech.md).
 
 ## Adding a field to an aircraft — checklist
 

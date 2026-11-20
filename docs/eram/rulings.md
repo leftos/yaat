@@ -12,14 +12,14 @@ To read a page: `pdftotext -layout <pdf> eram.txt`, split on `\f`; with 1-based 
 - **Per-sector display state**: key leader direction, leader length, DRI halo, dwell lock and fourth-line suppression by (facility, sector) now, like `OnFrequencySectorIds`, and record the dwell lock and the suppression as a `RecordedEramEntry` carrying the sector key and an absolute value (`DWELL <facility> <sector> 1|0`, `LINE4 <facility> <sector> 1|0`, never a toggle, so a replay cannot desync on a missed entry).
 - **Bare QS toggles fourth-line suppression**: CRC has no local toggle; its `SuppressFourthLine` comes only from the server's `EramDataBlockDto` and blocks just the HSF branches of line 4 (the DEST/TYPE fallback shows, the HSF indicator stays). yaat toggles the acting sector's flag per aircraft, ungated by ownership, refused with `SESSION NOT ACTIVE` when the session has no ERAM sector. The flag holds until toggled again: new HSF data, `QS *` and a handoff leave it (the decompile shows no rule that clears it).
 - **Radar mismatch mark and Mixed are YAAT-only**: CRC shows one display at a time and draws no altitude-mismatch marker, so the `≠` after the ERAM altitude, the dwell line naming the other side's altitude and the Mixed template (each track in its owner's block) have no CRC or SRS source; the scope's own decisions are in `docs/plans/yaat-scope/README.md`.
-- **#464 update rate** (mechanism in `docs/crc-display-state.md`): CRC draws every ERAM update it receives (`Eram.Tracks/TrackManager.cs` `ReceiveTrack` has no timer), so the 1 s rate is yaat-server's (`RoomTickLoopService` 1 s tick; `AircraftChangeTracker.EramTargetFingerprint` changes every second for a moving aircraft).
+- **#464 update rate** (mechanism in `docs/crc-display-state.md`): CRC draws every ERAM update it receives (`Eram.Tracks/TrackManager.cs` `ReceiveTrack` has no timer), so the 1 s rate is yaat-server's (`RoomTickLoopService` 1 s tick; `AircraftChangeTracker.EramTargetStateFingerprint` changes every second for a moving aircraft).
 
   Send the position part of the ERAM target and track on a 12 s sweep with a **per-aircraft stagger** (a stable callsign hash mod 12, sim-elapsed time, not wall clock); state changes (handoff, HSF, VCI, point-out, symbol, beacon) still go out on the next tick; a newly visible aircraft is sent at once.
 
   The **ERAM history trail follows the sweep**: one dot per 12 s update, from an ERAM-specific sample (today's 5 s `PositionHistory` stays for STARS and YAAT's radar). STARS is untouched. Keep `DisconnectCoastRules.EramCoverageCoastSeconds` (24 s = 2 sweeps, one figure with `SimScenarioState.EramDisconnectCoastSeconds`) consistent. Red test model: `tests/Yaat.Server.Tests/CrcAcceptedIndicatorTests.cs` (`RoomEngineTestHarness`, `RecordingWebSocket`), asserting ≤ 2 position `ReceiveEramTracks` in 12 broadcasts for a moving aircraft and a handoff sent on the next tick.
 - **MCI alert floor**: the ARTCC's `ConflictAlertFloor` when non-zero, else the SRS 12,500 ft; the 99,500 ft ceiling applies.
 - **1200 code**: an untracked 1200 target is uncorrelated, so inside the MCI band it is an MCI (symbol and conflict-alert intruder) and outside it draws as VFR; a tracked one is never an MCI (it is correlated, below).
-- **Correlation** (`TrackCorrelation.IsEramCorrelated`; 7110.65 §5-4-6e2 NOTE, §5-2-10, §5-3-3d; CRC ERAM Table 1, `docs/crc/eram.md:356-357`): a flight plan and either a controller's track (on any code, 1200 included, or on standby) or, with the transponder on, a code that is not 1200 and is the assigned code. 1200 never starts a correlation.
+- **Correlation** (`TrackCorrelation.IsEramCorrelated`; 7110.65 §5-4-6e2 NOTE, §5-2-10, §5-3-3d; CRC ERAM Table 1, [`crc/eram.md`](../crc/eram.md#targets)): a flight plan and either a controller's track (on any code, 1200 included, or on standby) or, with the transponder on, a code that is not 1200 and is the assigned code. 1200 never starts a correlation.
 
   On standby (`AircraftTransponder.IsStandby`) a filed, tracked aircraft is `CorrelatedPrimary`; a filed untracked one, or one with no flight plan, is `UncorrelatedPrimaryStrong`. A tracked aircraft that changes to 1200 draws `CorrelatedBeacon` (`ReducedSeparation` in ASR coverage), never `Vfr` or `Mci`. The conflict pass is unchanged.
 - **Vertical-conformance latch**: set when within ±200 ft of the assigned altitude (a block altitude uses its own floor and ceiling), cleared only when the assigned altitude changes. Latched in a Yaat.Sim post-physics step for replay determinism.
@@ -68,8 +68,8 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 
 | Parameter | SRS | YAAT | Verdict |
 |---|---|---|---|
-| URDT Unspecified Route Display Time | 20 min | `Route.cs:400` 20 min | matches |
-| RDRI Route Display Request Interval | 30 s | `EramRouteLineSeconds = 30` (`Route.cs:72`) | matches in value (the SRS defines it as a request interval, not a lifetime) |
+| URDT Unspecified Route Display Time | 20 min | `ToggleRouteLine` (the default line, 20 min) | matches |
+| RDRI Route Display Request Interval | 30 s | `EramRouteLineSeconds = 30` | matches in value (the SRS defines it as a request interval, not a lifetime) |
 | IPOD Interfacility Point Out Auto Drop | 15 min | no timer | not modelled |
 | APSB / APSC conflict-alert floor, MCI floor | 0 ft / 12,500 ft | `EramConflictDetector.ResolveMciFloorFeet` | matches |
 | INTC / INTF intruder ceiling / floor | 99,500 / 12,500 ft | `EramConflictDetector.MciCeilingFeet` / `DefaultMciFloorFeet` | matches |
