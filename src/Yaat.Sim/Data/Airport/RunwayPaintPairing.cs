@@ -111,15 +111,18 @@ internal static class RunwayPaintPairing
         if (candidates.Count == 0)
         {
             GroundNode end = context.Chain[^1].Off;
-            Log.LogDebug(
-                "No paint pairs with {Taxiway} at {Runway} (D_rule={RuleFt:F1} ft): the {Links}-link walk ends at node {Node}, {EndFt:F1} ft out",
-                crossing.Edge.TaxiwayName,
-                rect.CombinedId,
-                ruleFt,
-                context.Chain.Count,
-                end.Id,
-                Math.Abs(SignedCrossFt(rect, end.Position))
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "No paint pairs with {Taxiway} at {Runway} (D_rule={RuleFt:F1} ft): the {Links}-link walk ends at node {Node}, {EndFt:F1} ft out",
+                    crossing.Edge.TaxiwayName,
+                    rect.CombinedId,
+                    ruleFt,
+                    context.Chain.Count,
+                    end.Id,
+                    Math.Abs(SignedCrossFt(rect, end.Position))
+                );
+            }
         }
 
         return candidates;
@@ -190,28 +193,34 @@ internal static class RunwayPaintPairing
         // inside the half-width + 50 ft floor, so the band refuses it first.
         if ((Math.Sign(signedFt) != context.NodeSide) || !InBand(paintFt, context.RuleFt, context.Rect))
         {
-            Log.LogDebug(
-                "Paint segment {Segment} crosses {Taxiway} at {Runway} outside the band or on the far side: "
-                    + "D_paint={PaintFt:F1} ft, D_rule={RuleFt:F1} ft",
-                index,
-                link.Edge.TaxiwayName,
-                context.Rect.CombinedId,
-                paintFt,
-                context.RuleFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Paint segment {Segment} crosses {Taxiway} at {Runway} outside the band or on the far side: "
+                        + "D_paint={PaintFt:F1} ft, D_rule={RuleFt:F1} ft",
+                    index,
+                    link.Edge.TaxiwayName,
+                    context.Rect.CombinedId,
+                    paintFt,
+                    context.RuleFt
+                );
+            }
             return null;
         }
 
         if (NotABar(context, bar, link) is { } reason)
         {
-            Log.LogDebug(
-                "Paint segment {Segment} crosses {Taxiway} at {Runway} (D_paint={PaintFt:F1} ft) but is not a bar: {Reason}",
-                index,
-                link.Edge.TaxiwayName,
-                context.Rect.CombinedId,
-                paintFt,
-                reason
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Paint segment {Segment} crosses {Taxiway} at {Runway} (D_paint={PaintFt:F1} ft) but is not a bar: {Reason}",
+                    index,
+                    link.Edge.TaxiwayName,
+                    context.Rect.CombinedId,
+                    paintFt,
+                    reason
+                );
+            }
             return null;
         }
 

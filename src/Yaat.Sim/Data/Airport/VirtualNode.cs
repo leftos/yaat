@@ -176,11 +176,14 @@ public static class VirtualNode
         // A runway stop instead falls through to the projection below, keeping its setback behind the aircraft.
         if (clampToVirtualStart && IsVirtualNode(currentNode))
         {
-            Log.LogDebug(
-                "[VirtualNode] OffsetBefore: node {NodeId} offset ran {RemainingNm:F4} nm past the route's virtual start",
-                nodeId,
-                remaining
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VirtualNode] OffsetBefore: node {NodeId} offset ran {RemainingNm:F4} nm past the route's virtual start",
+                    nodeId,
+                    remaining
+                );
+            }
             return Create(currentNode.Position.Lat, currentNode.Position.Lon);
         }
 
@@ -192,7 +195,10 @@ public static class VirtualNode
             return Create(lat, lon);
         }
 
-        Log.LogDebug("[VirtualNode] OffsetBefore: no approach edge for node {NodeId}", nodeId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[VirtualNode] OffsetBefore: no approach edge for node {NodeId}", nodeId);
+        }
         return Create(currentNode.Position.Lat, currentNode.Position.Lon);
     }
 

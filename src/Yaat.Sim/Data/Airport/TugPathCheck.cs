@@ -777,13 +777,16 @@ public sealed class TugPathCheck
             (HoldBandRunway runway, double holdFt) = protectedRunway;
             if (holdFt < runway.HalfWidthFt)
             {
-                Log.LogDebug(
-                    "Hold-short node {Id} lies {HoldFt:F1} ft from the {Runway} centreline, inside its {HalfWidthFt:F1} ft half-width; ignored",
-                    hold.Id,
-                    holdFt,
-                    runway.Name,
-                    runway.HalfWidthFt
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Hold-short node {Id} lies {HoldFt:F1} ft from the {Runway} centreline, inside its {HalfWidthFt:F1} ft half-width; ignored",
+                        hold.Id,
+                        holdFt,
+                        runway.Name,
+                        runway.HalfWidthFt
+                    );
+                }
                 continue;
             }
 
@@ -1518,22 +1521,27 @@ public sealed class TugPathCheck
         return start;
     }
 
-    private static void LogCrossing(string subject, LocalPose pose, MovementEdge edge) =>
-        Log.LogDebug(
-            "{Subject}: move {Move} sample {Sample} (about {AlongFt:F0} ft along it), {EastFt:F0} ft east and {NorthFt:F0} ft "
-                + "north of the plan's start, nose {NoseDeg:F1}°: the fuselage crosses {Name} edge {NodeA}-{NodeB} ({EdgeNames})",
-            subject,
-            pose.MoveIndex + 1,
-            pose.SampleIndex,
-            pose.SampleIndex * SampleSpacingFt,
-            pose.Position.X,
-            pose.Position.Y,
-            new TrueHeading(pose.NoseRad / DegToRad).Degrees,
-            edge.Name,
-            edge.Segment.Edge.Nodes[0].Id,
-            edge.Segment.Edge.Nodes[1].Id,
-            string.Join("/", RampLaneReposition.EdgeNames(edge.Segment.Edge))
-        );
+    private static void LogCrossing(string subject, LocalPose pose, MovementEdge edge)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Subject}: move {Move} sample {Sample} (about {AlongFt:F0} ft along it), {EastFt:F0} ft east and {NorthFt:F0} ft "
+                    + "north of the plan's start, nose {NoseDeg:F1}°: the fuselage crosses {Name} edge {NodeA}-{NodeB} ({EdgeNames})",
+                subject,
+                pose.MoveIndex + 1,
+                pose.SampleIndex,
+                pose.SampleIndex * SampleSpacingFt,
+                pose.Position.X,
+                pose.Position.Y,
+                new TrueHeading(pose.NoseRad / DegToRad).Degrees,
+                edge.Name,
+                edge.Segment.Edge.Nodes[0].Id,
+                edge.Segment.Edge.Nodes[1].Id,
+                string.Join("/", RampLaneReposition.EdgeNames(edge.Segment.Edge))
+            );
+        }
+    }
 
     /// <summary>
     /// The fuselage segment, nose to tail; on a pull carried <see cref="GroundOutline.TugLeadFt"/> further ahead of the

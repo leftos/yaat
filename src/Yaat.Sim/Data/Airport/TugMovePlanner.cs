@@ -624,7 +624,10 @@ public static class TugMovePlanner
         var builder = new TugPlanBuilder(layout, request);
         if (!builder.TryPlan(out refusal))
         {
-            Log.LogDebug("Tug move refused: {Refusal}", refusal);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Tug move refused: {Refusal}", refusal);
+            }
             return null;
         }
 
@@ -1723,7 +1726,7 @@ internal sealed class TugPlanBuilder
         string arrivalRefusal = refusal;
         while (hintMissed && (_pendingHints.Count > 0))
         {
-            Log.LogDebug("Tug {Subject}: no arrival passes {Hint}; falling back to a pass-through tow", goal.Subject, _pendingHints[0].Goal.Label);
+            LogHintFallback(goal.Subject, _pendingHints[0].Goal.Label);
             if (!TryPassFirstHint(offStand, out refusal))
             {
                 return false;
@@ -1739,6 +1742,14 @@ internal sealed class TugPlanBuilder
 
         refusal = arrivalRefusal;
         return false;
+    }
+
+    private static void LogHintFallback(string subject, string hint)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Tug {Subject}: no arrival passes {Hint}; falling back to a pass-through tow", subject, hint);
+        }
     }
 
     /// <summary>
@@ -1760,7 +1771,10 @@ internal sealed class TugPlanBuilder
         {
             hintMissed = tally.HintDropped;
             refusal = Refusal(goal, tally);
-            Log.LogDebug("Tug {Subject}: refused: {Refusal}", goal.Subject, refusal);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Tug {Subject}: refused: {Refusal}", goal.Subject, refusal);
+            }
             return false;
         }
 
@@ -2087,12 +2101,15 @@ internal sealed class TugPlanBuilder
                 RoomFt = passes.Count == 0 ? GroundOutlineSweep.WingtipBufferFt : passes.Min(p => p.RoomFt),
             };
             _neighbourClearanceByCandidate[candidate] = clearance;
-            Log.LogDebug(
-                "Tug candidate {Template}: {Keeps} the neighbour floor, closest {ClosestFt:F1} ft",
-                candidate.Template,
-                clearance.KeepsFloor ? "keeps" : "breaks",
-                clearance.ClosestFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug candidate {Template}: {Keeps} the neighbour floor, closest {ClosestFt:F1} ft",
+                    candidate.Template,
+                    clearance.KeepsFloor ? "keeps" : "breaks",
+                    clearance.ClosestFt
+                );
+            }
         }
 
         return clearance;
@@ -2213,7 +2230,10 @@ internal sealed class TugPlanBuilder
         TugCandidate? kept = Keep(goal, offStand, pools, c => !lane || InSwingBand(goal, c));
         if ((kept is null) && lane)
         {
-            Log.LogDebug("Tug {Subject}: no candidate keeps to the swing band; keeping the best of the rest", goal.Subject);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Tug {Subject}: no candidate keeps to the swing band; keeping the best of the rest", goal.Subject);
+            }
             kept = Keep(goal, offStand, pools, _ => true);
         }
 
@@ -2243,13 +2263,16 @@ internal sealed class TugPlanBuilder
         var pools = new TugLazyPools(KeepPools(goal, tally, offStand));
         TugCandidate kept = BestPastNeighbours(goal, offStand, pools.Everything()) ?? chosen;
 
-        Log.LogDebug(
-            "Tug {Subject}: forced past a parked neighbour, kept {Template} ({Moves}), closest {ClosestFt:F1} ft",
-            goal.Subject,
-            kept.Template,
-            kept.Describe(),
-            NeighbourClearance(kept).ClosestFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: forced past a parked neighbour, kept {Template} ({Moves}), closest {ClosestFt:F1} ft",
+                goal.Subject,
+                kept.Template,
+                kept.Describe(),
+                NeighbourClearance(kept).ClosestFt
+            );
+        }
         LogStandEntries(goal, kept, pools);
         return kept;
     }
@@ -2331,7 +2354,10 @@ internal sealed class TugPlanBuilder
         yield return pushOffs;
         if (lane && !built.Any(c => TurnsTheLanesWay(goal, c, offStand: true)))
         {
-            Log.LogDebug("Tug {Subject}: nothing keeps the neighbour floor without overswinging; trying the multi-point paths", goal.Subject);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Tug {Subject}: nothing keeps the neighbour floor without overswinging; trying the multi-point paths", goal.Subject);
+            }
             yield return SurvivorsOf(goal, true, MultiPointCandidates(goal), tally);
         }
     }
@@ -2375,13 +2401,16 @@ internal sealed class TugPlanBuilder
         _pushOffStands = offStand ? _emptyStands.Entered(NewCandidate("probe", _standPushOff).Traces, stands) : new HashSet<string>();
         stands.UnionWith(_pushOffStands);
         _excludedStands = stands;
-        Log.LogDebug(
-            "Tug {Subject}: kept clear of every movement-area taxiway's object-free area but {Excluded}; "
-                + "empty stands every candidate enters: {Stands}",
-            goal.Subject,
-            _excludedTaxiways.Count == 0 ? "none" : string.Join("/", _excludedTaxiways.Order(StringComparer.OrdinalIgnoreCase)),
-            stands.Count == 0 ? "none" : string.Join("/", stands.Order(StringComparer.OrdinalIgnoreCase))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: kept clear of every movement-area taxiway's object-free area but {Excluded}; "
+                    + "empty stands every candidate enters: {Stands}",
+                goal.Subject,
+                _excludedTaxiways.Count == 0 ? "none" : string.Join("/", _excludedTaxiways.Order(StringComparer.OrdinalIgnoreCase)),
+                stands.Count == 0 ? "none" : string.Join("/", stands.Order(StringComparer.OrdinalIgnoreCase))
+            );
+        }
     }
 
     /// <summary>
@@ -2502,7 +2531,10 @@ internal sealed class TugPlanBuilder
 
         if (bestClear is not null)
         {
-            Log.LogDebug("Tug {Subject}: {Template} ({Moves}) stays clear instead", goal.Subject, bestClear.Template, bestClear.Describe());
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Tug {Subject}: {Template} ({Moves}) stays clear instead", goal.Subject, bestClear.Template, bestClear.Describe());
+            }
         }
 
         return bestClear;
@@ -2542,16 +2574,20 @@ internal sealed class TugPlanBuilder
         List<TugFoulingCandidate> staysOut = [.. inBand.Where(p => StaysOutOfEmptyStands(p.Candidate))];
         TugFoulingCandidate least = LeastFoulingOf(staysOut.Count > 0 ? staysOut : inBand);
         TugTaxiwayFouling leastFouling = least.Fouling;
-        Log.LogDebug(
-            "Tug {Subject}: none stays clear; {Template} ({Moves}) reaches {PeakFt:F1} ft into {Taxiway}'s with the {Part}, swings {SwingDeg:F1}°",
-            goal.Subject,
-            least.Candidate.Template,
-            least.Candidate.Describe(),
-            leastFouling.PeakFt,
-            leastFouling.Taxiway,
-            leastFouling.Part,
-            least.Swing.MaxDeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: none stays clear; {Template} ({Moves}) reaches"
+                    + " {PeakFt:F1} ft into {Taxiway}'s with the {Part}, swings {SwingDeg:F1}°",
+                goal.Subject,
+                least.Candidate.Template,
+                least.Candidate.Describe(),
+                leastFouling.PeakFt,
+                leastFouling.Taxiway,
+                leastFouling.Part,
+                least.Swing.MaxDeg
+            );
+        }
         _warnings.Add(new TugFoulsTaxiwayWarning(leastFouling.Taxiway!, leastFouling.Part, leastFouling.PeakFt));
         return least.Candidate;
     }
@@ -2585,12 +2621,15 @@ internal sealed class TugPlanBuilder
         }
 
         List<TugFoulingCandidate> kept = [.. pool.Where(p => TurnsTheLanesWay(goal, p))];
-        Log.LogDebug(
-            "Tug {Subject}: {Dropped} of {Count} fouling candidate(s) overswing the lane or turn against it",
-            goal.Subject,
-            pool.Count - kept.Count,
-            pool.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: {Dropped} of {Count} fouling candidate(s) overswing the lane or turn against it",
+                goal.Subject,
+                pool.Count - kept.Count,
+                pool.Count
+            );
+        }
         return kept.Count > 0 ? kept : pool;
     }
 
@@ -2629,16 +2668,20 @@ internal sealed class TugPlanBuilder
         _inSwingBandByCandidate[candidate] = inBand;
         if (!inBand)
         {
-            Log.LogDebug(
-                "Tug {Subject}: {Template} ({Moves}) swings the nose right {RightDeg:F1}° left {LeftDeg:F1}° for a target turn of {TargetDeg:F1}°; "
-                    + "outside the swing band",
-                goal.Subject,
-                candidate.Template,
-                candidate.Describe(),
-                swing.RightDeg,
-                swing.LeftDeg,
-                targetDeg
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug {Subject}: {Template} ({Moves}) swings the nose right {RightDeg:F1}°"
+                        + " left {LeftDeg:F1}° for a target turn of {TargetDeg:F1}°; "
+                        + "outside the swing band",
+                    goal.Subject,
+                    candidate.Template,
+                    candidate.Describe(),
+                    swing.RightDeg,
+                    swing.LeftDeg,
+                    targetDeg
+                );
+            }
         }
 
         return inBand;
@@ -2816,7 +2859,10 @@ internal sealed class TugPlanBuilder
             return;
         }
 
-        Log.LogDebug("Tug {Subject}: tows {TowFt:F0} ft before it is lined up on {Taxiway}", goal.Subject, towFt, goal.Goal.TaxiwayName);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Tug {Subject}: tows {TowFt:F0} ft before it is lined up on {Taxiway}", goal.Subject, towFt, goal.Goal.TaxiwayName);
+        }
         _warnings.Add(new TugLongPushWarning(goal.Goal.TaxiwayName!, TugMovePlanner.NoteDistanceFt(towFt)));
     }
 
@@ -2873,11 +2919,14 @@ internal sealed class TugPlanBuilder
         if (behind is { } crossing)
         {
             names.UnionWith(RampLaneReposition.EdgeNames(crossing.Edge));
-            Log.LogDebug(
-                "Tug move off the stand: {Names} crosses the push-off ray {DistanceFt:F0} ft behind the stand and is exempt",
-                string.Join("/", names),
-                crossing.DistanceFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug move off the stand: {Names} crosses the push-off ray {DistanceFt:F0} ft behind the stand and is exempt",
+                    string.Join("/", names),
+                    crossing.DistanceFt
+                );
+            }
         }
 
         return names;
@@ -3000,12 +3049,15 @@ internal sealed class TugPlanBuilder
         double facing = goal.FacingTrueDeg;
         double stopOffFacingDeg = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(from.Position, goal.Stop), facing);
         PushbackLegKind[] sides = goal.Goal.ForcedKind is { } forced ? [forced] : SidesFor(stopOffFacingDeg);
-        Log.LogDebug(
-            "Tug {Subject}: stop {StopOffFacingDeg:F2}° off the facing; building candidates for the {Sides} side",
-            goal.Subject,
-            stopOffFacingDeg,
-            string.Join(" and ", sides)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: stop {StopOffFacingDeg:F2}° off the facing; building candidates for the {Sides} side",
+                goal.Subject,
+                stopOffFacingDeg,
+                string.Join(" and ", sides)
+            );
+        }
 
         var candidates = sides.Select(side => Direct(goal, pushOff, side)).ToList();
         if (!OtherKindFirstCanKeepToForcedKind(goal, pushOff))
@@ -3247,7 +3299,10 @@ internal sealed class TugPlanBuilder
             TugVerdict verdict = Judge(goal, candidate, offStand: true);
             if (EndsTheExtension(goal, candidate, verdict))
             {
-                Log.LogDebug("Tug {Subject}: {Template} ends the extension: {Reason}", goal.Subject, candidate.Template, ExtensionEnd(verdict));
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Tug {Subject}: {Template} ends the extension: {Reason}", goal.Subject, candidate.Template, ExtensionEnd(verdict));
+                }
                 yield break;
             }
 
@@ -3269,11 +3324,14 @@ internal sealed class TugPlanBuilder
             return true;
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: the stand push-off alone fails: {Refusal}; no extended straight or multi-point path",
-            goal.Subject,
-            refusal.Message
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the stand push-off alone fails: {Refusal}; no extended straight or multi-point path",
+                goal.Subject,
+                refusal.Message
+            );
+        }
         return false;
     }
 
@@ -3402,27 +3460,43 @@ internal sealed class TugPlanBuilder
             && (_pathCheck!.FirstCrossing(from.Position, pushDeg, (TugMovePlanner.StepFt, TugMovePlanner.MaxGoalDistanceFt), IsLane) is { } hit)
         )
         {
-            Log.LogDebug(
-                "Tug {Subject}: the push ray crosses lane {Lane} edge {NodeA}-{NodeB} {DistanceFt:F1} ft behind",
-                goal.Subject,
-                hit.Edge.TaxiwayName,
-                hit.Edge.Nodes[0].Id,
-                hit.Edge.Nodes[1].Id,
-                hit.DistanceFt
-            );
+            LogLaneCrossing(goal.Subject, hit.Edge.TaxiwayName, hit.Edge.Nodes[0].Id, hit.Edge.Nodes[1].Id, hit.DistanceFt);
             return hit.DistanceFt;
         }
 
         double offLineFt = GeoMath.SignedCrossTrackDistanceNm(from.Position, goal.Stop, new TrueHeading(goal.FacingTrueDeg)) * GeoMath.FeetPerNm;
         double closingRate = Math.Sin((pushDeg - goal.FacingTrueDeg) * Math.PI / 180.0);
         double alongFt = Math.Abs(closingRate) < 0.1 ? -1.0 : -offLineFt / closingRate;
-        Log.LogDebug(
-            "Tug {Subject}: no lane edge ({Names}) on the push ray; the approach line is {AlongFt:F1} ft along it",
-            goal.Subject,
-            string.Join("/", laneNames),
-            alongFt
-        );
+        LogNoLaneEdge(goal.Subject, laneNames, alongFt);
         return alongFt > 0.0 ? alongFt : null;
+    }
+
+    private static void LogLaneCrossing(string subject, string lane, int nodeA, int nodeB, double distanceFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push ray crosses lane {Lane} edge {NodeA}-{NodeB} {DistanceFt:F1} ft behind",
+                subject,
+                lane,
+                nodeA,
+                nodeB,
+                distanceFt
+            );
+        }
+    }
+
+    private static void LogNoLaneEdge(string subject, IEnumerable<string> laneNames, double alongFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: no lane edge ({Names}) on the push ray; the approach line is {AlongFt:F1} ft along it",
+                subject,
+                string.Join("/", laneNames),
+                alongFt
+            );
+        }
     }
 
     /// <summary>
@@ -3532,23 +3606,29 @@ internal sealed class TugPlanBuilder
         GroundNode exit = goal.Goal.Node!;
         if (FacingJunction(_layout, taxiway, facingName, exit) is not { } junction)
         {
-            Log.LogDebug("Tug {Subject}: no {Taxiway}/{Facing} junction", goal.Subject, taxiway, facingName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Tug {Subject}: no {Taxiway}/{Facing} junction", goal.Subject, taxiway, facingName);
+            }
             return null;
         }
 
         double backFt = TugKinematics.TurnRadiusFt(_request.Footprint, tight: false) + (_request.Footprint.LengthFt / 2.0);
         List<TugTaxiwaySide> sides = ReachableSides(taxiway, junction, exit, backFt);
-        Log.LogDebug(
-            "Tug {Subject}: {Taxiway}/{Facing} junction node {Node}; {Count} direction(s), {Stop}",
-            goal.Subject,
-            taxiway,
-            facingName,
-            junction.Id,
-            sides.Count,
-            sides.Any(s => s.BeyondStopDistance)
-                ? "the junction is far, so the push stops once lined up at the exit"
-                : $"stopping {backFt:F0} ft back from the junction"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: {Taxiway}/{Facing} junction node {Node}; {Count} direction(s), {Stop}",
+                goal.Subject,
+                taxiway,
+                facingName,
+                junction.Id,
+                sides.Count,
+                sides.Any(s => s.BeyondStopDistance)
+                    ? "the junction is far, so the push stops once lined up at the exit"
+                    : $"stopping {backFt:F0} ft back from the junction"
+            );
+        }
         return [.. sides.Select(side => SideCandidate(taxiway, junction, side, pushOff))];
     }
 
@@ -3839,12 +3919,7 @@ internal sealed class TugPlanBuilder
 
         if (_movementArea.IsMovementArea(taxiway))
         {
-            Log.LogDebug(
-                "Tug {Subject}: {Taxiway} is a movement-area taxiway, not a ramp taxilane; "
-                    + "falling through to the straight, alongside and filleted-end pushes",
-                goal.Subject,
-                taxiway
-            );
+            LogMovementAreaTaxiway(goal.Subject, taxiway);
             return null;
         }
 
@@ -3865,18 +3940,34 @@ internal sealed class TugPlanBuilder
         PrepareKeep(faced, offStand: true);
         List<TugCandidate> passing = [.. tally.Survivors.Where(c => PassesLeadInChecks(goal, c))];
         TugCandidate? best = BestClear(faced, offStand: true, passing);
-        Log.LogDebug(
-            "Tug {Subject}: the push along the lead-in onto {Taxiway} node {Node}, nose {NoseDeg:F1}°: {Verdict}",
-            goal.Subject,
-            taxiway,
-            junction.Node.Id,
-            junction.NoseTrueDeg,
-            best is null
-                ? $"no candidate passes ({tally.Survivors.Count} survived judging, {passing.Count} of them clear and passing the push's checks); "
-                    + "falling through to the straight, alongside and filleted-end pushes"
-                : $"taken, {best.Template} ({best.Describe()}), {best.PathLengthFt:F0} ft"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push along the lead-in onto {Taxiway} node {Node}, nose {NoseDeg:F1}°: {Verdict}",
+                goal.Subject,
+                taxiway,
+                junction.Node.Id,
+                junction.NoseTrueDeg,
+                best is null
+                    ? $"no candidate passes ({tally.Survivors.Count} survived judging, {passing.Count} of them clear and passing the push's checks); "
+                        + "falling through to the straight, alongside and filleted-end pushes"
+                    : $"taken, {best.Template} ({best.Describe()}), {best.PathLengthFt:F0} ft"
+            );
+        }
         return best;
+    }
+
+    private static void LogMovementAreaTaxiway(string subject, string taxiway)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: {Taxiway} is a movement-area taxiway, not a ramp taxilane; "
+                    + "falling through to the straight, alongside and filleted-end pushes",
+                subject,
+                taxiway
+            );
+        }
     }
 
     /// <summary>Whether a candidate passes the lead-in push's checks: pushes alone, clear, and not dropped as judged.</summary>
@@ -3909,29 +4000,41 @@ internal sealed class TugPlanBuilder
             if ((at.From is { } from) && at.Node.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway)))
             {
                 double noseDeg = GeoMath.BearingTo(at.Node.Position, from.Position);
-                Log.LogDebug(
-                    "Tug {Subject}: stand {Stand}'s lead-in reaches {Taxiway} at node {Node} after {WalkFt:F1} ft, nose back along it {NoseDeg:F1}°",
-                    subject,
-                    stand.Name,
-                    taxiway,
-                    at.Node.Id,
-                    pathFt,
-                    noseDeg
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Tug {Subject}: stand {Stand}'s lead-in reaches {Taxiway} at node"
+                            + " {Node} after {WalkFt:F1} ft, nose back along it {NoseDeg:F1}°",
+                        subject,
+                        stand.Name,
+                        taxiway,
+                        at.Node.Id,
+                        pathFt,
+                        noseDeg
+                    );
+                }
                 return (at.Node, noseDeg);
             }
 
             EnqueueLeadInNeighbours(queue, at.Node, pathFt);
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: stand {Stand}'s lead-in reaches no straight {Taxiway} edge within {WalkFt:F0} ft",
-            subject,
-            stand.Name,
-            taxiway,
-            LeadInWalkFt
-        );
+        LogNoLeadInJunction(subject, stand.Name, taxiway);
         return null;
+    }
+
+    private static void LogNoLeadInJunction(string subject, string? stand, string taxiway)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: stand {Stand}'s lead-in reaches no straight {Taxiway} edge within {WalkFt:F0} ft",
+                subject,
+                stand,
+                taxiway,
+                LeadInWalkFt
+            );
+        }
     }
 
     /// <summary>The lead-in walk's next nodes from <paramref name="node"/>: along ramp edges alone, never into another stand.</summary>
@@ -3966,14 +4069,17 @@ internal sealed class TugPlanBuilder
             return null;
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: the push ray reaches {Taxiway} edge {NodeA}-{NodeB} {DistanceFt:F1} ft behind the aircraft",
-            goal.Subject,
-            goal.Goal.TaxiwayName,
-            behind.Edge.Nodes[0].Id,
-            behind.Edge.Nodes[1].Id,
-            behind.DistanceFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push ray reaches {Taxiway} edge {NodeA}-{NodeB} {DistanceFt:F1} ft behind the aircraft",
+                goal.Subject,
+                goal.Goal.TaxiwayName,
+                behind.Edge.Nodes[0].Id,
+                behind.Edge.Nodes[1].Id,
+                behind.DistanceFt
+            );
+        }
         TugCandidate candidate = NewCandidate("straight back", pushOff: null);
         candidate.Add(TugMove.Straight(PushbackLegKind.Push, behind.DistanceFt));
         return candidate;
@@ -4019,16 +4125,20 @@ internal sealed class TugPlanBuilder
             return null;
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: the push ray crosses no straight {Taxiway} edge and none runs alongside; it reaches the taxiway's line in the "
-                + "corner of the lead-in fillet {NodeA}-{NodeB}, {PastEndFt:F1} ft past the taxiway's end and {AlongRayFt:F1} ft behind the aircraft",
-            goal.Subject,
-            taxiway,
-            behind.Arc.Nodes[0].Id,
-            behind.Arc.Nodes[1].Id,
-            behind.PastEndFt,
-            behind.AlongRayFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push ray crosses no straight {Taxiway} edge and none runs alongside; it reaches the taxiway's line in the "
+                    + "corner of the lead-in fillet {NodeA}-{NodeB}, {PastEndFt:F1} ft"
+                    + " past the taxiway's end and {AlongRayFt:F1} ft behind the aircraft",
+                goal.Subject,
+                taxiway,
+                behind.Arc.Nodes[0].Id,
+                behind.Arc.Nodes[1].Id,
+                behind.PastEndFt,
+                behind.AlongRayFt
+            );
+        }
         TugCandidate candidate = NewCandidate("straight back, onto the filleted end", pushOff: null);
         candidate.Add(TugMove.Straight(PushbackLegKind.Push, behind.AlongRayFt));
         return candidate;
@@ -4047,16 +4157,19 @@ internal sealed class TugPlanBuilder
             return straight[0];
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: the lead-in fillet {NodeA}-{NodeB} meets {Taxiway} at node {Node}, which carries {Count} straight edges of it — "
-                + "not the taxiway's end",
-            subject,
-            arc.Nodes[0].Id,
-            arc.Nodes[1].Id,
-            taxiway,
-            end.Id,
-            straight.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the lead-in fillet {NodeA}-{NodeB} meets {Taxiway} at node {Node}, which carries {Count} straight edges of it — "
+                    + "not the taxiway's end",
+                subject,
+                arc.Nodes[0].Id,
+                arc.Nodes[1].Id,
+                taxiway,
+                end.Id,
+                straight.Count
+            );
+        }
         return null;
     }
 
@@ -4091,22 +4204,25 @@ internal sealed class TugPlanBuilder
             .Min();
         bool behind = (crossing.AlongRayFt >= TugMovePlanner.StepFt) && (crossing.AlongRayFt <= TugMovePlanner.MaxGoalDistanceFt);
         bool inCorner = (crossing.PastEndFt >= 0.0) && (crossing.PastEndFt <= reachFt) && (offLeadInFt <= OnTaxiwayCorridorFt);
-        Log.LogDebug(
-            "Tug {Subject}: the push ray meets the line of {Taxiway} edge {NodeA}-{NodeB} {AlongRayFt:F1} ft back, {PastEndFt:F1} ft past "
-                + "its end at the lead-in fillet {ArcA}-{ArcB} (the corner reaches {ReachFt:F1} ft) and {OffLeadInFt:F1} ft off "
-                + "the lead-in — {Verdict}",
-            goal.Subject,
-            goal.Goal.TaxiwayName,
-            inward.Id,
-            end.Id,
-            crossing.AlongRayFt,
-            crossing.PastEndFt,
-            arc.Nodes[0].Id,
-            arc.Nodes[1].Id,
-            reachFt,
-            offLeadInFt,
-            (behind && inCorner) ? "in the fillet's corner" : "outside it"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push ray meets the line of {Taxiway} edge {NodeA}-{NodeB} {AlongRayFt:F1} ft back, {PastEndFt:F1} ft past "
+                    + "its end at the lead-in fillet {ArcA}-{ArcB} (the corner reaches {ReachFt:F1} ft) and {OffLeadInFt:F1} ft off "
+                    + "the lead-in — {Verdict}",
+                goal.Subject,
+                goal.Goal.TaxiwayName,
+                inward.Id,
+                end.Id,
+                crossing.AlongRayFt,
+                crossing.PastEndFt,
+                arc.Nodes[0].Id,
+                arc.Nodes[1].Id,
+                reachFt,
+                offLeadInFt,
+                (behind && inCorner) ? "in the fillet's corner" : "outside it"
+            );
+        }
         return (behind && inCorner) ? crossing : null;
     }
 
@@ -4204,17 +4320,20 @@ internal sealed class TugPlanBuilder
             return true;
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: {Taxiway} edge {NodeA}-{NodeB} runs on {LineDeg:F1}°, only {CrossingDeg:F1}° off the push "
-                + "{PushDeg:F1}° — alongside the push, not across it",
-            goal.Subject,
-            goal.Goal.TaxiwayName,
-            edge.Nodes[0].Id,
-            edge.Nodes[1].Id,
-            line.Degrees,
-            crossingDeg,
-            pushTravelDeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: {Taxiway} edge {NodeA}-{NodeB} runs on {LineDeg:F1}°, only {CrossingDeg:F1}° off the push "
+                    + "{PushDeg:F1}° — alongside the push, not across it",
+                goal.Subject,
+                goal.Goal.TaxiwayName,
+                edge.Nodes[0].Id,
+                edge.Nodes[1].Id,
+                line.Degrees,
+                crossingDeg,
+                pushTravelDeg
+            );
+        }
         return false;
     }
 
@@ -4240,41 +4359,50 @@ internal sealed class TugPlanBuilder
         }
 
         IGroundEdge edge = alongside.Edge;
-        Log.LogDebug(
-            "Tug {Subject}: the push ray crosses no {Taxiway} edge; edge {NodeA}-{NodeB} runs alongside on {LineDeg:F1}° "
-                + "(push {PushDeg:F1}°), its nearest point {DistanceFt:F1} ft away and {AlongFt:F1} ft behind the aircraft",
-            goal.Subject,
-            goal.Goal.TaxiwayName,
-            edge.Nodes[0].Id,
-            edge.Nodes[1].Id,
-            alongside.LineTravelTrueDeg,
-            pushTravelDeg,
-            alongside.DistanceFt,
-            alongside.AlongFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push ray crosses no {Taxiway} edge; edge {NodeA}-{NodeB} runs alongside on {LineDeg:F1}° "
+                    + "(push {PushDeg:F1}°), its nearest point {DistanceFt:F1} ft away and {AlongFt:F1} ft behind the aircraft",
+                goal.Subject,
+                goal.Goal.TaxiwayName,
+                edge.Nodes[0].Id,
+                edge.Nodes[1].Id,
+                alongside.LineTravelTrueDeg,
+                pushTravelDeg,
+                alongside.DistanceFt,
+                alongside.AlongFt
+            );
+        }
         TugCandidate captured = NewCandidate("onto the taxiway alongside, stopping at the capture", standPushOff);
         captured.Add(TugMove.ViaLine(PushbackLegKind.Push, edge.Nodes[0].Position, alongside.LineTravelTrueDeg, stopAt: null));
         if (captured.Flyable && _pathCheck.IsOnEdgeExtent(captured.End.Position, OnTaxiwayCorridorFt, isCentreline))
         {
-            Log.LogDebug(
-                "Tug {Subject}: the capture of {Taxiway}'s centreline ends within the corridor of that taxiway's extent after "
-                    + "{PathFt:F0} ft — the push stops there",
-                goal.Subject,
-                goal.Goal.TaxiwayName,
-                captured.PathLengthFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug {Subject}: the capture of {Taxiway}'s centreline ends within the corridor of that taxiway's extent after "
+                        + "{PathFt:F0} ft — the push stops there",
+                    goal.Subject,
+                    goal.Goal.TaxiwayName,
+                    captured.PathLengthFt
+                );
+            }
             return captured;
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: the capture of {Taxiway}'s centreline ({Moves}) ends outside the corridor of that taxiway's extent "
-                + "at ({Lat:F6}, {Lon:F6}) — the push carries on along the line to the edge's nearest point",
-            goal.Subject,
-            goal.Goal.TaxiwayName,
-            captured.Describe(),
-            captured.End.Position.Lat,
-            captured.End.Position.Lon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the capture of {Taxiway}'s centreline ({Moves}) ends outside the corridor of that taxiway's extent "
+                    + "at ({Lat:F6}, {Lon:F6}) — the push carries on along the line to the edge's nearest point",
+                goal.Subject,
+                goal.Goal.TaxiwayName,
+                captured.Describe(),
+                captured.End.Position.Lat,
+                captured.End.Position.Lon
+            );
+        }
         TugCandidate candidate = NewCandidate("onto the taxiway alongside", standPushOff);
         candidate.Add(TugMove.ViaLine(PushbackLegKind.Push, edge.Nodes[0].Position, alongside.LineTravelTrueDeg, alongside.NearestPoint));
         return candidate;
@@ -4379,14 +4507,17 @@ internal sealed class TugPlanBuilder
         TugCandidate? best = tally.Best;
         if (best is not null)
         {
-            Log.LogDebug(
-                "Tug {Subject}: chose {Template} ({Moves}), {Reversals} reversal(s), {PathFt:F0} ft",
-                goal.Subject,
-                best.Template,
-                best.Describe(),
-                best.Reversals,
-                best.PathLengthFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug {Subject}: chose {Template} ({Moves}), {Reversals} reversal(s), {PathFt:F0} ft",
+                    goal.Subject,
+                    best.Template,
+                    best.Describe(),
+                    best.Reversals,
+                    best.PathLengthFt
+                );
+            }
         }
 
         tally.CloseChoice();
@@ -4398,25 +4529,31 @@ internal sealed class TugPlanBuilder
     {
         if (verdict.Dropped)
         {
-            Log.LogDebug(
-                "Tug {Subject}: dropped {Template} ({Moves}): {Reason}",
-                goal.Subject,
-                candidate.Template,
-                candidate.Describe(),
-                DropReason(verdict)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug {Subject}: dropped {Template} ({Moves}): {Reason}",
+                    goal.Subject,
+                    candidate.Template,
+                    candidate.Describe(),
+                    DropReason(verdict)
+                );
+            }
             tally.CountDrop(verdict);
             return;
         }
 
-        Log.LogDebug(
-            "Tug {Subject}: kept {Template} ({Moves}), {Reversals} reversal(s), {PathFt:F0} ft",
-            goal.Subject,
-            candidate.Template,
-            candidate.Describe(),
-            candidate.Reversals,
-            candidate.PathLengthFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: kept {Template} ({Moves}), {Reversals} reversal(s), {PathFt:F0} ft",
+                goal.Subject,
+                candidate.Template,
+                candidate.Describe(),
+                candidate.Reversals,
+                candidate.PathLengthFt
+            );
+        }
         tally.Survivors.Add(candidate);
         tally.Best = IsBetter(goal, offStand, candidate, tally.Best) ? candidate : tally.Best;
     }
@@ -4720,18 +4857,21 @@ internal sealed class TugPlanBuilder
                     continue;
                 }
 
-                Log.LogDebug(
-                    "Tug {Subject}: {Template} move {Move} swings within {ClearanceFt:F1} ft of {Neighbour} (started {StartFt:F1} ft "
-                        + "off, floor {FloorFt:F1} ft) {AlongFt:F1} ft along",
-                    goal.Subject,
-                    candidate.Template,
-                    i + 1,
-                    foul.ClearanceFt,
-                    neighbour.Describe(),
-                    swept.StartClearanceFt,
-                    swept.FloorFt,
-                    foul.AlongFt
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Tug {Subject}: {Template} move {Move} swings within {ClearanceFt:F1} ft of {Neighbour} (started {StartFt:F1} ft "
+                            + "off, floor {FloorFt:F1} ft) {AlongFt:F1} ft along",
+                        goal.Subject,
+                        candidate.Template,
+                        i + 1,
+                        foul.ClearanceFt,
+                        neighbour.Describe(),
+                        swept.StartClearanceFt,
+                        swept.FloorFt,
+                        foul.AlongFt
+                    );
+                }
                 return new TugPathRefusal(TugPathSeverity.ParkedNeighbour, $"Unable, {goal.Subject} would swing into {neighbour.Describe()}", null);
             }
         }

@@ -188,17 +188,20 @@ internal static class RunwayCrossingDetector
             return;
         }
 
-        Log.LogDebug(
-            "{Airport} runway {Runway}: S calibrated to {CalibratedFt:F1} ft, the median near end of {Count} paint-paired bars, "
-                + "replacing the {Source} value {UncalibratedFt:F1} ft (rule {RuleFt:F1} ft)",
-            airportId,
-            runwayName,
-            calibrated,
-            pairCount,
-            uncalibrated.Source,
-            uncalibrated.Ft,
-            uncalibrated.RuleFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Airport} runway {Runway}: S calibrated to {CalibratedFt:F1} ft, the median near end of {Count} paint-paired bars, "
+                    + "replacing the {Source} value {UncalibratedFt:F1} ft (rule {RuleFt:F1} ft)",
+                airportId,
+                runwayName,
+                calibrated,
+                pairCount,
+                uncalibrated.Source,
+                uncalibrated.Ft,
+                uncalibrated.RuleFt
+            );
+        }
     }
 
     /// <summary>What crossings pair against: the videomap's segments and every planned runway's centerline.</summary>
@@ -344,14 +347,18 @@ internal static class RunwayCrossingDetector
         AirportGroundLayout layout = seating.Context.Layout;
         double ruleFt = CrossingStandoffNm(layout, crossing, uncalibratedRect, paint.UncalibratedRunways, StandoffPass.Planning) * GeoMath.FeetPerNm;
         seating.UnplannedCrossings++;
-        Log.LogDebug(
-            "{Runway} crossing on {Taxiway} (node {On} to {Off}) was not in the planning pass; pairing it at its uncalibrated D_rule={RuleFt:F1} ft",
-            runwayId,
-            crossing.Edge.TaxiwayName,
-            crossing.On.Id,
-            crossing.Off.Id,
-            ruleFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Runway} crossing on {Taxiway} (node {On} to {Off}) was not in the"
+                    + " planning pass; pairing it at its uncalibrated D_rule={RuleFt:F1} ft",
+                runwayId,
+                crossing.Edge.TaxiwayName,
+                crossing.On.Id,
+                crossing.Off.Id,
+                ruleFt
+            );
+        }
         return RunwayPaintPairing.Candidates(layout, crossing, uncalibratedRect, ruleFt, paint.Source);
     }
 
@@ -387,15 +394,18 @@ internal static class RunwayCrossingDetector
             return true;
         }
 
-        Log.LogDebug(
-            "Paint segment {Segment} passed over for {Runway} on {Taxiway}: the placement cannot seat the bar on it "
-                + "(D_paint={PaintFt:F1} ft, {Off:F1} ft off)",
-            candidate.SegmentIndex,
-            rect.CombinedId,
-            crossing.Edge.TaxiwayName,
-            candidate.PaintFt,
-            seatToSnapFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Paint segment {Segment} passed over for {Runway} on {Taxiway}: the placement cannot seat the bar on it "
+                    + "(D_paint={PaintFt:F1} ft, {Off:F1} ft off)",
+                candidate.SegmentIndex,
+                rect.CombinedId,
+                crossing.Edge.TaxiwayName,
+                candidate.PaintFt,
+                seatToSnapFt
+            );
+        }
         return false;
     }
 
@@ -614,15 +624,7 @@ internal static class RunwayCrossingDetector
         double angleDeg = MeasureCrossingAngleDeg(layout, crossing.Edge, crossing.On, crossing.Off, rect);
         double baseFt = rect.HoldShortNm * GeoMath.FeetPerNm;
         double idealFt = HoldShortStandoff.CenterlineStandoffFt(baseFt, RunwayWidthFt(rect), angleDeg);
-        Log.LogDebug(
-            "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: θ={Angle:F1}°, S={BaseFt:F1} ft, D={IdealFt:F1} ft",
-            pass,
-            rect.CombinedId,
-            crossing.Edge.TaxiwayName,
-            angleDeg,
-            baseFt,
-            idealFt
-        );
+        LogStandoff(pass, rect.CombinedId, crossing.Edge.TaxiwayName, angleDeg, baseFt, idealFt);
         if (idealFt <= baseFt)
         {
             return rect.HoldShortNm;
@@ -636,18 +638,21 @@ internal static class RunwayCrossingDetector
                 return idealFt / GeoMath.FeetPerNm;
             }
 
-            Log.LogDebug(
-                "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} "
-                    + "holding area ({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
-                pass,
-                rect.CombinedId,
-                crossing.Edge.TaxiwayName,
-                idealFt,
-                touch.Label,
-                touch.Other.Rect.CombinedId,
-                touch.CrossFt,
-                touch.Other.StandoffFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} "
+                        + "holding area ({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
+                    pass,
+                    rect.CombinedId,
+                    crossing.Edge.TaxiwayName,
+                    idealFt,
+                    touch.Label,
+                    touch.Other.Rect.CombinedId,
+                    touch.CrossFt,
+                    touch.Other.StandoffFt
+                );
+            }
             return rect.HoldShortNm;
         }
 
@@ -668,25 +673,44 @@ internal static class RunwayCrossingDetector
         }
 
         double clampedFt = Math.Min(idealFt, Math.Max(baseFt, entry.CrossFt - OtherRunwayClampMarginFt));
-        Log.LogDebug(
-            "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft clamped to D′={ClampedFt:F1} ft, the path from S "
-                + "enters the {Other} holding area at {EntryFt:F1} ft (its bound {BoundFt:F1} ft from its centerline, S={OtherFt:F1} ft) on "
-                + "segment {Segment} ({SegmentFromFt:F1} → {SegmentToFt:F1} ft) at θ={SegmentAngle:F1}° to it",
-            pass,
-            rect.CombinedId,
-            crossing.Edge.TaxiwayName,
-            idealFt,
-            clampedFt,
-            entry.Other.Rect.CombinedId,
-            entry.CrossFt,
-            entry.BoundFt,
-            entry.Other.StandoffFt,
-            entry.Segment,
-            entry.SegmentFromFt,
-            entry.SegmentToFt,
-            entry.SegmentAngleDeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft clamped to D′={ClampedFt:F1} ft, the path from S "
+                    + "enters the {Other} holding area at {EntryFt:F1} ft (its bound {BoundFt:F1} ft from its centerline, S={OtherFt:F1} ft) on "
+                    + "segment {Segment} ({SegmentFromFt:F1} → {SegmentToFt:F1} ft) at θ={SegmentAngle:F1}° to it",
+                pass,
+                rect.CombinedId,
+                crossing.Edge.TaxiwayName,
+                idealFt,
+                clampedFt,
+                entry.Other.Rect.CombinedId,
+                entry.CrossFt,
+                entry.BoundFt,
+                entry.Other.StandoffFt,
+                entry.Segment,
+                entry.SegmentFromFt,
+                entry.SegmentToFt,
+                entry.SegmentAngleDeg
+            );
+        }
         return clampedFt / GeoMath.FeetPerNm;
+    }
+
+    private static void LogStandoff(StandoffPass pass, RunwayIdentifier runway, string taxiway, double angleDeg, double baseFt, double idealFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: θ={Angle:F1}°, S={BaseFt:F1} ft, D={IdealFt:F1} ft",
+                pass,
+                runway,
+                taxiway,
+                angleDeg,
+                baseFt,
+                idealFt
+            );
+        }
     }
 
     /// <summary>
@@ -918,12 +942,15 @@ internal static class RunwayCrossingDetector
         bool runwaySide = nodeCrossFt < (target.IdealNm * GeoMath.FeetPerNm);
         if (runwaySide && SnapCrowdsNeighbour(node, snap, context.Layout))
         {
-            Log.LogDebug(
-                "Runway crossing: node {NodeId} not moved onto the {Runway} paint: the snap point is within {ThresholdFt} ft of a neighbour",
-                node.Id,
-                rect.CombinedId,
-                FilletConstants.CoincidentNodeThresholdFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Runway crossing: node {NodeId} not moved onto the {Runway} paint: the snap point is within {ThresholdFt} ft of a neighbour",
+                    node.Id,
+                    rect.CombinedId,
+                    FilletConstants.CoincidentNodeThresholdFt
+                );
+            }
             return false;
         }
 
@@ -939,12 +966,15 @@ internal static class RunwayCrossingDetector
 
         node.Type = GroundNodeType.RunwayHoldShort;
         node.RunwayId = rect.CombinedId;
-        Log.LogDebug(
-            "Runway crossing: node {NodeId} becomes the {Runway} bar on its paint ({How})",
-            node.Id,
-            rect.CombinedId,
-            runwaySide ? "moved onto the snap point from the runway side" : "in place, on the taxiway side"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Runway crossing: node {NodeId} becomes the {Runway} bar on its paint ({How})",
+                node.Id,
+                rect.CombinedId,
+                runwaySide ? "moved onto the snap point from the runway side" : "in place, on the taxiway side"
+            );
+        }
         return true;
     }
 
@@ -1015,7 +1045,7 @@ internal static class RunwayCrossingDetector
             offNode.Type = GroundNodeType.RunwayHoldShort;
             offNode.RunwayId = rect.CombinedId;
 
-            Log.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", offNode.Id, rect.CombinedId, edge.TaxiwayName);
+            LogReusedHoldShort(offNode.Id, rect.CombinedId, edge.TaxiwayName);
             return new BarPlacement(offNode, Fallback: null);
         }
 
@@ -1057,15 +1087,26 @@ internal static class RunwayCrossingDetector
         SplitEdgeAtOneNode(layout, edge, hsNode);
         SplitTwinEdgesAtNode(layout, edge, hsNode);
 
-        Log.LogDebug(
-            "Runway crossing: {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
-            edge.TaxiwayName,
-            rect.CombinedId,
-            hsId,
-            hsLat,
-            hsLon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Runway crossing: {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
+                edge.TaxiwayName,
+                rect.CombinedId,
+                hsId,
+                hsLat,
+                hsLon
+            );
+        }
         return new BarPlacement(hsNode, Fallback: null);
+    }
+
+    private static void LogReusedHoldShort(int nodeId, RunwayIdentifier runway, string taxiway)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", nodeId, runway, taxiway);
+        }
     }
 
     /// <summary>
@@ -1163,7 +1204,15 @@ internal static class RunwayCrossingDetector
                 }
             );
 
-            Log.LogDebug("Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)", fromId, toId, rect.CombinedId, dist * GeoMath.FeetPerNm);
+            LogRunwayCenterlineEdge(fromId, toId, rect.CombinedId, dist * GeoMath.FeetPerNm);
+        }
+    }
+
+    private static void LogRunwayCenterlineEdge(int fromId, int toId, RunwayIdentifier runway, double distFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)", fromId, toId, runway, distFt);
         }
     }
 
@@ -1199,7 +1248,10 @@ internal static class RunwayCrossingDetector
                     Origin = $"RunwayCrossing:centerline-link@{rect.CombinedId} #{bestId}↔#{reuseId}",
                 }
             );
-            Log.LogDebug("Reused #{ReuseId} as centerline projection for #{BestId} on {Runway}", reuseId, bestId, rect.CombinedId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Reused #{ReuseId} as centerline projection for #{BestId} on {Runway}", reuseId, bestId, rect.CombinedId);
+            }
             return reuseId;
         }
 
@@ -1224,7 +1276,10 @@ internal static class RunwayCrossingDetector
             }
         );
 
-        Log.LogDebug("Projected #{OnId} onto centerline as #{ClId} ({AlongFt:F0}ft along)", bestId, clId, alongTrack * GeoMath.FeetPerNm);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Projected #{OnId} onto centerline as #{ClId} ({AlongFt:F0}ft along)", bestId, clId, alongTrack * GeoMath.FeetPerNm);
+        }
         return clId;
     }
 
@@ -1310,7 +1365,7 @@ internal static class RunwayCrossingDetector
 
         if (hsTaxiway is null)
         {
-            Log.LogDebug("  FindCenterline(HS#{Hs}): no taxiway edge found", hsNodeId);
+            LogFindCenterlineNoEdge(hsNodeId);
             return -1;
         }
 
@@ -1360,8 +1415,7 @@ internal static class RunwayCrossingDetector
 
                 double ct = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(nextNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
 
-                Log.LogDebug(
-                    "  FindCenterline(HS#{Hs}): walked to #{Next} via {Tw} crossTrack={Ct:F0}ft onRunway={On} (best: #{Best} at {BestCt:F0}ft)",
+                LogFindCenterlineWalk(
                     hsNodeId,
                     nextId,
                     edge.TaxiwayName,
@@ -1391,6 +1445,31 @@ internal static class RunwayCrossingDetector
         }
 
         return bestId;
+    }
+
+    private static void LogFindCenterlineNoEdge(int hsNodeId)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("  FindCenterline(HS#{Hs}): no taxiway edge found", hsNodeId);
+        }
+    }
+
+    private static void LogFindCenterlineWalk(int hsNodeId, int nextId, string taxiway, double crossTrackFt, bool onRunway, int bestId, double bestFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "  FindCenterline(HS#{Hs}): walked to #{Next} via {Tw} crossTrack={Ct:F0}ft onRunway={On} (best: #{Best} at {BestCt:F0}ft)",
+                hsNodeId,
+                nextId,
+                taxiway,
+                crossTrackFt,
+                onRunway,
+                bestId,
+                bestFt
+            );
+        }
     }
 
     /// <summary>
@@ -1620,14 +1699,18 @@ internal static class RunwayCrossingDetector
         double lengthNm = GeoMath.DistanceNm(from, to);
         if (lengthNm < (2.0 * clearanceNm))
         {
-            Log.LogDebug(
-                "Runway crossing: {Taxiway} at {Runway}: edge of {LengthFt:F2} ft too short to clear {ClearanceFt:F2} ft off both ends; fraction {Fraction:F4} kept",
-                taxiwayName,
-                runwayId,
-                lengthNm * GeoMath.FeetPerNm,
-                clearanceNm * GeoMath.FeetPerNm,
-                fraction
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Runway crossing: {Taxiway} at {Runway}: edge of {LengthFt:F2} ft too short"
+                        + " to clear {ClearanceFt:F2} ft off both ends; fraction {Fraction:F4} kept",
+                    taxiwayName,
+                    runwayId,
+                    lengthNm * GeoMath.FeetPerNm,
+                    clearanceNm * GeoMath.FeetPerNm,
+                    fraction
+                );
+            }
             return (fraction, 0.0);
         }
 
@@ -1711,14 +1794,18 @@ internal static class RunwayCrossingDetector
         );
         if ((farEndMoveFt > 0.0) && (target.SnapPoint is not null) && (ReuseDistanceFt(target, farNode, crossFarFt) <= PaintRunwaySideToleranceFt))
         {
-            Log.LogDebug(
-                "Runway crossing (walker): {Taxiway} at {Runway} — the bar moved {MovedFt:F2} ft off far node #{FarNodeId}, which sits within {ToleranceFt:F1} ft of the paint",
-                edge.TaxiwayName,
-                rect.CombinedId,
-                farEndMoveFt,
-                farNode.Id,
-                PaintRunwaySideToleranceFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Runway crossing (walker): {Taxiway} at {Runway} — the bar moved {MovedFt:F2} ft"
+                        + " off far node #{FarNodeId}, which sits within {ToleranceFt:F1} ft of the paint",
+                    edge.TaxiwayName,
+                    rect.CombinedId,
+                    farEndMoveFt,
+                    farNode.Id,
+                    PaintRunwaySideToleranceFt
+                );
+            }
         }
         double hsLat = nearNode.Position.Lat + fraction * (farNode.Position.Lat - nearNode.Position.Lat);
         double hsLon = nearNode.Position.Lon + fraction * (farNode.Position.Lon - nearNode.Position.Lon);
@@ -1738,14 +1825,17 @@ internal static class RunwayCrossingDetector
         SplitEdgeAtOneNode(layout, edge, hsNode);
         SplitTwinEdgesAtNode(layout, edge, hsNode);
 
-        Log.LogDebug(
-            "Runway crossing (walker): {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
-            edge.TaxiwayName,
-            rect.CombinedId,
-            hsId,
-            hsLat,
-            hsLon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Runway crossing (walker): {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
+                edge.TaxiwayName,
+                rect.CombinedId,
+                hsId,
+                hsLat,
+                hsLon
+            );
+        }
         return hsNode;
     }
 
@@ -1768,7 +1858,10 @@ internal static class RunwayCrossingDetector
 
         node.Type = GroundNodeType.RunwayHoldShort;
         node.RunwayId = rect.CombinedId;
-        Log.LogDebug("Upgraded node {NodeId} to hold-short for {Runway}", node.Id, rect.CombinedId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Upgraded node {NodeId} to hold-short for {Runway}", node.Id, rect.CombinedId);
+        }
         return true;
     }
 
@@ -1794,14 +1887,7 @@ internal static class RunwayCrossingDetector
         // taxiway joins there.
         if (TryUpgradeToHoldShort(currentNode, rect, layout))
         {
-            Log.LogDebug(
-                "Hold-short dead-end: upgraded {Node} for {Runway} on {Taxiway} (ideal={Ideal:F0}ft, actual={Actual:F0}ft)",
-                currentNode.Id,
-                rect.CombinedId,
-                taxiwayName,
-                idealFt,
-                currentCrossFt
-            );
+            LogDeadEndUpgraded(currentNode.Id, rect.CombinedId, taxiwayName, idealFt, currentCrossFt);
             return null;
         }
 
@@ -1812,14 +1898,7 @@ internal static class RunwayCrossingDetector
         GroundNodeType prevType = prevNode.Type;
         if (Math.Abs(prevCrossFt - idealFt) <= HoldShortSnapFt && TryUpgradeToHoldShort(prevNode, rect, layout))
         {
-            Log.LogDebug(
-                "Hold-short dead-end: upgraded {Node} (prev) for {Runway} on {Taxiway} (ideal={Ideal:F0}ft, actual={Actual:F0}ft)",
-                prevNode.Id,
-                rect.CombinedId,
-                taxiwayName,
-                idealFt,
-                prevCrossFt
-            );
+            LogDeadEndUpgradedPrev(prevNode.Id, rect.CombinedId, taxiwayName, idealFt, prevCrossFt);
             return (prevType == GroundNodeType.RunwayHoldShort)
                 ? null
                 : new FallbackBar(prevNode, currentNode, rect, prevType, Split: null, RuleCeilingFt(rect));
@@ -1880,6 +1959,36 @@ internal static class RunwayCrossingDetector
         );
     }
 
+    private static void LogDeadEndUpgraded(int nodeId, RunwayIdentifier runway, string taxiway, double idealFt, double actualFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Hold-short dead-end: upgraded {Node} for {Runway} on {Taxiway} (ideal={Ideal:F0}ft, actual={Actual:F0}ft)",
+                nodeId,
+                runway,
+                taxiway,
+                idealFt,
+                actualFt
+            );
+        }
+    }
+
+    private static void LogDeadEndUpgradedPrev(int nodeId, RunwayIdentifier runway, string taxiway, double idealFt, double actualFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Hold-short dead-end: upgraded {Node} (prev) for {Runway} on {Taxiway} (ideal={Ideal:F0}ft, actual={Actual:F0}ft)",
+                nodeId,
+                runway,
+                taxiway,
+                idealFt,
+                actualFt
+            );
+        }
+    }
+
     /// <summary>
     /// Drops each dead-end fallback bar whose junction needs no bar of its own: every route out of the junction, other
     /// than back down the branch to the bar and onto the runway, reaches another bar of the runway within the holding
@@ -1905,22 +2014,29 @@ internal static class RunwayCrossingDetector
         {
             if (!EveryRouteOutReachesBar(fallback, adjacency, fallbackIds, paintByTaxiway))
             {
-                Log.LogDebug(
-                    "Hold-short dead-end bar #{Bar} for {Runway} kept: a route out of junction #{Junction} passes the holding distance without a bar",
-                    fallback.Bar.Id,
-                    fallback.Rect.CombinedId,
-                    fallback.Junction.Id
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Hold-short dead-end bar #{Bar} for {Runway} kept: a route out of"
+                            + " junction #{Junction} passes the holding distance without a bar",
+                        fallback.Bar.Id,
+                        fallback.Rect.CombinedId,
+                        fallback.Junction.Id
+                    );
+                }
                 continue;
             }
 
             RemoveFallbackBar(layout, fallback);
-            Log.LogDebug(
-                "Hold-short dead-end bar #{Bar} for {Runway} dropped: every route out of junction #{Junction} reaches a bar of the runway",
-                fallback.Bar.Id,
-                fallback.Rect.CombinedId,
-                fallback.Junction.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Hold-short dead-end bar #{Bar} for {Runway} dropped: every route out of junction #{Junction} reaches a bar of the runway",
+                    fallback.Bar.Id,
+                    fallback.Rect.CombinedId,
+                    fallback.Junction.Id
+                );
+            }
         }
     }
 
@@ -2051,13 +2167,16 @@ internal static class RunwayCrossingDetector
 
             if (verdict == RouteNode.Closed)
             {
-                Log.LogDebug(
-                    "  route out of junction #{Junction} ends at #{Node} ({Type}) after {Dist:F0} ft",
-                    fallback.Junction.Id,
-                    node.Id,
-                    node.Type,
-                    distFt
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "  route out of junction #{Junction} ends at #{Node} ({Type}) after {Dist:F0} ft",
+                        fallback.Junction.Id,
+                        node.Id,
+                        node.Type,
+                        distFt
+                    );
+                }
                 return true;
             }
 
@@ -2309,13 +2428,16 @@ internal static class RunwayCrossingDetector
 
         if (split.Count > 0)
         {
-            Log.LogDebug(
-                "Runway crossing: split twin edge(s) {Taxiways} between nodes {FirstId}-{SecondId} at hold-short node {NodeId}",
-                string.Join("|", split),
-                firstId,
-                secondId,
-                hsNode.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Runway crossing: split twin edge(s) {Taxiways} between nodes {FirstId}-{SecondId} at hold-short node {NodeId}",
+                    string.Join("|", split),
+                    firstId,
+                    secondId,
+                    hsNode.Id
+                );
+            }
         }
     }
 

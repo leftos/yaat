@@ -40,14 +40,17 @@ public sealed class FaaAircraftDataService : IDisposable
         {
             if (TryLoadFromJson(cachePath))
             {
-                Log.LogInformation("FAA ACD data cached for cycle {Cycle}", cycleId);
+                LogAcdCached(cycleId);
                 return;
             }
         }
 
         try
         {
-            Log.LogInformation("Downloading FAA ACD data from {Url}", AcdUrl);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Downloading FAA ACD data from {Url}", AcdUrl);
+            }
 
             byte[] bytes = await _http.GetByteArrayAsync(AcdUrl);
             Dictionary<string, FaaAircraftRecord> records = ParseXlsx(bytes);
@@ -58,7 +61,10 @@ public sealed class FaaAircraftDataService : IDisposable
                 await File.WriteAllTextAsync(cachePath, json);
 
                 ApplyRecords(records);
-                Log.LogInformation("FAA ACD data cached for cycle {Cycle}: {Count} aircraft types", cycleId, records.Count);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("FAA ACD data cached for cycle {Cycle}: {Count} aircraft types", cycleId, records.Count);
+                }
                 return;
             }
 
@@ -76,6 +82,14 @@ public sealed class FaaAircraftDataService : IDisposable
         }
 
         Log.LogWarning("No FAA ACD data available; category defaults will be used");
+    }
+
+    private static void LogAcdCached(string cycle)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("FAA ACD data cached for cycle {Cycle}", cycle);
+        }
     }
 
     public void Dispose() => _http.Dispose();
@@ -96,7 +110,10 @@ public sealed class FaaAircraftDataService : IDisposable
         }
         catch (JsonException)
         {
-            Log.LogInformation("Deleting legacy-format FAA ACD cache at {Path}", path);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Deleting legacy-format FAA ACD cache at {Path}", path);
+            }
             File.Delete(path);
         }
         catch (Exception ex)
@@ -120,7 +137,10 @@ public sealed class FaaAircraftDataService : IDisposable
             {
                 if (TryLoadFromJson(file))
                 {
-                    Log.LogInformation("Loaded FAA ACD fallback from {File}", Path.GetFileName(file));
+                    if (Log.IsEnabled(LogLevel.Information))
+                    {
+                        Log.LogInformation("Loaded FAA ACD fallback from {File}", Path.GetFileName(file));
+                    }
                     return true;
                 }
             }

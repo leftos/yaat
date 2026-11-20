@@ -404,14 +404,17 @@ public static class TugKinematics
 
         if (!completed)
         {
-            Log.LogDebug(
-                "Tug {Kind} {Shape} move unflyable: travelled {DistanceFt:F0} ft past its {BudgetFt:F0} ft budget (R={RadiusFt:F1} ft)",
-                move.Kind,
-                move.Shape,
-                progress.DistanceFt,
-                budgetFt,
-                radiusFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Tug {Kind} {Shape} move unflyable: travelled {DistanceFt:F0} ft past its {BudgetFt:F0} ft budget (R={RadiusFt:F1} ft)",
+                    move.Kind,
+                    move.Shape,
+                    progress.DistanceFt,
+                    budgetFt,
+                    radiusFt
+                );
+            }
         }
 
         bool isLine = move.Shape == TugMoveShape.ViaLine;

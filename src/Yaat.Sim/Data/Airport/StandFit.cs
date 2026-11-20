@@ -62,7 +62,16 @@ internal static class StandFit
         double ceilingFt = AirplaneDesignGroups.MaxWingspanFt(airportCeiling);
         double? gapFt = NearestGapFt(layout, stand);
         double spanFt = gapFt is { } g ? Math.Min(ceilingFt, SpanForGapFt(g)) : ceilingFt;
-        Log.LogDebug("{Airport} stand {Stand}: nearest side-by-side gap {Gap} ft, span {Span:F1} ft", layout.AirportId, stand.Name, gapFt, spanFt);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Airport} stand {Stand}: nearest side-by-side gap {Gap} ft, span {Span:F1} ft",
+                layout.AirportId,
+                stand.Name,
+                gapFt,
+                spanFt
+            );
+        }
         return spanFt;
     }
 

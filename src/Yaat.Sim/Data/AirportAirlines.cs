@@ -113,7 +113,10 @@ public static class AirportAirlines
             }
 
             JsonMetadata? metadata = root.Metadata;
-            Log.LogInformation("Loaded airport-airline map for {AirportCount} airports from {Source}", byAirport.Count, metadata?.Source ?? path);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Loaded airport-airline map for {AirportCount} airports from {Source}", byAirport.Count, metadata?.Source ?? path);
+            }
 
             return new Data(metadata?.Source ?? "", metadata?.PeriodStart ?? "", metadata?.PeriodEnd ?? "", byAirport);
         }

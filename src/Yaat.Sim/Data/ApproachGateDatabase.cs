@@ -129,7 +129,10 @@ public static class ApproachGateDatabase
             computed++;
         }
 
-        Log.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
+        }
         return result;
     }
 

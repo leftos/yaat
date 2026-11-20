@@ -307,7 +307,10 @@ public static class RunwayHoldBars
         }
 
         (double cutFt, string? joiner) = WalkBackFt(bar, edge, IsTaxiway, BackFt, halfWidthFt);
-        Log.LogDebug("Bar #{BarId} on {Taxiway}: stub cut {CutFt:F1} ft back, {Joiner}", bar.Id, taxiway, cutFt, joiner ?? "chain end");
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Bar #{BarId} on {Taxiway}: stub cut {CutFt:F1} ft back, {Joiner}", bar.Id, taxiway, cutFt, joiner ?? "chain end");
+        }
         return cutFt;
     }
 

@@ -41,7 +41,10 @@ public static class EramFixResolver
 
         if (position is null)
         {
-            Log.LogDebug("ERAM fix {Fix} does not resolve to a position", fix);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("ERAM fix {Fix} does not resolve to a position", fix);
+            }
         }
         return position;
     }

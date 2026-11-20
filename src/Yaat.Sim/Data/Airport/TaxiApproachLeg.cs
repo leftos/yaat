@@ -98,12 +98,18 @@ public static class TaxiApproachLeg
         string? refusal = Refusal(layout, pose, route, from, distFt);
         if (refusal is not null)
         {
-            Log.LogDebug("[ApproachLeg] no leg to node {NodeId} ({DistFt:F0} ft): {Refusal}", from.Id, distFt, refusal);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ApproachLeg] no leg to node {NodeId} ({DistFt:F0} ft): {Refusal}", from.Id, distFt, refusal);
+            }
             return route;
         }
 
         TaxiRouteSegment leg = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), from, "RAMP");
-        Log.LogDebug("[ApproachLeg] prepended {DistFt:F0} ft free-space leg to node {NodeId}", distFt, from.Id);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[ApproachLeg] prepended {DistFt:F0} ft free-space leg to node {NodeId}", distFt, from.Id);
+        }
 
         return new TaxiRoute
         {
@@ -191,20 +197,28 @@ public static class TaxiApproachLeg
         double behindFt = BehindBarAlongEdgeFt(pose.Position, from, occupied);
         if ((alongFt < 0.0) && (behindFt > paintedStopFt))
         {
-            Log.LogDebug(
-                "[ApproachLeg] runway bar {NodeId} is {DistFt:F0} ft away on {Taxiway}, {BehindFt:F0} ft behind it along the edge, "
-                    + "beyond its {StopFt:F0} ft painted stop",
-                from.Id,
-                distFt,
-                occupied.TaxiwayName,
-                behindFt,
-                paintedStopFt
-            );
+            LogBarBehind(from.Id, distFt, occupied.TaxiwayName, behindFt, paintedStopFt);
             return null;
         }
 
         return $"the route starts at a runway holding position {distFt:F0} ft away, {alongFt:F0} ft along the first leg from it and "
             + $"{behindFt:F0} ft behind it along the edge or arc, not behind its {paintedStopFt:F0} ft painted stop";
+    }
+
+    private static void LogBarBehind(int nodeId, double distFt, string taxiway, double behindFt, double stopFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ApproachLeg] runway bar {NodeId} is {DistFt:F0} ft away on {Taxiway}, {BehindFt:F0} ft behind it along the edge, "
+                    + "beyond its {StopFt:F0} ft painted stop",
+                nodeId,
+                distFt,
+                taxiway,
+                behindFt,
+                stopFt
+            );
+        }
     }
 
     /// <summary>
@@ -241,15 +255,19 @@ public static class TaxiApproachLeg
             return $"the drive is {distFt:F0} ft, beyond the {RampLaneReposition.MaxCrossingFt:F0} ft free-space bound";
         }
 
-        Log.LogDebug(
-            "[ApproachLeg] {DistFt:F0} ft leg past the {BoundFt:F0} ft bound runs along {Taxiway} edge or arc {First}-{Second} to its node {NodeId}",
-            distFt,
-            RampLaneReposition.MaxCrossingFt,
-            occupied.TaxiwayName,
-            occupied.Nodes[0].Id,
-            occupied.Nodes[1].Id,
-            from.Id
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ApproachLeg] {DistFt:F0} ft leg past the {BoundFt:F0} ft bound runs"
+                    + " along {Taxiway} edge or arc {First}-{Second} to its node {NodeId}",
+                distFt,
+                RampLaneReposition.MaxCrossingFt,
+                occupied.TaxiwayName,
+                occupied.Nodes[0].Id,
+                occupied.Nodes[1].Id,
+                from.Id
+            );
+        }
         return null;
     }
 

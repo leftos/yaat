@@ -150,11 +150,14 @@ public static class TaxiPathfinder
         }
 
         // Nothing is left to taxi before the junction: the route stands as resolved, with no hold to carry the advisory.
-        Log.LogDebug(
-            "[TaxiPathfinder] no-destination cut before {Taxiway} from node {StartNode} leaves nothing to taxi; keeping the route uncut",
-            terminus,
-            route.Segments.FirstOrDefault()?.FromNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TaxiPathfinder] no-destination cut before {Taxiway} from node {StartNode} leaves nothing to taxi; keeping the route uncut",
+                terminus,
+                route.Segments.FirstOrDefault()?.FromNodeId
+            );
+        }
         route.Warnings.Remove(advisory);
         return route;
     }

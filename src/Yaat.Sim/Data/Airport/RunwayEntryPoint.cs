@@ -69,16 +69,20 @@ public static class RunwayEntryPoint
             return null;
         }
 
-        Log.LogTrace(
-            "[EntryPoint] {Airport} {Runway} node {NodeId}: {AlongFt:F0}ft on {Taxiway} ({Side}) vs full length at {NearestFt:F0}ft → intersection",
-            layout.AirportId,
-            runwayDesignator,
-            holdShortNodeId,
-            alongFt,
-            taxiway ?? "(unnamed)",
-            oppositeSide ? "opposite side" : "same side",
-            nearestFt
-        );
+        if (Log.IsEnabled(LogLevel.Trace))
+        {
+            Log.LogTrace(
+                "[EntryPoint] {Airport} {Runway} node {NodeId}: {AlongFt:F0}ft on"
+                    + " {Taxiway} ({Side}) vs full length at {NearestFt:F0}ft → intersection",
+                layout.AirportId,
+                runwayDesignator,
+                holdShortNodeId,
+                alongFt,
+                taxiway ?? "(unnamed)",
+                oppositeSide ? "opposite side" : "same side",
+                nearestFt
+            );
+        }
         return taxiway;
     }
 
