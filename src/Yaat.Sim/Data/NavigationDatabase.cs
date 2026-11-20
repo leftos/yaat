@@ -1565,13 +1565,16 @@ public sealed class NavigationDatabase
     private static ProcedureSource CustomProcedureSource(CustomAirportProcedures custom, string kind, string resolvedId, string airportCode)
     {
         string artcc = custom.ArtccByProcedureId.TryGetValue(resolvedId, out string? owner) ? owner : "ARTCC";
-        Log.LogInformation(
-            "{Kind} {ProcedureId} at {Airport} resolved from {Artcc} ARTCC-supplied procedure data (absent from current FAA cycle)",
-            kind,
-            resolvedId,
-            airportCode,
-            artcc
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "{Kind} {ProcedureId} at {Airport} resolved from {Artcc} ARTCC-supplied procedure data (absent from current FAA cycle)",
+                kind,
+                resolvedId,
+                airportCode,
+                artcc
+            );
+        }
         return new ProcedureSource(ProcedureSourceKind.ArtccCustom, artcc);
     }
 
@@ -1592,7 +1595,10 @@ public sealed class NavigationDatabase
 
         if (_supplementaryCifpFilePaths.Count > 0)
         {
-            Log.LogDebug("{Airport} has no {Kind}s in the current CIFP cycle; skipping the supplementary-cycle chain", airportCode, kind);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Airport} has no {Kind}s in the current CIFP cycle; skipping the supplementary-cycle chain", airportCode, kind);
+            }
         }
 
         return true;
@@ -2342,14 +2348,17 @@ public sealed class NavigationDatabase
             }
         }
 
-        Log.LogInformation(
-            "Navigation database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways + {Airways} airways)",
-            _navDb.Count,
-            navData.Airports.Count,
-            navData.Fixes.Count,
-            runwayCount,
-            _airways.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Navigation database built: {Count} entries ({Airports} airports + {Fixes} fixes + {Runways} runways + {Airways} airways)",
+                _navDb.Count,
+                navData.Airports.Count,
+                navData.Fixes.Count,
+                runwayCount,
+                _airways.Count
+            );
+        }
     }
 
     private void BuildProcedureIndex(NavDataSet navData)
@@ -2426,7 +2435,10 @@ public sealed class NavigationDatabase
             _starAllFixes.TryAdd(star.Id, allFixes);
         }
 
-        Log.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
+        }
     }
 
     /// <summary>
@@ -2468,11 +2480,14 @@ public sealed class NavigationDatabase
 
         if (_customProcedures.Count > 0)
         {
-            Log.LogInformation(
-                "Custom procedures: {Airports} airport(s) from {Files} ARTCC fragment(s)",
-                _customProcedures.Count,
-                loadResult.Fragments.Count
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Custom procedures: {Airports} airport(s) from {Files} ARTCC fragment(s)",
+                    _customProcedures.Count,
+                    loadResult.Fragments.Count
+                );
+            }
         }
     }
 
@@ -2741,12 +2756,15 @@ public sealed class NavigationDatabase
         // "runway 30 numbers" when both would match).
         _customFixSpeechPatterns.Sort((a, b) => b.Tokens.Count.CompareTo(a.Tokens.Count));
 
-        Log.LogInformation(
-            "Custom fixes: {Added} aliases added from {Total} definitions, {Patterns} speech patterns",
-            added,
-            loadResult.Fixes.Count,
-            _customFixSpeechPatterns.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Custom fixes: {Added} aliases added from {Total} definitions, {Patterns} speech patterns",
+                added,
+                loadResult.Fixes.Count,
+                _customFixSpeechPatterns.Count
+            );
+        }
     }
 
     /// <summary>Records a definition from an airport's landmark file whose spoken patterns are not all blank.</summary>
@@ -2818,12 +2836,15 @@ public sealed class NavigationDatabase
         // collapse step's longest-match scan picks the most specific phrase first.
         _customFixSpeechPatterns.Sort((a, b) => b.Tokens.Count.CompareTo(a.Tokens.Count));
 
-        Log.LogInformation(
-            "Fix pronunciations: {Count} fixes loaded from {Files} definitions ({DisplayNames} display names)",
-            _fixPronunciations.Count,
-            loadResult.Definitions.Count,
-            _fixDisplayNames.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Fix pronunciations: {Count} fixes loaded from {Files} definitions ({DisplayNames} display names)",
+                _fixPronunciations.Count,
+                loadResult.Definitions.Count,
+                _fixDisplayNames.Count
+            );
+        }
     }
 
     /// <summary>
@@ -2856,7 +2877,14 @@ public sealed class NavigationDatabase
             }
         }
 
-        Log.LogInformation("Gate pronunciations: {Airports} airports loaded from {Files} files", _groundPronunciations.Count, loadResult.Files.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Gate pronunciations: {Airports} airports loaded from {Files} files",
+                _groundPronunciations.Count,
+                loadResult.Files.Count
+            );
+        }
     }
 
     private static void MergeNamePronunciations(Dictionary<string, List<string>> target, IEnumerable<NamePronunciation> entries)
@@ -2920,11 +2948,14 @@ public sealed class NavigationDatabase
             AppendDistinct(list, def.Pronunciations);
         }
 
-        Log.LogInformation(
-            "Procedure pronunciations: {Count} procedures loaded from {Definitions} definitions",
-            _procedurePronunciations.Count,
-            loadResult.Definitions.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Procedure pronunciations: {Count} procedures loaded from {Definitions} definitions",
+                _procedurePronunciations.Count,
+                loadResult.Definitions.Count
+            );
+        }
     }
 
     private static AirportSidecarCatalog LoadAirportSidecars(string baseDir)
@@ -2936,7 +2967,10 @@ public sealed class NavigationDatabase
             Log.LogWarning("Airport sidecar: {Warning}", warning);
         }
 
-        Log.LogInformation("Airport sidecars: {Count} airport(s) loaded from {BaseDir}", loadResult.Airports.Count, baseDir);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Airport sidecars: {Count} airport(s) loaded from {BaseDir}", loadResult.Airports.Count, baseDir);
+        }
 
         return new AirportSidecarCatalog(loadResult.Airports);
     }
@@ -2950,7 +2984,10 @@ public sealed class NavigationDatabase
             Log.LogWarning("Initial contact transfer: {Warning}", warning);
         }
 
-        Log.LogInformation("Initial contact transfers: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Initial contact transfers: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
+        }
 
         return new InitialContactTransferCatalog(loadResult.Rules);
     }
@@ -2964,7 +3001,10 @@ public sealed class NavigationDatabase
             Log.LogWarning("Wake directive: {Warning}", warning);
         }
 
-        Log.LogInformation("Wake directives: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Wake directives: {Count} rule(s) loaded from {BaseDir}", loadResult.Rules.Count, baseDir);
+        }
 
         return new WakeDirectiveCatalog(loadResult.Rules);
     }
@@ -3039,12 +3079,15 @@ public sealed class NavigationDatabase
             _airways[route.Designator] = [.. route.Points.Select(p => p.Name)];
         }
 
-        Log.LogInformation(
-            "Military routes: {RouteCount} route(s), {PointCount} point(s), {Clashes} name clash(es)",
-            routes.Count,
-            _militaryRoutePoints.Count,
-            clashes
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Military routes: {RouteCount} route(s), {PointCount} point(s), {Clashes} name clash(es)",
+                routes.Count,
+                _militaryRoutePoints.Count,
+                clashes
+            );
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -3165,11 +3208,14 @@ public sealed class NavigationDatabase
         }
 
         CifpParser.CifpRunwayEnds runwayEnds = CifpParser.ParseRunwayEnds(cifpFilePath);
-        Log.LogInformation(
-            "CIFP runway ends: {Elevations} threshold elevations, {Categories} localizer categories",
-            runwayEnds.ThresholdElevationsFt.Count,
-            runwayEnds.LocalizerCategories.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "CIFP runway ends: {Elevations} threshold elevations, {Categories} localizer categories",
+                runwayEnds.ThresholdElevationsFt.Count,
+                runwayEnds.LocalizerCategories.Count
+            );
+        }
         return runwayEnds;
     }
 

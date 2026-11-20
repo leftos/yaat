@@ -155,7 +155,10 @@ public sealed class MilitaryRouteDatabase
             }
         }
 
-        Log.LogInformation("Loaded {RouteCount} military routes from {FileCount} fixture(s)", routes.Count, ordered.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Loaded {RouteCount} military routes from {FileCount} fixture(s)", routes.Count, ordered.Count);
+        }
         return new MilitaryRouteDatabase(routes);
     }
 

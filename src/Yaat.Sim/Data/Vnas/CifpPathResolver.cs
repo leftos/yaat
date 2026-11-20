@@ -163,7 +163,7 @@ public static class CifpPathResolver
         string cachePath = GetCachePathForCycle(cacheRoot, cycleId);
         if (File.Exists(cachePath))
         {
-            Log.LogDebug("Using cached CIFP for AIRAC cycle {Cycle}: {Path}", cycleId, cachePath);
+            LogUsingCachedCifp(cycleId, cachePath);
             return (cachePath, cycleId);
         }
 
@@ -177,6 +177,14 @@ public static class CifpPathResolver
         }
 
         return TryBundledOrStaleCache(options, cacheRoot, cycleId);
+    }
+
+    private static void LogUsingCachedCifp(string cycleId, string cachePath)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Using cached CIFP for AIRAC cycle {Cycle}: {Path}", cycleId, cachePath);
+        }
     }
 
     /// <summary>
@@ -274,7 +282,10 @@ public static class CifpPathResolver
 
         try
         {
-            Log.LogInformation("Downloading CIFP for AIRAC cycle {Cycle} from {Url}", cycleId, url);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Downloading CIFP for AIRAC cycle {Cycle} from {Url}", cycleId, url);
+            }
             Console.Error.WriteLine($"[CifpPathResolver] Downloading CIFP for AIRAC {cycleId}...");
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
@@ -294,7 +305,10 @@ public static class CifpPathResolver
             await using FileStream fileStream = File.Create(cachePath);
             await entryStream.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
 
-            Log.LogInformation("CIFP cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("CIFP cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
+            }
             Console.Error.WriteLine($"[CifpPathResolver] CIFP cached for AIRAC {cycleId}.");
             return cachePath;
         }
@@ -366,7 +380,10 @@ public static class CifpPathResolver
         }
         catch (Exception ex)
         {
-            Log.LogDebug(ex, "Could not read CIFP manifest {Path}", manifestPath);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Could not read CIFP manifest {Path}", manifestPath);
+            }
             parseError = ex;
             return null;
         }
@@ -427,6 +444,16 @@ public static class CifpPathResolver
 
         if (cycles.Count > 0)
         {
+            LogSupplementaryChainResolved(cycles, currentCycleId);
+        }
+
+        return [.. cycles.Select(c => Path.Combine(cacheDir, "FAACIFP18-" + c))];
+    }
+
+    private static void LogSupplementaryChainResolved(List<string> cycles, string currentCycleId)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
             Log.LogInformation(
                 "Supplementary CIFP chain resolved from {Count} cached prior cycle(s) [{Cycles}] (current {Current})",
                 cycles.Count,
@@ -434,8 +461,6 @@ public static class CifpPathResolver
                 currentCycleId
             );
         }
-
-        return [.. cycles.Select(c => Path.Combine(cacheDir, "FAACIFP18-" + c))];
     }
 
     /// <summary>
@@ -478,12 +503,15 @@ public static class CifpPathResolver
 
             if ((newerThanBundle) && (expectedLength is { } size))
             {
-                Log.LogInformation(
-                    "Replacing cached bundled CIFP {Path}: it holds {Actual} bytes, but the bundle decompresses to {Expected}",
-                    outPath,
-                    cached.Length,
-                    size
-                );
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation(
+                        "Replacing cached bundled CIFP {Path}: it holds {Actual} bytes, but the bundle decompresses to {Expected}",
+                        outPath,
+                        cached.Length,
+                        size
+                    );
+                }
             }
         }
 
@@ -529,7 +557,10 @@ public static class CifpPathResolver
             bool replaced = ReplaceWithRetry(tmpPath, outPath, expectedLength);
             if (!replaced)
             {
-                Log.LogDebug("{Path} was completed by another process; kept its {Expected} bytes", outPath, expectedLength);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("{Path} was completed by another process; kept its {Expected} bytes", outPath, expectedLength);
+                }
             }
         }
         finally
@@ -555,7 +586,10 @@ public static class CifpPathResolver
             {
                 if (AnotherWriterCompleted(outPath, expectedLength))
                 {
-                    Log.LogDebug(ex, "Replacing {Path} was denied, but it now holds the expected {Expected} bytes", outPath, expectedLength);
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(ex, "Replacing {Path} was denied, but it now holds the expected {Expected} bytes", outPath, expectedLength);
+                    }
                     return false;
                 }
 
@@ -564,7 +598,10 @@ public static class CifpPathResolver
                     throw;
                 }
 
-                Log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", outPath, attempt);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", outPath, attempt);
+                }
                 Thread.Sleep(RetryStepMs * attempt);
             }
         }

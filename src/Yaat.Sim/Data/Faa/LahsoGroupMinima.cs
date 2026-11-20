@@ -78,13 +78,16 @@ internal static class LahsoGroupMinima
             return new LahsoEligibility(true, null);
         }
 
-        Log.LogDebug(
-            "{Type} declines LAHSO (ALD {Ald:F0} ft, field elevation {Elevation:F0} ft): {Reason}",
-            aircraftType,
-            availableLandingDistanceFt,
-            fieldElevationFt,
-            reason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Type} declines LAHSO (ALD {Ald:F0} ft, field elevation {Elevation:F0} ft): {Reason}",
+                aircraftType,
+                availableLandingDistanceFt,
+                fieldElevationFt,
+                reason
+            );
+        }
         return new LahsoEligibility(false, reason);
     }
 
@@ -98,7 +101,10 @@ internal static class LahsoGroupMinima
         FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
         if (record is null)
         {
-            Log.LogDebug("{Type} has no FAA ACD record, so no LAHSO group", aircraftType);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Type} has no FAA ACD record, so no LAHSO group", aircraftType);
+            }
             return $"{aircraftType} is not in the FAA aircraft data";
         }
 
@@ -114,11 +120,14 @@ internal static class LahsoGroupMinima
     {
         if ((group is not { } knownGroup) || (knownGroup < 1) || (knownGroup > HighestGroup))
         {
-            Log.LogDebug(
-                "{Type} has an FAA ACD record with no LAHSO group ({Group})",
-                aircraftType,
-                group?.ToString(CultureInfo.InvariantCulture) ?? "null"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Type} has an FAA ACD record with no LAHSO group ({Group})",
+                    aircraftType,
+                    group?.ToString(CultureInfo.InvariantCulture) ?? "null"
+                );
+            }
             return $"{aircraftType} has no LAHSO group";
         }
 

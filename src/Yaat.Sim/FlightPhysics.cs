@@ -451,14 +451,17 @@ public static class FlightPhysics
         if (RestoredMachHandsOver(aircraft, mach))
         {
             double ias = RestoredMachIas(aircraft.AircraftType, mach, aircraft.Altitude);
-            Log.LogDebug(
-                "{Callsign}: Mach {Mach:F2} restored past {Fix} as {Speed:F0} kt at {Altitude:F0} ft",
-                aircraft.Callsign,
-                mach,
-                sequenced.Name,
-                ias,
-                aircraft.Altitude
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: Mach {Mach:F2} restored past {Fix} as {Speed:F0} kt at {Altitude:F0} ft",
+                    aircraft.Callsign,
+                    mach,
+                    sequenced.Name,
+                    ias,
+                    aircraft.Altitude
+                );
+            }
             // A Mach nobody assigned (live traffic) resumes as a target speed only, as the handover gives it.
             aircraft.Targets.TargetMach = null;
             aircraft.Targets.AssignedSpeed = aircraft.Targets.HasExplicitSpeedCommand ? ias : null;
@@ -1008,7 +1011,10 @@ public static class FlightPhysics
         double? target = PlanClimbScan(aircraft, cat, route, 0).TargetFt ?? ClimbClearedOrTopAltitude(aircraft, route, 0);
         if ((target is { } climbTo) && (climbTo > aircraft.Altitude))
         {
-            Log.LogDebug("{Callsign}: past {Fix}, climb resumes to {Target}", aircraft.Callsign, sequenced.Name, climbTo);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: past {Fix}, climb resumes to {Target}", aircraft.Callsign, sequenced.Name, climbTo);
+            }
             aircraft.Targets.TargetAltitude = climbTo;
         }
     }
@@ -1312,7 +1318,10 @@ public static class FlightPhysics
         double? target = PlanDescentScan(aircraft, cat, route, 0).TargetFt ?? aircraft.Targets.AssignedAltitude;
         if ((target is { } descendTo) && (descendTo < aircraft.Altitude))
         {
-            Log.LogDebug("{Callsign}: past {Fix}, descent resumes to {Target}", aircraft.Callsign, sequenced.Name, descendTo);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: past {Fix}, descent resumes to {Target}", aircraft.Callsign, sequenced.Name, descendTo);
+            }
             aircraft.Targets.TargetAltitude = descendTo;
         }
     }
@@ -1623,14 +1632,7 @@ public static class FlightPhysics
 
         // Below FL240 before the window opens the Mach is handed over to its own IAS, which the window then slows from.
         double target = windowOpen ? constraintSpeed : MachHandOverKts(aircraft.AircraftType, mach, aircraft.Altitude);
-        Log.LogDebug(
-            "{Callsign}: Mach {Mach:F2} ends for the {Speed:F0} kt crossing at {Altitude:F0} ft, targeting {Target:F0} kt",
-            aircraft.Callsign,
-            mach,
-            constraintSpeed,
-            aircraft.Altitude,
-            target
-        );
+        LogMachHandOverEnding(aircraft, mach, constraintSpeed, target);
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.SpeedMaxHeld = false;
         if (windowOpen)
@@ -1640,6 +1642,21 @@ public static class FlightPhysics
         else
         {
             aircraft.Targets.TargetSpeed = target;
+        }
+    }
+
+    private static void LogMachHandOverEnding(AircraftState aircraft, double mach, double constraintSpeed, double target)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: Mach {Mach:F2} ends for the {Speed:F0} kt crossing at {Altitude:F0} ft, targeting {Target:F0} kt",
+                aircraft.Callsign,
+                mach,
+                constraintSpeed,
+                aircraft.Altitude,
+                target
+            );
         }
     }
 
@@ -2636,13 +2653,16 @@ public static class FlightPhysics
             Entry = null,
             IsClearanceLimitHold = true,
         };
-        Log.LogDebug(
-            "{Callsign}: holding over {Airport} at the clearance limit, inbound {Course:000} true, {Leg} min legs",
-            aircraft.Callsign,
-            clearanceLimit.Name,
-            phase.InboundCourse,
-            phase.LegLength
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: holding over {Airport} at the clearance limit, inbound {Course:000} true, {Leg} min legs",
+                aircraft.Callsign,
+                clearanceLimit.Name,
+                phase.InboundCourse,
+                phase.LegLength
+            );
+        }
         Commands.NavigationCommandHandler.InstallHoldingPhase(aircraft, phase);
     }
 
@@ -2675,13 +2695,16 @@ public static class FlightPhysics
     /// </summary>
     private static void LogNoDirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced, string? refusal)
     {
-        Log.LogDebug(
-            "{Callsign}: route ended at {Fix}, no direct to cleared destination '{Destination}': {Reason}",
-            aircraft.Callsign,
-            sequenced.Name,
-            aircraft.ClearedDestination,
-            refusal ?? "no airport position"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: route ended at {Fix}, no direct to cleared destination '{Destination}': {Reason}",
+                aircraft.Callsign,
+                sequenced.Name,
+                aircraft.ClearedDestination,
+                refusal ?? "no airport position"
+            );
+        }
     }
 
     /// <summary>
@@ -3098,14 +3121,17 @@ public static class FlightPhysics
     {
         if (aircraft.VerticalSpeed != 0)
         {
-            Log.LogDebug(
-                "{Callsign}: levelling at {Altitude:F0} ft until slowed to {Release} KIAS (IAS {Ias:F1}, was {Rate:F0} fpm)",
-                aircraft.Callsign,
-                goal,
-                SpeedHoldReleaseKts(aircraft),
-                aircraft.IndicatedAirspeed,
-                aircraft.VerticalSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: levelling at {Altitude:F0} ft until slowed to {Release} KIAS (IAS {Ias:F1}, was {Rate:F0} fpm)",
+                    aircraft.Callsign,
+                    goal,
+                    SpeedHoldReleaseKts(aircraft),
+                    aircraft.IndicatedAirspeed,
+                    aircraft.VerticalSpeed
+                );
+            }
         }
 
         aircraft.Altitude = goal;
@@ -3122,13 +3148,16 @@ public static class FlightPhysics
             && (Math.Abs(aircraft.Altitude - TenThousandFt) < AltitudeSnapFt)
         )
         {
-            Log.LogDebug(
-                "{Callsign}: descending below {Altitude:F0} ft to {Goal:F0} ft at IAS {Ias:F1}",
-                aircraft.Callsign,
-                aircraft.Altitude,
-                clearedGoal,
-                aircraft.IndicatedAirspeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: descending below {Altitude:F0} ft to {Goal:F0} ft at IAS {Ias:F1}",
+                    aircraft.Callsign,
+                    aircraft.Altitude,
+                    clearedGoal,
+                    aircraft.IndicatedAirspeed
+                );
+            }
         }
     }
 
@@ -3497,7 +3526,10 @@ public static class FlightPhysics
         {
             if (aircraft.Targets.TargetMach != smaxMach)
             {
-                Log.LogDebug("{Callsign}: SMAX holds Mach {Mach:F2} at {Altitude:F0} ft", aircraft.Callsign, smaxMach, aircraft.Altitude);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("{Callsign}: SMAX holds Mach {Mach:F2} at {Altitude:F0} ft", aircraft.Callsign, smaxMach, aircraft.Altitude);
+                }
                 aircraft.Targets.TargetMach = smaxMach;
                 aircraft.Targets.AssignedSpeed = null;
             }
@@ -3512,7 +3544,10 @@ public static class FlightPhysics
 
         if ((aircraft.Targets.TargetMach is not null) || (aircraft.Targets.AssignedSpeed != assigned))
         {
-            Log.LogDebug("{Callsign}: SMAX holds {Speed:F0} kt at {Altitude:F0} ft", aircraft.Callsign, assigned, aircraft.Altitude);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: SMAX holds {Speed:F0} kt at {Altitude:F0} ft", aircraft.Callsign, assigned, aircraft.Altitude);
+            }
             aircraft.Targets.TargetMach = null;
             aircraft.Targets.AssignedSpeed = assigned;
             aircraft.Targets.TargetSpeed = assigned;
@@ -3597,13 +3632,7 @@ public static class FlightPhysics
         }
 
         double handOverKts = MachHandOverKts(aircraft.AircraftType, mach, aircraft.Altitude);
-        Log.LogDebug(
-            "{Callsign}: Mach {Mach:F2} handed over to {Speed:F0} kt at {Altitude:F0} ft",
-            aircraft.Callsign,
-            mach,
-            handOverKts,
-            aircraft.Altitude
-        );
+        LogMachHandedOver(aircraft, mach, handOverKts);
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.TargetSpeed = handOverKts;
         bool controllerCrossingAhead = aircraft.Targets.NavigationRoute.Exists(fix =>
@@ -3612,6 +3641,20 @@ public static class FlightPhysics
         if (aircraft.Targets.HasExplicitSpeedCommand && !controllerCrossingAhead)
         {
             aircraft.Targets.AssignedSpeed = handOverKts;
+        }
+    }
+
+    private static void LogMachHandedOver(AircraftState aircraft, double mach, double handOverKts)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: Mach {Mach:F2} handed over to {Speed:F0} kt at {Altitude:F0} ft",
+                aircraft.Callsign,
+                mach,
+                handOverKts,
+                aircraft.Altitude
+            );
         }
     }
 
@@ -4473,7 +4516,10 @@ public static class FlightPhysics
         AircraftState? target = aircraftLookup(yieldTarget);
         if ((target is null) || !target.IsOnGround)
         {
-            Log.LogDebug("GIVEWAY released for {Callsign}: {Target} is gone or airborne", aircraft.Callsign, yieldTarget);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("GIVEWAY released for {Callsign}: {Target} is gone or airborne", aircraft.Callsign, yieldTarget);
+            }
             ClearGiveWayHold(aircraft);
             return;
         }
@@ -4517,13 +4563,19 @@ public static class FlightPhysics
             {
                 if (LatchGiveWayKept(aircraft, KeptPastButRoutesMeetAhead, nodeId: null))
                 {
-                    Log.LogDebug(KeptPastButRoutesMeetAhead, aircraft.Callsign, yieldTarget);
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(KeptPastButRoutesMeetAhead, aircraft.Callsign, yieldTarget);
+                    }
                 }
 
                 return;
             }
 
-            Log.LogDebug("GIVEWAY released for {Callsign}: no shared node with {Target}, and it is past", aircraft.Callsign, yieldTarget);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("GIVEWAY released for {Callsign}: no shared node with {Target}, and it is past", aircraft.Callsign, yieldTarget);
+            }
             ClearGiveWayHold(aircraft);
             return;
         }
@@ -4544,19 +4596,25 @@ public static class FlightPhysics
             || (GeoMath.DistanceNm(aircraft.Position, target.Position) > GiveWayConstants.SafetyTimeoutClearDistanceNm);
         if (clearToProceed)
         {
-            Log.LogDebug(
-                "GIVEWAY safety timeout fired for {Callsign} after {Seconds:F0}s waiting on {Target}",
-                aircraft.Callsign,
-                aircraft.Ground.HoldElapsedSeconds,
-                yieldTarget
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "GIVEWAY safety timeout fired for {Callsign} after {Seconds:F0}s waiting on {Target}",
+                    aircraft.Callsign,
+                    aircraft.Ground.HoldElapsedSeconds,
+                    yieldTarget
+                );
+            }
             ClearGiveWayHold(aircraft);
             return;
         }
 
         if (LatchGiveWayKept(aircraft, KeptPastSafetyTimeout, nodeId: null))
         {
-            Log.LogDebug(KeptPastSafetyTimeout, aircraft.Callsign, yieldTarget);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(KeptPastSafetyTimeout, aircraft.Callsign, yieldTarget);
+            }
         }
     }
 
@@ -4571,7 +4629,7 @@ public static class FlightPhysics
         {
             if (LatchGiveWayKept(aircraft, KeptStillInTheWay, nodeId: null))
             {
-                Log.LogDebug(KeptStillInTheWay, aircraft.Callsign, yieldTarget);
+                LogGiveWayKeptStillInTheWay(aircraft, yieldTarget);
             }
 
             return;
@@ -4581,7 +4639,7 @@ public static class FlightPhysics
         {
             if (LatchGiveWayKept(aircraft, KeptLowerCallsignFirst, nodeId: null))
             {
-                Log.LogDebug(KeptLowerCallsignFirst, aircraft.Callsign, yieldTarget);
+                LogGiveWayKeptLowerCallsignFirst(aircraft, yieldTarget);
             }
 
             return;
@@ -4589,19 +4647,14 @@ public static class FlightPhysics
 
         if (GroundConflictDetector.HasWingspanLateralClearance(aircraft, target))
         {
-            Log.LogDebug(
-                "GIVEWAY target-stationary fallback fired for {Callsign} bypassing {Target} (stationary {Seconds:F0}s)",
-                aircraft.Callsign,
-                yieldTarget,
-                target.Ground.StationarySeconds
-            );
+            LogStationaryBypassFired(aircraft, yieldTarget, target);
             ClearGiveWayHold(aircraft);
             return;
         }
 
         if (LatchGiveWayKept(aircraft, KeptNoRoomToPass, nodeId: null))
         {
-            Log.LogDebug(KeptNoRoomToPass, aircraft.Callsign, yieldTarget);
+            LogGiveWayKeptNoRoomToPass(aircraft, yieldTarget);
         }
     }
 
@@ -4624,14 +4677,7 @@ public static class FlightPhysics
     {
         if (clear)
         {
-            Log.LogDebug(
-                "GIVEWAY released for {Callsign}: {Target}'s tail is {TailPast:F0} ft past shared node {Node} (needs {Required:F0} ft)",
-                aircraft.Callsign,
-                target.Callsign,
-                junction.TailPastFt,
-                junction.NodeId,
-                junction.RequiredPastFt
-            );
+            LogSharedNodeReleased(aircraft, target, junction);
             ClearGiveWayHold(aircraft);
             return;
         }
@@ -4642,19 +4688,94 @@ public static class FlightPhysics
             && (GroundConflictDetector.GiveWayRouteVerdictOf(target, aircraft) is { Clear: false })
         )
         {
-            Log.LogDebug(
-                "GIVEWAY released for {Callsign}: {Target} gives way to it too at shared node {Node}, and the lower callsign goes first",
-                aircraft.Callsign,
-                target.Callsign,
-                junction.NodeId
-            );
+            LogMutualGiveWayReleased(aircraft, target, junction);
             ClearGiveWayHold(aircraft);
             return;
         }
 
         if (LatchGiveWayKept(aircraft, KeptShortOfSharedNode, junction.NodeId))
         {
-            Log.LogDebug(KeptShortOfSharedNode, aircraft.Callsign, target.Callsign, junction.TailPastFt, junction.NodeId, junction.RequiredPastFt);
+            LogKeptShortOfSharedNode(aircraft, target, junction);
+        }
+    }
+
+    private static void LogGiveWayKeptStillInTheWay(AircraftState aircraft, string yieldTarget)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(KeptStillInTheWay, aircraft.Callsign, yieldTarget);
+        }
+    }
+
+    private static void LogGiveWayKeptLowerCallsignFirst(AircraftState aircraft, string yieldTarget)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(KeptLowerCallsignFirst, aircraft.Callsign, yieldTarget);
+        }
+    }
+
+    private static void LogGiveWayKeptNoRoomToPass(AircraftState aircraft, string yieldTarget)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(KeptNoRoomToPass, aircraft.Callsign, yieldTarget);
+        }
+    }
+
+    private static void LogStationaryBypassFired(AircraftState aircraft, string yieldTarget, AircraftState target)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "GIVEWAY target-stationary fallback fired for {Callsign} bypassing {Target} (stationary {Seconds:F0}s)",
+                aircraft.Callsign,
+                yieldTarget,
+                target.Ground.StationarySeconds
+            );
+        }
+    }
+
+    private static void LogSharedNodeReleased(AircraftState aircraft, AircraftState target, GroundConflictDetector.GiveWayJunction junction)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "GIVEWAY released for {Callsign}: {Target}'s tail is {TailPast:F0} ft past shared node {Node} (needs {Required:F0} ft)",
+                aircraft.Callsign,
+                target.Callsign,
+                junction.TailPastFt,
+                junction.NodeId,
+                junction.RequiredPastFt
+            );
+        }
+    }
+
+    private static void LogMutualGiveWayReleased(AircraftState aircraft, AircraftState target, GroundConflictDetector.GiveWayJunction junction)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "GIVEWAY released for {Callsign}: {Target} gives way to it too at shared node {Node}, and the lower callsign goes first",
+                aircraft.Callsign,
+                target.Callsign,
+                junction.NodeId
+            );
+        }
+    }
+
+    private static void LogKeptShortOfSharedNode(AircraftState aircraft, AircraftState target, GroundConflictDetector.GiveWayJunction junction)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "GIVEWAY kept for {Callsign}: {Target}'s tail is {TailPast:F0} ft past shared node {Node}, short of the {Required:F0} ft it needs",
+                aircraft.Callsign,
+                target.Callsign,
+                junction.TailPastFt,
+                junction.NodeId,
+                junction.RequiredPastFt
+            );
         }
     }
 
@@ -5099,14 +5220,17 @@ public static class FlightPhysics
         bool met = verdict?.Clear ?? IsGiveWayMet(aircraft, trigger, aircraftLookup);
         if (LatchGiveWayJudgement(trigger, met, verdict?.Junction.NodeId))
         {
-            Log.LogDebug(
-                "Queued GIVEWAY for {Callsign} behind {Target}: met={Met}, deciding node {Node}, tail past {TailPast:F0} ft",
-                aircraft.Callsign,
-                targetCallsign,
-                met,
-                verdict?.Junction.NodeId,
-                verdict?.Junction.TailPastFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Queued GIVEWAY for {Callsign} behind {Target}: met={Met}, deciding node {Node}, tail past {TailPast:F0} ft",
+                    aircraft.Callsign,
+                    targetCallsign,
+                    met,
+                    verdict?.Junction.NodeId,
+                    verdict?.Junction.TailPastFt
+                );
+            }
         }
 
         return met;
@@ -5356,7 +5480,10 @@ public static class FlightPhysics
                 block.WaitingForRelease = true;
                 string desc = RunwayIdentifier.ToDisplayDesignator(block.Description);
                 aircraft.PendingNotifications.Add($"{aircraft.Callsign} {desc} waits for the release");
-                Log.LogDebug("{Callsign}: queued {Block} waits for the release", aircraft.Callsign, block.Description);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("{Callsign}: queued {Block} waits for the release", aircraft.Callsign, block.Description);
+                }
             }
 
             return true;
@@ -5365,7 +5492,10 @@ public static class FlightPhysics
         if (block.WaitingForRelease)
         {
             block.WaitingForRelease = false;
-            Log.LogDebug("{Callsign}: released, queued {Block} resumes", aircraft.Callsign, block.Description);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: released, queued {Block} resumes", aircraft.Callsign, block.Description);
+            }
         }
 
         return false;
@@ -5437,7 +5567,10 @@ public static class FlightPhysics
                 continue;
             }
 
-            Log.LogDebug("[AtFix] {Callsign}: fix {Fix} sequenced from route, firing block {Idx}", aircraft.Callsign, fixName, i);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[AtFix] {Callsign}: fix {Fix} sequenced from route, firing block {Idx}", aircraft.Callsign, fixName, i);
+            }
 
             block.TriggerMet = true;
 
@@ -5506,14 +5639,17 @@ public static class FlightPhysics
                 continue;
             }
 
-            Log.LogDebug(
-                "[AtGround] {Callsign}: ground entity reached (kind={Kind}, node={Node}, taxiway={Taxi}), firing block {Idx}",
-                aircraft.Callsign,
-                trigger.GroundKind,
-                arrivedNodeId,
-                newTaxiwayName,
-                i
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[AtGround] {Callsign}: ground entity reached (kind={Kind}, node={Node}, taxiway={Taxi}), firing block {Idx}",
+                    aircraft.Callsign,
+                    trigger.GroundKind,
+                    arrivedNodeId,
+                    newTaxiwayName,
+                    i
+                );
+            }
 
             block.TriggerMet = true;
 
@@ -5632,13 +5768,16 @@ public static class FlightPhysics
                 }
             }
 
-            Log.LogDebug(
-                "[PhaseAdvanced] {Callsign}: phase {Phase} accepts queued block {Idx} ({Desc}); firing",
-                aircraft.Callsign,
-                currentPhase.GetType().Name,
-                i,
-                block.Description
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[PhaseAdvanced] {Callsign}: phase {Phase} accepts queued block {Idx} ({Desc}); firing",
+                    aircraft.Callsign,
+                    currentPhase.GetType().Name,
+                    i,
+                    block.Description
+                );
+            }
 
             // A failed apply discards the chain remainder inside ApplyBlock, and a block deferred for its departure's
             // release stays queued for the idle scan to retry; this path fires at most one block and returns either

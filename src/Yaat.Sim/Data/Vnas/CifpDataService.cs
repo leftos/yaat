@@ -59,13 +59,16 @@ public sealed class CifpDataService : IDisposable
 
         if (CifpFilePath is not null)
         {
-            Log.LogInformation(
-                "CIFP data ready for cycle {Cycle}{Supplementary}",
-                CifpPathResolver.ResolvedCycleId ?? AiracCycle.GetCurrentCycleId(),
-                SupplementaryCifpFilePaths.Count > 0
-                    ? $" (with {SupplementaryCifpFilePaths.Count} supplementary CIFP cycle(s) for retired procedures)"
-                    : ""
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "CIFP data ready for cycle {Cycle}{Supplementary}",
+                    CifpPathResolver.ResolvedCycleId ?? AiracCycle.GetCurrentCycleId(),
+                    SupplementaryCifpFilePaths.Count > 0
+                        ? $" (with {SupplementaryCifpFilePaths.Count} supplementary CIFP cycle(s) for retired procedures)"
+                        : ""
+                );
+            }
         }
     }
 

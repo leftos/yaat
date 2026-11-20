@@ -45,11 +45,17 @@ public sealed class VnasDataService : IDisposable
 
         string airac = AiracCycle.GetCurrentCycleId();
         CurrentAiracCycle = airac;
-        Log.LogInformation("Current AIRAC cycle: {Cycle}", airac);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Current AIRAC cycle: {Cycle}", airac);
+        }
 
         DateOnly nextDate = AiracCycle.GetNextCycleDate(DateOnly.FromDateTime(DateTime.UtcNow));
         int daysUntilNext = nextDate.DayNumber - DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
-        Log.LogInformation("Next AIRAC cycle effective in {Days} days ({Date:yyyy-MM-dd})", daysUntilNext, nextDate);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Next AIRAC cycle effective in {Days} days ({Date:yyyy-MM-dd})", daysUntilNext, nextDate);
+        }
 
         CacheManifest? manifest = LoadManifest();
         VnasConfig? config = null;
@@ -101,7 +107,10 @@ public sealed class VnasDataService : IDisposable
 
     private async Task<VnasConfig?> FetchConfigAsync()
     {
-        Log.LogInformation("Fetching VNAS config from {Url}", VnasConfig.Url);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Fetching VNAS config from {Url}", VnasConfig.Url);
+        }
 
         string json = await _http.GetStringAsync(VnasConfig.Url);
         return JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
@@ -117,12 +126,18 @@ public sealed class VnasDataService : IDisposable
         {
             try
             {
-                Log.LogInformation("Downloading NavData.dat (serial {Serial})", config.NavDataSerial);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Downloading NavData.dat (serial {Serial})", config.NavDataSerial);
+                }
 
                 byte[] bytes = await _http.GetByteArrayAsync(config.NavDataUrl);
                 await File.WriteAllBytesAsync(cachePath, bytes);
 
-                Log.LogInformation("NavData.dat cached ({Size:N0} bytes)", bytes.Length);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("NavData.dat cached ({Size:N0} bytes)", bytes.Length);
+                }
             }
             catch (Exception ex)
             {
@@ -137,14 +152,17 @@ public sealed class VnasDataService : IDisposable
                 byte[] bytes = await File.ReadAllBytesAsync(cachePath);
                 NavData = NavDataSet.Parser.ParseFrom(bytes);
 
-                Log.LogInformation(
-                    "NavData loaded: {Airports} airports, " + "{Fixes} fixes, {Airways} airways, " + "{Sids} SIDs, {Stars} STARs",
-                    NavData.Airports.Count,
-                    NavData.Fixes.Count,
-                    NavData.Airways.Count,
-                    NavData.Sids.Count,
-                    NavData.Stars.Count
-                );
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation(
+                        "NavData loaded: {Airports} airports, {Fixes} fixes, {Airways} airways, {Sids} SIDs, {Stars} STARs",
+                        NavData.Airports.Count,
+                        NavData.Fixes.Count,
+                        NavData.Airways.Count,
+                        NavData.Sids.Count,
+                        NavData.Stars.Count
+                    );
+                }
             }
             catch (Exception ex)
             {
@@ -168,7 +186,10 @@ public sealed class VnasDataService : IDisposable
         {
             try
             {
-                Log.LogInformation("Downloading AircraftSpecs.json (serial {Serial})", config.AircraftSpecsSerial);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Downloading AircraftSpecs.json (serial {Serial})", config.AircraftSpecsSerial);
+                }
 
                 string json = await _http.GetStringAsync(config.AircraftSpecsUrl);
                 await File.WriteAllTextAsync(cachePath, json);
@@ -187,7 +208,10 @@ public sealed class VnasDataService : IDisposable
                 List<AircraftSpecEntry>? specs = JsonSerializer.Deserialize<List<AircraftSpecEntry>>(json, JsonOptions);
                 AircraftSpecs = specs ?? [];
 
-                Log.LogInformation("AircraftSpecs loaded: {Count} aircraft types", AircraftSpecs.Count);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("AircraftSpecs loaded: {Count} aircraft types", AircraftSpecs.Count);
+                }
             }
             catch (Exception ex)
             {
@@ -207,7 +231,10 @@ public sealed class VnasDataService : IDisposable
         {
             try
             {
-                Log.LogInformation("Downloading AircraftCwt.json (serial {Serial})", config.AircraftCwtSerial);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Downloading AircraftCwt.json (serial {Serial})", config.AircraftCwtSerial);
+                }
 
                 string json = await _http.GetStringAsync(config.AircraftCwtUrl);
                 await File.WriteAllTextAsync(cachePath, json);
@@ -226,7 +253,10 @@ public sealed class VnasDataService : IDisposable
                 List<AircraftCwtEntry>? cwt = JsonSerializer.Deserialize<List<AircraftCwtEntry>>(json, JsonOptions);
                 AircraftCwt = cwt ?? [];
 
-                Log.LogInformation("AircraftCwt loaded: {Count} entries", AircraftCwt.Count);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("AircraftCwt loaded: {Count} entries", AircraftCwt.Count);
+                }
             }
             catch (Exception ex)
             {
@@ -309,7 +339,10 @@ public sealed class VnasDataService : IDisposable
 
         AircraftCategorization.Initialize(lookup);
 
-        Log.LogInformation("Aircraft categorization initialized: " + "{Count} type mappings", lookup.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Aircraft categorization initialized: {Count} type mappings", lookup.Count);
+        }
 
         InitializeCwtData();
     }
@@ -332,7 +365,10 @@ public sealed class VnasDataService : IDisposable
 
         WakeTurbulenceData.Initialize(cwtLookup);
 
-        Log.LogInformation("CWT/wake turbulence data initialized: " + "{Count} CWT mappings", cwtLookup.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("CWT/wake turbulence data initialized: {Count} CWT mappings", cwtLookup.Count);
+        }
     }
 
     private static async Task InitializeFaaAcdAsync()
@@ -415,7 +451,10 @@ public sealed class VnasDataService : IDisposable
 
         if (hasNav && hasSpecs && hasCwt)
         {
-            Log.LogInformation("VNAS data fully loaded (AIRAC {Cycle})", CurrentAiracCycle);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("VNAS data fully loaded (AIRAC {Cycle})", CurrentAiracCycle);
+            }
         }
         else
         {

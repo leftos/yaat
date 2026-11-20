@@ -164,7 +164,10 @@ public static class NavDataPathResolver
             }
             else
             {
-                Log.LogDebug("Using cached NavData.dat (serial {Serial})", cachedSerial);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Using cached NavData.dat (serial {Serial})", cachedSerial);
+                }
             }
 
             return cachePath;
@@ -302,14 +305,20 @@ public static class NavDataPathResolver
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-            Log.LogInformation("Downloading NavData.dat (serial {Serial}) from vNAS", config.NavDataSerial);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Downloading NavData.dat (serial {Serial}) from vNAS", config.NavDataSerial);
+            }
             Console.Error.WriteLine($"[NavDataPathResolver] Downloading NavData.dat (serial {config.NavDataSerial})...");
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
             byte[] bytes = await http.GetByteArrayAsync(config.NavDataUrl, cancellationToken).ConfigureAwait(false);
             await File.WriteAllBytesAsync(cachePath, bytes, cancellationToken).ConfigureAwait(false);
 
-            Log.LogInformation("NavData.dat cached ({Size:N0} bytes)", bytes.Length);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("NavData.dat cached ({Size:N0} bytes)", bytes.Length);
+            }
             Console.Error.WriteLine($"[NavDataPathResolver] NavData.dat cached ({bytes.Length:N0} bytes).");
             return true;
         }
@@ -370,7 +379,10 @@ public static class NavDataPathResolver
         }
         catch (Exception ex)
         {
-            Log.LogDebug(ex, "Could not read cache manifest {Path}", path);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Could not read cache manifest {Path}", path);
+            }
             return null;
         }
     }
@@ -402,7 +414,10 @@ public static class NavDataPathResolver
         }
         catch (Exception ex)
         {
-            Log.LogDebug(ex, "Could not read NavData manifest {Path}", manifestPath);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Could not read NavData manifest {Path}", manifestPath);
+            }
             parseError = ex;
             return null;
         }

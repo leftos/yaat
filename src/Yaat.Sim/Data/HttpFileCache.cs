@@ -129,7 +129,10 @@ public static class HttpFileCache
         using HttpResponseMessage resp = await http.GetAsync(url, cancellationToken);
         if (resp.StatusCode == HttpStatusCode.NotFound)
         {
-            log.LogInformation("No resource available at {Url} (HTTP 404); leaving cache untouched", url);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("No resource available at {Url} (HTTP 404); leaving cache untouched", url);
+            }
             return true;
         }
 
@@ -147,7 +150,10 @@ public static class HttpFileCache
         }
 
         await WriteAtomicallyAsync(cachePath, body, log, cancellationToken);
-        log.LogDebug("Refreshed cached file from {Url}", url);
+        if (log.IsEnabled(LogLevel.Debug))
+        {
+            log.LogDebug("Refreshed cached file from {Url}", url);
+        }
         return false;
     }
 
@@ -186,7 +192,10 @@ public static class HttpFileCache
             File.SetLastWriteTimeUtc(cachePath, stamp);
         }
 
-        log.LogDebug("Downloaded cached file from {Url}", url);
+        if (log.IsEnabled(LogLevel.Debug))
+        {
+            log.LogDebug("Downloaded cached file from {Url}", url);
+        }
     }
 
     /// <summary>
@@ -211,7 +220,10 @@ public static class HttpFileCache
                 }
                 catch (Exception ex) when ((ex is UnauthorizedAccessException or IOException) && (attempt < MaxMoveAttempts))
                 {
-                    log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", cachePath, attempt);
+                    if (log.IsEnabled(LogLevel.Debug))
+                    {
+                        log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", cachePath, attempt);
+                    }
                     await Task.Delay(MoveRetryStepMs * attempt, cancellationToken);
                 }
             }

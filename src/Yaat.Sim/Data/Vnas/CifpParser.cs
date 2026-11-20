@@ -92,16 +92,16 @@ public static class CifpParser
             }
         }
 
-        Log.LogInformation(
-            "CIFP parsed: {Approaches} approach records, "
-                + "{Waypoints} waypoint records, "
-                + "{FafCount} FAF fixes, "
-                + "{WpCount} terminal waypoints",
-            approachRecords,
-            waypointRecords,
-            fafFixes.Count,
-            terminalWaypoints.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "CIFP parsed: {Approaches} approach records, {Waypoints} waypoint records, {FafCount} FAF fixes, {WpCount} terminal waypoints",
+                approachRecords,
+                waypointRecords,
+                fafFixes.Count,
+                terminalWaypoints.Count
+            );
+        }
 
         return new CifpParseResult(fafFixes, terminalWaypoints);
     }
@@ -168,7 +168,10 @@ public static class CifpParser
             ProcessTerminalWaypoint(line, waypoints);
         }
 
-        Log.LogInformation("CIFP terminal waypoints for {Airport}: {Count} parsed", airportIcao, waypoints.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("CIFP terminal waypoints for {Airport}: {Count} parsed", airportIcao, waypoints.Count);
+        }
 
         return waypoints;
     }
@@ -240,7 +243,10 @@ public static class CifpParser
             }
         }
 
-        Log.LogInformation("CIFP approaches for {Airport}: {Count} procedures parsed", faaAirport, results.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("CIFP approaches for {Airport}: {Count} procedures parsed", faaAirport, results.Count);
+        }
 
         return results;
     }
@@ -324,7 +330,10 @@ public static class CifpParser
         }
 
         string kind = subsection == 'D' ? "SIDs" : "STARs";
-        Log.LogInformation("CIFP {Kind} for {Airport}: {Count} procedures parsed", kind, faaAirport, results.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("CIFP {Kind} for {Airport}: {Count} procedures parsed", kind, faaAirport, results.Count);
+        }
 
         return results;
     }
@@ -1213,7 +1222,10 @@ public static class CifpParser
             }
         }
 
-        Log.LogInformation("CIFP navaids parsed: {Count}", navaids.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("CIFP navaids parsed: {Count}", navaids.Count);
+        }
 
         return navaids;
     }

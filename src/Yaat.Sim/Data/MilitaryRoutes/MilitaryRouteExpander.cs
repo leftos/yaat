@@ -100,7 +100,10 @@ public static class MilitaryRouteExpander
             }
         }
 
-        Log.LogDebug("{Route}: filed anchors select the {Direction} direction (score {Score:F1})", route.Designator, best?.Direction, bestScore);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Route}: filed anchors select the {Direction} direction (score {Score:F1})", route.Designator, best?.Direction, bestScore);
+        }
         return best ?? route.Variants[0];
     }
 
@@ -179,19 +182,35 @@ public static class MilitaryRouteExpander
         {
             // The filer entered by direct-to rather than at a published point. Treat the anchor as
             // unknown and use the route's own entry or exit, rather than inventing a leg to it.
-            Log.LogDebug("{Route}: anchor {Anchor} is {Distance:F1} NM from the nearest point; treating as unknown", designator, anchor, best);
+            LogAnchorUnknown(designator, anchor, best);
             return null;
         }
 
-        Log.LogDebug(
-            "{Route}: anchor {Anchor} snapped to {Point} at {Best:F1} NM (next nearest {Second:F1} NM)",
-            designator,
-            anchor,
-            points[bestIndex].Id,
-            best,
-            secondBest
-        );
+        LogAnchorSnapped(designator, anchor, points[bestIndex].Id, best, secondBest);
         return (bestIndex, best);
+    }
+
+    private static void LogAnchorUnknown(string designator, string? anchor, double best)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Route}: anchor {Anchor} is {Distance:F1} NM from the nearest point; treating as unknown", designator, anchor, best);
+        }
+    }
+
+    private static void LogAnchorSnapped(string designator, string? anchor, string point, double best, double secondBest)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Route}: anchor {Anchor} snapped to {Point} at {Best:F1} NM (next nearest {Second:F1} NM)",
+                designator,
+                anchor,
+                point,
+                best,
+                secondBest
+            );
+        }
     }
 
     private static int DefaultIndex(IReadOnlyList<MilitaryRoutePoint> points, IReadOnlyList<string> published, int fallback)

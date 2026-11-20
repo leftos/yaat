@@ -49,7 +49,10 @@ public static class FinalApproachCourseExtractor
         (CifpLeg? mapLeg, int mapIndex) = FindMapLeg(procedure.CommonLegs);
         if (mapLeg is null)
         {
-            Log.LogDebug("[FacExtract] {ApproachId}: no MAP leg found in CommonLegs, falling back to runway heading", procedure.ApproachId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[FacExtract] {ApproachId}: no MAP leg found in CommonLegs, falling back to runway heading", procedure.ApproachId);
+            }
             return new FinalApproachCourseResult(runway.TrueHeading, AnchorLat: null, AnchorLon: null);
         }
 
@@ -72,25 +75,31 @@ public static class FinalApproachCourseExtractor
 
         if (course is null)
         {
-            Log.LogDebug(
-                "[FacExtract] {ApproachId}: could not extract course from MAP leg ({Pt} {Fix}), falling back to runway heading",
-                procedure.ApproachId,
-                mapLeg.PathTerminator,
-                mapLeg.FixIdentifier
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FacExtract] {ApproachId}: could not extract course from MAP leg ({Pt} {Fix}), falling back to runway heading",
+                    procedure.ApproachId,
+                    mapLeg.PathTerminator,
+                    mapLeg.FixIdentifier
+                );
+            }
             course = runway.TrueHeading;
         }
 
         (double? anchorLat, double? anchorLon) = DetermineAnchor(mapLeg, runway, navDb);
 
-        Log.LogDebug(
-            "[FacExtract] {ApproachId}: course={Course:F1} (rwy {RwyHdg:F1}, declination {Dec:F1}), anchor={Anchor}",
-            procedure.ApproachId,
-            course.Value.Degrees,
-            runway.TrueHeading.Degrees,
-            declination,
-            anchorLat is null ? "threshold" : $"({anchorLat:F4}, {anchorLon:F4})"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FacExtract] {ApproachId}: course={Course:F1} (rwy {RwyHdg:F1}, declination {Dec:F1}), anchor={Anchor}",
+                procedure.ApproachId,
+                course.Value.Degrees,
+                runway.TrueHeading.Degrees,
+                declination,
+                anchorLat is null ? "threshold" : $"({anchorLat:F4}, {anchorLon:F4})"
+            );
+        }
 
         return new FinalApproachCourseResult(course.Value, anchorLat, anchorLon);
     }
