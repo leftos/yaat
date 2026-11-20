@@ -127,7 +127,7 @@ public static class FollowRoutePlanner
         bool requireAhead = start.RequireAhead;
         if (LocateLead(layout, lead) is not { } located)
         {
-            Log.LogDebug("[FollowPlan] {Follower}: {Lead} is not on a taxiway yet; wait for it", follower.Callsign, lead.Callsign);
+            LogLeadNotOnTaxiway(follower, lead);
             return new FollowRoutePlan.WaitForLead();
         }
 
@@ -135,17 +135,13 @@ public static class FollowRoutePlanner
         GroundEdge? followerEdge = EdgeUnder(layout, follower);
         if (IsAheadOfLead(followerEdge, follower, lead, current, routeAhead))
         {
-            Log.LogDebug("[FollowPlan] {Follower}: ahead of {Lead} on its path", follower.Callsign, lead.Callsign);
+            LogFollowerAheadOfLead(follower, lead);
             return new FollowRoutePlan.FollowerAhead();
         }
 
         if (BuildLeadPath(layout, lead, follower, current, routeAhead) is not { } path)
         {
-            Log.LogDebug(
-                "[FollowPlan] {Follower}: {Lead} is rounding an arc the follower cannot drive and has no path behind it yet; wait for it",
-                follower.Callsign,
-                lead.Callsign
-            );
+            LogRoundingArcWithNoPath(follower, lead);
             return new FollowRoutePlan.WaitForLead();
         }
 
@@ -156,6 +152,37 @@ public static class FollowRoutePlanner
         }
 
         return PlanToMerge(layout, follower, lead, path, start with { Back = back });
+    }
+
+    /// <summary>Logs at Debug that the lead is not on a taxiway yet, so the plan waits for it.</summary>
+    private static void LogLeadNotOnTaxiway(AircraftState follower, AircraftState lead)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[FollowPlan] {Follower}: {Lead} is not on a taxiway yet; wait for it", follower.Callsign, lead.Callsign);
+        }
+    }
+
+    /// <summary>Logs at Debug that the follower is ahead of its lead on the lead's path.</summary>
+    private static void LogFollowerAheadOfLead(AircraftState follower, AircraftState lead)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[FollowPlan] {Follower}: ahead of {Lead} on its path", follower.Callsign, lead.Callsign);
+        }
+    }
+
+    /// <summary>Logs at Debug that the lead rounds an arc the follower cannot drive and has no path behind it yet.</summary>
+    private static void LogRoundingArcWithNoPath(AircraftState follower, AircraftState lead)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: {Lead} is rounding an arc the follower cannot drive and has no path behind it yet; wait for it",
+                follower.Callsign,
+                lead.Callsign
+            );
+        }
     }
 
     /// <summary>
@@ -185,21 +212,29 @@ public static class FollowRoutePlanner
     {
         if (IsMove(current, back))
         {
-            Log.LogDebug(
-                "[FollowPlan] {Follower}: {Lead} drives its edge back toward node {Node}, behind the follower; no join without turning about",
-                follower.Callsign,
-                lead.Callsign,
-                current.ToNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] {Follower}: {Lead} drives its edge back toward node {Node}, behind the follower; no join without turning about",
+                    follower.Callsign,
+                    lead.Callsign,
+                    current.ToNodeId
+                );
+            }
+
             return new FollowRoutePlan.NoPath();
         }
 
-        Log.LogDebug(
-            "[FollowPlan] {Follower}: behind {Lead} on the edge it is on; joins at node {Merge}",
-            follower.Callsign,
-            lead.Callsign,
-            current.FromNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: behind {Lead} on the edge it is on; joins at node {Merge}",
+                follower.Callsign,
+                lead.Callsign,
+                current.FromNodeId
+            );
+        }
+
         int sharedIndex = path.AheadIndex - 1;
         return new FollowRoutePlan.Joinable(current.FromNodeId, NoSegments(), EdgeInto(path, sharedIndex), [.. path.Edges.Skip(sharedIndex)], false);
     }
@@ -240,12 +275,7 @@ public static class FollowRoutePlanner
         int mergeIndex = LastNodeIndex(path.Edges, toMerge.GoalNodeId);
         if (LeadPathLeavesBack(toMerge.Route, path, mergeIndex, forbidden))
         {
-            Log.LogDebug(
-                "[FollowPlan] {Follower}: {Lead}'s path leaves node {Merge} back the way the follower came; no join without turning about",
-                follower.Callsign,
-                lead.Callsign,
-                start.Id
-            );
+            LogLeadPathLeavesBack(follower, lead, start.Id);
             return new FollowRoutePlan.NoPath();
         }
 
@@ -255,23 +285,11 @@ public static class FollowRoutePlanner
             : toMerge.Route;
         if (how.RefuseStandingAhead && mergeAhead && (pathToMerge.Segments.Count == 0) && (start.Type != GroundNodeType.RunwayHoldShort))
         {
-            Log.LogDebug(
-                "[FollowPlan] {Follower}: stands at node {Merge} of {Lead}'s route ahead of it, away from a runway bar; ahead of it",
-                follower.Callsign,
-                start.Id,
-                lead.Callsign
-            );
+            LogStandsAheadOfLead(follower, start.Id, lead);
             return new FollowRoutePlan.FollowerAhead();
         }
 
-        Log.LogDebug(
-            "[FollowPlan] {Follower}: joins {Lead}'s path at node {Merge} (ahead of the lead: {MergeAhead}), {Segs} segments to the merge",
-            follower.Callsign,
-            lead.Callsign,
-            toMerge.GoalNodeId,
-            mergeAhead,
-            pathToMerge.Segments.Count
-        );
+        LogJoinsLeadPath(follower, lead, toMerge.GoalNodeId, mergeAhead, pathToMerge.Segments.Count);
         return new FollowRoutePlan.Joinable(
             toMerge.GoalNodeId,
             pathToMerge,
@@ -279,6 +297,50 @@ public static class FollowRoutePlanner
             [.. path.Edges.Skip(mergeIndex)],
             mergeAhead
         );
+    }
+
+    /// <summary>Logs at Debug that the lead's path leaves the merge node back the way the follower came.</summary>
+    private static void LogLeadPathLeavesBack(AircraftState follower, AircraftState lead, int mergeNodeId)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: {Lead}'s path leaves node {Merge} back the way the follower came; no join without turning about",
+                follower.Callsign,
+                lead.Callsign,
+                mergeNodeId
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug that the follower stands on the lead's route ahead of it, away from a runway bar.</summary>
+    private static void LogStandsAheadOfLead(AircraftState follower, int nodeId, AircraftState lead)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: stands at node {Merge} of {Lead}'s route ahead of it, away from a runway bar; ahead of it",
+                follower.Callsign,
+                nodeId,
+                lead.Callsign
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug where the follower joins its lead's path, and how much route it drives to the merge.</summary>
+    private static void LogJoinsLeadPath(AircraftState follower, AircraftState lead, int mergeNodeId, bool mergeAhead, int segmentCount)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: joins {Lead}'s path at node {Merge} (ahead of the lead: {MergeAhead}), {Segs} segments to the merge",
+                follower.Callsign,
+                lead.Callsign,
+                mergeNodeId,
+                mergeAhead,
+                segmentCount
+            );
+        }
     }
 
     /// <summary>
@@ -316,20 +378,26 @@ public static class FollowRoutePlanner
             .FindRoute(layout, startId, request with { ForbiddenMoves = NearestGoalRequest.NoForbiddenMoves });
         if ((unrestricted is not null) && RunsOnTheLeadsEdgeOrRouteAhead(unrestricted.Route, path.Edges, path.AheadIndex - 1))
         {
-            Log.LogDebug(
-                "[FollowPlan] {Follower}: reaches its lead's path from node {Start} only on the lead's edge or route ahead; ahead of it",
-                follower.Callsign,
-                startId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] {Follower}: reaches its lead's path from node {Start} only on the lead's edge or route ahead; ahead of it",
+                    follower.Callsign,
+                    startId
+                );
+            }
             return new FollowRoutePlan.FollowerAhead();
         }
 
-        Log.LogDebug(
-            "[FollowPlan] {Follower}: no taxi route from node {Start} to its lead's path (one with no move forbidden: {Route})",
-            follower.Callsign,
-            startId,
-            unrestricted?.Route.ToSummary() ?? "none"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: no taxi route from node {Start} to its lead's path (one with no move forbidden: {Route})",
+                follower.Callsign,
+                startId,
+                unrestricted?.Route.ToSummary() ?? "none"
+            );
+        }
         return new FollowRoutePlan.NoPath();
     }
 
@@ -634,27 +702,36 @@ public static class FollowRoutePlanner
         double offArcFt = OffArcFt(arc, aircraft.Position);
         if (ArcRejection(aircraft, arc, shared, DrivenTowardOf(newest, aircraft), offArcFt) is { } rejection)
         {
-            Log.LogDebug("[FollowPlan] {Callsign}: {Rejection}; starting from its trail", aircraft.Callsign, rejection);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[FollowPlan] {Callsign}: {Rejection}; starting from its trail", aircraft.Callsign, rejection);
+            }
             return null;
         }
 
         if (requireAhead && !LiesAhead(aircraft, far))
         {
-            Log.LogDebug(
-                "[FollowPlan] {Callsign}: the far node {Node} of the fillet it is on lies behind it; starting from the taxi start pick",
-                aircraft.Callsign,
-                far.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] {Callsign}: the far node {Node} of the fillet it is on lies behind it; starting from the taxi start pick",
+                    aircraft.Callsign,
+                    far.Id
+                );
+            }
             return null;
         }
 
-        Log.LogDebug(
-            "[FollowPlan] {Callsign}: starts partway round the fillet {Shared}-{Far}, {Off:F1} ft off its curve",
-            aircraft.Callsign,
-            shared.Id,
-            far.Id,
-            offArcFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Callsign}: starts partway round the fillet {Shared}-{Far}, {Off:F1} ft off its curve",
+                aircraft.Callsign,
+                shared.Id,
+                far.Id,
+                offArcFt
+            );
+        }
         return new RouteStart(far, new TaxiRouteSegment { Edge = arc.Directed(shared, far), TaxiwayName = arc.TaxiwayName });
     }
 
@@ -756,23 +833,29 @@ public static class FollowRoutePlanner
 
         if (TrailCandidate(newest, trail.Count > 1 ? trail[^2] : null, aircraft) is not { } end)
         {
-            Log.LogDebug(
-                "[FollowPlan] {Callsign}: off its newest trail edge {A}-{B}; starting from the taxi start pick",
-                aircraft.Callsign,
-                newest.Nodes[0].Id,
-                newest.Nodes[1].Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] {Callsign}: off its newest trail edge {A}-{B}; starting from the taxi start pick",
+                    aircraft.Callsign,
+                    newest.Nodes[0].Id,
+                    newest.Nodes[1].Id
+                );
+            }
             return null;
         }
 
         double towardDeg = GeoMath.BearingTo(aircraft.Position, end.Position);
         if (requireAhead && (Math.Abs(GeoMath.SignedBearingDifference(aircraft.TrueHeading.Degrees, towardDeg)) > 90.0))
         {
-            Log.LogDebug(
-                "[FollowPlan] {Callsign}: trail start node {Node} lies behind it; starting from the taxi start pick",
-                aircraft.Callsign,
-                end.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] {Callsign}: trail start node {Node} lies behind it; starting from the taxi start pick",
+                    aircraft.Callsign,
+                    end.Id
+                );
+            }
             return null;
         }
 
@@ -1296,25 +1379,32 @@ public static class FollowRoutePlanner
                 || (afterDrop && (step.Count > MaxStepAfterDrop))
             )
             {
-                Log.LogDebug(
-                    "[FollowPlan] {Lead}: trail edge {A}-{B} joins no new path to node {Cursor} (within one edge past a drop); older trail dropped",
-                    lead.Callsign,
-                    trail[i].NodeA,
-                    trail[i].NodeB,
-                    cursor.Id
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[FollowPlan] {Lead}: trail edge {A}-{B} joins no new path to node {Cursor} (within one edge past a drop); "
+                            + "older trail dropped",
+                        lead.Callsign,
+                        trail[i].NodeA,
+                        trail[i].NodeB,
+                        cursor.Id
+                    );
+                }
                 break;
             }
 
             if (!TryTakeStep(walk, reversed, held, step))
             {
-                Log.LogDebug(
-                    "[FollowPlan] {Lead}: trail edge {A}-{B} fills back to node {Cursor} past the turn limit (a fillet turn-off); dropped",
-                    lead.Callsign,
-                    trail[i].NodeA,
-                    trail[i].NodeB,
-                    cursor.Id
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[FollowPlan] {Lead}: trail edge {A}-{B} fills back to node {Cursor} past the turn limit (a fillet turn-off); dropped",
+                        lead.Callsign,
+                        trail[i].NodeA,
+                        trail[i].NodeB,
+                        cursor.Id
+                    );
+                }
                 afterDrop = true;
                 continue;
             }
@@ -1432,14 +1522,17 @@ public static class FollowRoutePlanner
             List<DirectionalEdge> replaced = reversed.GetRange(reversed.Count - run, run);
             reversed.RemoveRange(reversed.Count - run, run);
             reversed.Add(arcBack);
-            Log.LogDebug(
-                "[FollowPlan] {Lead}: {Run} edges node {From} to {To} are a {Arc:F0} ft fillet arc's stubs; lead path takes the arc",
-                callsign,
-                run,
-                tangent.Id,
-                far.Id,
-                arc.DistanceNm * GeoMath.FeetPerNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] {Lead}: {Run} edges node {From} to {To} are a {Arc:F0} ft fillet arc's stubs; lead path takes the arc",
+                    callsign,
+                    run,
+                    tangent.Id,
+                    far.Id,
+                    arc.DistanceNm * GeoMath.FeetPerNm
+                );
+            }
             return replaced;
         }
 
@@ -1634,7 +1727,10 @@ public static class FollowRoutePlanner
         HashSet<int> goal = [toNodeId];
         if (followerClass.FindRoute(layout, edges[^1].ToNodeId, NearestGoalRequest.To(goal)) is not { } bridge)
         {
-            Log.LogDebug("[FollowPlan] no path from node {From} to route node {To}; rest of the route dropped", edges[^1].ToNodeId, toNodeId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[FollowPlan] no path from node {From} to route node {To}; rest of the route dropped", edges[^1].ToNodeId, toNodeId);
+            }
             return false;
         }
 
@@ -1684,44 +1780,53 @@ public static class FollowRoutePlanner
         DirectionalEdge? arrivedOn = edges.Count > 0 ? edges[^1] : null;
         if (SquareWayRound(layout, arrivedOn, edge, arc, followerClass) is { } round)
         {
-            Log.LogDebug(
-                "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective) is too tight for a {Category} follower; "
-                    + "lead path takes the square way round, {Edges} edges",
-                edge.FromNodeId,
-                edge.ToNodeId,
-                EffectiveArcRadiusFt(arc),
-                followerClass.Category,
-                round.Count
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective) is too tight for a {Category} follower; "
+                        + "lead path takes the square way round, {Edges} edges",
+                    edge.FromNodeId,
+                    edge.ToNodeId,
+                    EffectiveArcRadiusFt(arc),
+                    followerClass.Category,
+                    round.Count
+                );
+            }
             edges.AddRange(round);
             return true;
         }
 
         if (TightArcDrivable(layout, followerClass, edge))
         {
-            Log.LogDebug(
-                "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective) is too tight for a {Category} follower and has no "
-                    + "acceptable square way round; lead path keeps the arc, rounded at the {Floor:F0} ft tight-turn floor",
-                edge.FromNodeId,
-                edge.ToNodeId,
-                EffectiveArcRadiusFt(arc),
-                followerClass.Category,
-                CategoryPerformance.TightTurnFloorRadiusFt(followerClass.Category)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective) is too tight for a {Category} follower and has no "
+                        + "acceptable square way round; lead path keeps the arc, rounded at the {Floor:F0} ft tight-turn floor",
+                    edge.FromNodeId,
+                    edge.ToNodeId,
+                    EffectiveArcRadiusFt(arc),
+                    followerClass.Category,
+                    CategoryPerformance.TightTurnFloorRadiusFt(followerClass.Category)
+                );
+            }
             edges.Add(edge);
             return true;
         }
 
-        Log.LogDebug(
-            "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective, {Tightest:F1} ft tightest radius) is too tight for "
-                + "a {Category} follower even at its tight-turn floor and has no acceptable square way round; {Dropped}",
-            edge.FromNodeId,
-            edge.ToNodeId,
-            EffectiveArcRadiusFt(arc),
-            arc.MinRadiusOfCurvatureFt,
-            followerClass.Category,
-            dropped
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective, {Tightest:F1} ft tightest radius) is too tight for "
+                    + "a {Category} follower even at its tight-turn floor and has no acceptable square way round; {Dropped}",
+                edge.FromNodeId,
+                edge.ToNodeId,
+                EffectiveArcRadiusFt(arc),
+                arc.MinRadiusOfCurvatureFt,
+                followerClass.Category,
+                dropped
+            );
+        }
         return false;
     }
 

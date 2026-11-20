@@ -175,14 +175,17 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
         TryBuildCrossingRoute(ctx, replan: false);
 
-        Log.LogDebug(
-            "[Crossing] {Callsign}: crossing runway {Rwy}, approach={Approach}, target={Target}, initialized={Init}",
-            ctx.Aircraft.Callsign,
-            _runwayId ?? "?",
-            _approachNodeId,
-            _targetNodeId,
-            _initialized
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Crossing] {Callsign}: crossing runway {Rwy}, approach={Approach}, target={Target}, initialized={Init}",
+                ctx.Aircraft.Callsign,
+                _runwayId ?? "?",
+                _approachNodeId,
+                _targetNodeId,
+                _initialized
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -238,7 +241,11 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
                     return CompletesAtRest(ctx);
                 }
 
-                Log.LogDebug("[Crossing] {Callsign}: at a crawl at the slice end, handing the route back", ctx.Aircraft.Callsign);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Crossing] {Callsign}: at a crawl at the slice end, handing the route back", ctx.Aircraft.Callsign);
+                }
+
                 HandRouteBack(ctx);
                 return true;
             }
@@ -275,13 +282,16 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            Log.LogTrace(
-                "[Crossing] {Callsign}: seg={Idx}/{Count} gs={Gs:F1}kts",
-                ctx.Aircraft.Callsign,
-                _crossingRoute.CurrentSegmentIndex,
-                _crossingRoute.Segments.Count,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace(
+                    "[Crossing] {Callsign}: seg={Idx}/{Count} gs={Gs:F1}kts",
+                    ctx.Aircraft.Callsign,
+                    _crossingRoute.CurrentSegmentIndex,
+                    _crossingRoute.Segments.Count,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
         }
 
         return false;
@@ -325,7 +335,11 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
         _saidNotClear = true;
         string runway = RunwayCrossingEnd.Spoken(ctx.Aircraft, _runwayId, ctx.GroundLayout, ctx.ActiveRunways);
-        Log.LogDebug("[Crossing] {Callsign}: at rest not clear of runway {Rwy}, traffic ahead", ctx.Aircraft.Callsign, runway);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Crossing] {Callsign}: at rest not clear of runway {Rwy}, traffic ahead", ctx.Aircraft.Callsign, runway);
+        }
+
         PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
             PilotReportRouting.From(ctx),
@@ -407,12 +421,15 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         RunwayInfo? runway = db?.GetRunway(layout.AirportId, id.End1) ?? db?.GetRunway(layout.AirportId, id.End2);
         if (runway is null)
         {
-            Log.LogDebug(
-                "[Crossing] {Callsign}: runway {Rwy} not found at {Airport}; judging the far marking square to the near-to-far bearing",
-                aircraft.Callsign,
-                runwayId,
-                layout.AirportId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Crossing] {Callsign}: runway {Rwy} not found at {Airport}; judging the far marking square to the near-to-far bearing",
+                    aircraft.Callsign,
+                    runwayId,
+                    layout.AirportId
+                );
+            }
         }
 
         return runway;
@@ -514,7 +531,11 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             );
         }
 
-        Log.LogDebug("[Crossing] {Callsign}: at rest at the slice end, handing over to the hold", ctx.Aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Crossing] {Callsign}: at rest at the slice end, handing over to the hold", ctx.Aircraft.Callsign);
+        }
+
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
         RecordWhereTheBreakOffHoldRests(ctx);
@@ -554,12 +575,15 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             (_heldShortBar is { RunwayId: not null } bar) && IsNoseShortOfHeldShortBar(ctx.Aircraft, layout, bar)
                 ? RunwayTailClearance.HeldShortRunwayEnd(layout, bar, reference, ctx.Aircraft, ctx.ActiveRunways)
                 : null;
-        Log.LogDebug(
-            "[Crossing] {Callsign}: at rest holding short of {HeldShort}, tail inside {TailInside}",
-            ctx.Aircraft.Callsign,
-            heldShort ?? "no runway",
-            tailEnd ?? "no runway"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Crossing] {Callsign}: at rest holding short of {HeldShort}, tail inside {TailInside}",
+                ctx.Aircraft.Callsign,
+                heldShort ?? "no runway",
+                tailEnd ?? "no runway"
+            );
+        }
         phases.Phases[next] = HoldingInPositionPhase.AfterFollowBreakOff(heldShort, tailEnd);
     }
 
@@ -582,7 +606,11 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         }
 
         bool past = ClearRunwayPhase.IsNosePastBar(aircraft, far, bar);
-        Log.LogDebug("[Crossing] {Callsign}: at rest with the nose {Where} bar #{Other}", aircraft.Callsign, past ? "past" : "short of", bar.Id);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Crossing] {Callsign}: at rest with the nose {Where} bar #{Other}", aircraft.Callsign, past ? "past" : "short of", bar.Id);
+        }
+
         return !past;
     }
 
@@ -708,7 +736,10 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     // / AtParkingPhase will brake to zero on its own.
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+        }
 
         // The crossing's expedite acceleration ends with the crossing.
         ctx.Targets.DesiredAccelRate = null;
@@ -911,16 +942,19 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         }
 
         _loggedStopCap = true;
-        Log.LogDebug(
-            "[Crossing] {Callsign}: braking onto the stop past the crossing: gap={Gap:F1}ft toStop={ToStop:F1}ft "
-                + "floor={Floor:F1}kt curve={Curve:F1}kt target={Target:F1}kt",
-            ctx.Aircraft.Callsign,
-            cap.Distances.GapFt,
-            cap.Distances.ToStopFt,
-            CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts),
-            cap.CapKts,
-            ctx.Targets.TargetSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Crossing] {Callsign}: braking onto the stop past the crossing: gap={Gap:F1}ft toStop={ToStop:F1}ft "
+                    + "floor={Floor:F1}kt curve={Curve:F1}kt target={Target:F1}kt",
+                ctx.Aircraft.Callsign,
+                cap.Distances.GapFt,
+                cap.Distances.ToStopFt,
+                CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts),
+                cap.CapKts,
+                ctx.Targets.TargetSpeed
+            );
+        }
     }
 
     /// <summary>
@@ -1023,7 +1057,10 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
         if ((_crossingRoute is { IsComplete: false } slice) && (StopCapRemainingFt(ctx.Aircraft.Position) is < 0.0))
         {
-            Log.LogDebug("[Crossing] {Callsign}: already past the re-planned slice end; braking to rest", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Crossing] {Callsign}: already past the re-planned slice end; braking to rest", ctx.Aircraft.Callsign);
+            }
             slice.CurrentSegmentIndex = slice.Segments.Count;
         }
     }
@@ -1181,13 +1218,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         if (_restoredSegmentIndex is { } restoredIndex)
         {
             restoredIndexClamped = restoredIndex != crossingRoute.CurrentSegmentIndex;
-            Log.LogDebug(
-                "[Crossing] {Callsign}: restored slice segment {Index} applied (slice segment {Applied} of {Count})",
-                ctx.Aircraft.Callsign,
-                restoredIndex,
-                crossingRoute.CurrentSegmentIndex,
-                plan.Segments.Count
-            );
+            LogRestoredSliceSegment(ctx, restoredIndex, crossingRoute, plan.Segments.Count);
             _restoredSegmentIndex = null;
         }
 
@@ -1229,17 +1260,41 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         _restoredSetupPose = null;
         _initialized = true;
 
-        Log.LogDebug(
-            "[Crossing] {Callsign}: crossing route built, {SegCount} segments, exitRouteIdx={ExitIdx}, "
-                + "tailClear={TailFull} full segment(s){Partial}, maxSpeed={Max:F0}kts floor={Floor:F0}kts",
-            ctx.Aircraft.Callsign,
-            plan.Segments.Count,
-            _exitRouteIndex,
-            _tailClearFullSegments,
-            _tailClearPartial ? " + a partial cut" : "",
-            _navigator.MaxSpeedKts,
-            _navigator.MinSpeedKts
-        );
+        LogCrossingRouteBuilt(ctx, plan.Segments.Count, navigator);
+    }
+
+    /// <summary>Logs at Debug the slice segment a restored crossing applied, and the segment the slice now stands on.</summary>
+    private static void LogRestoredSliceSegment(PhaseContext ctx, int restoredIndex, TaxiRoute crossingRoute, int segmentCount)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Crossing] {Callsign}: restored slice segment {Index} applied (slice segment {Applied} of {Count})",
+                ctx.Aircraft.Callsign,
+                restoredIndex,
+                crossingRoute.CurrentSegmentIndex,
+                segmentCount
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug the crossing slice just built: its segments, exit index, tail clearance and speed caps.</summary>
+    private void LogCrossingRouteBuilt(PhaseContext ctx, int segmentCount, GroundNavigator navigator)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Crossing] {Callsign}: crossing route built, {SegCount} segments, exitRouteIdx={ExitIdx}, "
+                    + "tailClear={TailFull} full segment(s){Partial}, maxSpeed={Max:F0}kts floor={Floor:F0}kts",
+                ctx.Aircraft.Callsign,
+                segmentCount,
+                _exitRouteIndex,
+                _tailClearFullSegments,
+                _tailClearPartial ? " + a partial cut" : "",
+                navigator.MaxSpeedKts,
+                navigator.MinSpeedKts
+            );
+        }
     }
 
     /// <summary>

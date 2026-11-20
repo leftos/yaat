@@ -298,7 +298,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     {
         ctx.Aircraft.IsOnGround = true;
         _loggedTailOnly = false;
-        Log.LogDebug("[Follow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, _targetCallsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Follow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, _targetCallsign);
+        }
     }
 
     /// <summary>The follow route while one is planned, else null. Never the aircraft's assigned route.</summary>
@@ -427,13 +430,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return true;
         }
 
-        if (IsAtRest(ctx))
+        if (Log.IsEnabled(LogLevel.Debug))
         {
-            Log.LogDebug("[Follow] {Callsign}: at rest on the follow route it lost; dropping it", ctx.Aircraft.Callsign);
-        }
-        else
-        {
-            Log.LogDebug("[Follow] {Callsign}: follow route it lost ran out while carrying on across", ctx.Aircraft.Callsign);
+            if (IsAtRest(ctx))
+            {
+                Log.LogDebug("[Follow] {Callsign}: at rest on the follow route it lost; dropping it", ctx.Aircraft.Callsign);
+            }
+            else
+            {
+                Log.LogDebug("[Follow] {Callsign}: follow route it lost ran out while carrying on across", ctx.Aircraft.Callsign);
+            }
         }
 
         if (_followRoute is { IsComplete: true })
@@ -559,11 +565,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 return true;
             }
 
-            Log.LogDebug(
-                "[Follow] {Callsign}: follow route it lost ran out at node {Node} while moving; holding its heading to rest",
-                ctx.Aircraft.Callsign,
-                _nav.TargetNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: follow route it lost ran out at node {Node} while moving; holding its heading to rest",
+                    ctx.Aircraft.Callsign,
+                    _nav.TargetNodeId
+                );
+            }
         }
 
         ctx.Targets.TargetTrueHeading = new TrueHeading(route.Segments[^1].Edge.ArrivalBearing);
@@ -710,11 +719,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// </summary>
     private void HandOverToClearingRoute(PhaseContext ctx, RunwayInfo runway, SpeedCap? barCap)
     {
-        Log.LogDebug(
-            "[Follow] {Callsign}: on runway {Runway} carrying on across it along the follow route it lost; clearing it",
-            ctx.Aircraft.Callsign,
-            runway.Id
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: on runway {Runway} carrying on across it along the follow route it lost; clearing it",
+                ctx.Aircraft.Callsign,
+                runway.Id
+            );
+        }
         DropFollowRoute();
         TickWithoutFollowRoute(ctx, barCap);
     }
@@ -760,12 +772,15 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         string? tailInside = TailInsideRunwayEnd(ctx);
-        Log.LogDebug(
-            "[Follow] {Callsign}: follow of {Target} broken off; stopped, tail inside {Runway}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            tailInside ?? "no runway"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: follow of {Target} broken off; stopped, tail inside {Runway}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                tailInside ?? "no runway"
+            );
+        }
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
         ctx.Aircraft.Phases?.InsertAfterCurrent(HoldingInPositionPhase.AfterFollowBreakOff(heldShortOfRunway: null, tailInside));
@@ -917,7 +932,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
-        Log.LogDebug("[Follow] {Callsign}: target {Target} {Reason}; stopped", ctx.Aircraft.Callsign, _targetCallsign, LeadGoneReason(lead));
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Follow] {Callsign}: target {Target} {Reason}; stopped", ctx.Aircraft.Callsign, _targetCallsign, LeadGoneReason(lead));
+        }
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
         ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingInPositionPhase());
@@ -1004,13 +1022,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: {Target} departed; taxiing on to its departure bar at node {Node}: {Route}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            bar.Id,
-            toBar.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: {Target} departed; taxiing on to its departure bar at node {Node}: {Route}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                bar.Id,
+                toBar.ToSummary()
+            );
+        }
         _nav = new GroundNavigator();
         SetFollowRoute(toBar, toBar.Segments.Count, null, givingWay: false);
         return true;
@@ -1068,13 +1089,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         var toBar = new TaxiRoute { Segments = onto.Segments, HoldShortPoints = [] };
-        Log.LogInformation(
-            "[Follow] {Callsign}: {Target} departed and its path is gone; taking the taxi route to its departure bar at node {Node}: {Route}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            bar.Id,
-            toBar.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Follow] {Callsign}: {Target} departed and its path is gone; taking the taxi route to its departure bar at node {Node}: {Route}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                bar.Id,
+                toBar.ToSummary()
+            );
+        }
         return toBar;
     }
 
@@ -1107,13 +1131,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: target {Target} {Reason}; resuming its assigned route: {Route}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            LeadGoneReason(lead),
-            resumed.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: target {Target} {Reason}; resuming its assigned route: {Route}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                LeadGoneReason(lead),
+                resumed.ToSummary()
+            );
+        }
         ctx.Aircraft.Ground.AssignedTaxiRoute = resumed;
         ctx.Aircraft.Phases?.InsertAfterCurrent(new TaxiingPhase());
         return true;
@@ -1300,13 +1327,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 return true;
             }
 
-            Log.LogDebug(
-                "[Follow] {Callsign}: tail and wingtips past the hold line at runway bar node {NodeId}; clear of that runway, "
-                    + "{Speed:F1} kt on its clearing route",
-                ctx.Aircraft.Callsign,
-                _clearingBarNodeId,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: tail and wingtips past the hold line at runway bar node {NodeId}; clear of that runway, "
+                        + "{Speed:F1} kt on its clearing route",
+                    ctx.Aircraft.Callsign,
+                    _clearingBarNodeId,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
             EndClearingRoute();
         }
 
@@ -1428,13 +1458,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         _saidHeldShortNotClear = false;
         _nav = new GroundNavigator();
         _navSetUp = false;
-        Log.LogDebug(
-            "[Follow] {Callsign}: no follow route inside runway {Runway}'s hold line; clearing it past bar node {NodeId}: {Route}",
-            ctx.Aircraft.Callsign,
-            runway.Id,
-            clearing.BarNodeId,
-            clearing.Route.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: no follow route inside runway {Runway}'s hold line; clearing it past bar node {NodeId}: {Route}",
+                ctx.Aircraft.Callsign,
+                runway.Id,
+                clearing.BarNodeId,
+                clearing.Route.ToSummary()
+            );
+        }
         return clearing.Route;
     }
 
@@ -1594,12 +1627,15 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: {Target} can be followed again while braking past runway bar node {NodeId}; following it",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            _clearingBarNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: {Target} can be followed again while braking past runway bar node {NodeId}; following it",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                _clearingBarNodeId
+            );
+        }
         EndClearingRoute();
         InstallPlan(ctx, layout, joinable, lead, 0);
         return true;
@@ -2003,11 +2039,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         _loggedTailOnly = true;
-        Log.LogDebug(
-            "[Follow] {Callsign}: no wingspan for {Type}; judging the hold line by its tail alone",
-            aircraft.Callsign,
-            aircraft.AircraftType
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: no wingspan for {Type}; judging the hold line by its tail alone",
+                aircraft.Callsign,
+                aircraft.AircraftType
+            );
+        }
     }
 
     private static LatLon NoseOf(AircraftState aircraft) =>
@@ -2153,13 +2192,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return OnBackwardStart(ctx, layout, segments, why, keepOnBackwardStart);
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: {Target} {Why}; following the new plan {How}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            why,
-            (at >= 0) ? $"from segment {at}" : "from its start"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: {Target} {Why}; following the new plan {How}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                why,
+                (at >= 0) ? $"from segment {at}" : "from its start"
+            );
+        }
         InstallPlan(ctx, layout, joinable, lead, Math.Max(at, 0));
         return true;
     }
@@ -2173,13 +2215,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     {
         if (keepOnBackwardStart)
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: {Target} {Why}, but the new plan leaves node {Node} back across the heading; keeping the route",
-                ctx.Aircraft.Callsign,
-                _targetCallsign,
-                why,
-                segments[0].FromNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: {Target} {Why}, but the new plan leaves node {Node} back across the heading; keeping the route",
+                    ctx.Aircraft.Callsign,
+                    _targetCallsign,
+                    why,
+                    segments[0].FromNodeId
+                );
+            }
             return true;
         }
 
@@ -2233,11 +2278,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return true;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: reached the end of the follow route at node {Node}; planning again",
-            ctx.Aircraft.Callsign,
-            _nav.TargetNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: reached the end of the follow route at node {Node}; planning again",
+                ctx.Aircraft.Callsign,
+                _nav.TargetNodeId
+            );
+        }
         DropFollowRoute();
         return false;
     }
@@ -2494,16 +2542,19 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         // A re-installed route is a way to move again, so the held-short latch ends with its hold: only that hold's call is
         // silenced (<see cref="SayLostTrafficHolding"/>).
         _saidHeldShortNotClear = false;
-        Log.LogDebug(
-            "[Follow] {Callsign}: following {Target} on the taxi graph: {Route}, joining its path at node {Merge} (segment {MergeIndex}), "
-                + "giving way: {GiveWay}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            route.ToSummary(),
-            joinable.MergeNode,
-            _mergeSegmentIndex,
-            giveWay
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: following {Target} on the taxi graph: {Route}, joining its path at node {Merge} (segment {MergeIndex}), "
+                    + "giving way: {GiveWay}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                route.ToSummary(),
+                joinable.MergeNode,
+                _mergeSegmentIndex,
+                giveWay
+            );
+        }
     }
 
     private void LogHoldOnce(PhaseContext ctx, string reason, LogLevel level)
@@ -2514,7 +2565,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         _loggedHoldReason = reason;
-        Log.Log(level, "[Follow] {Callsign}: holding in position, {Reason}", ctx.Aircraft.Callsign, reason);
+        if (Log.IsEnabled(level))
+        {
+            Log.Log(level, "[Follow] {Callsign}: holding in position, {Reason}", ctx.Aircraft.Callsign, reason);
+        }
     }
 
     private static TaxiRouteSegment ToSegment(DirectionalEdge edge) => new() { Edge = edge, TaxiwayName = edge.Edge.TaxiwayName ?? "" };
@@ -2937,13 +2991,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         if (IsGiveWayOver(leadAt, lead.AircraftType, gapFt, stopGapFt))
         {
             _givingWay = false;
-            Log.LogDebug(
-                "[Follow] {Callsign}: {Target}'s tail is past the merge at node {Merge} and the gap is {Gap:F0} ft; falling in behind",
-                ctx.Aircraft.Callsign,
-                _targetCallsign,
-                plan.MergeNode,
-                gapFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: {Target}'s tail is past the merge at node {Merge} and the gap is {Gap:F0} ft; falling in behind",
+                    ctx.Aircraft.Callsign,
+                    _targetCallsign,
+                    plan.MergeNode,
+                    gapFt
+                );
+            }
             return null;
         }
 
@@ -3012,19 +3069,22 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         _timeSinceLastLog = 0;
-        Log.LogTrace(
-            "[Follow] {Callsign}: nose {Gap:F0} ft from the tail of {Target} (stop gap {StopGap:F0} ft), segment {Seg}/{Segs}, gs={Gs:F1}kts, "
-                + "targetGs={TGs:F1}kts, giving way: {GiveWay}",
-            ctx.Aircraft.Callsign,
-            gapFt,
-            _targetCallsign,
-            stopGapFt,
-            _followRoute?.CurrentSegmentIndex,
-            _followRoute?.Segments.Count,
-            ctx.Aircraft.GroundSpeed,
-            lead.GroundSpeed,
-            _givingWay
-        );
+        if (Log.IsEnabled(LogLevel.Trace))
+        {
+            Log.LogTrace(
+                "[Follow] {Callsign}: nose {Gap:F0} ft from the tail of {Target} (stop gap {StopGap:F0} ft), segment {Seg}/{Segs}, gs={Gs:F1}kts, "
+                    + "targetGs={TGs:F1}kts, giving way: {GiveWay}",
+                ctx.Aircraft.Callsign,
+                gapFt,
+                _targetCallsign,
+                stopGapFt,
+                _followRoute?.CurrentSegmentIndex,
+                _followRoute?.Segments.Count,
+                ctx.Aircraft.GroundSpeed,
+                lead.GroundSpeed,
+                _givingWay
+            );
+        }
     }
 
     /// <summary>
@@ -3230,6 +3290,17 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         {
             _latchedBarNodeId = bar.Node.Id;
             _latchedBarApproachDeg = bar.ApproachDeg;
+            LogBarAheadLatched(ctx, bar);
+        }
+
+        return nearest;
+    }
+
+    /// <summary>Logs at Debug the runway bar ahead the follower latched, and its nose's distance from the hold line.</summary>
+    private static void LogBarAheadLatched(PhaseContext ctx, BarAhead bar)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
             Log.LogDebug(
                 "[Follow] {Callsign}: runway bar node {NodeId} ({Runway}) ahead, nose {ToStop:F1} ft from its hold line at {Speed:F1} kt",
                 ctx.Aircraft.Callsign,
@@ -3239,8 +3310,6 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 ctx.Aircraft.GroundSpeed
             );
         }
-
-        return nearest;
     }
 
     /// <summary>
@@ -3263,7 +3332,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             }
         }
 
-        Log.LogDebug("[Follow] {Callsign}: runway bar node {NodeId} no longer ahead; released", ctx.Aircraft.Callsign, nodeId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Follow] {Callsign}: runway bar node {NodeId} no longer ahead; released", ctx.Aircraft.Callsign, nodeId);
+        }
         ReleaseLatchedBar();
         return null;
     }
@@ -3483,16 +3555,19 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
         else
         {
-            Log.LogDebug(
-                "[Follow] {Callsign}: holding short at runway node {NodeId} ({Runway}), reason={Reason}, nose {ToStop:F1} ft from the hold line, "
-                    + "{Speed:F1} kt at rest",
-                ctx.Aircraft.Callsign,
-                node.Id,
-                node.RunwayId?.ToString() ?? "unknown",
-                bar.Reason,
-                bar.ToStopFt,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Follow] {Callsign}: holding short at runway node {NodeId} ({Runway}), reason={Reason}, nose {ToStop:F1} ft from the hold line, "
+                        + "{Speed:F1} kt at rest",
+                    ctx.Aircraft.Callsign,
+                    node.Id,
+                    node.RunwayId?.ToString() ?? "unknown",
+                    bar.Reason,
+                    bar.ToStopFt,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
         }
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
@@ -3731,11 +3806,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             }
             else if (remembered && IsClearOfBars(ctx, layout, runway))
             {
-                Log.LogDebug(
-                    "[Follow] {Callsign}: tail and wingtips clear of runway {Runway}'s bars; they stop the follow again",
-                    ctx.Aircraft.Callsign,
-                    runway.Id
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Follow] {Callsign}: tail and wingtips clear of runway {Runway}'s bars; they stop the follow again",
+                        ctx.Aircraft.Callsign,
+                        runway.Id
+                    );
+                }
                 _exitingRunways = [.. _exitingRunways.Where(r => !r.Overlaps(runway.Id))];
             }
         }
@@ -3844,7 +3922,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         foreach (RunwayIdentifier runway in spent)
         {
-            Log.LogDebug("[Follow] {Callsign}: clear of runway {Runway} its crossing clearance covered; spent", ctx.Aircraft.Callsign, runway);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: clear of runway {Runway} its crossing clearance covered; spent", ctx.Aircraft.Callsign, runway);
+            }
             _crossingClearedRunways = [.. _crossingClearedRunways.Where(cleared => !cleared.Overlaps(runway))];
             _beenOnClearedRunways.RemoveAll(been => been.Overlaps(runway));
         }
@@ -3979,12 +4060,15 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     private void SetLeadDepartureBar(PhaseContext ctx, LeadDepartureBar? bar)
     {
-        Log.LogDebug(
-            "[Follow] {Callsign}: {Target}'s departure bar {Bar}",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            bar is null ? "dropped" : $"node {bar.NodeId} for runway {bar.RunwayEnd}"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: {Target}'s departure bar {Bar}",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                bar is null ? "dropped" : $"node {bar.NodeId} for runway {bar.RunwayEnd}"
+            );
+        }
         _leadDepartureBar = bar;
     }
 
