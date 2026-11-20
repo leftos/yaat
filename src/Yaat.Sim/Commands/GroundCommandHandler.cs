@@ -306,13 +306,19 @@ public static partial class GroundCommandHandler
         if (FlightPlanParking.Parse(aircraft.FlightPlan.Remarks) is not { } remark)
         {
             string noGate = $"No gate in {aircraft.Callsign}'s flight plan remarks; name the stand with @";
-            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, noGate);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, noGate);
+            }
             return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noGate));
         }
 
         if (remark.Stand is { Length: > 0 } stand)
         {
-            Log.LogDebug("[TryTaxi] {Callsign}: @GATE is the remark stand {Stand}", aircraft.Callsign, stand);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[TryTaxi] {Callsign}: @GATE is the remark stand {Stand}", aircraft.Callsign, stand);
+            }
             return (taxi with { DestinationParking = stand }, null);
         }
 
@@ -351,7 +357,10 @@ public static partial class GroundCommandHandler
         if (ArrivalParkingPicker.AreaPool(aircraft.AircraftType, layout, area) is not { } pool)
         {
             string noMatch = $"{callsign}'s remarks name parking area {area}, which matches no stand at this airport; name the stand with @";
-            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", callsign, noMatch);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", callsign, noMatch);
+            }
             return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noMatch));
         }
 
@@ -359,25 +368,32 @@ public static partial class GroundCommandHandler
         {
             // The routing stand: the pick over the pool as if nothing were taken. The route toward it is cut at the area's ramp edge.
             string routing = ArrivalParkingPicker.Choose(callsign, pool.Names, salt: 0);
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: @GATE in parking area {Area}: all {Pool} pool stand(s) taken; routing toward {Stand}, cut at the ramp edge",
-                callsign,
-                area,
-                pool.Names.Count,
-                routing
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryTaxi] {Callsign}: @GATE in parking area {Area}: all {Pool} pool stand(s) taken; routing toward {Stand}, cut at the ramp "
+                        + "edge",
+                    callsign,
+                    area,
+                    pool.Names.Count,
+                    routing
+                );
+            }
             return (taxi with { DestinationParking = routing, DestinationArea = area, HoldAtAreaRampEdge = true }, null);
         }
 
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: @GATE in parking area {Area}: pool {Pool} of {AreaCount} stand(s){Fallback}, picked {Stand}",
-            callsign,
-            area,
-            pool.Names.Count,
-            pool.AreaStandCount,
-            pool.Fits ? " that fit the type" : " (none fits the type: the whole area)",
-            stand
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: @GATE in parking area {Area}: pool {Pool} of {AreaCount} stand(s){Fallback}, picked {Stand}",
+                callsign,
+                area,
+                pool.Names.Count,
+                pool.AreaStandCount,
+                pool.Fits ? " that fit the type" : " (none fits the type: the whole area)",
+                stand
+            );
+        }
         return (taxi with { DestinationParking = stand, DestinationArea = area }, null);
     }
 
@@ -514,7 +530,15 @@ public static partial class GroundCommandHandler
         if (EndsAtTheNoDestinationTerminusHold(aircraft, route) is { TargetName: { } heldShortOf } terminusHold)
         {
             string reason = TerminusRefusalReason(groundLayout, aircraft, terminusHold, heldShortOf, inputs.Category);
-            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason} (the route ends at the same hold)", aircraft.Callsign, reason);
+            if (Log.IsEnabled(inputs.FailureLogLevel))
+            {
+                Log.Log(
+                    inputs.FailureLogLevel,
+                    "[TryTaxi] {Callsign}: refused — {Reason} (the route ends at the same hold)",
+                    aircraft.Callsign,
+                    reason
+                );
+            }
             refusal = new CommandResult(false, reason) { IsOperatorGuidance = true };
             return false;
         }
@@ -532,16 +556,19 @@ public static partial class GroundCommandHandler
         HoldInsideNoDestinationTerminusSetback(aircraft, groundLayout, route, aircraftLengthFt);
 
         string hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
-        Log.LogInformation(
-            "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts [{HsDetails}], summary: {Summary}",
-            aircraft.Callsign,
-            route.Segments.Count,
-            route.HoldShortPoints.Count,
-            hsDetails,
-            // The response's turn hints and commanded path, so the log names an along-runway leg by the
-            // commanded end ("on 33") instead of the travel-direction fallback ("on 15").
-            route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts [{HsDetails}], summary: {Summary}",
+                aircraft.Callsign,
+                route.Segments.Count,
+                route.HoldShortPoints.Count,
+                hsDetails,
+                // The response's turn hints and commanded path, so the log names an along-runway leg by the
+                // commanded end ("on 33") instead of the travel-direction fallback ("on 15").
+                route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)
+            );
+        }
 
         if (!IsPlausibleNodeRefResolution(groundLayout, taxi, route))
         {
@@ -923,14 +950,17 @@ public static partial class GroundCommandHandler
                     );
                     rerouted = true;
 
-                    Log.LogInformation(
-                        "[TryTaxi] {Callsign}: zero-segment re-route via neighbor {NeighborId} to {Sigil}{Destination} ({SegCount} segments)",
-                        aircraft.Callsign,
-                        bestNeighbor.Id,
-                        destinationSigil,
-                        parkingName,
-                        route.Segments.Count
-                    );
+                    if (Log.IsEnabled(LogLevel.Information))
+                    {
+                        Log.LogInformation(
+                            "[TryTaxi] {Callsign}: zero-segment re-route via neighbor {NeighborId} to {Sigil}{Destination} ({SegCount} segments)",
+                            aircraft.Callsign,
+                            bestNeighbor.Id,
+                            destinationSigil,
+                            parkingName,
+                            route.Segments.Count
+                        );
+                    }
                 }
             }
         }
@@ -1133,12 +1163,15 @@ public static partial class GroundCommandHandler
         HoldShortPoint? leftRunwayBar = null;
         if (priorRwy is not null)
         {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: runway crossing carried over to the new route: {PriorRwy} (phase {Phase})",
-                aircraft.Callsign,
-                priorRwy,
-                aircraft.Phases?.CurrentPhase?.GetType().Name ?? "none"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryTaxi] {Callsign}: runway crossing carried over to the new route: {PriorRwy} (phase {Phase})",
+                    aircraft.Callsign,
+                    priorRwy,
+                    aircraft.Phases?.CurrentPhase?.GetType().Name ?? "none"
+                );
+            }
             if (CarriedCrossing(route, groundLayout, aircraft, priorRwy) is { TargetName: { Length: > 0 } crossingRwy } firstCrossing)
             {
                 firstCrossing.IsCleared = true;
@@ -1146,13 +1179,16 @@ public static partial class GroundCommandHandler
                 bool leavesStandingRunway = StandsOnRunway(aircraft);
                 leftRunwayBar = leavesStandingRunway ? firstCrossing : null;
                 implicitCrossLabel = leavesStandingRunway ? null : crossingRwy;
-                Log.LogInformation(
-                    "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already at/exiting {PriorRwy})",
-                    aircraft.Callsign,
-                    crossingRwy,
-                    firstCrossing.NodeId,
-                    priorRwy
-                );
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation(
+                        "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already at/exiting {PriorRwy})",
+                        aircraft.Callsign,
+                        crossingRwy,
+                        firstCrossing.NodeId,
+                        priorRwy
+                    );
+                }
             }
         }
 
@@ -1234,13 +1270,16 @@ public static partial class GroundCommandHandler
         var traffic = TaxiStartTraffic.Of(aircraft, NeighbourCandidate.OnGround(options.ListAircraft?.Invoke()));
         if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic, RunwayTaxiStart.Of(aircraft)) is not { } taxiStart)
         {
-            Log.Log(
-                logLevels.Failure,
-                "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
-                aircraft.Callsign,
-                aircraft.Position.Lat,
-                aircraft.Position.Lon
-            );
+            if (Log.IsEnabled(logLevels.Failure))
+            {
+                Log.Log(
+                    logLevels.Failure,
+                    "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
+                    aircraft.Callsign,
+                    aircraft.Position.Lat,
+                    aircraft.Position.Lon
+                );
+            }
             return new TaxiPreparation(null, new CommandResult(false, "Cannot find position on taxiway graph"));
         }
 
@@ -1344,12 +1383,15 @@ public static partial class GroundCommandHandler
             return;
         }
 
-        Log.LogInformation(
-            "[Taxi] {Callsign}: hold short of {Target} armed by TAXI inside the firm stopping distance at {Gs:F1} kt — flagged unable",
-            aircraft.Callsign,
-            bar.TargetName,
-            aircraft.GroundSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Taxi] {Callsign}: hold short of {Target} armed by TAXI inside the firm stopping distance at {Gs:F1} kt — flagged unable",
+                aircraft.Callsign,
+                bar.TargetName,
+                aircraft.GroundSpeed
+            );
+        }
     }
 
     /// <summary>The answer to a hold short the aircraft can no longer brake for: <c>Unable to hold short of T — stopping</c>.</summary>
@@ -1397,15 +1439,18 @@ public static partial class GroundCommandHandler
             return;
         }
 
-        Log.LogInformation(
-            "[TryTaxi] {Callsign}: nose {NoseFt:F0} ft from {Taxiway}, inside its {SetbackFt:F0} ft setback; holding short where it stands, "
-                + "not {AheadFt:F0} ft ahead",
-            aircraft.Callsign,
-            noseFt,
-            taxiway,
-            setbackFt,
-            stopAheadFt
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[TryTaxi] {Callsign}: nose {NoseFt:F0} ft from {Taxiway}, inside its {SetbackFt:F0} ft setback; holding short where it stands, "
+                    + "not {AheadFt:F0} ft ahead",
+                aircraft.Callsign,
+                noseFt,
+                taxiway,
+                setbackFt,
+                stopAheadFt
+            );
+        }
         hold.Latitude = aircraft.Position.Lat;
         hold.Longitude = aircraft.Position.Lon;
     }
@@ -2050,7 +2095,10 @@ public static partial class GroundCommandHandler
         TaxiResolution resolved = ResolveFromEitherEnd(inputs with { FailureLogLevel = LogLevel.Debug }, taxi, startNode, occupied);
         if (resolved.Refusal is { } refusal)
         {
-            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", inputs.Aircraft.Callsign, refusal.Message);
+            if (Log.IsEnabled(inputs.FailureLogLevel))
+            {
+                Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", inputs.Aircraft.Callsign, refusal.Message);
+            }
         }
 
         return resolved;
@@ -2077,20 +2125,23 @@ public static partial class GroundCommandHandler
 
         TaxiResolution fromOtherEnd = ResolveTaxiRouteFrom(inputs, taxi, otherEnd);
         TaxiRoute? turned = RouteAvoiding(fromOtherEnd, occupied);
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: on {Taxiway} edge {First}-{Second}, the route from node {Start} is refused ({Refused}) or drives back over "
-                + "the edge; from node {Other} it avoids it ({Avoids}); turn about {Verdict} ({VerdictReason})",
-            inputs.Aircraft.Callsign,
-            occupied.TaxiwayName,
-            occupied.Nodes[0].Id,
-            occupied.Nodes[1].Id,
-            startNode.Id,
-            fromStart.Route is null,
-            otherEnd.Id,
-            turned is not null,
-            verdict,
-            verdictReason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: on {Taxiway} edge {First}-{Second}, the route from node {Start} is refused ({Refused}) or drives back over "
+                    + "the edge; from node {Other} it avoids it ({Avoids}); turn about {Verdict} ({VerdictReason})",
+                inputs.Aircraft.Callsign,
+                occupied.TaxiwayName,
+                occupied.Nodes[0].Id,
+                occupied.Nodes[1].Id,
+                startNode.Id,
+                fromStart.Route is null,
+                otherEnd.Id,
+                turned is not null,
+                verdict,
+                verdictReason
+            );
+        }
         if (turned is null)
         {
             return KeepRouteAhead(inputs, taxi, fromStart, occupied, otherEnd);
@@ -2133,13 +2184,16 @@ public static partial class GroundCommandHandler
         }
 
         PilotSpeechText query = PilotResponder.BuildConfirmBackTaxi(inputs.Aircraft, runway, turnOff);
-        Log.Log(
-            inputs.FailureLogLevel,
-            "[TryTaxi] {Callsign}: turn-off {TurnOff} is behind on {Runway}; querying the back-taxi",
-            inputs.Aircraft.Callsign,
-            turnOff ?? "(none)",
-            runway
-        );
+        if (Log.IsEnabled(inputs.FailureLogLevel))
+        {
+            Log.Log(
+                inputs.FailureLogLevel,
+                "[TryTaxi] {Callsign}: turn-off {TurnOff} is behind on {Runway}; querying the back-taxi",
+                inputs.Aircraft.Callsign,
+                turnOff ?? "(none)",
+                runway
+            );
+        }
         return TaxiResolution.Refused(taxi, new CommandResult(false, query.Terminal) { PilotUnable = query });
     }
 
@@ -2351,14 +2405,17 @@ public static partial class GroundCommandHandler
     {
         route.TurnAboutShape = shape;
         route.TurnAboutTargetNodeId = otherEnd.Id;
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: turns about {Shape} on {Taxiway} toward node {Other}; the route opens with {First}",
-            aircraft.Callsign,
-            shape,
-            occupied.TaxiwayName,
-            otherEnd.Id,
-            route.Segments.Count > 0 ? $"segment {route.Segments[0].FromNodeId}->{route.Segments[0].ToNodeId}" : "no segment"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: turns about {Shape} on {Taxiway} toward node {Other}; the route opens with {First}",
+                aircraft.Callsign,
+                shape,
+                occupied.TaxiwayName,
+                otherEnd.Id,
+                route.Segments.Count > 0 ? $"segment {route.Segments[0].FromNodeId}->{route.Segments[0].ToNodeId}" : "no segment"
+            );
+        }
     }
 
     /// <summary>
@@ -2432,13 +2489,16 @@ public static partial class GroundCommandHandler
         }
 
         AircraftState aircraft = inputs.Aircraft;
-        Log.Log(
-            inputs.FailureLogLevel,
-            "[TryTaxi] {Callsign}: TAXI {Taxi} refused — {Reason}",
-            aircraft.Callsign,
-            string.Join(" ", taxi.Path),
-            unconnected.HumanMessage
-        );
+        if (Log.IsEnabled(inputs.FailureLogLevel))
+        {
+            Log.Log(
+                inputs.FailureLogLevel,
+                "[TryTaxi] {Callsign}: TAXI {Taxi} refused — {Reason}",
+                aircraft.Callsign,
+                string.Join(" ", taxi.Path),
+                unconnected.HumanMessage
+            );
+        }
         PilotSpeechText unable = unconnected.Kind switch
         {
             FailureKind.NoRouteAhead => PilotResponder.BuildUnableNoRouteAhead(aircraft, from, to, unconnected.IntersectionOnlyBehind),
@@ -2545,13 +2605,16 @@ public static partial class GroundCommandHandler
             return startNode;
         }
 
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
-            aircraft.Callsign,
-            startNode.Id,
-            taxi.Path[0],
-            onFirstCleared.Id
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
+                aircraft.Callsign,
+                startNode.Id,
+                taxi.Path[0],
+                onFirstCleared.Id
+            );
+        }
         return onFirstCleared;
     }
 
@@ -2611,33 +2674,42 @@ public static partial class GroundCommandHandler
         if (IsBareTaxiOnOwnTaxiway(inputs, taxi, occupiedTaxiway))
         {
             string reason = AlreadyOnTaxiwayReason(taxi.Path[0]);
-            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, reason);
+            if (Log.IsEnabled(inputs.FailureLogLevel))
+            {
+                Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, reason);
+            }
             return TaxiResolution.Refused(taxi, new CommandResult(false, reason) { IsOperatorGuidance = true });
         }
 
         if (BareTaxiHeldShortOfNoDestinationTerminus(inputs, taxi) is { } terminusHold)
         {
             string reason = TerminusRefusalReason(groundLayout, aircraft, terminusHold, taxi.Path[0], inputs.Category);
-            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, reason);
+            if (Log.IsEnabled(inputs.FailureLogLevel))
+            {
+                Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, reason);
+            }
             return TaxiResolution.Refused(taxi, new CommandResult(false, reason) { IsOperatorGuidance = true });
         }
 
         TaxiCommand? currentTaxiwayPrepend = CurrentTaxiwayPrepend(groundLayout, occupiedTaxiway, taxi);
 
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} ({NodeType}) at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
-                + "destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
-            aircraft.Callsign,
-            startNode.Id,
-            startNode.Type,
-            startNode.Position.Lat,
-            startNode.Position.Lon,
-            GeoMath.DistanceNm(aircraft.Position, startNode.Position),
-            string.Join(" ", taxi.Path),
-            taxi.DestinationRunway ?? "(none)",
-            taxi.DestinationParking ?? "(none)",
-            taxi.DestinationSpot ?? "(none)"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: nearest node {NodeId} ({NodeType}) at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
+                    + "destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
+                aircraft.Callsign,
+                startNode.Id,
+                startNode.Type,
+                startNode.Position.Lat,
+                startNode.Position.Lon,
+                GeoMath.DistanceNm(aircraft.Position, startNode.Position),
+                string.Join(" ", taxi.Path),
+                taxi.DestinationRunway ?? "(none)",
+                taxi.DestinationParking ?? "(none)",
+                taxi.DestinationSpot ?? "(none)"
+            );
+        }
 
         // A plain TAXI naming no taxiway, only a gate or spot, from inside the ramp stays inside it (7110.65 §3-7-2: the
         // route on the movement area is the controller's to issue). TAXIAUTO is the unrestricted auto-route.
@@ -2730,14 +2802,17 @@ public static partial class GroundCommandHandler
             string? rejection = route is null ? routeFailure?.HumanMessage ?? "no route" : AsClearedRejectionReason(route, command, foldTargets);
             if (rejection is not null)
             {
-                Log.LogDebug(
-                    "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; "
-                        + "folding [{Twys}] into the path",
-                    aircraft.Callsign,
-                    route?.Segments.Count ?? 0,
-                    rejection,
-                    string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; folding [{Twys}] "
+                            + "into the path",
+                        aircraft.Callsign,
+                        route?.Segments.Count ?? 0,
+                        rejection,
+                        string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
+                    );
+                }
                 route = ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
             }
 
@@ -2769,7 +2844,15 @@ public static partial class GroundCommandHandler
         // aircraft drive taxiways the clearance never named.
         if (confineToRamp && (route is null))
         {
-            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, failReason ?? "no route inside the ramp");
+            if (Log.IsEnabled(inputs.FailureLogLevel))
+            {
+                Log.Log(
+                    inputs.FailureLogLevel,
+                    "[TryTaxi] {Callsign}: refused — {Reason}",
+                    aircraft.Callsign,
+                    failReason ?? "no route inside the ramp"
+                );
+            }
             return TaxiResolution.Refused(
                 taxi,
                 new CommandResult(false, failReason ?? RampConfinedRefusal(taxi, FindTaxiDestinationNode(groundLayout, taxi)))
@@ -2940,12 +3023,15 @@ public static partial class GroundCommandHandler
         route = fallback.Held ?? route;
         if (route is null)
         {
-            Log.Log(
-                inputs.FailureLogLevel,
-                "[TryTaxi] {Callsign}: route resolution failed — {Reason}",
-                aircraft.Callsign,
-                failReason ?? "no matching taxiways"
-            );
+            if (Log.IsEnabled(inputs.FailureLogLevel))
+            {
+                Log.Log(
+                    inputs.FailureLogLevel,
+                    "[TryTaxi] {Callsign}: route resolution failed — {Reason}",
+                    aircraft.Callsign,
+                    failReason ?? "no matching taxiways"
+                );
+            }
             return TaxiResolution.Refused(taxi, new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi))) with
             {
                 Failure = failure,
@@ -3131,7 +3217,10 @@ public static partial class GroundCommandHandler
                 + $"the takeoff clearance issued for {briefed} is void — a takeoff clearance is runway-specific (3-9-10.a) "
                 + "and must be cancelled explicitly (3-9-11)";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[TryTaxi] {Callsign}: {Warning}", aircraft.Callsign, warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryTaxi] {Callsign}: {Warning}", aircraft.Callsign, warning);
+        }
     }
 
     /// <summary>
@@ -3537,13 +3626,16 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, "TAXIAUTO requires a runway, @parking, or $spot destination");
         }
 
-        Log.LogDebug(
-            "[TryTaxiAuto] {Callsign}: destRwy={Rwy} destParking={Parking} destSpot={Spot}",
-            aircraft.Callsign,
-            autoTaxi.DestinationRunway ?? "(none)",
-            autoTaxi.DestinationParking ?? "(none)",
-            autoTaxi.DestinationSpot ?? "(none)"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxiAuto] {Callsign}: destRwy={Rwy} destParking={Parking} destSpot={Spot}",
+                aircraft.Callsign,
+                autoTaxi.DestinationRunway ?? "(none)",
+                autoTaxi.DestinationParking ?? "(none)",
+                autoTaxi.DestinationSpot ?? "(none)"
+            );
+        }
 
         var taxi = new TaxiCommand(
             Path: [],
@@ -3634,7 +3726,10 @@ public static partial class GroundCommandHandler
             return CommandDispatcher.OperatorGuidanceRefusal(refusal ?? ReRouteNotClearedRefusal);
         }
 
-        Log.LogDebug("[TryReRouteTaxi] {Callsign}: keeps destination {Destination}", aircraft.Callsign, kept.Display);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryReRouteTaxi] {Callsign}: keeps destination {Destination}", aircraft.Callsign, kept.Display);
+        }
 
         var stored = new StoredDepartureClearance(aircraft.Phases?.DepartureClearance, aircraft.Procedure.DepartureRunway, kept.EntryNodeId);
         TaxiCommand typed = reRoute.Route;
@@ -3692,7 +3787,10 @@ public static partial class GroundCommandHandler
             return kept;
         }
 
-        Log.LogDebug("[TryReRouteTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, refusal);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryReRouteTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, refusal);
+        }
         return null;
     }
 
@@ -3752,12 +3850,15 @@ public static partial class GroundCommandHandler
         if ((stored.EntryNodeId is not null) && (entryNodeId == stored.EntryNodeId))
         {
             phases.DepartureClearance = clearance;
-            Log.LogDebug(
-                "[TryReRouteTaxi] {Callsign}: same entry node {Node}, stored {Clearance} kept",
-                aircraft.Callsign,
-                entryNodeId,
-                clearance.Type
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryReRouteTaxi] {Callsign}: same entry node {Node}, stored {Clearance} kept",
+                    aircraft.Callsign,
+                    entryNodeId,
+                    clearance.Type
+                );
+            }
             return;
         }
 
@@ -3766,7 +3867,10 @@ public static partial class GroundCommandHandler
         string warning =
             $"RTAXI reaches runway {runway} at a different entry: the {kind} clearance issued for {runway} is void and must be re-issued";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[TryReRouteTaxi] {Callsign}: {Warning}", aircraft.Callsign, warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryReRouteTaxi] {Callsign}: {Warning}", aircraft.Callsign, warning);
+        }
     }
 
     /// <summary>
@@ -3800,13 +3904,16 @@ public static partial class GroundCommandHandler
             string? rejection = heldShortRoute is null
                 ? (heldShortFailure?.HumanMessage ?? "no route")
                 : HeldShortLegRejection(layout, heldShortRoute, heldShortPrepend.Path[1]);
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: holding short of {Twy}; path [{Path}] {Outcome}",
-                callsign,
-                heldShortPrepend.Path[0],
-                string.Join(" ", heldShortPrepend.Path),
-                rejection is null ? "resolved" : $"not taken — {rejection}"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryTaxi] {Callsign}: holding short of {Twy}; path [{Path}] {Outcome}",
+                    callsign,
+                    heldShortPrepend.Path[0],
+                    string.Join(" ", heldShortPrepend.Path),
+                    rejection is null ? "resolved" : $"not taken — {rejection}"
+                );
+            }
             if (rejection is null)
             {
                 return new StartResolution(heldShortPrepend, heldShortRoute, heldShortFailure);
@@ -3820,13 +3927,16 @@ public static partial class GroundCommandHandler
         }
 
         TaxiRoute? prepended = resolve(currentTaxiwayPrepend, out PathfindingFailure? prependFailure);
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: as-cleared path failed ({Reason}); current-taxiway path [{Path}] {Outcome}",
-            callsign,
-            failure?.HumanMessage ?? "no route",
-            string.Join(" ", currentTaxiwayPrepend.Path),
-            prepended is null ? "did not resolve either" : "resolved"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: as-cleared path failed ({Reason}); current-taxiway path [{Path}] {Outcome}",
+                callsign,
+                failure?.HumanMessage ?? "no route",
+                string.Join(" ", currentTaxiwayPrepend.Path),
+                prepended is null ? "did not resolve either" : "resolved"
+            );
+        }
         return prepended is null
             ? new StartResolution(asCleared, null, failure)
             : new StartResolution(currentTaxiwayPrepend, prepended, prependFailure);
@@ -4189,11 +4299,14 @@ public static partial class GroundCommandHandler
             case false:
                 return null;
             case null:
-                Log.LogDebug(
-                    "[TryTaxi] implied connector {Variant}: runway {Runway} has no resolvable threshold; keeping it implied",
-                    variant,
-                    taxi.DestinationRunway
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[TryTaxi] implied connector {Variant}: runway {Runway} has no resolvable threshold; keeping it implied",
+                        variant,
+                        taxi.DestinationRunway
+                    );
+                }
                 return variant;
             default:
                 return variant;
@@ -4393,14 +4506,17 @@ public static partial class GroundCommandHandler
             return taxi;
         }
 
-        Log.Log(
-            inputs.RouteLogLevel,
-            "[TryTaxi] {Callsign}: dropped {Count} node reference(s) already taxied past ({Dropped}); path now starts at {Head}",
-            aircraft.Callsign,
-            drop,
-            string.Join(" ", taxi.Path.Take(drop)),
-            drop < taxi.Path.Count ? taxi.Path[drop] : "(empty)"
-        );
+        if (Log.IsEnabled(inputs.RouteLogLevel))
+        {
+            Log.Log(
+                inputs.RouteLogLevel,
+                "[TryTaxi] {Callsign}: dropped {Count} node reference(s) already taxied past ({Dropped}); path now starts at {Head}",
+                aircraft.Callsign,
+                drop,
+                string.Join(" ", taxi.Path.Take(drop)),
+                drop < taxi.Path.Count ? taxi.Path[drop] : "(empty)"
+            );
+        }
 
         return taxi with
         {
@@ -4600,7 +4716,10 @@ public static partial class GroundCommandHandler
         {
             if (ResolveCrossedRunwayFarSideHoldShort(layout, startNode, lastTaxiway, crossings[i]) is { } anchor)
             {
-                Log.LogDebug("[TryTaxi] CROSS {Rwy} anchors route toward far-side hold-short node {Anchor}", crossings[i], anchor.Id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[TryTaxi] CROSS {Rwy} anchors route toward far-side hold-short node {Anchor}", crossings[i], anchor.Id);
+                }
                 return anchor;
             }
         }
@@ -4678,12 +4797,15 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: bare TAXI {Rwy} resolved to the adjacent hold-short ({SegCount} segments)",
-            aircraft.Callsign,
-            display,
-            route.Segments.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: bare TAXI {Rwy} resolved to the adjacent hold-short ({SegCount} segments)",
+                aircraft.Callsign,
+                display,
+                route.Segments.Count
+            );
+        }
         return route;
     }
 
@@ -4750,13 +4872,16 @@ public static partial class GroundCommandHandler
             || groundLayout.RunwayCenterlineBetween(aircraft.Position, leadOutNode.Position)
         )
         {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: gate lead-out drop not applicable (path=[{Path}], failure={Kind}/{Twy})",
-                aircraft.Callsign,
-                string.Join(" ", taxi.Path),
-                failure?.Kind,
-                failure?.InfeasibleTaxiway
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryTaxi] {Callsign}: gate lead-out drop not applicable (path=[{Path}], failure={Kind}/{Twy})",
+                    aircraft.Callsign,
+                    string.Join(" ", taxi.Path),
+                    failure?.Kind,
+                    failure?.InfeasibleTaxiway
+                );
+            }
             return null;
         }
 
@@ -4773,16 +4898,19 @@ public static partial class GroundCommandHandler
         }
 
         string laneUsed = FirstNonRampTaxiway(route) ?? withoutLeadOut.Path[0];
-        Log.Log(
-            inputs.RouteLogLevel,
-            "[TryTaxi] {Callsign}: dropped unreachable gate lead-out taxiway {Twy} (nearest node {NodeId}, {Dist:F0} ft away); "
-                + "taxiing via {Lane}",
-            aircraft.Callsign,
-            dropped,
-            leadOutNode.Id,
-            GeoMath.DistanceNm(aircraft.Position, leadOutNode.Position) * GeoMath.FeetPerNm,
-            laneUsed
-        );
+        if (Log.IsEnabled(inputs.RouteLogLevel))
+        {
+            Log.Log(
+                inputs.RouteLogLevel,
+                "[TryTaxi] {Callsign}: dropped unreachable gate lead-out taxiway {Twy} (nearest node {NodeId}, {Dist:F0} ft away); taxiing via "
+                    + "{Lane}",
+                aircraft.Callsign,
+                dropped,
+                leadOutNode.Id,
+                GeoMath.DistanceNm(aircraft.Position, leadOutNode.Position) * GeoMath.FeetPerNm,
+                laneUsed
+            );
+        }
         route.Warnings.Add($"unable via {dropped} — no ramp connection from the gate; taxiing via {laneUsed}");
         return new DroppedTaxiwayRoute(dropped, withoutLeadOut, route);
     }
@@ -4831,13 +4959,16 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        Log.Log(
-            inputs.RouteLogLevel,
-            "[TryTaxi] {Callsign}: dropped contradictory path element {Dropped} to reach " + "{Dest}",
-            inputs.Aircraft.Callsign,
-            droppedName,
-            destLabel
-        );
+        if (Log.IsEnabled(inputs.RouteLogLevel))
+        {
+            Log.Log(
+                inputs.RouteLogLevel,
+                "[TryTaxi] {Callsign}: dropped contradictory path element {Dropped} to reach {Dest}",
+                inputs.Aircraft.Callsign,
+                droppedName,
+                destLabel
+            );
+        }
         bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
         return new DroppedTaxiwayRoute(droppedName, bestCommand, bestDropRoute);
     }
@@ -4896,14 +5027,17 @@ public static partial class GroundCommandHandler
             link.Held is { } held ? $"holding short on {inputs.OccupiedTaxiway} at node {held.Segments[^1].ToNodeId}"
             : route is null ? $"refusing: {link.Refusal}"
             : "accepting the route resolved";
-        Log.Log(
-            inputs.RouteLogLevel,
-            "[TryTaxi] {Callsign}: start does not reach {First} as cleared; missing link {Missing} — {Outcome}",
-            inputs.Callsign,
-            link.First,
-            link.Missing,
-            outcome
-        );
+        if (Log.IsEnabled(inputs.RouteLogLevel))
+        {
+            Log.Log(
+                inputs.RouteLogLevel,
+                "[TryTaxi] {Callsign}: start does not reach {First} as cleared; missing link {Missing} — {Outcome}",
+                inputs.Callsign,
+                link.First,
+                link.Missing,
+                outcome
+            );
+        }
     }
 
     /// <summary>
@@ -4971,14 +5105,17 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        Log.Log(
-            inputs.RouteLogLevel,
-            "[TryTaxi] {Callsign}: route does not reach its destination as cleared; holding short of {Missing} at node {Node} ({Summary})",
-            inputs.Callsign,
-            best.Taxiway,
-            best.Held.Segments[^1].ToNodeId,
-            best.Held.ToSummary()
-        );
+        if (Log.IsEnabled(inputs.RouteLogLevel))
+        {
+            Log.Log(
+                inputs.RouteLogLevel,
+                "[TryTaxi] {Callsign}: route does not reach its destination as cleared; holding short of {Missing} at node {Node} ({Summary})",
+                inputs.Callsign,
+                best.Taxiway,
+                best.Held.Segments[^1].ToNodeId,
+                best.Held.ToSummary()
+            );
+        }
         return best.Held;
     }
 
@@ -5202,16 +5339,19 @@ public static partial class GroundCommandHandler
         TaxiRouteSegment extra = complete.Segments[keep];
         GroundNode extraEnd = extra.Edge.ToNode;
         bool pastBar = HoldShortAnnotator.BindsPastLeavingBar(layout, complete, keep - 1, missing);
-        Log.LogDebug(
-            "[CutBeforeTaxiway] {Missing}: bar #{Bar} leaves its runway; next #{Next} ({NextType}) on {Taxiway} ({Kind}): {Verdict}",
-            missing,
-            last.ToNodeId,
-            extraEnd.Id,
-            extraEnd.Type,
-            extra.TaxiwayName,
-            extra.Edge.Edge.GetType().Name,
-            pastBar ? "kept, the hold binds past the bar" : "not kept"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[CutBeforeTaxiway] {Missing}: bar #{Bar} leaves its runway; next #{Next} ({NextType}) on {Taxiway} ({Kind}): {Verdict}",
+                missing,
+                last.ToNodeId,
+                extraEnd.Id,
+                extraEnd.Type,
+                extra.TaxiwayName,
+                extra.Edge.Edge.GetType().Name,
+                pastBar ? "kept, the hold binds past the bar" : "not kept"
+            );
+        }
         return pastBar ? keep + 1 : keep;
     }
 
@@ -5954,7 +6094,10 @@ public static partial class GroundCommandHandler
             TaxiRoute? extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id, inputs.Category, inputs.WakeClass);
             if (extension is null)
             {
-                Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
+                }
                 string destKind = taxi.DestinationSpot is not null ? "spot" : "parking";
                 string reachedBy = LastSpotViaName(groundLayout, taxi.Path) is { } via ? $"via {via}" : "from end of taxi route";
                 failure = DestinationFailure($"Cannot reach {destKind} '{destLabel}' {reachedBy}");
@@ -5996,16 +6139,19 @@ public static partial class GroundCommandHandler
             TaxiRouteSegment b = combined[i + 1];
             if ((a.FromNodeId == b.ToNodeId) && (a.ToNodeId == b.FromNodeId))
             {
-                Log.Log(
-                    inputs.ReversalLogLevel,
-                    "[TryTaxi] Resolved taxi route to {DestLabel} has a reversal at index {Index}: ({FromA}→{ToA}) then ({FromB}→{ToB})",
-                    destLabel,
-                    i,
-                    a.FromNodeId,
-                    a.ToNodeId,
-                    b.FromNodeId,
-                    b.ToNodeId
-                );
+                if (Log.IsEnabled(inputs.ReversalLogLevel))
+                {
+                    Log.Log(
+                        inputs.ReversalLogLevel,
+                        "[TryTaxi] Resolved taxi route to {DestLabel} has a reversal at index {Index}: ({FromA}→{ToA}) then ({FromB}→{ToB})",
+                        destLabel,
+                        i,
+                        a.FromNodeId,
+                        a.ToNodeId,
+                        b.FromNodeId,
+                        b.ToNodeId
+                    );
+                }
                 break;
             }
         }
@@ -6259,7 +6405,13 @@ public static partial class GroundCommandHandler
     /// </summary>
     private static bool ForcedFormWouldInstall(AirportGroundLayout? groundLayout, RefusedPush refused)
     {
-        Log.LogDebug("[TugMove] {Callsign}: suggestion probe: planning the forced form of the refused push, not to be installed", refused.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TugMove] {Callsign}: suggestion probe: planning the forced form of the refused push, not to be installed",
+                refused.Callsign
+            );
+        }
         TugPlan? plan = TugMovePlanner.Plan(groundLayout, refused.Request with { Forced = true }, out _);
         return (plan is not null) && (refused.InstallRefusal(plan) is null);
     }
@@ -6286,7 +6438,10 @@ public static partial class GroundCommandHandler
     {
         foreach (TugForcedOverride forced in plan.ForcedOverrides)
         {
-            Log.LogDebug("[TugMove] {Callsign}: tug move forced past a rule: {Override}", aircraft.Callsign, forced);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[TugMove] {Callsign}: tug move forced past a rule: {Override}", aircraft.Callsign, forced);
+            }
         }
     }
 
@@ -6559,14 +6714,17 @@ public static partial class GroundCommandHandler
             return PushResolution.Refused($"Cannot find taxiway '{taxiway}' near aircraft");
         }
 
-        Log.LogDebug(
-            "[Pushback] {Callsign}: target taxiway {Twy} at node {NodeId} ({Lat:F6}, {Lon:F6})",
-            aircraft.Callsign,
-            taxiway,
-            exitNode.Id,
-            exitNode.Position.Lat,
-            exitNode.Position.Lon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: target taxiway {Twy} at node {NodeId} ({Lat:F6}, {Lon:F6})",
+                aircraft.Callsign,
+                taxiway,
+                exitNode.Id,
+                exitNode.Position.Lat,
+                exitNode.Position.Lon
+            );
+        }
 
         if ((push.FacingTaxiway is null) && (push.MagneticHeading is null))
         {
@@ -6611,21 +6769,27 @@ public static partial class GroundCommandHandler
         {
             double hintTrueDeg = MagneticDeclination.MagneticToTrue(hint.Degrees, aircraft.Position);
             double? edgeDeg = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, hintTrueDeg);
-            Log.LogDebug(
-                "[Pushback] {Callsign}: face hint {Hint:000} magnetic ({HintTrue:F1} true) → {Facing} along {PTwy}",
-                aircraft.Callsign,
-                hint.ToDisplayInt(),
-                hintTrueDeg,
-                edgeDeg?.ToString("F1") ?? "no edge, the hint itself",
-                taxiway
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Pushback] {Callsign}: face hint {Hint:000} magnetic ({HintTrue:F1} true) → {Facing} along {PTwy}",
+                    aircraft.Callsign,
+                    hint.ToDisplayInt(),
+                    hintTrueDeg,
+                    edgeDeg?.ToString("F1") ?? "no edge, the hint itself",
+                    taxiway
+                );
+            }
             return edgeDeg ?? hintTrueDeg;
         }
 
         GroundNode? facingNode = groundLayout.FindExitByTaxiway(exitNode.Position, push.FacingTaxiway!);
         if (facingNode is null)
         {
-            Log.LogDebug("[Pushback] {Callsign}: cannot find facing taxiway '{FTwy}' near exit node", aircraft.Callsign, push.FacingTaxiway);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Pushback] {Callsign}: cannot find facing taxiway '{FTwy}' near exit node", aircraft.Callsign, push.FacingTaxiway);
+            }
             return null;
         }
 
@@ -6636,14 +6800,17 @@ public static partial class GroundCommandHandler
 
         double bearingToFacing = GeoMath.BearingTo(exitNode.Position, facingNode.Position);
         double? edgeBearing = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, bearingToFacing);
-        Log.LogDebug(
-            "[Pushback] {Callsign}: facing {FTwy} → {Facing} along {PTwy} (bearingToFacing={Brg:F0})",
-            aircraft.Callsign,
-            push.FacingTaxiway,
-            edgeBearing?.ToString("F1") ?? "no edge, the bearing itself",
-            taxiway,
-            bearingToFacing
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: facing {FTwy} → {Facing} along {PTwy} (bearingToFacing={Brg:F0})",
+                aircraft.Callsign,
+                push.FacingTaxiway,
+                edgeBearing?.ToString("F1") ?? "no edge, the bearing itself",
+                taxiway,
+                bearingToFacing
+            );
+        }
         return edgeBearing ?? bearingToFacing;
     }
 
@@ -6684,33 +6851,39 @@ public static partial class GroundCommandHandler
             double awayOffDeg = GeoMath.AbsBearingDifference(away, leads[0]);
             if (Math.Abs(towardOffDeg - awayOffDeg) > FacingTieDeg)
             {
-                Log.LogDebug(
-                    "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} on {Lead:F1} → facing {Facing:F1} along {PTwy}",
-                    aircraft.Callsign,
-                    push.FacingTaxiway,
-                    taxiway,
-                    exitNode.Id,
-                    leads[0],
-                    toward,
-                    taxiway
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} on {Lead:F1} → facing {Facing:F1} along {PTwy}",
+                        aircraft.Callsign,
+                        push.FacingTaxiway,
+                        taxiway,
+                        exitNode.Id,
+                        leads[0],
+                        toward,
+                        taxiway
+                    );
+                }
                 return toward;
             }
         }
 
         double nose = aircraft.TrueHeading.Degrees;
         double leastSwing = AirportGroundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, nose) ?? nose;
-        Log.LogDebug(
-            "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} naming neither direction ({Leads}); "
-                + "guessing the least swing from nose {Nose:F1} → {Facing:F1}",
-            aircraft.Callsign,
-            push.FacingTaxiway,
-            taxiway,
-            exitNode.Id,
-            string.Join("/", leads.Select(l => l.ToString("F1"))),
-            nose,
-            leastSwing
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} naming neither direction ({Leads}); guessing the least swing from "
+                    + "nose {Nose:F1} → {Facing:F1}",
+                aircraft.Callsign,
+                push.FacingTaxiway,
+                taxiway,
+                exitNode.Id,
+                string.Join("/", leads.Select(l => l.ToString("F1"))),
+                nose,
+                leastSwing
+            );
+        }
         return leastSwing;
     }
 
@@ -6842,12 +7015,15 @@ public static partial class GroundCommandHandler
         double? pushFacingTrueDeg = push.MagneticHeading is { } heading
             ? MagneticDeclination.MagneticToTrue(heading.Degrees, aircraft.Position)
             : null;
-        Log.LogDebug(
-            "[Pushback] {Callsign}: to marked point {Point}, forced {Forced}",
-            aircraft.Callsign,
-            pose.Token,
-            goal.ForcedKind?.ToString() ?? "none"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: to marked point {Point}, forced {Forced}",
+                aircraft.Callsign,
+                pose.Token,
+                goal.ForcedKind?.ToString() ?? "none"
+            );
+        }
 
         var readback = new PushReadback(PushReadbackPhrases.ToMarkedPoint(push), null);
         return PushResolution.Of(new PushTarget(goal, pushFacingTrueDeg, TugTerminus.Holding(null), _ => readback));
@@ -6869,12 +7045,15 @@ public static partial class GroundCommandHandler
         (TugGoal Goal, double? FinalFacingTrueDeg) resolved
     )
     {
-        Log.LogDebug(
-            "[Pushback] {Callsign}: to spot {Label}, explicit facing {Facing}",
-            aircraft.Callsign,
-            label,
-            resolved.FinalFacingTrueDeg?.ToString("F1") ?? "none"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: to spot {Label}, explicit facing {Facing}",
+                aircraft.Callsign,
+                label,
+                resolved.FinalFacingTrueDeg?.ToString("F1") ?? "none"
+            );
+        }
 
         PushReadback readback = SpotReadback(push, resolved.Goal.Node!, label);
         return PushResolution.Of(
@@ -6915,13 +7094,16 @@ public static partial class GroundCommandHandler
         }
 
         double? facingTrueDeg = ExplicitSpotFacingTrueDeg(aircraft.Position, push.MagneticHeading, push.FacingTaxiway, goal.Node!, groundLayout);
-        Log.LogDebug(
-            "[Pushback] {Callsign}: to node #{NodeId} ({Kind}), explicit facing {Facing}",
-            aircraft.Callsign,
-            nodeId,
-            goal.Kind,
-            facingTrueDeg?.ToString("F1") ?? "none"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: to node #{NodeId} ({Kind}), explicit facing {Facing}",
+                aircraft.Callsign,
+                nodeId,
+                goal.Kind,
+                facingTrueDeg?.ToString("F1") ?? "none"
+            );
+        }
 
         // A spot node reads as PUSH $spot does; any other node holds where the tug leaves it.
         bool onSpot = goal.Kind == TugGoalKind.Spot;
@@ -7077,13 +7259,16 @@ public static partial class GroundCommandHandler
         MarkRunningPushOff(pushOff, plan, terminus.EndTaxiway);
         aircraft.Ground.ForcedTowIgnoresParked = push.Forced;
         LogForcedOverrides(aircraft, plan);
-        Log.LogDebug(
-            "[Pushback] {Callsign}: face heading amended to {Heading:000} ({FacingTrue:F1} true), re-planned as {Moves}",
-            aircraft.Callsign,
-            heading.ToDisplayInt(),
-            facingTrueDeg,
-            DescribeMoves(plan)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Pushback] {Callsign}: face heading amended to {Heading:000} ({FacingTrue:F1} true), re-planned as {Moves}",
+                aircraft.Callsign,
+                heading.ToDisplayInt(),
+                facingTrueDeg,
+                DescribeMoves(plan)
+            );
+        }
         return PushAccepted(CanonicalCommandType.Pushback, new PushReadback(PushReadbackPhrases.Amended(push), null), plan);
     }
 
@@ -7330,13 +7515,16 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        Log.LogDebug(
-            "[TugMove] {Callsign}: refused, outline overlaps {Other} at the start (clearance {ClearanceFt:F1} ft, towed nose-first={Towed})",
-            aircraft.Callsign,
-            overlap.NeighbourCallsign,
-            overlap.ClearanceFt,
-            overlap.TowedNoseFirst
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TugMove] {Callsign}: refused, outline overlaps {Other} at the start (clearance {ClearanceFt:F1} ft, towed nose-first={Towed})",
+                aircraft.Callsign,
+                overlap.NeighbourCallsign,
+                overlap.ClearanceFt,
+                overlap.TowedNoseFirst
+            );
+        }
         return new CommandResult(false, overlap.Refusal);
     }
 
@@ -7392,14 +7580,17 @@ public static partial class GroundCommandHandler
                 break;
         }
 
-        Log.LogDebug(
-            "[TugMove] {Callsign}: {MoveCount} moves ({Moves}), fromStand={FromStand}, terminus={Terminus}",
-            aircraft.Callsign,
-            plan.Moves.Count,
-            DescribeMoves(plan),
-            atStand,
-            terminus.Kind
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TugMove] {Callsign}: {MoveCount} moves ({Moves}), fromStand={FromStand}, terminus={Terminus}",
+                aircraft.Callsign,
+                plan.Moves.Count,
+                DescribeMoves(plan),
+                atStand,
+                terminus.Kind
+            );
+        }
     }
 
     /// <summary>
@@ -7689,12 +7880,15 @@ public static partial class GroundCommandHandler
         {
             if ((aircraft.Ground.Layout is { } layout) && (follow.CrossingToFinish(aircraft, layout) is { } crossing))
             {
-                Log.LogDebug(
-                    "[Follow] {Callsign}: HOLD breaks off the follow of {Target} inside runway {Runway}'s markings; held on its crossing",
-                    aircraft.Callsign,
-                    follow.TargetCallsign,
-                    crossing.RunwayId
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Follow] {Callsign}: HOLD breaks off the follow of {Target} inside runway {Runway}'s markings; held on its crossing",
+                        aircraft.Callsign,
+                        follow.TargetCallsign,
+                        crossing.RunwayId
+                    );
+                }
                 PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, activeRunways, layout);
                 crossing.EndAtRest(ctx);
                 phases.ReplaceUpcoming([crossing, HoldingInPositionPhase.AfterFollowBreakOff()]);
@@ -7703,7 +7897,10 @@ public static partial class GroundCommandHandler
                 return;
             }
 
-            Log.LogDebug("[Follow] {Callsign}: HOLD breaks off the follow of {Target}", aircraft.Callsign, follow.TargetCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Follow] {Callsign}: HOLD breaks off the follow of {Target}", aircraft.Callsign, follow.TargetCallsign);
+            }
             phases.ReplaceUpcoming([]);
             follow.BreakOff();
             return;
@@ -8388,7 +8585,10 @@ public static partial class GroundCommandHandler
 
         runwayHold.SatisfyClearance(ClearanceType.RunwayCrossing);
         phases.LahsoHoldShort = null;
-        Log.LogDebug("[LAHSO] {Callsign}: cleared to cross runway {CrossRwy}", aircraft.Callsign, crossing);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[LAHSO] {Callsign}: cleared to cross runway {CrossRwy}", aircraft.Callsign, crossing);
+        }
         // The release reads its own "without delay": the hold's crossing is no hold short on a route that would carry it, and a
         // command naming several runways has no continuation readback of its own to say it (TryCrossRunway skips
         // WithExpediteEcho for a release).
@@ -8656,7 +8856,15 @@ public static partial class GroundCommandHandler
         );
         if ((route is null) || (crossing is null))
         {
-            Log.LogDebug("{Callsign}: CROSS {Runway} held short of {Taxiway} — the taxiway does not cross it", aircraft.Callsign, display, taxiway);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: CROSS {Runway} held short of {Taxiway} — the taxiway does not cross it",
+                    aircraft.Callsign,
+                    display,
+                    taxiway
+                );
+            }
             return new CommandResult(false, $"CROSS {display}: taxiway {taxiway} does not cross runway {display}");
         }
 
@@ -9161,13 +9369,16 @@ public static partial class GroundCommandHandler
         var crossing = CrossingRunwayPhase.OverOwnPath(bar.NodeId, held.ExitNodeId, held.Runway.ToString(), held.Route, bar.IsExpedited);
         aircraft.Phases!.ReplaceUpcoming([crossing, FollowBehindCrossing(armedFollow, bar.NodeId, held.Runway, clearedRunways)]);
         held.Hold.SatisfyClearance(ClearanceType.RunwayCrossing);
-        Log.LogDebug(
-            "[Follow] {Callsign}: crossing {Runway} from bar {Bar} to {Exit} along its follow route",
-            aircraft.Callsign,
-            held.Runway,
-            bar.NodeId,
-            held.ExitNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: crossing {Runway} from bar {Bar} to {Exit} along its follow route",
+                aircraft.Callsign,
+                held.Runway,
+                bar.NodeId,
+                held.ExitNodeId
+            );
+        }
     }
 
     private static bool IsRunwayHoldShort(AirportGroundLayout layout, HoldShortPoint holdShort, out RunwayIdentifier runwayId)
@@ -9479,13 +9690,16 @@ public static partial class GroundCommandHandler
         bool unable = MarkUnmakeableHoldShort(aircraft, groundLayout, route, plan);
         NotifyTaxiHoldShortsChanged(aircraft);
 
-        Log.LogDebug(
-            "[HS] {Callsign}: hold short of {Target} ({Outcome}), unable={Unable}",
-            aircraft.Callsign,
-            hs.Target.ToCanonical(),
-            plan.Outcome,
-            unable
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HS] {Callsign}: hold short of {Target} ({Outcome}), unable={Unable}",
+                aircraft.Callsign,
+                hs.Target.ToCanonical(),
+                plan.Outcome,
+                unable
+            );
+        }
 
         return CommandDispatcher.Ok(unable ? UnableToHoldShortMessage(hs.Target) : $"Hold short of {hs.Target.ToNatural()}");
     }
@@ -9604,7 +9818,10 @@ public static partial class GroundCommandHandler
         // Names the runway as the pilot's readback of this FOLLOWG does (PilotResponder's armed-follow clause), so the terminal and
         // the voice agree.
         string target = hold.RunwayEndFacing(aircraft, activeRunways);
-        Log.LogDebug("[Follow] {Callsign}: follow {Leader} armed behind the hold short of {Target}", aircraft.Callsign, leader, target);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Follow] {Callsign}: follow {Leader} armed behind the hold short of {Target}", aircraft.Callsign, leader, target);
+        }
         return CommandDispatcher.Ok($"Follow {leader}, hold short of {target}");
     }
 
@@ -10444,12 +10661,15 @@ public static partial class GroundCommandHandler
         RunwayInfo? runway = ResolveClosestRunwayEnd(rwyId.Value, node.Position.Lat, node.Position.Lon, aircraft);
         if (runway is not null)
         {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: auto-detected runway {Rwy} from final node {NodeId}",
-                aircraft.Callsign,
-                runway.Designator,
-                finalNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryTaxi] {Callsign}: auto-detected runway {Rwy} from final node {NodeId}",
+                    aircraft.Callsign,
+                    runway.Designator,
+                    finalNodeId
+                );
+            }
         }
 
         return runway;
@@ -10487,7 +10707,10 @@ public static partial class GroundCommandHandler
 
         aircraft.Ground.ConflictBreakRemainingSeconds = BreakDurationSeconds;
         aircraft.Ground.SpeedLimit = null;
-        Log.LogInformation("[Break] {Callsign}: ignoring ground conflicts for {Duration}s", aircraft.Callsign, BreakDurationSeconds);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("[Break] {Callsign}: ignoring ground conflicts for {Duration}s", aircraft.Callsign, BreakDurationSeconds);
+        }
         return CommandDispatcher.Ok($"Ignore ground conflicts ({BreakDurationSeconds:F0} s)");
     }
 
@@ -10550,12 +10773,15 @@ public static partial class GroundCommandHandler
         aircraft.Phases.Add(new HoldingInPositionPhase());
         aircraft.Phases.Start(ctx);
 
-        Log.LogInformation(
-            "[ClearRunway] {Callsign}: pulling forward clear of RWY node {Rwy} from hold-short of {Target}",
-            aircraft.Callsign,
-            runwayNodeId,
-            holdPhase.HoldShort.TargetName ?? "taxiway"
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[ClearRunway] {Callsign}: pulling forward clear of RWY node {Rwy} from hold-short of {Target}",
+                aircraft.Callsign,
+                runwayNodeId,
+                holdPhase.HoldShort.TargetName ?? "taxiway"
+            );
+        }
         return CommandDispatcher.Ok("clearing the runway, holding");
     }
 
@@ -10567,7 +10793,10 @@ public static partial class GroundCommandHandler
         }
 
         stopAndGo.TriggerGo();
-        Log.LogInformation("[Go] {Callsign}: manual takeoff roll triggered", aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("[Go] {Callsign}: manual takeoff roll triggered", aircraft.Callsign);
+        }
         return CommandDispatcher.Ok("Begin takeoff roll");
     }
 
@@ -10652,7 +10881,10 @@ public static partial class GroundCommandHandler
 
         if (ExitReplacesStoredTaxiRoute(aircraft.Phases, preference))
         {
-            Log.LogInformation("[Exit] {Callsign}: new exit instruction replaces the stored taxi route", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("[Exit] {Callsign}: new exit instruction replaces the stored taxi route", aircraft.Callsign);
+            }
             aircraft.Phases.ClearStoredTaxiRoute();
             (aircraft.Phases.CurrentPhase as LandingPhase)?.DropSideTowardTaxiRoute();
         }

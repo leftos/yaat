@@ -840,7 +840,10 @@ internal static class NavigationCommandHandler
             fix.CrossingTransmissionId = null;
             fix.RevertAltitude = null;
             fix.RevertAssignedAltitude = null;
-            Log.LogDebug("{Callsign}: the maintain cancels the crossing altitude at {Fix} on the pending route", aircraft.Callsign, fix.Name);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: the maintain cancels the crossing altitude at {Fix} on the pending route", aircraft.Callsign, fix.Name);
+            }
         }
 
         return result;
@@ -1270,13 +1273,16 @@ internal static class NavigationCommandHandler
         if (joinIndex >= 0)
         {
             List<CifpLeg> tail = fixLegs.GetRange(joinIndex + 1, fixLegs.Count - joinIndex - 1);
-            Log.LogDebug(
-                "{Star} runway transition joins the route at {Fix} (transition leg {Index}); appending {Appended}",
-                star.ProcedureId,
-                fixLegs[joinIndex].FixIdentifier,
-                joinIndex,
-                DescribeLegFixes(tail)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Star} runway transition joins the route at {Fix} (transition leg {Index}); appending {Appended}",
+                    star.ProcedureId,
+                    fixLegs[joinIndex].FixIdentifier,
+                    joinIndex,
+                    DescribeLegFixes(tail)
+                );
+            }
             return tail;
         }
 
@@ -1285,13 +1291,16 @@ internal static class NavigationCommandHandler
         // FlightPhysics.ClearProcedureState nulls ActiveStarId when the route's last fix sequences, which returns
         // ExtendActiveStarWithRunwayTransition before this lookup.
         bool endsBeforeTransition = routeNames.Count == 0 || IsOnStarCommonRoute(star, routeNames[^1]);
-        Log.LogDebug(
-            "{Star} runway transition has no fix on the route, which ends at {LastFix} (before the transition: {Before}); appending {Appended}",
-            star.ProcedureId,
-            routeNames.Count > 0 ? routeNames[^1] : "<no route>",
-            endsBeforeTransition,
-            DescribeLegFixes(endsBeforeTransition ? fixLegs : [])
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Star} runway transition has no fix on the route, which ends at {LastFix} (before the transition: {Before}); appending {Appended}",
+                star.ProcedureId,
+                routeNames.Count > 0 ? routeNames[^1] : "<no route>",
+                endsBeforeTransition,
+                DescribeLegFixes(endsBeforeTransition ? fixLegs : [])
+            );
+        }
         return endsBeforeTransition ? fixLegs : [];
     }
 
@@ -2827,12 +2836,15 @@ internal static class NavigationCommandHandler
     {
         if (ResolveActiveStar(aircraft) is not { } star)
         {
-            Log.LogDebug(
-                "{Callsign}: STAR {Star} at {Dest} unresolved; superseded crossing restrictions are cleared, not restored",
-                aircraft.Callsign,
-                aircraft.Procedure.ActiveStarId,
-                aircraft.FlightPlan.Destination
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: STAR {Star} at {Dest} unresolved; superseded crossing restrictions are cleared, not restored",
+                    aircraft.Callsign,
+                    aircraft.Procedure.ActiveStarId,
+                    aircraft.FlightPlan.Destination
+                );
+            }
             return new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
         }
 
