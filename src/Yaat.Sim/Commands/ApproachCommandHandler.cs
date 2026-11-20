@@ -380,17 +380,20 @@ public static class ApproachCommandHandler
 
     private static CommandResult TryClearedApproachCore(ClearedApproachCommand cmd, AircraftState aircraft, ResolvedApproach resolved)
     {
-        Log.LogDebug(
-            "[CAPP] {Callsign} cmd=({Apch} apt={Apt} dct={Dct} at={At}) nav=[{Route}] hdg={Hdg:F1} assignedHdg={Assigned}",
-            aircraft.Callsign,
-            cmd.ApproachId,
-            cmd.AirportCode,
-            cmd.DctFix,
-            cmd.AtFix,
-            string.Join(",", aircraft.Targets.NavigationRoute.Select(n => n.Name)),
-            aircraft.TrueHeading.Degrees,
-            aircraft.Targets.AssignedMagneticHeading?.Degrees.ToString("F0") ?? "null"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[CAPP] {Callsign} cmd=({Apch} apt={Apt} dct={Dct} at={At}) nav=[{Route}] hdg={Hdg:F1} assignedHdg={Assigned}",
+                aircraft.Callsign,
+                cmd.ApproachId,
+                cmd.AirportCode,
+                cmd.DctFix,
+                cmd.AtFix,
+                string.Join(",", aircraft.Targets.NavigationRoute.Select(n => n.Name)),
+                aircraft.TrueHeading.Degrees,
+                aircraft.Targets.AssignedMagneticHeading?.Degrees.ToString("F0") ?? "null"
+            );
+        }
 
         if (!resolved.Success)
         {
@@ -2206,12 +2209,15 @@ public static class ApproachCommandHandler
         CifpTransition? beginning = procedure.Transitions.Values.FirstOrDefault(transition => TransitionBeginsAt(transition, fixName));
         if (beginning is not null && containing is not null && !ReferenceEquals(beginning, containing))
         {
-            Log.LogDebug(
-                "Transition selection at {Fix}: {Beginning} begins there, chosen over {Containing}, the first transition containing it",
-                fixName,
-                beginning.Name,
-                containing.Name
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Transition selection at {Fix}: {Beginning} begins there, chosen over {Containing}, the first transition containing it",
+                    fixName,
+                    beginning.Name,
+                    containing.Name
+                );
+            }
         }
 
         return beginning ?? containing;
@@ -2593,7 +2599,11 @@ public static class ApproachCommandHandler
         CifpLeg? inboundLeg = legsIntoFix.Count > 0 ? legsIntoFix[0] : null;
         if (inboundLeg?.OutboundCourse is not { } inboundMagDeg)
         {
-            Log.LogDebug("[ProcedureTurn] no leg into {Fix} carries a course, using the final approach course", piLeg.FixIdentifier);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ProcedureTurn] no leg into {Fix} carries a course, using the final approach course", piLeg.FixIdentifier);
+            }
+
             return finalCourse;
         }
 

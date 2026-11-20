@@ -63,15 +63,19 @@ public static partial class GroundCommandHandler
     {
         List<string> admitted = [.. candidates.Where(reach.Admits)];
         List<string> skipped = [.. candidates.Where(candidate => !reach.Admits(candidate))];
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: missing-taxiway reach to {Destination} names {Count} taxiways; cleared path touches it: {PathTouches}; "
-                + "skipped [{Skipped}]",
-            callsign,
-            reach.Destination,
-            reach.Reachable.Count,
-            reach.PathTouches,
-            string.Join(" ", skipped)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: missing-taxiway reach to {Destination} names {Count} taxiways; cleared path touches it: {PathTouches}; "
+                    + "skipped [{Skipped}]",
+                callsign,
+                reach.Destination,
+                reach.Reachable.Count,
+                reach.PathTouches,
+                string.Join(" ", skipped)
+            );
+        }
+
         return admitted;
     }
 

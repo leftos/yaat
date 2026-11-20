@@ -1099,7 +1099,11 @@ public static class CommandDispatcher
         CommandResult joined = NavigationCommandHandler.DispatchJfac(new JoinFinalApproachCourseCommand(clearance.ApproachId), aircraft);
         if (!joined.Success)
         {
-            Log.LogDebug("[CAPP] {Callsign} JFAC, CAPP in place: join refused ({Message})", aircraft.Callsign, joined.Message);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[CAPP] {Callsign} JFAC, CAPP in place: join refused ({Message})", aircraft.Callsign, joined.Message);
+            }
+
             return joined;
         }
 
@@ -1128,13 +1132,16 @@ public static class CommandDispatcher
     )
     {
         aircraft.Queue.Blocks.AddRange(SupersedeForTransmission(compound, aircraft, ctx));
-        Log.LogDebug(
-            "[CAPP] {Callsign} cleared {Approach} in place (lateralOnly={LateralOnly}, phase={Phase})",
-            aircraft.Callsign,
-            clearance.ApproachId,
-            clearance.LateralInterceptOnly,
-            aircraft.Phases?.CurrentPhase?.Name
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[CAPP] {Callsign} cleared {Approach} in place (lateralOnly={LateralOnly}, phase={Phase})",
+                aircraft.Callsign,
+                clearance.ApproachId,
+                clearance.LateralInterceptOnly,
+                aircraft.Phases?.CurrentPhase?.Name
+            );
+        }
 
         // Authorize the descent on the join already in progress. The glideslope still gates on the
         // aircraft's lateral establishment (5°/0.15nm) — a relaxed join is not a PTACF forced
@@ -3345,11 +3352,15 @@ public static class CommandDispatcher
 
         if (aircraft.Phases?.AssignedRunway is not { } runway)
         {
-            Log.LogDebug(
-                "{Callsign}: bare go-around on {Phase} with no assigned runway; the outside-FAF refusal does not apply",
-                aircraft.Callsign,
-                currentPhase.Name
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: bare go-around on {Phase} with no assigned runway; the outside-FAF refusal does not apply",
+                    aircraft.Callsign,
+                    currentPhase.Name
+                );
+            }
+
             return null;
         }
 

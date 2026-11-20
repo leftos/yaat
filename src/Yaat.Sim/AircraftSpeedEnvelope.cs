@@ -64,7 +64,10 @@ public static class AircraftSpeedEnvelope
 
         _typeClasses = lookup;
         AircraftPerformance.ClearSpeedEnvelopeCache();
-        Log.LogInformation("Aircraft speed envelope classes loaded: {Count} types", _typeClasses.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Aircraft speed envelope classes loaded: {Count} types", _typeClasses.Count);
+        }
     }
 
     /// <summary>

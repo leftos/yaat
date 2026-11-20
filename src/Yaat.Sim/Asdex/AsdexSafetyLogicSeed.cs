@@ -55,7 +55,11 @@ public static class AsdexSafetyLogicSeed
             IReadOnlyList<RunwayInfo> navRunways = FacilityRunways(facility.Id, navDb);
             if (navRunways.Count == 0)
             {
-                Log.LogDebug("No ASDE-X safety-logic seed for {FacilityId}: navdata has no runways for it", facility.Id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("No ASDE-X safety-logic seed for {FacilityId}: navdata has no runways for it", facility.Id);
+                }
+
                 continue;
             }
 
@@ -150,7 +154,11 @@ public static class AsdexSafetyLogicSeed
             string id = SelectRunwayConfigurationId(asdex, after.For(facilityId));
             if (id != current.RunwayConfigurationId)
             {
-                Log.LogDebug("ASDE-X facility {FacilityId} re-picks runway configuration {ConfigurationId}", facilityId, id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("ASDE-X facility {FacilityId} re-picks runway configuration {ConfigurationId}", facilityId, id);
+                }
+
                 IReadOnlyDictionary<string, double> superseded = recordSuperseded
                     ? AsdexSafetyLogicConfig.Seconds(
                         current
@@ -249,7 +257,11 @@ public static class AsdexSafetyLogicSeed
             RunwayInfo? nav = navRunways.FirstOrDefault(runway => NamesRunway(id, runway));
             if (nav is null)
             {
-                Log.LogDebug("ASDE-X safety-logic seed for {FacilityId} leaves out runway {RunwayId}: navdata does not have it", facilityId, id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("ASDE-X safety-logic seed for {FacilityId} leaves out runway {RunwayId}: navdata does not have it", facilityId, id);
+                }
+
                 continue;
             }
 

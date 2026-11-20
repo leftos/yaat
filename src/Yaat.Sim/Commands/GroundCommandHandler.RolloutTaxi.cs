@@ -231,7 +231,15 @@ public static partial class GroundCommandHandler
             pairRefusal ??= PairRefusalOf(fromExit);
             if (JoinsFromExit(fromExit, exit, runway.Designator))
             {
-                Log.LogDebug("[TryTaxi] {Callsign}: TAXIAUTO via {Exit}, the first makeable exit with a route", aircraft.Callsign, exit.TaxiwayName);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[TryTaxi] {Callsign}: TAXIAUTO via {Exit}, the first makeable exit with a route",
+                        aircraft.Callsign,
+                        exit.TaxiwayName
+                    );
+                }
+
                 var chosen = new ExitPreference { Taxiway = exit.TaxiwayName, Side = exit.Side };
                 ReplacePreviousRolloutTaxi(landing, aircraft);
                 if (exit.Side is { } side)
@@ -259,13 +267,17 @@ public static partial class GroundCommandHandler
     /// </summary>
     private static CommandResult PassedThrough(TaxiResolveInputs inputs, CommandResult pairRefusal)
     {
-        Log.Log(
-            inputs.FailureLogLevel,
-            "[TryTaxi] {Callsign}: TAXI {Taxi} refused from every exit — {Reason}",
-            inputs.Aircraft.Callsign,
-            string.Join(" ", inputs.AsCleared.Path),
-            pairRefusal.Message
-        );
+        if (Log.IsEnabled(inputs.FailureLogLevel))
+        {
+            Log.Log(
+                inputs.FailureLogLevel,
+                "[TryTaxi] {Callsign}: TAXI {Taxi} refused from every exit — {Reason}",
+                inputs.Aircraft.Callsign,
+                string.Join(" ", inputs.AsCleared.Path),
+                pairRefusal.Message
+            );
+        }
+
         return pairRefusal;
     }
 
@@ -321,7 +333,16 @@ public static partial class GroundCommandHandler
                 && (JoinStoredRoute(Spliced(route, [], onFirst), JoinAt(exit, rollout.Runway.Designator)) is not null)
             )
             {
-                Log.LogDebug("[TryTaxi] {Callsign}: TAXI joins {First} straight from the exit {Exit}", aircraft.Callsign, first, exit.TaxiwayName);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[TryTaxi] {Callsign}: TAXI joins {First} straight from the exit {Exit}",
+                        aircraft.Callsign,
+                        first,
+                        exit.TaxiwayName
+                    );
+                }
+
                 var picked = new ExitPreference { Taxiway = exit.TaxiwayName, Side = exit.Side };
                 ReplacePreviousRolloutTaxi(landing, aircraft);
                 if (exit.Side is { } side)
@@ -512,12 +533,15 @@ public static partial class GroundCommandHandler
         SetClearanceTaxiways(route, inputs.AsCleared, inputs.Options.IsTaxiAuto);
 
         StoreTaxiRoute(aircraft.Phases!, route, stored.Taxi.DestinationRunway);
-        Log.LogInformation(
-            "[TryTaxi] {Callsign}: taxi stored behind the rollout exit {Exit}: {Summary}",
-            aircraft.Callsign,
-            impliedExit?.Taxiway ?? "(rollout's pick)",
-            route.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[TryTaxi] {Callsign}: taxi stored behind the rollout exit {Exit}: {Summary}",
+                aircraft.Callsign,
+                impliedExit?.Taxiway ?? "(rollout's pick)",
+                route.ToSummary()
+            );
+        }
 
         PilotSpeechText? speech = announcedExit is { Taxiway: not null } ? ImpliedExitReadback(announcedExit, inputs.AsCleared) : null;
         ExitPreference? exitClause = speech is null ? null : announcedExit;
@@ -541,8 +565,16 @@ public static partial class GroundCommandHandler
 
         CanonicalCommandType type = inputs.Options.IsTaxiAuto ? CanonicalCommandType.TaxiAuto : CanonicalCommandType.Taxi;
         string message = $"{ExitInstructionText(exitClause, expedite: false)}, {char.ToLowerInvariant(taxiMessage[0])}{taxiMessage[1..]}";
-        Log.LogDebug("[TryTaxi] {Callsign}: implied exit {Taxiway}", aircraft.Callsign, exitClause.Taxiway);
-        return CommandDispatcher.Ok(message) with { EffectiveCommand = stored.EffectiveCommand, PilotReadback = new HandlerReadback(type, speech) };
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryTaxi] {Callsign}: implied exit {Taxiway}", aircraft.Callsign, exitClause.Taxiway);
+        }
+
+        return CommandDispatcher.Ok(message) with
+        {
+            EffectiveCommand = stored.EffectiveCommand,
+            PilotReadback = new HandlerReadback(type, speech),
+        };
     }
 
     /// <summary>
@@ -583,14 +615,22 @@ public static partial class GroundCommandHandler
         string crossing = hold.CrossingRunwayId;
         if ((request.Taxi.CrossRunways ?? []).Any(r => HoldShortAnnotator.TargetMatches(crossing, r)))
         {
-            Log.LogDebug("[TryTaxi] {Callsign}: the TAXI clears runway {Runway}; runs at once from the LAHSO hold", aircraft.Callsign, crossing);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[TryTaxi] {Callsign}: the TAXI clears runway {Runway}; runs at once from the LAHSO hold", aircraft.Callsign, crossing);
+            }
+
             return null;
         }
 
         // Cleared to cross already (a CROSS earlier in the block, or before the hold's next tick ends it): nothing to wait for.
         if (hold.Requirements.Any(static r => r.IsSatisfied))
         {
-            Log.LogDebug("[TryTaxi] {Callsign}: already cleared to cross runway {Runway}; runs at once", aircraft.Callsign, crossing);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[TryTaxi] {Callsign}: already cleared to cross runway {Runway}; runs at once", aircraft.Callsign, crossing);
+            }
+
             return null;
         }
 
@@ -631,12 +671,15 @@ public static partial class GroundCommandHandler
         aircraft.Ground.AssignedTaxiRoute = null;
         SetClearanceTaxiways(route, inputs.AsCleared, inputs.Options.IsTaxiAuto);
         StoreTaxiRoute(phases, route, request.Taxi.DestinationRunway);
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: taxi stored at the LAHSO hold until cleared to cross runway {Runway}: {Summary}",
-            aircraft.Callsign,
-            display,
-            route.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: taxi stored at the LAHSO hold until cleared to cross runway {Runway}: {Summary}",
+                aircraft.Callsign,
+                display,
+                route.ToSummary()
+            );
+        }
 
         TaxiResolution resolved = request.Resolved;
         var readbackInputs = new TaxiReadbackInputs(resolved.OccupiedTaxiway, resolved.EndsShort, !inputs.Options.IsTaxiAuto, null, null);
@@ -750,7 +793,10 @@ public static partial class GroundCommandHandler
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, activeRunways, layout);
         phases.Clear(ctx);
         InstallStoredTaxiRoute(ctx, layout, route, destinationRunway);
-        Log.LogDebug("[TryTaxi] {Callsign}: stored taxi route started from the LAHSO hold: {Summary}", aircraft.Callsign, route.ToSummary());
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryTaxi] {Callsign}: stored taxi route started from the LAHSO hold: {Summary}", aircraft.Callsign, route.ToSummary());
+        }
     }
 
     /// <summary>
@@ -847,11 +893,14 @@ public static partial class GroundCommandHandler
         if ((join is null) || (JoinStoredRoute(stored, join) is not { } route))
         {
             string taxiway = FirstOffRunwayTaxiway(layout, stored, join?.RunwayId);
-            Log.LogInformation(
-                "[TryTaxi] {Callsign}: the exit does not reach the stored route; dropped, unable {Taxiway}",
-                aircraft.Callsign,
-                taxiway
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[TryTaxi] {Callsign}: the exit does not reach the stored route; dropped, unable {Taxiway}",
+                    aircraft.Callsign,
+                    taxiway
+                );
+            }
             PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(ctx), PilotResponder.BuildUnableToExit(aircraft, taxiway));
 
             // The route the expedite was given for is dropped, and the expedite with it.
@@ -871,7 +920,11 @@ public static partial class GroundCommandHandler
         // a fresh list, as a TAXI issued once the exit is complete gets (TryTaxiCore), so none of the landing's state survives.
         phases.ReplaceUpcoming([]);
         InstallStoredTaxiRoute(ctx, layout, route, destinationRunway);
-        Log.LogInformation("[TryTaxi] {Callsign}: stored taxi route started from the exit: {Summary}", aircraft.Callsign, route.ToSummary());
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("[TryTaxi] {Callsign}: stored taxi route started from the exit: {Summary}", aircraft.Callsign, route.ToSummary());
+        }
+
         return true;
     }
 

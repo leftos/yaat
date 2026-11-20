@@ -83,11 +83,15 @@ public static class AsdexHoldBarBuilder
         RunwayInfo? nav = navRunways.FirstOrDefault(runway => NamesRunway(config.Id, runway));
         if (nav is null)
         {
-            Log.LogDebug(
-                "ASDE-X runway {RunwayId} at {FacilityId} gets no hold bars and no runway users: navdata does not have it",
-                config.Id,
-                facilityId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "ASDE-X runway {RunwayId} at {FacilityId} gets no hold bars and no runway users: navdata does not have it",
+                    config.Id,
+                    facilityId
+                );
+            }
+
             return null;
         }
 
@@ -243,7 +247,11 @@ public static class AsdexHoldBarBuilder
             current = edge.Edge.OtherNode(current);
         }
 
-        Log.LogDebug("No hold bar for hold-short node {NodeId}: its taxiway never reaches runway {Runway}'s edge", hold.Id, runway.Id);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("No hold bar for hold-short node {NodeId}: its taxiway never reaches runway {Runway}'s edge", hold.Id, runway.Id);
+        }
+
         return null;
     }
 

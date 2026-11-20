@@ -150,13 +150,16 @@ public static partial class GroundCommandHandler
         double offRouteDeg = targetId is { } id
             ? OffBearingDeg(aircraft, inputs.Layout.Nodes[id])
             : GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, firstLegBearing);
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: held after a push, nose {Heading:F1} is {OffRouteDeg:F1}° off {Toward}",
-            aircraft.Callsign,
-            aircraft.TrueHeading.Degrees,
-            offRouteDeg,
-            targetId is { } turnAboutTarget ? $"turn-about target node {turnAboutTarget}" : $"the route's first leg {firstLegBearing:F1}"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: held after a push, nose {Heading:F1} is {OffRouteDeg:F1}° off {Toward}",
+                aircraft.Callsign,
+                aircraft.TrueHeading.Degrees,
+                offRouteDeg,
+                targetId is { } turnAboutTarget ? $"turn-about target node {turnAboutTarget}" : $"the route's first leg {firstLegBearing:F1}"
+            );
+        }
         return offRouteDeg >= GroundNavigator.ReversalEntryThresholdDeg;
     }
 

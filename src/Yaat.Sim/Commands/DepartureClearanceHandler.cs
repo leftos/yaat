@@ -776,14 +776,17 @@ internal static class DepartureClearanceHandler
         if (TrafficOnImplicitTaxi(aircraft, taxi, implicitTaxi) is { } blocked)
         {
             string blockedTaxiway = blocked.Taxiway ?? taxiway;
-            logger.LogDebug(
-                "{Callsign}: unable at the hold short of {Taxiway} — {Traffic} stands on {BlockedTaxiway} on the way to the {Runway} hold short",
-                aircraft.Callsign,
-                taxiway,
-                blocked.Traffic.Callsign,
-                blockedTaxiway,
-                runway.Designator
-            );
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(
+                    "{Callsign}: unable at the hold short of {Taxiway} — {Traffic} stands on {BlockedTaxiway} on the way to the {Runway} hold short",
+                    aircraft.Callsign,
+                    taxiway,
+                    blocked.Traffic.Callsign,
+                    blockedTaxiway,
+                    runway.Designator
+                );
+            }
             PilotSpeechText unable = PilotResponder.BuildUnableTrafficOnTaxiway(aircraft, blockedTaxiway);
             return new CommandResult(false, unable.Terminal) { PilotUnable = unable };
         }
@@ -795,14 +798,18 @@ internal static class DepartureClearanceHandler
             return StoreImplicitTaxiTakeoff(aircraft, taxiway, request.ClearanceType, request.Departure, request.AssignedAltitude, logger);
         }
 
-        logger.LogDebug(
-            "{Callsign}: {Clearance} at the hold short of {Taxiway} keeps the hold — taxi to {Runway} failed: {Reason}",
-            aircraft.Callsign,
-            request.ClearanceType,
-            taxiway,
-            runway.Designator,
-            taxiResult.Message
-        );
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug(
+                "{Callsign}: {Clearance} at the hold short of {Taxiway} keeps the hold — taxi to {Runway} failed: {Reason}",
+                aircraft.Callsign,
+                request.ClearanceType,
+                taxiway,
+                runway.Designator,
+                taxiResult.Message
+            );
+        }
+
         return null;
     }
 
@@ -955,15 +962,18 @@ internal static class DepartureClearanceHandler
 
         RunwayInfo? assigned = aircraft.Phases?.AssignedRunway;
         NamedRunwayReach reach = ClassifyNamedRunwayReach(aircraft, taxiway, runway, request.CrossingsCleared, request.ClearanceType, taxiDispatch);
-        logger.LogDebug(
-            "{Callsign}: {Clearance} naming {Runway} at the hold short of {Taxiway} (assigned {Assigned}) — {Reach}",
-            aircraft.Callsign,
-            request.ClearanceType,
-            runway.Designator,
-            taxiway,
-            assigned?.Designator ?? "none",
-            reach.Kind
-        );
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug(
+                "{Callsign}: {Clearance} naming {Runway} at the hold short of {Taxiway} (assigned {Assigned}) — {Reach}",
+                aircraft.Callsign,
+                request.ClearanceType,
+                runway.Designator,
+                taxiway,
+                assigned?.Designator ?? "none",
+                reach.Kind
+            );
+        }
         if ((reach.Kind == NamedRunwayReachKind.NeedsCrossing) && (reach.CrossingTarget is { } crossingTarget))
         {
             string crossing = SpokenCrossingRunway(aircraft, crossingTarget, assigned, runway, taxiDispatch.ActiveRunways);
@@ -1519,13 +1529,16 @@ internal static class DepartureClearanceHandler
             }
         }
 
-        logger.LogDebug(
-            "[Departure] {Callsign}: tower phases inserted ({Clearance}, rolling={Rolling}), runway {Rwy}",
-            aircraft.Callsign,
-            clearanceType,
-            rolling,
-            runway.Designator
-        );
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug(
+                "[Departure] {Callsign}: tower phases inserted ({Clearance}, rolling={Rolling}), runway {Rwy}",
+                aircraft.Callsign,
+                clearanceType,
+                rolling,
+                runway.Designator
+            );
+        }
 
         return routeResult;
     }
@@ -1632,7 +1645,10 @@ internal static class DepartureClearanceHandler
             }
         }
 
-        logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
+        }
 
         SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, assignedAltitude);
 
@@ -2736,12 +2752,15 @@ internal static class DepartureClearanceHandler
             $"Takeoff clearance cancelled, unable to hold short of runway {PhraseologyVerbalizer.CompactRunway(runway)}, stopping",
             $"takeoff clearance cancelled, unable to hold short of runway {PhraseologyVerbalizer.SpellRunway(runway)}, stopping"
         );
-        Log.LogInformation(
-            "[CTOC] {Callsign}: hold short of {Target} re-armed inside the firm stopping distance at {Gs:F1} kt — unable",
-            aircraft.Callsign,
-            bar.TargetName,
-            aircraft.GroundSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[CTOC] {Callsign}: hold short of {Target} re-armed inside the firm stopping distance at {Gs:F1} kt — unable",
+                aircraft.Callsign,
+                bar.TargetName,
+                aircraft.GroundSpeed
+            );
+        }
         return new CommandResult(true, speech.Terminal) { PilotReadback = new HandlerReadback(CanonicalCommandType.CancelTakeoffClearance, speech) };
     }
 

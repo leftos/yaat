@@ -47,7 +47,14 @@ public static partial class GroundCommandHandler
         int edgeIndex = LastMovementAreaSegment(route, clearance.Classification);
         if (edgeIndex < 0)
         {
-            Log.LogDebug("[TryTaxi] ramp-edge cut: the route ({Count} segment(s)) never leaves the ramp; holding where it is", route.Segments.Count);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[TryTaxi] ramp-edge cut: the route ({Count} segment(s)) never leaves the ramp; holding where it is",
+                    route.Segments.Count
+                );
+            }
+
             return HeldAtRampEdge(route, [], asCleared.DestinationArea);
         }
 
@@ -129,7 +136,11 @@ public static partial class GroundCommandHandler
         {
             if (NextRampLaneSegment(route, ref next, kept[^1].Edge, lane, visited) is not { } segment)
             {
-                Log.LogDebug("[TryTaxi] ramp-edge cut: lane {Lane} ran out at node {Node} before the tail cleared", lane, kept[^1].ToNodeId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[TryTaxi] ramp-edge cut: lane {Lane} ran out at node {Node} before the tail cleared", lane, kept[^1].ToNodeId);
+                }
+
                 return;
             }
 
@@ -141,12 +152,15 @@ public static partial class GroundCommandHandler
             }
         }
 
-        Log.LogDebug(
-            "[TryTaxi] ramp-edge cut: lane {Lane} walk hit its {Cap}-node cap at node {Node} before the tail cleared",
-            lane,
-            MaxRampLaneWalkNodes,
-            kept[^1].ToNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] ramp-edge cut: lane {Lane} walk hit its {Cap}-node cap at node {Node} before the tail cleared",
+                lane,
+                MaxRampLaneWalkNodes,
+                kept[^1].ToNodeId
+            );
+        }
     }
 
     /// <summary>
@@ -157,7 +171,14 @@ public static partial class GroundCommandHandler
     /// </summary>
     private static void ExtendAlongRouteShortOfStand(List<TaxiRouteSegment> kept, TaxiRoute route, int edgeIndex, RampEdgeClearance clearance)
     {
-        Log.LogDebug("[TryTaxi] ramp-edge cut: no single ramp taxilane after node {Edge}; following the route short of the stand", kept[^1].ToNodeId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] ramp-edge cut: no single ramp taxilane after node {Edge}; following the route short of the stand",
+                kept[^1].ToNodeId
+            );
+        }
+
         for (int i = edgeIndex + 1; i < route.Segments.Count - 1; i++)
         {
             kept.Add(route.Segments[i]);
@@ -167,7 +188,10 @@ public static partial class GroundCommandHandler
             }
         }
 
-        Log.LogDebug("[TryTaxi] ramp-edge cut: reached node {Node}, short of the stand, before the tail cleared", kept[^1].ToNodeId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TryTaxi] ramp-edge cut: reached node {Node}, short of the stand, before the tail cleared", kept[^1].ToNodeId);
+        }
     }
 
     /// <summary>

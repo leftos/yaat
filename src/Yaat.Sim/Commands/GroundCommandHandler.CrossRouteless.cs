@@ -48,14 +48,18 @@ public static partial class GroundCommandHandler
             RunwayCrossingEnd.TailOverNamer(aircraft.Position, layout, activeRunways, aircraft.Phases?.AssignedRunway)
         );
         ClearCrossingAt(route, nearBar.Id);
-        Log.LogDebug(
-            "{Callsign}: crossing {Rwy} from bar #{Bar} along {Twy}: [{Path}]",
-            aircraft.Callsign,
-            runwayId,
-            nearBar.Id,
-            taxiway,
-            string.Join("→", path.Select(n => n.Id))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: crossing {Rwy} from bar #{Bar} along {Twy}: [{Path}]",
+                aircraft.Callsign,
+                runwayId,
+                nearBar.Id,
+                taxiway,
+                string.Join("→", path.Select(n => n.Id))
+            );
+        }
+
         return route;
     }
 
@@ -176,13 +180,24 @@ public static partial class GroundCommandHandler
         RunwayIdentifier? ahead = exit.ParallelRunwayAhead();
         if ((ahead is null) || !ahead.Value.Contains(target))
         {
-            Log.LogDebug("{Callsign}: CROSS {Rwy} refused in the exit: {Twy} leads to {Ahead}", aircraft.Callsign, display, taxiway, ahead);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: CROSS {Rwy} refused in the exit: {Twy} leads to {Ahead}", aircraft.Callsign, display, taxiway, ahead);
+            }
+
             return new CommandResult(false, $"CROSS {display}: exit {taxiway} does not lead to runway {display}");
         }
 
         aircraft.Phases!.PreClearedCrossing = target;
-        Log.LogDebug("{Callsign}: CROSS {Rwy} stored in the exit onto {Twy}", aircraft.Callsign, display, taxiway);
-        return CommandDispatcher.Ok($"Cross {target}") with { PilotReadback = CrossAtTaxiwayReadback(cross, taxiway) };
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: CROSS {Rwy} stored in the exit onto {Twy}", aircraft.Callsign, display, taxiway);
+        }
+
+        return CommandDispatcher.Ok($"Cross {target}") with
+        {
+            PilotReadback = CrossAtTaxiwayReadback(cross, taxiway),
+        };
     }
 
     /// <summary>
@@ -207,7 +222,11 @@ public static partial class GroundCommandHandler
         }
 
         phases.PreClearedCrossing = target;
-        Log.LogDebug("{Callsign}: CROSS {Rwy} stored on the rollout, exit side {Side}", aircraft.Callsign, target, phases.RequestedExit?.Side);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: CROSS {Rwy} stored on the rollout, exit side {Side}", aircraft.Callsign, target, phases.RequestedExit?.Side);
+        }
+
         HandlerReadback? readback =
             (PhraseologyVerbalizer.VerbalizeTerminal(cross) is { } terminal) && (PhraseologyVerbalizer.Verbalize(cross) is { } spoken)
                 ? new HandlerReadback(CanonicalCommandType.CrossRunway, new PilotSpeechText(terminal, spoken))
