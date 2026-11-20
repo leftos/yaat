@@ -133,13 +133,16 @@ public static class BlockedTurnResolver
             }
             else
             {
-                Log.LogDebug(
-                    "Blocked-turn at {Airport}: no fillet arc matched the corner ({Prev},{Apex},{Next})",
-                    layout.AirportId,
-                    prev,
-                    apex,
-                    next
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Blocked-turn at {Airport}: no fillet arc matched the corner ({Prev},{Apex},{Next})",
+                        layout.AirportId,
+                        prev,
+                        apex,
+                        next
+                    );
+                }
             }
         }
     }

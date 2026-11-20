@@ -288,19 +288,25 @@ public static class HoldShortAnnotator
                 {
                     enteredRunways[startRwyId] = startNodeId;
                     seenHsNodes.Add((startRwyId, startNodeId));
-                    Log.LogDebug(
-                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry (paired crossing ahead)",
-                        startNodeId,
-                        startRwyId
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry (paired crossing ahead)",
+                            startNodeId,
+                            startRwyId
+                        );
+                    }
                 }
                 else
                 {
-                    Log.LogDebug(
-                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — NOT pre-seeding (exit-only, route never crosses it)",
-                        startNodeId,
-                        startRwyId
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — NOT pre-seeding (exit-only, route never crosses it)",
+                            startNodeId,
+                            startRwyId
+                        );
+                    }
                 }
 
                 if (
@@ -319,11 +325,14 @@ public static class HoldShortAnnotator
                             TargetName = startRwyId.ToString(),
                         }
                     );
-                    Log.LogDebug(
-                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway}, still ahead of the aircraft — adding hold-short",
-                        startNodeId,
-                        startRwyId
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway}, still ahead of the aircraft — adding hold-short",
+                            startNodeId,
+                            startRwyId
+                        );
+                    }
                 }
             }
         }
@@ -354,20 +363,29 @@ public static class HoldShortAnnotator
             // Skip if we've already processed this exact HS node for this runway
             if (!seenHsNodes.Add((rwyId, node.Id)))
             {
-                Log.LogDebug("[HoldShortAnnotator] Skipping duplicate HS node {NodeId} for {Runway}", node.Id, rwyId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[HoldShortAnnotator] Skipping duplicate HS node {NodeId} for {Runway}", node.Id, rwyId);
+                }
                 continue;
             }
 
             if (enteredRunways.Remove(rwyId))
             {
                 // Exit-side HS: paired with the previous entry, skip
-                Log.LogDebug("[HoldShortAnnotator] Exit-side HS node {NodeId} for {Runway} — paired with entry, skipping", node.Id, rwyId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[HoldShortAnnotator] Exit-side HS node {NodeId} for {Runway} — paired with entry, skipping", node.Id, rwyId);
+                }
                 continue;
             }
 
             // Entry-side: track for pairing and add hold-short
             enteredRunways[rwyId] = node.Id;
-            Log.LogDebug("[HoldShortAnnotator] Entry-side HS node {NodeId} for {Runway} — adding hold-short", node.Id, rwyId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[HoldShortAnnotator] Entry-side HS node {NodeId} for {Runway} — adding hold-short", node.Id, rwyId);
+            }
 
             if (!HoldShortExists(holdShorts, node.Id))
             {
@@ -629,7 +647,10 @@ public static class HoldShortAnnotator
                     existing.StopMoved = false;
                 }
 
-                Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: re-armed hold-short at node {NodeId}", target, existing.NodeId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: re-armed hold-short at node {NodeId}", target, existing.NodeId);
+                }
                 break;
 
             case ExplicitHoldShortOutcome.Add:
@@ -641,7 +662,10 @@ public static class HoldShortAnnotator
                         TargetName = plan.TargetName,
                     }
                 );
-                Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: added hold-short at node {NodeId}", target, plan.NodeId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: added hold-short at node {NodeId}", target, plan.NodeId);
+                }
                 break;
 
             case ExplicitHoldShortOutcome.NoOp:
@@ -864,19 +888,22 @@ public static class HoldShortAnnotator
         }
 
         double? pastCrossedBarFt = crossedRunway is { } bar ? (bar.GapNm * GeoMath.FeetPerNm) - placed.BackFt : null;
-        Log.LogDebug(
-            "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft ({Lat:F6}, {Lon:F6}) "
-                + "justPastRunway={JustPast} tailClearsRunway={TailClears} centrePastCrossedBar={PastBarFt:F0}ft tailOverRunwayNode={TailOver}",
-            hs.NodeId,
-            hs.TargetName,
-            twyOffsetNm * GeoMath.FeetPerNm,
-            twyVn.Position.Lat,
-            twyVn.Position.Lon,
-            justPastRunway,
-            tailClearsRunway,
-            pastCrossedBarFt,
-            hs.TailOverRunwayNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft ({Lat:F6}, {Lon:F6}) "
+                    + "justPastRunway={JustPast} tailClearsRunway={TailClears} centrePastCrossedBar={PastBarFt:F0}ft tailOverRunwayNode={TailOver}",
+                hs.NodeId,
+                hs.TargetName,
+                twyOffsetNm * GeoMath.FeetPerNm,
+                twyVn.Position.Lat,
+                twyVn.Position.Lon,
+                justPastRunway,
+                tailClearsRunway,
+                pastCrossedBarFt,
+                hs.TailOverRunwayNodeId
+            );
+        }
         return twyVn;
     }
 
@@ -933,12 +960,16 @@ public static class HoldShortAnnotator
             return stop.Node;
         }
 
-        Log.LogDebug(
-            "[HoldShortAnnotator] Taxiway HS for {Target} at node {NodeId}: the stop {BehindFt:F0}ft behind the aircraft is placed where it stands",
-            hs.TargetName,
-            hs.NodeId,
-            placing.AircraftAlongFt - stopFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HoldShortAnnotator] Taxiway HS for {Target} at node {NodeId}: the stop {BehindFt:F0}ft behind the aircraft "
+                    + "is placed where it stands",
+                hs.TargetName,
+                hs.NodeId,
+                placing.AircraftAlongFt - stopFt
+            );
+        }
         LatLon here = path.PositionAt(placing.AircraftAlongFt);
         return VirtualNode.Create(here.Lat, here.Lon);
     }
@@ -1028,12 +1059,16 @@ public static class HoldShortAnnotator
                     ? $"it continues straight ahead and every other branch there lies within {StraightAheadToleranceDeg:F0}° of straight "
                         + "ahead or behind"
                     : $"no straight centreline of {clearanceFrom} within {CentrelineSearchRadiusFt:F0}ft";
-            Log.LogDebug(
-                "[HoldShortAnnotator] No centreline to clear for {Target} at bar node {NodeId} ({Reason}); keeping the length setback, held to the walk-back limit",
-                target,
-                hs.NodeId,
-                reason
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[HoldShortAnnotator] No centreline to clear for {Target} at bar node {NodeId} ({Reason}); "
+                        + "keeping the length setback, held to the walk-back limit",
+                    target,
+                    hs.NodeId,
+                    reason
+                );
+            }
             return HeldToWalkBackLimit(placing, barIndex, lengthSetbackStop);
         }
 
@@ -1068,18 +1103,21 @@ public static class HoldShortAnnotator
         ReplaceWingtipWarning(route, target, clearanceFrom, noseFt, floorFt);
         AddShallowMergeSetbackAdvisory(route, placement, lengthSetbackCentreFt, centreFt, noseFt);
 
-        Log.LogDebug(
-            "[HoldShortAnnotator] Wingtip floor for {Target} at node {NodeId} against {ClearanceFrom}: setback {SetbackFt:F0}ft "
-                + "(floor {FloorFt:F0}), nose {NoseFt:F0}ft, walk-back limit {LimitFt:F0}ft, centre moved back {MovedFt:F0}ft",
-            target,
-            hs.NodeId,
-            clearanceFrom,
-            setbackFt,
-            floorFt,
-            noseFt,
-            limitCentreFt,
-            lengthSetbackCentreFt - centreFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HoldShortAnnotator] Wingtip floor for {Target} at node {NodeId} against {ClearanceFrom}: setback {SetbackFt:F0}ft "
+                    + "(floor {FloorFt:F0}), nose {NoseFt:F0}ft, walk-back limit {LimitFt:F0}ft, centre moved back {MovedFt:F0}ft",
+                target,
+                hs.NodeId,
+                clearanceFrom,
+                setbackFt,
+                floorFt,
+                noseFt,
+                limitCentreFt,
+                lengthSetbackCentreFt - centreFt
+            );
+        }
         return stop;
     }
 

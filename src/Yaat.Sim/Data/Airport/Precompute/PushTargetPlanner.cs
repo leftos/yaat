@@ -178,13 +178,19 @@ public static class PushTargetPlanner
         GroundNode? stand = Stands(layout).FirstOrDefault(n => string.Equals(n.Name, standName, StringComparison.Ordinal));
         if (stand is null)
         {
-            Log.LogDebug("Stand {Stand} at {Airport} is not a named parking node; no push targets", standName, layout.AirportId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Stand} at {Airport} is not a named parking node; no push targets", standName, layout.AirportId);
+            }
             return null;
         }
 
         if (stand.TrueHeading is not { } heading)
         {
-            Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
+            }
             return null;
         }
 
@@ -195,7 +201,10 @@ public static class PushTargetPlanner
 
         if (StandDepartures.StandDepartureOf(layout, stand, sidecars) == StandDeparture.TaxiOut)
         {
-            Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
+            }
             return new PushTargetEntry(stand.Name!, envelope.Group, []);
         }
 
@@ -254,12 +263,15 @@ public static class PushTargetPlanner
         );
         if (envelope is null)
         {
-            Log.LogDebug(
-                "Design group {Group} has no envelope; no push targets from {Origin} at {Airport}",
-                group,
-                originDescription,
-                layout.AirportId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Design group {Group} has no envelope; no push targets from {Origin} at {Airport}",
+                    group,
+                    originDescription,
+                    layout.AirportId
+                );
+            }
         }
 
         return envelope;
@@ -309,13 +321,19 @@ public static class PushTargetPlanner
     {
         if (stand.TrueHeading is not { } heading)
         {
-            Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
+            }
             return [];
         }
 
         if (StandDepartures.StandDepartureOf(layout, stand, sidecars) == StandDeparture.TaxiOut)
         {
-            Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
+            }
             return [.. designGroupEnvelopes.Envelopes.Select(e => new PushTargetEntry(stand.Name!, e.Group, []))];
         }
 
@@ -393,7 +411,10 @@ public static class PushTargetPlanner
         {
             if (layout.FindExitByTaxiway(start.Position, taxiway) is not { } exitNode)
             {
-                Log.LogDebug("PUSH {Taxiway} from {Origin} at {Airport} dropped: no exit onto it", taxiway, originDescription, layout.AirportId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("PUSH {Taxiway} from {Origin} at {Airport} dropped: no exit onto it", taxiway, originDescription, layout.AirportId);
+                }
                 continue;
             }
 
@@ -417,12 +438,15 @@ public static class PushTargetPlanner
         {
             if (layout.FindSpotNodeByName(spot) is not { } spotNode)
             {
-                Log.LogDebug(
-                    "PUSH ${Spot} from {Origin} at {Airport} dropped: no spot node resolves by that name",
-                    spot,
-                    originDescription,
-                    layout.AirportId
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "PUSH ${Spot} from {Origin} at {Airport} dropped: no spot node resolves by that name",
+                        spot,
+                        originDescription,
+                        layout.AirportId
+                    );
+                }
                 continue;
             }
 
@@ -444,26 +468,32 @@ public static class PushTargetPlanner
             is not { } plan
         )
         {
-            Log.LogDebug(
-                "{Command} from {Origin} at {Airport} for group {Group} dropped: {Refusal}",
-                command,
-                context.OriginDescription,
-                context.Layout.AirportId,
-                context.Group,
-                refusal
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Command} from {Origin} at {Airport} for group {Group} dropped: {Refusal}",
+                    command,
+                    context.OriginDescription,
+                    context.Layout.AirportId,
+                    context.Group,
+                    refusal
+                );
+            }
             return null;
         }
 
         if (!context.StartsAtStand && StaysPut(plan.End, context.Start))
         {
-            Log.LogDebug(
-                "{Command} from {Origin} at {Airport} for group {Group} dropped: it ends where the aircraft already is",
-                command,
-                context.OriginDescription,
-                context.Layout.AirportId,
-                context.Group
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Command} from {Origin} at {Airport} for group {Group} dropped: it ends where the aircraft already is",
+                    command,
+                    context.OriginDescription,
+                    context.Layout.AirportId,
+                    context.Group
+                );
+            }
             return null;
         }
 
@@ -494,26 +524,32 @@ public static class PushTargetPlanner
         double capFt = PathCapFt(context.Footprint);
         foreach (PrecomputedPushTarget target in sorted.Where(t => t.PathLengthFt > capFt))
         {
-            Log.LogDebug(
-                "{Command} from {Origin} at {Airport} for group {Group} dropped: its {PathFt} ft path is over the {CapFt:0.0} ft cap",
-                target.Command,
-                context.OriginDescription,
-                context.Layout.AirportId,
-                context.Group,
-                target.PathLengthFt,
-                capFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Command} from {Origin} at {Airport} for group {Group} dropped: its {PathFt} ft path is over the {CapFt:0.0} ft cap",
+                    target.Command,
+                    context.OriginDescription,
+                    context.Layout.AirportId,
+                    context.Group,
+                    target.PathLengthFt,
+                    capFt
+                );
+            }
         }
 
         List<PrecomputedPushTarget> kept = [.. sorted.Where(t => t.PathLengthFt <= capFt)];
         if (kept.Count == 0)
         {
-            Log.LogDebug(
-                "{Origin} at {Airport} has no push targets for group {Group}",
-                context.OriginDescription,
-                context.Layout.AirportId,
-                context.Group
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Origin} at {Airport} has no push targets for group {Group}",
+                    context.OriginDescription,
+                    context.Layout.AirportId,
+                    context.Group
+                );
+            }
         }
 
         return kept;

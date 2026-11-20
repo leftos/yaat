@@ -451,15 +451,18 @@ public static partial class GeoJsonParser
         // Step 9: with every node in its final place, mark each runway bar as its runway's hold line or a short fallback bar
         RunwayCrossingDetector.MarkShortBars(layout, snappedBars.Select(snapped => snapped.Bar.Id).ToHashSet());
 
-        Log.LogInformation(
-            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, {ArcCount} arcs, " + "{ParkingCount} parking, {HelipadCount} helipads",
-            airportId,
-            layout.Nodes.Count,
-            layout.Edges.Count,
-            layout.Arcs.Count,
-            parkings.Count,
-            helipads.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, {ArcCount} arcs, {ParkingCount} parking, {HelipadCount} helipads",
+                airportId,
+                layout.Nodes.Count,
+                layout.Edges.Count,
+                layout.Arcs.Count,
+                parkings.Count,
+                helipads.Count
+            );
+        }
 
         return layout;
     }
@@ -524,13 +527,16 @@ public static partial class GeoJsonParser
 
         var heading = new TrueHeading(Math.Round(GeoMath.BearingTo(foot, node.Position)));
         node.SetTrueHeading(heading);
-        Log.LogDebug(
-            "{Airport}: stand {Stand} has no heading; derived {Degrees} deg from its {Source}",
-            airportId,
-            node.Name,
-            heading.Degrees,
-            source
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Airport}: stand {Stand} has no heading; derived {Degrees} deg from its {Source}",
+                airportId,
+                node.Name,
+                heading.Degrees,
+                source
+            );
+        }
     }
 
     /// <summary>Whether a foot a derived heading could read lies at least <see cref="UsableFootFt"/> from the stand.</summary>
@@ -864,12 +870,15 @@ public static partial class GeoJsonParser
         double connectorNm = GeoMath.DistanceNm(node.Position, endpoint.Position);
         if (connectorNm < GeometricAdmissibility.NoOpEdgeThresholdNm)
         {
-            Log.LogDebug(
-                "Skipping zero-distance parking connector for {Name} (node {Id}): coincident with taxiway vertex {VertexId}",
-                node.Name,
-                node.Id,
-                endpoint.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Skipping zero-distance parking connector for {Name} (node {Id}): coincident with taxiway vertex {VertexId}",
+                    node.Name,
+                    node.Id,
+                    endpoint.Id
+                );
+            }
             return null;
         }
 

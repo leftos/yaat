@@ -67,12 +67,15 @@ public readonly record struct RunwayStandoffInputs(double WidthFt, double Length
         RunwayInfo? runway = db.GetRunway(airportCode, id.End1) ?? db.GetRunway(airportCode, id.End2);
         if (runway is null)
         {
-            Log.LogDebug(
-                "{Airport} runway {Runway}: no navdata runway record, standoff inputs default to a {WidthFt} ft runway",
-                airportCode,
-                id,
-                DefaultWidthFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Airport} runway {Runway}: no navdata runway record, standoff inputs default to a {WidthFt} ft runway",
+                    airportCode,
+                    id,
+                    DefaultWidthFt
+                );
+            }
             return WithoutNavData(DefaultWidthFt);
         }
 

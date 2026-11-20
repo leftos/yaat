@@ -83,14 +83,17 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
             Warnings = plan.Warnings,
         };
 
-        Log.LogInformation(
-            "Fillet: {Nodes} filleted, {Arcs} arcs, {Merged} collinear, {Cleanups} structural cleanups, {Warnings} warnings",
-            stats.FilletedNodes,
-            stats.ArcsCreated,
-            stats.CollinearMerges,
-            structuralCleanups,
-            stats.Warnings.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Fillet: {Nodes} filleted, {Arcs} arcs, {Merged} collinear, {Cleanups} structural cleanups, {Warnings} warnings",
+                stats.FilletedNodes,
+                stats.ArcsCreated,
+                stats.CollinearMerges,
+                structuralCleanups,
+                stats.Warnings.Count
+            );
+        }
 
         return stats;
     }

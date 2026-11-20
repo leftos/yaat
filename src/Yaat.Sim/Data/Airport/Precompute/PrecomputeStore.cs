@@ -186,7 +186,10 @@ public sealed class PrecomputeStore(string root)
             }
             catch (Exception ex) when ((ex is UnauthorizedAccessException or IOException) && (attempt < MaxMoveAttempts))
             {
-                Log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", path, attempt);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", path, attempt);
+                }
                 Thread.Sleep(MoveRetryStepMs * attempt);
             }
         }

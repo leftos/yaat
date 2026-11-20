@@ -55,7 +55,10 @@ public sealed class PushTargetSeed(PrecomputeStore store, string artccsBaseDir)
         PushTargetEntry? stand = targets.FirstOrDefault(t => string.Equals(t.StandName, standName, StringComparison.Ordinal));
         if (stand is null)
         {
-            Log.LogDebug("Stand {Stand} at {Airport} has no seeded push targets", standName, faaId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Stand} at {Airport} has no seeded push targets", standName, faaId);
+            }
             return null;
         }
 
@@ -66,7 +69,10 @@ public sealed class PushTargetSeed(PrecomputeStore store, string artccsBaseDir)
         );
         if (entry is null)
         {
-            Log.LogDebug("Stand {Stand} at {Airport} has no seeded push targets for design group {Group}", standName, faaId, roman);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Stand} at {Airport} has no seeded push targets for design group {Group}", standName, faaId, roman);
+            }
         }
 
         return entry;
@@ -108,7 +114,10 @@ public sealed class PushTargetSeed(PrecomputeStore store, string artccsBaseDir)
         {
             if (!store.TryReadPushTargets(faaId, out key, out targets))
             {
-                Log.LogDebug("There is no precompute cache file for {Airport}; there is no push-target seed", faaId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("There is no precompute cache file for {Airport}; there is no push-target seed", faaId);
+                }
                 return new AirportSeed(null, Transient: false);
             }
         }
@@ -128,7 +137,10 @@ public sealed class PushTargetSeed(PrecomputeStore store, string artccsBaseDir)
             return new AirportSeed(targets, Transient: false);
         }
 
-        Log.LogDebug("The push-target seed for {Airport} is stale; it is not used", faaId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("The push-target seed for {Airport} is stale; it is not used", faaId);
+        }
         return new AirportSeed(null, Transient: false);
     }
 

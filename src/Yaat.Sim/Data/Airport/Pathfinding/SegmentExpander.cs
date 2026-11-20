@@ -171,13 +171,16 @@ public static class SegmentExpander
         route.Warnings.Insert(0, $"via {candidate.Connector} — {lastTaxiway} reaches {runwayDisplay} through {candidate.Connector}");
         string trace = $"[connector] {lastTaxiway} has no {runwayDisplay} bar; threading {candidate.Connector} (stub {candidate.StubFt:F0} ft)";
         ctx.DiagnosticLog?.Invoke(trace);
-        Log.LogDebug(
-            "{Taxiway} has no runway {Runway} bar; threading {Connector} (stub {StubFt:F0} ft)",
-            lastTaxiway,
-            runwayDisplay,
-            candidate.Connector,
-            candidate.StubFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Taxiway} has no runway {Runway} bar; threading {Connector} (stub {StubFt:F0} ft)",
+                lastTaxiway,
+                runwayDisplay,
+                candidate.Connector,
+                candidate.StubFt
+            );
+        }
         return route;
     }
 
@@ -517,7 +520,10 @@ public static class SegmentExpander
         }
         else
         {
-            Log.LogDebug("[variant] deferred: head #{HeadNodeId} is not on {Taxiway}", state.Head.HeadNodeId, taxiwayName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[variant] deferred: head #{HeadNodeId} is not on {Taxiway}", state.Head.HeadNodeId, taxiwayName);
+            }
             ctx.DiagnosticLog?.Invoke($"[variant] deferred: head #{state.Head.HeadNodeId} not on {taxiwayName}");
             state.DeferredVariantEdges = varEdges;
         }
@@ -727,11 +733,14 @@ public static class SegmentExpander
             return null;
         }
 
-        Log.LogDebug(
-            "First cleared taxiway {Taxiway} only touched, never driven; bridged route {Route} rejected, start leg / ramp-lane cut next",
-            unbridgedTaxiway,
-            route.FormatTaxiwaySequence()
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "First cleared taxiway {Taxiway} only touched, never driven; bridged route {Route} rejected, start leg / ramp-lane cut next",
+                unbridgedTaxiway,
+                route.FormatTaxiwaySequence()
+            );
+        }
         ctx.DiagnosticLog?.Invoke($"[drive-first] {unbridgedTaxiway} only touched, never driven: {route.FormatTaxiwaySequence()}");
         return TaxiwayNotConnectedFailure(
             unbridgedTaxiway,
@@ -3232,7 +3241,10 @@ public static class SegmentExpander
         SearchContext ctx
     )
     {
-        Log.LogDebug("[runway-crossing] {Pair} straight-over not built: {Reason}", pair, reason);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[runway-crossing] {Pair} straight-over not built: {Reason}", pair, reason);
+        }
         ctx.DiagnosticLog?.Invoke($"[runway-crossing] {pair} straight-over not built: {reason}");
         return null;
     }
@@ -3449,7 +3461,10 @@ public static class SegmentExpander
         }
         else
         {
-            Log.LogDebug("[runway-crossing] {From}→{To} straight-over not built: {Reason}", taxiways.From, taxiways.To, over.Reason);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[runway-crossing] {From}→{To} straight-over not built: {Reason}", taxiways.From, taxiways.To, over.Reason);
+            }
         }
 
         return over;

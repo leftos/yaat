@@ -108,7 +108,15 @@ public static class PushTargetLiveCheck
         bool towedNoseFirst = (target.Moves.Count > 0) && (target.Moves[0].Kind == PushbackLegKind.Pull);
         if (TugParkedNeighbours.FindStartOverlap(request.Subject, request.Actual, towedNoseFirst, request.Others) is { } overlap)
         {
-            Log.LogDebug("{Stand} {Command}: {Neighbour} already touches the aircraft", StandOf(request), target.Command, overlap.NeighbourCallsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Stand} {Command}: {Neighbour} already touches the aircraft",
+                    StandOf(request),
+                    target.Command,
+                    overlap.NeighbourCallsign
+                );
+            }
             return PushTargetLiveVerdict.Blocked(overlap.NeighbourCallsign);
         }
 
@@ -122,12 +130,15 @@ public static class PushTargetLiveCheck
         TugSimulation flown = TugKinematics.Simulate(start, moves, request.Actual, TugMovePlanner.StepFt);
         if (!flown.Completed)
         {
-            Log.LogDebug(
-                "{Stand} {Command}: {Type} does not fly the stored moves to completion; unflyable",
-                StandOf(request),
-                target.Command,
-                request.Actual.TypeCode
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Stand} {Command}: {Type} does not fly the stored moves to completion; unflyable",
+                    StandOf(request),
+                    target.Command,
+                    request.Actual.TypeCode
+                );
+            }
             return PushTargetLiveVerdict.Unflyable;
         }
 
@@ -136,13 +147,16 @@ public static class PushTargetLiveCheck
             double driftFt = EndDriftFt(target, flown);
             if (driftFt > EndDriftLimitFt(request.Actual))
             {
-                Log.LogDebug(
-                    "{Stand} {Command}: {Type} ends {DriftFt:F1} ft from the stored end, over half its length; unflyable",
-                    StandOf(request),
-                    target.Command,
-                    request.Actual.TypeCode,
-                    driftFt
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "{Stand} {Command}: {Type} ends {DriftFt:F1} ft from the stored end, over half its length; unflyable",
+                        StandOf(request),
+                        target.Command,
+                        request.Actual.TypeCode,
+                        driftFt
+                    );
+                }
                 return PushTargetLiveVerdict.Unflyable;
             }
         }

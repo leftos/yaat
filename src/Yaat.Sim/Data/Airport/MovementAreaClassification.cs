@@ -112,7 +112,10 @@ public sealed class MovementAreaClassification
                 gateByLane[name] = gate;
             }
 
-            Log.LogDebug("{Airport}: {Name} is decided by rule {Rule} ({RuleName})", layout.AirportId, name, (int)rule, rule);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Airport}: {Name} is decided by rule {Rule} ({RuleName})", layout.AirportId, name, (int)rule, rule);
+            }
         }
 
         return new MovementAreaClassification(layout.AirportId, ruleByName, gateByLane, forcedMovementArea, forcedNonMovement);

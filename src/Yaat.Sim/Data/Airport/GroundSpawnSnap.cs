@@ -96,19 +96,23 @@ public static class GroundSpawnSnap
         double diff10 = GeoMath.AbsBearingDifference(origHdg, bearing10);
         double chosenBearing = diff01 <= diff10 ? bearing01 : bearing10;
 
-        Log.LogInformation(
-            "{Callsign}: snapping spawn ({OrigLat:F6}, {OrigLon:F6}) hdg {OrigHdg:F0}° → edge {Taxiway} at ({FootLat:F6}, {FootLon:F6}) hdg {NewHdg:F0}° (snap {DistFt:F0} ft, rotate {RotDeg:F0}°)",
-            aircraft.Callsign,
-            aircraft.Position.Lat,
-            aircraft.Position.Lon,
-            origHdg,
-            result.Edge.TaxiwayName,
-            result.FootLat,
-            result.FootLon,
-            chosenBearing,
-            distFt,
-            Math.Min(diff01, diff10)
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "{Callsign}: snapping spawn ({OrigLat:F6}, {OrigLon:F6}) hdg {OrigHdg:F0}° → edge {Taxiway} "
+                    + "at ({FootLat:F6}, {FootLon:F6}) hdg {NewHdg:F0}° (snap {DistFt:F0} ft, rotate {RotDeg:F0}°)",
+                aircraft.Callsign,
+                aircraft.Position.Lat,
+                aircraft.Position.Lon,
+                origHdg,
+                result.Edge.TaxiwayName,
+                result.FootLat,
+                result.FootLon,
+                chosenBearing,
+                distFt,
+                Math.Min(diff01, diff10)
+            );
+        }
 
         aircraft.Position = new LatLon(result.FootLat, result.FootLon);
         aircraft.TrueHeading = new TrueHeading(chosenBearing);
@@ -136,15 +140,18 @@ public static class GroundSpawnSnap
         double rampFt = NearestRampEdgeFt(layout, preSnapPosition);
         if ((standFt < taxiwayFt) || (rampFt < taxiwayFt))
         {
-            Log.LogDebug(
-                "[GroundSnap] spawn at ({Lat:F6},{Lon:F6}) is not on {Taxiway} ({TaxiwayFt:F0} ft): stand {StandFt:F0} ft, ramp {RampFt:F0} ft",
-                preSnapPosition.Lat,
-                preSnapPosition.Lon,
-                name,
-                taxiwayFt,
-                standFt,
-                rampFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[GroundSnap] spawn at ({Lat:F6},{Lon:F6}) is not on {Taxiway} ({TaxiwayFt:F0} ft): stand {StandFt:F0} ft, ramp {RampFt:F0} ft",
+                    preSnapPosition.Lat,
+                    preSnapPosition.Lon,
+                    name,
+                    taxiwayFt,
+                    standFt,
+                    rampFt
+                );
+            }
             return null;
         }
 

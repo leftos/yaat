@@ -301,7 +301,10 @@ public static class RampLaneReposition
         (string? currentLane, bool rolling) = ResolveCurrentLane(layout, position, currentTaxiway);
         if ((currentLane is null) || !SameLaneFamily(currentLane, lane))
         {
-            Log.LogDebug("[Reposition] {Lane} is not a sibling of current lane {Current}; no ramp cut", lane, currentLane ?? "(none)");
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Reposition] {Lane} is not a sibling of current lane {Current}; no ramp cut", lane, currentLane ?? "(none)");
+            }
             return null;
         }
 
@@ -309,7 +312,10 @@ public static class RampLaneReposition
         List<GroundNode> candidates = RankTargets(layout, position, rolling ? heading.Degrees : null, lane, family);
         if (candidates.Count == 0)
         {
-            Log.LogDebug("[Reposition] no {Lane} node within {Max:F0} ft of the aircraft across open apron", lane, MaxCrossingFt);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Reposition] no {Lane} node within {Max:F0} ft of the aircraft across open apron", lane, MaxCrossingFt);
+            }
             return null;
         }
 
@@ -326,7 +332,10 @@ public static class RampLaneReposition
             );
             if (tail is null)
             {
-                Log.LogDebug("[Reposition] route from {Lane} node {Node} does not resolve: {Reason}", lane, target.Id, tailFailure?.HumanMessage);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Reposition] route from {Lane} node {Node} does not resolve: {Reason}", lane, target.Id, tailFailure?.HumanMessage);
+                }
                 if (tailFailure is { RefusesPair: true })
                 {
                     tailRefusal = tailFailure;
@@ -340,7 +349,14 @@ public static class RampLaneReposition
             // on the spot at the crossing's own heading — across the lane. A spot is entered along its lane.
             if ((target.Type == GroundNodeType.Spot) && (tail.Segments.Count == 0))
             {
-                Log.LogDebug("[Reposition] {Lane} node {Node} is a spot the clearance would end on from the side; trying the next", lane, target.Id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Reposition] {Lane} node {Node} is a spot the clearance would end on from the side; trying the next",
+                        lane,
+                        target.Id
+                    );
+                }
                 continue;
             }
 
@@ -373,15 +389,18 @@ public static class RampLaneReposition
             DestinationSpot = tail.DestinationSpot,
             DestinationParkingArea = tail.DestinationParkingArea,
         };
-        Log.Log(
-            request.PlanLogLevel,
-            "[Reposition] cutting across the ramp from {Current} onto {Lane} at node {Node} ({Ft:F0} ft), then {Summary}",
-            currentLane,
-            lane,
-            target.Id,
-            crossingFt,
-            tail.ToSummary()
-        );
+        if (Log.IsEnabled(request.PlanLogLevel))
+        {
+            Log.Log(
+                request.PlanLogLevel,
+                "[Reposition] cutting across the ramp from {Current} onto {Lane} at node {Node} ({Ft:F0} ft), then {Summary}",
+                currentLane,
+                lane,
+                target.Id,
+                crossingFt,
+                tail.ToSummary()
+            );
+        }
         return new RampLaneRepositionPlan(target, lane, crossingFt, route);
     }
 
@@ -420,12 +439,15 @@ public static class RampLaneReposition
         (string? destinationLane, List<GroundNode>? leadIn) = LeadOut(destination);
         if ((destinationLane is null) || !IsRampTaxilane(layout, destinationLane) || !AreSiblingLanes(lane, destinationLane))
         {
-            Log.LogDebug(
-                "[Reposition] {Dest} sits on {DestLane}, not a sibling ramp lane of {Lane}; no destination cut",
-                destination.Name,
-                destinationLane ?? "(none)",
-                lane
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Reposition] {Dest} sits on {DestLane}, not a sibling ramp lane of {Lane}; no destination cut",
+                    destination.Name,
+                    destinationLane ?? "(none)",
+                    lane
+                );
+            }
             return null;
         }
 
@@ -476,7 +498,10 @@ public static class RampLaneReposition
             TaxiRoute? head = ResolveHeadTo(layout, startNodeId, path, origin, options, category, wakeClass);
             if (head is null)
             {
-                Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next origin", lane, origin.Id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next origin", lane, origin.Id);
+                }
                 continue;
             }
 
@@ -492,7 +517,10 @@ public static class RampLaneReposition
             }
         }
 
-        Log.LogDebug("[Reposition] no {DestLane} node within {Max:F0} ft of {Lane} across open apron", destinationLane, MaxCrossingFt, lane);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Reposition] no {DestLane} node within {Max:F0} ft of {Lane} across open apron", destinationLane, MaxCrossingFt, lane);
+        }
         return null;
     }
 
@@ -534,14 +562,17 @@ public static class RampLaneReposition
         {
             foreach ((GroundNode node, double ft) in laneNodes.Take(MaxCutOrigins))
             {
-                Log.LogDebug(
-                    "[Reposition] direct cut {Lane} node {Node} → {Dest} rolling in: {Ft:F0} ft, drivable {Drivable}",
-                    lane,
-                    node.Id,
-                    destination.Name,
-                    ft,
-                    IsRollInCuttable(layout, node, approach, destination, family)
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Reposition] direct cut {Lane} node {Node} → {Dest} rolling in: {Ft:F0} ft, drivable {Drivable}",
+                        lane,
+                        node.Id,
+                        destination.Name,
+                        ft,
+                        IsRollInCuttable(layout, node, approach, destination, family)
+                    );
+                }
             }
         }
 
@@ -550,19 +581,25 @@ public static class RampLaneReposition
             TaxiRoute? head = ResolveHeadTo(layout, request.StartNodeId, request.Path, origin, request.Options, request.Category, request.WakeClass);
             if (head is null)
             {
-                Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next direct-cut origin", lane, origin.Id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next direct-cut origin", lane, origin.Id);
+                }
                 continue;
             }
 
             return BuildDirectStandCutPlan(head, origin, approach, request, (lane, destinationLane));
         }
 
-        Log.LogDebug(
-            "[Reposition] no {Lane} node within {Max:F0} ft of {Dest} cuts to it; trying the sibling lane",
-            lane,
-            MaxCrossingFt,
-            destination.Name
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Reposition] no {Lane} node within {Max:F0} ft of {Dest} cuts to it; trying the sibling lane",
+                lane,
+                MaxCrossingFt,
+                destination.Name
+            );
+        }
         return null;
     }
 
@@ -636,14 +673,17 @@ public static class RampLaneReposition
             MandatoryConnectorCount = head.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
-        Log.Log(
-            request.PlanLogLevel,
-            "[Reposition] taxiing {Lane} to node {Origin}, cutting {Ft:F0} ft across the ramp to {Dest}, rolling in on the stand heading",
-            lanes.Lane,
-            origin.Id,
-            driveFt,
-            destination.Name
-        );
+        if (Log.IsEnabled(request.PlanLogLevel))
+        {
+            Log.Log(
+                request.PlanLogLevel,
+                "[Reposition] taxiing {Lane} to node {Origin}, cutting {Ft:F0} ft across the ramp to {Dest}, rolling in on the stand heading",
+                lanes.Lane,
+                origin.Id,
+                driveFt,
+                destination.Name
+            );
+        }
         return new RampLaneDestinationCutPlan(origin, destination, lanes.Lane, lanes.DestinationLane, driveFt, route);
     }
 
@@ -684,7 +724,10 @@ public static class RampLaneReposition
         {
             if (destination.Type == GroundNodeType.Spot)
             {
-                Log.LogDebug("[Reposition] {Dest} is a spot — entered along its own lane, never cut to from the side", destination.Name);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Reposition] {Dest} is a spot — entered along its own lane, never cut to from the side", destination.Name);
+                }
             }
 
             return null;
@@ -722,23 +765,29 @@ public static class RampLaneReposition
 
         if (best is null)
         {
-            Log.LogDebug("[Reposition] no node on the route to {Dest} is worth cutting to the stand from", destination.Name);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Reposition] no node on the route to {Dest} is worth cutting to the stand from", destination.Name);
+            }
             return null;
         }
 
         string lane = family.Order(StringComparer.Ordinal).FirstOrDefault(l => HasStraightEdgeOf(best.Value.Node, l)) ?? destinationLane;
-        Log.Log(
-            planLogLevel,
-            "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}, rolling in on "
-                + "the stand heading: {ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
-            lane,
-            best.Value.Node.Id,
-            best.Value.CutFt,
-            destination.Name,
-            destinationLane,
-            best.Value.ResultFt,
-            totalFt
-        );
+        if (Log.IsEnabled(planLogLevel))
+        {
+            Log.Log(
+                planLogLevel,
+                "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}, rolling in on "
+                    + "the stand heading: {ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
+                lane,
+                best.Value.Node.Id,
+                best.Value.CutFt,
+                destination.Name,
+                destinationLane,
+                best.Value.ResultFt,
+                totalFt
+            );
+        }
         return BuildResolvedRouteCutPlan(resolvedRoute, destination, approach, (lane, destinationLane), best.Value);
     }
 
@@ -804,12 +853,15 @@ public static class RampLaneReposition
         );
         if (graph is not null)
         {
-            Log.LogDebug(
-                "[RampConfined] #{Start} to {Dest} over the ramp graph: {Summary}",
-                request.StartNodeId,
-                request.Destination.Name,
-                graph.ToSummary()
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[RampConfined] #{Start} to {Dest} over the ramp graph: {Summary}",
+                    request.StartNodeId,
+                    request.Destination.Name,
+                    graph.ToSummary()
+                );
+            }
             return graph;
         }
 
@@ -840,11 +892,14 @@ public static class RampLaneReposition
         List<RampCutTail> tails = RampCutTails(layout, request, rampLanes);
         if (tails.Count == 0)
         {
-            Log.LogDebug(
-                "[RampConfined] no lane node within {Max:F0} ft of {Dest} leads into it inside the ramp",
-                MaxCrossingFt,
-                request.Destination.Name
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[RampConfined] no lane node within {Max:F0} ft of {Dest} leads into it inside the ramp",
+                    MaxCrossingFt,
+                    request.Destination.Name
+                );
+            }
             return null;
         }
 
@@ -855,7 +910,10 @@ public static class RampLaneReposition
             .ToList();
         if (ChooseRampCut(layout, request, cuts, foreign) is not { } chosen)
         {
-            Log.LogDebug("[RampConfined] no cut across the ramp reaches {Dest} from #{Start}", request.Destination.Name, request.StartNodeId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RampConfined] no cut across the ramp reaches {Dest} from #{Start}", request.Destination.Name, request.StartNodeId);
+            }
             return null;
         }
 
@@ -1024,12 +1082,15 @@ public static class RampLaneReposition
             { } obstacle
         )
         {
-            Log.LogDebug(
-                "[RampConfined] cut #{Origin} to #{Target}: the drive passes within a wingtip buffer of {Obstacle}",
-                cut.Origin.Id,
-                target.Id,
-                obstacle
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[RampConfined] cut #{Origin} to #{Target}: the drive passes within a wingtip buffer of {Obstacle}",
+                    cut.Origin.Id,
+                    target.Id,
+                    obstacle
+                );
+            }
             return false;
         }
 
@@ -1087,16 +1148,19 @@ public static class RampLaneReposition
             ImpliedLanes = [.. head.ImpliedLanes.Concat(tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
             ClearanceTaxiways = head.ClearanceTaxiways,
         };
-        Log.Log(
-            request.PlanLogLevel,
-            "[RampConfined] {Dest}: {Head} to node {Origin}, cutting {Ft:F0} ft across the ramp to node {Target}, then {Tail}",
-            request.Destination.Name,
-            head.Segments.Count == 0 ? "from the start" : head.ToSummary(),
-            cut.Origin.Id,
-            cut.CutFt,
-            cut.Tail.Target.Id,
-            tail.ToSummary()
-        );
+        if (Log.IsEnabled(request.PlanLogLevel))
+        {
+            Log.Log(
+                request.PlanLogLevel,
+                "[RampConfined] {Dest}: {Head} to node {Origin}, cutting {Ft:F0} ft across the ramp to node {Target}, then {Tail}",
+                request.Destination.Name,
+                head.Segments.Count == 0 ? "from the start" : head.ToSummary(),
+                cut.Origin.Id,
+                cut.CutFt,
+                cut.Tail.Target.Id,
+                tail.ToSummary()
+            );
+        }
         return route;
     }
 
@@ -1171,16 +1235,19 @@ public static class RampLaneReposition
             DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
             DestinationSpot = destination.Type == GroundNodeType.Spot ? destination.Name : null,
         };
-        Log.Log(
-            request.PlanLogLevel,
-            "[Reposition] taxiing {Lane} to node {Origin}, cutting across the ramp onto {DestLane} at node {Target} ({Ft:F0} ft), then {Summary}",
-            lane,
-            origin.Id,
-            destinationLane,
-            target.Id,
-            crossingFt,
-            tail.ToSummary()
-        );
+        if (Log.IsEnabled(request.PlanLogLevel))
+        {
+            Log.Log(
+                request.PlanLogLevel,
+                "[Reposition] taxiing {Lane} to node {Origin}, cutting across the ramp onto {DestLane} at node {Target} ({Ft:F0} ft), then {Summary}",
+                lane,
+                origin.Id,
+                destinationLane,
+                target.Id,
+                crossingFt,
+                tail.ToSummary()
+            );
+        }
         return new RampLaneDestinationCutPlan(origin, target, lane, destinationLane, crossingFt, route);
     }
 
@@ -1328,7 +1395,10 @@ public static class RampLaneReposition
         double halfSpanFt = AircraftFootprint.ResolveWingspanFt(request.AircraftType) / 2.0;
         if (LineUpRefusal(request, ends, family) is { } refusal)
         {
-            Log.LogDebug("[SpotLineUp] {Callsign} to {Spot}: {Refusal}; keeping the route as resolved", request.Callsign, spot.Name, refusal);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[SpotLineUp] {Callsign} to {Spot}: {Refusal}; keeping the route as resolved", request.Callsign, spot.Name, refusal);
+            }
             return null;
         }
 
@@ -1346,14 +1416,17 @@ public static class RampLaneReposition
             return lineUp;
         }
 
-        Log.LogDebug(
-            "[SpotLineUp] no {Lane} node on the ramp side of {Spot} leaves the {Run:F0} ft a quarter turn and a straight pull need "
-                + "within {Max:F0} ft of apron and clear of other aircraft; keeping the route as resolved",
-            ends.Lane,
-            spot.Name,
-            minimumRunFt,
-            MaxCrossingFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[SpotLineUp] no {Lane} node on the ramp side of {Spot} leaves the {Run:F0} ft a quarter turn and a straight pull need "
+                    + "within {Max:F0} ft of apron and clear of other aircraft; keeping the route as resolved",
+                ends.Lane,
+                spot.Name,
+                minimumRunFt,
+                MaxCrossingFt
+            );
+        }
         return null;
     }
 
@@ -1398,12 +1471,15 @@ public static class RampLaneReposition
             return route is not null;
         }
 
-        Log.LogDebug(
-            "[SpotLineUp] {Callsign} to {Spot}: {Reason} and not on a past-spot line-up's run-in; keeping the route as resolved",
-            request.Callsign,
-            request.Spot.Name,
-            emptyRoute ? "no route resolved" : $"the aircraft is on {lane.Ends.Lane} between the spot and the movement area"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[SpotLineUp] {Callsign} to {Spot}: {Reason} and not on a past-spot line-up's run-in; keeping the route as resolved",
+                request.Callsign,
+                request.Spot.Name,
+                emptyRoute ? "no route resolved" : $"the aircraft is on {lane.Ends.Lane} between the spot and the movement area"
+            );
+        }
         return true;
     }
 
@@ -1542,15 +1618,18 @@ public static class RampLaneReposition
             return null;
         }
 
-        Log.LogDebug(
-            "[SpotLineUp] {Callsign} stands {Along:F0} ft past {Spot} toward the movement area and {Off:F0} ft off {Lane}: "
-                + "past the spot on its exit side: planning the join and turn about beyond the spot",
-            request.Callsign,
-            alongFt,
-            request.Spot.Name,
-            DistanceToLaneFt(request.Position, request.Spot, ends.ExitSide),
-            ends.Lane
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[SpotLineUp] {Callsign} stands {Along:F0} ft past {Spot} toward the movement area and {Off:F0} ft off {Lane}: "
+                    + "past the spot on its exit side: planning the join and turn about beyond the spot",
+                request.Callsign,
+                alongFt,
+                request.Spot.Name,
+                DistanceToLaneFt(request.Position, request.Spot, ends.ExitSide),
+                ends.Lane
+            );
+        }
         if (
             (FindTurnAbout(planning, ends.Lane, lane.Joins, lane.MinimumRunFt) is not { } turn)
             || (OutboundAlongLane(planning.Layout, request, ends.Lane, turn) is not { } outbound)
@@ -1561,19 +1640,22 @@ public static class RampLaneReposition
         }
 
         TaxiRoute route = AssembleLineUp(request, [.. lead, .. outbound.Segments], turn);
-        Log.Log(
-            request.PlanLogLevel,
-            "[SpotLineUp] {Callsign} lining up on {Spot} from past it: {Legs} leg(s) of {Ft:F0} ft onto {Lane}, {Out:F0} ft along it "
-                + "to node {Turn} to turn about, then {Summary}",
-            request.Callsign,
-            request.Spot.Name,
-            lead.Count,
-            lead.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm,
-            ends.Lane,
-            outbound.TotalDistanceFt,
-            turn.Join.Id,
-            turn.Tail.ToSummary()
-        );
+        if (Log.IsEnabled(request.PlanLogLevel))
+        {
+            Log.Log(
+                request.PlanLogLevel,
+                "[SpotLineUp] {Callsign} lining up on {Spot} from past it: {Legs} leg(s) of {Ft:F0} ft onto {Lane}, {Out:F0} ft along it "
+                    + "to node {Turn} to turn about, then {Summary}",
+                request.Callsign,
+                request.Spot.Name,
+                lead.Count,
+                lead.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm,
+                ends.Lane,
+                outbound.TotalDistanceFt,
+                turn.Join.Id,
+                turn.Tail.ToSummary()
+            );
+        }
         return route;
     }
 
@@ -1600,29 +1682,35 @@ public static class RampLaneReposition
             double roomFt = NearestOtherCentrelineFt(planning.Layout, join.Join.Position, lane);
             if (roomFt >= reachFt)
             {
-                Log.LogDebug(
-                    "[SpotLineUp] turn about at node {Node}: the nearest node past {Spot} on the ramp side with {Run:F0} ft of lane back "
-                        + "to the spot (at least the {Min:F0} ft a roll-out and a straight pull need) whose nearest other centreline, "
-                        + "{Room:F0} ft off, clears a {Type}'s {Reach:F1} ft wingtip circle (turn-about radius {Radius:F1} ft)",
-                    join.Join.Id,
-                    request.Spot.Name,
-                    join.RunFt,
-                    minimumRunFt,
-                    roomFt,
-                    request.AircraftType,
-                    reachFt,
-                    fit.RadiusFt
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[SpotLineUp] turn about at node {Node}: the nearest node past {Spot} on the ramp side with {Run:F0} ft of lane back "
+                            + "to the spot (at least the {Min:F0} ft a roll-out and a straight pull need) whose nearest other centreline, "
+                            + "{Room:F0} ft off, clears a {Type}'s {Reach:F1} ft wingtip circle (turn-about radius {Radius:F1} ft)",
+                        join.Join.Id,
+                        request.Spot.Name,
+                        join.RunFt,
+                        minimumRunFt,
+                        roomFt,
+                        request.AircraftType,
+                        reachFt,
+                        fit.RadiusFt
+                    );
+                }
                 return join;
             }
         }
 
-        Log.LogDebug(
-            "[SpotLineUp] a {Type} fits a turn about at none of the {Count} node(s) past {Spot} on the ramp side",
-            request.AircraftType,
-            joins.Count,
-            request.Spot.Name
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[SpotLineUp] a {Type} fits a turn about at none of the {Count} node(s) past {Spot} on the ramp side",
+                request.AircraftType,
+                joins.Count,
+                request.Spot.Name
+            );
+        }
         return null;
     }
 
@@ -1652,7 +1740,10 @@ public static class RampLaneReposition
         TaxiRoute? outbound = TaxiPathfinder.FindRoute(layout, request.Spot.Id, turn.Join.Id, request.Category, request.WakeClass);
         if ((outbound is null) || (outbound.Segments.Count == 0) || outbound.Segments.Any(s => !s.Edge.Edge.MatchesTaxiway(lane)))
         {
-            Log.LogDebug("[SpotLineUp] no route along {Lane} from {Spot} out to node {Node}", lane, request.Spot.Name, turn.Join.Id);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[SpotLineUp] no route along {Lane} from {Spot} out to node {Node}", lane, request.Spot.Name, turn.Join.Id);
+            }
             return null;
         }
 
@@ -1688,7 +1779,15 @@ public static class RampLaneReposition
         }
         else
         {
-            Log.LogDebug("[SpotLineUp] the drive onto {Lane} {Join:F0} ft past {Spot} is refused or blocked", ends.Lane, joinFt, request.Spot.Name);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[SpotLineUp] the drive onto {Lane} {Join:F0} ft past {Spot} is refused or blocked",
+                    ends.Lane,
+                    joinFt,
+                    request.Spot.Name
+                );
+            }
             return null;
         }
 
@@ -1713,7 +1812,10 @@ public static class RampLaneReposition
 
             if ((FindObstacle(planning, position, approach) ?? FindObstacle(planning, approach, join.Join.Position)) is { } obstacle)
             {
-                Log.LogDebug("[SpotLineUp] join {Join}: a free-space leg passes within a wingtip buffer of {Obstacle}", join.Join.Id, obstacle);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[SpotLineUp] join {Join}: a free-space leg passes within a wingtip buffer of {Obstacle}", join.Join.Id, obstacle);
+                }
                 continue;
             }
 
@@ -1814,11 +1916,14 @@ public static class RampLaneReposition
         double driveFt = DistanceFt(from, approach) + DistanceFt(approach, join.Position);
         if ((driveFt > MaxCrossingFt) || AirportGroundLayout.HasRunwayCenterlineEdge(join) || !IsOffMovementArea(layout, approach))
         {
-            Log.LogDebug(
-                "[SpotLineUp] join {Join}: the {Ft:F0} ft drive through the approach point is out of bounds or on the movement area",
-                join.Id,
-                driveFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[SpotLineUp] join {Join}: the {Ft:F0} ft drive through the approach point is out of bounds or on the movement area",
+                    join.Id,
+                    driveFt
+                );
+            }
             return false;
         }
 
@@ -1853,18 +1958,21 @@ public static class RampLaneReposition
         }
 
         TaxiRoute route = AssembleLineUp(request, legs, join);
-        Log.Log(
-            request.PlanLogLevel,
-            "[SpotLineUp] {Callsign} lining up on {Spot} to leave the ramp: {Legs} free-space leg(s) of {Ft:F0} ft to node {Join}, "
-                + "{Run:F0} ft up the lane, then {Summary}",
-            request.Callsign,
-            request.Spot.Name,
-            legs.Count,
-            legs.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm,
-            join.Join.Id,
-            join.RunFt,
-            join.Tail.ToSummary()
-        );
+        if (Log.IsEnabled(request.PlanLogLevel))
+        {
+            Log.Log(
+                request.PlanLogLevel,
+                "[SpotLineUp] {Callsign} lining up on {Spot} to leave the ramp: {Legs} free-space leg(s) of {Ft:F0} ft to node {Join}, "
+                    + "{Run:F0} ft up the lane, then {Summary}",
+                request.Callsign,
+                request.Spot.Name,
+                legs.Count,
+                legs.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm,
+                join.Join.Id,
+                join.RunFt,
+                join.Tail.ToSummary()
+            );
+        }
         return route;
     }
 
@@ -1918,7 +2026,10 @@ public static class RampLaneReposition
         var names = laneEdges.Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if ((laneEdges.Count != 2) || (names.Count != 1) || !IsRampTaxilane(layout, names[0]))
         {
-            Log.LogDebug("[SpotLineUp] {Spot} does not sit mid-lane on one ramp taxilane ([{Lanes}])", spot.Name, string.Join(", ", names));
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[SpotLineUp] {Spot} does not sit mid-lane on one ramp taxilane ([{Lanes}])", spot.Name, string.Join(", ", names));
+            }
             return null;
         }
 
@@ -1928,7 +2039,10 @@ public static class RampLaneReposition
         var exits = walks.Where(w => w.Walk.ReachesMovementArea).ToList();
         if (exits.Count != 1)
         {
-            Log.LogDebug("[SpotLineUp] {Lane} joins the movement area at {Count} of its two ends from {Spot}", lane, exits.Count, spot.Name);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[SpotLineUp] {Lane} joins the movement area at {Count} of its two ends from {Spot}", lane, exits.Count, spot.Name);
+            }
             return null;
         }
 

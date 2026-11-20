@@ -114,7 +114,10 @@ public sealed class PushPlanStore
                 }
             }
         );
-        Log.LogDebug("Planned the push targets of {Count} of {Total} stands in {Ms} ms", planned, stands.Count, clock.ElapsedMilliseconds);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Planned the push targets of {Count} of {Total} stands in {Ms} ms", planned, stands.Count, clock.ElapsedMilliseconds);
+        }
         return planned;
     }
 
@@ -244,7 +247,10 @@ public sealed class PushPlanStore
         PushTargetEntry? entry = _planner(key.Layout, key.Stand, key.Group, sidecars);
         if (entry is null)
         {
-            Log.LogDebug("Stand {Stand} at {Airport} has no push plan for design group {Group}", key.Stand, key.Layout.AirportId, key.Group);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Stand {Stand} at {Airport} has no push plan for design group {Group}", key.Stand, key.Layout.AirportId, key.Group);
+            }
         }
 
         return entry;
