@@ -91,22 +91,28 @@ internal static class RampZeroSegmentRoll
             : RampLaneReposition.TryPlanRampConfinedRoute(layout, request.Confined with { StartNodeId = neighbour.Id });
         if (confined is not { Segments.Count: > 0 })
         {
-            Log.LogDebug(
-                "[RampRoll] {Callsign} to {Dest}: refuse, no route inside the ramp from neighbour #{Neighbour}",
-                aircraft.Callsign,
-                destination.Name,
-                neighbour?.Id
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[RampRoll] {Callsign} to {Dest}: refuse, no route inside the ramp from neighbour #{Neighbour}",
+                    aircraft.Callsign,
+                    destination.Name,
+                    neighbour?.Id
+                );
+            }
             return new Outcome(null, IsRoll: false);
         }
 
-        Log.LogDebug(
-            "[RampRoll] {Callsign} to {Dest}: confined neighbour route from #{Neighbour} ({Summary})",
-            aircraft.Callsign,
-            destination.Name,
-            neighbour!.Id,
-            confined.ToSummary()
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[RampRoll] {Callsign} to {Dest}: confined neighbour route from #{Neighbour} ({Summary})",
+                aircraft.Callsign,
+                destination.Name,
+                neighbour!.Id,
+                confined.ToSummary()
+            );
+        }
         TaxiRoute withLeg = TaxiApproachLeg.Prepend(
             layout,
             aircraft.Position,
@@ -130,7 +136,10 @@ internal static class RampZeroSegmentRoll
         LatLon position = aircraft.Position;
         if (NearestLane(destination, position) is not { } lane)
         {
-            Log.LogDebug("[RampRoll] {Callsign} to {Dest}: no roll, on no lane into it", aircraft.Callsign, destination.Name);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RampRoll] {Callsign} to {Dest}: no roll, on no lane into it", aircraft.Callsign, destination.Name);
+            }
             return null;
         }
 
@@ -139,21 +148,24 @@ internal static class RampZeroSegmentRoll
         double offBearingDeg = GeoMath.AbsBearingDifference(headingDeg, GeoMath.BearingTo(position, destination.Position));
         bool withTheFlow = !OneWayResolver.GetForbiddenMoves(layout, confined.WakeClass).Contains((lane.Other.Id, destination.Id));
         bool admitted = Faces(lane, offLaneDeg, offBearingDeg) && withTheFlow;
-        Log.LogDebug(
-            "[RampRoll] {Callsign} to {Dest}: {Verdict} on {Lane} {Kind} #{Other}-#{DestId}: {Cross:F1} ft off it, {OffLane:F1}° off its "
-                + "bearing in, {OffBearing:F1}° off the bearing to it, with the flow {WithFlow}",
-            aircraft.Callsign,
-            destination.Name,
-            admitted ? (lane.Edge is GroundArc ? "arc roll" : "roll") : "no roll",
-            lane.Edge.TaxiwayName,
-            lane.Edge is GroundArc ? "arc" : "edge",
-            lane.Other.Id,
-            destination.Id,
-            lane.CrossFt,
-            offLaneDeg,
-            offBearingDeg,
-            withTheFlow
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[RampRoll] {Callsign} to {Dest}: {Verdict} on {Lane} {Kind} #{Other}-#{DestId}: {Cross:F1} ft off it, {OffLane:F1}° off its "
+                    + "bearing in, {OffBearing:F1}° off the bearing to it, with the flow {WithFlow}",
+                aircraft.Callsign,
+                destination.Name,
+                admitted ? (lane.Edge is GroundArc ? "arc roll" : "roll") : "no roll",
+                lane.Edge.TaxiwayName,
+                lane.Edge is GroundArc ? "arc" : "edge",
+                lane.Other.Id,
+                destination.Id,
+                lane.CrossFt,
+                offLaneDeg,
+                offBearingDeg,
+                withTheFlow
+            );
+        }
         if (!admitted)
         {
             return null;

@@ -590,21 +590,24 @@ internal static class PatternCommandHandler
             double totalTurnDeg = turnToEntry + turnAtEntry;
             double arcNm = (totalTurnDeg * Math.PI / 180.0) * radiusNm;
 
-            Log.LogDebug(
-                "[EF-LoopCheck] {Callsign}: vfr={IsVfr}, hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, "
-                    + "spd={Spd:F0}kt, rate={Rate:F0}°/s, r={R:F2}nm, dist={Dist:F1}nm, arc={Arc:F1}nm",
-                aircraft.Callsign,
-                aircraft.FlightPlan.IsVfr,
-                aircraft.TrueHeading.Degrees,
-                bearingToEntry,
-                turnToEntry,
-                turnAtEntry,
-                speedKts,
-                turnRateDegs,
-                radiusNm,
-                distToEntry,
-                arcNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[EF-LoopCheck] {Callsign}: vfr={IsVfr}, hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, "
+                        + "spd={Spd:F0}kt, rate={Rate:F0}°/s, r={R:F2}nm, dist={Dist:F1}nm, arc={Arc:F1}nm",
+                    aircraft.Callsign,
+                    aircraft.FlightPlan.IsVfr,
+                    aircraft.TrueHeading.Degrees,
+                    bearingToEntry,
+                    turnToEntry,
+                    turnAtEntry,
+                    speedKts,
+                    turnRateDegs,
+                    radiusNm,
+                    distToEntry,
+                    arcNm
+                );
+            }
 
             // EF must never route the aircraft outbound / farther from the field
             // (COMMANDS.md contract). Only an aircraft ALREADY tracking outbound — the downwind
@@ -668,20 +671,23 @@ internal static class PatternCommandHandler
 
             if (onShortFinalInsideEntry || crossingFinalInsideFloor || cannotCompleteTurns)
             {
-                Log.LogDebug(
-                    "[EF-Reject] {Callsign}: shortFinal={ShortFinal} crossingInsideFloor={Crossing} cannotCompleteTurns={CannotTurn} — "
-                        + "acAlong={AcAlong:F2}nm entryAlong={EntryAlong:F2}nm crossTrack={Cross:F2}nm angleOffFinal={AngleF:F0}° "
-                        + "trackingOutbound={Tracking}",
-                    aircraft.Callsign,
-                    onShortFinalInsideEntry,
-                    crossingFinalInsideFloor,
-                    cannotCompleteTurns,
-                    acAlongOutbound,
-                    entryAlongOutbound,
-                    crossTrackAbsNm,
-                    angleOffFinal,
-                    trackingOutbound
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[EF-Reject] {Callsign}: shortFinal={ShortFinal} crossingInsideFloor={Crossing} cannotCompleteTurns={CannotTurn} — "
+                            + "acAlong={AcAlong:F2}nm entryAlong={EntryAlong:F2}nm crossTrack={Cross:F2}nm angleOffFinal={AngleF:F0}° "
+                            + "trackingOutbound={Tracking}",
+                        aircraft.Callsign,
+                        onShortFinalInsideEntry,
+                        crossingFinalInsideFloor,
+                        cannotCompleteTurns,
+                        acAlongOutbound,
+                        entryAlongOutbound,
+                        crossTrackAbsNm,
+                        angleOffFinal,
+                        trackingOutbound
+                    );
+                }
                 // A runway argument already retargeted AssignedRunway/DestinationRunway
                 // above; restore the prior runway so a rejected EF leaves the aircraft
                 // fully on its current approach.
@@ -1348,12 +1354,15 @@ internal static class PatternCommandHandler
             activeGoAround.RetargetForPatternClimbOut(goAroundCtx, (int)(waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt));
             aircraft.Phases.ReplaceUpcoming([]);
 
-            Log.LogDebug(
-                "[ChangePatternDirection] {Callsign}: retargeted active go-around as {Dir} pattern climb-out for {Rwy}",
-                aircraft.Callsign,
-                newDirection,
-                runway.Designator
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[ChangePatternDirection] {Callsign}: retargeted active go-around as {Dir} pattern climb-out for {Rwy}",
+                    aircraft.Callsign,
+                    newDirection,
+                    runway.Designator
+                );
+            }
 
             string dirStrGoAround = DirectionWord(newDirection);
             return CommandDispatcher.Ok($"Make {dirStrGoAround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
@@ -1404,17 +1413,20 @@ internal static class PatternCommandHandler
             aircraft.Pattern.NoteRunwayCrossing(rebuiltChain);
             ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
 
-            Log.LogDebug(
-                "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy} (flown {Flown}), "
-                    + "runwaySwitch={Switch}, wrongSide={WrongSide}",
-                aircraft.Callsign,
-                activeLeg,
-                newDirection,
-                runway.Designator,
-                previousRunway?.Designator ?? "?",
-                legSwitch.RunwaySwitch,
-                legSwitch.WrongSide
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy} (flown {Flown}), "
+                        + "runwaySwitch={Switch}, wrongSide={WrongSide}",
+                    aircraft.Callsign,
+                    activeLeg,
+                    newDirection,
+                    runway.Designator,
+                    previousRunway?.Designator ?? "?",
+                    legSwitch.RunwaySwitch,
+                    legSwitch.WrongSide
+                );
+            }
 
             string dirStrRebuild = DirectionWord(newDirection);
             return CommandDispatcher.Ok(
@@ -2069,7 +2081,10 @@ internal static class PatternCommandHandler
         )
         {
             pendingUpwind.TurnCrosswindArmed = true;
-            Log.LogDebug("[PatternTurn] {Callsign}: armed early crosswind turn on pending Upwind (TC during takeoff)", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[PatternTurn] {Callsign}: armed early crosswind turn on pending Upwind (TC during takeoff)", aircraft.Callsign);
+            }
             return CommandDispatcher.Ok($"Turn {legName}");
         }
 
@@ -2208,14 +2223,20 @@ internal static class PatternCommandHandler
         if (TryFindNextPendingPhase<UpwindPhase>(aircraft) is { } pendingUpwind)
         {
             pendingUpwind.IsExtended = true;
-            Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending UpwindPhase already in queue", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending UpwindPhase already in queue", aircraft.Callsign);
+            }
             return CommandDispatcher.Ok("Extend upwind");
         }
 
         if (WillAppendNextCircuit(aircraft))
         {
             aircraft.Pattern.ExtendNextUpwind = true;
-            Log.LogDebug("[ExtendPattern] {Callsign}: set ExtendNextUpwind flag — next circuit not yet queued", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExtendPattern] {Callsign}: set ExtendNextUpwind flag — next circuit not yet queued", aircraft.Callsign);
+            }
             return CommandDispatcher.Ok("Extend upwind (queued for next circuit)");
         }
 
@@ -2251,15 +2272,24 @@ internal static class PatternCommandHandler
             {
                 case UpwindPhase up:
                     up.IsExtended = true;
-                    Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry UpwindPhase", aircraft.Callsign);
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry UpwindPhase", aircraft.Callsign);
+                    }
                     return CommandDispatcher.Ok("Extend upwind");
                 case CrosswindPhase cw:
                     cw.IsExtended = true;
-                    Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry CrosswindPhase", aircraft.Callsign);
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry CrosswindPhase", aircraft.Callsign);
+                    }
                     return CommandDispatcher.Ok("Extend crosswind");
                 case DownwindPhase dw:
                     dw.IsExtended = true;
-                    Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry DownwindPhase", aircraft.Callsign);
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry DownwindPhase", aircraft.Callsign);
+                    }
                     return CommandDispatcher.Ok("Extend downwind");
                 case BasePhase or FinalApproachPhase:
                     return null; // entry leads onto base/final — nothing extendable
@@ -2285,11 +2315,17 @@ internal static class PatternCommandHandler
         {
             case PatternEntryLeg.Crosswind when TryFindNextPendingPhase<CrosswindPhase>(aircraft) is { } pendingCrosswind:
                 pendingCrosswind.IsExtended = true;
-                Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending CrosswindPhase", aircraft.Callsign);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending CrosswindPhase", aircraft.Callsign);
+                }
                 return CommandDispatcher.Ok("Extend crosswind");
             case PatternEntryLeg.Downwind when TryFindNextPendingPhase<DownwindPhase>(aircraft) is { } pendingDownwind:
                 pendingDownwind.IsExtended = true;
-                Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending DownwindPhase", aircraft.Callsign);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending DownwindPhase", aircraft.Callsign);
+                }
                 return CommandDispatcher.Ok("Extend downwind");
         }
 
@@ -2489,7 +2525,10 @@ internal static class PatternCommandHandler
 
         ApplyRebuiltPatternChain(aircraft, runway, direction, circuitPhases);
 
-        Log.LogDebug("[ExtendPattern] {Callsign}: rolled back to {Leg}, IsExtended=true on first phase", aircraft.Callsign, leg);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[ExtendPattern] {Callsign}: rolled back to {Leg}, IsExtended=true on first phase", aircraft.Callsign, leg);
+        }
         return CommandDispatcher.Ok($"Extend {leg.ToString().ToLowerInvariant()}");
     }
 
@@ -2681,13 +2720,16 @@ internal static class PatternCommandHandler
                 if (PatternEntryLegOf(parsed) is { } entryLeg && LegOrder(modifier.TargetLeg) >= LegOrder(entryLeg))
                 {
                     aircraft.Pattern.PendingEntryModifier = modifier;
-                    Log.LogDebug(
-                        "[PatternModifier] {Callsign}: pre-armed {Kind} {Leg} against queued {Entry}",
-                        aircraft.Callsign,
-                        modifier.Kind,
-                        modifier.TargetLeg,
-                        parsed.GetType().Name
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[PatternModifier] {Callsign}: pre-armed {Kind} {Leg} against queued {Entry}",
+                            aircraft.Callsign,
+                            modifier.Kind,
+                            modifier.TargetLeg,
+                            parsed.GetType().Name
+                        );
+                    }
                     return CommandDispatcher.Ok(PendingModifierMessage(modifier));
                 }
             }
@@ -2900,13 +2942,16 @@ internal static class PatternCommandHandler
             aircraft.Pattern.TrafficDirection = null;
         }
 
-        Log.LogDebug(
-            "[PatternClearance] {Callsign}: pre-issued {Clearance} rwy {Runway} against queued {Entry}",
-            aircraft.Callsign,
-            clearance,
-            resolvedRunwayId,
-            entry.GetType().Name
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[PatternClearance] {Callsign}: pre-issued {Clearance} rwy {Runway} against queued {Entry}",
+                aircraft.Callsign,
+                clearance,
+                resolvedRunwayId,
+                entry.GetType().Name
+            );
+        }
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, resolvedRunwayId, ctx);
         return CommandDispatcher.Ok(PendingClearanceMessage(clearance, resolvedRunwayId, modifier));
@@ -3050,13 +3095,16 @@ internal static class PatternCommandHandler
             aircraft.Phases?.TransitionPatternAltitude = null;
         }
 
-        Log.LogDebug(
-            "[PatternClearance] {Callsign}: consumed pre-issued {Clearance} onto the new {Runway} circuit (pattern runway {PatternRunway})",
-            aircraft.Callsign,
-            pending.Clearance,
-            runway.Designator,
-            pending.PatternRunwayId ?? "same"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[PatternClearance] {Callsign}: consumed pre-issued {Clearance} onto the new {Runway} circuit (pattern runway {PatternRunway})",
+                aircraft.Callsign,
+                pending.Clearance,
+                runway.Designator,
+                pending.PatternRunwayId ?? "same"
+            );
+        }
     }
 
     /// <summary>A pre-issued clearance applies only to the runway it names (7110.65 §3-10-5).</summary>
@@ -3116,12 +3164,15 @@ internal static class PatternCommandHandler
             aircraft.Pattern.ExtendNextUpwind = false;
         }
 
-        Log.LogDebug(
-            "[PatternModifier] {Callsign}: queued {Kind} {Leg} for the next circuit",
-            aircraft.Callsign,
-            nextCircuit.Kind,
-            nextCircuit.TargetLeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[PatternModifier] {Callsign}: queued {Kind} {Leg} for the next circuit",
+                aircraft.Callsign,
+                nextCircuit.Kind,
+                nextCircuit.TargetLeg
+            );
+        }
         return CommandDispatcher.Ok($"{PendingModifierMessage(nextCircuit)} (queued for next circuit)");
     }
 
@@ -3159,12 +3210,15 @@ internal static class PatternCommandHandler
                 break;
         }
 
-        Log.LogDebug(
-            "[PatternModifier] {Callsign}: consumed pending {Kind} {Leg} onto new circuit",
-            aircraft.Callsign,
-            modifier.Kind,
-            modifier.TargetLeg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[PatternModifier] {Callsign}: consumed pending {Kind} {Leg} onto new circuit",
+                aircraft.Callsign,
+                modifier.Kind,
+                modifier.TargetLeg
+            );
+        }
     }
 
     private static void ArmShortApproach(IReadOnlyList<Phase> circuit, AircraftCategory category)
@@ -3971,13 +4025,16 @@ internal static class PatternCommandHandler
             UTurnPenaltyThresholdDeg
         );
 
-        Log.LogDebug(
-            "[PatternEntry.LeadIn] {Callsign}: 45° score={Score45:F1} XDW score={ScoreXDW:F1} → {Chosen}",
-            aircraft.Callsign,
-            score45,
-            scoreXtdDownwind,
-            score45 <= scoreXtdDownwind ? "45°" : "XDW"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[PatternEntry.LeadIn] {Callsign}: 45° score={Score45:F1} XDW score={ScoreXDW:F1} → {Chosen}",
+                aircraft.Callsign,
+                score45,
+                scoreXtdDownwind,
+                score45 <= scoreXtdDownwind ? "45°" : "XDW"
+            );
+        }
 
         return score45 <= scoreXtdDownwind ? (lead45.Lat, lead45.Lon) : (leadXtdDownwind.Lat, leadXtdDownwind.Lon);
     }
@@ -4379,16 +4436,19 @@ internal static class PatternCommandHandler
             }
         );
 
-        Log.LogDebug(
-            "[EF-Retarget] {Callsign}: alongTrack={Along:F2}nm rightOffset={Cross:F2}nm angleOffFinal={AngleFinal:F0}° "
-                + "angleOffOutbound={AngleOut:F0}° side={Side}",
-            aircraft.Callsign,
-            alongTrackNm,
-            rightOffsetNm,
-            angleOffFinal,
-            angleOffOutbound,
-            side
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[EF-Retarget] {Callsign}: alongTrack={Along:F2}nm rightOffset={Cross:F2}nm angleOffFinal={AngleFinal:F0}° "
+                    + "angleOffOutbound={AngleOut:F0}° side={Side}",
+                aircraft.Callsign,
+                alongTrackNm,
+                rightOffsetNm,
+                angleOffFinal,
+                angleOffOutbound,
+                side
+            );
+        }
 
         return new PatternRetargetGate(true, alongTrackNm, side, retargetWaypoints);
     }
@@ -4573,23 +4633,32 @@ internal static class PatternCommandHandler
             .LastOrDefault(w => w is not null);
         if (circuit is null)
         {
-            Log.LogDebug("[PatternAltitude] {Callsign}: no queued pattern leg to refresh", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[PatternAltitude] {Callsign}: no queued pattern leg to refresh", aircraft.Callsign);
+            }
             return;
         }
 
         if ((phases.AssignedRunway?.AirportId ?? phases.PatternRunway?.AirportId) is not { } airportId)
         {
-            Log.LogDebug("[PatternAltitude] {Callsign}: no airport to resolve the queued pattern legs' runway, not refreshed", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[PatternAltitude] {Callsign}: no airport to resolve the queued pattern legs' runway, not refreshed", aircraft.Callsign);
+            }
             return;
         }
 
         if (ResolveFlownRunway(circuit, NavigationDatabase.Instance.GetRunways(airportId)) is not { } runway)
         {
-            Log.LogDebug(
-                "[PatternAltitude] {Callsign}: queued pattern legs match no runway at {Airport}, not refreshed",
-                aircraft.Callsign,
-                airportId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[PatternAltitude] {Callsign}: queued pattern legs match no runway at {Airport}, not refreshed",
+                    aircraft.Callsign,
+                    airportId
+                );
+            }
             return;
         }
 
@@ -5117,14 +5186,17 @@ internal static class PatternCommandHandler
         double angleDeg = (alongNm > 0) ? Math.Atan2(heightFt, alongNm * GeoMath.FeetPerNm) * (180.0 / Math.PI) : double.NaN;
         bool tooHigh = (alongNm <= 0) || (angleDeg > MaxLandingFromLowApproachPathDeg);
 
-        Log.LogDebug(
-            "[LowApproachLanding] {Callsign}: {Along:F3}nm to the aim point, {Height:F0}ft above the runway, path {Angle:F2}°, tooHigh={TooHigh}",
-            aircraft.Callsign,
-            alongNm,
-            heightFt,
-            angleDeg,
-            tooHigh
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LowApproachLanding] {Callsign}: {Along:F3}nm to the aim point, {Height:F0}ft above the runway, path {Angle:F2}°, tooHigh={TooHigh}",
+                aircraft.Callsign,
+                alongNm,
+                heightFt,
+                angleDeg,
+                tooHigh
+            );
+        }
         return tooHigh;
     }
 

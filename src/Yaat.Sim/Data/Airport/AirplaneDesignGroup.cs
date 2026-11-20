@@ -159,7 +159,10 @@ public static class AirplaneDesignGroups
         AirplaneDesignGroup? group = record is null ? null : OfRecord(record, out warning);
         if (warning is not null)
         {
-            Log.LogDebug("{Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Warning}", warning);
+            }
         }
 
         return group ?? SmallestCoveringSpan(AircraftFootprint.ResolveWingspanFt(aircraftType));
@@ -272,14 +275,17 @@ public static class AirplaneDesignGroups
         double? spacingFt = ParallelSpacingFt(layout, taxiways, taxiway);
         AirplaneDesignGroup cap = spacingFt is { } s ? LargestFitting(s) : AirplaneDesignGroup.VI;
         var group = (AirplaneDesignGroup)Math.Min((int)ceiling, (int)cap);
-        Log.LogDebug(
-            "{Airport} taxiway {Taxiway}: airport ceiling ADG {Ceiling}, nearest parallel {Spacing}, ADG {Group}",
-            layout.AirportId,
-            taxiway,
-            ceiling,
-            spacingFt is { } ft ? $"{ft:F0} ft away (cap ADG {cap})" : "none",
-            group
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Airport} taxiway {Taxiway}: airport ceiling ADG {Ceiling}, nearest parallel {Spacing}, ADG {Group}",
+                layout.AirportId,
+                taxiway,
+                ceiling,
+                spacingFt is { } ft ? $"{ft:F0} ft away (cap ADG {cap})" : "none",
+                group
+            );
+        }
         return group;
     }
 
@@ -300,11 +306,14 @@ public static class AirplaneDesignGroups
 
         if (layout.Runways.Count > 0)
         {
-            Log.LogDebug(
-                "{Airport}: none of its {Count} runway(s) records a width; the airport ceiling is ADG VI",
-                layout.AirportId,
-                layout.Runways.Count
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Airport}: none of its {Count} runway(s) records a width; the airport ceiling is ADG VI",
+                    layout.AirportId,
+                    layout.Runways.Count
+                );
+            }
         }
 
         return AirplaneDesignGroup.VI;
@@ -419,15 +428,18 @@ public static class AirplaneDesignGroups
         {
             distances.Sort();
             double spacingFt = distances[needed - 1];
-            Log.LogDebug(
-                "{Airport} taxiway {Taxiway}: {Other} runs parallel {Spacing:F0} ft away (least {Least:F0} ft, {Count} samples)",
-                layout.AirportId,
-                taxiway,
-                name,
-                spacingFt,
-                distances[0],
-                distances.Count
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Airport} taxiway {Taxiway}: {Other} runs parallel {Spacing:F0} ft away (least {Least:F0} ft, {Count} samples)",
+                    layout.AirportId,
+                    taxiway,
+                    name,
+                    spacingFt,
+                    distances[0],
+                    distances.Count
+                );
+            }
             least = Math.Min(least ?? double.PositiveInfinity, spacingFt);
         }
 

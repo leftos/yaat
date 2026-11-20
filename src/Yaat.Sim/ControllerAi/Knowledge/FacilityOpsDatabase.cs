@@ -53,7 +53,10 @@ public static class FacilityOpsDatabase
     {
         if (!Directory.Exists(directory))
         {
-            Log.LogInformation("No facility knowledge directory at {Directory}; brains run their generic rules everywhere", directory);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("No facility knowledge directory at {Directory}; brains run their generic rules everywhere", directory);
+            }
             return [];
         }
 
@@ -63,7 +66,10 @@ public static class FacilityOpsDatabase
             files.Add(Load(path, navigation));
         }
 
-        Log.LogInformation("Loaded facility knowledge for {Airports}", string.Join(", ", files.Select(f => f.AirportId)));
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Loaded facility knowledge for {Airports}", string.Join(", ", files.Select(f => f.AirportId)));
+        }
         return files;
     }
 

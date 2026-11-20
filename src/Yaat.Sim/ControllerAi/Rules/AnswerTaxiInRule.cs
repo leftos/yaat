@@ -67,7 +67,10 @@ public sealed class AnswerTaxiInRule : IDecisionRule
     {
         if (_leftForInstructor.Add(callsign))
         {
-            Log.LogDebug("{Callsign}: {Requested} is taken and no other spot fits; left for the instructor", callsign, requested);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: {Requested} is taken and no other spot fits; left for the instructor", callsign, requested);
+            }
         }
     }
 

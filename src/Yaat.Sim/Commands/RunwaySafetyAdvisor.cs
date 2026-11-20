@@ -167,7 +167,10 @@ public static class RunwaySafetyAdvisor
             ? $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear"
             : $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a)";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>
@@ -220,7 +223,10 @@ public static class RunwaySafetyAdvisor
             ? $"traffic past the hold line for runway {display} ({callsigns}) — the runway is not clear; this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6; AIM 2-3-5.a.1); hold this aircraft short until the runway is clear"
             : $"traffic past the hold line for runway {display} ({callsigns}) — the runway is not clear; withhold the landing/option clearance until that traffic is clear of the runway (7110.65 3-10-3.a; AIM 2-3-5.a.1)";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>
@@ -254,7 +260,10 @@ public static class RunwaySafetyAdvisor
         string warning =
             $"{string.Join(", ", cleared)} holds a landing clearance for runway {display} — do not authorize line up and wait while that clearance stands; cancel it or hold short until the arrival is clear (7110.65 3-9-4.c)";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>
@@ -312,7 +321,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"traffic holding in position on runway {display} ({string.Join(", ", occupants)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a); with it stopped in position and holding no takeoff clearance there is no reasonable assurance separation will exist when the roll starts (3-9-5) — hold this aircraft short until the runway is clear";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         WarnIfStoppedTrafficOnRunway(aircraft, runway, ctx, forTakeoff: true);
@@ -368,7 +380,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         if (landing.Count > 0)
@@ -376,7 +391,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         foreach ((AircraftState leader, RunwayUseKind? kind) in occupants)
@@ -410,7 +428,10 @@ public static class RunwaySafetyAdvisor
             ? $"{leader.Callsign} opposite direction on runway {display}, {ahead} ft ahead — this departure cannot begin takeoff roll while that traffic is inbound over the runway (7110.65 3-9-6.a)"
             : $"{leader.Callsign} departing ahead on runway {display}, {ahead} ft ahead — this departure cannot begin takeoff roll until that traffic is airborne {RequiredDepartureDistance(leader, departure)} ft ahead or past the runway end (7110.65 3-9-6.a)";
         departure.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>The 3-9-6.a distance, in feet as the warning prints it, for <paramref name="departure"/> behind <paramref name="leader"/>.</summary>
@@ -438,7 +459,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"live traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         if (landing.Count > 0)
@@ -446,7 +470,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"live arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
     }
 
@@ -483,7 +510,10 @@ public static class RunwaySafetyAdvisor
         string warning =
             $"{string.Join(", ", holding)} already holding in position on runway {display} — do not authorize simultaneous line up and wait on the same runway between sunrise and sunset unless the local assist/local monitor position is staffed (7110.65 3-9-4.h)";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>
@@ -522,7 +552,10 @@ public static class RunwaySafetyAdvisor
         string warning =
             $"live traffic on final runway {display} — issue traffic before line up and wait: \"traffic, {closest.Callsign}, {closest.DistNm:F1} mile final\" (7110.65 3-9-4.d){others}";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>
@@ -556,7 +589,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a, 3-10-5.e)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         if (landed.Count > 0)
@@ -564,7 +600,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"live arrival rolling out on runway {display} ({string.Join(", ", landed)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         if (landing.Count > 0)
@@ -572,7 +611,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"live arrival landing on runway {display} ({string.Join(", ", landing)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
 
         // A departure that has started its roll lifts the holding-in-position prohibition (3-9-4.c.1, 3-10-5.e.1) but
@@ -583,7 +625,10 @@ public static class RunwaySafetyAdvisor
             string warning =
                 $"live departure rolling on runway {display} ({string.Join(", ", rolling)}) — the arrival may not cross the threshold until it has crossed the runway end or is airborne past the same-runway landmark (7110.65 3-10-3.a.2)";
             aircraft.PendingWarnings.Add(warning);
-            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RunwaySafety] {Warning}", warning);
+            }
         }
     }
 
@@ -606,7 +651,10 @@ public static class RunwaySafetyAdvisor
         string warning =
             $"traffic holding in position on runway {runwayDisplay} ({string.Join(", ", occupants)}) — withhold the landing/option clearance until that traffic exits the runway or starts takeoff roll; issue \"runway {runwayDisplay}, continue, traffic holding in position\" instead (7110.65 3-10-5.e, 3-9-4.c)";
         aircraft.PendingWarnings.Add(warning);
-        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RunwaySafety] {Warning}", warning);
+        }
     }
 
     /// <summary>

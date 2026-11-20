@@ -138,13 +138,16 @@ public static class AirlineFleets
             string source = root.Metadata?.Source ?? "";
             string sourceDate = root.Metadata?.SourceDate ?? "";
 
-            Log.LogInformation(
-                "Loaded {AirlineCount} airlines / {TypeCount} aircraft types from {Source} ({Date})",
-                byAirline.Count,
-                byType.Count,
-                source,
-                sourceDate
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Loaded {AirlineCount} airlines / {TypeCount} aircraft types from {Source} ({Date})",
+                    byAirline.Count,
+                    byType.Count,
+                    source,
+                    sourceDate
+                );
+            }
 
             return new Data(source, sourceDate, byAirline, byType);
         }

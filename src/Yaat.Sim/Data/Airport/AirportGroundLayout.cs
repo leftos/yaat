@@ -1705,13 +1705,16 @@ public sealed class AirportGroundLayout
             endpoint = (GeoMath.DistanceNm(position, first.Position) <= GeoMath.DistanceNm(position, second.Position)) ? first : second;
         }
 
-        Log.LogDebug(
-            "[TaxiStart] on {Taxiway} edge {First}-{Second}, away from every node: the taxi starts at its endpoint ahead, node {NodeId}",
-            edge.TaxiwayName,
-            first.Id,
-            second.Id,
-            endpoint.Id
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TaxiStart] on {Taxiway} edge {First}-{Second}, away from every node: the taxi starts at its endpoint ahead, node {NodeId}",
+                edge.TaxiwayName,
+                first.Id,
+                second.Id,
+                endpoint.Id
+            );
+        }
         return endpoint;
     }
 
@@ -1815,13 +1818,16 @@ public sealed class AirportGroundLayout
         double secondOffDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, second.Position), heading.Degrees);
         GroundNode endpoint = (firstOffDeg <= secondOffDeg) ? first : second;
 
-        Log.LogDebug(
-            "[TaxiStart] on fillet {Taxiway} {First}-{Second}, away from every node: the taxi starts at its end ahead, node {NodeId}",
-            arc.TaxiwayName,
-            first.Id,
-            second.Id,
-            endpoint.Id
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TaxiStart] on fillet {Taxiway} {First}-{Second}, away from every node: the taxi starts at its end ahead, node {NodeId}",
+                arc.TaxiwayName,
+                first.Id,
+                second.Id,
+                endpoint.Id
+            );
+        }
         return endpoint;
     }
 
@@ -2492,7 +2498,10 @@ public sealed class AirportGroundLayout
 
         if (best.Chosen is not { } exit)
         {
-            Log.LogDebug("[ExitBFS] RESULT: no exit for centerline #{Id} pref={Pref}", centerlineNode.Id, preference?.Taxiway ?? "any");
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExitBFS] RESULT: no exit for centerline #{Id} pref={Pref}", centerlineNode.Id, preference?.Taxiway ?? "any");
+            }
             return null;
         }
 
@@ -2615,33 +2624,42 @@ public sealed class AirportGroundLayout
 
             if (!edge.MatchesTaxiway(at.Taxiway))
             {
-                Log.LogDebug(
-                    "[ExitBFS]   skip walk #{From}→#{To}: twy {Twy} != {Branch}",
-                    at.Node.Id,
-                    edge.OtherNode(at.Node).Id,
-                    edge.TaxiwayName,
-                    at.Taxiway
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[ExitBFS]   skip walk #{From}→#{To}: twy {Twy} != {Branch}",
+                        at.Node.Id,
+                        edge.OtherNode(at.Node).Id,
+                        edge.TaxiwayName,
+                        at.Taxiway
+                    );
+                }
                 continue;
             }
 
             GroundNode next = edge.OtherNode(at.Node);
             if (!visited.Add(next.Id))
             {
-                Log.LogDebug("[ExitBFS]   skip walk #{From}→#{To}: already visited", at.Node.Id, next.Id);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[ExitBFS]   skip walk #{From}→#{To}: already visited", at.Node.Id, next.Id);
+                }
                 continue;
             }
 
             var nextPath = new List<GroundNode>(at.Path) { next };
             queue.Enqueue((next, at.Taxiway, nextPath, at.TotalDist + edge.DistanceNm, at.Depth + 1));
-            Log.LogDebug(
-                "[ExitBFS]   walk #{From}→#{To} via {Twy} depth={Depth} type={Type}",
-                at.Node.Id,
-                next.Id,
-                at.Taxiway,
-                at.Depth + 1,
-                next.Type
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[ExitBFS]   walk #{From}→#{To} via {Twy} depth={Depth} type={Type}",
+                    at.Node.Id,
+                    next.Id,
+                    at.Taxiway,
+                    at.Depth + 1,
+                    next.Type
+                );
+            }
         }
     }
 
@@ -2654,7 +2672,10 @@ public sealed class AirportGroundLayout
     {
         if (IsOnAnotherRunway(search, candidate.Bar))
         {
-            Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (on another runway)", candidate.Bar.Id, candidate.Taxiway);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (on another runway)", candidate.Bar.Id, candidate.Taxiway);
+            }
             return;
         }
 
@@ -2668,20 +2689,23 @@ public sealed class AirportGroundLayout
         ExitAngleScore angle = ScoreExitAngle(search, candidate);
         double score = candidate.TotalDistNm + parkingBias + angle.Penalty - angle.Bonus;
         bool isNewBest = best.IsNewBest(onRequestedSide, score);
-        Log.LogDebug(
-            "[ExitBFS] HS #{Id} twy={Twy} angle={ExAngle:F0}° side={Side}: score={Score:F4} "
-                + "(dist={Dist:F4} parking={Park:F4} anglePen={AngPen:F2} hsBonus={Hs:F2}){Result}",
-            candidate.Bar.Id,
-            candidate.Taxiway,
-            angle.Angle,
-            onRequestedSide ? "ON" : "OFF",
-            score,
-            candidate.TotalDistNm,
-            parkingBias,
-            angle.Penalty,
-            angle.Bonus,
-            isNewBest ? " [NEW BEST]" : ""
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ExitBFS] HS #{Id} twy={Twy} angle={ExAngle:F0}° side={Side}: score={Score:F4} "
+                    + "(dist={Dist:F4} parking={Park:F4} anglePen={AngPen:F2} hsBonus={Hs:F2}){Result}",
+                candidate.Bar.Id,
+                candidate.Taxiway,
+                angle.Angle,
+                onRequestedSide ? "ON" : "OFF",
+                score,
+                candidate.TotalDistNm,
+                parkingBias,
+                angle.Penalty,
+                angle.Bonus,
+                isNewBest ? " [NEW BEST]" : ""
+            );
+        }
         if (isNewBest)
         {
             best.Take(candidate, actualSide, onRequestedSide, score);
@@ -2742,14 +2766,17 @@ public sealed class AirportGroundLayout
         double fromFt = DistanceFromCenterlineSegmentFt(rect, path[^2].Position);
         double barFt = DistanceFromCenterlineSegmentFt(rect, bar.Position);
         bool leftBehind = barFt > fromFt;
-        Log.LogDebug(
-            "[ExitBFS] HS #{Id} rwy={Rwy}: {From:F0} → {Bar:F0} ft from its centerline, {Verdict}",
-            bar.Id,
-            rwyId,
-            fromFt,
-            barFt,
-            leftBehind ? "moving away, passing through" : "moving toward it"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ExitBFS] HS #{Id} rwy={Rwy}: {From:F0} → {Bar:F0} ft from its centerline, {Verdict}",
+                bar.Id,
+                rwyId,
+                fromFt,
+                barFt,
+                leftBehind ? "moving away, passing through" : "moving toward it"
+            );
+        }
         return leftBehind;
     }
 
@@ -2797,20 +2824,29 @@ public sealed class AirportGroundLayout
         GroundNode bar = candidate.Bar;
         if ((search.RunwayDesignator is { } designator) && (bar.RunwayId is { } rwyId) && !rwyId.Contains(designator))
         {
-            Log.LogDebug("[ExitBFS] HS #{Id} rwy={Rwy}: skip (wrong runway)", bar.Id, rwyId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExitBFS] HS #{Id} rwy={Rwy}: skip (wrong runway)", bar.Id, rwyId);
+            }
             return null;
         }
 
         if ((search.ExcludeHoldShortNodes is not null) && search.ExcludeHoldShortNodes.Contains(bar.Id))
         {
-            Log.LogDebug("[ExitBFS] HS #{Id}: skip (occupied)", bar.Id);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExitBFS] HS #{Id}: skip (occupied)", bar.Id);
+            }
             return null;
         }
 
         // Per-end noTurnoff from the airport file.
         if ((search.ForbiddenTaxiways is not null) && search.ForbiddenTaxiways.Contains(candidate.Taxiway))
         {
-            Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (noTurnoff)", bar.Id, candidate.Taxiway);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (noTurnoff)", bar.Id, candidate.Taxiway);
+            }
             return null;
         }
 
@@ -2838,14 +2874,17 @@ public sealed class AirportGroundLayout
             return candidate;
         }
 
-        Log.LogDebug(
-            "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; {Verdict}",
-            candidate.Bar.Id,
-            runway.Designator,
-            CrossTrackFromCenterlineFt(runway.Rect, candidate.Bar),
-            runway.Rect.HoldShortNm * GeoMath.FeetPerNm,
-            search.Instructed ? "named exit, stops here" : "not an uninstructed exit"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; {Verdict}",
+                candidate.Bar.Id,
+                runway.Designator,
+                CrossTrackFromCenterlineFt(runway.Rect, candidate.Bar),
+                runway.Rect.HoldShortNm * GeoMath.FeetPerNm,
+                search.Instructed ? "named exit, stops here" : "not an uninstructed exit"
+            );
+        }
         return search.Instructed ? candidate : null;
     }
 
@@ -2871,13 +2910,16 @@ public sealed class AirportGroundLayout
         OutwardWalk walk = BuildOutwardWalk(runway, search);
         if (WalkOutwardToHoldShort(deadEnd.Bar, walk) is not { } continuation)
         {
-            Log.LogDebug(
-                "[ExitBFS] {Twy} ends at #{Node} {Ft:F0} ft from the {Rwy} centerline; no free bar at the holding distance beyond it",
-                deadEnd.Taxiway,
-                deadEnd.Bar.Id,
-                CrossTrackFromCenterlineFt(walk.Rect, deadEnd.Bar),
-                walk.Designator
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[ExitBFS] {Twy} ends at #{Node} {Ft:F0} ft from the {Rwy} centerline; no free bar at the holding distance beyond it",
+                    deadEnd.Taxiway,
+                    deadEnd.Bar.Id,
+                    CrossTrackFromCenterlineFt(walk.Rect, deadEnd.Bar),
+                    walk.Designator
+                );
+            }
             return null;
         }
 
@@ -3192,16 +3234,19 @@ public sealed class AirportGroundLayout
             return null;
         }
 
-        Log.LogDebug(
-            "[ParallelXing] {Land} HS #{Near} → cross {Rwy} → HS #{Far} via {Twy} pullUp=[{Pull}] crossing=[{Cross}]",
-            landingRunwayDesignator,
-            nearHoldShort.Id,
-            nearRunwayId,
-            crossingPath[^1].Id,
-            exitTaxiwayName,
-            string.Join("→", pullUpPath.Select(n => n.Id)),
-            string.Join("→", crossingPath.Select(n => n.Id))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ParallelXing] {Land} HS #{Near} → cross {Rwy} → HS #{Far} via {Twy} pullUp=[{Pull}] crossing=[{Cross}]",
+                landingRunwayDesignator,
+                nearHoldShort.Id,
+                nearRunwayId,
+                crossingPath[^1].Id,
+                exitTaxiwayName,
+                string.Join("→", pullUpPath.Select(n => n.Id)),
+                string.Join("→", crossingPath.Select(n => n.Id))
+            );
+        }
 
         return (nearHoldShort, crossingPath[^1], nearRunwayId.ToString(), pullUpPath, crossingPath);
     }
@@ -5107,24 +5152,30 @@ public sealed class AirportGroundLayout
         {
             if (IsClearStartLeg(position, candidate, taxiEdges) && (StartBlocker(candidate, position, traffic, obstacles) is null))
             {
-                Log.LogDebug(
-                    "[TaxiStart] {Callsign}: node {Usual} is blocked by {Blocker}; starting at node {Start} instead",
-                    traffic.Callsign,
-                    usual.Id,
-                    blocker,
-                    candidate.Id
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[TaxiStart] {Callsign}: node {Usual} is blocked by {Blocker}; starting at node {Start} instead",
+                        traffic.Callsign,
+                        usual.Id,
+                        blocker,
+                        candidate.Id
+                    );
+                }
                 return (candidate, null);
             }
         }
 
-        Log.LogDebug(
-            "[TaxiStart] {Callsign}: node {Usual} is blocked by {Blocker} and no node within {SearchFt:F0} ft is clear; keeping it",
-            traffic.Callsign,
-            usual.Id,
-            blocker,
-            OccupiedStandStartSearchFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TaxiStart] {Callsign}: node {Usual} is blocked by {Blocker} and no node within {SearchFt:F0} ft is clear; keeping it",
+                traffic.Callsign,
+                usual.Id,
+                blocker,
+                OccupiedStandStartSearchFt
+            );
+        }
         return (usual, blocker);
     }
 

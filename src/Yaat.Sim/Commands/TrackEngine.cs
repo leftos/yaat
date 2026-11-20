@@ -851,21 +851,24 @@ public static partial class TrackEngine
         ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
         if (plan.IsPlain)
         {
-            Log.LogInformation(
-                "[Handoff] {Callsign}: Owner={OwnerCallsign} (type={OwnerType}, fac={OwnerFac}, {OwnerSubset}{OwnerSector}) → "
-                    + "Peer={PeerCallsign} (type={PeerType}, fac={PeerFac}, {PeerSubset}{PeerSector})",
-                ac.Callsign,
-                owner.Callsign,
-                owner.OwnerType,
-                owner.FacilityId,
-                owner.Subset,
-                owner.SectorId,
-                plan.Peer.Callsign,
-                plan.Peer.OwnerType,
-                plan.Peer.FacilityId,
-                plan.Peer.Subset,
-                plan.Peer.SectorId
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[Handoff] {Callsign}: Owner={OwnerCallsign} (type={OwnerType}, fac={OwnerFac}, {OwnerSubset}{OwnerSector}) → "
+                        + "Peer={PeerCallsign} (type={PeerType}, fac={PeerFac}, {PeerSubset}{PeerSector})",
+                    ac.Callsign,
+                    owner.Callsign,
+                    owner.OwnerType,
+                    owner.FacilityId,
+                    owner.Subset,
+                    owner.SectorId,
+                    plan.Peer.Callsign,
+                    plan.Peer.OwnerType,
+                    plan.Peer.FacilityId,
+                    plan.Peer.Subset,
+                    plan.Peer.SectorId
+                );
+            }
         }
 
         return new CommandResult(true, plan.Message);

@@ -367,16 +367,19 @@ public static class ExitCapacityResolver
 
     private static ExitCapacitySegment LogResolved(AirportGroundLayout layout, ExitCapacityRule rule, ExitCapacitySegment segment)
     {
-        Log.LogDebug(
-            "{Airport}: exit capacity {Rwy} {Twy} resolved to HS #{Exit} → HS #{Parallel} ({ParallelRwy}){Shared}",
-            layout.AirportId,
-            rule.Runway,
-            rule.Taxiway,
-            segment.ExitBarNodeId,
-            segment.ParallelBarNodeId,
-            segment.ParallelRunwayId,
-            rule.IsCrossover ? $", shared with {rule.CrossoverRunway}" : ""
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Airport}: exit capacity {Rwy} {Twy} resolved to HS #{Exit} → HS #{Parallel} ({ParallelRwy}){Shared}",
+                layout.AirportId,
+                rule.Runway,
+                rule.Taxiway,
+                segment.ExitBarNodeId,
+                segment.ParallelBarNodeId,
+                segment.ParallelRunwayId,
+                rule.IsCrossover ? $", shared with {rule.CrossoverRunway}" : ""
+            );
+        }
         return segment;
     }
 }

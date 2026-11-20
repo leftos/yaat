@@ -100,7 +100,10 @@ public static class AircraftProfileDatabase
         AircraftPerformance.ClearSpeedEnvelopeCache();
         FaaAircraftDatabase.ApplyOverrides(overrides);
         ClearSiblingFallbackWarnings();
-        Log.LogInformation("Loaded {Count} aircraft profiles ({OverrideCount} with overrides)", _lookup.Count, overriddenFields.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Loaded {Count} aircraft profiles ({OverrideCount} with overrides)", _lookup.Count, overriddenFields.Count);
+        }
     }
 
     /// <summary>

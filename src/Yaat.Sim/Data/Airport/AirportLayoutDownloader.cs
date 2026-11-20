@@ -84,7 +84,10 @@ public sealed class AirportLayoutDownloader : IDisposable
         {
             if (DateTime.UtcNow - notFoundAt < NotFoundTtl)
             {
-                Log.LogDebug("Airport {AirportId} known to have no vNAS map (404 negative cache); skipping fetch", faaCode);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Airport {AirportId} known to have no vNAS map (404 negative cache); skipping fetch", faaCode);
+                }
                 return new HttpCacheResult(Content: null, NotFound: true, RefreshFailed: false);
             }
 

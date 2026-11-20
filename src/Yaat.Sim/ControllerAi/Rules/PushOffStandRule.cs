@@ -178,7 +178,10 @@ public sealed class PushOffStandRule : IDecisionRule
             return;
         }
 
-        Log.LogDebug("{Callsign}: pushback held, {Reason}", aircraft.Callsign, reason);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: pushback held, {Reason}", aircraft.Callsign, reason);
+        }
         if (!ask.Scope.TryIssue(aircraft, ask.Memo, "STBY", new AiIntent(Name, $"pushback requested; standby: {reason}")))
         {
             return;
@@ -265,13 +268,16 @@ public sealed class PushOffStandRule : IDecisionRule
         ask.Wait.AnyClear = clear.Count > 0;
         if (clear.Count == 0)
         {
-            Log.LogDebug(
-                "{Callsign}: no push target of stand {Stand} at {Airport} is clear: {Outcomes}",
-                ask.Aircraft.Callsign,
-                stand,
-                ask.Layout.AirportId,
-                outcomes
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: no push target of stand {Stand} at {Airport} is clear: {Outcomes}",
+                    ask.Aircraft.Callsign,
+                    stand,
+                    ask.Layout.AirportId,
+                    outcomes
+                );
+            }
             bool hopeless = !verdicts.Any(v => (v.Blocker is { } blocker) && !WaitsOn(blocker, ask.Aircraft.Callsign));
             return new TargetPass(null, outcomes, hopeless);
         }

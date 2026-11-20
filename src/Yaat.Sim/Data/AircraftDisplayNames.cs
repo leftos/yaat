@@ -63,7 +63,10 @@ public static class AircraftDisplayNames
                     dict[k.Trim().ToUpperInvariant()] = v.Trim();
                 }
             }
-            Log.LogInformation("Loaded {Count} aircraft display names", dict.Count);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Loaded {Count} aircraft display names", dict.Count);
+            }
             return dict;
         }
         catch (Exception ex)
