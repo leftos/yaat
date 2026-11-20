@@ -540,14 +540,14 @@ rather than restating it.
 **Documented exception to step 4 — `AsdexFix`.** The `AsdexFix` field (the ASDE-style Ground View / Aircraft List
 fix, resolved server-side by `DtoConverter.ResolveGroundFix` from the airport's ASDE-X/SAID config) is deliberately
 **not** in `TrainingDtoFingerprint`. It is a pure function of `Destination`, `Route`, and `Scratchpad1` (all already
-fingerprinted) plus the ARTCC config and `AircraftState.AirportId` (both static for an aircraft's lifetime), so any
+fingerprinted) plus the room's pinned ARTCC config and `AircraftState.AirportId` (both static for an aircraft's lifetime), so any
 runtime change to the resolved fix is already driven by a fingerprinted input and rebroadcasts correctly. Adding it
-would force `ArtccConfigService` + the ARTCC id into `CaptureTrainingDto` for zero behavioral gain. This is safe
+would force the pinned `ArtccConfigRoot` into `CaptureTrainingDto` for zero behavioral gain. This is safe
 *only* because the derived field's dynamic inputs are themselves fingerprinted — the general rule (step 4) still holds
 for any field whose inputs are not.
 
-**Same exception — `AutoScratchpad1`.** The STARS destination fallback (`DtoConverter.ResolveAutoScratchpad1FromService`
-→ `AutoScratchpadResolver`) follows the identical pattern and is likewise absent from `TrainingDtoFingerprint`. Its
+**Same exception — `AutoScratchpad1`.** The STARS destination fallback (`DtoConverter.ResolveAutoScratchpad1FromConfig`,
+over the pinned `ArtccConfigRoot` → `AutoScratchpadResolver`) follows the identical pattern and is likewise absent from `TrainingDtoFingerprint`. Its
 dynamic inputs are `Scratchpad1`, `WasScratchpad1Cleared`, `Departure`, and `Destination`; the STARS facility config and
 the student area's `ShowDestination*` adaptation are fixed for the room's lifetime. `Departure`/`Destination`/
 `Scratchpad1` were already fingerprinted — **`WasScratchpad1Cleared` was added to `TrainingDtoFingerprint` specifically
