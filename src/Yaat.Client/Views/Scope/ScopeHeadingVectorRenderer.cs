@@ -6,9 +6,10 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>
-/// Draws the elastic heading vector: the turn arc from the aircraft's present heading into the one its cursor names at the
-/// type's turn rate (left out for a course change under three degrees or a taxiing aircraft), the straight line from the
-/// arc's end along that heading, and the label "{heading}M {nm}nm {m:ss}" beside it in amber.
+/// Draws the elastic heading vector: a short straight roll-in lead ahead of the aircraft, then the turn arc from its present
+/// heading into the one its cursor names at the type's turn rate (both left out for a course change under three degrees or a
+/// taxiing aircraft), the straight line from the arc's end along that heading, and the label "{heading}M {nm}nm {m:ss}"
+/// beside it in amber.
 /// </summary>
 public sealed class ScopeHeadingVectorRenderer : IDisposable
 {
@@ -45,6 +46,7 @@ public sealed class ScopeHeadingVectorRenderer : IDisposable
         ScopeHeadingVectorGeometry geometry = ScopeHeadingVectorState.Geometry(overlay, headingTrue);
         if (geometry.HasArc)
         {
+            DrawLead(canvas, vp, overlay.Aircraft, geometry.LeadEnd);
             DrawArc(canvas, vp, overlay, headingTrue);
         }
 
@@ -54,7 +56,20 @@ public sealed class ScopeHeadingVectorRenderer : IDisposable
         DrawLabel(canvas, Label(overlay, headingMag, distNm), endX + 12, endY - 8);
     }
 
-    // The turn arc from the present heading into the new one at the type's turn rate, around the centre on the turn's side.
+    // The straight roll-in lead from the aircraft to where the arc starts, when there is one.
+    private void DrawLead(SKCanvas canvas, MapViewport vp, LatLon aircraft, LatLon leadEnd)
+    {
+        if (GeoMath.DistanceNm(aircraft, leadEnd) <= 0)
+        {
+            return;
+        }
+
+        (float acX, float acY) = vp.LatLonToScreen(aircraft.Lat, aircraft.Lon);
+        (float leadX, float leadY) = vp.LatLonToScreen(leadEnd.Lat, leadEnd.Lon);
+        canvas.DrawLine(acX, acY, leadX, leadY, _linePaint);
+    }
+
+    // The turn arc from the lead's end into the new heading at the type's turn rate, around the centre on the turn's side.
     private void DrawArc(SKCanvas canvas, MapViewport vp, ScopeHeadingVectorOverlay overlay, double snappedHeadingTrue)
     {
         using var path = new SKPath();

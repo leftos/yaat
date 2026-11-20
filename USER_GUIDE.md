@@ -1659,7 +1659,7 @@ Empty assigned fields show their identifier (`ASP`, `AHDG`, `(---)`) so the clic
 
 Two flows are supported, mirroring EuroScope's pseudopilot UX:
 
-- **Drag**: press-and-hold on `AHDG`, drag to a point on the map (the cursor turns to a crosshair, an elastic vector and turn-radius arc draw live), release on the target point. The bearing aircraft → release-point is computed (converted to magnetic) and dispatched as `FH <heading>`.
+- **Drag**: press-and-hold on `AHDG`, drag to a point on the map (the cursor turns to a crosshair, an elastic vector and turn-radius arc draw live), release on the target point. The bearing aircraft → release-point is computed (converted to magnetic) and dispatched as `FH <heading>`. A drag confirms only when the release is more than 10 px from the press; a slip, or a drag that returns within 10 px, leaves the mode active for the click-to-confirm below.
 - **Click-to-confirm**: click `AHDG` and release without dragging — the mode stays active. Move the cursor anywhere; the live preview follows. Left-click on the map to confirm.
 
 Headings snap to the nearest **5°** — the visual line, label, and dispatched `FH` value all reflect the same snapped value.

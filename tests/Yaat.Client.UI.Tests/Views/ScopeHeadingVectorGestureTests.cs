@@ -140,6 +140,13 @@ public class ScopeHeadingVectorGestureTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    // Moves the pointer with the left button held.
+    private static void MoveHeld(Shown s, Point canvasPoint)
+    {
+        s.Window.MouseMove(InWindow(s, canvasPoint), RawInputModifiers.LeftMouseButton);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     private static Point AhdgField(Shown s)
     {
         ScopeTrack track = Assert.Single(s.Canvas.CurrentFrame.Tracks, t => ReferenceEquals(t.Aircraft, s.Aircraft));
@@ -265,6 +272,145 @@ public class ScopeHeadingVectorGestureTests
             (string callsign, string command, _) = Assert.Single(s.Sent);
             Assert.Equal(Callsign, callsign);
             Assert.Equal(ExpectedCommand(s, MapPoint), command);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AhdgPress_WithASmallSlip_SendsNoHeading()
+    {
+        Shown s = await ShowScopeAsync(null);
+        try
+        {
+            Point p = AhdgField(s);
+            Point slipped = new(p.X + 6, p.Y);
+            Press(s, p, MouseButton.Left);
+            MoveHeld(s, slipped);
+            Release(s, slipped, MouseButton.Left);
+
+            Assert.Empty(s.Sent);
+            Assert.True(s.Canvas.IsHeadingVectorActive);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AhdgPress_DragOutAndBackToThePress_SendsNoHeading()
+    {
+        Shown s = await ShowScopeAsync(null);
+        try
+        {
+            Point p = AhdgField(s);
+            Press(s, p, MouseButton.Left);
+            MoveHeld(s, new Point(p.X + 40, p.Y));
+            Point back = new(p.X + 3, p.Y);
+            MoveHeld(s, back);
+            Release(s, back, MouseButton.Left);
+
+            Assert.Empty(s.Sent);
+            Assert.True(s.Canvas.IsHeadingVectorActive);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AhdgPress_DeliberateDrag_SendsTheHeadingAtRelease()
+    {
+        Shown s = await ShowScopeAsync(null);
+        try
+        {
+            Point p = AhdgField(s);
+            // The AHDG field sits about due east of the aircraft; north of it the release names a heading the press does not.
+            Point away = new(p.X + 20, p.Y - 40);
+            Press(s, p, MouseButton.Left);
+            MoveHeld(s, away);
+            Release(s, away, MouseButton.Left);
+
+            (string callsign, string command, _) = Assert.Single(s.Sent);
+            Assert.Equal(Callsign, callsign);
+            Assert.Equal(ExpectedCommand(s, away), command);
+            Assert.NotEqual(ExpectedCommand(s, p), command);
+            Assert.False(s.Canvas.IsHeadingVectorActive);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AhdgPress_ReleasedExactlyTenPixelsFromThePress_SendsNoHeading()
+    {
+        Shown s = await ShowScopeAsync(null);
+        try
+        {
+            Point p = AhdgField(s);
+            Press(s, p, MouseButton.Left);
+            MoveHeld(s, new Point(p.X + 40, p.Y));
+            Point boundary = new(p.X + 10, p.Y);
+            MoveHeld(s, boundary);
+            Release(s, boundary, MouseButton.Left);
+
+            Assert.Empty(s.Sent);
+            Assert.True(s.Canvas.IsHeadingVectorActive);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AhdgPress_ReleasedElevenPixelsFromThePress_SendsTheHeading()
+    {
+        Shown s = await ShowScopeAsync(null);
+        try
+        {
+            Point p = AhdgField(s);
+            Press(s, p, MouseButton.Left);
+            MoveHeld(s, new Point(p.X + 40, p.Y));
+            Point away = new(p.X + 11, p.Y);
+            MoveHeld(s, away);
+            Release(s, away, MouseButton.Left);
+
+            (string callsign, string command, _) = Assert.Single(s.Sent);
+            Assert.Equal(Callsign, callsign);
+            Assert.Equal(ExpectedCommand(s, away), command);
+            Assert.False(s.Canvas.IsHeadingVectorActive);
+        }
+        finally
+        {
+            CloseWindow(s);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AhdgPress_ThenClickOnTheMap_SendsTheHeading()
+    {
+        Shown s = await ShowScopeAsync(null);
+        try
+        {
+            Point p = AhdgField(s);
+            Press(s, p, MouseButton.Left);
+            Release(s, p, MouseButton.Left);
+            Assert.Empty(s.Sent);
+
+            Point target = new(p.X, p.Y - 60);
+            Click(s, target, MouseButton.Left, RawInputModifiers.None);
+
+            (string callsign, string command, _) = Assert.Single(s.Sent);
+            Assert.Equal(Callsign, callsign);
+            Assert.Equal(ExpectedCommand(s, target), command);
+            Assert.False(s.Canvas.IsHeadingVectorActive);
         }
         finally
         {

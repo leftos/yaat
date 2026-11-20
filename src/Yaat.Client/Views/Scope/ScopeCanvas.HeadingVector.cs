@@ -7,7 +7,8 @@ namespace Yaat.Client.Views.Scope;
 
 /// <summary>
 /// The Scope canvas's elastic heading vector: a press on a EuroScope AHDG field starts it and the pointer is a cross while it
-/// is up. A drag past the threshold confirms at the release; a release short of it arms the vector, and any left press then
+/// is up. A drag past the threshold confirms at a release more than the threshold from the press; any other release arms the
+/// vector, and any left press then
 /// confirms the heading toward its press point, whatever is under it, while an Alt+left press and the armed measuring tool do
 /// not intercept it. A right press or Esc cancels without sending.
 /// </summary>
@@ -66,7 +67,7 @@ public sealed partial class ScopeCanvas
         }
 
         handled = true;
-        ApplyHeadingVector(vector.Released(PointAt(release.Pos)));
+        ApplyHeadingVector(vector.Released(PointAt(release.Pos), release.Pos.X, release.Pos.Y));
     }
 
     partial void MoveHeadingVector(in ScopeMove move)
@@ -109,7 +110,8 @@ public sealed partial class ScopeCanvas
                 ac.Heading.Degrees,
                 ac.GroundSpeed,
                 vector.Cursor,
-                AircraftPerformance.TurnRate(ac.AircraftType, ac.Category)
+                AircraftPerformance.TurnRate(ac.AircraftType, ac.Category),
+                ac.Category
             ),
         };
     }
