@@ -252,14 +252,17 @@ public sealed partial class VfrFollowPhase
         TrueHeading legTrack = _leadPath.TrackInto(start, LegTrackSampleNm) ?? waypoints.DownwindHeading;
         _leadBase = new LeadBaseJoin(runway, waypoints, start, leadBase.FinalDistanceNm, legTrack);
         _extensionLogged = false;
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: {Lead} began its base at {Lat:F5},{Lon:F5}, arriving on {Track:F0}°",
-            follower.Callsign,
-            TargetCallsign,
-            start.Lat,
-            start.Lon,
-            legTrack.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: {Lead} began its base at {Lat:F5},{Lon:F5}, arriving on {Track:F0}°",
+                follower.Callsign,
+                TargetCallsign,
+                start.Lat,
+                start.Lon,
+                legTrack.Degrees
+            );
+        }
     }
 
     /// <summary>The remembered lead base while the lead is still airborne on that base, its final or its landing; otherwise null.</summary>
@@ -309,12 +312,15 @@ public sealed partial class VfrFollowPhase
         if (!_extensionLogged)
         {
             _extensionLogged = true;
-            Log.LogDebug(
-                "[VfrFollow] {Callsign}: extending past {Lead}'s base turn point to build spacing, gap {Gap:F2} nm",
-                ctx.Aircraft.Callsign,
-                TargetCallsign,
-                gapNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: extending past {Lead}'s base turn point to build spacing, gap {Gap:F2} nm",
+                    ctx.Aircraft.Callsign,
+                    TargetCallsign,
+                    gapNm
+                );
+            }
         }
 
         bool reachedFinal = ExtensionReachedFinal(ctx.Aircraft.Position, join);
@@ -323,14 +329,17 @@ public sealed partial class VfrFollowPhase
             return false;
         }
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: unable to follow {Lead}, {Ext:F2} nm past its base turn{Final}, {Gap:F2} nm behind",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            extensionNm,
-            reachedFinal ? " nearing the final" : "",
-            gapNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: unable to follow {Lead}, {Ext:F2} nm past its base turn{Final}, {Gap:F2} nm behind",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                extensionNm,
+                reachedFinal ? " nearing the final" : "",
+                gapNm
+            );
+        }
         EndFollowExtendingDownwind(ctx, join);
         return true;
     }

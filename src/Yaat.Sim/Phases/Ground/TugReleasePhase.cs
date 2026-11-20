@@ -62,13 +62,16 @@ public sealed class TugReleasePhase : Phase
     {
         ctx.Targets.TargetTrueHeading = null;
         Brake(ctx);
-        Log.LogDebug(
-            "[Push] {Callsign}: tow cleared at {Gs:F2} kt, braking {Kind} to rest at {Decel:F1} kt/s",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.GroundSpeed,
-            Kind,
-            CategoryPerformance.TugDecelRate(ctx.Category)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Push] {Callsign}: tow cleared at {Gs:F2} kt, braking {Kind} to rest at {Decel:F1} kt/s",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.GroundSpeed,
+                Kind,
+                CategoryPerformance.TugDecelRate(ctx.Category)
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -92,7 +95,10 @@ public sealed class TugReleasePhase : Phase
             return;
         }
 
-        Log.LogDebug("[Push] {Callsign}: cleared tow at rest ({Status}), tug released", ctx.Aircraft.Callsign, endStatus);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Push] {Callsign}: cleared tow at rest ({Status}), tug released", ctx.Aircraft.Callsign, endStatus);
+        }
         StopDead(ctx.Aircraft);
     }
 

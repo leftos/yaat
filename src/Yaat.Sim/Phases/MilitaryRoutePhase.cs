@@ -345,7 +345,16 @@ public sealed class MilitaryRoutePhase : Phase
 
         if (state.AppliedFloorFt != floor || state.AppliedCeilingFt != ceiling)
         {
-            ctx.Logger.LogDebug("{Callsign}: {Route} refueling block {Floor} - {Ceiling} ft MSL", ctx.Aircraft.Callsign, Designator, floor, ceiling);
+            if (ctx.Logger.IsEnabled(LogLevel.Debug))
+            {
+                ctx.Logger.LogDebug(
+                    "{Callsign}: {Route} refueling block {Floor} - {Ceiling} ft MSL",
+                    ctx.Aircraft.Callsign,
+                    Designator,
+                    floor,
+                    ceiling
+                );
+            }
         }
 
         state.AppliedFloorFt = floor;
@@ -400,14 +409,17 @@ public sealed class MilitaryRoutePhase : Phase
 
         if (state.AppliedFloorFt != floor || state.AppliedCeilingFt != ceiling)
         {
-            ctx.Logger.LogDebug(
-                "{Callsign}: {Route} segment to {Point} block {Floor} - {Ceiling} ft MSL",
-                ctx.Aircraft.Callsign,
-                Designator,
-                point.Id,
-                floor,
-                ceiling
-            );
+            if (ctx.Logger.IsEnabled(LogLevel.Debug))
+            {
+                ctx.Logger.LogDebug(
+                    "{Callsign}: {Route} segment to {Point} block {Floor} - {Ceiling} ft MSL",
+                    ctx.Aircraft.Callsign,
+                    Designator,
+                    point.Id,
+                    floor,
+                    ceiling
+                );
+            }
         }
 
         state.AppliedFloorFt = floor;

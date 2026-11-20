@@ -97,13 +97,16 @@ public sealed class UpwindPhase : Phase
             ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
-        Log.LogDebug(
-            "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
-            ctx.Aircraft.Callsign,
-            Waypoints.UpwindHeading.Degrees,
-            Waypoints.PatternAltitude,
-            IsExtended
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
+                ctx.Aircraft.Callsign,
+                Waypoints.UpwindHeading.Degrees,
+                Waypoints.PatternAltitude,
+                IsExtended
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -115,7 +118,10 @@ public sealed class UpwindPhase : Phase
         if (TurnCrosswindArmed)
         {
             TurnCrosswindArmed = false; // one-shot; clear so a snapshot restore / re-entry won't re-fire
-            Log.LogDebug("[Upwind] {Callsign}: early crosswind turn (armed by TC during takeoff/climb)", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Upwind] {Callsign}: early crosswind turn (armed by TC during takeoff/climb)", ctx.Aircraft.Callsign);
+            }
             return true;
         }
 
@@ -151,7 +157,10 @@ public sealed class UpwindPhase : Phase
             PastDepartureEnd(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon), _upwindHeading) && AtLegalTurnAltitude(ctx, _minTurnAltitude);
         if (complete)
         {
-            Log.LogDebug("[Upwind] {Callsign}: crosswind turn at departure end, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Upwind] {Callsign}: crosswind turn at departure end, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+            }
         }
 
         // Follow-aware spacing: slow the climbing-out follower when it's bearing

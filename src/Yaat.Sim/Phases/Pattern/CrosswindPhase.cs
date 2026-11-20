@@ -78,12 +78,15 @@ public sealed class CrosswindPhase : Phase
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
 
-        Log.LogDebug(
-            "[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
-            ctx.Aircraft.Callsign,
-            Waypoints.CrosswindHeading.Degrees,
-            ctx.Aircraft.Altitude
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
+                ctx.Aircraft.Callsign,
+                Waypoints.CrosswindHeading.Degrees,
+                ctx.Aircraft.Altitude
+            );
+        }
     }
 
     /// <summary>
@@ -144,12 +147,15 @@ public sealed class CrosswindPhase : Phase
         bool complete = dist < ArrivalNm || targetIsBehind || CompressedDownwindTurnDue(ctx);
         if (complete)
         {
-            Log.LogDebug(
-                "[Crosswind] {Callsign}: downwind start {Reason}, alt={Alt:F0}ft",
-                ctx.Aircraft.Callsign,
-                targetIsBehind ? "passed (behind aircraft)" : "reached",
-                ctx.Aircraft.Altitude
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Crosswind] {Callsign}: downwind start {Reason}, alt={Alt:F0}ft",
+                    ctx.Aircraft.Callsign,
+                    targetIsBehind ? "passed (behind aircraft)" : "reached",
+                    ctx.Aircraft.Altitude
+                );
+            }
         }
 
         // Follow-aware spacing: slow the crossing-over follower when it's bearing

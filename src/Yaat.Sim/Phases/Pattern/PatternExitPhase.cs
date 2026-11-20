@@ -52,7 +52,10 @@ public sealed class PatternExitPhase : Phase
         ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = null;
 
-        Log.LogDebug("[PatternExit] {Callsign}: departing on hdg={Hdg:F0}, climbTo={Alt}ft", ctx.Aircraft.Callsign, ExitHeading.Degrees, climbTo);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[PatternExit] {Callsign}: departing on hdg={Hdg:F0}, climbTo={Alt}ft", ctx.Aircraft.Callsign, ExitHeading.Degrees, climbTo);
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -62,7 +65,10 @@ public sealed class PatternExitPhase : Phase
         bool established = ctx.Aircraft.TrueHeading.AbsAngleTo(ExitHeading) < HeadingToleranceDeg;
         if (established)
         {
-            Log.LogDebug("[PatternExit] {Callsign}: established on exit heading, departing the pattern", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[PatternExit] {Callsign}: established on exit heading, departing the pattern", ctx.Aircraft.Callsign);
+            }
         }
 
         return established;

@@ -174,12 +174,15 @@ public sealed class TeardropReentryPhase : Phase
             ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
-        Log.LogDebug(
-            "[TeardropReentry] {Callsign}: descending to TPA via outbound+45° (cat={Cat}, leadIn={Lead:F2}nm)",
-            ctx.Aircraft.Callsign,
-            ctx.Category,
-            leadInNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TeardropReentry] {Callsign}: descending to TPA via outbound+45° (cat={Cat}, leadIn={Lead:F2}nm)",
+                ctx.Aircraft.Callsign,
+                ctx.Category,
+                leadInNm
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)

@@ -25,11 +25,14 @@ public sealed partial class VfrFollowPhase
         {
             if (requested)
             {
-                Log.LogDebug(
-                    "[VfrFollow] {Callsign}: no turn-out, {Lead} is no longer on base or final in range",
-                    ctx.Aircraft.Callsign,
-                    TargetCallsign
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[VfrFollow] {Callsign}: no turn-out, {Lead} is no longer on base or final in range",
+                        ctx.Aircraft.Callsign,
+                        TargetCallsign
+                    );
+                }
             }
 
             return false;
@@ -162,13 +165,16 @@ public sealed partial class VfrFollowPhase
             ctx.Targets.DesiredVerticalRate = null;
         }
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: turning out to the {Rwy} downwind heading behind {Lead} ({Reason})",
-            ctx.Aircraft.Callsign,
-            circuit.Runway.Designator,
-            TargetCallsign,
-            reason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: turning out to the {Rwy} downwind heading behind {Lead} ({Reason})",
+                ctx.Aircraft.Callsign,
+                circuit.Runway.Designator,
+                TargetCallsign,
+                reason
+            );
+        }
         SteerTurnOut(ctx, turnOut);
         ctx.Targets.TargetSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         Pilot.PilotResponder.RouteByTunedPosition(
@@ -207,14 +213,17 @@ public sealed partial class VfrFollowPhase
 
         _breakOffBank = new BreakOffBank(ctx.Targets.TurnRateOverride);
         ctx.Targets.TurnRateOverride = Math.Max(rateDegPerSec, BreakOffTurnRateDegPerSec(speedKt));
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: break-off {Side:F2} nm to the pattern side, within the {Radius:F2} nm turn radius; "
-                + "turning out at {Bank}° of bank",
-            aircraft.Callsign,
-            frame.PatternSideNm,
-            radiusNm,
-            BreakOffBankDegrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: break-off {Side:F2} nm to the pattern side, within the {Radius:F2} nm turn radius; "
+                    + "turning out at {Bank}° of bank",
+                aircraft.Callsign,
+                frame.PatternSideNm,
+                radiusNm,
+                BreakOffBankDegrees
+            );
+        }
     }
 
     /// <summary>The turn rate (deg/s) of a coordinated turn at <see cref="BreakOffBankDegrees"/> of bank at <paramref name="speedKt"/>.</summary>
@@ -256,12 +265,15 @@ public sealed partial class VfrFollowPhase
 
         if ((lead is not null) && !IsOnBaseOrFinalTo(lead, turnOut.Circuit.Runway))
         {
-            Log.LogDebug(
-                "[VfrFollow] {Callsign}: {Lead} is no longer on base or final to {Rwy}, ending the turn-out",
-                ctx.Aircraft.Callsign,
-                TargetCallsign,
-                turnOut.Circuit.Runway.Designator
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: {Lead} is no longer on base or final to {Rwy}, ending the turn-out",
+                    ctx.Aircraft.Callsign,
+                    TargetCallsign,
+                    turnOut.Circuit.Runway.Designator
+                );
+            }
             AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
             ReturnToPattern(ctx, turnOut.Circuit, forwardJoins: true);
             return true;
@@ -346,13 +358,16 @@ public sealed partial class VfrFollowPhase
         RestoreBreakOffTurnRate(ctx.Targets);
         FollowPatternReturn circuit = turnOut.Circuit;
         List<Phase> legs = BuildBaseFromHere(ctx, circuit, frame.AlongNm);
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            circuit.Runway.Designator,
-            frame.AlongNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                circuit.Runway.Designator,
+                frame.AlongNm
+            );
+        }
         InstallJoinedCircuit(ctx, circuit.Runway, circuit.Direction, legs, keepFollowing: true);
     }
 
@@ -395,12 +410,15 @@ public sealed partial class VfrFollowPhase
     private void HoldForBaseTurn(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
     {
         RestoreBreakOffTurnRate(ctx.Targets);
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: no room to turn base behind {Lead}, {Along:F2} nm out; holding the downwind heading",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            frame.AlongNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: no room to turn base behind {Lead}, {Along:F2} nm out; holding the downwind heading",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                frame.AlongNm
+            );
+        }
         ctx.Aircraft.PendingWarnings.Add(
             $"{ctx.Aircraft.Callsign} turned out behind {TargetCallsign} with no room to turn base behind it, "
                 + "holding the downwind heading, awaiting a base turn"

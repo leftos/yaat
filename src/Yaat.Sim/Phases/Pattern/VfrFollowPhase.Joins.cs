@@ -28,12 +28,15 @@ public sealed partial class VfrFollowPhase
 
         if (!CanSequenceOntoFinal(ctx.Aircraft, landedRunway))
         {
-            Log.LogDebug(
-                "[VfrFollow] {Callsign}: {Lead} landed, but no sane join of the {Rwy} final from here; re-entering the pattern",
-                ctx.Aircraft.Callsign,
-                TargetCallsign,
-                landedRunway.Designator
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: {Lead} landed, but no sane join of the {Rwy} final from here; re-entering the pattern",
+                    ctx.Aircraft.Callsign,
+                    TargetCallsign,
+                    landedRunway.Designator
+                );
+            }
             return false;
         }
 
@@ -101,14 +104,17 @@ public sealed partial class VfrFollowPhase
             return false;
         }
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: joining pattern copied from {Lead} on runway {Rwy}, direction {Dir}, dist={Dist:F2}nm",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            leadRunway.Designator,
-            leadWaypoints.Direction,
-            distToEntry
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: joining pattern copied from {Lead} on runway {Rwy}, direction {Dir}, dist={Dist:F2}nm",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                leadRunway.Designator,
+                leadWaypoints.Direction,
+                distToEntry
+            );
+        }
 
         // Build the pattern circuit using the follower's own category (spacing
         // depends on what *we* can fly, not the lead).
@@ -248,16 +254,19 @@ public sealed partial class VfrFollowPhase
             Kind = PatternEntryKind.Base,
         };
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: joining {Lead}'s {Dir} base to {Rwy} at {Lat:F5},{Lon:F5}, {Dist:F2}nm away",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            waypoints.Direction,
-            runway.Designator,
-            join.StartPoint.Lat,
-            join.StartPoint.Lon,
-            GeoMath.DistanceNm(ctx.Aircraft.Position, join.StartPoint)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: joining {Lead}'s {Dir} base to {Rwy} at {Lat:F5},{Lon:F5}, {Dist:F2}nm away",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                waypoints.Direction,
+                runway.Designator,
+                join.StartPoint.Lat,
+                join.StartPoint.Lon,
+                GeoMath.DistanceNm(ctx.Aircraft.Position, join.StartPoint)
+            );
+        }
         InstallJoinedCircuit(ctx, runway, waypoints.Direction, [entry, .. circuit], keepFollowing: true);
         return true;
     }
@@ -324,14 +333,17 @@ public sealed partial class VfrFollowPhase
             }
         );
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: spaced {Gap:F2} nm behind {Lead}, turning base to {Rwy} {Ext:F2} nm past its base turn point",
-            ctx.Aircraft.Callsign,
-            pathGapNm,
-            TargetCallsign,
-            runway.Designator,
-            GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, join.StartPoint, join.LegTrack)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: spaced {Gap:F2} nm behind {Lead}, turning base to {Rwy} {Ext:F2} nm past its base turn point",
+                ctx.Aircraft.Callsign,
+                pathGapNm,
+                TargetCallsign,
+                runway.Designator,
+                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, join.StartPoint, join.LegTrack)
+            );
+        }
         InstallJoinedCircuit(ctx, runway, join.Waypoints.Direction, circuit, keepFollowing: true);
         return true;
     }
@@ -546,13 +558,16 @@ public sealed partial class VfrFollowPhase
         double crossTrack = SignedCrossTrackNm(ctx.Aircraft.Position, runway);
         PatternDirection direction = crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
         List<Phase> legs = BuildFinalJoinLegs(ctx, runway, direction);
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: sequenced onto {Rwy} final behind {Lead} ({Dir}) — awaiting landing clearance",
-            ctx.Aircraft.Callsign,
-            runway.Designator,
-            TargetCallsign,
-            direction
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: sequenced onto {Rwy} final behind {Lead} ({Dir}) — awaiting landing clearance",
+                ctx.Aircraft.Callsign,
+                runway.Designator,
+                TargetCallsign,
+                direction
+            );
+        }
 
         InstallJoinedCircuit(ctx, runway, direction, legs, keepFollowing: true);
     }
@@ -631,13 +646,16 @@ public sealed partial class VfrFollowPhase
         bool joinSatisfiesTheArming = AirborneFollowHelper.IsSameRunway(patternRunway, runway);
         if (joinSatisfiesTheArming && (armedBefore.TransitionPatternAltitude is { } droppedDeferral))
         {
-            Log.LogDebug(
-                "[VfrFollow] {Callsign}: join onto {Rwy} drops the deferred altitude {Altitude} armed for {Armed}, which no join claimed",
-                ctx.Aircraft.Callsign,
-                runway.Designator,
-                droppedDeferral.AltitudeFt,
-                armedBefore.PatternRunway?.Designator
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: join onto {Rwy} drops the deferred altitude {Altitude} armed for {Armed}, which no join claimed",
+                    ctx.Aircraft.Callsign,
+                    runway.Designator,
+                    droppedDeferral.AltitudeFt,
+                    armedBefore.PatternRunway?.Designator
+                );
+            }
         }
 
         phases.Clear(ctx);
@@ -677,12 +695,15 @@ public sealed partial class VfrFollowPhase
             return null;
         }
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: join onto armed runway {Rwy} satisfies the arming; flying its deferred altitude {Altitude}",
-            ctx.Aircraft.Callsign,
-            joinRunway.Designator,
-            deferred.AltitudeFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: join onto armed runway {Rwy} satisfies the arming; flying its deferred altitude {Altitude}",
+                ctx.Aircraft.Callsign,
+                joinRunway.Designator,
+                deferred.AltitudeFt
+            );
+        }
         ctx.Aircraft.Pattern.SetAltitudeOverride(deferred.AltitudeFt, phases, ctx.Category);
         phases.TransitionPatternAltitude = null;
         return deferred.AltitudeFt;
@@ -722,12 +743,15 @@ public sealed partial class VfrFollowPhase
             return joinRunway;
         }
 
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: carrying the armed pattern runway {Armed} onto the {Join} follow circuit",
-            aircraft.Callsign,
-            armed.Designator,
-            joinRunway.Designator
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: carrying the armed pattern runway {Armed} onto the {Join} follow circuit",
+                aircraft.Callsign,
+                armed.Designator,
+                joinRunway.Designator
+            );
+        }
         string directionWord = direction == PatternDirection.Right ? "right" : "left";
         aircraft.PendingWarnings.Add(
             $"{aircraft.Callsign}: {directionWord} traffic runway {RunwayIdentifier.ToDisplayDesignator(armed.Designator)} stays armed — "
@@ -780,13 +804,16 @@ public sealed partial class VfrFollowPhase
             && !string.Equals(RunwayIdentifier.NormalizeDesignator(armedRunwayId), runway.Designator, StringComparison.OrdinalIgnoreCase)
         )
         {
-            Log.LogDebug(
-                "[VfrFollow] {Callsign}: armed to land {Armed} but joining {Actual} behind {Lead}; awaiting explicit clearance",
-                aircraft.Callsign,
-                armedRunwayId,
-                runway.Designator,
-                TargetCallsign
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: armed to land {Armed} but joining {Actual} behind {Lead}; awaiting explicit clearance",
+                    aircraft.Callsign,
+                    armedRunwayId,
+                    runway.Designator,
+                    TargetCallsign
+                );
+            }
             return;
         }
 
@@ -804,13 +831,16 @@ public sealed partial class VfrFollowPhase
 
         aircraft.Phases.LandingClearance = clearance;
         aircraft.Phases.ClearedRunwayId = runway.Designator;
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: applied armed {Clearance} on {Rwy} behind {Lead}",
-            aircraft.Callsign,
-            clearance,
-            runway.Designator,
-            TargetCallsign
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: applied armed {Clearance} on {Rwy} behind {Lead}",
+                aircraft.Callsign,
+                clearance,
+                runway.Designator,
+                TargetCallsign
+            );
+        }
     }
 
     /// <summary>

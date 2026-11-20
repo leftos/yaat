@@ -215,13 +215,16 @@ public sealed class DownwindPhase : Phase
             ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
-        Log.LogDebug(
-            "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
-            ctx.Aircraft.Callsign,
-            Waypoints.DownwindHeading.Degrees,
-            Waypoints.PatternAltitude,
-            IsExtended
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
+                ctx.Aircraft.Callsign,
+                Waypoints.DownwindHeading.Degrees,
+                Waypoints.PatternAltitude,
+                IsExtended
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -246,7 +249,10 @@ public sealed class DownwindPhase : Phase
         // starts the past-abeam descent toward a base turn it will not fly.
         if (ExitAtMidfield && (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm))
         {
-            Log.LogDebug("[Downwind] {Callsign}: midfield reached, exiting downwind for the crossover", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Downwind] {Callsign}: midfield reached, exiting downwind for the crossover", ctx.Aircraft.Callsign);
+            }
             return true;
         }
 
@@ -268,7 +274,10 @@ public sealed class DownwindPhase : Phase
 
         if (baseTriggerReached)
         {
-            Log.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+            }
         }
 
         return baseTriggerReached;
@@ -398,7 +407,10 @@ public sealed class DownwindPhase : Phase
         }
 
         _pastAbeam = true;
-        Log.LogDebug("[Downwind] {Callsign}: abeam threshold", ctx.Aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Downwind] {Callsign}: abeam threshold", ctx.Aircraft.Callsign);
+        }
 
         // Begin decelerating toward base speed, unless the controller assigned a speed
         // (7110.65 §5-7-4).
@@ -484,7 +496,10 @@ public sealed class DownwindPhase : Phase
             _holdLevelFt = null;
             if (!baseTriggerReached && (_controllerAltitudeFt is null))
             {
-                Log.LogDebug("[Downwind] {Callsign}: beginning descent, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Downwind] {Callsign}: beginning descent, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+                }
                 ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
             }
         }
@@ -541,7 +556,10 @@ public sealed class DownwindPhase : Phase
             aircraftAlongTrack < _midfieldAlongTrack + MidfieldReportBandNm ? MidfieldReportPosition.Midfield
             : aircraftAlongTrack < _abeamAlongTrack ? MidfieldReportPosition.PastMidfield
             : MidfieldReportPosition.AbeamNumbers;
-        Log.LogDebug("[Downwind] {Callsign}: midfield report ({Position})", ctx.Aircraft.Callsign, position);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Downwind] {Callsign}: midfield report ({Position})", ctx.Aircraft.Callsign, position);
+        }
         PatternReportHelper.EmitMidfieldDownwind(ctx, side, position);
     }
 
@@ -671,7 +689,10 @@ public sealed class DownwindPhase : Phase
             _holdLevelFt = controllerAltitudeFt;
         }
 
-        Log.LogDebug("[Downwind] {Callsign}: controller altitude {Alt:F0}ft owns the leg", ctx.Aircraft.Callsign, controllerAltitudeFt);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Downwind] {Callsign}: controller altitude {Alt:F0}ft owns the leg", ctx.Aircraft.Callsign, controllerAltitudeFt);
+        }
     }
 
     /// <summary>
@@ -690,7 +711,10 @@ public sealed class DownwindPhase : Phase
         if (_holdLevelFt is null)
         {
             _holdLevelFt = _controllerAltitudeFt ?? Math.Min(ctx.Aircraft.Altitude, Waypoints.PatternAltitude);
-            Log.LogDebug("[Downwind] {Callsign}: downwind held, level at {Alt:F0}ft", ctx.Aircraft.Callsign, _holdLevelFt);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Downwind] {Callsign}: downwind held, level at {Alt:F0}ft", ctx.Aircraft.Callsign, _holdLevelFt);
+            }
         }
 
         _descentTargetFt = null;

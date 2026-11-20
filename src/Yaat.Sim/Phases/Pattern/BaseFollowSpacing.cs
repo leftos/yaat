@@ -287,16 +287,20 @@ internal static class BaseFollowSpacing
         }
 
         TrueHeading heading = WidenHeading(ctx.Aircraft.Position, runway, waypoints);
-        Log.LogDebug(
-            "[BaseSpacing] {Callsign}: widening the base to {Hdg:F0} (gap={Gap:F2} runwayGap={Rwy:F2} required={Req:F2} xt={Xt:F2} floor={Floor:F2})",
-            ctx.Aircraft.Callsign,
-            heading.Degrees,
-            projection.GapNm,
-            projection.RunwayGapNm,
-            projection.RequiredNm,
-            projection.CrossTrackNm,
-            projection.FloorNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[BaseSpacing] {Callsign}: widening the base to {Hdg:F0} (gap={Gap:F2} runwayGap={Rwy:F2} required={Req:F2} "
+                    + "xt={Xt:F2} floor={Floor:F2})",
+                ctx.Aircraft.Callsign,
+                heading.Degrees,
+                projection.GapNm,
+                projection.RunwayGapNm,
+                projection.RequiredNm,
+                projection.CrossTrackNm,
+                projection.FloorNm
+            );
+        }
         return new BaseFollowSpacingDecision(BaseFollowSpacingAction.Widen, heading);
     }
 
@@ -315,16 +319,19 @@ internal static class BaseFollowSpacing
         bool gapMet = projection.EffectiveGapNm >= projection.RequiredNm;
         if (gapMet || (projection.CrossTrackNm <= projection.FloorNm))
         {
-            Log.LogDebug(
-                "[BaseSpacing] {Callsign}: widen done, {Why} (gap={Gap:F2} runwayGap={Rwy:F2} required={Req:F2} xt={Xt:F2} floor={Floor:F2})",
-                ctx.Aircraft.Callsign,
-                gapMet ? "spacing met" : "at the floor",
-                projection.GapNm,
-                projection.RunwayGapNm,
-                projection.RequiredNm,
-                projection.CrossTrackNm,
-                projection.FloorNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[BaseSpacing] {Callsign}: widen done, {Why} (gap={Gap:F2} runwayGap={Rwy:F2} required={Req:F2} xt={Xt:F2} floor={Floor:F2})",
+                    ctx.Aircraft.Callsign,
+                    gapMet ? "spacing met" : "at the floor",
+                    projection.GapNm,
+                    projection.RunwayGapNm,
+                    projection.RequiredNm,
+                    projection.CrossTrackNm,
+                    projection.FloorNm
+                );
+            }
             return new BaseFollowSpacingDecision(BaseFollowSpacingAction.Keep, default);
         }
 
@@ -347,22 +354,28 @@ internal static class BaseFollowSpacing
     {
         if (AirborneFollowHelper.IsStructuralOvertake(ctx, lead))
         {
-            Log.LogTrace("[BaseSpacing] {Callsign}: {Reason}, but the overtake is structural: no break-off", ctx.Aircraft.Callsign, reason);
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace("[BaseSpacing] {Callsign}: {Reason}, but the overtake is structural: no break-off", ctx.Aircraft.Callsign, reason);
+            }
             return whenStructural;
         }
 
         bool late = (projection.CrossTrackNm - projection.TurnRadiusNm < LateBreakOffMarginNm) && !projection.LeadPassedAbeam;
-        Log.LogDebug(
-            "[BaseSpacing] {Callsign}: {Action}, {Reason} (gap={Gap:F2} runwayGap={Rwy:F2} required={Req:F2} xt={Xt:F2} floor={Floor:F2})",
-            ctx.Aircraft.Callsign,
-            late ? "too late to turn out, going around" : "breaking off the base",
-            reason,
-            projection.GapNm,
-            projection.RunwayGapNm,
-            projection.RequiredNm,
-            projection.CrossTrackNm,
-            projection.FloorNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[BaseSpacing] {Callsign}: {Action}, {Reason} (gap={Gap:F2} runwayGap={Rwy:F2} required={Req:F2} xt={Xt:F2} floor={Floor:F2})",
+                ctx.Aircraft.Callsign,
+                late ? "too late to turn out, going around" : "breaking off the base",
+                reason,
+                projection.GapNm,
+                projection.RunwayGapNm,
+                projection.RequiredNm,
+                projection.CrossTrackNm,
+                projection.FloorNm
+            );
+        }
         return new BaseFollowSpacingDecision(late ? BaseFollowSpacingAction.GoAround : BaseFollowSpacingAction.BreakOff, default);
     }
 

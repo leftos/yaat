@@ -163,12 +163,15 @@ public sealed class BasePhase : Phase
             ctx.Targets.TargetSpeed = PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
-        Log.LogDebug(
-            "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
-            ctx.Aircraft.Callsign,
-            Waypoints.BaseHeading.Degrees,
-            ctx.Aircraft.Altitude
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
+                ctx.Aircraft.Callsign,
+                Waypoints.BaseHeading.Degrees,
+                ctx.Aircraft.Altitude
+            );
+        }
     }
 
     /// <summary>
@@ -305,13 +308,16 @@ public sealed class BasePhase : Phase
         bool complete = crossTrack <= turnRadiusNm + TurnLeadNm(ctx.Aircraft.GroundSpeed, ctx.Category, Waypoints, ctx.TurnModel);
         if (complete)
         {
-            Log.LogDebug(
-                "[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft, xtrack={XT:F2}nm, turnR={R:F2}nm",
-                ctx.Aircraft.Callsign,
-                ctx.Aircraft.Altitude,
-                crossTrack,
-                turnRadiusNm
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft, xtrack={XT:F2}nm, turnR={R:F2}nm",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.Altitude,
+                    crossTrack,
+                    turnRadiusNm
+                );
+            }
         }
 
         return complete;
@@ -324,11 +330,14 @@ public sealed class BasePhase : Phase
     /// </summary>
     private static void GoAroundForSpacing(PhaseContext ctx)
     {
-        Log.LogDebug(
-            "[Base] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.Approach.FollowingCallsign
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Base] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Approach.FollowingCallsign
+            );
+        }
         AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
         GoAroundHelper.Trigger(ctx, "unable to maintain separation");
     }
@@ -410,7 +419,10 @@ public sealed class BasePhase : Phase
         string lead = aircraft.Approach.FollowingCallsign!;
         RunwayInfo runway = aircraft.Phases!.AssignedRunway!;
         FollowPatternReturn patternReturn = VfrFollowPhase.BuildFollowPatternReturn(aircraft, runway, ctx.GroundLayout);
-        Log.LogDebug("[Base] {Callsign}: breaking off the base to turn out behind {Lead} for spacing", aircraft.Callsign, lead);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Base] {Callsign}: breaking off the base to turn out behind {Lead} for spacing", aircraft.Callsign, lead);
+        }
         CommandDispatcher.InstallVfrFollowPhase(aircraft, lead, patternReturn, climbOutGate: null).RequestTurnOut();
     }
 

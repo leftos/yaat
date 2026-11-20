@@ -101,7 +101,15 @@ public sealed class MidfieldCrossingPhase : Phase
             ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
-        Log.LogDebug("[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Category, crossingAlt);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft",
+                ctx.Aircraft.Callsign,
+                ctx.Category,
+                crossingAlt
+            );
+        }
     }
 
     /// <summary>
@@ -210,7 +218,10 @@ public sealed class MidfieldCrossingPhase : Phase
         bool complete = dist < ArrivalNm;
         if (complete)
         {
-            Log.LogDebug("[MidfieldCrossing] {Callsign}: midfield reached, transitioning to downwind", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[MidfieldCrossing] {Callsign}: midfield reached, transitioning to downwind", ctx.Aircraft.Callsign);
+            }
         }
 
         return complete;

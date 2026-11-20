@@ -136,13 +136,16 @@ public sealed class PatternEntryPhase : Phase
         }
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(EntryLat, EntryLon));
-        Log.LogDebug(
-            "[PatternEntry] {Callsign}: navigating to entry, dist={Dist:F1}nm, alt={Alt:F0}ft, tgtAlt={TgtAlt:F0}ft",
-            ctx.Aircraft.Callsign,
-            dist,
-            ctx.Aircraft.Altitude,
-            PatternAltitude
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[PatternEntry] {Callsign}: navigating to entry, dist={Dist:F1}nm, alt={Alt:F0}ft, tgtAlt={TgtAlt:F0}ft",
+                ctx.Aircraft.Callsign,
+                dist,
+                ctx.Aircraft.Altitude,
+                PatternAltitude
+            );
+        }
 
         // Initial-contact closed-traffic request for VFR pattern aircraft. Anchors distance/bearing
         // to the runway threshold (closest stable airport reference available to the phase).

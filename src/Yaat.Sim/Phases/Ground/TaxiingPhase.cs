@@ -152,18 +152,24 @@ public sealed class TaxiingPhase : Phase
         if (route is not null && IsHoldAtStartOnly(route))
         {
             ctx.Aircraft.IsOnGround = true;
-            Log.LogDebug("[Taxi] {Callsign}: started at the destination hold-short, nothing to taxi", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Taxi] {Callsign}: started at the destination hold-short, nothing to taxi", ctx.Aircraft.Callsign);
+            }
             return;
         }
 
         // A full parking area's ramp-edge hold from where the aircraft already stands is an empty route by design.
         if (route is { Segments.Count: 0, DestinationParkingArea: not null })
         {
-            Log.LogDebug(
-                "[Taxi] {Callsign}: held where it stands at the {Area} ramp edge, nothing to taxi",
-                ctx.Aircraft.Callsign,
-                route.DestinationParkingArea
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: held where it stands at the {Area} ramp edge, nothing to taxi",
+                    ctx.Aircraft.Callsign,
+                    route.DestinationParkingArea
+                );
+            }
             return;
         }
 
@@ -179,14 +185,17 @@ public sealed class TaxiingPhase : Phase
         BrakeFromPullUpHandOff(ctx, route);
         SetupCurrentSegment(ctx, route);
 
-        Log.LogDebug(
-            "[Taxi] {Callsign}: started, {SegCount} segments, first target node {NodeId} at ({Lat:F6}, {Lon:F6})",
-            ctx.Aircraft.Callsign,
-            route.Segments.Count,
-            _nav.TargetNodeId,
-            _nav.TargetLat,
-            _nav.TargetLon
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: started, {SegCount} segments, first target node {NodeId} at ({Lat:F6}, {Lon:F6})",
+                ctx.Aircraft.Callsign,
+                route.Segments.Count,
+                _nav.TargetNodeId,
+                _nav.TargetLat,
+                _nav.TargetLon
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -213,11 +222,14 @@ public sealed class TaxiingPhase : Phase
 
         if (!_initialized)
         {
-            Log.LogDebug(
-                "[Taxi] {Callsign}: late init in OnTick (groundLayout {HasLayout})",
-                ctx.Aircraft.Callsign,
-                ctx.GroundLayout is not null ? "present" : "NULL"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: late init in OnTick (groundLayout {HasLayout})",
+                    ctx.Aircraft.Callsign,
+                    ctx.GroundLayout is not null ? "present" : "NULL"
+                );
+            }
             _nav.MaxSpeedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts ?? CategoryPerformance.TaxiSpeed(ctx.Category);
             _nav.RouteEndSpeedKts = RouteEndSpeedKts(ctx, route);
             SetupCurrentSegment(ctx, route);
@@ -256,7 +268,10 @@ public sealed class TaxiingPhase : Phase
         {
             _nav.RouteEndSpeedKts = routeEndSpeed;
             _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
-            Log.LogDebug("[Taxi] {Callsign}: route-end speed re-planned to {Speed:F1}kt", ctx.Aircraft.Callsign, routeEndSpeed);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Taxi] {Callsign}: route-end speed re-planned to {Speed:F1}kt", ctx.Aircraft.Callsign, routeEndSpeed);
+            }
         }
 
         // A hold-short armed mid-segment (standalone HS, RES HS) after this segment's speed profile was
@@ -386,7 +401,10 @@ public sealed class TaxiingPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        Log.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+        }
 
         // GroundNavigator republishes DesiredDecelRate every tick (null when it has no override), so a
         // running taxi never inherits a stale rate. Clearing on exit is what keeps a rate from crossing
@@ -466,12 +484,15 @@ public sealed class TaxiingPhase : Phase
 
         if (IsHoldShortCleared(route, barNodeId) || !IsNodeAhead(route, barNodeId))
         {
-            Log.LogDebug(
-                "[Taxi] {Callsign}: pull-up bar {NodeId} cleared or passed, speed cap {Cap:F1}kt lifted",
-                ctx.Aircraft.Callsign,
-                barNodeId,
-                capKts
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: pull-up bar {NodeId} cleared or passed, speed cap {Cap:F1}kt lifted",
+                    ctx.Aircraft.Callsign,
+                    barNodeId,
+                    capKts
+                );
+            }
             _pullUpCapKts = null;
             _pullUpCapBarNodeId = null;
             return;
@@ -498,24 +519,30 @@ public sealed class TaxiingPhase : Phase
         AdvancePastPassedNodes(ctx, route);
         if (PullUpStopCapKts(ctx, route) is not { } targetKts)
         {
-            Log.LogDebug(
-                "[Taxi] {Callsign}: pull-up bar {NodeId} not ahead and uncleared, or no layout; no braking at the hand-off",
-                ctx.Aircraft.Callsign,
-                barNodeId
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: pull-up bar {NodeId} not ahead and uncleared, or no layout; no braking at the hand-off",
+                    ctx.Aircraft.Callsign,
+                    barNodeId
+                );
+            }
             return;
         }
 
         double rate = RunwayExitPhase.PullUpBrakeRate(ctx.Category);
         ctx.Targets.TargetSpeed = targetKts;
         ctx.Targets.DesiredDecelRate = rate;
-        Log.LogDebug(
-            "[Taxi] {Callsign}: pull-up hand-off brakes to {Target:F2}kt at {Rate:F1}kt/s for bar {NodeId}'s stop",
-            ctx.Aircraft.Callsign,
-            targetKts,
-            rate,
-            barNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: pull-up hand-off brakes to {Target:F2}kt at {Rate:F1}kt/s for bar {NodeId}'s stop",
+                ctx.Aircraft.Callsign,
+                targetKts,
+                rate,
+                barNodeId
+            );
+        }
     }
 
     /// <summary>
@@ -531,13 +558,16 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
             FlightPhysics.NotifyGroundEntityReached(ctx.Aircraft, arrivedNodeId: seg.ToNodeId, newTaxiwayName: seg.TaxiwayName);
             route.CurrentSegmentIndex += 1;
-            Log.LogDebug(
-                "[Taxi] {Callsign}: pull-up hand-off already past node {NodeId}, advance to segment {Next}/{Total}",
-                ctx.Aircraft.Callsign,
-                seg.ToNodeId,
-                route.CurrentSegmentIndex,
-                route.Segments.Count
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: pull-up hand-off already past node {NodeId}, advance to segment {Next}/{Total}",
+                    ctx.Aircraft.Callsign,
+                    seg.ToNodeId,
+                    route.CurrentSegmentIndex,
+                    route.Segments.Count
+                );
+            }
         }
     }
 
@@ -903,12 +933,15 @@ public sealed class TaxiingPhase : Phase
         }
 
         bar.Unable = true;
-        Log.LogInformation(
-            "[Taxi] {Callsign}: hold short of {Target} is inside the firm stopping distance at {Gs:F1} kt as the crossing hands over — unable",
-            ctx.Aircraft.Callsign,
-            bar.TargetName,
-            ctx.Aircraft.GroundSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Taxi] {Callsign}: hold short of {Target} is inside the firm stopping distance at {Gs:F1} kt as the crossing hands over — unable",
+                ctx.Aircraft.Callsign,
+                bar.TargetName,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
         PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
             PilotReportRouting.From(ctx),
@@ -1014,12 +1047,15 @@ public sealed class TaxiingPhase : Phase
 
         if (!IsHoldShortUnmakeable(layout, route, ctx.Aircraft, unmakeable.Bar, ctx.DeltaSeconds))
         {
-            Log.LogInformation(
-                "[Taxi] {Callsign}: hold short of {Target} flagged unable is makeable now at {Gs:F1}kt — keeping its painted stop",
-                ctx.Aircraft.Callsign,
-                unmakeable.Bar.TargetName,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[Taxi] {Callsign}: hold short of {Target} flagged unable is makeable now at {Gs:F1}kt — keeping its painted stop",
+                    ctx.Aircraft.Callsign,
+                    unmakeable.Bar.TargetName,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
             unmakeable.Bar.Unable = false;
             return false;
         }
@@ -1065,16 +1101,19 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
-        Log.LogInformation(
-            "[Taxi] {Callsign}: hold short of {Target} at {Gs:F1}kt — its set-back stop {ToStop:F1}ft ahead lies inside the {Flown:F1}ft "
-                + "flown stop, the wingtip envelope {ToEnvelope:F1}ft ahead does not; moving the stop to the firm-rate stop",
-            ctx.Aircraft.Callsign,
-            bar.TargetName,
-            ctx.Aircraft.GroundSpeed,
-            reach.ToStopFt,
-            reach.FlownStopFt,
-            toEnvelopeFt
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Taxi] {Callsign}: hold short of {Target} at {Gs:F1}kt — its set-back stop {ToStop:F1}ft ahead lies inside the {Flown:F1}ft "
+                    + "flown stop, the wingtip envelope {ToEnvelope:F1}ft ahead does not; moving the stop to the firm-rate stop",
+                ctx.Aircraft.Callsign,
+                bar.TargetName,
+                ctx.Aircraft.GroundSpeed,
+                reach.ToStopFt,
+                reach.FlownStopFt,
+                toEnvelopeFt
+            );
+        }
         MoveBarToBrakingDistance(ctx, layout, route, new BarAhead(barSegmentIndex, bar), toEnvelopeFt);
         bar.StopMoved = true;
         return true;
@@ -1258,15 +1297,18 @@ public sealed class TaxiingPhase : Phase
         double paintedFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
         if (paintedFt >= brakingFt)
         {
-            Log.LogInformation(
-                "[Taxi] {Callsign}: hold short of {Target} unmakeable or window at {Gs:F1}kt — its painted stop {Painted:F1}ft ahead lies past the "
-                    + "{Flown:F1}ft flown stop, so it is kept",
-                ctx.Aircraft.Callsign,
-                bar.TargetName,
-                ctx.Aircraft.GroundSpeed,
-                paintedFt,
-                brakingFt
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[Taxi] {Callsign}: hold short of {Target} unmakeable or window at {Gs:F1}kt — its painted stop {Painted:F1}ft "
+                        + "ahead lies past the {Flown:F1}ft flown stop, so it is kept",
+                    ctx.Aircraft.Callsign,
+                    bar.TargetName,
+                    ctx.Aircraft.GroundSpeed,
+                    paintedFt,
+                    brakingFt
+                );
+            }
             return;
         }
 
@@ -1276,16 +1318,19 @@ public sealed class TaxiingPhase : Phase
         double toNodeFt = route.RemainingDistanceFt(ctx.Aircraft.Position, barSegmentIndex + 1);
         double aheadFt = Math.Min(brakingFt, toNodeFt);
 
-        Log.LogInformation(
-            "[Taxi] {Callsign}: hold short of {Target} unmakeable or window at {Gs:F1}kt — stopping {Ahead:F0}ft ahead, "
-                + "{ToNode:F0}ft short of node {NodeId}",
-            ctx.Aircraft.Callsign,
-            bar.TargetName,
-            ctx.Aircraft.GroundSpeed,
-            aheadFt,
-            toNodeFt - aheadFt,
-            bar.NodeId
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Taxi] {Callsign}: hold short of {Target} unmakeable or window at {Gs:F1}kt — stopping {Ahead:F0}ft ahead, "
+                    + "{ToNode:F0}ft short of node {NodeId}",
+                ctx.Aircraft.Callsign,
+                bar.TargetName,
+                ctx.Aircraft.GroundSpeed,
+                aheadFt,
+                toNodeFt - aheadFt,
+                bar.NodeId
+            );
+        }
 
         bar.Latitude = stop.Lat;
         bar.Longitude = stop.Lon;
@@ -1615,16 +1660,19 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private static void TakeSetBackHold(PhaseContext ctx, TaxiRoute route, HoldShortPoint bar, int barSegmentIndex)
     {
-        Log.LogDebug(
-            "[Taxi] {Callsign}: holding short of {Target} at its set-back stop, segment {SegIdx}, "
-                + "{Segs} segment(s) short of node {NodeId} (reason {Reason})",
-            ctx.Aircraft.Callsign,
-            bar.TargetName,
-            route.CurrentSegmentIndex,
-            barSegmentIndex - route.CurrentSegmentIndex + 1,
-            bar.NodeId,
-            bar.Reason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: holding short of {Target} at its set-back stop, segment {SegIdx}, "
+                    + "{Segs} segment(s) short of node {NodeId} (reason {Reason})",
+                ctx.Aircraft.Callsign,
+                bar.TargetName,
+                route.CurrentSegmentIndex,
+                barSegmentIndex - route.CurrentSegmentIndex + 1,
+                bar.NodeId,
+                bar.Reason
+            );
+        }
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
@@ -1824,14 +1872,17 @@ public sealed class TaxiingPhase : Phase
         _loggedFirmBrakingNodeId = bar.NodeId;
         if (loggedFirmNodeId != bar.NodeId)
         {
-            Log.LogDebug(
-                "[Taxi] {Callsign}: firm braking at {Rate:F1}kt/s for bar {NodeId}, {Gs:F2}kt with {ToStopFt:F1}ft to its stop",
-                ctx.Aircraft.Callsign,
-                firmRate,
-                bar.NodeId,
-                ctx.Aircraft.GroundSpeed,
-                toStopFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: firm braking at {Rate:F1}kt/s for bar {NodeId}, {Gs:F2}kt with {ToStopFt:F1}ft to its stop",
+                    ctx.Aircraft.Callsign,
+                    firmRate,
+                    bar.NodeId,
+                    ctx.Aircraft.GroundSpeed,
+                    toStopFt
+                );
+            }
         }
 
         if (braking == GroundStopBraking.StopBraking.MaxEffort)
@@ -2092,12 +2143,15 @@ public sealed class TaxiingPhase : Phase
             && (!startBar.IsCleared || NeedsRunwayCrossing(startBar, layout))
         )
         {
-            Log.LogDebug(
-                "[Taxi] route starts at hold-short node {NodeId} ({Target}, cleared={Cleared})",
-                startBar.NodeId,
-                startBar.TargetName,
-                startBar.IsCleared
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] route starts at hold-short node {NodeId} ({Target}, cleared={Cleared})",
+                    startBar.NodeId,
+                    startBar.TargetName,
+                    startBar.IsCleared
+                );
+            }
             return (startBar, -1);
         }
 
@@ -2338,13 +2392,17 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
-        Log.LogDebug(
-            "[Taxi] {Callsign}: nose over the marking of the start-node bar of {Target} at node {NodeId} at {Speed:F1} kt: stopping at the firm rate",
-            ctx.Aircraft.Callsign,
-            startBar.TargetName,
-            startBar.NodeId,
-            ctx.Aircraft.GroundSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: nose over the marking of the start-node bar of {Target} at node {NodeId} at {Speed:F1} kt: "
+                    + "stopping at the firm rate",
+                ctx.Aircraft.Callsign,
+                startBar.TargetName,
+                startBar.NodeId,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
     }
 
     /// <summary>
@@ -2458,11 +2516,14 @@ public sealed class TaxiingPhase : Phase
 
         route.TurnAboutShape = TaxiTurnAboutShape.None;
         route.TurnAboutTargetNodeId = null;
-        Log.LogDebug(
-            "[Taxi] {Callsign}: turned about and reached node {NodeId} on segment 0, turn about done",
-            ctx.Aircraft.Callsign,
-            first.FromNodeId
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: turned about and reached node {NodeId} on segment 0, turn about done",
+                ctx.Aircraft.Callsign,
+                first.FromNodeId
+            );
+        }
     }
 
     /// <summary>
@@ -2496,12 +2557,15 @@ public sealed class TaxiingPhase : Phase
             if (_loggedGiveWayTarget != yieldTarget)
             {
                 _loggedGiveWayTarget = yieldTarget;
-                Log.LogDebug(
-                    "[Taxi] {Callsign}: no give-way point for {Target} ({Reason}): stopping where it is",
-                    ctx.Aircraft.Callsign,
-                    yieldTarget,
-                    noStopReason
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Taxi] {Callsign}: no give-way point for {Target} ({Reason}): stopping where it is",
+                        ctx.Aircraft.Callsign,
+                        yieldTarget,
+                        noStopReason
+                    );
+                }
             }
 
             return 0.0;
@@ -2514,18 +2578,21 @@ public sealed class TaxiingPhase : Phase
         if (_loggedGiveWayTarget != yieldTarget)
         {
             _loggedGiveWayTarget = yieldTarget;
-            Log.LogDebug(
-                "[Taxi] {Callsign}: giving way to {Target} at node {NodeId}, {ToStop:F1} ft from its stop (the give-way point clear of "
-                    + "its track {GiveWay:F1} ft, the next node a held arrival stops at {NodeStop:F1} ft), {Speed:F1} kt, {Braking} braking",
-                ctx.Aircraft.Callsign,
-                yieldTarget,
-                stop.NodeId,
-                toStopFt,
-                stop.ToStopFt,
-                toNodeStopFt,
-                ctx.Aircraft.GroundSpeed,
-                braking
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: giving way to {Target} at node {NodeId}, {ToStop:F1} ft from its stop (the give-way point clear of "
+                        + "its track {GiveWay:F1} ft, the next node a held arrival stops at {NodeStop:F1} ft), {Speed:F1} kt, {Braking} braking",
+                    ctx.Aircraft.Callsign,
+                    yieldTarget,
+                    stop.NodeId,
+                    toStopFt,
+                    stop.ToStopFt,
+                    toNodeStopFt,
+                    ctx.Aircraft.GroundSpeed,
+                    braking
+                );
+            }
         }
 
         double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
@@ -2597,14 +2664,17 @@ public sealed class TaxiingPhase : Phase
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
     {
-        Log.LogDebug(
-            "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount}) gs={Gs:F2}",
-            ctx.Aircraft.Callsign,
-            _nav.TargetNodeId,
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            ctx.Aircraft.GroundSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount}) gs={Gs:F2}",
+                ctx.Aircraft.Callsign,
+                _nav.TargetNodeId,
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
 
         // Update taxiway name from the segment that brought us here
         string? arrivedTaxiway = null;
@@ -2627,22 +2697,28 @@ public sealed class TaxiingPhase : Phase
             {
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
-                Log.LogDebug(
-                    "[Taxi] {Callsign}: hold-short node {NodeId} occupied by another aircraft, waiting",
-                    ctx.Aircraft.Callsign,
-                    _nav.TargetNodeId
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Taxi] {Callsign}: hold-short node {NodeId} occupied by another aircraft, waiting",
+                        ctx.Aircraft.Callsign,
+                        _nav.TargetNodeId
+                    );
+                }
                 return false;
             }
 
-            Log.LogDebug(
-                "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason}) gsAtArrival={Gs:F2}",
-                ctx.Aircraft.Callsign,
-                _nav.TargetNodeId,
-                holdShort.TargetName,
-                holdShort.Reason,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason}) gsAtArrival={Gs:F2}",
+                    ctx.Aircraft.Callsign,
+                    _nav.TargetNodeId,
+                    holdShort.TargetName,
+                    holdShort.Reason,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
 
             ctx.MarkHoldShortNodeOccupied?.Invoke(_nav.TargetNodeId);
 
@@ -2690,17 +2766,20 @@ public sealed class TaxiingPhase : Phase
         {
             route.CurrentSegmentIndex = route.Segments.Count;
         }
-        Log.LogDebug(
-            "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
-            ctx.Aircraft.Callsign,
-            prevIdx,
-            route.CurrentSegmentIndex,
-            route.Segments.Count,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            ctx.Aircraft.TrueHeading.Degrees,
-            ctx.Aircraft.IndicatedAirspeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
+                ctx.Aircraft.Callsign,
+                prevIdx,
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                ctx.Aircraft.TrueHeading.Degrees,
+                ctx.Aircraft.IndicatedAirspeed
+            );
+        }
 
         if (route.IsComplete)
         {
@@ -2722,7 +2801,10 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private static bool CompleteRoute(PhaseContext ctx, TaxiRoute route)
     {
-        Log.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
+        }
 
         PhaseList? phases = ctx.Aircraft.Phases;
         if (
@@ -2818,17 +2900,23 @@ public sealed class TaxiingPhase : Phase
         }
         else
         {
-            Log.LogDebug(
-                "[Taxi] {Callsign}: {Stand} in {Area} freed, but the taxi to it was refused: {Reason}",
-                aircraft.Callsign,
-                stand,
-                area,
-                result.Message
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: {Stand} in {Area} freed, but the taxi to it was refused: {Reason}",
+                    aircraft.Callsign,
+                    stand,
+                    area,
+                    result.Message
+                );
+            }
             return false;
         }
 
-        Log.LogDebug("[Taxi] {Callsign}: {Stand} in {Area} freed during the taxi; continuing to it", aircraft.Callsign, stand, area);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Taxi] {Callsign}: {Stand} in {Area} freed during the taxi; continuing to it", aircraft.Callsign, stand, area);
+        }
         return true;
     }
 
@@ -2841,7 +2929,10 @@ public sealed class TaxiingPhase : Phase
     {
         string? lastName = (route.Segments.Count > 0) ? route.Segments[^1].TaxiwayName : null;
         string? lane = ReportableLane(lastName) ?? ReportableLane(ctx.Aircraft.Ground.CurrentTaxiway);
-        Log.LogDebug("[Taxi] {Callsign}: holding on {Lane} at the {Area} ramp, no stand free — reporting", ctx.Aircraft.Callsign, lane, area);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Taxi] {Callsign}: holding on {Lane} at the {Area} ramp, no stand free — reporting", ctx.Aircraft.Callsign, lane, area);
+        }
         PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
             PilotReportRouting.From(ctx),
@@ -2965,18 +3056,21 @@ public sealed class TaxiingPhase : Phase
             ctx.Targets.TargetSpeed = 0;
             route.CurrentSegmentIndex = route.Segments.Count;
             TaxiRouteSegment lastLeg = route.Segments[^1];
-            Log.LogDebug(
-                "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Along:F0}ft along the route from spot node "
-                    + "({Dist:F0}ft straight, half-length {Half:F0}ft), hdg {Hdg:F0} against last leg {Leg} bearing {LegBrg:F0}",
-                ctx.Aircraft.Callsign,
-                route.DestinationSpot,
-                alongToSpotFt,
-                GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position) * GeoMath.FeetPerNm,
-                lengthFt / 2.0,
-                ctx.Aircraft.TrueHeading.Degrees,
-                lastLeg.TaxiwayName,
-                lastLeg.Edge.ArrivalBearing
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Along:F0}ft along the route from spot node "
+                        + "({Dist:F0}ft straight, half-length {Half:F0}ft), hdg {Hdg:F0} against last leg {Leg} bearing {LegBrg:F0}",
+                    ctx.Aircraft.Callsign,
+                    route.DestinationSpot,
+                    alongToSpotFt,
+                    GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position) * GeoMath.FeetPerNm,
+                    lengthFt / 2.0,
+                    ctx.Aircraft.TrueHeading.Degrees,
+                    lastLeg.TaxiwayName,
+                    lastLeg.Edge.ArrivalBearing
+                );
+            }
             return CompleteRoute(ctx, route);
         }
 
@@ -3117,13 +3211,16 @@ public sealed class TaxiingPhase : Phase
     /// <summary>Stop on <paramref name="holdShort"/> (a bar no segment leads to) and queue the hold + resume phases.</summary>
     private static void TakeHoldShort(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort)
     {
-        Log.LogDebug(
-            "[Taxi] {Callsign}: holding short at route start node {NodeId} (target {Target}, reason {Reason})",
-            ctx.Aircraft.Callsign,
-            holdShort.NodeId,
-            holdShort.TargetName,
-            holdShort.Reason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: holding short at route start node {NodeId} (target {Target}, reason {Reason})",
+                ctx.Aircraft.Callsign,
+                holdShort.NodeId,
+                holdShort.TargetName,
+                holdShort.Reason
+            );
+        }
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
@@ -3432,17 +3529,20 @@ public sealed class TaxiingPhase : Phase
             _timeSinceLastLog = 0;
             TaxiRouteSegment? seg = route.CurrentSegment;
             double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_nav.TargetLat, _nav.TargetLon));
-            Log.LogTrace(
-                "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
-                ctx.Aircraft.Callsign,
-                route.CurrentSegmentIndex,
-                route.Segments.Count,
-                seg?.TaxiwayName ?? "?",
-                _nav.TargetNodeId,
-                dist,
-                ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.TrueHeading.Degrees
-            );
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace(
+                    "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
+                    ctx.Aircraft.Callsign,
+                    route.CurrentSegmentIndex,
+                    route.Segments.Count,
+                    seg?.TaxiwayName ?? "?",
+                    _nav.TargetNodeId,
+                    dist,
+                    ctx.Aircraft.GroundSpeed,
+                    ctx.Aircraft.TrueHeading.Degrees
+                );
+            }
         }
     }
 
@@ -3555,11 +3655,14 @@ public sealed class TaxiingPhase : Phase
         }
 
         phases.DepartureClearance = null;
-        Log.LogDebug(
-            "[Taxi] {Callsign}: departure clearance {Type} applied at route end (rolling={Rolling})",
-            ctx.Aircraft.Callsign,
-            dep.Type,
-            rolling
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: departure clearance {Type} applied at route end (rolling={Rolling})",
+                ctx.Aircraft.Callsign,
+                dep.Type,
+                rolling
+            );
+        }
     }
 }
