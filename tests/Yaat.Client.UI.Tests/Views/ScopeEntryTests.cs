@@ -114,6 +114,32 @@ public class ScopeEntryTests
         return point.Value;
     }
 
+    /// <summary>A STARS Scope's preview takes printable ASCII only, upper-cased as typed, as CRC's does; ERAM keeps the text as typed.</summary>
+    [AvaloniaFact]
+    public async Task TypingOnAStarsScope_UpperCasesThePreview_AndDropsNonAsciiText()
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+
+            Assert.True(scope.TypeEntryText("*t1é\t"));
+            Assert.False(scope.TypeEntryText("é"));
+            Assert.Equal("*T1", scope.EntryText);
+
+            // A $ entry is a YAAT command: it keeps its text as typed.
+            scope.ClearEntry();
+            Assert.True(scope.TypeEntryText("$"));
+            Assert.True(scope.TypeEntryText(" ual1 fh 270é"));
+            Assert.Equal("$ ual1 fh 270é", scope.EntryText);
+
+            scope.ClearEntry();
+            scope.ProfileKind = ScopeProfileKind.Eram;
+            Assert.True(scope.TypeEntryText("qf ual1"));
+            Assert.Equal("qf ual1", scope.EntryText);
+        }
+    }
+
     [AvaloniaFact]
     public async Task TypingWithTheCanvasFocused_ShowsThePreview_AndLeavesTheCommandLineAlone()
     {

@@ -474,6 +474,7 @@ public partial class MainViewModel
             scope.ClearTrackState();
         }
 
+        ResetRangeBearingEntries();
         Aircraft.Clear();
 
         int delayed = 0;

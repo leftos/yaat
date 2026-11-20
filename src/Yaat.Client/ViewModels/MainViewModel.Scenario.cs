@@ -821,6 +821,7 @@ public partial class MainViewModel
             SetDistanceReference(bootstrap.PrimaryAirportId);
         }
 
+        ResetRangeBearingEntries();
         Aircraft.Clear();
         ClearBookmarks();
         int delayed = 0;
@@ -1035,6 +1036,7 @@ public partial class MainViewModel
             scope.ClearTrackState();
         }
 
+        ResetRangeBearingEntries();
         Aircraft.Clear();
         // The server drops its ATPA/conflict caches on unload without broadcasting an empty set, so the
         // client's mirrors have to be dropped here too: an aircraft added incrementally in the next

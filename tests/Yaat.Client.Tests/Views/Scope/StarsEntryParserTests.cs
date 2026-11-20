@@ -32,7 +32,6 @@ public class StarsEntryParserTests
     [InlineData("*J5", ".scope rings jring 5", "*J5", "j-ring")]
     [InlineData("*P2.5", ".scope rings cone 2.5", "*P2.5", "cone")]
     [InlineData("*T", "*T", "*T", "range bearing line")]
-    [InlineData("*T 3", "*T 3", "*T", "range bearing line")]
     [InlineData("INIT", "TRACK", "INIT", "track")]
     [InlineData("INIT UAL238", "UAL238 TRACK", "INIT", "track")]
     [InlineData("TERM", "DROP", "TERM", "drop track")]
@@ -170,6 +169,99 @@ public class StarsEntryParserTests
         Assert.Equal(first, read.Callsign);
         Assert.Equal(second, read.SecondCallsign);
     }
+
+    /// <summary>Every entry led by <c>*T</c> is the Scope's range bearing line entry, run on the Scope by CRC's grammar.</summary>
+    [Theory]
+    [InlineData("*T", "*T")]
+    [InlineData("*T1", "*T1")]
+    [InlineData("*t1", "*T1")]
+    [InlineData("*T 3", "*T")]
+    [InlineData("*TOAK", "*TOAK")]
+    [InlineData("*TX/", "*TX/")]
+    public void AnyStarTEntry_ReadsAsTheRangeBearingLineEntry(string entry, string firstWord)
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
+
+        Assert.True(read.Supported);
+        Assert.Equal(StarsEntryNeed.RangeBearingLine, read.Need);
+        Assert.Equal(firstWord, read.FirstWord);
+        Assert.Equal("range bearing line", read.Gloss);
+    }
+
+    [Fact]
+    public void StarTAlone_IsTheBareEntry() => Assert.Equal(new StarsRblEntry(StarsRblAction.Bare, 0, ""), StarsEntryParser.ReadRangeBearing("*T"));
+
+    [Theory]
+    [InlineData("*T1", 1)]
+    [InlineData("*T15", 15)]
+    [InlineData("*T01", 1)]
+    [InlineData("*t7", 7)]
+    public void StarTGluedLineNumberOneToFifteen_RemovesThatLine(string entry, int slot) =>
+        Assert.Equal(new StarsRblEntry(StarsRblAction.Remove, slot, entry[2..]), StarsEntryParser.ReadRangeBearing(entry));
+
+    [Theory]
+    [InlineData("*T0")]
+    [InlineData("*T00")]
+    [InlineData("*T16")]
+    [InlineData("*T99")]
+    public void StarTGluedLineNumberOutsideOneToFifteen_IsRblId(string entry) =>
+        Assert.Equal(StarsRblAction.RblId, StarsEntryParser.ReadRangeBearing(entry)?.Action);
+
+    [Theory]
+    [InlineData("*T1234", "1234")]
+    [InlineData("*T0777", "0777")]
+    public void StarTFourOctalDigits_StartsAtThatBeacon(string entry, string code) =>
+        Assert.Equal(new StarsRblEntry(StarsRblAction.Beacon, 0, code), StarsEntryParser.ReadRangeBearing(entry));
+
+    /// <summary>
+    /// Two to ten of <c>[A-Z0-9-]</c>, after the line-number and beacon shapes in CRC's order: five digits, a four-digit code
+    /// with an 8 or 9 and three digits all read as a fix or ACID.
+    /// </summary>
+    [Theory]
+    [InlineData("*TOAK", "OAK")]
+    [InlineData("*TAB", "AB")]
+    [InlineData("*T12345", "12345")]
+    [InlineData("*T1289", "1289")]
+    [InlineData("*T123", "123")]
+    [InlineData("*TN1-2", "N1-2")]
+    [InlineData("*TABCDEFGHIJ", "ABCDEFGHIJ")]
+    [InlineData("*tual1", "UAL1")]
+    public void StarTTwoToTenCharacters_StartsAtThatFixOrAcid(string entry, string token) =>
+        Assert.Equal(new StarsRblEntry(StarsRblAction.Name, 0, token), StarsEntryParser.ReadRangeBearing(entry));
+
+    [Theory]
+    [InlineData("*T 3")]
+    [InlineData("*T  3")]
+    [InlineData("*T A B")]
+    [InlineData("*T OAK MOD")]
+    [InlineData("*T OAK")]
+    [InlineData("*TA")]
+    [InlineData("*TABCDEFGHIJK")]
+    [InlineData("*T1/2")]
+    public void AnyOtherStarTEntry_IsFormat(string entry) => Assert.Equal(StarsRblAction.Format, StarsEntryParser.ReadRangeBearing(entry)?.Action);
+
+    /// <summary>A line number is ASCII digits only: a Unicode digit is no line number, and the entry is FORMAT.</summary>
+    [Fact]
+    public void StarTWithAUnicodeDigit_IsFormat() => Assert.Equal(StarsRblAction.Format, StarsEntryParser.ReadRangeBearing("*T١")?.Action);
+
+    [Theory]
+    [InlineData("*J5")]
+    [InlineData("**")]
+    [InlineData("T1")]
+    public void TextNotLedByStarT_IsNoRangeBearingEntry(string entry) => Assert.Null(StarsEntryParser.ReadRangeBearing(entry));
+
+    /// <summary>The entry after a pending anchor: a slewed item, else a beacon, a fix or ACID, else FORMAT (CRC's CompletePendingRbl).</summary>
+    [Theory]
+    [InlineData("1234", StarsRblAction.Beacon, "1234")]
+    [InlineData("oak", StarsRblAction.Name, "OAK")]
+    [InlineData("AB", StarsRblAction.Name, "AB")]
+    [InlineData("12345", StarsRblAction.Name, "12345")]
+    [InlineData("A", StarsRblAction.Format, "")]
+    [InlineData("*T", StarsRblAction.Format, "")]
+    [InlineData("OAK MOD", StarsRblAction.Format, "")]
+    [InlineData("$ FH 270", StarsRblAction.Format, "")]
+    public void TheEntryCompletingAPendingLine_ReadsABeaconAFixOrAcid_ElseFormat(string entry, StarsRblAction action, string token) =>
+        Assert.Equal(new StarsRblEntry(action, 0, token), StarsEntryParser.ReadRangeBearingCompletion(entry));
 
     [Theory]
     [InlineData("TC")]

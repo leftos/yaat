@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Yaat.Client.Views.Map;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views.Scope.Entries;
@@ -27,6 +28,64 @@ internal enum StarsEntryNeed
     /// shows theirs, and with one it answers that two are needed.
     /// </summary>
     MinimumSeparation,
+
+    /// <summary>
+    /// An entry led by <c>*T</c>: the range bearing line entry, run on the Scope by CRC's grammar
+    /// (<see cref="StarsEntryParser.ReadRangeBearing"/>) and never sent.
+    /// </summary>
+    RangeBearingLine,
+}
+
+/// <summary>What a <c>*T</c> entry, or the entry completing a pending line, does by CRC's grammar.</summary>
+public enum StarsRblAction
+{
+    /// <summary><c>*T</c> alone: with a slew it anchors a line there; with none it clears the lines.</summary>
+    Bare,
+
+    /// <summary><c>*T</c> and a line number from 1 to 15: removes that line.</summary>
+    Remove,
+
+    /// <summary><c>*T</c> and a one- or two-digit line number outside 1 to 15: <see cref="StarsErrorText.RblId"/>.</summary>
+    RblId,
+
+    /// <summary>Four digits 0-7: the track with that beacon code.</summary>
+    Beacon,
+
+    /// <summary>Two to ten of <c>[A-Z0-9-]</c>: under three characters an ACID, else a fix or airport first, then an ACID.</summary>
+    Name,
+
+    /// <summary>Any other entry: <see cref="StarsErrorText.Format"/>.</summary>
+    Format,
+}
+
+/// <summary>A <c>*T</c> entry as CRC's grammar reads it.</summary>
+/// <param name="Action">What the entry does.</param>
+/// <param name="Slot">The line number of a <see cref="StarsRblAction.Remove"/> or <see cref="StarsRblAction.RblId"/>; 0 otherwise.</param>
+/// <param name="Token">
+/// The beacon code or the fix/ACID of a <see cref="StarsRblAction.Beacon"/> or <see cref="StarsRblAction.Name"/>; the line
+/// number's digits as typed for a <see cref="StarsRblAction.Remove"/> or <see cref="StarsRblAction.RblId"/>; empty otherwise.
+/// </param>
+internal readonly record struct StarsRblEntry(StarsRblAction Action, int Slot, string Token);
+
+/// <summary>CRC's STARS error categories, as its preview shows them: upper-cased, with no trailing period.</summary>
+internal static class StarsErrorText
+{
+    public const string Format = "FORMAT";
+    public const string IllegalFunction = "ILL FNCT";
+    public const string IllegalTrack = "ILL TRK";
+    public const string IllegalPosition = "ILL POS";
+    public const string IllegalParameter = "ILL PARAM";
+    public const string IllegalValue = "ILL VALUE";
+    public const string IllegalMap = "ILL MAP";
+    public const string IllegalPrefSet = "ILL PREFSET";
+    public const string NoFlight = "NO FLIGHT";
+    public const string NoTrack = "NO TRK";
+    public const string MultipleFlight = "MULTIPLE FLIGHT";
+    public const string DuplicateTrack = "DUP TRK";
+    public const string Capacity = "CAPACITY";
+    public const string RangeLimit = "RANGE LIMIT";
+    public const string RblId = "RBL ID";
+    public const string NotImplemented = "NOT IMPLEMENTED";
 }
 
 /// <summary>A STARS entry's reading: its first word, the YAAT command it translates to (null when not supported) and its gloss.</summary>
@@ -52,9 +111,12 @@ internal sealed record StarsEntryRead(string FirstWord, string? Translation, str
 }
 
 /// <summary>
-/// Reads an entry typed on a STARS-profile Scope as a STARS entry: the glued shapes (<c>+AB1</c>, <c>++100</c>, <c>4</c>,
-/// <c>1D*</c>, <c>**2B</c>, <c>*J5</c>, ...), the key words standing for the function keys (<c>INIT</c>, <c>TERM</c>,
-/// <c>HND</c>, <c>MF</c>, <c>CA</c>, <c>RANGE</c>) and the per-track PTL of a <c>MF R</c> entry. An entry with a YAAT
+/// Reads an entry typed on a STARS-profile Scope as a STARS entry: the glued shapes it knows (<c>+AB1</c>, <c>++100</c>,
+/// <c>4</c>, <c>1D*</c>, <c>**2B</c>, <c>*J5</c>, ...), YAAT's own key words standing for the function keys (<c>INIT</c>,
+/// <c>TERM</c>, <c>HND</c>, <c>MF</c>, <c>CA</c>, <c>RANGE</c>), which CRC has as keys, not text, and the per-track PTL of a
+/// <c>MF R</c> entry. The <c>*T</c> range bearing line entry reads by CRC's grammar (<see cref="ReadRangeBearing"/>): <c>*T</c>
+/// alone, <c>*T</c> glued to a line number (<c>*T1</c>), to a four-digit beacon code (<c>*T1234</c>) or to a fix or ACID
+/// (<c>*TOAK</c>), and the entry completing a pending line (<see cref="ReadRangeBearingCompletion"/>). An entry with a YAAT
 /// command translates to it; a STARS entry with none reads as not supported; anything else is no STARS entry (null). Pure:
 /// the rows that need state say so in <see cref="StarsEntryRead.Need"/>.
 /// </summary>
@@ -77,8 +139,17 @@ internal static partial class StarsEntryParser
     [GeneratedRegex(@"^\*([JP])([\d.]+)?$")]
     private static partial Regex Tpa();
 
-    [GeneratedRegex(@"^\*T( .*)?$")]
-    private static partial Regex RangeBearingLine();
+    [GeneratedRegex("^[0-9]{1,2}$")]
+    private static partial Regex RblLineNumber();
+
+    [GeneratedRegex(@"^[0-7]{4}$")]
+    private static partial Regex RblBeacon();
+
+    [GeneratedRegex(@"^[A-Z0-9\-]{2,10}$")]
+    private static partial Regex RblName();
+
+    [GeneratedRegex(" {2,}")]
+    private static partial Regex SpaceRun();
 
     [GeneratedRegex(@"^\*\*([A-Z0-9]{1,3}( [A-Z0-9]{1,3}){0,9})$")]
     private static partial Regex ForceQuicklook();
@@ -115,11 +186,54 @@ internal static partial class StarsEntryParser
         return words[0][0] switch
         {
             '+' => ReadPlus(upper, words),
-            '*' => ReadStar(trimmed, upper, words),
+            '*' => ReadStar(upper, words),
             '/' => Unsupported(words[0]),
             _ => ReadKeyWord(words) ?? ReadBare(upper, words),
         };
     }
+
+    /// <summary>
+    /// Reads <paramref name="text"/> as a <c>*T</c> entry by CRC's grammar, in its order (InputManager's implied-entry branch):
+    /// <c>*T</c> alone; <c>*T</c> and one or two digits, a line number (1-15, else RBL ID); <c>*T</c> and four digits 0-7, a
+    /// beacon code; <c>*T</c> and two to ten of <c>[A-Z0-9-]</c>, a fix or ACID; any other <c>*T</c> entry is FORMAT. Runs of
+    /// spaces collapse and the text is upper-cased first, as CRC's preview does.
+    /// </summary>
+    /// <returns>The reading, or null when the text is not led by <c>*T</c>.</returns>
+    public static StarsRblEntry? ReadRangeBearing(string text)
+    {
+        string entry = NormalizeRbl(text);
+        if (!entry.StartsWith("*T", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        string rest = entry[2..];
+        if (rest.Length == 0)
+        {
+            return new StarsRblEntry(StarsRblAction.Bare, 0, "");
+        }
+
+        if (RblLineNumber().IsMatch(rest))
+        {
+            int slot = int.Parse(rest, CultureInfo.InvariantCulture);
+            return new StarsRblEntry((slot is >= 1 and <= RangeBearingLineStore.MaxLines) ? StarsRblAction.Remove : StarsRblAction.RblId, slot, rest);
+        }
+
+        return ReadRblTarget(rest);
+    }
+
+    /// <summary>
+    /// Reads the entry that completes a pending line by CRC's grammar (CompletePendingRbl): four digits 0-7, a beacon code;
+    /// two to ten of <c>[A-Z0-9-]</c>, a fix or ACID; anything else is FORMAT.
+    /// </summary>
+    public static StarsRblEntry ReadRangeBearingCompletion(string text) => ReadRblTarget(NormalizeRbl(text));
+
+    private static StarsRblEntry ReadRblTarget(string token) =>
+        RblBeacon().IsMatch(token) ? new StarsRblEntry(StarsRblAction.Beacon, 0, token)
+        : RblName().IsMatch(token) ? new StarsRblEntry(StarsRblAction.Name, 0, token)
+        : new StarsRblEntry(StarsRblAction.Format, 0, "");
+
+    private static string NormalizeRbl(string text) => SpaceRun().Replace(text.Trim(), " ").ToUpperInvariant();
 
     // S1-S3: requested altitude, temporary altitude, scratchpad 2.
     private static StarsEntryRead ReadPlus(string upper, string[] words)
@@ -148,7 +262,7 @@ internal static partial class StarsEntryParser
             : null;
 
     // S7 (**), S8 force quicklook, S9 TPA, S10 RBL; every other *-led entry is not supported.
-    private static StarsEntryRead ReadStar(string trimmed, string upper, string[] words)
+    private static StarsEntryRead ReadStar(string upper, string[] words)
     {
         string first = words[0];
         if (upper == "**")
@@ -156,9 +270,10 @@ internal static partial class StarsEntryParser
             return Supported(first, "POHO", CanonicalCommandType.ConvertPointout);
         }
 
-        if (RangeBearingLine().IsMatch(upper))
+        // Every *T-led entry is the range bearing line entry; CRC's grammar answers FORMAT for the shapes it does not read.
+        if (upper.StartsWith("*T", StringComparison.Ordinal))
         {
-            return new StarsEntryRead(first, trimmed, "range bearing line");
+            return new StarsEntryRead(first, string.Join(' ', words), "range bearing line") { Need = StarsEntryNeed.RangeBearingLine };
         }
 
         if (Tpa().Match(upper) is { Success: true } tpa)

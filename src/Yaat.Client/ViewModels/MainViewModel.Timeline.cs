@@ -235,6 +235,7 @@ public partial class MainViewModel
             scope.ClearTrackState();
         }
 
+        ResetRangeBearingEntries();
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {
@@ -1034,6 +1035,7 @@ public partial class MainViewModel
 
         ScopeMaps.ShowMvaHintsDefault = _preferences.GetMvaHintDefault(_studentPositionType);
 
+        ResetRangeBearingEntries();
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {

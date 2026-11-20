@@ -77,6 +77,7 @@ public partial class ScopeView : UserControl
         Canvas.AircraftFillRequested += OnAircraftFillRequested;
         Canvas.MapFillRequested += OnMapFillRequested;
         Canvas.FillsOnLeftClick = callsign => (DataContext is ScopeViewModel vm) && vm.FillsOnLeftClick(callsign);
+        Canvas.EntryTakesMeasurePress = () => (DataContext is ScopeViewModel vm) && vm.RangeBearingEntryTakesPress;
         Canvas.EntryTextInput += OnCanvasTextInput;
         Canvas.EntryKeyDown += OnCanvasKeyDown;
         Canvas.GotFocus += OnCanvasGotFocus;

@@ -104,11 +104,13 @@ public partial class ScopeView
     partial void KeyDrawRoute(KeyEventArgs e);
 
     /// <summary>
-    /// Esc's chain, first taker wins: the measure prompt, the canvas's and the view model's modes, the entry, an Alt-drag in
-    /// flight, the Scope's measurement, the map tools, then the Rings tool. Returns whether a step took it.
+    /// Esc's chain, first taker wins: a pending <c>*T</c> anchor with the entry and the response, the measure prompt, the
+    /// canvas's and the view model's modes, the entry, an Alt-drag in flight, the Scope's measurement, the map tools, then the
+    /// Rings tool. Returns whether a step took it.
     /// </summary>
     private bool HandleEscape(ScopeViewModel vm) =>
-        vm.TakeMeasurePrompt()
+        vm.EscapeRangeBearingEntry()
+        || vm.TakeMeasurePrompt()
         || Canvas.EscapeModes()
         || vm.EscapeModes()
         || vm.ClearEntry()

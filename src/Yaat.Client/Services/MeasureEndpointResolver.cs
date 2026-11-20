@@ -5,7 +5,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Resolves one typed measurement endpoint token for the <c>.rbl A B</c> / <c>*T A B</c> command: an
+/// Resolves one typed measurement endpoint token for the <c>.rbl A B</c> command: an
 /// exact callsign wins, then a fix or FRD, then a partial callsign — so a fix name is never shadowed by
 /// an airline shorthand or vice versa. A callsign endpoint latches and travels with the aircraft.
 /// </summary>

@@ -56,6 +56,7 @@ public partial class MainViewModel
         // would map it to an aircraft the decoder declined to name). The user may still edit it, which clears the staged text.
         if (StagedSayAgainStatus(trimmed) is { } sayAgainStatus)
         {
+            ResetLineRangeBearing();
             sink.ReportStatus(sayAgainStatus);
             return;
         }
@@ -93,6 +94,7 @@ public partial class MainViewModel
             return false;
         }
 
+        ResetLineRangeBearing();
         string chatMessage = text[1..].TrimStart();
         if (!string.IsNullOrEmpty(chatMessage))
         {
@@ -114,27 +116,42 @@ public partial class MainViewModel
 
     /// <summary>
     /// Client-only dot commands. Built-in scope markers (CRC .ff / .marker / .markers / .nomarkers) and the measuring tool
-    /// (.rbl / .norbl, with *T as the CRC STARS spelling) win, then CRC aliases read from the user's CRC install. Neither
-    /// ever reaches the server.
+    /// (.rbl / .norbl, and CRC STARS' *T entries by CRC's grammar) win, then CRC aliases read from the user's CRC install.
+    /// While a *T anchor this sink's line started is pending, a line that completes it does so; any other line cancels it and
+    /// runs as usual (<see cref="TryCompleteLineRangeBearing"/>). Neither ever reaches the server.
     /// </summary>
     private bool TryRunClientCommand(TypedLine line)
     {
         bool forceAlias = StripCrcPrefix(line);
         string text = line.Text;
-        if (!forceAlias && !text.StartsWith('.') && !IsStarTCommand(text))
+        if (forceAlias)
         {
-            return false;
+            ResetLineRangeBearing();
         }
 
-        if (!TryHandleClientCommand(text, forceAlias, line.Sink))
+        if (forceAlias || !TryCompleteLineRangeBearing(text, line.Sink))
         {
-            string verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? text;
-            line.Sink.ReportError($"Unknown command or alias: {verb}");
+            if (!forceAlias && !text.StartsWith('.') && !IsStarTCommand(text))
+            {
+                return false;
+            }
+
+            RunClientCommand(text, forceAlias, line.Sink);
         }
 
         line.Sink.AddHistory("", text);
         line.Sink.ClearInput();
         return true;
+    }
+
+    // A client-only command, or the error naming its unknown verb.
+    private void RunClientCommand(string text, bool forceAlias, ICommandTextSink sink)
+    {
+        if (!TryHandleClientCommand(text, forceAlias, sink))
+        {
+            string verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? text;
+            sink.ReportError($"Unknown command or alias: {verb}");
+        }
     }
 
     /// <summary>"CRC " forces alias resolution, reaching an alias that a built-in dot command would shadow.</summary>

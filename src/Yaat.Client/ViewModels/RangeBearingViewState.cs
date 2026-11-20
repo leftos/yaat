@@ -86,6 +86,44 @@ public sealed partial class RangeBearingViewState : ObservableObject
         Report(slot is { } placed ? DescribePlaced(placed, target) : FullStatus);
     }
 
+    /// <summary>
+    /// The id of the pending anchor (<see cref="RangeBearingLineStore.AnchorId"/>), null with none: a <c>*T</c> entry's
+    /// pending marker holds it, so the anchor completing, being cancelled, replaced or pruned ends the marker too.
+    /// </summary>
+    internal long? PendingAnchorId => (_store.PendingAnchor is null) ? null : _store.AnchorId;
+
+    /// <summary>Cancels the pending anchor without reporting, when it is still the one <paramref name="anchorId"/> names.</summary>
+    /// <returns>False when that anchor is no longer pending.</returns>
+    internal bool DropAnchor(long anchorId)
+    {
+        if (PendingAnchorId != anchorId)
+        {
+            return false;
+        }
+
+        _store.Disarm();
+        return true;
+    }
+
+    /// <summary>
+    /// Anchors a measurement at <paramref name="endpoint"/> on <paramref name="target"/>, replacing any pending anchor, without
+    /// reporting: the first point of a <c>*T</c> entry, typed or slewed by a click on the Scope.
+    /// </summary>
+    /// <returns>Whether it anchored (false when every slot is in use), and the status to show.</returns>
+    internal (bool Anchored, string Status) SetAnchorSilently(RblEndpoint endpoint, MeasureTarget target) =>
+        _store.SetAnchor(endpoint, target.View, target.Surface) ? (true, AnchoredStatus) : (false, FullStatus);
+
+    /// <summary>
+    /// Completes the pending measurement at <paramref name="endpoint"/> without reporting: the typed entry after a <c>*T</c>
+    /// anchor. <paramref name="target"/> reads the placed line's status.
+    /// </summary>
+    /// <returns>The slot the measurement took (null with no anchor or every slot in use), and the status to show.</returns>
+    internal (int? Slot, string Status) CompleteSilently(RblEndpoint endpoint, MeasureTarget target)
+    {
+        int? slot = _store.Complete(endpoint);
+        return (slot, slot is { } placed ? DescribePlaced(placed, target) : FullStatus);
+    }
+
     /// <summary>Places a whole measurement at once on <paramref name="target"/>, for the modifier-drag and text-command paths.</summary>
     /// <returns>The slot number the measurement took, or null when every slot is in use.</returns>
     public int? Place(RblEndpoint from, RblEndpoint to, MeasureTarget target)

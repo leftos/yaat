@@ -4,7 +4,9 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -165,6 +167,221 @@ public class MainViewModelScopeSinkTests
         Assert.Contains("No measurements to clear", clear.Messages);
         Assert.Empty(clear.Errors);
         AssertCommandLineUntouched(vm, statusBefore);
+    }
+
+    /// <summary>
+    /// The main line reads <c>*T</c> by CRC's grammar, the Scope's one parse: <c>*T1</c> removes line 1, a spaced form is FORMAT,
+    /// <c>*T</c> clears all.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task StarTOnTheMainLine_RemovesLineN_RefusesASpacedForm_AndClearsAll()
+    {
+        MainViewModel vm = await NewVmAsync();
+        await SendAsync(vm, ".rbl UAL123 UAL124");
+        await SendAsync(vm, ".rbl UAL124 UAL123");
+
+        RecordingSink remove = await SendAsync(vm, "*t1");
+        Assert.Equal([2], vm.Measure.Lines.Select(l => l.Slot));
+
+        RecordingSink spaced = await SendAsync(vm, "*T 2");
+        RecordingSink missing = await SendAsync(vm, "*T5");
+        Assert.Single(vm.Measure.Lines);
+
+        RecordingSink clear = await SendAsync(vm, "*T");
+
+        Assert.Empty(vm.Measure.Lines);
+        Assert.Empty(remove.Errors);
+        Assert.Equal(["FORMAT"], spaced.Errors);
+        Assert.Equal(["RBL ID"], missing.Errors);
+        Assert.Empty(clear.Errors);
+    }
+
+    /// <summary>The main line has no slew: <c>*T</c> and an ACID anchors a line, and the same line's next entry completes it.</summary>
+    [AvaloniaFact]
+    public async Task StarTAcidOnTheMainLine_Anchors_AndTheNextTypedEntryCompletesTheLine()
+    {
+        MainViewModel vm = await NewVmAsync();
+        var sink = new RecordingSink();
+
+        await vm.SendTextAsync("*TUAL123", sink, vm.Preferences.CommandScheme);
+        Assert.Equal("UAL123", vm.Measure.Anchor?.Endpoint.Callsign);
+
+        await vm.SendTextAsync("UAL124", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Client.Views.Map.RangeBearingLine line = Assert.Single(vm.Measure.Lines);
+        Assert.Equal(("UAL123", "UAL124"), (line.A.Callsign, line.B.Callsign));
+        Assert.Null(vm.Measure.Anchor);
+        Assert.Empty(sink.Errors);
+    }
+
+    /// <summary>
+    /// A pending <c>*T</c> anchor does not lock the main line: an entry that is not a completion form cancels the anchor and
+    /// runs as usual.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AMainLineEntryThatIsNoCompletion_CancelsThePendingStarTAnchor_AndRunsAsUsual()
+    {
+        MainViewModel vm = await NewVmAsync();
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TUAL123", sink, vm.Preferences.CommandScheme);
+        Assert.NotNull(vm.Measure.Anchor);
+
+        await vm.SendTextAsync("UAL124 FH 270", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Measure.Anchor);
+        Assert.Empty(vm.Measure.Lines);
+        Assert.DoesNotContain(sink.Errors, e => e is "FORMAT" or "NO FLIGHT");
+    }
+
+    /// <summary>
+    /// The review's scenario: a main-line <c>*T</c> line completed by a click on the Scope, then a Ctrl+M anchor at the same
+    /// track; the main line's next entry is not read as a completion, and the Scope's anchor stays.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AfterAMainLineStarTLineIsCompletedByAClick_ACtrlMAnchorAtTheSameTrack_DoesNotCaptureTheMainLine()
+    {
+        MainViewModel vm = await NewVmAsync();
+        ScopeViewModel scope = Assert.IsType<ScopeViewModel>(vm.ActiveMeasureScope);
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TUAL123", sink, vm.Preferences.CommandScheme);
+        scope.PickMeasurePoint(RblEndpoint.OnAircraft("UAL124"));
+        Assert.Single(vm.Measure.Lines);
+        scope.ArmMeasure();
+        scope.PickMeasurePoint(RblEndpoint.OnAircraft("UAL123"));
+        RblPendingAnchor? anchor = vm.Measure.Anchor;
+        Assert.NotNull(anchor);
+
+        await vm.SendTextAsync("UAL124 DM 50", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(anchor, vm.Measure.Anchor);
+        Assert.Single(vm.Measure.Lines);
+        Assert.DoesNotContain(sink.Errors, e => e is "FORMAT" or "NO FLIGHT");
+    }
+
+    [AvaloniaFact]
+    public async Task AMainLineCompletion_WithEveryLineInUse_IsCapacity_AndTheAnchorStaysPending()
+    {
+        MainViewModel vm = await NewVmAsync();
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TUAL123", sink, vm.Preferences.CommandScheme);
+        RblPendingAnchor? anchor = vm.Measure.Anchor;
+        Assert.NotNull(anchor);
+        MeasureTarget ground = vm.MeasureSurface(RblView.Ground, null);
+        for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
+        {
+            vm.Measure.Place(RblEndpoint.AtPoint(new LatLon(37.6, -122.4), ""), RblEndpoint.AtPoint(new LatLon(37.8, -122.0), ""), ground);
+        }
+
+        await vm.SendTextAsync("UAL124", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["CAPACITY"], sink.Errors);
+        Assert.Equal(anchor, vm.Measure.Anchor);
+
+        vm.Measure.Remove(1);
+        await vm.SendTextAsync("UAL124", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Measure.Anchor);
+        Assert.Equal(RangeBearingLineStore.MaxLines, vm.Measure.Lines.Count);
+    }
+
+    /// <summary>
+    /// A one-word line that resolves to no track cancels the pending main-line anchor and runs as usual: a global verb goes to
+    /// the global path, whose pause send throws "Not connected." on this view model with no server.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AGlobalVerb_AfterAMainLineStarTAnchor_CancelsTheAnchor_AndRuns()
+    {
+        MainViewModel vm = await NewVmAsync();
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TOAK", sink, vm.Preferences.CommandScheme);
+        Assert.NotNull(vm.Measure.Anchor);
+
+        InvalidOperationException sent = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            vm.SendTextAsync("PAUSE", sink, vm.Preferences.CommandScheme)
+        );
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Not connected.", sent.Message);
+        Assert.Null(vm.Measure.Anchor);
+        Assert.Empty(vm.Measure.Lines);
+        Assert.Empty(sink.Errors);
+    }
+
+    /// <summary>A partial callsign after a main-line <c>*T</c> anchor cancels it and selects the aircraft, as a bare select does.</summary>
+    [AvaloniaFact]
+    public async Task APartialCallsign_AfterAMainLineStarTAnchor_CancelsTheAnchor_AndSelectsTheAircraft()
+    {
+        MainViewModel vm = await NewVmAsync();
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TOAK", sink, vm.Preferences.CommandScheme);
+
+        await vm.SendTextAsync("123", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Measure.Anchor);
+        Assert.Empty(vm.Measure.Lines);
+        Assert.Equal("UAL123", vm.SelectedAircraft?.Callsign);
+    }
+
+    /// <summary>
+    /// The main-line lines that never reach the completion (chat, a <c>CRC </c>-prefixed line, the staged say-again transcript)
+    /// cancel a pending main-line <c>*T</c> anchor, so the next line runs as usual: an ACID selects its aircraft, no line drawn.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("chat")]
+    [InlineData("crc")]
+    [InlineData("say again")]
+    public async Task ALineThatSkipsTheCompletion_CancelsTheMainLineStarTAnchor(string kind)
+    {
+        MainViewModel vm = await NewVmAsync();
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TUAL123", sink, vm.Preferences.CommandScheme);
+        Assert.NotNull(vm.Measure.Anchor);
+
+        string line = kind switch
+        {
+            "chat" => "'checking",
+            "crc" => "CRC .reloadaliases",
+            _ => StageSayAgain(vm),
+        };
+        await vm.SendTextAsync(line, sink, vm.Preferences.CommandScheme);
+        await vm.CrcAliasLoad;
+        await vm.SendTextAsync("UAL124", sink, vm.Preferences.CommandScheme);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Measure.Anchor);
+        Assert.Empty(vm.Measure.Lines);
+        Assert.Equal("UAL124", vm.SelectedAircraft?.Callsign);
+    }
+
+    // Stages a say-again transcript, as an accurate say-again press does; returns it.
+    private static string StageSayAgain(MainViewModel vm)
+    {
+        const string Transcript = "united one two four turn left";
+        vm.HandleSpeechServiceCommandReady(new SpeechResult(Transcript, null, null, "Say again: callsign unclear"));
+        Dispatcher.UIThread.RunJobs();
+        return Transcript;
+    }
+
+    /// <summary>The main-line anchor goes when the Scope it sits on changes profile away from STARS.</summary>
+    [AvaloniaFact]
+    public async Task AScopeLeavingStars_DropsTheMainLineStarTAnchorOnIt()
+    {
+        MainViewModel vm = await NewVmAsync();
+        ScopeViewModel scope = Assert.IsType<ScopeViewModel>(vm.ActiveMeasureScope);
+        scope.ProfileKind = Client.Views.Scope.Profiles.ScopeProfileKind.Stars;
+        var sink = new RecordingSink();
+        await vm.SendTextAsync("*TOAK", sink, vm.Preferences.CommandScheme);
+        Assert.Same(scope, vm.Measure.Anchor?.Surface);
+
+        scope.ProfileKind = Client.Views.Scope.Profiles.ScopeProfileKind.Eram;
+
+        Assert.Null(vm.Measure.Anchor);
     }
 
     [AvaloniaFact]

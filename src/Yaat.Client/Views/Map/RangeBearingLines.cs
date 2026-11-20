@@ -100,6 +100,12 @@ public sealed class RangeBearingLineStore
     /// <summary>The first endpoint once picked, while waiting for the second.</summary>
     public RblPendingAnchor? PendingAnchor { get; private set; }
 
+    /// <summary>
+    /// The id of the last anchor <see cref="SetAnchor"/> set; each anchor takes the next, so a holder can tell its own anchor
+    /// from a later one with the same endpoint, view and surface.
+    /// </summary>
+    public long AnchorId { get; private set; }
+
     /// <summary>True when all <see cref="MaxLines" /> slots are occupied.</summary>
     public bool IsFull => LowestFreeSlotIndex() < 0;
 
@@ -184,6 +190,7 @@ public sealed class RangeBearingLineStore
 
         IsArmed = true;
         PendingAnchor = new RblPendingAnchor(anchor, view, surface);
+        AnchorId++;
         Changed?.Invoke();
         return true;
     }

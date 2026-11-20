@@ -300,6 +300,80 @@ public class ScopeMeasurePointerTests
         }
     }
 
+    // A *T entry in this Scope's preview takes a plain left press as its slew ahead of the measuring tool, whatever armed the
+    // tool: another Scope window's pending anchor, a main-line *T anchor, or Ctrl+M on another surface.
+    [AvaloniaTheory]
+    [InlineData("another scope's anchor")]
+    [InlineData("main line *T")]
+    [InlineData("Ctrl+M elsewhere")]
+    public async Task ALeftPress_WithAStarTEntryInThePreview_IsItsSlew_WhateverArmedTheTool(string armedBy)
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
+        ScopeViewInstance other = main.OpenExtraScopeView();
+        try
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            AircraftModel ac = AddAt300(main, view.Canvas, "UAL1");
+            await ArmElsewhereAsync(main, other.Vm, armedBy);
+            Assert.True(main.Measure.IsMeasuring);
+            Assert.True(scope.TypeEntryText("*T"));
+            Dispatcher.UIThread.RunJobs();
+
+            Point at = SymbolOf(view.Canvas, ac);
+            var props = new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed);
+            var e = new PointerPressedEventArgs(
+                view.Canvas,
+                new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true),
+                window,
+                InWindow(window, view.Canvas, at),
+                0,
+                props,
+                KeyModifiers.None
+            );
+
+            Assert.True(view.Canvas.RunPressLadderForTesting(new ScopePress(e, props, at)));
+
+            Assert.Equal(new RblPendingAnchor(RblEndpoint.OnAircraft("UAL1"), RblView.Scope, scope), main.Measure.Anchor);
+            Assert.Equal("", scope.EntryText);
+            Assert.Empty(main.Measure.Lines);
+        }
+        finally
+        {
+            main.CloseExtraScopeView(other);
+            CloseWindow(window, view);
+        }
+    }
+
+    private static async Task ArmElsewhereAsync(MainViewModel main, ScopeViewModel other, string armedBy)
+    {
+        switch (armedBy)
+        {
+            case "another scope's anchor":
+                other.PickMeasurePoint(RblEndpoint.AtPoint(new LatLon(37.7, -122.2), ""));
+                break;
+            case "main line *T":
+                await main.SendTextAsync("*TOAK", new SilentSink(), main.Preferences.CommandScheme);
+                break;
+            default:
+                other.ArmMeasure();
+                break;
+        }
+    }
+
+    // A main-line sink whose reports go nowhere.
+    private sealed class SilentSink : ICommandTextSink
+    {
+        public void ReportStatus(string status) { }
+
+        public void ReportError(string message) { }
+
+        public void ClearInput() { }
+
+        public void AddHistory(string callsign, string command) { }
+
+        public void AddWarning(string message) { }
+    }
+
     // An anchor belongs to the surface that set it: a right press on this Scope while another Scope window holds the anchor
     // leaves the anchor and the armed tool, and opens this Scope's menu.
     [AvaloniaFact]

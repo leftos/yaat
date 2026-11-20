@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.FieldMenus;
@@ -167,11 +168,17 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal Func<string, ICommandTextSink, CommandScheme, Task>? YaatEntrySender { get; set; }
 
-    /// <summary>Adds typed <paramref name="text"/> to the entry; control characters are dropped.</summary>
+    /// <summary>
+    /// Adds typed <paramref name="text"/> to the entry. A STARS entry takes printable ASCII only (0x20-0x7E), upper-cased as
+    /// typed, as CRC's STARS preview does; a <c>$</c> entry (a YAAT command) and ERAM and Mixed drop control characters only.
+    /// </summary>
     /// <returns>False when nothing printable was typed.</returns>
     public bool TypeEntryText(string? text)
     {
-        string printable = new([.. (text ?? "").Where(c => !char.IsControl(c))]);
+        bool starsEntry = (ProfileKind == ScopeProfileKind.Stars) && !(EntryText + text).TrimStart().StartsWith(ScopeEntryClassifier.YaatPrefix);
+        string printable = starsEntry
+            ? new([.. (text ?? "").Where(c => c is >= ' ' and <= '~').Select(char.ToUpperInvariant)])
+            : new([.. (text ?? "").Where(c => !char.IsControl(c))]);
         if (printable.Length == 0)
         {
             return false;
@@ -182,7 +189,10 @@ public sealed partial class ScopeViewModel
         return true;
     }
 
-    /// <summary>F3, F4, F5, F7 and F11 on STARS: the key starts its function's entry in place of what the preview held.</summary>
+    /// <summary>
+    /// F3, F4, F5, F7 and F11 on STARS: the key starts its function's entry in place of what the preview held, and drops a
+    /// pending <c>*T</c> anchor, as CRC's ResetInput does.
+    /// </summary>
     /// <returns>False on ERAM or Mixed, and for any other key.</returns>
     internal bool StartStarsFunctionEntry(Key key)
     {
@@ -191,6 +201,7 @@ public sealed partial class ScopeViewModel
             return false;
         }
 
+        ResetRangeBearingEntry();
         ClearEntry();
         SetEntry(word);
         _entryHistoryIndex = -1;
@@ -238,6 +249,12 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal void FillTrack(string callsign)
     {
+        // A *T entry takes the click as its slew and runs, as CRC's does.
+        if (TryRunRangeBearingSlew(RblEndpoint.OnAircraft(callsign)))
+        {
+            return;
+        }
+
         SetEntry(ScopeEntryFill.Track(EntryText, callsign, FillContext(callsign), IsKnownCallsign));
         _pickedCallsign = callsign;
         _entryHistoryIndex = -1;
@@ -269,6 +286,11 @@ public sealed partial class ScopeViewModel
     /// <summary>Appends the clicked point to the entry: <paramref name="frd"/> when known, else its ERAM lat/long.</summary>
     internal void FillPoint(LatLon point, string? frd)
     {
+        if (TryRunRangeBearingSlew(RblEndpoint.AtPoint(point, frd ?? "")))
+        {
+            return;
+        }
+
         SetEntry(ScopeEntryFill.Point(EntryText, point, frd));
         _entryHistoryIndex = -1;
     }
@@ -288,7 +310,8 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Whether a left click fills the entry: text in the preview, the Rings tool not armed, and, on a track
     /// (<paramref name="callsign"/> not null), the second track of a <c>MIN</c> entry (<see cref="CompletesMinSep"/>, even the
-    /// first track again) or a fill that would change the entry (<see cref="ScopeEntryFill.ChangesTrack"/>).
+    /// first track again), the slew of a <c>*T</c> entry or of text typed while this Scope's <c>*T</c> anchor is pending
+    /// (<see cref="RangeBearingEntryTakesPress"/>) or a fill that would change the entry (<see cref="ScopeEntryFill.ChangesTrack"/>).
     /// </summary>
     internal bool FillsOnLeftClick(string? callsign) =>
         (EntryText.Length > 0)
@@ -296,6 +319,7 @@ public sealed partial class ScopeViewModel
         && (
             (callsign is null)
             || CompletesMinSep(callsign)
+            || RangeBearingEntryTakesPress
             || ScopeEntryFill.ChangesTrack(EntryText, callsign, FillContext(callsign), IsKnownCallsign)
         );
 
@@ -397,7 +421,10 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Enter: runs the entry, read in the selected track's dialect on Mixed, which leaves the preview for the response.
     /// </summary>
-    /// <returns>False when nothing is typed, or the entry is only the <c>$</c>, which has nothing to send.</returns>
+    /// <returns>
+    /// False when nothing is typed (unless a <c>*T</c> anchor is pending, which answers FORMAT), or the entry is only the
+    /// <c>$</c>, which has nothing to send.
+    /// </returns>
     public bool ExecuteEntry() => RunEntry(SelectedOwnerTemplateId);
 
     // Runs the entry, read in the dialect the owner kind ownerTemplateId picks on Mixed.
@@ -406,12 +433,13 @@ public sealed partial class ScopeViewModel
         string entry = EntryText.Trim();
         if (entry.Length == 0)
         {
-            return false;
+            return AnswerEmptyRangeBearingEntry();
         }
 
-        // An unsupported STARS entry and an entry that reads as nothing send nothing but still run, to be answered.
+        // An unsupported STARS entry and an entry that reads as nothing send nothing but still run, to be answered; so does any
+        // entry while a *T anchor waits for its completion.
         ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId, Main.Preferences.CommandScheme);
-        if ((reading.Kind is not (ScopeEntryKind.Stars or ScopeEntryKind.None)) && (reading.SendText.Length == 0))
+        if ((reading.Kind is not (ScopeEntryKind.Stars or ScopeEntryKind.None)) && (reading.SendText.Length == 0) && !HasRangeBearingEntryPending)
         {
             return false;
         }
@@ -433,6 +461,12 @@ public sealed partial class ScopeViewModel
     {
         ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId, Main.Preferences.CommandScheme);
         string? pickedCallsign = TakeEntry(entry);
+
+        // A *T entry, and any entry completing a *T anchor, runs on the Scope (ScopeViewModel.Measure.cs) and sends nothing.
+        if (TryRunRangeBearingEntry(entry, reading))
+        {
+            return;
+        }
 
         if (reading.Kind == ScopeEntryKind.Eram)
         {

@@ -458,6 +458,13 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     internal Func<string?, bool>? FillsOnLeftClick { get; set; }
 
     /// <summary>
+    /// Asked at a plain left press while the measuring tool is armed: true leaves the press to the entry's fill
+    /// (<see cref="FillsOnLeftClick"/>) instead of picking an endpoint, as a STARS <c>*T</c> entry in the preview takes it as its
+    /// slew whatever armed the tool. Null never does.
+    /// </summary>
+    internal Func<bool>? EntryTakesMeasurePress { get; set; }
+
+    /// <summary>
     /// Fired for a measurement endpoint the pointer picked: a left press while the tool is armed, or an Alt+left click released
     /// within the drag threshold (which anchors the line). An aircraft under the pointer latches; else the map point.
     /// </summary>
@@ -837,7 +844,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
     // The measuring tool's presses, ahead of the fill, the Rings tool and the aircraft rungs: Alt+left starts a drag whether or
     // not the tool is armed; while it is armed a left press picks an endpoint and a right press cancels it (no menu, no pan),
-    // unless another surface holds the anchor. False for any other press.
+    // unless another surface holds the anchor or the entry takes the left press (EntryTakesMeasurePress). False for any other
+    // press.
     // Each rung reads the button this press went down with (PointerUpdateKind), so a second button pressed while the left is
     // held neither re-anchors nor picks.
     private bool TryMeasurePress(PointerPointProperties props, KeyModifiers modifiers, Point pos)
@@ -857,6 +865,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
         if (props.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
         {
+            if (EntryTakesMeasurePress?.Invoke() == true)
+            {
+                return false;
+            }
+
             MeasurePointPicked?.Invoke(MeasureEndpointAt(pos));
             return true;
         }

@@ -975,6 +975,7 @@ public partial class MainViewModel
             // whatever the server says (normally empty) so we don't carry
             // stale aircraft from a prior room.
             IsLiveSession = false;
+            ResetRangeBearingEntries();
             Aircraft.Clear();
             ClearBookmarks();
             foreach (AircraftDto dto in state.AllAircraft)

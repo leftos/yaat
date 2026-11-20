@@ -17,6 +17,7 @@ using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Scope.Entries;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -2762,14 +2763,20 @@ public partial class MainViewModel : ObservableObject
     // --- Commands ---
 
     /// <summary>
-    /// Handles the client-only distance measuring commands: <c>.rbl</c> (alias <c>*T</c>, CRC STARS'
-    /// name for the tool) arms the tool on every map view, <c>.rbl N</c> removes measurement N,
-    /// <c>.rbl A B</c> draws a line on the active measure surface (<see cref="ActiveMeasureView"/>) between two
-    /// typed points — each a fix, an FRD, or a callsign — and <c>.norbl</c> removes them all. Never sent to the server.
+    /// Handles the client-only distance measuring commands: <c>.rbl</c> arms the tool on every map view, <c>.rbl N</c> removes
+    /// measurement N, <c>.rbl A B</c> draws a line on the active measure surface (<see cref="ActiveMeasureView"/>) between two
+    /// typed points — each a fix, an FRD, or a callsign — and <c>.norbl</c> removes them all. CRC STARS' <c>*T</c> entries run
+    /// by CRC's grammar (<see cref="RunLineRangeBearing"/>). Never sent to the server.
     /// </summary>
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleMeasureCommand(string text, ICommandTextSink sink)
     {
+        if (StarsEntryParser.ReadRangeBearing(text) is { } rbl)
+        {
+            RunLineRangeBearing(rbl, sink);
+            return true;
+        }
+
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
         switch (parts[0].ToUpperInvariant())
@@ -2778,7 +2785,6 @@ public partial class MainViewModel : ObservableObject
                 sink.ReportStatus(Measure.ClearSilently());
                 return true;
             case ".RBL":
-            case "*T":
                 if (parts.Length < 2)
                 {
                     (bool armed, string armStatus) = Measure.ArmSilently();
@@ -2824,10 +2830,6 @@ public partial class MainViewModel : ObservableObject
             sink.ReportError(status);
         }
     }
-
-    /// <summary>True for CRC STARS' *T spelling of the measuring tool: "*T", "*T 3", "*T OAK MOD".</summary>
-    private static bool IsStarTCommand(string text) =>
-        text.StartsWith("*T", StringComparison.OrdinalIgnoreCase) && ((text.Length == 2) || (text[2] == ' '));
 
     /// <summary>
     /// Draws a measurement between two typed points, each a fix, an FRD, or a callsign (a callsign endpoint latches and travels
