@@ -803,6 +803,30 @@ public class StripStepTests
     }
 
     /// <summary>
+    /// Every strip verb reports an out-of-range rack by the 1-based number the user typed. <c>SEP</c> was the lone
+    /// outlier: its create handler printed the 0-based internal rack, so <c>SEP … /99</c> on a 3-rack bay answered
+    /// "Rack 98 out of range" — a rack the user never typed. Mirrors <c>BLANK</c>/<c>RACKSORT</c>/<c>STRIP</c>, which
+    /// all report <c>rack + 1</c>.
+    /// </summary>
+    [Fact]
+    public void SeparatorCreate_RackOutOfRange_ReportsOneBasedRack()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        ActionOutcome created = Issue(engine, host, "", "SEP W OAK/Ground 1/99 Foo");
+
+        Assert.False(created.Result.Success);
+        Assert.Contains("out of range", created.Result.Message);
+        // The wire rack is 1-based; the error must name the rack the user typed (99), not the 0-based internal index (98).
+        Assert.Contains("Rack 99", created.Result.Message);
+        Assert.DoesNotContain("Rack 98", created.Result.Message);
+    }
+
+    /// <summary>
     /// A blank is moved by the client's own drag idiom — a <c>BLANK</c> create at the target slot plus a
     /// <c>BLANKD</c> of the source left behind; no verb relocates one in place — so the create's insert is what shifts
     /// the blanks it lands in front of. <c>BLANKD</c> picks by the slot a blank's record caches, so a blank shifted
