@@ -954,7 +954,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     /// Spawns the pair on <see cref="SfoGroundHarness.CrossingTaxiway"/>, the leader <see cref="TrailFt"/> ahead of the follower,
     /// and sends both <see cref="TaxiCommand"/>.
     /// </summary>
-    private (AircraftState Follower, AircraftState Leader) SpawnInTrailAndTaxi(SfoGround ground, SfoCrossing crossing, string type)
+    private static (AircraftState Follower, AircraftState Leader) SpawnInTrailAndTaxi(SfoGround ground, SfoCrossing crossing, string type)
     {
         var heading = new TrueHeading(GeoMath.BearingTo(crossing.ApproachNode.Position, crossing.ApproachBar.Position));
         AircraftState follower = SfoGroundHarness.SpawnAt(

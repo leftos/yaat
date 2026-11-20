@@ -72,11 +72,13 @@ internal static class ArrivalRouteResolver
     /// <summary>
     /// Appends CIFP runway transition fixes for the STAR found in the navigation path, joining the transition where
     /// <see cref="NavigationCommandHandler.SelectRunwayTransitionLegsToAppend"/> places it: after the last transition
-    /// fix the resolved route already holds, so a fix the aircraft starts past is never re-added behind it.
+    /// fix the resolved route already holds, so a fix the aircraft starts past is never re-added behind it. Its terminal
+    /// courses are read from both the common route's legs and the runway transition's.
     /// </summary>
     /// <returns>
-    /// The transition's published terminal courses by fix name (magnetic), so a spawned route keeps the VM/FM course
-    /// its last fix hands off on.
+    /// The published terminal courses by fix name (magnetic), the common route's and then the runway transition's, so a
+    /// spawned route keeps the VM/FM course its last fix hands off on — including a STAR that publishes its FM leg in
+    /// the common route and has no runway transitions at all.
     /// </returns>
     private static Dictionary<string, double> AppendStarRunwayTransition(List<ResolvedFix> resolved, string navigationPath, string? destination)
     {
@@ -107,20 +109,15 @@ internal static class ArrivalRouteResolver
             }
 
             IReadOnlyList<CifpLeg>? rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, destinationRunway: null);
+
+            HarvestTerminalCourses(star.CommonLegs, terminalCourses);
             if (rwTransitionLegs is null)
             {
                 break;
             }
 
-            // Resolve the whole transition, not only the appended tail: the VM leg that publishes the
-            // terminal course is usually the tail itself and carries no target of its own.
-            foreach (NavigationTarget transitionTarget in DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs))
-            {
-                if (transitionTarget.TerminalCourseMagnetic is { } course)
-                {
-                    terminalCourses[transitionTarget.Name] = course;
-                }
-            }
+            // Harvested after the common route so a transition's course replaces a common-route course for its fix.
+            HarvestTerminalCourses(rwTransitionLegs, terminalCourses);
 
             List<string> routeNames = [.. resolved.Select(r => r.Name)];
             var existingNames = new HashSet<string>(routeNames, StringComparer.OrdinalIgnoreCase);
@@ -141,6 +138,23 @@ internal static class ArrivalRouteResolver
         }
 
         return terminalCourses;
+    }
+
+    /// <summary>
+    /// Records the terminal (FM/VM) course each leg of a set publishes, by fix name; a later leg for the same fix
+    /// replaces an earlier one.
+    /// </summary>
+    private static void HarvestTerminalCourses(IReadOnlyList<CifpLeg> legs, Dictionary<string, double> into)
+    {
+        // Resolve the whole set, not only an appended tail: the VM leg that publishes the terminal course is usually
+        // the tail itself and carries no target of its own.
+        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(legs))
+        {
+            if (target.TerminalCourseMagnetic is { } course)
+            {
+                into[target.Name] = course;
+            }
+        }
     }
 
     /// <summary>

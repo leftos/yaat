@@ -26,7 +26,7 @@ public sealed class BasePhase : Phase
     internal static double TurnRadiusNm(double groundSpeedKt, AircraftCategory category)
     {
         double turnRate = CategoryPerformance.PatternTurnRate(category);
-        return Math.Max(Math.Max(groundSpeedKt, MinPlanningSpeedKt) / (turnRate * 62.832), MinTurnRadiusNm);
+        return Math.Max(TurnShape.RadiusNm(Math.Max(groundSpeedKt, MinPlanningSpeedKt), turnRate), MinTurnRadiusNm);
     }
 
     /// <summary>Radius (nm) of the turn to final at the rate of <paramref name="waypoints"/>' circuit.</summary>
@@ -35,7 +35,23 @@ public sealed class BasePhase : Phase
 
     /// <summary>Radius (nm) of a turn flown at <paramref name="turnRateDegPerSec"/>.</summary>
     internal static double TurnRadiusNm(double groundSpeedKt, double turnRateDegPerSec) =>
-        Math.Max(Math.Max(groundSpeedKt, MinPlanningSpeedKt) / (turnRateDegPerSec * 62.832), MinTurnRadiusNm);
+        Math.Max(TurnShape.RadiusNm(Math.Max(groundSpeedKt, MinPlanningSpeedKt), turnRateDegPerSec), MinTurnRadiusNm);
+
+    /// <summary>
+    /// Distance (nm) a 90° pattern turn at the rate of <paramref name="waypoints"/>' circuit starts ahead of its radius
+    /// under <see cref="TurnModel.Ramp"/>: the roll-in lead (<see cref="TurnShape.LeadNm"/>), 0 under
+    /// <see cref="TurnModel.Instant"/>. A turn-start point adds it; <see cref="TurnRadiusNm(double, AircraftCategory)"/>
+    /// stays the radius, the lateral room and spacing measure.
+    /// </summary>
+    internal static double TurnLeadNm(double groundSpeedKt, AircraftCategory category, PatternWaypoints? waypoints, TurnModel turnModel) =>
+        TurnLeadNm(groundSpeedKt, waypoints?.CompressedTurnRateDegPerSec ?? CategoryPerformance.PatternTurnRate(category), category, turnModel);
+
+    /// <summary>The roll-in lead (nm) of a 90° pattern turn flown at <paramref name="turnRateDegPerSec"/>.</summary>
+    internal static double TurnLeadNm(double groundSpeedKt, double turnRateDegPerSec, AircraftCategory category, TurnModel turnModel) =>
+        TurnShape.LeadNm(Math.Max(groundSpeedKt, MinPlanningSpeedKt), PatternTurnDeg, turnRateDegPerSec, category, turnModel);
+
+    /// <summary>The heading change of a pattern corner.</summary>
+    private const double PatternTurnDeg = 90.0;
 
     /// <summary>
     /// The speed the base leg is planned at: a standing controller speed assignment outranks
@@ -283,9 +299,10 @@ public sealed class BasePhase : Phase
 
         // Turn initiation: begin turn when cross-track from extended centerline
         // equals the turn radius. This produces a geometrically correct 90° arc
-        // that rolls out on centerline at the expected final approach distance.
+        // that rolls out on centerline at the expected final approach distance. Under the ramp turn model the turn starts
+        // the roll-in lead earlier, so the arc after the roll-in is where the instant model put it.
         double turnRadiusNm = TurnRadiusNm(ctx.Aircraft.GroundSpeed, ctx.Category, Waypoints);
-        bool complete = crossTrack <= turnRadiusNm;
+        bool complete = crossTrack <= turnRadiusNm + TurnLeadNm(ctx.Aircraft.GroundSpeed, ctx.Category, Waypoints, ctx.TurnModel);
         if (complete)
         {
             Log.LogDebug(

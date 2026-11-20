@@ -127,7 +127,7 @@ foreach ((string? hash, List<string>? files) in duplicateGroups)
 // Docs like docs/e2e-tdd-issue-debugging.md list bundle filenames in the Recordings
 // table; missing markdown coverage leaves the table pointing at deleted files.
 Console.WriteLine("Scanning .cs and .md files for references to update...");
-var scannableFiles = new[] { "*.cs", "*.md" }
+var scannableFiles = ScannableFilePatterns
     .SelectMany(pattern => Directory.GetFiles(repoRoot, pattern, SearchOption.AllDirectories))
     .Where(f => !f.Replace('\\', '/').Contains("/bin/"))
     .Where(f => !f.Replace('\\', '/').Contains("/obj/"))
@@ -199,4 +199,9 @@ static string FindRepoRoot(string startDir)
     }
 
     throw new InvalidOperationException($"Could not find .git root from {startDir}");
+}
+
+internal partial class Program
+{
+    private static readonly string[] ScannableFilePatterns = ["*.cs", "*.md"];
 }

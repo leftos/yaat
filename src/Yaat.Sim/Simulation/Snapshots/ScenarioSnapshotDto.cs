@@ -82,6 +82,9 @@ public sealed class ScenarioSnapshotDto
     // original uniform final-approach-speed reduction.
     public bool FinalApproachSpeedVarietyEnabled { get; init; }
 
+    // Optional — absent reads Instant, so older snapshots and pre-ramp recordings replay with instant-rate turns.
+    public TurnModel TurnModel { get; init; }
+
     public bool HasSoloParkingInitialCallupSource { get; init; }
 
     public bool HasSoloArrivalGeneratorSource { get; init; }

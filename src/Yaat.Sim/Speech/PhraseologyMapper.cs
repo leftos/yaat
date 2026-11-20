@@ -352,7 +352,7 @@ public static class PhraseologyMapper
     /// the user can see exactly which tokens changed and what they became, rather than just
     /// a whole-list before/after diff. No-op when the lists are identical.
     /// </summary>
-    private static void LogTokenRewrites(string step, IReadOnlyList<string> before, IReadOnlyList<string> after)
+    private static void LogTokenRewrites(string step, List<string> before, List<string> after)
     {
         if (before.Count != after.Count)
         {

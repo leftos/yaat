@@ -271,7 +271,7 @@ public static class AsdexSafetyLogicDetector
         AsdexRunwaySurface runway,
         List<AircraftState> users,
         IReadOnlyList<AircraftState> candidates,
-        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles,
+        Dictionary<AircraftState, AsdexRunwayUserRole> roles,
         PairMemory memory
     )
     {
@@ -304,7 +304,7 @@ public static class AsdexSafetyLogicDetector
     /// </summary>
     private static List<AsdexSafetyAlert> OccupiedRunwayAlerts(
         AsdexRunwaySurface runway,
-        IReadOnlyList<AircraftState> rankedClaimants,
+        List<AircraftState> rankedClaimants,
         IReadOnlyList<AircraftState> onRunway,
         IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles,
         PairMemory memory

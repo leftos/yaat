@@ -25,7 +25,7 @@ public class SfoTwoLetterConnectorTests
 
     private const string FixturePath = "TestData/sfo.geojson";
 
-    private AirportGroundLayout? LoadLayout()
+    private static AirportGroundLayout? LoadLayout()
     {
         if (!File.Exists(FixturePath) || TestVnasData.NavigationDb is null)
         {

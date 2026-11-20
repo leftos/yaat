@@ -255,7 +255,7 @@ public static class CifpParser
     public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao) =>
         ParseSidStarProcedures(cifpFilePath, airportIcao, 'E', BuildStarProcedure);
 
-    private static IReadOnlyList<T> ParseSidStarProcedures<T>(
+    private static List<T> ParseSidStarProcedures<T>(
         string cifpFilePath,
         string airportIcao,
         char subsection,

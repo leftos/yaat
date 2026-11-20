@@ -99,7 +99,7 @@ public partial class MainViewModel
         return FilterWeatherForPosition(_allWeatherInfo, airports) is { } stations ? [.. stations.Select(s => s.ToDisplayString())] : [];
     }
 
-    partial void RunMapToolsVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result)
+    static partial void RunMapToolsVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result)
     {
         if ((result is null) && MapToolVerbs.TryGetValue(verb, out Func<ScopeViewModel, string[], string>? handler))
         {

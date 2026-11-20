@@ -135,7 +135,8 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         GroundNode d7 = layout.FindParkingByName("D7") ?? throw new InvalidOperationException("no D7");
         GroundNode exit = layout.FindExitByTaxiway(d7.Position, "A") ?? throw new InvalidOperationException("no A exit off D7");
         double facingDeg =
-            layout.GetEdgeBearingForTaxiway(exit, "A", d7.TrueHeading!.Value.Degrees) ?? throw new InvalidOperationException("no A edge");
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "A", d7.TrueHeading!.Value.Degrees)
+            ?? throw new InvalidOperationException("no A edge");
         TugRequest request = StandStart(layout, d7, Narrowbody, TugGoal.TaxiwayLine(exit, "A", facingDeg) with { FacingTaxiwayName = "F1" });
 
         TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);

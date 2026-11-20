@@ -21,7 +21,7 @@ public class SupplementaryChainSkipTests
     {
         RunSkipCase(
             stripMarker: "KOAKK2D",
-            pickProcedureId: full => CifpParser.ParseSids(full, "KOAK").FirstOrDefault()?.ProcedureId,
+            pickProcedureId: full => CifpParser.ParseSids(full, "KOAK") is [var sid, ..] ? sid.ProcedureId : null,
             resolve: (db, id) =>
             {
                 CifpSidProcedure? match = db.GetSid("KOAK", id, out ProcedureSource? source);
@@ -35,7 +35,7 @@ public class SupplementaryChainSkipTests
     {
         RunSkipCase(
             stripMarker: "KOAKK2E",
-            pickProcedureId: full => CifpParser.ParseStars(full, "KOAK").FirstOrDefault()?.ProcedureId,
+            pickProcedureId: full => CifpParser.ParseStars(full, "KOAK") is [var star, ..] ? star.ProcedureId : null,
             resolve: (db, id) =>
             {
                 CifpStarProcedure? match = db.GetStar("KOAK", id, out ProcedureSource? source);
@@ -49,7 +49,7 @@ public class SupplementaryChainSkipTests
     {
         RunSkipCase(
             stripMarker: "KOAKK2F",
-            pickProcedureId: full => CifpParser.ParseApproaches(full, "KOAK").FirstOrDefault()?.ApproachId,
+            pickProcedureId: full => CifpParser.ParseApproaches(full, "KOAK") is [var approach, ..] ? approach.ApproachId : null,
             resolve: (db, id) =>
             {
                 CifpApproachProcedure? match = db.GetApproach("KOAK", id, out ProcedureSource? source);

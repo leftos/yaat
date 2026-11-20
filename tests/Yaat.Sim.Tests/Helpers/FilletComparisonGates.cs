@@ -21,16 +21,14 @@ public sealed record FilletGateResults(
 );
 
 /// <summary>Single-layout structural and reachability gates for fillet output.</summary>
-public static class FilletComparisonGates
+public static partial class FilletComparisonGates
 {
     private const double CornerBearingToleranceDeg = 5.0;
     private const double CornerRadiusToleranceRatio = 0.10;
     private const double CoincidentNodeThresholdNm = 5.0 / GeoMath.FeetPerNm;
 
-    private static readonly Regex CornerOriginRegex = new(
-        @"^corner@J(?<junction>\d+)/(?<twyA>[^/]+)/(?<twyB>[^/]+)$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled
-    );
+    [GeneratedRegex(@"^corner@J(?<junction>\d+)/(?<twyA>[^/]+)/(?<twyB>[^/]+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex CornerOriginRegex();
 
     public static FilletGateResults Evaluate(AirportGroundLayout preFillet, AirportGroundLayout layout, FilletStatistics stats)
     {
@@ -218,7 +216,7 @@ public static class FilletComparisonGates
         string? origin = arc.Origin;
         if (origin is not null)
         {
-            Match match = CornerOriginRegex.Match(origin);
+            Match match = CornerOriginRegex().Match(origin);
             if (match.Success)
             {
                 string twyA = match.Groups["twyA"].Value;

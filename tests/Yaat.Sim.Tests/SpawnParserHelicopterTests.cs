@@ -16,6 +16,8 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class SpawnParserHelicopterTests
 {
+    private static readonly string[] HelicopterTypes = ["R22", "R44", "B06"];
+
     public SpawnParserHelicopterTests()
     {
         // IsLikelyAircraftType's all-letter branch and AircraftCategorization.Categorize both read
@@ -113,7 +115,7 @@ public class SpawnParserHelicopterTests
 
         Assert.Null(error);
         Assert.NotNull(state);
-        Assert.Contains(state.AircraftType, new[] { "R22", "R44", "B06" });
+        Assert.Contains(state.AircraftType, HelicopterTypes);
         Assert.Equal(AircraftCategory.Helicopter, AircraftCategorization.Categorize(state.AircraftType));
         Assert.StartsWith("N", state.Callsign); // VFR helicopter → GA N-number
         Assert.Equal("Standby", state.Transponder.Mode);

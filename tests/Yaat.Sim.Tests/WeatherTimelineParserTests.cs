@@ -5,6 +5,10 @@ namespace Yaat.Sim.Tests;
 
 public class WeatherTimelineParserTests
 {
+    private static readonly string[] V1Metars = ["KSFO 031753Z 28012KT 10SM FEW200"];
+    private static readonly string[] V2FirstPeriodMetars = ["KSFO 031753Z 28012KT 10SM"];
+    private static readonly string[] V2SecondPeriodMetars = ["KSFO 031853Z 25015G22KT 6SM -RA"];
+
     // -------------------------------------------------------------------------
     // V1 detection — existing ATCTrainer format
     // -------------------------------------------------------------------------
@@ -26,7 +30,7 @@ public class WeatherTimelineParserTests
                         speed = 12,
                     },
                 },
-                metars = new[] { "KSFO 031753Z 28012KT 10SM FEW200" },
+                metars = V1Metars,
             }
         );
 
@@ -67,7 +71,7 @@ public class WeatherTimelineParserTests
                                 speed = 12,
                             },
                         },
-                        metars = new[] { "KSFO 031753Z 28012KT 10SM" },
+                        metars = V2FirstPeriodMetars,
                     },
                     new
                     {
@@ -82,7 +86,7 @@ public class WeatherTimelineParserTests
                                 speed = 15,
                             },
                         },
-                        metars = new[] { "KSFO 031853Z 25015G22KT 6SM -RA" },
+                        metars = V2SecondPeriodMetars,
                     },
                 },
             }

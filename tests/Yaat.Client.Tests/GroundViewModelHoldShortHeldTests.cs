@@ -260,7 +260,7 @@ public class GroundViewModelHoldShortHeldTests
         };
 
     /// <summary>Whether <paramref name="edge"/> is <paramref name="taxiway"/>'s own, not a junction arc's.</summary>
-    private static bool IsOn(IGroundEdge edge, string taxiway) => string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase);
+    private static bool IsOn(GroundEdge edge, string taxiway) => string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase);
 
     private static bool MeetsTaxiway(GroundNode node, string taxiway) => node.Edges.Any(e => e.MatchesTaxiway(taxiway));
 

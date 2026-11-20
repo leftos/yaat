@@ -1021,7 +1021,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// up to the bar, joined at its nearest node the follower reaches without turning about (<see cref="ReanchoredRoute"/>). Null
     /// with no lead, no route of the lead's that reaches the bar, or no way onto it.
     /// </summary>
-    private TaxiRoute? AlongLeadPathTo(PhaseContext ctx, AirportGroundLayout layout, GroundNode bar, AircraftState? lead)
+    private static TaxiRoute? AlongLeadPathTo(PhaseContext ctx, AirportGroundLayout layout, GroundNode bar, AircraftState? lead)
     {
         if ((lead is null) || (DrivenRouteOf(lead) is not { } leadRoute))
         {

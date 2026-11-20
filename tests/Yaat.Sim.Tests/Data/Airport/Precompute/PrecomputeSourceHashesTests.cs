@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 /// lowercase SHA-256 hex string, the constants must match the files on disk, and no hashed file may name a type that
 /// only an excluded file declares.
 /// </summary>
-public class PrecomputeSourceHashesTests
+public partial class PrecomputeSourceHashesTests
 {
     /// <summary>The one cache file in both source sets.</summary>
     private const string EntryBuildFile = "Data/Airport/Precompute/PrecomputeEntryBuild.cs";
@@ -140,7 +140,7 @@ public class PrecomputeSourceHashesTests
             .. typeof(PushTargetPlanner)
                 .Assembly.GetTypes()
                 .Select(type => type.Name.Split('`')[0])
-                .Where(name => Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") && (name != "SimLog"))
+                .Where(name => IdentifierRegex().IsMatch(name) && (name != "SimLog"))
                 .Distinct(StringComparer.Ordinal),
         ];
         HashSet<string> pushDeclared =
@@ -150,7 +150,7 @@ public class PrecomputeSourceHashesTests
                 .SelectMany(relative => DeclaredTypesWithModifier(Path.Combine(simRoot, relative))),
         ];
         // Log-template placeholders such as {Airport} name no type.
-        string code = Regex.Replace(planner, @"\{[A-Za-z]+(?::[^}]*)?\}", "");
+        string code = InterpolationHoleRegex().Replace(planner, "");
         string[] named = [.. simTypes.Where(type => Regex.IsMatch(code, $@"\b{Regex.Escape(type)}\b"))];
 
         Assert.Contains("TugMovePlanner", named);
@@ -255,7 +255,7 @@ public class PrecomputeSourceHashesTests
         SetHash(simRoot, relativePaths, new Dictionary<string, byte[]>(StringComparer.Ordinal));
 
     /// <summary>The set hash, reading each file's bytes from <paramref name="bytesOverride"/> where it names the file.</summary>
-    private static string SetHash(string simRoot, IEnumerable<string> relativePaths, IReadOnlyDictionary<string, byte[]> bytesOverride)
+    private static string SetHash(string simRoot, IEnumerable<string> relativePaths, Dictionary<string, byte[]> bytesOverride)
     {
         string[] ordered = [.. relativePaths.Select(relative => relative.Replace('\\', '/')).OrderBy(relative => relative, StringComparer.Ordinal)];
         var concatenated = new StringBuilder();
@@ -277,17 +277,23 @@ public class PrecomputeSourceHashesTests
     /// named <c>in</c>.
     /// </summary>
     private static IEnumerable<string> DeclaredTypesWithModifier(string filePath) =>
-        Regex
-            .Matches(
-                File.ReadAllText(filePath),
-                @"\b(?:public|internal|private|protected|file)\s+(?:(?:static|sealed|abstract|readonly|partial|ref)\s+)*"
-                    + @"(?:class|record|struct|interface|enum)(?:\s+(?:class|struct))?\s+([A-Za-z_][A-Za-z0-9_]*)"
-            )
-            .Select(match => match.Groups[1].Value);
+        TypeDeclarationRegex().Matches(File.ReadAllText(filePath)).Select(match => match.Groups[1].Value);
 
     private static void AssertSha256(string hash)
     {
         Assert.Equal(64, hash.Length);
         Assert.All(hash, c => Assert.True(char.IsAsciiHexDigitLower(c), $"Not lowercase hex: {c}"));
     }
+
+    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]*$")]
+    private static partial Regex IdentifierRegex();
+
+    [GeneratedRegex(@"\{[A-Za-z]+(?::[^}]*)?\}")]
+    private static partial Regex InterpolationHoleRegex();
+
+    [GeneratedRegex(
+        @"\b(?:public|internal|private|protected|file)\s+(?:(?:static|sealed|abstract|readonly|partial|ref)\s+)*"
+            + @"(?:class|record|struct|interface|enum)(?:\s+(?:class|struct))?\s+([A-Za-z_][A-Za-z0-9_]*)"
+    )]
+    private static partial Regex TypeDeclarationRegex();
 }

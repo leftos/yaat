@@ -24,6 +24,7 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # WindSpeedKts: computed wind magnitude (sqrt of N²+E² components) used for pattern flyability floor
                                # LiveTraffic (AircraftLiveTraffic?): non-null ⇔ IsShadow — a real aircraft mirrored from a feed,
                                # driven by LiveTraffic/LiveTrafficKinematics instead of FlightPhysics. See live-traffic.md.
+                               # AppliedTurnRateDegPerSec (double?): the signed turn rate under TurnModel.Ramp, null under Instant; BankAngle derives from it; carried by AircraftSnapshotDto (omitted while null, no schema bump)
                                # AssumedFromLiveTraffic (bool, snapshotted, default false): set by LiveTrafficAssumer.Assume as LiveTraffic is cleared —
                                # the marker UNASSUME requires (a scenario aircraft with the same callsign is not restorable)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
@@ -42,7 +43,7 @@ AircraftGroundOps.cs           # Ground sub-object of AircraftState (AircraftSta
                                # the solo initial call-up (InitialCallup plan, InitialCallupDecisionProcessed, SpawnTaxiway, PushedBackFrom, PushEndSpot, PresetTaxiStop, VfrDepartureDirection), taxi-in call (AwaitingTaxiInCall, ReleasedToGround),
                                # hold-for-release (HeldForRelease, ReleasedForDeparture, ReleasedAtSeconds, ReleasedAtSpawnGate) and the CFR window (ReleaseWindowStartUtc/EndUtc)
 AircraftPattern.cs             # Aircraft pattern state; PendingLandingClearance carries PatternRunwayId / PatternAltitudeFt for runway-change clearance routing; PendingRunwayCrossing / WarnedRunwayCrossings (NoteRunwayCrossing, MarkRunwayCrossingWarned) track the once-per-runway-and-side "crosses runway" warning
-ArmedReportsDto.cs             # ArmedReportLegs flags (Crosswind 1, Downwind 2, Midfield 4, Base 8, Final 16) and the wire record ArmedReportsDto(Legs, FinalMiles, Fix) with From(AircraftApproachState): a read-only projection of the REPORT arms (null when none armed); the approach state stays their home, so it has no snapshot field
+ArmedReportsDto.cs             # ArmedReportLegs flags (Crosswind 1, Downwind 2, Midfield 4, Base 8, Final 16) and the wire record ArmedReportsDto(Legs, FinalMiles, Fix, ReachingAltitudeFt, LeavingAltitudeFt) with From(AircraftApproachState): a read-only projection of the REPORT arms (null when none armed); the approach state stays their home, so it has no snapshot field
 NavRouteFixDto.cs              # Wire record (Name/Lat/Lon/RestrictionLines/RestrictionTokens) for the client "Show nav route" overlay; carries server positions + pre-formatted crossing-restriction labels (`RestrictionLines` as text, `RestrictionTokens` as per-line `NavRouteRestrictionToken`s that mark a latent altitude or published speed; null tokens from an older server). Empty Name = synthetic arc vertex. Referenced by both AircraftStateDto (server) and AircraftDto (client)
 NavRouteRestrictionToken.cs    # Wire record (Text/Latent) for one token of a crossing-restriction label line on the "Show nav route" overlay; Latent = a published restriction on the route but not in force now, which the client draws dimmed
 NavRouteSpeedLatency.cs       # `LatentAlongRoute`: walks an aircraft's route fix by fix and marks each published SID/STAR speed latent when an ATC speed or DELETE SPEED RESTRICTIONS is in force there (judge `FlightPhysics.PublishedSpeedApplies`, shared with physics), past crossings that revert or resume; feeds the speed tokens' `Latent` and the server nav-route fingerprint. Does not read queued `AT fix` speed blocks
@@ -78,7 +79,7 @@ FlightPlanVoice.cs             # Couples FP remarks ↔ voice type (AircraftVoic
                                # A VATSIM convention (no FAA field). Driven by ERAM QB /v|/r|/t and the SetVoiceType hub; derived on amend + load.
 RouteSplicer.cs                # ERAM AM RTE route-splice grammar (docs/crc/eram.md Table 8): join/resume/replace over [dep]+enroute+[dest]
                                # with a dotted anchor list, plus [ / ] (↑/↓) departure/destination swap. Splice semantics only (no SID/STAR expansion).
-FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue; PhysicsTickOptions carries the per-tick scenario inputs (solo/RPO routing flags, magnetic-model day); `ClassifyRouteEnd` (internal, returns `RouteEndLateral`) is the route-end branch test shared by `ApplyRouteEndLateral` and `NavRouteOverlayProjector`
+FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue; PhysicsTickOptions carries the per-tick scenario inputs (solo/RPO routing flags, magnetic-model day, TurnModel); also declares the TurnModel enum (Instant | Ramp); `ClassifyRouteEnd` (internal, returns `RouteEndLateral`) is the route-end branch test shared by `ApplyRouteEndLateral` and `NavRouteOverlayProjector`
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft (and, in a descent to a cleared altitude below it, a lead above 10,000 ft; UpdateAltitude levels at 10,000 ft as a backstop) in UpdateSpeed() and ApplyFixConstraints(); public
@@ -99,8 +100,9 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                #   RunwayHoldingPhase, etc. — still write IndicatedAirspeed directly by design)
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints (ApplyViaClearanceFixConstraints leaves a slowdown to the planner); SequencingThreshold: turn anticipation / NavArrivalNm before a fix; SequencingDistanceNm: route distance to that point, where the planners aim
-                               # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
+                               # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction. Under TurnModel.Ramp the rate is AircraftState.AppliedTurnRateDegPerSec, rolled in and out (UsesTurnRamp, ApplyRampedTurn); FlyByTurn/FlyByTurnFor add the roll-in lead to fly-by anticipation and arc steering
                                # Expedite: IsExpediting → direction-split rate (climb ×1.15 / descent ×2.0, per-category caps+floor); Mach hold: TargetMach → recompute IAS each tick
+TurnShape.cs                   # Static: the shape of an airborne turn shared by every turn-start decision — RadiusNm, LeadNm (the roll-in lead under TurnModel.Ramp, 0 under Instant), InterceptLeadNm; TurnLeadInput record (ground speed, signed turn, rate, category, model, applied rate)
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF), PointInRing (even-odd ray-cast)
                                # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
                                # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)
@@ -119,6 +121,7 @@ InitialCallupPlan.cs           # Enum: the solo initial call a spawn makes (None
 PresetTaxiStop.cs              # Record: the stop a spawn's timed TAXI preset ends at (Spot / TaxiwayHoldShort / RouteEnd + name + held-on taxiway), recorded at load for an AfterTaxiArrival plan; AircraftGroundOps.PresetTaxiStop (+ PresetTaxiStopDto)
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings; PushPlans (the PushPlanStore its constructor takes: a room's own, shared by every engine the room builds)
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
+                               # TurnModel — cached from SimScenarioState.TurnModel before each tick; goes into PhysicsTickOptions
                                # Rng (snapshotted) + live-only ReactionDelayRng / ReleaseJitterRng (NOT snapshotted):
                                # command-run delay + REL spawn jitter sample off the dedicated RNGs and bake the value into
                                # the recording, so replay reproduces it without perturbing the shared Rng stream.

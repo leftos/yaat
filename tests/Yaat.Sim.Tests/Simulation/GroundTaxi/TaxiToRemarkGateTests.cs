@@ -767,9 +767,9 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         parked.Ground.ParkingSpot = stand;
     }
 
-    private static void ParkOnEach(SfoGround ground, IReadOnlyList<string> stands)
+    private static void ParkOnEach(SfoGround ground, string[] stands)
     {
-        for (int i = 0; i < stands.Count; i++)
+        for (int i = 0; i < stands.Length; i++)
         {
             Park(ground, ParkedCallsign(i), stands[i]);
         }

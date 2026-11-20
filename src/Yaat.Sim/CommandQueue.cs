@@ -1,5 +1,6 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -562,6 +563,13 @@ public sealed class DeferredDispatch
     /// </summary>
     public bool IsScenarioScripted { get; init; }
 
+    /// <summary>
+    /// A reaction delay's pilot answers to the REPORT REACHING / LEAVING requests in its transmission's first block, one per
+    /// report (by trigger and altitude), decided when the transmission was issued and read back, and obeyed when the delay
+    /// fires (<see cref="Commands.DispatchContext.ReportPledges"/>); empty for any other deferral. Snapshot-serialized.
+    /// </summary>
+    public IReadOnlyList<ReportPledge> ReportPledges { get; init; } = [];
+
     public DeferredDispatch(double seconds, Commands.CompoundCommand payload)
     {
         RemainingSeconds = seconds;
@@ -591,6 +599,7 @@ public sealed class DeferredDispatch
             SourceText = SourceText,
             IsReactionDelay = IsReactionDelay,
             IsScenarioScripted = IsScenarioScripted,
+            ReportPledges = (ReportPledges.Count > 0) ? [.. ReportPledges.Select(pledge => pledge.ToSnapshot())] : null,
         };
 
     public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto, string? aircraftRoute, Commands.FixResolutionContext ctx)
@@ -644,6 +653,32 @@ public sealed class DeferredDispatch
             SourceText = dto.SourceText,
             IsReactionDelay = dto.IsReactionDelay,
             IsScenarioScripted = dto.IsScenarioScripted,
+            ReportPledges = ReportPledge.FromSnapshots(dto.ReportPledges),
         };
     }
+}
+
+/// <summary>
+/// The pilot's answer to the REPORT REACHING / LEAVING (<see cref="Trigger"/>, <see cref="AltitudeFt"/>) in a reaction-delayed
+/// transmission's first block, judged when the transmission is issued: the readback says <see cref="Answer"/>, and the
+/// handler obeys it when the delay fires, whatever the aircraft has done since. <see cref="IssueAltitudeFt"/> is the
+/// aircraft's altitude at issue, the first sample of the report it arms, so a crossing during the delay is caught.
+/// </summary>
+public sealed record ReportPledge(ReportTrigger Trigger, int AltitudeFt, PilotProactive.ReportAltitudeAnswer Answer, double IssueAltitudeFt)
+{
+    /// <summary>Whether <paramref name="report"/> is the report this answers: the same trigger and altitude.</summary>
+    public bool Matches(ReportCommand report) => (report.Trigger == Trigger) && (report.AltitudeFt == AltitudeFt);
+
+    public ReportPledgeDto ToSnapshot() =>
+        new()
+        {
+            Trigger = Trigger,
+            AltitudeFt = AltitudeFt,
+            Answer = Answer,
+            IssueAltitudeFt = IssueAltitudeFt,
+        };
+
+    /// <summary>The answers a snapshot's deferral carries (<see cref="ToSnapshot"/>); empty when it carries none.</summary>
+    public static IReadOnlyList<ReportPledge> FromSnapshots(IReadOnlyList<ReportPledgeDto>? dtos) =>
+        dtos is null ? [] : [.. dtos.Select(dto => new ReportPledge(dto.Trigger, dto.AltitudeFt, dto.Answer, dto.IssueAltitudeFt))];
 }

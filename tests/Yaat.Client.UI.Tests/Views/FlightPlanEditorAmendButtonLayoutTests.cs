@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.Views;
 
@@ -20,7 +21,7 @@ public class FlightPlanEditorAmendButtonLayoutTests
     {
         // 660 is the width users had saved for this window before the ICAO EQ field widened the row.
         var ac = new AircraftModel { Callsign = "N263FY", Destination = "KMOD" };
-        var window = new FlightPlanEditorWindow(ac, (_, _) => { }, _ => Task.CompletedTask) { Width = 660 };
+        var window = new FlightPlanEditorWindow(ac, (_, _) => { }, _ => Task.FromResult(new CommandResultDto(true, null))) { Width = 660 };
         window.ShowAndRunLayout();
 
         Button? submit = window.FindControl<Button>("SubmitButton");

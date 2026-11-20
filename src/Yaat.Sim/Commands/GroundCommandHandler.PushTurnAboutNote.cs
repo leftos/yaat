@@ -204,7 +204,7 @@ public static partial class GroundCommandHandler
     /// The first taxiway <paramref name="path"/> names after <paramref name="lane"/>, or its first one when it never names the
     /// lane.
     /// </summary>
-    private static string? NextTaxiwayAfter(string lane, IReadOnlyList<string> path)
+    private static string? NextTaxiwayAfter(string lane, List<string> path)
     {
         int laneIndex = -1;
         for (int i = 0; i < path.Count; i++)

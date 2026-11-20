@@ -142,6 +142,7 @@ public sealed partial class SimulationEngine
             Scenario.SoloArrivalGeneratorRatePercent = scenarioDto.SoloArrivalGeneratorRatePercent;
             Scenario.SoloGoAroundProbabilityPercent = ScenarioPacing.ClampGoAroundProbabilityPercent(scenarioDto.SoloGoAroundProbabilityPercent);
             Scenario.FinalApproachSpeedVarietyEnabled = scenarioDto.FinalApproachSpeedVarietyEnabled;
+            Scenario.TurnModel = scenarioDto.TurnModel;
             Scenario.HasSoloParkingInitialCallupSource = scenarioDto.HasSoloParkingInitialCallupSource;
             Scenario.HasSoloArrivalGeneratorSource = scenarioDto.HasSoloArrivalGeneratorSource;
             Scenario.NextSoloParkingInitialCallupSlotSeconds = scenarioDto.NextSoloParkingInitialCallupSlotSeconds;

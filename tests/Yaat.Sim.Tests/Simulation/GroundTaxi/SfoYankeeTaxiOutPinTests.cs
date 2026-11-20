@@ -112,7 +112,7 @@ public class SfoYankeeTaxiOutPinTests
     /// Issues a pushback and ticks until it completes, sampling the distance to taxiway A every second the
     /// aircraft is actually reversing.
     /// </summary>
-    private PushRun Push(SfoGround ground, AircraftState ac, string command)
+    private static PushRun Push(SfoGround ground, AircraftState ac, string command)
     {
         CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         Assert.True(result.Success, $"'{command}' from B12 failed: {result.Message}");

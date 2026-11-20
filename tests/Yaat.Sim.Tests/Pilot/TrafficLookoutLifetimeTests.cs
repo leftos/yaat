@@ -16,7 +16,7 @@ public sealed class TrafficLookoutLifetimeTests
 {
     private const double AptLon = -122.221;
 
-    private static readonly PhysicsTickOptions SoloOptions = new(true, false, MagneticDeclination.EvaluationDateUtc);
+    private static readonly PhysicsTickOptions SoloOptions = new(true, false, MagneticDeclination.EvaluationDateUtc, TurnModel.Instant);
 
     public TrafficLookoutLifetimeTests()
     {

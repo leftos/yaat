@@ -73,7 +73,7 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             List<AircraftState> aircraft = engine.World.GetSnapshot();
-            Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(aircraft, starsConfig.AtpaVolumes, starsConfig);
+            Dictionary<string, AtpaResult> results = AtpaProcessor.Process(aircraft, starsConfig.AtpaVolumes, starsConfig);
 
             foreach ((string? callsign, AtpaResult? r) in results)
             {

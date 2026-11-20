@@ -15,7 +15,7 @@ public sealed record ParkingRemark(string? Area, string? Stand);
 /// <c>GATE</c>, <c>PARKING</c> or <c>PARK</c>, then an area name or a stand id. The trailing runway names the arrival runway,
 /// not the spot, and is not read. A VATSIM scenario convention, not an FAA flight-plan field.
 /// </summary>
-public static class FlightPlanParking
+public static partial class FlightPlanParking
 {
     // A stand id: up to three letters, one to three digits, an optional letter, then any hyphenated parts (F14, SIG4, 9-5A).
     // It must contain a digit, so "Gate UNKN" (no spot) and "GOLDEN GATE" (callsign text) name nothing.
@@ -24,17 +24,19 @@ public static class FlightPlanParking
     // GATE takes only a stand id. PARKING (or PARK, optionally "AT") takes a stand id, or else area words up to a comma, an
     // opening parenthesis or the end, optionally followed by the stand in parentheses; the airport's parkingAreas decide what
     // an area covers. A bare id with no keyword ("/V/ C3") is never read.
-    private static readonly Regex ParkingRegex = new(
+    [GeneratedRegex(
         @"(?<![A-Z0-9])(?:"
             + $@"GATE\s+@?(?<stand>{StandId})(?![A-Z0-9-])"
             + @"|PARK(?:ING)?\s+(?:AT\s+)?@?(?:"
             + $@"(?<stand>{StandId})(?![A-Z0-9-])"
             + @"|(?<area>[A-Z0-9][^,()]*?)\s*(?:\(\s*(?<stand>[A-Z0-9]+(?:-[A-Z0-9]+)*)\s*\))?\s*(?=[,(]|$)"
             + @"))",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled
-    );
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    )]
+    private static partial Regex ParkingRegex();
 
-    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     /// <summary>
     /// The parking the leftmost <c>GATE</c>/<c>PARKING</c> remark names, or null when <paramref name="remarks"/> names none.
@@ -46,7 +48,7 @@ public static class FlightPlanParking
             return null;
         }
 
-        Match match = ParkingRegex.Match(remarks);
+        Match match = ParkingRegex().Match(remarks);
         if (!match.Success)
         {
             return null;
@@ -55,7 +57,7 @@ public static class FlightPlanParking
         Group area = match.Groups["area"];
         Group stand = match.Groups["stand"];
         return new ParkingRemark(
-            area.Success ? Whitespace.Replace(area.Value, " ").Trim().ToUpperInvariant() : null,
+            area.Success ? WhitespaceRegex().Replace(area.Value, " ").Trim().ToUpperInvariant() : null,
             stand.Success ? stand.Value.ToUpperInvariant() : null
         );
     }

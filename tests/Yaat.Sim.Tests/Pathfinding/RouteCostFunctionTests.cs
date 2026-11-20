@@ -71,7 +71,7 @@ public class RouteCostFunctionTests
 
     private static PartialRoute StartRoute(int nodeId) => PartialRoute.StartAt(nodeId);
 
-    private static PartialRoute ExtendRoute(PartialRoute current, IGroundEdge edge, GroundNode nextNode, SearchContext ctx)
+    private static PartialRoute ExtendRoute(PartialRoute current, GroundEdge edge, GroundNode nextNode, SearchContext ctx)
     {
         GroundNode headNode = edge.Nodes[0].Id == current.HeadNodeId ? edge.Nodes[0] : edge.Nodes[1];
         double arrivalBearing = GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);

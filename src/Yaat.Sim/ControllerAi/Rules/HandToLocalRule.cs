@@ -68,7 +68,7 @@ public sealed class HandToLocalRule : IDecisionRule
             return cached;
         }
 
-        string? callsign = CabStaffing.LocalCatalog(scope, airport).FirstOrDefault()?.Callsign;
+        string? callsign = CabStaffing.LocalCatalog(scope, airport) is [var local, ..] ? local.Callsign : null;
         _localByAirport[airport] = callsign;
         return callsign;
     }

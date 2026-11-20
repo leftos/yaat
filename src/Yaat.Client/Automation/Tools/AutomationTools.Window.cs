@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -22,6 +23,11 @@ public sealed partial class AutomationTools
     /// Why a tool that acts on the client's own windows cannot run now: it needs no server or room, so it is available whenever the
     /// main window is up (the pipe refuses every tool before that) and this returns null.
     /// </summary>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Looked up by name as an AutomationTool availability method, through instance reflection in AutomationTools"
+    )]
     public string? AlwaysAvailable() => null;
 
     [AutomationTool(

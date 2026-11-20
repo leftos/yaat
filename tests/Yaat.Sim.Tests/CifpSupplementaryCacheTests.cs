@@ -12,6 +12,9 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class CifpSupplementaryCacheTests
 {
+    private static readonly string[] FourCycleChainNames = ["FAACIFP18-2605", "FAACIFP18-2604", "FAACIFP18-2603", "FAACIFP18-2602"];
+    private static readonly string[] NewestCycleOnlyNames = ["FAACIFP18-2605"];
+
     private static string[] Names(IReadOnlyList<string> paths) => [.. paths.Select(p => Path.GetFileName(p)!)];
 
     [Fact]
@@ -28,11 +31,11 @@ public class CifpSupplementaryCacheTests
             // Current cycle 2606, generous cap: all four cached prior cycles, newest→oldest.
             // The bundled (non-cycle) file is never selected by the cache walk.
             IReadOnlyList<string> chain = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 13, dir);
-            Assert.Equal(new[] { "FAACIFP18-2605", "FAACIFP18-2604", "FAACIFP18-2603", "FAACIFP18-2602" }, Names(chain));
+            Assert.Equal(FourCycleChainNames, Names(chain));
 
             // Recency cap of 1: only the immediately-prior cycle (2605); 2604 (age 2) is excluded.
             IReadOnlyList<string> capped = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 1, dir);
-            Assert.Equal(new[] { "FAACIFP18-2605" }, Names(capped));
+            Assert.Equal(NewestCycleOnlyNames, Names(capped));
 
             // No cached cycle strictly older than the oldest present -> empty (a fresh install).
             Assert.Empty(CifpPathResolver.ResolveSupplementaryChainFromCache("2602", 13, dir));

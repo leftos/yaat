@@ -248,7 +248,7 @@ public static class BlockedTurnResolver
     private static bool ArcBridgesArms(GroundArc arc, IGroundEdge armPrev, IGroundEdge armNext) =>
         ArmNames(armPrev).Any(arc.MatchesTaxiway) && ArmNames(armNext).Any(arc.MatchesTaxiway);
 
-    private static IEnumerable<string> ArmNames(IGroundEdge edge) => edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
+    private static string[] ArmNames(IGroundEdge edge) => edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
 
     private static IGroundEdge? FindEdge(AirportGroundLayout layout, int a, int b) =>
         layout.Nodes.TryGetValue(a, out GroundNode? node) ? node.Edges.FirstOrDefault(e => e.HasNode(b)) : null;

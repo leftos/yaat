@@ -7,7 +7,7 @@ namespace Yaat.Client.ContextMenus;
 /// behind its free-text box, which reads a bare number of seconds or hours, minutes and seconds with unit suffixes
 /// (<c>90</c>, <c>2m15s</c>, <c>1h</c>).
 /// </summary>
-public static class SpawnDelay
+public static partial class SpawnDelay
 {
     /// <summary>The delay presets, each with the seconds it sends.</summary>
     public static readonly IReadOnlyList<(string Label, int Seconds)> Presets =
@@ -20,10 +20,8 @@ public static class SpawnDelay
         ("10 minutes", 600),
     ];
 
-    private static readonly Regex DelayUnitsPattern = new(
-        @"^\s*(?:(?<h>\d+)\s*h)?\s*(?:(?<m>\d+)\s*m)?\s*(?:(?<s>\d+)\s*s)?\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
-    );
+    [GeneratedRegex(@"^\s*(?:(?<h>\d+)\s*h)?\s*(?:(?<m>\d+)\s*m)?\s*(?:(?<s>\d+)\s*s)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DelayUnitsPattern();
 
     /// <summary>
     /// The seconds <paramref name="input"/> names, or null when it names no delay: blank text, a bare number of
@@ -42,7 +40,7 @@ public static class SpawnDelay
             return bareSeconds;
         }
 
-        Match match = DelayUnitsPattern.Match(trimmed);
+        Match match = DelayUnitsPattern().Match(trimmed);
         if (!match.Success)
         {
             return null;

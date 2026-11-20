@@ -651,7 +651,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
         throw new InvalidOperationException("SFO layout has no eastbound taxiway-B edge at the B/T junction");
     }
 
-    private void AssertHoldingShortOfT(HsRun run)
+    private static void AssertHoldingShortOfT(HsRun run)
     {
         Phase? phase = run.Aircraft.Phases?.CurrentPhase;
         Assert.True(phase is HoldingShortPhase, $"{Callsign} never took the hold; phase {PhaseName(run.Aircraft)}");
@@ -659,7 +659,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
         Assert.Equal("T", hold.HoldShort.TargetName, ignoreCase: true);
     }
 
-    private void AssertNoCreep(HsRun run) => AssertNoCreep(run.Trace.SpeedsAfterIssue, Callsign);
+    private static void AssertNoCreep(HsRun run) => AssertNoCreep(run.Trace.SpeedsAfterIssue, Callsign);
 
     /// <summary>
     /// Fails when the aircraft sat in the creep band for longer than a brake-through takes — the 5 kt crawl

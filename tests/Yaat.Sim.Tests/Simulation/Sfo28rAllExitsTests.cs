@@ -107,7 +107,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         AssertSmoothExit(result, taxiway);
     }
 
-    private void AssertSmoothExit(ExitTestResult result, string label)
+    private static void AssertSmoothExit(ExitTestResult result, string label)
     {
         // Heading changes should be mostly monotonic. SFO 28R is 200 ft wide
         // (ADG V/VI), so hold-short nodes sit ~280 ft from centerline per

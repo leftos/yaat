@@ -112,7 +112,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             return [new MenuCommandChoice("No route found", null, null, [])];
         }
 
-        List<MenuCommandChoice> perRoute = [.. routes.Select(route => RouteChoice(ground, route, spot, destRunway)).OfType<MenuCommandChoice>()];
+        List<MenuCommandChoice> perRoute = [.. routes.Select(route => RouteChoice(route, spot, destRunway)).OfType<MenuCommandChoice>()];
         return (routes.Count == 1) ? perRoute : [new MenuCommandChoice("Taxi here", null, null, perRoute)];
     }
 
@@ -260,12 +260,13 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// variant is a leaf sending it, several a submenu previewing the route over them, and a route with no path at all
     /// is left out.
     /// </summary>
-    private static MenuCommandChoice? RouteChoice(GroundViewModel ground, TaxiRoute route, TaxiSpotDestination? spot, string? destRunway)
+    private static MenuCommandChoice? RouteChoice(TaxiRoute route, TaxiSpotDestination? spot, string? destRunway)
     {
-        string label = $"Taxi {(spot is not null ? $"to {spot.Name} {ground.GetTaxiwayDisplayName(route)}" : ground.GetTaxiwayDisplayName(route))}";
+        string label =
+            $"Taxi {(spot is not null ? $"to {spot.Name} {GroundViewModel.GetTaxiwayDisplayName(route)}" : GroundViewModel.GetTaxiwayDisplayName(route))}";
         if (destRunway is not null)
         {
-            List<(string Label, string Command, TaxiRoute Preview)?> destVariants = ground.BuildTaxiDestVariants(route, destRunway, spot);
+            List<(string Label, string Command, TaxiRoute Preview)?> destVariants = GroundViewModel.BuildTaxiDestVariants(route, destRunway, spot);
             if (destVariants.Count == 0)
             {
                 return null;
@@ -283,7 +284,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             );
         }
 
-        List<(string Label, string Command, TaxiRoute Preview)> variants = ground.BuildTaxiCrossingVariants(
+        List<(string Label, string Command, TaxiRoute Preview)> variants = GroundViewModel.BuildTaxiCrossingVariants(
             route,
             spot,
             pathOverride: TaxiRouteFormatter.BuildReadableTaxiPath(route, hasNamedTerminus: spot is not null)

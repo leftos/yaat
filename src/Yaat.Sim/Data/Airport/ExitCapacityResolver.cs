@@ -311,7 +311,7 @@ public static class ExitCapacityResolver
         {
             if ((node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } runwayId) && runwayId.Contains(runway))
             {
-                AddStretchesFromExitBar(layout, query, node, found);
+                AddStretchesFromExitBar(query, node, found);
             }
         }
 
@@ -323,7 +323,7 @@ public static class ExitCapacityResolver
     /// runway's hold-shorts: each edge off it on the query's taxiway that leads forward along the taxiway to a parallel
     /// runway's hold-short (the query's parallel runway's when given), once per distinct parallel bar.
     /// </summary>
-    private static void AddStretchesFromExitBar(AirportGroundLayout layout, StretchQuery query, GroundNode exitBar, List<Stretch> found)
+    private static void AddStretchesFromExitBar(StretchQuery query, GroundNode exitBar, List<Stretch> found)
     {
         foreach (IGroundEdge edge in exitBar.Edges)
         {
@@ -333,7 +333,7 @@ public static class ExitCapacityResolver
             }
 
             if (
-                (WalkToParallelBar(layout, query, exitBar, edge.OtherNode(exitBar)) is { } stretch)
+                (WalkToParallelBar(query, exitBar, edge.OtherNode(exitBar)) is { } stretch)
                 && !found.Any(s => (s.ExitBar.Id == exitBar.Id) && (s.ParallelBar.Id == stretch.ParallelBar.Id))
             )
             {
@@ -348,17 +348,17 @@ public static class ExitCapacityResolver
     /// parallel runway; a crossover is only the pavement from bar to near bar, so it walks that far and requires the bar
     /// reached to be the query's parallel runway's.
     /// </summary>
-    private static Stretch? WalkToParallelBar(AirportGroundLayout layout, StretchQuery query, GroundNode exitBar, GroundNode comeFrom)
+    private static Stretch? WalkToParallelBar(StretchQuery query, GroundNode exitBar, GroundNode comeFrom)
     {
         if (query.ParallelRunway is not { } parallelRunway)
         {
-            return (layout.FindParallelRunwayCrossing(exitBar, comeFrom, query.Taxiway, query.Runway) is { } xing)
+            return (AirportGroundLayout.FindParallelRunwayCrossing(exitBar, comeFrom, query.Taxiway, query.Runway) is { } xing)
                 ? new Stretch(exitBar, xing.NearHoldShort, xing.ParallelRunwayId, xing.PullUpPath)
                 : null;
         }
 
         return (
-            (layout.FindParallelNearHoldShort(exitBar, comeFrom, query.Taxiway, query.Runway) is { } near)
+            (AirportGroundLayout.FindParallelNearHoldShort(exitBar, comeFrom, query.Taxiway, query.Runway) is { } near)
             && (near.NearHoldShort.RunwayId?.Contains(parallelRunway) == true)
         )
             ? new Stretch(exitBar, near.NearHoldShort, near.ParallelRunwayId.ToString(), near.Path)

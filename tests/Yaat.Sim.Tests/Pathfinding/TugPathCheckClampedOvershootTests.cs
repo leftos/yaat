@@ -16,14 +16,12 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// with the design group II envelope. Then a sample in the gap between R1's tangent node and its charted end, which the
 /// charted polyline reads by its lateral offset.
 /// </summary>
-public class TugPathCheckClampedOvershootTests
+public partial class TugPathCheckClampedOvershootTests
 {
     private const string Narrowbody = "B738";
 
-    private static readonly Regex OvershootPastA = new(
-        @"^Unable, the move to taxiway A would take the aircraft \d+ ft past taxiway A$",
-        RegexOptions.CultureInvariant
-    );
+    [GeneratedRegex(@"^Unable, the move to taxiway A would take the aircraft \d+ ft past taxiway A$", RegexOptions.CultureInvariant)]
+    private static partial Regex OvershootPastA();
 
     private readonly ITestOutputHelper _output;
 
@@ -299,7 +297,7 @@ public class TugPathCheckClampedOvershootTests
     /// <summary>Asserts the refusal names <paramref name="expectedFt"/> feet past the taxiway, ±1 ft.</summary>
     private static void AssertPastFt(string refusal, double expectedFt)
     {
-        Match past = Regex.Match(refusal, @"(\d+) ft past taxiway");
+        Match past = FeetPastTaxiwayRegex().Match(refusal);
         Assert.True(past.Success, refusal);
         Assert.InRange(double.Parse(past.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture), expectedFt - 1.0, expectedFt + 1.0);
     }
@@ -311,7 +309,7 @@ public class TugPathCheckClampedOvershootTests
     {
         GroundNode exit = Exit(layout, from, taxiway);
         double hintTrueDeg = MagneticDeclination.MagneticToTrue(hintMagneticDeg, from);
-        double facingDeg = layout.GetEdgeBearingForTaxiway(exit, taxiway, hintTrueDeg) ?? hintTrueDeg;
+        double facingDeg = AirportGroundLayout.GetEdgeBearingForTaxiway(exit, taxiway, hintTrueDeg) ?? hintTrueDeg;
         return TugGoal.TaxiwayLine(exit, taxiway, facingDeg);
     }
 
@@ -373,7 +371,10 @@ public class TugPathCheckClampedOvershootTests
         }
 
         Assert.Null(plan);
-        Assert.Matches(OvershootPastA, refusal);
+        Assert.Matches(OvershootPastA(), refusal);
         AssertPastFt(refusal, pastFt);
     }
+
+    [GeneratedRegex(@"(\d+) ft past taxiway")]
+    private static partial Regex FeetPastTaxiwayRegex();
 }

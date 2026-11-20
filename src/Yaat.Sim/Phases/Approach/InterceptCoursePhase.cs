@@ -207,7 +207,8 @@ public sealed class InterceptCoursePhase : Phase
 
         // Anticipation: compute the turn radius and begin turning before crossing the
         // centerline. This prevents overshoot and lets FinalApproachPhase start GS descent
-        // immediately. Turn radius = GS / (turnRate × 20π) in nm.
+        // immediately. Lead = turn radius GS / (turnRate × 20π) in nm, plus under the ramp turn
+        // model the roll-in lead's cross-track component L × sin(theta) (TurnShape.InterceptLeadNm).
         // Check current heading diff first. If that's > 30° (can happen due to magnetic
         // variation), also check the assigned heading vs the runway number — but only once the
         // aircraft has settled onto its assigned heading (within 5°), and only on an aligned final.
@@ -215,8 +216,9 @@ public sealed class InterceptCoursePhase : Phase
         // but assigned 150° vs rwy 120° = 30° (passes, and the aircraft is on the heading the
         // controller gave).
         double turnRate = ctx.Aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
-        double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
-        double leadDistNm = turnRadiusNm;
+        double leadDistNm = TurnShape.InterceptLeadNm(
+            TurnLeadInput.Of(ctx.Aircraft, aircraftHeading.SignedAngleTo(FinalApproachCourse), turnRate, ctx.Category, ctx.TurnModel)
+        );
 
         if (crossTrack <= leadDistNm)
         {
@@ -398,7 +400,7 @@ public sealed class InterceptCoursePhase : Phase
         return true;
     }
 
-    private void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm)
+    private static void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm)
     {
         // VFR and visual approaches are not subject to 7110.65 §5-9-1
         if (ctx.Aircraft.FlightPlan.IsVfr)

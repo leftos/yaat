@@ -35,7 +35,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
         return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
-    private static int CountReversals(IReadOnlyList<TaxiRouteSegment> segments)
+    private static int CountReversals(List<TaxiRouteSegment> segments)
     {
         int count = 0;
         for (int i = 0; i + 1 < segments.Count; i++)

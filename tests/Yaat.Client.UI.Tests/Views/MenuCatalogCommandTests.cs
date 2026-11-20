@@ -431,7 +431,7 @@ public class MenuCatalogCommandTests
     public void Warp_TypedFrdOnly_SendsWarpFrd()
     {
         var host = new RecordingMenuHost("");
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+        List<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
 
         rows[0].Text = "SFO";
         PressEnter(rows[0].Input);
@@ -447,7 +447,7 @@ public class MenuCatalogCommandTests
     public void Warp_SpeedOnly_FillsHeadingAndAltitudeWithPresentValues()
     {
         var host = new RecordingMenuHost("");
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+        List<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
 
         rows[0].Text = "SFO";
         rows[3].Text = "230";
@@ -470,7 +470,7 @@ public class MenuCatalogCommandTests
             AltitudeFeet = 800,
             IndicatedAirspeedKnots = 85,
         };
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
+        List<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
 
         rows[0].Text = "SFO";
         rows[3].Text = "90";
@@ -490,7 +490,7 @@ public class MenuCatalogCommandTests
             AltitudeFeet = 5000,
             IndicatedAirspeedKnots = 250,
         };
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
+        List<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
 
         rows[0].Text = "SFO";
         rows[3].Text = "200";
@@ -507,7 +507,7 @@ public class MenuCatalogCommandTests
         int heading = int.Parse(aircraft.HeadingDisplay, CultureInfo.InvariantCulture);
         Assert.NotEqual(100, heading);
         var host = new RecordingMenuHost("");
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
+        List<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
 
         rows[0].Text = "SFO";
         rows[2].Text = "50";
@@ -524,7 +524,7 @@ public class MenuCatalogCommandTests
     public void Warp_AltitudeBoxReadsLikeTheOtherAltitudeBoxes(string typed)
     {
         var host = new RecordingMenuHost("");
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+        List<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
 
         rows[0].Text = "SFO";
         rows[2].Text = typed;
@@ -540,7 +540,7 @@ public class MenuCatalogCommandTests
         TestVnasData.EnsureInitialized();
         var host = new RecordingMenuHost("");
         MenuItem warp = Warp(WarpAircraft(), host);
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[0].Text = "QQQZZ";
         rows[3].Text = "230";
@@ -562,7 +562,7 @@ public class MenuCatalogCommandTests
     public void Warp_BadHeading_RefusesInline()
     {
         var host = new RecordingMenuHost("");
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+        List<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
 
         rows[0].Text = "SFO";
         rows[1].Text = "400";
@@ -583,7 +583,7 @@ public class MenuCatalogCommandTests
     {
         var host = new RecordingMenuHost("");
         MenuItem warp = Warp(WarpAircraft(), host);
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[3].Text = "230";
         PressEnter(rows[3].Input);
@@ -608,7 +608,7 @@ public class MenuCatalogCommandTests
             IndicatedAirspeedKnots = 0,
         };
         MenuItem warp = Warp(aircraft, host);
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[0].Text = "SFO";
         rows[3].Text = "120";
@@ -640,7 +640,7 @@ public class MenuCatalogCommandTests
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
-            IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+            List<InlineBoxRow> rows = WarpRows(warp);
             rows[0].Text = "SFO";
             rows[3].Text = "230";
 
@@ -665,7 +665,7 @@ public class MenuCatalogCommandTests
     {
         var host = new RecordingMenuHost("");
         MenuItem warp = Warp(WarpAircraft(), host);
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[0].Text = "SFO";
         rows[2].Text = "90";
@@ -678,7 +678,7 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void Warp_TypedAltitude_ShowsItsReadingUnderTheBox()
     {
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(PatternAircraft(), new RecordingMenuHost("")));
+        List<InlineBoxRow> rows = WarpRows(Warp(PatternAircraft(), new RecordingMenuHost("")));
 
         rows[2].Text = "800";
 
@@ -692,7 +692,7 @@ public class MenuCatalogCommandTests
     public void Warp_TrailingBlank_ShowsDashAndLeftOutLine()
     {
         MenuItem warp = Warp(PatternAircraft(), new RecordingMenuHost(""));
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[0].Text = "SFO";
         rows[1].Text = "90";
@@ -708,7 +708,7 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void Warp_BlankBeforeFilled_ShowsKeptValueAndKeptLine()
     {
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(PatternAircraft(), new RecordingMenuHost("")));
+        List<InlineBoxRow> rows = WarpRows(Warp(PatternAircraft(), new RecordingMenuHost("")));
 
         rows[0].Text = "SFO";
         rows[3].Text = "90";
@@ -725,7 +725,7 @@ public class MenuCatalogCommandTests
     public void Warp_BlankFrd_SendLineSaysCantSend()
     {
         MenuItem warp = Warp(WarpAircraft(), new RecordingMenuHost(""));
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[3].Text = "230";
 
@@ -739,7 +739,7 @@ public class MenuCatalogCommandTests
     public void Warp_RefusedHeading_ShowsCrossInItsColumnAndCantSendOnTheSendLine()
     {
         MenuItem warp = Warp(WarpAircraft(), new RecordingMenuHost(""));
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[0].Text = "SFO";
         rows[1].Text = "400";
@@ -756,7 +756,7 @@ public class MenuCatalogCommandTests
         TestVnasData.EnsureInitialized();
         var host = new RecordingMenuHost("") { FixSuggestions = ["SUNOL"] };
         MenuItem warp = Warp(WarpAircraft(), host);
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+        List<InlineBoxRow> rows = WarpRows(warp);
 
         rows[0].Text = "SUNO";
 
@@ -774,7 +774,7 @@ public class MenuCatalogCommandTests
     public void Warp_ReadingFrd_ShowsItsReadingUnderTheBox()
     {
         TestVnasData.EnsureInitialized();
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), new RecordingMenuHost("")));
+        List<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), new RecordingMenuHost("")));
 
         rows[0].Text = "OAK090010";
 
@@ -859,7 +859,7 @@ public class MenuCatalogCommandTests
         MenuItem warpHere = WarpHere(host);
 
         Assert.Equal("Warp here (OAK090010)", warpHere.Header);
-        IReadOnlyList<InlineBoxRow> rows = WarpRows(warpHere);
+        List<InlineBoxRow> rows = WarpRows(warpHere);
         Assert.Equal("OAK090010", rows[0].Text);
         PressEnter(rows[0].Input);
 

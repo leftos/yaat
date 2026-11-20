@@ -123,7 +123,7 @@ public class SfoAlleyPushSwingSweepTests(ITestOutputHelper output)
             return new Row(w.Stand.Name!, w.Spot.Name!, w.Type, w.DistanceFt, true, false, 0, 0, true, "");
         }
 
-        double facingDeg = layout.TryGetSpotOutboundHeading(w.Spot, out double lane) ? lane : plan.End.NoseTrueDeg;
+        double facingDeg = AirportGroundLayout.TryGetSpotOutboundHeading(w.Spot, out double lane) ? lane : plan.End.NoseTrueDeg;
         double pushOffNoseDeg = plan.Moves[0].End.NoseTrueDeg;
         double laneTurnDeg = new TrueHeading(pushOffNoseDeg).SignedAngleTo(new TrueHeading(facingDeg));
         var swing = TugNoseSwing.From(pushOffNoseDeg, plan.Moves.Skip(1).SelectMany(m => m.Samples).Select(s => s.NoseTrueDeg));

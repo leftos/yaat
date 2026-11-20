@@ -77,7 +77,7 @@ internal static partial class LexiconInputsRunner
         return 0;
     }
 
-    private static List<LexiconFix> Fixes(NavigationDatabase nav, string airport, LatLon airportPosition, IReadOnlySet<string> landmarkAliases)
+    private static List<LexiconFix> Fixes(NavigationDatabase nav, string airport, LatLon airportPosition, HashSet<string> landmarkAliases)
     {
         SortedDictionary<string, SortedSet<string>> onProcedures = ProcedureFixes(nav, airport);
         var ids = new SortedSet<string>(onProcedures.Keys, StringComparer.Ordinal);

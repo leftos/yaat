@@ -121,7 +121,7 @@ public sealed class LayoutService(UserPreferences preferences)
     /// <param name="layout">The layout being applied.</param>
     /// <param name="vm">The main view model owning the tabs.</param>
     /// <returns>The facility ids skipped because the student position can no longer open them, Strips first.</returns>
-    public async Task<IReadOnlyList<string>> ApplyOpenTabsAsync(SavedLayout layout, MainViewModel vm)
+    public static async Task<IReadOnlyList<string>> ApplyOpenTabsAsync(SavedLayout layout, MainViewModel vm)
     {
         if (layout.OpenTabs is not { } tabs)
         {

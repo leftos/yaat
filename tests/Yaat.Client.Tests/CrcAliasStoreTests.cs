@@ -26,7 +26,7 @@ public sealed class CrcAliasStoreTests : IDisposable
         return store;
     }
 
-    private string Expand(CrcAliasStore store, string input)
+    private static string Expand(CrcAliasStore store, string input)
     {
         Assert.True(store.TryExpand(input, out string? expanded, out string? error), error);
         return expanded;

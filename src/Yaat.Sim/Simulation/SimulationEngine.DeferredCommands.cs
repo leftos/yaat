@@ -5,6 +5,7 @@ using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Sim.Simulation;
@@ -187,10 +188,12 @@ public sealed partial class SimulationEngine
                     SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
                     PreserveConditionals = true,
                     IsScenarioScripted = d.IsScenarioScripted,
+                    ReportPledges = d.ReportPledges,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
                     StudentPosition = Scenario?.StudentPosition,
                     LayoutForAirport = ResolveAirportLayout,
                     SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
+                    PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
                 };
                 CommandResult deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
                 if (!deferredResult.Success)

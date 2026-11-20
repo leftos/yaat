@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
 
@@ -11,7 +12,7 @@ public partial class FlightPlanEditorWindow : Window
 {
     private AircraftModel? _aircraft;
     private readonly Action<string, FlightPlanAmendment> _onAmend;
-    private readonly Func<string, Task> _onRequestNewBeacon;
+    private readonly Func<string, Task<CommandResultDto>> _onRequestNewBeacon;
 
     private string _origTyp = "";
     private string _origEq = "";
@@ -35,7 +36,11 @@ public partial class FlightPlanEditorWindow : Window
         _onRequestNewBeacon = null!;
     }
 
-    public FlightPlanEditorWindow(AircraftModel aircraft, Action<string, FlightPlanAmendment> onAmend, Func<string, Task> onRequestNewBeacon)
+    public FlightPlanEditorWindow(
+        AircraftModel aircraft,
+        Action<string, FlightPlanAmendment> onAmend,
+        Func<string, Task<CommandResultDto>> onRequestNewBeacon
+    )
     {
         InitializeComponent();
         _aircraft = aircraft;
@@ -206,6 +211,11 @@ public partial class FlightPlanEditorWindow : Window
                 break;
             case nameof(AircraftModel.HasFlightPlan):
                 SubmitButton.Content = aircraft.HasFlightPlan ? "Amend" : "Create";
+                if (aircraft.HasFlightPlan)
+                {
+                    // A refused recycle ("no flight plan") no longer applies once the plan is filed.
+                    ShowPlainTitle(aircraft);
+                }
                 break;
             case nameof(AircraftModel.FiledAircraftType):
                 RefreshEditableField(TypBox, ref _origTyp, aircraft.FiledAircraftType);
@@ -320,28 +330,58 @@ public partial class FlightPlanEditorWindow : Window
             return;
         }
 
+        // Surface a refusal or an error in the title so the instructor sees it without a popup — but only
+        // while the editor still shows that aircraft, which may have been re-bound or cleared meanwhile.
         try
         {
-            await _onRequestNewBeacon(aircraft.Callsign);
+            CommandResultDto result = await _onRequestNewBeacon(aircraft.Callsign);
+            if (result.Success)
+            {
+                ShowPlainTitle(aircraft);
+            }
+            else
+            {
+                ShowRecycleFailure(aircraft, result.Message);
+            }
         }
         catch (Exception ex)
         {
-            // Surface the error in the title so the instructor sees it without a popup — but only while
-            // the editor still shows that aircraft, which may have been re-bound or cleared meanwhile.
-            if (ReferenceEquals(_aircraft, aircraft))
-            {
-                Title = $"{aircraft.Callsign} - Flight Plan (recycle failed: {ex.Message})";
-            }
+            ShowRecycleFailure(aircraft, ex.Message);
+        }
+    }
+
+    private void ShowRecycleFailure(AircraftModel aircraft, string? message)
+    {
+        if (ReferenceEquals(_aircraft, aircraft))
+        {
+            Title = $"{aircraft.Callsign} - Flight Plan (recycle failed: {message})";
+        }
+    }
+
+    private void ShowPlainTitle(AircraftModel aircraft)
+    {
+        if (ReferenceEquals(_aircraft, aircraft))
+        {
+            Title = $"{aircraft.Callsign} - Flight Plan";
         }
     }
 
     // ── Input masks (mirrors CRC's FlightPlanEditorContent.xaml.cs PreviewTextInput) ──
 
-    private static readonly Regex AlphaUpperPattern = new("[^A-Z]+", RegexOptions.Compiled);
-    private static readonly Regex AlphanumericUpperPattern = new("[^A-Z0-9]+", RegexOptions.Compiled);
-    private static readonly Regex DigitsPattern = new("[^0-9]+", RegexOptions.Compiled);
-    private static readonly Regex AltitudePattern = new("[^0-9VFROTP/]+", RegexOptions.Compiled);
-    private static readonly Regex RoutePattern = new("[^A-Z0-9./+ ]+", RegexOptions.Compiled);
+    [GeneratedRegex("[^A-Z]+")]
+    private static partial Regex AlphaUpperPattern();
+
+    [GeneratedRegex("[^A-Z0-9]+")]
+    private static partial Regex AlphanumericUpperPattern();
+
+    [GeneratedRegex("[^0-9]+")]
+    private static partial Regex DigitsPattern();
+
+    [GeneratedRegex("[^0-9VFROTP/]+")]
+    private static partial Regex AltitudePattern();
+
+    [GeneratedRegex("[^A-Z0-9./+ ]+")]
+    private static partial Regex RoutePattern();
 
     private static void Mask(TextInputEventArgs e, Regex disallowed)
     {
@@ -351,15 +391,15 @@ public partial class FlightPlanEditorWindow : Window
         }
     }
 
-    private static void MaskAlphaUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphaUpperPattern);
+    private static void MaskAlphaUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphaUpperPattern());
 
-    private static void MaskAlphanumericUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphanumericUpperPattern);
+    private static void MaskAlphanumericUpper(object? sender, TextInputEventArgs e) => Mask(e, AlphanumericUpperPattern());
 
-    private static void MaskDigitsOnly(object? sender, TextInputEventArgs e) => Mask(e, DigitsPattern);
+    private static void MaskDigitsOnly(object? sender, TextInputEventArgs e) => Mask(e, DigitsPattern());
 
-    private static void MaskAltitude(object? sender, TextInputEventArgs e) => Mask(e, AltitudePattern);
+    private static void MaskAltitude(object? sender, TextInputEventArgs e) => Mask(e, AltitudePattern());
 
-    private static void MaskRoute(object? sender, TextInputEventArgs e) => Mask(e, RoutePattern);
+    private static void MaskRoute(object? sender, TextInputEventArgs e) => Mask(e, RoutePattern());
 
     private static void MaskRemarks(object? sender, TextInputEventArgs e)
     {

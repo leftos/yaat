@@ -192,7 +192,7 @@ public class PushbackMoveBoundaryTests
             push.DoneSecond > 0,
             $"the push never completed within {BudgetSeconds}s (phase={push.Aircraft.Phases?.CurrentPhase?.Name ?? "null"}): {Trace(push.Samples)}"
         );
-        AssertRestingOnSpot(push.Aircraft, push.Spot, push.Ground.Layout);
+        AssertRestingOnSpot(push.Aircraft, push.Spot);
     }
 
     /// <summary>
@@ -480,7 +480,7 @@ public class PushbackMoveBoundaryTests
     /// A completed <c>PUSH $spot</c> rests with the nosewheel on the marking — centroid a half fuselage
     /// back — and the nose on the spot's outbound heading, ready to taxi out.
     /// </summary>
-    private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot, AirportGroundLayout layout)
+    private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot)
     {
         double halfLengthFt = AircraftLength.ResolveFt(ac.AircraftType) / 2.0;
         double distFt = GeoMath.DistanceNm(ac.Position, spot.Position) * GeoMath.FeetPerNm;
@@ -491,7 +491,7 @@ public class PushbackMoveBoundaryTests
         );
 
         Assert.True(
-            layout.TryGetSpotOutboundHeading(spot, out double outBearing),
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outBearing),
             $"the layout carries no outbound heading for the spot {ac.Callsign} pushed to"
         );
         double headingErrDeg = new TrueHeading(outBearing).AbsAngleTo(ac.TrueHeading);

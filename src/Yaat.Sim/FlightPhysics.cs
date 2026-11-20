@@ -12,14 +12,27 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Sim;
 
 /// <summary>
-/// Per-tick scenario inputs <see cref="FlightPhysics.Update(AircraftState, double, Func{string, AircraftState?}?, WeatherProfile?, double, PhysicsTickOptions)"/>
-/// needs beyond the aircraft itself: the pilot-transmission routing flags and the session's magnetic-model day
-/// (<see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/>) for the declination refresh.
+/// How an airborne aircraft enters and leaves a turn. <see cref="Instant"/> turns at the full rate from the first tick and
+/// stops dead on the target heading (the model every session recorded before the ramp flies, and the value wherever none
+/// is recorded); <see cref="Ramp"/> rolls in and out, ramping the applied turn rate up to the full rate and easing it out so
+/// the wings are level exactly at the target heading. Carried by the scenario (<see cref="Simulation.SimScenarioState.TurnModel"/>).
 /// </summary>
-public readonly record struct PhysicsTickOptions(bool SoloTrainingMode, bool RpoShowPilotSpeech, DateTime MagneticModelDateUtc)
+public enum TurnModel
 {
-    /// <summary>Instructor topology, no RPO speech, process-day magnetic model — the standalone/test default.</summary>
-    public static PhysicsTickOptions Default => new(false, false, MagneticDeclination.EvaluationDateUtc);
+    Instant = 0,
+    Ramp = 1,
+}
+
+/// <summary>
+/// Per-tick scenario inputs <see cref="FlightPhysics.Update(AircraftState, double, Func{string, AircraftState?}?, WeatherProfile?, double, PhysicsTickOptions)"/>
+/// needs beyond the aircraft itself: the pilot-transmission routing flags, the session's magnetic-model day
+/// (<see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/>) for the declination refresh, and the session's
+/// <see cref="Sim.TurnModel"/>.
+/// </summary>
+public readonly record struct PhysicsTickOptions(bool SoloTrainingMode, bool RpoShowPilotSpeech, DateTime MagneticModelDateUtc, TurnModel TurnModel)
+{
+    /// <summary>Instructor topology, no RPO speech, process-day magnetic model, instant turns — the standalone/test default.</summary>
+    public static PhysicsTickOptions Default => new(false, false, MagneticDeclination.EvaluationDateUtc, TurnModel.Instant);
 }
 
 public static class FlightPhysics
@@ -89,12 +102,12 @@ public static class FlightPhysics
         }
 
         double windPhaseSeconds = WindVariation.PhaseSecondsFor(aircraft.Callsign);
-        UpdateNavigation(aircraft, weather, simTimeSeconds, windPhaseSeconds);
+        UpdateNavigation(aircraft, weather, simTimeSeconds, windPhaseSeconds, options.TurnModel);
         aircraft.Targets.PlannedVerticalRate = null;
         UpdateDescentPlanning(aircraft, cat);
         UpdateClimbPlanning(aircraft, cat);
         UpdateSpeedPlanning(aircraft, cat);
-        UpdateHeading(aircraft, cat, deltaSeconds);
+        UpdateHeading(aircraft, cat, deltaSeconds, options.TurnModel);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
         AutoCancelSpeedAtFinal(aircraft);
@@ -147,7 +160,13 @@ public static class FlightPhysics
         }
     }
 
-    private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather, double simTimeSeconds, double windPhaseSeconds)
+    private static void UpdateNavigation(
+        AircraftState aircraft,
+        WeatherProfile? weather,
+        double simTimeSeconds,
+        double windPhaseSeconds,
+        TurnModel turnModel
+    )
     {
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (!aircraft.Targets.HasRouteToFly)
@@ -174,7 +193,13 @@ public static class FlightPhysics
         NavigationTarget nav = route[0];
         double distNm = GeoMath.DistanceNm(aircraft.Position, nav.Position);
 
-        (double threshold, double anticipationNm) = SequencingThreshold(aircraft, aircraft.Position, nav, (route.Count >= 2) ? route[1] : null);
+        (double threshold, double anticipationNm) = SequencingThreshold(
+            aircraft,
+            aircraft.Position,
+            nav,
+            (route.Count >= 2) ? route[1] : null,
+            turnModel
+        );
         bool inAnticipationZone = (anticipationNm > NavArrivalNm) && (distNm < threshold);
 
         // Sequence waypoint: for fly-by with anticipation, wait until the aircraft
@@ -322,10 +347,8 @@ public static class FlightPhysics
             // Arc-blended steering: compute tangent heading along inscribed turn circle
             double currentLegBearing = GeoMath.BearingTo(aircraft.Position, nav.Position);
             double nextLegBearing = GeoMath.BearingTo(nav.Position, route[1].Position);
-            double turnRate =
-                aircraft.Targets.TurnRateOverride
-                ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
-            bearing = ComputeArcBlendedHeading(aircraft.Position, aircraft.GroundSpeed, turnRate, nav.Position, currentLegBearing, nextLegBearing);
+            FlyByTurn turn = FlyByTurnFor(aircraft, currentLegBearing, nextLegBearing, turnModel);
+            bearing = ComputeArcBlendedHeading(aircraft.Position, nav.Position, turn);
         }
         else
         {
@@ -1679,13 +1702,15 @@ public static class FlightPhysics
     /// The distance before <paramref name="fix"/>, flown from <paramref name="legStart"/>, at which the sequencer starts
     /// the turn, or sequences the fix: for a fly-by fix with <paramref name="nextFix"/> after it the larger of its turn
     /// anticipation and <see cref="NavArrivalNm"/>, for a fly-over or last fix <see cref="NavArrivalNm"/> alone. Also
-    /// returns the anticipation distance (0 for the latter).
+    /// returns the anticipation distance (0 for the latter). Under <see cref="TurnModel.Ramp"/> the anticipation includes
+    /// the roll-in lead (<see cref="TurnShape.LeadNm"/>).
     /// </summary>
     internal static (double ThresholdNm, double AnticipationNm) SequencingThreshold(
         AircraftState aircraft,
         LatLon legStart,
         NavigationTarget fix,
-        NavigationTarget? nextFix
+        NavigationTarget? nextFix,
+        TurnModel turnModel
     )
     {
         if ((nextFix is null) || fix.IsFlyOver)
@@ -1695,11 +1720,44 @@ public static class FlightPhysics
 
         double currentLegBearing = GeoMath.BearingTo(legStart, fix.Position);
         double nextLegBearing = GeoMath.BearingTo(fix.Position, nextFix.Position);
-        double turnRate =
-            aircraft.Targets.TurnRateOverride
-            ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
-        double anticipationNm = ComputeAnticipationDistanceNm(aircraft.GroundSpeed, turnRate, currentLegBearing, nextLegBearing);
+        FlyByTurn turn = FlyByTurnFor(aircraft, currentLegBearing, nextLegBearing, turnModel);
+
+        // Whether the fix is flown as an arc is decided without the roll-in lead: a turn whose bare anticipation is inside
+        // NavArrivalNm sequences there as before, and the lead only moves the start of a turn already flown as an arc.
+        if (ComputeAnticipationDistanceNm(turn with { LeadNm = 0 }) <= NavArrivalNm)
+        {
+            return (NavArrivalNm, 0);
+        }
+
+        double anticipationNm = ComputeAnticipationDistanceNm(turn);
         return (Math.Max(anticipationNm, NavArrivalNm), anticipationNm);
+    }
+
+    /// <summary>
+    /// A fly-by turn between two legs: the ground speed and turn rate it is flown at, the two legs' bearings, and the
+    /// roll-in lead (<see cref="TurnShape.LeadNm"/>; 0 under <see cref="TurnModel.Instant"/>) its start moves back by.
+    /// </summary>
+    internal readonly record struct FlyByTurn(
+        double GroundSpeedKts,
+        double TurnRateDegPerSec,
+        double CurrentLegBearing,
+        double NextLegBearing,
+        double LeadNm
+    );
+
+    /// <summary>
+    /// The fly-by turn <paramref name="aircraft"/> flies from <paramref name="currentLegBearing"/> onto
+    /// <paramref name="nextLegBearing"/>: at its ground speed and its turn rate (the override, else its type's rate), with
+    /// the roll-in lead of <paramref name="turnModel"/> that its applied turn rate has still to cover.
+    /// </summary>
+    internal static FlyByTurn FlyByTurnFor(AircraftState aircraft, double currentLegBearing, double nextLegBearing, TurnModel turnModel)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double turnRate = aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(aircraft.AircraftType, cat);
+        double courseChange = NormalizeAngle(nextLegBearing - currentLegBearing);
+        // Only the roll-in still to come: an aircraft already turning into the arc has spent part of its lag.
+        double leadNm = TurnShape.LeadNm(TurnLeadInput.Of(aircraft, courseChange, turnRate, cat, turnModel));
+        return new FlyByTurn(aircraft.GroundSpeed, turnRate, currentLegBearing, nextLegBearing, leadNm);
     }
 
     /// <summary>
@@ -1712,21 +1770,27 @@ public static class FlightPhysics
         double turnRateDegPerSec,
         double currentLegBearing,
         double nextLegBearing
-    )
+    ) => ComputeAnticipationDistanceNm(new FlyByTurn(groundSpeedKts, turnRateDegPerSec, currentLegBearing, nextLegBearing, LeadNm: 0));
+
+    /// <summary>
+    /// The anticipation distance of <paramref name="turn"/>: the turn radius times tan(half the course change), plus the
+    /// turn's roll-in lead, capped at 5 nm; 0 for a negligible turn (&lt;1°).
+    /// </summary>
+    internal static double ComputeAnticipationDistanceNm(FlyByTurn turn)
     {
-        double courseChange = Math.Abs(NormalizeAngle(nextLegBearing - currentLegBearing));
+        double courseChange = Math.Abs(NormalizeAngle(turn.NextLegBearing - turn.CurrentLegBearing));
         if (courseChange < 1.0)
         {
             return 0;
         }
 
         // Turn radius: R = GS / (turnRate × 2π) in nm (GS in nm/hr, turnRate in deg/s → rad/s)
-        double turnRateRadPerSec = turnRateDegPerSec * Math.PI / 180.0;
-        double gsNmPerSec = groundSpeedKts / 3600.0;
+        double turnRateRadPerSec = turn.TurnRateDegPerSec * Math.PI / 180.0;
+        double gsNmPerSec = turn.GroundSpeedKts / 3600.0;
         double radiusNm = gsNmPerSec / turnRateRadPerSec;
 
         double halfAngleRad = courseChange * Math.PI / 360.0;
-        double anticipation = radiusNm * Math.Tan(halfAngleRad);
+        double anticipation = (radiusNm * Math.Tan(halfAngleRad)) + turn.LeadNm;
 
         return Math.Min(anticipation, 5.0);
     }
@@ -1742,18 +1806,36 @@ public static class FlightPhysics
         LatLon waypointPos,
         double currentLegBearing,
         double nextLegBearing
-    )
+    ) =>
+        ComputeArcBlendedHeading(
+            aircraftPos,
+            waypointPos,
+            new FlyByTurn(groundSpeedKts, turnRateDegPerSec, currentLegBearing, nextLegBearing, LeadNm: 0)
+        );
+
+    /// <summary>
+    /// The arc-blended heading of <paramref name="turn"/> at <paramref name="aircraftPos"/>: the tangent heading of the
+    /// circle inscribed between the legs. A roll-in lead widens the circle to R + lead / tan(half the course change), so
+    /// its tangent points move back along the legs by the lead, matching <see cref="ComputeAnticipationDistanceNm(FlyByTurn)"/>.
+    /// </summary>
+    internal static double ComputeArcBlendedHeading(LatLon aircraftPos, LatLon waypointPos, FlyByTurn turn)
     {
-        double courseChange = NormalizeAngle(nextLegBearing - currentLegBearing);
+        double currentLegBearing = turn.CurrentLegBearing;
+        double courseChange = NormalizeAngle(turn.NextLegBearing - currentLegBearing);
         if (Math.Abs(courseChange) < 1.0)
         {
             return GeoMath.BearingTo(aircraftPos, waypointPos);
         }
 
-        // Turn radius
-        double turnRateRadPerSec = turnRateDegPerSec * Math.PI / 180.0;
-        double gsNmPerSec = groundSpeedKts / 3600.0;
+        // Turn radius, widened by the roll-in lead
+        double turnRateRadPerSec = turn.TurnRateDegPerSec * Math.PI / 180.0;
+        double gsNmPerSec = turn.GroundSpeedKts / 3600.0;
+        double halfAngleRad = Math.Abs(courseChange) * Math.PI / 360.0;
         double radiusNm = gsNmPerSec / turnRateRadPerSec;
+        if (turn.LeadNm > 0)
+        {
+            radiusNm += turn.LeadNm / Math.Tan(halfAngleRad);
+        }
 
         // Turn center: offset perpendicular to the bisector of the two legs
         bool turnRight = courseChange > 0;
@@ -1762,7 +1844,6 @@ public static class FlightPhysics
         perpBearing = NormalizeBearing(perpBearing);
 
         // Offset distance from waypoint to turn center
-        double halfAngleRad = Math.Abs(courseChange) * Math.PI / 360.0;
         double cosHalf = Math.Cos(halfAngleRad);
         double offsetNm = cosHalf > 0.01 ? radiusNm / cosHalf : radiusNm;
 
@@ -2194,13 +2275,14 @@ public static class FlightPhysics
     /// <paramref name="cumulativeDistNm"/> (the distance to the fix itself) less the fix's
     /// <see cref="SequencingThreshold"/>, never below zero. A crossing restriction holds where the fix sequences, so the
     /// planners aim their required rate here (AIM 1-2-1.b.1, 4-4-10.e). For a fly-by turn under 90° the threshold is the
-    /// turn anticipation, so this measures to the turn start, which is at or before sequencing.
+    /// turn anticipation, so this measures to the turn start, which is at or before sequencing. The planners measure it
+    /// without the ramp's roll-in lead (at most a few tenths of a mile), which they run without the session's turn model.
     /// </summary>
     internal static double SequencingDistanceNm(AircraftState aircraft, List<NavigationTarget> route, int i, double cumulativeDistNm)
     {
         LatLon legStart = (i == 0) ? aircraft.Position : route[i - 1].Position;
         NavigationTarget? nextFix = (i + 1 < route.Count) ? route[i + 1] : null;
-        return Math.Max(0, cumulativeDistNm - SequencingThreshold(aircraft, legStart, route[i], nextFix).ThresholdNm);
+        return Math.Max(0, cumulativeDistNm - SequencingThreshold(aircraft, legStart, route[i], nextFix, TurnModel.Instant).ThresholdNm);
     }
 
     /// <summary>
@@ -2709,12 +2791,13 @@ public static class FlightPhysics
     /// </summary>
     public const double StationaryGroundSpeedKts = 0.1;
 
-    private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
+    private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds, TurnModel turnModel)
     {
         TrueHeading? target = aircraft.Targets.TargetTrueHeading;
         if (target is null)
         {
             aircraft.BankAngle = 0;
+            aircraft.AppliedTurnRateDegPerSec = null;
             return;
         }
 
@@ -2727,38 +2810,151 @@ public static class FlightPhysics
         if (aircraft.IsOnGround && aircraft.GroundSpeed < StationaryGroundSpeedKts)
         {
             aircraft.BankAngle = 0;
+            aircraft.AppliedTurnRateDegPerSec = null;
             return;
         }
 
-        double current = aircraft.TrueHeading.Degrees;
+        bool ramp = (turnModel == TurnModel.Ramp) && UsesTurnRamp(aircraft, cat);
         double goal = target.Value.Degrees;
-
-        double diff = NormalizeAngle(goal - current);
-        if (Math.Abs(diff) < HeadingSnapDeg)
+        double diff = NormalizeAngle(goal - aircraft.TrueHeading.Degrees);
+        double turnRate = aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(aircraft.AircraftType, cat);
+        var limits = new TurnLimits(turnRate, turnRate / CategoryPerformance.RollInSeconds(cat));
+        if (IsTurnFinished(aircraft, diff, ramp, limits.RollAccelDegPerSec2 * deltaSeconds))
         {
-            aircraft.TrueHeading = new TrueHeading(goal);
-
-            // Heading reached — clear turn direction bias but keep the
-            // assigned heading so it persists in the UI and autopilot
-            // until the controller issues a new instruction.
-            aircraft.Targets.PreferredTurnDirection = null;
-            aircraft.BankAngle = 0;
+            SnapToTarget(aircraft, goal, ramp);
             return;
         }
 
-        double turnRate = aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(aircraft.AircraftType, cat);
+        if (ramp)
+        {
+            ApplyRampedTurn(aircraft, deltaSeconds, RampErrorDeg(aircraft, diff), goal, limits);
+            return;
+        }
+
+        ApplyInstantTurn(aircraft, deltaSeconds, diff, turnRate);
+    }
+
+    /// <summary>
+    /// A turn's rate limits: the full rate (the type's standard rate or the phase's override) and, under the ramp, the roll
+    /// acceleration that reaches it in the category's roll-in time.
+    /// </summary>
+    private readonly record struct TurnLimits(double MaxRateDegPerSec, double RollAccelDegPerSec2);
+
+    /// <summary>
+    /// Heading reached: on the target, no turn direction bias (the assigned heading stays, so it persists in the UI and the
+    /// autopilot until the controller issues a new instruction), wings level, and under the ramp a zero applied rate.
+    /// </summary>
+    private static void SnapToTarget(AircraftState aircraft, double goal, bool ramp)
+    {
+        aircraft.TrueHeading = new TrueHeading(goal);
+        aircraft.Targets.PreferredTurnDirection = null;
+        aircraft.BankAngle = 0;
+        aircraft.AppliedTurnRateDegPerSec = ramp ? 0 : null;
+    }
+
+    /// <summary>
+    /// One tick of an instant-rate turn: the full rate from the first tick, the last step clipped to the remaining
+    /// difference, and the bank of the full rate.
+    /// </summary>
+    private static void ApplyInstantTurn(AircraftState aircraft, double deltaSeconds, double diff, double turnRate)
+    {
+        aircraft.AppliedTurnRateDegPerSec = null;
         double maxTurn = turnRate * deltaSeconds;
 
         double direction = ResolveDirection(diff, aircraft.Targets.PreferredTurnDirection);
 
         double turnAmount = Math.Min(Math.Abs(diff), maxTurn) * direction;
 
-        aircraft.TrueHeading = new TrueHeading(current + turnAmount);
+        aircraft.TrueHeading = new TrueHeading(aircraft.TrueHeading.Degrees + turnAmount);
 
         // Compute bank angle: atan(TAS_kts × turnRate_deg/s × coeff)
         double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
         double bankMag = Math.Atan(tasKts * turnRate * BankAngleCoeff) * (180.0 / Math.PI);
         aircraft.BankAngle = bankMag * direction;
+    }
+
+    /// <summary>Within this many degrees of the target, a ramped turn whose rate has eased out snaps onto the target.</summary>
+    private const double RampFinishDeg = 0.1;
+
+    /// <summary>
+    /// Whether the turn ends this tick with a snap onto the target. The instant model snaps within
+    /// <see cref="HeadingSnapDeg"/>; a ramped turn keeps rolling out until it is within <see cref="RampFinishDeg"/> and its
+    /// applied rate is at most one tick's roll step (<paramref name="maxRateStep"/>), so the wings are level at the target.
+    /// </summary>
+    private static bool IsTurnFinished(AircraftState aircraft, double diff, bool ramp, double maxRateStep)
+    {
+        if (!ramp)
+        {
+            return Math.Abs(diff) < HeadingSnapDeg;
+        }
+
+        return (Math.Abs(diff) < RampFinishDeg) && (Math.Abs(aircraft.AppliedTurnRateDegPerSec ?? 0) <= maxRateStep);
+    }
+
+    /// <summary>
+    /// The signed remaining heading change a ramped turn steers by: the long way round when the resolved direction says so
+    /// (a preferred turn direction), otherwise the short difference itself. Within <see cref="HeadingSnapDeg"/> the
+    /// preferred direction is spent and cleared, so a rolling-out turn settling onto its target, or a target moving back
+    /// across the heading, never sets off round the circle.
+    /// </summary>
+    private static double RampErrorDeg(AircraftState aircraft, double diff)
+    {
+        if (Math.Abs(diff) < HeadingSnapDeg)
+        {
+            aircraft.Targets.PreferredTurnDirection = null;
+        }
+
+        double direction = ResolveDirection(diff, aircraft.Targets.PreferredTurnDirection);
+        bool longWay = (direction * diff) < 0;
+        return longWay ? direction * (360.0 - Math.Abs(diff)) : diff;
+    }
+
+    /// <summary>
+    /// Whether an aircraft's heading change rolls in and out under <see cref="TurnModel.Ramp"/>: airborne only, and not a
+    /// helicopter below <see cref="CategoryPerformance.HelicopterInstantTurnBelowIndicatedAirspeedKts"/> (hovering,
+    /// air-taxiing or slow, where the turn is a yaw rather than a banked turn).
+    /// </summary>
+    private static bool UsesTurnRamp(AircraftState aircraft, AircraftCategory cat)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return false;
+        }
+
+        return (cat != AircraftCategory.Helicopter)
+            || (aircraft.IndicatedAirspeed >= CategoryPerformance.HelicopterInstantTurnBelowIndicatedAirspeedKts);
+    }
+
+    /// <summary>
+    /// One tick of a ramped turn. The commanded rate is the full rate, or less near the target on the discrete braking law
+    /// sqrt(2 * alpha * remaining + (alpha * dt / 2)^2) - alpha * dt / 2, which accounts for the heading the aircraft moves
+    /// within the tick, so it arrives with at most one roll step (alpha * dt) of rate left. The applied rate steps toward the
+    /// command by at most alpha * dt, so a reversal passes through zero rate, and the bank follows the applied rate. A step
+    /// that would pass the target lands exactly on it once the rate is down to one roll step; with more rate on (a target
+    /// inside the braking distance), the aircraft rolls out past the target and the law brings it back, never holding the
+    /// heading while banked.
+    /// </summary>
+    /// <param name="errDeg">The signed remaining heading change, positive right, on the side the turn is going.</param>
+    private static void ApplyRampedTurn(AircraftState aircraft, double deltaSeconds, double errDeg, double goal, TurnLimits limits)
+    {
+        double remaining = Math.Abs(errDeg);
+        double sign = Math.Sign(errDeg);
+        double maxStep = limits.RollAccelDegPerSec2 * deltaSeconds;
+        double brakingRate = Math.Sqrt((2.0 * limits.RollAccelDegPerSec2 * remaining) + (maxStep * maxStep / 4.0)) - (maxStep / 2.0);
+        double commanded = sign * Math.Min(limits.MaxRateDegPerSec, brakingRate);
+
+        double applied = aircraft.AppliedTurnRateDegPerSec ?? 0;
+        double step = commanded - applied;
+        applied = Math.Abs(step) <= maxStep ? commanded : applied + (Math.Sign(step) * maxStep);
+
+        double turn = applied * deltaSeconds;
+        bool reachesTarget = (Math.Abs(turn) >= remaining) && ((turn * sign) >= 0);
+        aircraft.TrueHeading =
+            (reachesTarget && (Math.Abs(applied) <= maxStep)) ? new TrueHeading(goal) : new TrueHeading(aircraft.TrueHeading.Degrees + turn);
+        aircraft.AppliedTurnRateDegPerSec = applied;
+
+        double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
+        aircraft.BankAngle = Math.Atan(tasKts * applied * BankAngleCoeff) * (180.0 / Math.PI);
     }
 
     private static void UpdateAltitude(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)

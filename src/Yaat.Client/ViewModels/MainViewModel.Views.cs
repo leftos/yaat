@@ -29,7 +29,7 @@ public partial class MainViewModel
     /// echo or the error to <paramref name="sink"/>.
     /// </summary>
     /// <returns>False when the first token is not <c>.view</c>, so the caller can fall through to CRC aliases.</returns>
-    private bool TryHandleViewCommand(string text, ICommandTextSink sink, ScopeViewModel scope)
+    private static bool TryHandleViewCommand(string text, ICommandTextSink sink, ScopeViewModel scope)
     {
         string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if ((parts.Length == 0) || !string.Equals(parts[0], ".view", StringComparison.OrdinalIgnoreCase))

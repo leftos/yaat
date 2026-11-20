@@ -74,7 +74,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         }
 
         GroundNode spot = Spot(layout, "7A");
-        PushbackPose stop = SpotStopPose(layout, spot);
+        PushbackPose stop = SpotStopPose(spot);
         var start = new PushbackPose(Project(stop.Position, stop.NoseTrueDeg, LaneRunUpFt), stop.NoseTrueDeg);
         TugPlan unforced = PlanOrFail(layout, OffStand(start, TugGoal.Spot(spot)));
         Assert.True(unforced.Moves[^1].Move is { Kind: PushbackLegKind.Pull, Creep: true }, "today the push stages and creeps forward");
@@ -83,7 +83,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
 
         Assert.All(plan.Moves, m => Assert.Equal(PushbackLegKind.Push, m.Move.Kind));
         Assert.Equal(TugMoveShape.ViaLine, plan.Moves[^1].Move.Shape);
-        AssertEndsOnSpotStop(layout, spot, plan);
+        AssertEndsOnSpotStop(spot, plan);
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
 
         AssertPushOffRunThen(plan, PushbackLegKind.Pull);
         Assert.True(plan.Moves[^1].Move.Creep, "the final pull onto a spot is a creep");
-        AssertEndsOnSpotStop(layout, spot, plan);
+        AssertEndsOnSpotStop(spot, plan);
     }
 
     /// <summary>
@@ -121,7 +121,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             return;
         }
 
-        PushbackPose start = SpotStopPose(layout, Spot(layout, "6A"));
+        PushbackPose start = SpotStopPose(Spot(layout, "6A"));
         TugPlan unforced = PlanOrFail(layout, OffStand(start, TugGoal.Spot(Spot(layout, "6B"))));
         output.WriteLine($"unforced: {Describe(unforced)}");
         Assert.Contains(unforced.Moves, m => m.Move.Kind == PushbackLegKind.Push);
@@ -165,7 +165,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             return;
         }
 
-        PushbackPose noseOut = SpotStopPose(layout, Spot(layout, "7A"));
+        PushbackPose noseOut = SpotStopPose(Spot(layout, "7A"));
         var start = new PushbackPose(noseOut.Position, new TrueHeading(noseOut.NoseTrueDeg).ToReciprocal().Degrees);
         GroundNode behind = Parking(layout, "F8");
 
@@ -188,10 +188,10 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             return;
         }
 
-        PushbackPose target = SpotStopPose(layout, Spot(layout, "6B"));
+        PushbackPose target = SpotStopPose(Spot(layout, "6B"));
         TugGoal goal = MarkedPoint(target.Position, target.NoseTrueDeg);
 
-        TugPlan plan = PlanOrFail(layout, OffStand(SpotStopPose(layout, Spot(layout, "6A")), goal));
+        TugPlan plan = PlanOrFail(layout, OffStand(SpotStopPose(Spot(layout, "6A")), goal));
 
         Assert.True(
             FeetBetween(plan.End.Position, target.Position) <= EndToleranceFt,
@@ -335,9 +335,9 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         Assert.All(plan.Moves.Skip(firstOther), m => Assert.Equal(kind, m.Move.Kind));
     }
 
-    private void AssertEndsOnSpotStop(AirportGroundLayout layout, GroundNode spot, TugPlan plan)
+    private void AssertEndsOnSpotStop(GroundNode spot, TugPlan plan)
     {
-        PushbackPose stop = SpotStopPose(layout, spot);
+        PushbackPose stop = SpotStopPose(spot);
         double offFt = FeetBetween(plan.End.Position, stop.Position);
         output.WriteLine($"{Describe(plan)}; ends {offFt:F1} ft off the stop, nose {AbsDiffDeg(plan.End.NoseTrueDeg, stop.NoseTrueDeg):F1}° off");
         Assert.True(offFt <= EndToleranceFt, $"ended {offFt:F1} ft off the stop");
@@ -345,9 +345,9 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>Where a narrowbody rests on a spot: its stop point, nose on the spot's outbound heading.</summary>
-    private static PushbackPose SpotStopPose(AirportGroundLayout layout, GroundNode spot)
+    private static PushbackPose SpotStopPose(GroundNode spot)
     {
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outbound), $"spot {spot.Name} has no outbound heading");
+        Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outbound), $"spot {spot.Name} has no outbound heading");
         return new PushbackPose(TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop, outbound);
     }
 

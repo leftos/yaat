@@ -766,7 +766,7 @@ public sealed class FavoriteStore
 
     private void SaveSetFile(FavoriteSet set) => WriteEntityFile(_setFiles, set.Id, _setsDir, SanitizeFileName(set.DisplayName, "set"), set);
 
-    private void WriteEntityFile<T>(Dictionary<string, string> files, string id, string dir, string stem, T entity)
+    private static void WriteEntityFile<T>(Dictionary<string, string> files, string id, string dir, string stem, T entity)
     {
         string path = Path.Combine(dir, $"{stem}.{id}.json");
         string json = JsonSerializer.Serialize(entity, JsonOptions);
@@ -786,7 +786,7 @@ public sealed class FavoriteStore
         files[id] = path;
     }
 
-    private void DeleteFile(Dictionary<string, string> files, string id)
+    private static void DeleteFile(Dictionary<string, string> files, string id)
     {
         if (!files.Remove(id, out string? path))
         {

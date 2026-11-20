@@ -99,7 +99,10 @@ public sealed class CrosswindPhase : Phase
 
         var turnPoint = new LatLon(Waypoints.CrosswindTurnLat, Waypoints.CrosswindTurnLon);
         double outNm = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, turnPoint, _crosswindHeading);
-        return outNm >= Waypoints.PatternSizeNm - BasePhase.TurnRadiusNm(ctx.Aircraft.GroundSpeed, turnRate);
+        double turnStartNm =
+            BasePhase.TurnRadiusNm(ctx.Aircraft.GroundSpeed, turnRate)
+            + BasePhase.TurnLeadNm(ctx.Aircraft.GroundSpeed, turnRate, ctx.Category, ctx.TurnModel);
+        return outNm >= Waypoints.PatternSizeNm - turnStartNm;
     }
 
     public override bool OnTick(PhaseContext ctx)

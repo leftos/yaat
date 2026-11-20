@@ -4,11 +4,13 @@
 
 ### Added
 
+- `REPORT REACHING {altitude}` and `REPORT LEAVING {altitude}`, also as Reaching and Leaving rows in the Report when… menu: the pilot reads back, then calls "level 5,000" or "leaving 5,000 for 3,000".
 - An owner in another facility shows the symbol the student's STARS scope draws, as in `3Y(1)`, unless it repeats the owner's first or last character.
 - The aircraft menu's quick commands offer Accept handoff, Cancel handoff and Acknowledge pointout while one is pending for the position you act as.
 - VFR aircraft get an Altitude… quick command: pick thousands and hundreds to send `CM`, `CM A` or `CM B`, with VFR cruising altitudes outlined.
 - IFR aircraft given EAPP, or established on their expected approach's final course, get a one-click Cleared {approach} quick command that sends `CAPP`.
 - Airport sidecars accept a `nonGateParking` list of stand names arrivals never ask for (markers, layout placeholders).
+- A Notes window (View → Bars → Notes…) keeps training notes until cleared (Clear asks first); Stamp or Ctrl+Shift+N inserts the sim time and selected callsign.
 - Favorite buttons can be cut and pasted onto another slot, and Delete settings empties a button into a blank of the same place and size.
 - VFR aircraft accept `FH E` and the other compass points ("proceed eastbound"), fly that heading and read back "proceeding eastbound"; IFR aircraft take it only under the VFR-commands-for-IFR setting.
 - A new Radar replaces the old one in the main tab, pop-out and extra windows, drawing video maps with STARS, ERAM or EuroScope datablocks.
@@ -36,6 +38,7 @@
 
 ### Changed
 
+- In a new session, aircraft roll into and out of turns over a few seconds, so small heading changes no longer snap; recordings made before keep instant turns.
 - Settings > Radar "Show conflict alerts" is now on by default.
 - A departure with no assigned altitude climbs to its filed altitude, even one filed after takeoff clearance; later STARS or ERAM amendments change only the plan.
 - New favorite buttons go to the set showing in the bar, asking which when several show, and no longer turn a hidden Global back on.
@@ -45,6 +48,11 @@
 
 ### Fixed
 
+- The heading-select preview arc now matches the turn the aircraft flies: its type's own turn rate, after a short straight roll-in.
+- An aircraft cleared for an approach after a crossing restriction at a fix where a transition begins now enters there, instead of turning for an earlier transition's first fix.
+- Loading a layout saved with a maximized window now restores that window on its saved screen, and saving while maximized keeps its normal size and position.
+- A small mouse slip while clicking a EuroScope tag's heading field no longer sends a heading you did not pick.
+- A new beacon code is no longer drawn for an aircraft without a flight plan: STARS answers NO FLIGHT, ERAM QB and DQ answer NO FLIGHT PLAN.
 - Show nav route's heading arrow on the Radar now starts at the aircraft as it moves, not where the route was first drawn.
 - ERAM `LC`, `LD` and `LE` measure from the scenario's clock, so their speeds and times hold at any sim rate and after a pause.
 - A quick-command flyout such as Fly heading or Maintain altitude no longer closes as the pointer reaches it after crossing All Commands or Favorite Commands.
@@ -64,6 +72,8 @@
 - Arriving airliners at SMF and FLL no longer ask for runway or terminal markers as gates, and GA arrivals never ask for an airline gate.
 - A GA arrival with no fitting parking asks ground for "taxi to parking" and waits for the instructor to assign a spot.
 - A route ending at a navaid named like the destination airport, such as SAC for KSAC, now continues direct to the field instead of flying straight on.
+- Scenario arrivals on a STAR ending in radar vectors, such as BRIXX4 into KSJC, fly the published heading at its last fix instead of turning direct to the airport.
+- `DEPART {fix} {heading}` to a fix already on the route flies the route to it, then the heading, instead of going direct.
 - Exported scenarios keep a VFR aircraft's at-or-above or at-or-below altitude (`CM A050`, `CM B050`) instead of a plain or reversed climb or descent.
 - `DCT FOZZY CM 5200` and similar lists no longer swallow `CM` as a fix name, and `ER HS F` now means exit right, then hold short of F.
 - The command bar refuses a bare `AT 5000;`, a malformed `AT` intersection or `AT ,` with the same message the server gives.

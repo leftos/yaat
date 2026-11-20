@@ -1546,7 +1546,7 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>The width (ft) of the runway <paramref name="edge"/> is a centreline of, else <see cref="DefaultRunwayWidthFt"/>.</summary>
-    private double RunwayWidthFtOf(IGroundEdge edge)
+    private double RunwayWidthFtOf(GroundEdge edge)
     {
         foreach (GroundRunway runway in Runways)
         {
@@ -1934,7 +1934,7 @@ public sealed class AirportGroundLayout
     /// the given heading. Walks RWY-prefixed edges and picks the neighbor whose
     /// bearing is closest to the runway heading (within 90°).
     /// </summary>
-    public GroundNode? FindCenterlineNeighborAhead(GroundNode currentNode, TrueHeading runwayHeading, string? runwayDesignator = null)
+    public static GroundNode? FindCenterlineNeighborAhead(GroundNode currentNode, TrueHeading runwayHeading, string? runwayDesignator = null)
     {
         GroundNode? best = null;
         double bestDiff = double.MaxValue;
@@ -2260,7 +2260,7 @@ public sealed class AirportGroundLayout
     /// The centerline nodes an exit search's walk steps through from <paramref name="start"/>: it and each next node ahead
     /// (<see cref="FindCenterlineNeighborAhead"/>), at most <see cref="MaxCenterlineHops"/> of them.
     /// </summary>
-    private GroundNode[] BuildCenterlineChain(GroundNode start, TrueHeading runwayHeading, string runwayDesignator)
+    private static GroundNode[] BuildCenterlineChain(GroundNode start, TrueHeading runwayHeading, string runwayDesignator)
     {
         List<GroundNode> chain = [];
         for (GroundNode? current = start; (current is not null) && (chain.Count < MaxCenterlineHops); )
@@ -3170,7 +3170,7 @@ public sealed class AirportGroundLayout
     /// <param name="comeFromNode">The node the aircraft arrived from (defines "forward").</param>
     /// <param name="exitTaxiwayName">The taxiway the aircraft exited on.</param>
     /// <param name="landingRunwayDesignator">The runway just landed on (e.g. "28L").</param>
-    public (
+    public static (
         GroundNode NearHoldShort,
         GroundNode FarHoldShort,
         string ParallelRunwayId,
@@ -3216,7 +3216,7 @@ public sealed class AirportGroundLayout
     /// <param name="comeFromNode">The node behind it (defines "forward").</param>
     /// <param name="exitTaxiwayName">The taxiway to walk.</param>
     /// <param name="landingRunwayDesignator">The landing runway (e.g. "28R").</param>
-    public (GroundNode NearHoldShort, RunwayIdentifier ParallelRunwayId, List<GroundNode> Path)? FindParallelNearHoldShort(
+    public static (GroundNode NearHoldShort, RunwayIdentifier ParallelRunwayId, List<GroundNode> Path)? FindParallelNearHoldShort(
         GroundNode landingHoldShortNode,
         GroundNode comeFromNode,
         string exitTaxiwayName,
@@ -3237,7 +3237,7 @@ public sealed class AirportGroundLayout
     /// a different runway (the parallel near side). Returns the path [landingHS, …, nearHS] or null
     /// at a dead end, an intervening taxiway intersection, or another landing-runway hold-short.
     /// </summary>
-    private List<GroundNode>? WalkToParallelNearHoldShort(
+    private static List<GroundNode>? WalkToParallelNearHoldShort(
         GroundNode landingHoldShort,
         int comeFromId,
         string exitTaxiwayName,
@@ -3289,7 +3289,7 @@ public sealed class AirportGroundLayout
     /// Returns the path [nearHS, …, farHS], or null at a dead end, a fork, or once the walk passes
     /// <see cref="MaxRunwayCrossingWalkFt"/>.
     /// </summary>
-    internal List<GroundNode>? WalkAcrossToFarHoldShort(
+    internal static List<GroundNode>? WalkAcrossToFarHoldShort(
         GroundNode nearHoldShort,
         int comeFromId,
         string exitTaxiwayName,
@@ -3436,7 +3436,7 @@ public sealed class AirportGroundLayout
     /// only arc edges are seeded; when false, only straight edges. Called in two passes
     /// (arcs first) so arcs claim the visited set before straight shortcuts can.
     /// </summary>
-    private void SeedEdgesFromCluster(
+    private static void SeedEdgesFromCluster(
         List<GroundNode> clusterNodes,
         HashSet<int> visited,
         Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)> queue,
@@ -3561,7 +3561,7 @@ public sealed class AirportGroundLayout
     /// [branch-point, intermediates..., hold-short]. Returns null if no path
     /// to the centerline is found.
     /// </summary>
-    public List<GroundNode>? FindExitPath(GroundNode holdShortNode, string taxiwayName)
+    public static List<GroundNode>? FindExitPath(GroundNode holdShortNode, string taxiwayName)
     {
         const int maxDepth = 15;
         var visited = new HashSet<int> { holdShortNode.Id };
@@ -3856,7 +3856,7 @@ public sealed class AirportGroundLayout
     /// end is the answer: an aircraft lined up there can face either way along the line.
     /// Returns null if no matching taxiway edge exists at the node.
     /// </summary>
-    public double? GetEdgeBearingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
+    public static double? GetEdgeBearingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
     {
         if (GetNearestEdgeBearingForTaxiway(node, taxiwayName, preferredBearing) is not { } bearing)
         {
@@ -3918,7 +3918,7 @@ public sealed class AirportGroundLayout
     /// hops; the other dead-ends in the ramp. Returns false if neither side reaches a movement area.
     /// Used by <c>PUSH $spot</c> (see docs/ground/pushback.md).
     /// </summary>
-    public bool TryGetSpotOutboundHeading(GroundNode spot, out double bearing)
+    public static bool TryGetSpotOutboundHeading(GroundNode spot, out double bearing)
     {
         (double Bearing, string Taxiway)? outbound = FindSpotOutbound(spot);
         bearing = outbound?.Bearing ?? 0;
@@ -3933,7 +3933,7 @@ public sealed class AirportGroundLayout
     /// <param name="spot">The spot node.</param>
     /// <param name="taxiway">The taxiway's name, as its edge carries it.</param>
     /// <returns>Whether the spot has an outbound side.</returns>
-    public bool TryGetSpotOutboundTaxiway(GroundNode spot, out string taxiway)
+    public static bool TryGetSpotOutboundTaxiway(GroundNode spot, out string taxiway)
     {
         (double Bearing, string Taxiway)? outbound = FindSpotOutbound(spot);
         taxiway = outbound?.Taxiway ?? string.Empty;
@@ -4070,7 +4070,7 @@ public sealed class AirportGroundLayout
     /// aircraft can roll clear of the runway surface. Follows the non-runway edge
     /// whose heading is closest to the aircraft's exit bearing.
     /// </summary>
-    public GroundNode? FindClearNode(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
+    public static GroundNode? FindClearNode(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
     {
         GroundNode? best = null;
         double bestDiff = double.MaxValue;

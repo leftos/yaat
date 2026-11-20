@@ -1156,7 +1156,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
             GroundViewModel.CategoryFor(target),
             GroundViewModel.WakeClassFor(target)
         )[0];
-        string lastTaxiway = main.Ground.GetTaxiwayDisplayName(route).Split(' ')[^1];
+        string lastTaxiway = GroundViewModel.GetTaxiwayDisplayName(route).Split(' ')[^1];
 
         Assert.Equal("At W1", GroundViewModel.EntryName("W1", route));
         Assert.Equal($"At {lastTaxiway}", GroundViewModel.EntryName(null, route));

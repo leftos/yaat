@@ -152,7 +152,7 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
     /// which its IAS first settles to Vref. <paramref name="explicitGate"/> pre-sets the stored reach
     /// gate; when null, the phase resolves it from <paramref name="varietyEnabled"/>.
     /// </summary>
-    private double DistanceAtWhichFasReached(double? explicitGate, bool varietyEnabled, string callsign = "UAL999")
+    private static double DistanceAtWhichFasReached(double? explicitGate, bool varietyEnabled, string callsign = "UAL999")
     {
         RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",

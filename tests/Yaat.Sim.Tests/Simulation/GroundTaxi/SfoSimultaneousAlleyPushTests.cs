@@ -163,7 +163,7 @@ public class SfoSimultaneousAlleyPushTests
             return;
         }
 
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "SFO layout gives spot 5A no outbound heading");
+        Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "SFO layout gives spot 5A no outbound heading");
         double pushDirDeg = new TrueHeading(outboundDeg).ToReciprocal().Degrees;
 
         AircraftState pusher = MakePushing("PSHA", NorthType, spot.Position, pushDirDeg);
@@ -210,7 +210,7 @@ public class SfoSimultaneousAlleyPushTests
             return;
         }
 
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "SFO layout gives spot 5A no outbound heading");
+        Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "SFO layout gives spot 5A no outbound heading");
         double pushDirDeg = new TrueHeading(outboundDeg).ToReciprocal().Degrees;
 
         // Same push direction, one lane over, the far one StaggerFt further down the alley: the lead is
@@ -357,7 +357,7 @@ public class SfoSimultaneousAlleyPushTests
         );
 
         Assert.True(
-            ground.Layout.TryGetSpotOutboundHeading(spot, out double outboundDeg),
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outboundDeg),
             $"SFO layout gives the {callsign} spot no outbound heading"
         );
         double headingErrDeg = new TrueHeading(outboundDeg).AbsAngleTo(ac.TrueHeading);

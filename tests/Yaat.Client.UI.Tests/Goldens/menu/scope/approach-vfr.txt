@@ -141,6 +141,8 @@ All Commands
       Report when… · N305AB · RWY 28R [disabled]
       Mile final — ···
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
       Reporting points · nearest first [disabled]
       VPCSH · 2.0 NM · 062° — REPORT VPCSH
       VPXES · 2.5 NM · 354° — REPORT VPXES

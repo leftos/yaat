@@ -2,8 +2,9 @@
 
 > Reference: the baselines, method and the TUnit verdict (do not migrate) stay; the three open follow-ups at the end are not scheduled. Profiling itself is the `dotnet-test-suite-profiling` skill.
 
-Current baseline (2026-09-04, Release, 16 cores, quiet machine, median of 3 — measured by
-`tools/measure-test-loop.ps1`):
+**Gate ceilings come from routed runs.** Gated `dotnet test` runs route to a builder, so the full-suite ceilings are measured there: three routed `--slot heavy` runs of `dotnet test <solution> -c Release` per repo after one warm-up, ceiling about 3x the median load-adjusted seconds. yaat measured a median of 218 s on builder@mac-mini (ceiling 660 s); yaat-server 133 s on builder@leftos-buildbox (ceiling 400 s).
+
+The table below is a builder-independent figure from this PC (2026-09-04, Release, 16 cores, quiet machine, median of 3, `tools/measure-test-loop.ps1`); it no longer sets any ceiling.
 
 | | |
 |---|---|

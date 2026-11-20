@@ -207,7 +207,7 @@ public class CustomProcedureResolutionTests
             string? starId;
             using (NavigationDatabase.ScopedOverride(new NavigationDatabase(navData, fullCifp, artccsBaseDir: "", supplementaryCifpFilePaths: [])))
             {
-                starId = NavigationDatabase.Instance.GetStars("KOAK").FirstOrDefault()?.ProcedureId;
+                starId = NavigationDatabase.Instance.GetStars("KOAK") is [var star, ..] ? star.ProcedureId : null;
             }
 
             if (starId is null)
@@ -253,7 +253,7 @@ public class CustomProcedureResolutionTests
             string? approachId;
             using (NavigationDatabase.ScopedOverride(new NavigationDatabase(navData, fullCifp, artccsBaseDir: "", supplementaryCifpFilePaths: [])))
             {
-                approachId = NavigationDatabase.Instance.GetApproaches("KOAK").FirstOrDefault()?.ApproachId;
+                approachId = NavigationDatabase.Instance.GetApproaches("KOAK") is [var approach, ..] ? approach.ApproachId : null;
             }
 
             if (approachId is null)

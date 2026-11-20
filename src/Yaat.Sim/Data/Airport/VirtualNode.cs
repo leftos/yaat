@@ -106,7 +106,7 @@ public static class VirtualNode
     /// </summary>
     public static TaxiRouteSegment CreateSegment(GroundNode fromNode, GroundNode toNode, string taxiwayName)
     {
-        IGroundEdge edge = CreateEdge(fromNode, toNode, taxiwayName);
+        GroundEdge edge = CreateEdge(fromNode, toNode, taxiwayName);
         return new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = edge.Directed(fromNode, toNode) };
     }
 

@@ -86,7 +86,7 @@ public class IdlePhaseQueueAdvanceTests
         return ac;
     }
 
-    private void TickUntil(SimulationEngine engine, int maxSeconds, System.Func<bool> done)
+    private static void TickUntil(SimulationEngine engine, int maxSeconds, System.Func<bool> done)
     {
         for (int t = 0; (t < maxSeconds) && !done(); t++)
         {
@@ -692,7 +692,7 @@ public class IdlePhaseQueueAdvanceTests
     }
 
     /// <summary>Pushes <see cref="AddParked"/>'s aircraft back and ticks it into the idle post-pushback hold.</summary>
-    private AircraftState PushedBack(SimulationEngine engine)
+    private static AircraftState PushedBack(SimulationEngine engine)
     {
         AircraftState ac = AddParked(engine);
         CommandResult push = engine.SendCommand(ac.Callsign, "PUSH");
@@ -706,7 +706,7 @@ public class IdlePhaseQueueAdvanceTests
     /// Pushes back with <c>HS B, TAXIAUTO 30</c> chained behind the push: the post-pushback hold rejects the leading
     /// hold-short, so the block stays queued there (see <see cref="HoldShortBeforeTaxi_StaysQueued"/>).
     /// </summary>
-    private AircraftState PushedBackWithHeldChain(SimulationEngine engine)
+    private static AircraftState PushedBackWithHeldChain(SimulationEngine engine)
     {
         AircraftState ac = AddParked(engine);
         CommandResult push = engine.SendCommand(ac.Callsign, "PUSH; HS B, TAXIAUTO 30");

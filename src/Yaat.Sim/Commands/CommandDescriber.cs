@@ -432,8 +432,8 @@ public static class CommandDescriber
             return CommandDimension.Vertical | (crossFix.Speed is not null ? CommandDimension.Speed : CommandDimension.None);
         }
 
-        // DepartFix does replace the route (DispatchDepartFix clears NavigationRoute and installs the single fix plus a
-        // departure heading), so it stays lateral.
+        // DepartFix does replace the route (DispatchDepartFix ends the route at the fix, or installs the fix alone when it is not
+        // on the route, plus a departure heading), so it stays lateral.
         if (command is DepartFixCommand)
         {
             return CommandDimension.Lateral | CommandDimension.Vertical;
@@ -2652,7 +2652,7 @@ public static class CommandDescriber
     /// terminal canonical round-trips the hints through the server's <c>ParseTaxiTokens</c>. Returns the
     /// bare path unchanged when no taxiway carries a hint.
     /// </summary>
-    private static IReadOnlyList<string> TaxiPathTokensWithHints(TaxiCommand taxi)
+    private static List<string> TaxiPathTokensWithHints(TaxiCommand taxi)
     {
         List<TurnDirection?>? hints = taxi.PathTurnHints;
         if (hints is null)
@@ -2985,6 +2985,8 @@ public static class CommandDescriber
             ReportTrigger.Midfield => "REPORT MIDFIELD",
             ReportTrigger.MileFinal => $"REPORT {cmd.DistanceNm} FINAL",
             ReportTrigger.AtFix => $"REPORT {cmd.FixName}",
+            ReportTrigger.ReachingAltitude => $"REPORT REACHING {cmd.AltitudeFt}",
+            ReportTrigger.LeavingAltitude => $"REPORT LEAVING {cmd.AltitudeFt}",
             ReportTrigger.Cancel => cmd.CancelTarget switch
             {
                 ReportTrigger.MileFinal => $"REPORT OFF {cmd.DistanceNm} FINAL",
@@ -3005,6 +3007,8 @@ public static class CommandDescriber
             ReportTrigger.Midfield => "Report midfield downwind",
             ReportTrigger.MileFinal => $"Report {cmd.DistanceNm}-mile final",
             ReportTrigger.AtFix => $"Report at {cmd.FixName}",
+            ReportTrigger.ReachingAltitude => $"Report reaching {cmd.AltitudeFt:N0}",
+            ReportTrigger.LeavingAltitude => $"Report leaving {cmd.AltitudeFt:N0}",
             ReportTrigger.Cancel => cmd.CancelTarget switch
             {
                 ReportTrigger.MileFinal => $"Cancel {cmd.DistanceNm}-mile final report",

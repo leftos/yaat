@@ -986,7 +986,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
     /// (<see cref="TaxiingPhase.HeldOnRunwayEnd"/>).
     /// </summary>
     private static string? HeldOnRunwayEnd(AircraftState aircraft) =>
-        (aircraft.Phases?.CurrentPhase as TaxiingPhase)?.HeldOnRunwayEnd(aircraft, ActiveRunways.Empty);
+        (aircraft.Phases?.CurrentPhase is TaxiingPhase) ? TaxiingPhase.HeldOnRunwayEnd(aircraft, ActiveRunways.Empty) : null;
 
     /// <summary>
     /// How far (ft) from the bar's node the makeable case is issued: the painted stop at the middle of the window

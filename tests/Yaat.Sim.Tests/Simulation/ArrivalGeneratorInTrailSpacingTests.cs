@@ -907,7 +907,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     private static double AlongFinalNm(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout) =>
         RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, layout);
 
-    private SimulationEngine? LoadOakEngine()
+    private static SimulationEngine? LoadOakEngine()
     {
         if (!File.Exists(ScenarioPath))
         {

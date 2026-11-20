@@ -128,10 +128,9 @@ public static partial class GroundCommandHandler
     /// The names <see cref="RouteCostFunction.ResolveTaxiwayName"/> can give <paramref name="edge"/>: a junction arc's two
     /// taxiways, else the edge's own name.
     /// </summary>
-    private static IEnumerable<string> RouteNames(IGroundEdge edge) =>
-        edge is GroundArc { TaxiwayNames.Length: 2 } arc ? arc.TaxiwayNames : [edge.TaxiwayName];
+    private static string[] RouteNames(IGroundEdge edge) => edge is GroundArc { TaxiwayNames.Length: 2 } arc ? arc.TaxiwayNames : [edge.TaxiwayName];
 
     /// <summary>Whether a taxiway the clearance names — its path, or a hold-short's taxiway or target — lies on the reach.</summary>
-    private static bool PathTouchesReach(TaxiCommand taxi, IReadOnlySet<string> reachable) =>
+    private static bool PathTouchesReach(TaxiCommand taxi, HashSet<string> reachable) =>
         taxi.Path.Any(reachable.Contains) || taxi.HoldShorts.Any(hold => reachable.Contains(hold.OnTaxiway ?? hold.Target));
 }

@@ -76,7 +76,7 @@ public static partial class GroundCommandHandler
         crossing
             .NearBar.Edges.Where(edge => edge.MatchesTaxiway(crossing.Taxiway))
             .Select(edge =>
-                crossing.Layout.WalkAcrossToFarHoldShort(crossing.NearBar, edge.OtherNodeId(crossing.NearBar.Id), crossing.Taxiway, runwayId)
+                AirportGroundLayout.WalkAcrossToFarHoldShort(crossing.NearBar, edge.OtherNodeId(crossing.NearBar.Id), crossing.Taxiway, runwayId)
             )
             .FirstOrDefault(path => path is not null);
 
@@ -128,7 +128,7 @@ public static partial class GroundCommandHandler
         bool noRoute = aircraft.Phases?.TaxiRoute is null;
         return aircraft.Phases?.CurrentPhase switch
         {
-            RunwayExitPhase exit when noRoute => TryPreClearDuringExit(aircraft, exit, cross, groundLayout),
+            RunwayExitPhase exit when noRoute => TryPreClearDuringExit(aircraft, exit, cross),
             LandingPhase when noRoute => PreClearOnRollout(aircraft, cross),
             _ => TryCrossFromStandingBar(aircraft, cross, groundLayout, activeRunways),
         };
@@ -162,12 +162,7 @@ public static partial class GroundCommandHandler
     /// stored, when it leads to no crossing of it. Before the exit is chosen it is taken as on the rollout (null when that does not
     /// apply).
     /// </summary>
-    private static CommandResult? TryPreClearDuringExit(
-        AircraftState aircraft,
-        RunwayExitPhase exit,
-        CrossRunwayCommand cross,
-        AirportGroundLayout layout
-    )
+    private static CommandResult? TryPreClearDuringExit(AircraftState aircraft, RunwayExitPhase exit, CrossRunwayCommand cross)
     {
         string target = cross.RunwayIds[0];
         string display = RunwayIdentifier.ToDisplayDesignator(target);
@@ -178,7 +173,7 @@ public static partial class GroundCommandHandler
                 : PreClearOnRollout(aircraft, cross);
         }
 
-        RunwayIdentifier? ahead = exit.ParallelRunwayAhead(layout);
+        RunwayIdentifier? ahead = exit.ParallelRunwayAhead();
         if ((ahead is null) || !ahead.Value.Contains(target))
         {
             Log.LogDebug("{Callsign}: CROSS {Rwy} refused in the exit: {Twy} leads to {Ahead}", aircraft.Callsign, display, taxiway, ahead);

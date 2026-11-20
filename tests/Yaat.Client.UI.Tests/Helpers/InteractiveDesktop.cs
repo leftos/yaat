@@ -10,7 +10,7 @@ namespace Yaat.Client.UI.Tests.Helpers;
 /// <see cref="Describe"/>, a pure function the unit tests cover directly, because a real headless run cannot be automated
 /// here.
 /// </summary>
-public static class InteractiveDesktop
+public static partial class InteractiveDesktop
 {
     private const int UoiFlags = 1;
     private const uint WsfVisible = 1;
@@ -137,24 +137,25 @@ public static class InteractiveDesktop
         public uint Flags;
     }
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ProcessIdToSessionId(uint processId, out uint sessionId);
+    private static partial bool ProcessIdToSessionId(uint processId, out uint sessionId);
 
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentProcessId();
+    [LibraryImport("kernel32.dll")]
+    private static partial uint GetCurrentProcessId();
 
-    [DllImport("user32.dll")]
-    private static extern nint GetProcessWindowStation();
+    [LibraryImport("user32.dll")]
+    private static partial nint GetProcessWindowStation();
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    // CharSet.Unicode without ExactSpelling bound the W export, which LibraryImport has to name.
+    [LibraryImport("user32.dll", EntryPoint = "GetUserObjectInformationW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetUserObjectInformation(nint handle, int index, out UserObjectFlags info, int length, out uint lengthNeeded);
+    private static partial bool GetUserObjectInformation(nint handle, int index, out UserObjectFlags info, int length, out uint lengthNeeded);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern nint OpenInputDesktop(uint flags, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint desiredAccess);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    private static partial nint OpenInputDesktop(uint flags, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint desiredAccess);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseDesktop(nint desktop);
+    private static partial bool CloseDesktop(nint desktop);
 }

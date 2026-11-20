@@ -855,8 +855,8 @@ public class TaxiToRunwayFlyoutTests
         new(designator, runway, role, TaxiToRunwayEndState.NotSearched, []);
 
     /// <summary>A searched end: Ready with <paramref name="rows"/>, Empty without.</summary>
-    private static TaxiToRunwayEnd End(string designator, RunwayIdentifier runway, TaxiToRunwayEndRole role, IReadOnlyList<TaxiRouteRow> rows) =>
-        new(designator, runway, role, (rows.Count > 0) ? TaxiToRunwayEndState.Ready : TaxiToRunwayEndState.Empty, rows);
+    private static TaxiToRunwayEnd End(string designator, RunwayIdentifier runway, TaxiToRunwayEndRole role, TaxiRouteRow[] rows) =>
+        new(designator, runway, role, (rows.Length > 0) ? TaxiToRunwayEndState.Ready : TaxiToRunwayEndState.Empty, rows);
 
     /// <summary>
     /// A runway entry to <paramref name="end"/> named <paramref name="name"/> along <paramref name="taxiways"/>, nearest,
@@ -1049,7 +1049,7 @@ public class TaxiToRunwayFlyoutTests
     }
 
     /// <summary>The tab's own view: the strip's descendant named for assistive technology by <paramref name="label"/>.</summary>
-    private static Control TabView(TaxiToRunwayPanel panel, string label) =>
+    private static Border TabView(TaxiToRunwayPanel panel, string label) =>
         panel.Strip.GetVisualDescendants().OfType<Border>().First(border => Avalonia.Automation.AutomationProperties.GetName(border) == label);
 
     /// <summary>Presses the left button at the centre of the tab shown as <paramref name="label"/>.</summary>

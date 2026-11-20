@@ -13,7 +13,7 @@ namespace Yaat.Sim.Data.Airport;
 /// Expects features with properties.type = "parking" | "taxiway" | "spot" | "runway".
 /// Coordinates are [lon, lat] per GeoJSON spec.
 /// </summary>
-public static class GeoJsonParser
+public static partial class GeoJsonParser
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GeoJsonParser");
 
@@ -35,9 +35,10 @@ public static class GeoJsonParser
     private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
 
     /// <summary>Strips leading zeros from JSON number literals (e.g. 03 → 3) that are invalid per RFC 8259.</summary>
-    private static readonly Regex LeadingZeroRegex = new(@"(?<=[:,\[]\s*)0+(\d)", RegexOptions.Compiled);
+    [GeneratedRegex(@"(?<=[:,\[]\s*)0+(\d)")]
+    private static partial Regex LeadingZeroRegex();
 
-    private static string SanitizeJson(string json) => LeadingZeroRegex.Replace(json, "$1");
+    private static string SanitizeJson(string json) => LeadingZeroRegex().Replace(json, "$1");
 
     /// <summary>
     /// Look a feature property up by key: exact match first, then a case-insensitive scan, since
@@ -1011,7 +1012,7 @@ public static class GeoJsonParser
     /// the zero-pad-normalized designator. Absent, null, or unparseable values yield an empty map,
     /// which <see cref="GroundRunway.ThresholdDisplacementForEnd"/> reads as no displacement.
     /// </summary>
-    private static IReadOnlyDictionary<string, double> ParseThresholdDisplacement(string runwayName, JsonElement props)
+    private static Dictionary<string, double> ParseThresholdDisplacement(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         if (!TryGetPropertyIgnoreCase(props, "threshold", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
@@ -1042,7 +1043,7 @@ public static class GeoJsonParser
     /// Parse the "turnoff" property as a side relative to the first-named end's heading and produce a per-end map.
     /// The second end gets the flipped side so the same physical side of the runway resolves for either landing direction.
     /// </summary>
-    private static IReadOnlyDictionary<string, ExitSide> ParseTurnoff(string runwayName, JsonElement props)
+    private static Dictionary<string, ExitSide> ParseTurnoff(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
         if (!TryGetPropertyIgnoreCase(props, "turnoff", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
@@ -1094,7 +1095,7 @@ public static class GeoJsonParser
     /// Parse noTurnoff: a 2-element array where index 0 corresponds to the first end-designator
     /// in the runway name (e.g. "10L" in "10L - 28R") and index 1 to the second.
     /// </summary>
-    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseNoTurnoff(string runwayName, JsonElement props)
+    private static Dictionary<string, IReadOnlyList<string>> ParseNoTurnoff(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         if (!TryGetPropertyIgnoreCase(props, "noTurnoff", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)

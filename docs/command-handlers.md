@@ -306,8 +306,8 @@ but leaves a queued altitude block alone; mixed-dimension blocks are split via `
 
 **CrossFix is not lateral; DepartFix is.** `DispatchCrossFix` stamps the restriction on the fix when it is already on the route and appends it when it
 is not, leaving every other fix and restriction untouched — so `CFIX` is `Vertical` (plus `Speed` only when a speed was given) and a hand-built
-descend-via chain never cancels the lateral work the aircraft is flying toward. `DispatchDepartFix` does the opposite: it clears `NavigationRoute`,
-installs the single fix, and sets a departure heading, so it stays lateral.
+descend-via chain never cancels the lateral work the aircraft is flying toward. `DispatchDepartFix` does the opposite: it replaces `NavigationRoute` and sets a departure heading, so it stays lateral.
+A fix ahead on the route keeps the route to it: the fixes after it are dropped, and the fix is rebuilt at its route position (keeping its crossing restrictions) rather than moved, so a STAR's published FM course on that terminating leg no longer overrides the heading at the fix (readback "Depart {fix} heading {hdg}"). A fix not on the route clears the route and installs the fix alone, going direct ("Proceed direct {fix}, depart heading {hdg}"). `HOLDP` still goes direct.
 
 **Incoming vs. queued is a different question.** `GetCommandDimension` answers "what does this command seize when it fires" — which is what the
 *incoming* compound is measured by. What a block that is still *waiting in the queue* occupies is `CommandDescriber.GetQueuedCommandDimension`, and

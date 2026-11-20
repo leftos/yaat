@@ -438,7 +438,7 @@ public static class PhraseologyVerbalizer
     /// The candidates of a clause a readback builder renders directly, as <see cref="SpokenCandidates"/> describes; null when
     /// <paramref name="cmd"/> is read back from a rule.
     /// </summary>
-    private static IReadOnlyList<string>? BuilderCandidates(ParsedCommand cmd, AircraftState aircraft, CandidateFilter filter)
+    private static List<string>? BuilderCandidates(ParsedCommand cmd, AircraftState aircraft, CandidateFilter filter)
     {
         if (PilotResponder.HeldCanonicalClause(cmd) is { } held)
         {
@@ -703,7 +703,7 @@ public static class PhraseologyVerbalizer
     /// dictionary. Capture names match the placeholders in <see cref="PhraseologyRules"/> patterns.
     /// Commands without captures return an empty dictionary; their patterns are pure literals.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> ExtractArgs(ParsedCommand cmd, CaptureFormatter fmt) =>
+    private static Dictionary<string, string> ExtractArgs(ParsedCommand cmd, CaptureFormatter fmt) =>
         cmd switch
         {
             // Heading
@@ -784,7 +784,7 @@ public static class PhraseologyVerbalizer
     /// to a runway ends holding short of it and the numbers have to be verified (7110.65 3-11-1.c, AIM 4-4-7.b.4).
     /// A helipad, parking or spot destination yields no capture, so it keeps the bare acknowledgement.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> AirTaxiArgs(AirTaxiCommand atxi, CaptureFormatter fmt)
+    private static Dictionary<string, string> AirTaxiArgs(AirTaxiCommand atxi, CaptureFormatter fmt)
     {
         if ((atxi.TargetKind != AirTaxiTargetKind.Runway) || (atxi.Destination is not { Length: > 0 } destination))
         {
@@ -818,7 +818,7 @@ public static class PhraseologyVerbalizer
     /// capture and reads "taxi to runway …"; one with neither a route nor a runway (a node-ref-only
     /// draw-route debug taxi) yields no captures and is not voiced.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> TaxiArgs(TaxiCommand taxi, CaptureFormatter fmt)
+    private static Dictionary<string, string> TaxiArgs(TaxiCommand taxi, CaptureFormatter fmt)
     {
         var dict = new Dictionary<string, string>();
         string path = fmt.TaxiPath(taxi);
@@ -1537,7 +1537,7 @@ public static class PhraseologyVerbalizer
     /// target ("hold short of …"). A located target adds <c>{hson}</c>, which selects the richer
     /// "… at {hson}" rule variant.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> HoldShortCommandArgs(HoldShortCommand h, CaptureFormatter fmt)
+    private static Dictionary<string, string> HoldShortCommandArgs(HoldShortCommand h, CaptureFormatter fmt)
     {
         if (h.Target.IsSpot)
         {
@@ -1557,17 +1557,17 @@ public static class PhraseologyVerbalizer
         return dict;
     }
 
-    private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };
+    private static Dictionary<string, string> Map(string k, string v) => new() { [k] = v };
 
-    private static IReadOnlyDictionary<string, string> Empty() => new Dictionary<string, string>(0);
+    private static Dictionary<string, string> Empty() => [];
 
     /// <summary>The <c>{alt}</c> capture and its busy group form <c>{alt:group}</c>, both rendered from <paramref name="feet"/>.</summary>
-    private static IReadOnlyDictionary<string, string> AltitudeArgs(int feet, CaptureFormatter fmt) =>
-        new Dictionary<string, string> { ["alt"] = fmt.Altitude(feet), [AltGroup] = fmt.AltitudeGroup(feet) };
+    private static Dictionary<string, string> AltitudeArgs(int feet, CaptureFormatter fmt) =>
+        new() { ["alt"] = fmt.Altitude(feet), [AltGroup] = fmt.AltitudeGroup(feet) };
 
     /// <summary>The <c>{spd}</c> capture and its busy group form <c>{spd:group}</c>, both rendered from <paramref name="knots"/>.</summary>
-    private static IReadOnlyDictionary<string, string> SpeedArgs(int knots, CaptureFormatter fmt) =>
-        new Dictionary<string, string> { ["spd"] = fmt.Speed(knots), [SpdGroup] = fmt.SpeedGroup(knots) };
+    private static Dictionary<string, string> SpeedArgs(int knots, CaptureFormatter fmt) =>
+        new() { ["spd"] = fmt.Speed(knots), [SpdGroup] = fmt.SpeedGroup(knots) };
 
     private const string AltGroup = "alt" + PilotVariant.GroupFormSuffix;
     private const string SpdGroup = "spd" + PilotVariant.GroupFormSuffix;
@@ -1639,7 +1639,7 @@ public static class PhraseologyVerbalizer
             ? PickVariant(cmd, variants, canonical, args, request)
             : new ClauseVerbalization(canonical, OfferedQuietRows: false);
 
-    private static IReadOnlyDictionary<string, string> CrossFixArgs(CrossFixCommand cf, CaptureFormatter fmt)
+    private static Dictionary<string, string> CrossFixArgs(CrossFixCommand cf, CaptureFormatter fmt)
     {
         var dict = new Dictionary<string, string>
         {

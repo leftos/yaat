@@ -619,7 +619,7 @@ public sealed partial class SimulationEngine
         ReportHoldBars(host, facilityId, changed);
     }
 
-    private static void ReportHoldBars(IHostConsumers host, string facilityId, IReadOnlyList<AsdexHoldBarState> changed)
+    private static void ReportHoldBars(IHostConsumers host, string facilityId, List<AsdexHoldBarState> changed)
     {
         if (changed.Count > 0)
         {

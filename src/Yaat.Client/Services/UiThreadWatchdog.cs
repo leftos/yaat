@@ -27,7 +27,7 @@ namespace Yaat.Client.Services;
 /// ordinary work rather than to high-priority render/input frames. Only genuine multi-second stalls
 /// trip it; normal per-frame rendering never does.
 /// </summary>
-public sealed class UiThreadWatchdog : IDisposable
+public sealed partial class UiThreadWatchdog : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<UiThreadWatchdog>();
 
@@ -221,7 +221,8 @@ public sealed class UiThreadWatchdog : IDisposable
             }
 
             Log.LogWarning(
-                "UI thread STALLED: unresponsive ~{StallMs} ms. workingSet={WorkingSetMB}MB managedHeap={ManagedMB}MB memLoad={MemLoadPct:F0}% ({LoadMB}/{AvailMB}MB, highThreshold={HighMB}MB) lastGCPause={LastPauseMs}ms threads={Threads}",
+                "UI thread STALLED: unresponsive ~{StallMs} ms. workingSet={WorkingSetMB}MB managedHeap={ManagedMB}MB "
+                    + "memLoad={MemLoadPct:F0}% ({LoadMB}/{AvailMB}MB, highThreshold={HighMB}MB) lastGCPause={LastPauseMs}ms threads={Threads}",
                 stallMs,
                 workingSetMb,
                 managedMb,
@@ -308,8 +309,8 @@ public sealed class UiThreadWatchdog : IDisposable
         notifier.Start();
     }
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+    [LibraryImport("user32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
     public void Dispose() => _running = false;
 }

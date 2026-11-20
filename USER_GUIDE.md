@@ -83,7 +83,7 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-The **View** menu has three submenus: **Windows** (the pop-outs, new Ground window, new Radar window, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
+The **View** menu has three submenus: **Windows** (the pop-outs, new Ground window, new Radar window, Strips and vTDLS), **Bars** (the favorites bar and panel, the Notes window, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
 
 Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Radar / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** Radar, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item).
 
@@ -215,7 +215,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
-Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
+Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay, Ctrl+Shift+N the Notes window's stamp) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
 
 Window hotkeys need Ctrl or Alt (or an F-key), so they never fire while you type; **Esc** while capturing one cancels the capture.
 
@@ -243,6 +243,7 @@ To the left of the command box, the **active-position selector** shows the [TCP]
 | Ctrl+B | Drop a quick timeline bookmark *(default)* |
 | Ctrl+Shift+L / G / R / E / C / M | Pop out or dock the aircraft list / ground view / Radar / terminal / controllers / METAR *(default)* |
 | Ctrl+Shift+F | Show or hide the favorites bar *(default)* |
+| Ctrl+Shift+N | Stamp the sim time and selected aircraft into the Notes window (only while it is focused; fixed) |
 | Ctrl+, | Open Settings *(default)* |
 | Right Ctrl | Push-to-talk for speech recognition *(default)* |
 
@@ -495,7 +496,7 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
   While a report is armed, the flyout starts with **Stop reporting**: a row per armed report (Turning base, Midfield downwind, `{n}-mile final`, `Passing {FIX}`), each cancelling just that report (`REPORT OFF BASE`, `REPORT OFF MIDFIELD`, `REPORT OFF {n} FINAL`, `REPORT OFF {FIX}`), and **All reports** (`REPORT OFF`).
 
-  The title line reads `Report when… · {callsign} · RWY {rwy}`. For an aircraft in a pattern circuit, rows for Turning crosswind, Turning downwind, Midfield downwind, Turning base and Turning final follow, an armed one badged `armed`. With an assigned runway, **Mile final** has chips 2, 3, 5 and 10 that send at once, and a miles box. **Passing a fix** has a fix box with suggestions.
+  The title line reads `Report when… · {callsign} · RWY {rwy}`. For an aircraft in a pattern circuit, rows for Turning crosswind, Turning downwind, Midfield downwind, Turning base and Turning final follow, an armed one badged `armed`. With an assigned runway, **Mile final** has chips 2, 3, 5 and 10 that send at once, and a miles box. **Passing a fix** has a fix box with suggestions. **Reaching an altitude** and **Leaving an altitude** follow it, each with an altitude box (hundreds `050`, feet `5000` or `5,000`, `FL250`, `18000`): it reads `Pilot: will report reaching 5,000` (`FL250` at or above 18,000 ft) or `Pilot: will report leaving …`, Enter sends `REPORT REACHING 050` or `REPORT LEAVING 050`, text that is no altitude or is under 100 ft is refused `Not a valid altitude`, and a blank box waits. With an altitude already armed, the row's label reads `Reaching an altitude · replaces reaching 5,000`. These two have no row under Stop reporting; **All reports** clears them.
 
   The miles box refuses `Whole miles only` and `1 mile or more` and reads `Pilot: will report {n}-mile final`. The fix box refuses `Not a fix name` and `Not a known fix` (not while you are typing a suggested name) and reads `Pilot: will report passing {FIX}`. A refused box reads `can't send`; Enter in a box sends, and a click on its row only focuses the box.
 
@@ -1663,7 +1664,7 @@ Two flows are supported, mirroring EuroScope's pseudopilot UX:
 
 Headings snap to the nearest **5°** — the visual line, label, and dispatched `FH` value all reflect the same snapped value.
 
-The preview shows a turn-anticipation arc (standard rate, radius derived from current ground speed) curving from the current heading into the new heading, plus a straight line to the cursor and a label `"275M  3.2nm  0:48"` (heading magnetic / distance / ETA at current GS).
+The preview shows a short straight lead along the current heading (the roll-in), then a turn-anticipation arc into the new heading, its radius derived from current ground speed and the aircraft type's own turn rate (a jet's arc is wider than a turboprop's or piston's, a helicopter's tighter); a heading change under 3° or an aircraft at 30 kt or slower draws no arc or lead. The preview also shows a straight line to the cursor and a label `"275M  3.2nm  0:48"` (heading magnetic / distance / ETA at current GS).
 
 **Cancel** at any time with **Esc** or right-click. The mode does not commit any command if cancelled.
 
@@ -1984,6 +1985,8 @@ The FPE shows editable flight plan fields: beacon code, aircraft type, equipment
 The ICAO EQ field takes ICAO flight-plan field-10a equipment codes (e.g., `SDE2E3FGHIJ5M1RWXY`); entering a satcom code (`J5`–`J7` or `M1`–`M3`) lights the aircraft's SATCOMM `*` indicator on ERAM data blocks in CRC.
 
 A cruise speed filed as a Mach number or as classified shows in the SPD box in grey as ERAM writes it (`M078`, `SC`). Leave the box empty to keep it, or type knots to replace it. Edit any field, then click **Amend** to send the changes to the server. The Amend button is only enabled when at least one field differs from the current flight plan.
+
+An aircraft with no flight plan gets no new code from **Recycle beacon**: the editor refuses it with "<callsign> has no flight plan". **Amend** (or **Create**) on such an aircraft files the plan and assigns its code together.
 
 Amending the destination changes the flight plan only, not where the pilot flies: an aircraft whose route runs out still flies direct to the airport it was cleared to. To send the pilot to another airport, use `APT` ([Flight Plan commands](COMMANDS.md#flight-plan)).
 
@@ -2370,7 +2373,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `LA 600` / `LA 6` / `LA KOAK+005` | Restricted low approach (7110.65 3-10-10): the aircraft never goes below the altitude, which must be at least 500 ft above the airport, or the command is refused. From below it climbs to the altitude at its normal rate; from above it descends the glidepath to it and levels. It crosses the threshold level, holds 10 seconds, then climbs out, and never goes around for being too high at the missed approach point. While it is held there, `CLAND`, `TG`, `SG`, `COPT` and `LAHSO` are refused with "unable, too high to land". A three-digit altitude without a leading zero is feet as typed: `LA 600` is 600 ft, unlike `CM 150` (15,000 ft). `LA 6` and `LA 006` are 600, `LA 15` is 1500. It combines with the traffic tail (`LA 600 MLT 28L 15`, where the tail keeps its own pattern altitude), and carries through a queued pattern entry and a `FOLLOW` join. |
 | `CLANDF` | Force landing — clears the aircraft and forces it down regardless of energy state, overriding the automatic go-around, or cancelling an in-progress go-around and re-establishing the aircraft on final. It lands and stops on the runway even when issued past the threshold, taking an exit it can make or stopping short of the runway end. Refused ("Unable, past the end of runway") once the aircraft on its approach is past the far end (RPO-only; cancel with `GA` or `CLC`, or vector it off the final) |
 | `CWT` | Caution wake turbulence |
-| `REPORT BASE` | Have the pilot report turning base (repeats each circuit; also `REPORT MIDFIELD` for midfield downwind, `REPORT 5 FINAL`, `REPORT SUNOL`; cancel with `REPORT OFF`, or one report with `REPORT OFF BASE`, `REPORT OFF 5 FINAL` or `REPORT OFF SUNOL`) |
+| `REPORT BASE` | Have the pilot report turning base (repeats each circuit; also `REPORT MIDFIELD` for midfield downwind, `REPORT 5 FINAL`, `REPORT SUNOL`, `REPORT REACHING 050` or `REPORT LEAVING 050` for an altitude; cancel with `REPORT OFF`, or one report with `REPORT OFF BASE`, `REPORT OFF 5 FINAL` or `REPORT OFF SUNOL`) |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
 | `CLBRV` | Cleared through/to enter/out of Bravo airspace |
 | `STBY` | Acknowledge pilot contact without issuing a maneuver |
@@ -3137,6 +3140,12 @@ Favorites are shared with the **Import** and **Export** buttons in the pop-out *
   Replace deletes every favorite and set you have and imports, loading exactly the sets the library had loaded (or the imported set, for a set export) and restoring the library's bar order. Merge keeps your current bar order and puts new sets last.
 
   Merge goes by the favorite's id: a favorite you already have is updated in place and new ones are added. A named set with the same name as one of yours, or with the id of one of yours under another name, is listed with **Skip**, **Overwrite** or **Rename**. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately, turning Global back on if it was off; a Merge that adds buttons to Global turns it on too. A Replace import of a full favorites export also restores whether Global was on.
+
+### Notes
+
+**View > Bars > Notes…** opens a scratch pad for your own notes: one multi-line text box (a second click on the menu item brings the window forward). **Stamp**, or **Ctrl+Shift+N** while the window is focused, inserts the sim time and the selected aircraft at the cursor, such as `[75:05 N123AB] `, or `[75:05] ` when no aircraft is selected; with no scenario loaded **Stamp** is disabled. **Copy all** copies the text; **Clear** asks first, then empties the box (there is no undo).
+
+The text is saved to `%LOCALAPPDATA%/yaat/notes.txt` a second after you stop typing and when the window closes. It survives a restart and loading another scenario, and it is not part of your settings or the Import / Export bundle. The window's position and size are remembered. If a key you set in **Settings › Keys** is already **Ctrl+Shift+N**, Settings names it "Notes stamp".
 
 ### Command History
 

@@ -17,7 +17,7 @@ public class ScopeFramePtlTests
 {
     private static readonly ScopeViewer EramViewer = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");
 
-    private static IReadOnlySet<string> Ptl(params string[] callsigns) => new HashSet<string>(callsigns, StringComparer.Ordinal);
+    private static HashSet<string> Ptl(params string[] callsigns) => new(callsigns, StringComparer.Ordinal);
 
     private static ScopeFrame Frame(
         ScopeViewer viewer,

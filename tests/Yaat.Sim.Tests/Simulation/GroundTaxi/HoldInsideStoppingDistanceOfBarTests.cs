@@ -637,7 +637,7 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// What <see cref="TaxiingPhase.PastHoldShortPointFt"/> reads at rest against the phase's bar: the start-node measure the hold's
     /// verdict came from (a bar no segment ahead leads to is measured from its point along the segment that leaves its node).
     /// </summary>
-    private string PastHoldShortPointAtRest(Outcome outcome, HoldingShortPhase hold)
+    private static string PastHoldShortPointAtRest(Outcome outcome, HoldingShortPhase hold)
     {
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(outcome.Aircraft.Ground.Layout);
         TaxiRoute route = Assert.IsType<TaxiRoute>(outcome.Aircraft.Ground.AssignedTaxiRoute);

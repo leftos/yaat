@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 
@@ -17,4 +18,8 @@ public sealed record PilotReportRouting(bool SoloTrainingMode, bool RpoShowPilot
     /// <summary>The routing a per-aircraft tick with no phase context reads from the scenario.</summary>
     public static PilotReportRouting From(SimScenarioState scenario) =>
         new(scenario.SoloTrainingMode, scenario.RpoShowPilotSpeech, scenario.StudentPosition, scenario.PilotContacts);
+
+    /// <summary>The routing a command handler reads from its dispatch context, for a pilot answer said at once.</summary>
+    public static PilotReportRouting From(DispatchContext ctx) =>
+        new(ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, ctx.StudentPosition, ctx.PilotContacts);
 }

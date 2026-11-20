@@ -2058,6 +2058,8 @@ public static class CommandRegistry
                     O("Midfield downwind", [L("MIDFIELD")], "Report midfield downwind (each circuit)"),
                     O("N-mile final", [R("miles", "distance NM"), L("FINAL")], "Report n-mile final"),
                     O("At fix", [R("fix", "fix name")], "Report passing the fix"),
+                    O("Reaching altitude", [L("REACHING"), R("altitude", "altitude")], "Report reaching the altitude"),
+                    O("Leaving altitude", [L("LEAVING"), R("altitude", "altitude")], "Report leaving the altitude"),
                     O("Cancel", [R("off", "OFF [leg]")], "Stop a standing report (OFF [leg|MIDFIELD]; bare OFF cancels all)"),
                 ]
             ),

@@ -236,7 +236,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
             twinEngine.TickOneSecond();
         }
 
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "spot 7A has no outbound heading");
+        Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "spot 7A has no outbound heading");
         (LatLon stop, LatLon _) = TugMovePlanner.SpotStopGeometry(spot, outboundDeg, AircraftFootprint.FromType("CRJ2"));
         double offStopFt = GeoMath.DistanceNm(twin.Position, stop) * GeoMath.FeetPerNm;
         double offNoseDeg = new TrueHeading(outboundDeg).AbsAngleTo(twin.TrueHeading);

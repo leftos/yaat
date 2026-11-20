@@ -68,7 +68,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     /// Replay to the clearance, then tick one second at a time, capturing the world at every second the aircraft
     /// spends in <see cref="LineUpPhase"/>. Empty when the fixture is unavailable — the tests skip on that.
     /// </summary>
-    private static IReadOnlyList<StateSnapshotDto> CaptureBand(bool luaw)
+    private static List<StateSnapshotDto> CaptureBand(bool luaw)
     {
         var band = new List<StateSnapshotDto>();
         SessionRecording? recording = LoadRecording();

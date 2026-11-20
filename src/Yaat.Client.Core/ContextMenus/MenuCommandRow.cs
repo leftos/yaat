@@ -178,7 +178,7 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
     /// The name with its detail under it; the detail is handed back for its row's tooltip, as is the name's own text
     /// (<paramref name="nameView"/>).
     /// </summary>
-    private static Control NameView(MenuCommandRow row, out TextBlock nameView, out TextBlock? detailView)
+    private static StackPanel NameView(MenuCommandRow row, out TextBlock nameView, out TextBlock? detailView)
     {
         detailView = null;
         TextBlock name = NameText(row);

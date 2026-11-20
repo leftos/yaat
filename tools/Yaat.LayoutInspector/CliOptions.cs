@@ -629,7 +629,7 @@ public sealed record CliOptions
         || (DistanceFromNodeId is not null)
         || (PathDistanceNodes.Count > 0);
 
-    private static IEnumerable<string> SplitCsv(string s) => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    private static string[] SplitCsv(string s) => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>
     /// Splits a <c>--ticks</c> value into <c>[LABEL=]PATH</c>. The split happens on the first

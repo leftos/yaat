@@ -605,7 +605,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     /// Places this frame's readouts clear of the Scope's blocks, symbols and each other (<see cref="RblReadoutPlacement"/>),
     /// keeping each slot's spot for the next frame. Returns each readout's rect by slot.
     /// </summary>
-    private IReadOnlyDictionary<int, SKRect> PlaceRblReadouts(ScopeFrame frame, IReadOnlyList<ResolvedRbl> lines, ResolvedRbl? pending)
+    private Dictionary<int, SKRect> PlaceRblReadouts(ScopeFrame frame, IReadOnlyList<ResolvedRbl> lines, ResolvedRbl? pending)
     {
         List<RblReadout> readouts = RangeBearingRenderer.BuildReadouts(lines, pending, Viewport, _rblMeasureFont);
         if (readouts.Count == 0)

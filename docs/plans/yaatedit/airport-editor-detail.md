@@ -1,4 +1,6 @@
-# Yaat.AirportEditor — Standalone Airport GeoJSON Editor
+# Airport editor detail (YAATEdit milestone M4)
+
+The feature model, menus, canvas modes and undo actions below carry into milestone M4 of [README.md](README.md). Its standalone `Yaat.AirportEditor` project and copied canvas classes do not: the Airport Editor is a window in `Yaat.Client` on the client's own `MapCanvasBase` (README.md, Decisions).
 
 ## Context
 

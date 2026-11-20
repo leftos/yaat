@@ -115,7 +115,6 @@ dotnet_diagnostic.CA1036.severity = suggestion
 dotnet_diagnostic.CA1050.severity = suggestion
 dotnet_diagnostic.CA1305.severity = suggestion
 dotnet_diagnostic.CA1310.severity = suggestion
-dotnet_diagnostic.CA1507.severity = suggestion
 dotnet_diagnostic.CA1711.severity = suggestion
 dotnet_diagnostic.CA1716.severity = suggestion
 dotnet_diagnostic.CA1720.severity = suggestion
@@ -123,16 +122,12 @@ dotnet_diagnostic.CA1725.severity = suggestion
 dotnet_diagnostic.CA1805.severity = suggestion
 dotnet_diagnostic.CA1806.severity = suggestion
 dotnet_diagnostic.CA1816.severity = suggestion
-dotnet_diagnostic.CA1822.severity = suggestion
-dotnet_diagnostic.CA1826.severity = suggestion
 dotnet_diagnostic.CA1836.severity = suggestion
 dotnet_diagnostic.CA1844.severity = suggestion
 dotnet_diagnostic.CA1847.severity = suggestion
 dotnet_diagnostic.CA1848.severity = suggestion
 dotnet_diagnostic.CA1852.severity = suggestion
 dotnet_diagnostic.CA1854.severity = suggestion
-dotnet_diagnostic.CA1859.severity = suggestion
-dotnet_diagnostic.CA1861.severity = suggestion
 dotnet_diagnostic.CA1862.severity = suggestion
 dotnet_diagnostic.CA1865.severity = suggestion
 dotnet_diagnostic.CA1866.severity = suggestion
@@ -146,6 +141,15 @@ dotnet_diagnostic.CA2201.severity = suggestion
 dotnet_diagnostic.CA2249.severity = suggestion
 dotnet_diagnostic.CA2263.severity = suggestion
 dotnet_diagnostic.CA5351.severity = suggestion
+
+# Raised to warning by their YAAT-116 part.
+dotnet_diagnostic.CA1507.severity = warning
+dotnet_diagnostic.CA1822.severity = warning
+dotnet_diagnostic.CA1826.severity = warning
+dotnet_diagnostic.CA1859.severity = warning
+dotnet_diagnostic.CA1861.severity = warning
+dotnet_diagnostic.SYSLIB1045.severity = warning
+dotnet_diagnostic.SYSLIB1054.severity = warning
 
 # Test method names use underscores (Method_Condition_Result).
 [tests/**.cs]
@@ -172,6 +176,10 @@ dotnet_diagnostic.CS8618.severity = none
 # Every rule the [*.cs] section pins individually, since a pinned rule outranks the blanket default above.
 # IDE0005 too: the task compile has no implicit usings, so usings the test compile sees as unused are needed there.
 dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.CA1507.severity = none
+dotnet_diagnostic.CA1826.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.SYSLIB1045.severity = none
 dotnet_diagnostic.IDE0007.severity = none
 dotnet_diagnostic.IDE0008.severity = none
 dotnet_diagnostic.IDE0011.severity = none

@@ -155,7 +155,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
             string? starId;
             using (NavigationDatabase.ScopedOverride(new NavigationDatabase(navData, withStar, artccsBaseDir: "", supplementaryCifpFilePaths: [])))
             {
-                starId = NavigationDatabase.Instance.GetStars("KOAK").FirstOrDefault()?.ProcedureId;
+                starId = NavigationDatabase.Instance.GetStars("KOAK") is [var star, ..] ? star.ProcedureId : null;
             }
 
             if (starId is null)

@@ -2574,12 +2574,12 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private ParallelCrossingPlan? PlanParallelCrossing(PhaseContext ctx)
     {
-        if (!PullsUp(ctx) || (ctx.GroundLayout is not { } layout) || (HoldTaxiway is not { } holdTaxiway))
+        if (!PullsUp(ctx) || (ctx.GroundLayout is null) || (HoldTaxiway is not { } holdTaxiway))
         {
             return null;
         }
 
-        if ((FindParallelCrossingFromExit(layout, holdTaxiway) is not { } xing) || !PullsUpTo(ctx, xing.ParallelRunwayId))
+        if ((FindParallelCrossingFromExit(holdTaxiway) is not { } xing) || !PullsUpTo(ctx, xing.ParallelRunwayId))
         {
             return null;
         }
@@ -2605,9 +2605,9 @@ public sealed class RunwayExitPhase : Phase
     /// The parallel runway the chosen exit leads across: the one its taxiway reaches with no taxiway between (the pull-up's), or the
     /// one whose bar a too-short crossover stops the nose at. Null before the exit is chosen or when it leads to none.
     /// </summary>
-    internal RunwayIdentifier? ParallelRunwayAhead(AirportGroundLayout layout)
+    internal RunwayIdentifier? ParallelRunwayAhead()
     {
-        if ((HoldTaxiway is { } holdTaxiway) && (FindParallelCrossingFromExit(layout, holdTaxiway) is { } xing))
+        if ((HoldTaxiway is { } holdTaxiway) && (FindParallelCrossingFromExit(holdTaxiway) is { } xing))
         {
             return RunwayIdentifier.Parse(xing.ParallelRunwayId);
         }
@@ -2695,14 +2695,14 @@ public sealed class RunwayExitPhase : Phase
         string ParallelRunwayId,
         List<GroundNode> PullUpPath,
         List<GroundNode> CrossingPath
-    )? FindParallelCrossingFromExit(AirportGroundLayout layout, string holdTaxiway)
+    )? FindParallelCrossingFromExit(string holdTaxiway)
     {
         if ((_holdShortNode is null) || (_runwayId is null) || (_exitPath is not { Count: >= 2 } exitPath))
         {
             return null;
         }
 
-        return layout.FindParallelRunwayCrossing(_holdShortNode, exitPath[^2], holdTaxiway, _runwayId);
+        return AirportGroundLayout.FindParallelRunwayCrossing(_holdShortNode, exitPath[^2], holdTaxiway, _runwayId);
     }
 
     /// <summary>

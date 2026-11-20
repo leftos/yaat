@@ -556,7 +556,7 @@ public partial class MainWindow : Window
     /// renders. Whitespace and empty lines are ignored. Lines without a colon are skipped silently
     /// so the user can paste comments or partial input without breaking the parse.
     /// </summary>
-    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseAvailableRunways(string? raw)
+    private static Dictionary<string, IReadOnlyList<string>> ParseAvailableRunways(string? raw)
     {
         var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(raw))
@@ -592,7 +592,7 @@ public partial class MainWindow : Window
     /// one entry per line, <c>"CALLSIGN: AIRPORT"</c> or <c>"CALLSIGN -&gt; AIRPORT"</c>. Lines
     /// without a separator are skipped silently.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> ParseAircraftDestinations(string? raw)
+    private static Dictionary<string, string> ParseAircraftDestinations(string? raw)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(raw))

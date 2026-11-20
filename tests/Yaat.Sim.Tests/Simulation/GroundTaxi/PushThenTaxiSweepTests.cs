@@ -374,7 +374,7 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
             _ => throw new ArgumentOutOfRangeException(nameof(airport), airport, "no field elevation for this airport"),
         };
 
-    private static IReadOnlyList<object[]> BuildAllCases()
+    private static List<object[]> BuildAllCases()
     {
         TestVnasData.EnsureInitialized();
         var envelopes = DesignGroupEnvelopes.LoadShipped();
@@ -433,7 +433,7 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
 
         foreach (GroundNode spot in laneNodes.Where(n => n.Type == GroundNodeType.Spot))
         {
-            if (layout.TryGetSpotOutboundTaxiway(spot, out string outbound) && IsTaxiableMovementArea(classification, outbound))
+            if (AirportGroundLayout.TryGetSpotOutboundTaxiway(spot, out string outbound) && IsTaxiableMovementArea(classification, outbound))
             {
                 meeting.Add(outbound);
             }

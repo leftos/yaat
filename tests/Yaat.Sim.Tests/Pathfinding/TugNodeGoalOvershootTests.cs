@@ -353,7 +353,9 @@ public class TugNodeGoalOvershootTests
     private static TugGoal? NoHeadingGoal(AirportGroundLayout layout)
     {
         GroundNode? spot = layout
-            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) && (n.Name is not null) && !layout.TryGetSpotOutboundHeading(n, out _))
+            .Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.Spot) && (n.Name is not null) && !AirportGroundLayout.TryGetSpotOutboundHeading(n, out _)
+            )
             .MinBy(n => n.Name, StringComparer.Ordinal);
         if (spot is not null)
         {

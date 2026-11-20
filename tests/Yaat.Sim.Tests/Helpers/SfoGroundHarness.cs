@@ -451,9 +451,9 @@ internal static class SfoGroundHarness
         return node;
     }
 
-    private static string FormatExpected(IReadOnlyList<(string Target, HoldShortReason Reason, bool Cleared)> expected)
+    private static string FormatExpected((string Target, HoldShortReason Reason, bool Cleared)[] expected)
     {
-        if (expected.Count == 0)
+        if (expected.Length == 0)
         {
             return "(none)";
         }
@@ -461,18 +461,15 @@ internal static class SfoGroundHarness
         return string.Join("; ", expected.Select(e => $"{e.Target}:{e.Reason}{(e.Cleared ? ":cleared" : "")}"));
     }
 
-    private static bool HoldShortsMatch(
-        IReadOnlyList<HoldShortPoint> actual,
-        IReadOnlyList<(string Target, HoldShortReason Reason, bool Cleared)> expected
-    )
+    private static bool HoldShortsMatch(List<HoldShortPoint> actual, (string Target, HoldShortReason Reason, bool Cleared)[] expected)
     {
-        if (actual.Count != expected.Count)
+        if (actual.Count != expected.Length)
         {
             return false;
         }
 
         int i = 0;
-        while (i < expected.Count)
+        while (i < expected.Length)
         {
             if (expected[i].Reason != HoldShortReason.RunwayCrossing)
             {
@@ -500,10 +497,10 @@ internal static class SfoGroundHarness
     private static bool HoldShortMatchesExpectation(HoldShortPoint actual, (string Target, HoldShortReason Reason, bool Cleared) expected) =>
         (actual.Reason == expected.Reason) && (actual.IsCleared == expected.Cleared) && HoldShortMatches(actual, expected.Target);
 
-    private static int ExpectedCrossingRunEnd(IReadOnlyList<(string Target, HoldShortReason Reason, bool Cleared)> expected, int start)
+    private static int ExpectedCrossingRunEnd((string Target, HoldShortReason Reason, bool Cleared)[] expected, int start)
     {
         int end = start;
-        while ((end < expected.Count) && (expected[end].Reason == HoldShortReason.RunwayCrossing))
+        while ((end < expected.Length) && (expected[end].Reason == HoldShortReason.RunwayCrossing))
         {
             end++;
         }
@@ -511,7 +508,7 @@ internal static class SfoGroundHarness
         return end;
     }
 
-    private static int ActualCrossingRunEnd(IReadOnlyList<HoldShortPoint> actual, int start)
+    private static int ActualCrossingRunEnd(List<HoldShortPoint> actual, int start)
     {
         int end = start;
         while ((end < actual.Count) && (actual[end].Reason == HoldShortReason.RunwayCrossing))
@@ -523,8 +520,8 @@ internal static class SfoGroundHarness
     }
 
     private static bool CrossingRunMatches(
-        IReadOnlyList<HoldShortPoint> actual,
-        IReadOnlyList<(string Target, HoldShortReason Reason, bool Cleared)> expected,
+        List<HoldShortPoint> actual,
+        (string Target, HoldShortReason Reason, bool Cleared)[] expected,
         int start,
         int end
     )

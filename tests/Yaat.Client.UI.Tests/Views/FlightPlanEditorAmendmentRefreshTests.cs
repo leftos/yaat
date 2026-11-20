@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.Views;
 
@@ -29,7 +30,7 @@ public class FlightPlanEditorAmendmentRefreshTests
 
     private static FlightPlanEditorWindow Open(AircraftModel ac, Action<string, FlightPlanAmendment>? onAmend = null)
     {
-        var window = new FlightPlanEditorWindow(ac, onAmend ?? ((_, _) => { }), _ => Task.CompletedTask);
+        var window = new FlightPlanEditorWindow(ac, onAmend ?? ((_, _) => { }), _ => Task.FromResult(new CommandResultDto(true, null)));
         window.ShowAndRunLayout();
         return window;
     }

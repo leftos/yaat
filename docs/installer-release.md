@@ -50,23 +50,11 @@ Neither is loaded on Intel: Metal is skipped in favour of the CPU backend, and L
 
 ## Code signing and notarization (macOS)
 
-The macOS `.app` and `.pkg` are signed with Apple Developer ID certificates and
-notarized by Apple, so they launch without a Gatekeeper warning and auto-update
-silently. `vpk pack` drives the whole flow: it codesigns the bundle under the
-hardened runtime with `build/macos/Yaat.Client.entitlements`, submits it to
-`notarytool`, staples the ticket, then repeats for the `.pkg`.
+The macOS `.app` and `.pkg` are signed with Apple Developer ID certificates and notarized by Apple, so they launch without a Gatekeeper warning and auto-update silently. `vpk pack` drives the whole flow: it codesigns the bundle under the hardened runtime with `build/macos/Yaat.Client.entitlements`, submits it to `notarytool`, staples the ticket, then repeats for the `.pkg`.
 
-Signing is **conditional on secrets being present** — exactly like the
-`LMKIT_LICENSE_KEY` fallback. When the `MACOS_*` secrets are not configured (a
-fork, or before setup), the `package-macos` job logs a warning and produces an
-unsigned package that still installs but trips Gatekeeper. Windows and Linux are
-unaffected; Windows installers remain unsigned (SmartScreen still warns).
+Signing is **conditional on secrets being present** — exactly like the `LMKIT_LICENSE_KEY` fallback. When the `MACOS_*` secrets are not configured (a fork, or before setup), the `package-macos` job logs a warning and produces an unsigned package that still installs but trips Gatekeeper. Windows and Linux are unaffected; Windows installers remain unsigned (SmartScreen still warns).
 
-The entitlements file grants the four hardened-runtime keys Microsoft documents
-for self-contained .NET apps (JIT, unsigned executable memory, dyld env vars,
-disabled library validation) plus `com.apple.security.device.audio-input` for
-`AudioCaptureService`. Setting up the certificates and the eight required GitHub
-secrets is a one-time task documented in [`macos-code-signing.md`](macos-code-signing.md).
+The entitlements file grants the four hardened-runtime keys Microsoft documents for self-contained .NET apps (JIT, unsigned executable memory, dyld env vars, disabled library validation) plus `com.apple.security.device.audio-input` for `AudioCaptureService`. Setting up the certificates and the required GitHub secrets is a one-time task documented in [`macos-code-signing.md`](macos-code-signing.md).
 
 ## Auto-update
 
@@ -78,14 +66,14 @@ The check runs automatically five seconds after startup and stays silent unless 
 
 ## CRC install-time configuration
 
-`CrcConfigService` (a C# port of `Setup-CrcEnvironment.ps1`) registers the YAAT server in CRC's `DevEnvironments.json`. It runs during the Velopack install callback via `CrcInstallPrompt`, and skips when CRC is not installed or the entries already exist. It is also reachable later from the Tools > Configure CRC menu.
+`CrcConfigService` (a C# port of `Setup-CrcEnvironment.ps1`) registers the YAAT server in CRC's `DevEnvironments.json`. It runs during the Velopack install callback via `CrcInstallPrompt`, and skips when CRC is not installed or the entries already exist. It is also reachable later from the Tools > Configure CRC Environments menu.
 
 ## Release workflow (`release.yml`)
 
 Triggered only by `workflow_dispatch`, run on a `v*` tag ref (`gh workflow run release.yml --ref v<version>`); a run on any other ref refuses. It mirrors what `release.ps1` does locally. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
-2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body, and uploads both as `changelog.md` and `highlights.md` in the `release-notes` artifact, with `showcase.md` holding a link to the release's feature showcase (`docs/releases/whats-new-<version>.md`) when the tagged commit has one. It fails when the section is missing or has no entries outside Highlights.
+2. **changelog** — runs `tools/release-local/release-notes.sh` (shared with the local route), which extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body, and uploads both as `changelog.md` and `highlights.md` in the `release-notes` artifact, with `showcase.md` holding a link to the release's feature showcase (`docs/releases/whats-new-<version>.md`) when the tagged commit has one. It fails when the section is missing or has no entries outside Highlights.
 3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64` and `linux-x64` (`release-macos.yml` publishes `osx-arm64` and `osx-x64` itself).
 4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
 5. **release** — assembles `release/`, builds `release-body.md` from the `release-notes` files (the showcase link sits below the highlights, and `discord-release.yml` carries it into the announcement) + a download table (failing when `changelog.md` is missing or blank), and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
@@ -115,7 +103,7 @@ A failed or skipped deploy leaves the release as a draft on purpose — publish 
 
 ### Discord announcement
 
-`discord-release.yml` triggers on `release: published`. Both publish paths use the operator's *user* token (the deploy script or a manual `gh release edit --draft=false`), which is not subject to GitHub's workflow-recursion guard, so the event fires and the announcement posts. Do **not** also dispatch `discord-release.yml` by hand on top of a publish — that posts the announcement twice (which is exactly what happened on v0.11.6/v0.11.7).
+`discord-release.yml` triggers on `release: published`. Both publish paths use the operator's *user* token (the deploy script or a manual `gh release edit --draft=false`), which is not subject to GitHub's workflow-recursion guard, so the event fires and the announcement posts. Do **not** also dispatch `discord-release.yml` by hand on top of a publish — that posts the announcement twice.
 
 ## Shipping a release
 
@@ -156,7 +144,4 @@ A `v*` tag push starts no release build, so a missing release run is expected. `
 
 That is why `/prepare-release` pushes `main` and the tag as two separate commands. The installers are unaffected; re-push the branch (or the tag, `git push origin :refs/tags/v{version}` then `git push origin v{version}`) to generate a fresh event for `ci.yml`.
 
-The flow can optionally wait for `deploy-to-droplet.ps1 -WaitForEmptyRooms` before deploying, so an in-progress training session
-isn't disrupted. That flag polls the live server's `/admin/status`; it **can't gate the very release that first ships that endpoint**
-(or any future release-gating endpoint) — the live droplet 404s until the new build is deployed, and the poll treats a 404 as
-"retry, not empty," so it never terminates. Expect this once per new gating endpoint: stop the wait (Ctrl-C) and deploy normally.
+The flow can optionally wait for `deploy-to-droplet.ps1 -WaitForEmptyRooms` before deploying, so an in-progress training session isn't disrupted. That flag polls the live server's `/admin/status`; it **can't gate the very release that first ships that endpoint** (or any future release-gating endpoint) — the live droplet 404s until the new build is deployed, and the poll treats a 404 as "retry, not empty," so it never terminates. Expect this once per new gating endpoint: stop the wait (Ctrl-C) and deploy normally.

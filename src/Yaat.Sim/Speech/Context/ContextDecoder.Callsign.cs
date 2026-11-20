@@ -104,7 +104,7 @@ public static partial class ContextDecoder
         return inSight ? new SightingPattern(spanStart - 3, ContextPhraseWords.InSightBlockers) : null;
     }
 
-    private static bool IsSightingBlocked(IReadOnlyList<SpokenToken> tokens, SightingPattern pattern)
+    private static bool IsSightingBlocked(SpokenToken[] tokens, SightingPattern pattern)
     {
         int from = Math.Max(0, pattern.Start - SightingBlockWindow);
         return Enumerable.Range(from, pattern.Start - from).Any(index => pattern.Blockers.Contains(tokens[index].Text));
@@ -271,7 +271,7 @@ public static partial class ContextDecoder
     {
         HeardText heard = scan.Heard;
         DecoderSettings settings = scan.Call.Settings;
-        int tokenCount = heard.Tokens.Count;
+        int tokenCount = heard.Tokens.Length;
         var ranges = new List<TokenRange>();
         for (int start = 0; start < tokenCount; start++)
         {
@@ -292,7 +292,7 @@ public static partial class ContextDecoder
     /// <summary>Whether a span ending at <paramref name="end"/> ends the transmission, past a weight class and a closing tail.</summary>
     private static bool ReachesLastToken(HeardText heard, int end)
     {
-        int tokenCount = heard.Tokens.Count;
+        int tokenCount = heard.Tokens.Length;
         int tailStart = (end < tokenCount) && IsWeightClassToken(heard.Tokens[end]) ? end + 1 : end;
         return (tailStart == tokenCount) || IsClosingTail(heard, tailStart);
     }
@@ -300,7 +300,7 @@ public static partial class ContextDecoder
     /// <summary>One or two closing phrases, at most <see cref="MaxClosingTailWords"/> words, from a word boundary to the end.</summary>
     private static bool IsClosingTail(HeardText heard, int start)
     {
-        if ((start >= heard.Tokens.Count) || !heard.OpensSourceWord(start))
+        if ((start >= heard.Tokens.Length) || !heard.OpensSourceWord(start))
         {
             return false;
         }
@@ -364,7 +364,8 @@ public static partial class ContextDecoder
     private static bool IsHitPlaced(TokenRange range, int? prefix, FormShape shape, CallsignScan scan)
     {
         HeardText heard = scan.Heard;
-        bool scoresPrefixWord = IsPrefixWordAt(heard, range.Start) && (shape.Tokens.FirstOrDefault()?.Text != heard.Tokens[range.Start].Text);
+        bool scoresPrefixWord =
+            IsPrefixWordAt(heard, range.Start) && ((shape.Tokens.Count > 0 ? shape.Tokens[0].Text : null) != heard.Tokens[range.Start].Text);
         if (scoresPrefixWord)
         {
             return false;
@@ -409,12 +410,12 @@ public static partial class ContextDecoder
     }
 
     private static bool IsPrefixWordAt(HeardText heard, int index) =>
-        (index >= 0) && (index < heard.Tokens.Count) && (heard.Tokens[index].Text is MedevacWord or TangoWord);
+        (index >= 0) && (index < heard.Tokens.Length) && (heard.Tokens[index].Text is MedevacWord or TangoWord);
 
     /// <summary>A form that opens with "november", or a US registration's form that opens with its type or manufacturer name.</summary>
     private static bool IsRegistrationForm(RoomAircraft aircraft, FormShape shape)
     {
-        SpokenToken? first = shape.Tokens.FirstOrDefault();
+        SpokenToken? first = shape.Tokens.Count > 0 ? shape.Tokens[0] : null;
         string acid = aircraft.Callsign.Value;
         bool usRegistration = (acid.Length >= 2) && (acid[0] == 'N') && char.IsAsciiDigit(acid[1]);
         return (first is not null) && ((first.Text == "november") || (usRegistration && (first.Kind == TokenKind.Word)));
@@ -451,7 +452,7 @@ public static partial class ContextDecoder
         }
 
         HeardText heard = scan.Heard;
-        bool beforeValue = (range.End < heard.Tokens.Count) && ContextPhraseWords.PrefixlessValueFollowers.Contains(heard.Tokens[range.End].Text);
+        bool beforeValue = (range.End < heard.Tokens.Length) && ContextPhraseWords.PrefixlessValueFollowers.Contains(heard.Tokens[range.End].Text);
         return beforeValue || !(scan.SeparatorOpens || OpensPrefixless(range.Start, scan));
     }
 
@@ -486,7 +487,7 @@ public static partial class ContextDecoder
 
         int tailEnd = heard.DigitRunEnd(range.End);
         bool longTail = tailEnd - range.End >= MinValueTailDigits;
-        bool followed = (tailEnd < heard.Tokens.Count) && ContextPhraseWords.NumberValueFollowers.Contains(heard.Tokens[tailEnd].Text);
+        bool followed = (tailEnd < heard.Tokens.Length) && ContextPhraseWords.NumberValueFollowers.Contains(heard.Tokens[tailEnd].Text);
         return longTail || followed || IsRunwayCode(heard.Slice(new TokenRange(range.End, tailEnd)), aircraft, call);
     }
 
@@ -516,7 +517,7 @@ public static partial class ContextDecoder
 
     private static TokenRange WithWeightClass(HeardText heard, TokenRange core)
     {
-        bool absorbs = (core.End < heard.Tokens.Count) && IsWeightClassToken(heard.Tokens[core.End]);
+        bool absorbs = (core.End < heard.Tokens.Length) && IsWeightClassToken(heard.Tokens[core.End]);
         return absorbs ? new TokenRange(core.Start, core.End + 1) : core;
     }
 
@@ -546,7 +547,7 @@ public static partial class ContextDecoder
                 continue;
             }
 
-            CallsignDecision decision = DecisionFor(heard, hit, RemainderOf(hit, heard.Tokens.Count), call);
+            CallsignDecision decision = DecisionFor(heard, hit, RemainderOf(hit, heard.Tokens.Length), call);
             if ((winner is null) || (decision.Joint > winner.Joint))
             {
                 winner = decision;
@@ -566,8 +567,8 @@ public static partial class ContextDecoder
     /// <summary>What the first second-callsign word with an outcome makes of the transmission, or null when the winner stands.</summary>
     private static DecodeResult? SecondCallsignResult(HypothesisView view, CallsignDecision decision, DecodeCall call)
     {
-        IReadOnlyList<SpokenToken> tokens = view.Heard.Tokens;
-        for (int i = decision.Hit.Full.End; i < tokens.Count; i++)
+        SpokenToken[] tokens = view.Heard.Tokens;
+        for (int i = decision.Hit.Full.End; i < tokens.Length; i++)
         {
             if (ContextPhraseWords.SecondCallsignWords.Contains(tokens[i].Text) && (SeparatorResult(view, decision, i, call) is { } result))
             {
@@ -617,7 +618,7 @@ public static partial class ContextDecoder
         }
 
         HeardText heard = view.Heard;
-        var remainder = new Remainder([new TokenRange(hit.Full.End, heard.Tokens.Count)], hit.Full.End);
+        var remainder = new Remainder([new TokenRange(hit.Full.End, heard.Tokens.Length)], hit.Full.End);
         return ResolvedResult(view, DecisionFor(heard, hit, remainder, call), call);
     }
 
@@ -643,7 +644,7 @@ public static partial class ContextDecoder
 
     private static IEnumerable<TokenRange> RangesFrom(HeardText heard, int start, DecodeCall call)
     {
-        int lastEnd = Math.Min(heard.Tokens.Count, start + call.Settings.MaxCallsignSpan);
+        int lastEnd = Math.Min(heard.Tokens.Length, start + call.Settings.MaxCallsignSpan);
         return Enumerable.Range(start + 1, Math.Max(0, lastEnd - start)).Select(end => new TokenRange(start, end));
     }
 

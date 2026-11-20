@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.Views;
 
@@ -17,7 +19,7 @@ public class FlightPlanEditorBeaconRefreshTests
 {
     private static FlightPlanEditorWindow Open(AircraftModel ac)
     {
-        var window = new FlightPlanEditorWindow(ac, (_, _) => { }, _ => Task.CompletedTask);
+        var window = new FlightPlanEditorWindow(ac, (_, _) => { }, _ => Task.FromResult(new CommandResultDto(true, null)));
         window.ShowAndRunLayout();
         return window;
     }
@@ -58,6 +60,70 @@ public class FlightPlanEditorBeaconRefreshTests
         ac.AssignedBeaconCode = 456;
 
         Assert.Equal("0456", bcn.Text);
+    }
+
+    // YAAT-2340: the server refuses a recycle on a planless aircraft; the editor must show the refusal,
+    // the same way it shows a recycle that threw.
+    [AvaloniaFact]
+    public void RecycleBeacon_ServerRefuses_ShowsRefusalInTitle()
+    {
+        var ac = new AircraftModel { Callsign = "N775JW" };
+        var window = new FlightPlanEditorWindow(
+            ac,
+            (_, _) => { },
+            callsign => Task.FromResult(new CommandResultDto(false, $"{callsign} has no flight plan"))
+        );
+        window.ShowAndRunLayout();
+
+        Button? recycle = window.FindControl<Button>("RecycleBcnButton");
+        Assert.NotNull(recycle);
+        recycle!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal("N775JW - Flight Plan (recycle failed: N775JW has no flight plan)", window.Title);
+    }
+
+    // YAAT-2340: the refusal clears once the plan is filed, so a stale "recycle failed" never outlives its cause.
+    [AvaloniaFact]
+    public void RecycleBeacon_RefusalThenPlanFiled_RestoresPlainTitle()
+    {
+        var ac = new AircraftModel { Callsign = "N775JW" };
+        var window = new FlightPlanEditorWindow(
+            ac,
+            (_, _) => { },
+            callsign => Task.FromResult(new CommandResultDto(false, $"{callsign} has no flight plan"))
+        );
+        window.ShowAndRunLayout();
+        Button? recycle = window.FindControl<Button>("RecycleBcnButton");
+        Assert.NotNull(recycle);
+        recycle!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("N775JW - Flight Plan (recycle failed: N775JW has no flight plan)", window.Title);
+
+        // Filing a plan flips HasFlightPlan true while the editor stays open.
+        ac.Destination = "KMOD";
+
+        Assert.Equal("N775JW - Flight Plan", window.Title);
+    }
+
+    [AvaloniaFact]
+    public void RecycleBeacon_RefusalThenSuccess_RestoresPlainTitle()
+    {
+        var ac = new AircraftModel { Callsign = "N775JW" };
+        int calls = 0;
+        var window = new FlightPlanEditorWindow(
+            ac,
+            (_, _) => { },
+            callsign =>
+                Task.FromResult((++calls == 1) ? new CommandResultDto(false, $"{callsign} has no flight plan") : new CommandResultDto(true, null))
+        );
+        window.ShowAndRunLayout();
+        Button? recycle = window.FindControl<Button>("RecycleBcnButton");
+        Assert.NotNull(recycle);
+        recycle!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("N775JW - Flight Plan (recycle failed: N775JW has no flight plan)", window.Title);
+
+        recycle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal("N775JW - Flight Plan", window.Title);
     }
 
     [AvaloniaFact]

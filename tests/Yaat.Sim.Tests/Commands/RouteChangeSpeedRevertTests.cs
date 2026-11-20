@@ -293,7 +293,7 @@ public sealed class RouteChangeSpeedRevertTests
     [Fact]
     public void MachCfixThenSpeedlessDctf_BelowFl240_ResumesTheMachAsItsIas() => AssertBelowFl240ResumesTheMachAsItsIas("DCTF HEC/200");
 
-    private void AssertAboveFl240HoldsTheMachAgain(string routeChange)
+    private static void AssertAboveFl240HoldsTheMachAgain(string routeChange)
     {
         AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), EastOfPmd);
         Send(ac, "MACH .78");

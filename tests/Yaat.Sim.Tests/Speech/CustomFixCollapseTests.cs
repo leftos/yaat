@@ -5,6 +5,12 @@ namespace Yaat.Sim.Tests.Speech;
 
 public class CustomFixCollapseTests
 {
+    private static readonly string[] CollapsedFixOnly = ["OAK30NUM"];
+    private static readonly string[] ClimbAndMaintainWords = ["climb", "and", "maintain", "5000"];
+    private static readonly string[] DirectToCepinWords = ["direct", "to", "cepin"];
+    private static readonly string[] TwoCollapsedFixesWords = ["direct", "to", "OAK30NUM", "then", "direct", "to", "TOLLPLAZA"];
+    private static readonly string[] ClimbThenCollapsedFixWords = ["climb", "and", "maintain", "5000", "direct", "to", "OAK30NUM"];
+
     public CustomFixCollapseTests()
     {
         // PhraseologyMapper now validates rule outputs via CommandParser.Parse, which resolves
@@ -51,7 +57,7 @@ public class CustomFixCollapseTests
         // the shorter "runway 30 numbers" + stray "the".
         var tokens = new List<string> { "the", "runway", "30", "numbers" };
         List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
-        Assert.Equal(new[] { "OAK30NUM" }, collapsed);
+        Assert.Equal(CollapsedFixOnly, collapsed);
     }
 
     [Fact]
@@ -59,7 +65,7 @@ public class CustomFixCollapseTests
     {
         var tokens = new List<string> { "climb", "and", "maintain", "5000" };
         List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
-        Assert.Equal(new[] { "climb", "and", "maintain", "5000" }, collapsed);
+        Assert.Equal(ClimbAndMaintainWords, collapsed);
     }
 
     [Fact]
@@ -67,7 +73,7 @@ public class CustomFixCollapseTests
     {
         var tokens = new List<string> { "direct", "to", "cepin" };
         List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, []);
-        Assert.Equal(new[] { "direct", "to", "cepin" }, collapsed);
+        Assert.Equal(DirectToCepinWords, collapsed);
     }
 
     [Fact]
@@ -76,7 +82,7 @@ public class CustomFixCollapseTests
         // Compound command: "direct to the runway 30 numbers, then direct to the toll plaza"
         var tokens = new List<string> { "direct", "to", "the", "runway", "30", "numbers", "then", "direct", "to", "the", "toll", "plaza" };
         List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
-        Assert.Equal(new[] { "direct", "to", "OAK30NUM", "then", "direct", "to", "TOLLPLAZA" }, collapsed);
+        Assert.Equal(TwoCollapsedFixesWords, collapsed);
     }
 
     [Fact]
@@ -85,7 +91,7 @@ public class CustomFixCollapseTests
         // Real compound: "climb and maintain 5000 direct to the runway 30 numbers"
         var tokens = new List<string> { "climb", "and", "maintain", "5000", "direct", "to", "the", "runway", "30", "numbers" };
         List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
-        Assert.Equal(new[] { "climb", "and", "maintain", "5000", "direct", "to", "OAK30NUM" }, collapsed);
+        Assert.Equal(ClimbThenCollapsedFixWords, collapsed);
     }
 
     [Fact]

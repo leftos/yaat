@@ -6,6 +6,8 @@ namespace Yaat.Sim.Tests.Phases;
 /// <summary>Unit tests for the uncontrolled final-approach speed schedule (<see cref="FinalApproachSpeedSchedule"/>).</summary>
 public class FinalApproachSpeedScheduleTests
 {
+    private static readonly string[] JitterCallsigns = ["UAL1", "DAL2", "SWA3", "AAL4", "JBU5", "ASA6", "SKW7", "QXE8"];
+
     public FinalApproachSpeedScheduleTests()
     {
         TestVnasData.EnsureInitialized();
@@ -35,9 +37,7 @@ public class FinalApproachSpeedScheduleTests
     [Fact]
     public void CleanSpeed_JitterVariesByCallsign_WithinHalfWidth()
     {
-        var speeds = new[] { "UAL1", "DAL2", "SWA3", "AAL4", "JBU5", "ASA6", "SKW7", "QXE8" }
-            .Select(cs => FinalApproachSpeedSchedule.CleanSpeedKts("B738", AircraftCategory.Jet, 144, cs))
-            .ToList();
+        var speeds = JitterCallsigns.Select(cs => FinalApproachSpeedSchedule.CleanSpeedKts("B738", AircraftCategory.Jet, 144, cs)).ToList();
         Assert.True(speeds.Max() - speeds.Min() > 2, "jitter should spread clean speeds across callsigns");
         Assert.All(speeds, s => Assert.InRange(s, 214 - 5, 214 + 5));
     }

@@ -163,7 +163,7 @@ public partial class FavoritesBarView : UserControl
         RebuildButtons();
     }
 
-    private Control CreatePaletteRoot()
+    private DockPanel CreatePaletteRoot()
     {
         var root = new DockPanel { Margin = new Thickness(8) };
 
@@ -1608,7 +1608,7 @@ public partial class FavoritesBarView : UserControl
     private static string GetFavoriteTextColor(FavoriteCommand favorite) =>
         Color.TryParse(favorite.TextColor, out _) ? favorite.TextColor : FavoriteCommandDefaults.TextColor;
 
-    private static IBrush ParseBrush(string? color, string fallback) =>
+    private static SolidColorBrush ParseBrush(string? color, string fallback) =>
         Color.TryParse(color, out Color parsed) ? new SolidColorBrush(parsed) : new SolidColorBrush(Color.Parse(fallback));
 
     private string BuildFavoriteToolTip(FavoriteCommand favorite)
@@ -1666,7 +1666,7 @@ public partial class FavoritesBarView : UserControl
         };
     }
 
-    private static Control CreateLabeledControl(string label, Control control)
+    private static StackPanel CreateLabeledControl(string label, Control control)
     {
         var panel = new StackPanel();
         panel.Children.Add(
@@ -1682,7 +1682,7 @@ public partial class FavoritesBarView : UserControl
         return panel;
     }
 
-    private static Control CreateDimensionRow(NumericUpDown heightBox)
+    private static StackPanel CreateDimensionRow(NumericUpDown heightBox)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
 
@@ -1690,7 +1690,7 @@ public partial class FavoritesBarView : UserControl
         return row;
     }
 
-    private static Control CreateInlineDimension(string label, NumericUpDown box)
+    private static StackPanel CreateInlineDimension(string label, NumericUpDown box)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 0) };
         panel.Children.Add(

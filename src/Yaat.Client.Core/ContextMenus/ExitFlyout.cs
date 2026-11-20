@@ -802,7 +802,7 @@ public sealed class ExitAtBox(ExitSide side, Func<IReadOnlyList<ExitAheadDto>> r
     public IReadOnlyList<ExitAheadDto> Matches => _matches;
 
     /// <summary>The command the box sends now: the verb with the top match, else with the typed text; null while unreadable.</summary>
-    public string? Command => IsReadable ? $"{ExitFlyout.Verb(side)} {Matches.FirstOrDefault()?.Taxiway ?? Typed}" : null;
+    public string? Command => IsReadable ? $"{ExitFlyout.Verb(side)} {(Matches.Count > 0 ? Matches[0].Taxiway : null) ?? Typed}" : null;
 
     /// <summary>Whether the box sends a command now.</summary>
     public bool CanSend => Command is not null;

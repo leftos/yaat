@@ -831,7 +831,7 @@ public sealed class LineUpPhase : Phase
         return false;
     }
 
-    private bool TickStop(PhaseContext ctx, LineUpPathPlan plan)
+    private static bool TickStop(PhaseContext ctx, LineUpPathPlan plan)
     {
         ctx.Targets.TargetTrueHeading = new TrueHeading(plan.RunwayHeadingDeg);
         ctx.Targets.TargetSpeed = 0;

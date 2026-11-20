@@ -219,7 +219,7 @@ internal sealed class TugTaxiwayClearance
     }
 
     /// <summary>The box a piece must touch to come within its taxiway's half-width of the outline at any of the (non-empty) poses.</summary>
-    private Box NearBox(IReadOnlyList<PushbackPose> poses)
+    private Box NearBox(List<PushbackPose> poses)
     {
         double padFt = _size.ReachFt + AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(AirplaneDesignGroup.VI) + ClearanceMarginFt;
         OutlinePoint first = _zones.Frame.ToLocal(poses[0].Position);

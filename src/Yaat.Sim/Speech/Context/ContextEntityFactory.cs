@@ -15,27 +15,16 @@ namespace Yaat.Sim.Speech.Context;
 public static class ContextEntityFactory
 {
     /// <summary>One-word telephonies controllers say as two.</summary>
-    private static readonly IReadOnlyDictionary<string, string> SplitTelephonies = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["jetblue"] = "jet blue",
-    };
+    private static readonly Dictionary<string, string> SplitTelephonies = new(StringComparer.Ordinal) { ["jetblue"] = "jet blue" };
 
     /// <summary>Airline ICAO codes whose aircraft controllers address by a shorter telephony than the airlines table gives.</summary>
-    private static readonly IReadOnlyDictionary<string, string> ShortTelephonies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> ShortTelephonies = new(StringComparer.OrdinalIgnoreCase)
     {
         ["FFT"] = "frontier",
         ["NKS"] = "spirit",
     };
 
-    private static readonly IReadOnlySet<string> NavaidTypeWords = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "vor",
-        "vortac",
-        "vordme",
-        "tacan",
-        "ndb",
-        "dme",
-    };
+    private static readonly HashSet<string> NavaidTypeWords = new(StringComparer.Ordinal) { "vor", "vortac", "vordme", "tacan", "ndb", "dme" };
 
     /// <summary>
     /// A room aircraft's callsign entity. A US N-number gets its "november", type-name and shortened forms, its grouped-digit

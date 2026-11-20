@@ -103,7 +103,7 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
                 AirplaneDesignGroups.GroupForType(neighbour.AircraftType)
             );
             double floorFt = GroundOutlineSweep.FloorFt(startClearanceFt, bufferFt);
-            Assert.True(layout.TryGetSpotOutboundHeading(spot5A, out double facingDeg), "spot 5A has no nose-out heading");
+            Assert.True(AirportGroundLayout.TryGetSpotOutboundHeading(spot5A, out double facingDeg), "spot 5A has no nose-out heading");
             double laneTurnDeg = new TrueHeading(subject.TrueHeading.Degrees).SignedAngleTo(new TrueHeading(facingDeg));
             FlownRun flown = RunAndAssert(engine, spot5A, neighbour, outlineLines);
             var swing = TugNoseSwing.From(flown.NoseDegs[0], flown.NoseDegs);

@@ -183,7 +183,7 @@ public static class ScopeBubbles
     }
 
     // Places the line still pending, and marks the last line with an ellipsis when any text went unplaced.
-    private static IReadOnlyList<string> Finish(List<string> lines, string? current, bool overflowed)
+    private static List<string> Finish(List<string> lines, string? current, bool overflowed)
     {
         bool leftOver = overflowed;
         if (current is not null)
@@ -202,7 +202,7 @@ public static class ScopeBubbles
     }
 
     // The last of a full set of lines closes with an ellipsis, cut to leave room for it.
-    private static IReadOnlyList<string> Ellipsize(List<string> lines)
+    private static List<string> Ellipsize(List<string> lines)
     {
         string last = lines[^1];
         if (last.Length >= (MaxLineChars - 1))

@@ -1032,10 +1032,14 @@ public partial class GroundView : UserControl
         string initials = GetInitials();
         var menu = new ContextMenu();
 
-        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot: spot, pathOverride: nodeRefPath);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = GroundViewModel.BuildTaxiCrossingVariants(
+            route,
+            spot: spot,
+            pathOverride: nodeRefPath
+        );
         // The committed command is a dense node-ref path (precise but unreadable); show the
         // controller a readable taxiway summary instead while the Send items carry the dense path.
-        string friendlyHeader = $"TAXI {vm.BuildTaxiCommand(route)}{(spot is not null ? $" {spot.Token}" : "")}";
+        string friendlyHeader = $"TAXI {GroundViewModel.BuildTaxiCommand(route)}{(spot is not null ? $" {spot.Token}" : "")}";
         if (variants.Count <= 1)
         {
             string command = variants.Count == 1 ? variants[0].Command : "";
@@ -1077,7 +1081,7 @@ public partial class GroundView : UserControl
                 "Copy to command input",
                 () =>
                 {
-                    string taxi = vm.BuildDrawRouteCopyCommand(route, spot);
+                    string taxi = GroundViewModel.BuildDrawRouteCopyCommand(route, spot);
                     ShowTaxiInput(callsign, initials, taxi, taxi.Length);
                     return Task.CompletedTask;
                 }

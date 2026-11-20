@@ -95,6 +95,8 @@ All Commands
     Report when… alias:REPORT
       Report when… · UAL401 [disabled]
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
   Track and coordination
     Track [disabled]
     Initiate Track alias:TRACK

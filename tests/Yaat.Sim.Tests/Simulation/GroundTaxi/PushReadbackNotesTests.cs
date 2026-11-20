@@ -204,7 +204,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
         }
 
         Assert.Contains(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(pushed.Readback, NeighbourCallsign));
+        Assert.Single(NeighbourCallsignRegex().Matches(pushed.Readback));
         AssertNotSpoken(pushed.Spoken, NeighbourCallsign, "holds short");
     }
 
@@ -222,7 +222,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
         }
 
         Assert.Contains(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(pushed.Readback, NeighbourCallsign));
+        Assert.Single(NeighbourCallsignRegex().Matches(pushed.Readback));
     }
 
     /// <summary>
@@ -256,7 +256,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
 
         Assert.Contains("(forced: ", pushed.Readback, StringComparison.Ordinal);
         Assert.DoesNotContain(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(pushed.Readback, NeighbourCallsign));
+        Assert.Single(NeighbourCallsignRegex().Matches(pushed.Readback));
         string beforeForced = pushed.Readback.Split("(forced: ", StringSplitOptions.None)[0];
         Assert.DoesNotContain(NeighbourCallsign, beforeForced, StringComparison.Ordinal);
         AssertNotSpoken(pushed.Spoken, NeighbourCallsign, "forced", "holds short");
@@ -484,4 +484,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
     /// <summary>The far-facing note, its distance a multiple of 50 ft.</summary>
     [GeneratedRegex(@"\(F1 is \d*[05]0 ft away; facing only\)")]
     private static partial Regex FarFacingNote();
+
+    [GeneratedRegex(NeighbourCallsign)]
+    private static partial Regex NeighbourCallsignRegex();
 }

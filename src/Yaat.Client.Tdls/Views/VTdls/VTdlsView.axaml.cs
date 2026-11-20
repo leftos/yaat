@@ -268,7 +268,7 @@ public partial class VTdlsView : UserControl
     private void OnFindItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => _findController.Refresh();
 
     /// <summary>Searchable rows in display order: DCL list then PDC list (CPDLC is always empty).</summary>
-    private IReadOnlyList<IFindableItem> BuildFindSnapshot()
+    private List<IFindableItem> BuildFindSnapshot()
     {
         var result = new List<IFindableItem>();
         if (DataContext is VTdlsViewModel vm)
@@ -605,7 +605,7 @@ public partial class VTdlsView : UserControl
     /// Enter, or when the menu closes — then shown back as the accepted list, with "Invalid Frequency" under a rejected
     /// one. Only a typed edit is committed, so a list the checkbox changed is never overwritten by stale text.
     /// </summary>
-    private static Control TempDepFreqsEditor(MenuFlyout flyout, VTdlsViewModel vm)
+    private static StackPanel TempDepFreqsEditor(MenuFlyout flyout, VTdlsViewModel vm)
     {
         var box = new TextBox { PlaceholderText = "134.7, 123.75", MinWidth = 140 };
         var invalid = new TextBlock { Text = "Invalid Frequency", Foreground = Brushes.Red };

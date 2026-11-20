@@ -15,7 +15,7 @@ public partial class MainViewModel
         return result;
     }
 
-    partial void RunMapToolsVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result);
+    static partial void RunMapToolsVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result);
 
     partial void RunDataBlocksVerb(ScopeViewModel scope, string verb, string[] parts, ref string? result);
 }

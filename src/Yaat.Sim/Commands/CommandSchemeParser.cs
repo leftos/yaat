@@ -15,7 +15,7 @@ public record CompoundParseResult(string CanonicalString);
 /// </summary>
 public record ParseFailure(string Verb, string Reason, string? Expected = null);
 
-public static class CommandSchemeParser
+public static partial class CommandSchemeParser
 {
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme) => ParseCompound(input, scheme, out _);
 
@@ -34,7 +34,7 @@ public static class CommandSchemeParser
         failure = null;
         string aliasNormalized = SplitTrailingGiveWay(NormalizeSeparatorAliases(input.Trim()));
         string trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)), ctx);
-        trimmed = CommaBeforeCondition.Replace(trimmed, ";");
+        trimmed = CommaBeforeCondition().Replace(trimmed, ";");
         trimmed = CommaBeforeGiveWayCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
         {
@@ -1194,7 +1194,8 @@ public static class CommandSchemeParser
     /// Promotes commas before condition keywords to semicolons so that
     /// "cm 020, at oak30num cm 014" parses as "cm 020; at oak30num cm 014".
     /// </summary>
-    private static readonly Regex CommaBeforeCondition = new(@",\s*(?=(?:AT|LV|ATFN|ONHO|ONH)\s)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    [GeneratedRegex(@",\s*(?=(?:AT|LV|ATFN|ONHO|ONH)\s)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CommaBeforeCondition();
 
     /// <summary>
     /// Promotes a comma before GIVEWAY/BEHIND/GW to a semicolon ONLY in the condition form
@@ -1523,11 +1524,11 @@ public static class CommandSchemeParser
         return true;
     }
 
-    private static bool IsSpeedToken(string token) => Regex.IsMatch(token, @"^\d+[+\-]?$");
+    private static bool IsSpeedToken(string token) => SpeedTokenRegex().IsMatch(token);
 
-    private static bool IsDistanceToken(string token) => Regex.IsMatch(token, @"^\d+(?:\.\d+)?$");
+    private static bool IsDistanceToken(string token) => DistanceTokenRegex().IsMatch(token);
 
-    private static bool IsFixToken(string token) => Regex.IsMatch(token, @"^[A-Z]{2,5}$", RegexOptions.IgnoreCase);
+    private static bool IsFixToken(string token) => FixTokenRegex().IsMatch(token);
 
     /// <summary>
     /// Expands "WAIT N cmd" and "DELAY N cmd" patterns into "WAIT N; cmd".
@@ -1554,10 +1555,8 @@ public static class CommandSchemeParser
     }
 
     // ASCII digits only: \d also matches other scripts' digits (Arabic-Indic ١), which the invariant double.Parse below rejects.
-    private static readonly Regex WaitNauticalMilesArgument = new(
-        @"^([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(NM)?$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled
-    );
+    [GeneratedRegex(@"^([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(NM)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex WaitNauticalMilesArgument();
 
     /// <summary>
     /// Matches the distance argument of <c>WAIT 1NM</c>, <c>WAIT 1 NM</c>, <c>WAIT .5NM</c>: a decimal number with an
@@ -1566,7 +1565,7 @@ public static class CommandSchemeParser
     /// </summary>
     private static (string DistanceNm, int TokenCount)? MatchWaitNauticalMiles(string[] tokens)
     {
-        Match match = WaitNauticalMilesArgument.Match(tokens[1]);
+        Match match = WaitNauticalMilesArgument().Match(tokens[1]);
         if (!match.Success)
         {
             return null;
@@ -1682,4 +1681,13 @@ public static class CommandSchemeParser
 
         return null;
     }
+
+    [GeneratedRegex(@"^\d+[+\-]?$")]
+    private static partial Regex SpeedTokenRegex();
+
+    [GeneratedRegex(@"^\d+(?:\.\d+)?$")]
+    private static partial Regex DistanceTokenRegex();
+
+    [GeneratedRegex(@"^[A-Z]{2,5}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex FixTokenRegex();
 }

@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.ControllerAi;
 /// and handed to the tower by the AI (the test plays tower and clears each one for takeoff), an arrival taxied to its
 /// parking, and the determinism gate with a command-issuing brain.
 /// </summary>
-public class GroundBrainE2ETests
+public partial class GroundBrainE2ETests
 {
     private const int TowerSpacingSeconds = 60;
     private static readonly string DeparturesScenarioPath = Path.Combine(
@@ -260,11 +260,16 @@ public class GroundBrainE2ETests
     /// </summary>
     private static string WithoutVirtualNodeIds(string snapshotJson)
     {
-        string scalar = System.Text.RegularExpressions.Regex.Replace(snapshotJson, @"(""[A-Za-z]*NodeId"":)-\d+", "$1-V");
-        return System.Text.RegularExpressions.Regex.Replace(
-            scalar,
-            @"(""[A-Za-z]*NodeIds"":\[)([^\]]*)",
-            m => m.Groups[1].Value + System.Text.RegularExpressions.Regex.Replace(m.Groups[2].Value, @"-\d+", "-V")
-        );
+        string scalar = NodeIdNumberRegex().Replace(snapshotJson, "$1-V");
+        return NodeIdListRegex().Replace(scalar, m => m.Groups[1].Value + NegativeIdSuffixRegex().Replace(m.Groups[2].Value, "-V"));
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(""[A-Za-z]*NodeId"":)-\d+")]
+    private static partial System.Text.RegularExpressions.Regex NodeIdNumberRegex();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(""[A-Za-z]*NodeIds"":\[)([^\]]*)")]
+    private static partial System.Text.RegularExpressions.Regex NodeIdListRegex();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"-\d+")]
+    private static partial System.Text.RegularExpressions.Regex NegativeIdSuffixRegex();
 }

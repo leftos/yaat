@@ -16,7 +16,7 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// The bridge now deepens its search only when every shallow candidate lacks an admissible onward
 /// continuation; gates with a good three-hop entry keep today's pick.
 /// </summary>
-public class Issue396GateBridgeDeepeningTests
+public partial class Issue396GateBridgeDeepeningTests
 {
     private readonly ITestOutputHelper _output;
 
@@ -64,7 +64,7 @@ public class Issue396GateBridgeDeepeningTests
     {
         string? line = diag.FirstOrDefault(l => l.StartsWith("[bridge] start=", StringComparison.Ordinal));
         Assert.True(line is not null, "expected a [bridge] diagnostic line");
-        Match match = Regex.Match(line, @"\((\d+) edges");
+        Match match = BridgeEdgeCountRegex().Match(line);
         Assert.True(match.Success, $"unparseable bridge line: {line}");
         return int.Parse(match.Groups[1].Value);
     }
@@ -132,4 +132,7 @@ public class Issue396GateBridgeDeepeningTests
         Assert.DoesNotContain(diag, l => l.Contains("deepened", StringComparison.OrdinalIgnoreCase));
         Assert.True(BridgeEdgeCount(diag) <= 3, "B13's bridge onto Y should stay within the shallow three-hop reach");
     }
+
+    [GeneratedRegex(@"\((\d+) edges")]
+    private static partial Regex BridgeEdgeCountRegex();
 }

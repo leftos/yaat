@@ -50,7 +50,7 @@ public class RouteMaterialiserTests
         return layout;
     }
 
-    private static DirectionalEdge Directed(IGroundEdge e, GroundNode from, GroundNode to) => e.Directed(from, to);
+    private static DirectionalEdge Directed(GroundEdge e, GroundNode from, GroundNode to) => e.Directed(from, to);
 
     private static SearchContext Context(
         AirportGroundLayout layout,

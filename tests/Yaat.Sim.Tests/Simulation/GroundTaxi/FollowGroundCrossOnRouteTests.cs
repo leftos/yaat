@@ -20,6 +20,9 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// </summary>
 public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGroundAtRunwayBarTestBase(output)
 {
+    private static readonly string[] Runway1L19REnds = ["1L", "19R"];
+    private static readonly string[] SfoRunwayEnds = ["01L", "01R", "28L", "28R"];
+
     /// <summary>The leader's taxi from spot 1 down F across 1L and 1R, cleared across both, to 28L.</summary>
     private const string LeaderAcrossF = "TAXI A F RWY 28L CROSS 1L 1R";
 
@@ -860,7 +863,7 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         (SfoGround ground, AircraftState follower, AircraftState leader, TaxiRoute? route) = staged;
         ground.Engine.Scenario!.ActiveRunways = ActiveRunways.Empty.With(
             "SFO",
-            [.. new[] { "01L", "01R", "28L", "28R" }.Select(end => new ActiveRunway(end, ActiveRunwayUse.Both))]
+            [.. SfoRunwayEnds.Select(end => new ActiveRunway(end, ActiveRunwayUse.Both))]
         );
         _ = HoldOnOneLeft(ground, follower, route);
         List<string> lines = CapturePilotLines(ground, follower);
@@ -936,7 +939,7 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         Output.WriteLine($"holding short of {hold.HeldShortOfRunway ?? "none"}, tail inside {hold.TailInsideRunway ?? "none"}");
         Assert.Null(hold.HeldShortOfRunway);
         Assert.DoesNotContain(lines, line => line.Contains("holding short of runway", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(hold.TailInsideRunway, new[] { "1L", "19R" });
+        Assert.Contains(hold.TailInsideRunway, Runway1L19REnds);
         Assert.Single(lines, line => line.Contains("Holding position, not clear of runway", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -2173,7 +2176,7 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
     /// Loads the YAAT-1527 KOAK recording, restores its snapshot at <see cref="OakRestoreSecond"/> and arms the recorded actions
     /// after it. Null on the repo's silent-skip path.
     /// </summary>
-    private (SimulationEngine Engine, AirportGroundLayout Layout)? StartOak()
+    private static (SimulationEngine Engine, AirportGroundLayout Layout)? StartOak()
     {
         TestVnasData.EnsureInitialized();
         RecordingArchive? archive = RecordingLoader.OpenArchive(OakRecordingPath);

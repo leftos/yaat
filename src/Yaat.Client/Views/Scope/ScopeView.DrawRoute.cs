@@ -52,7 +52,7 @@ public partial class ScopeView
         CloseRouteOverlays();
     }
 
-    partial void AddDrawRouteSection(List<Control> items, ScopeViewModel vm, AircraftModel? ac, MenuContext context)
+    static partial void AddDrawRouteSection(List<Control> items, ScopeViewModel vm, AircraftModel? ac, MenuContext context)
     {
         if (AcceptsFlightCommands(ac))
         {

@@ -910,7 +910,7 @@ public partial class GroundViewModel : ObservableObject
         return TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId, category, wakeClass);
     }
 
-    public string BuildTaxiCommand(TaxiRoute route) => string.Join(" ", TaxiRouteFormatter.CleanTaxiwaySequence(route));
+    public static string BuildTaxiCommand(TaxiRoute route) => string.Join(" ", TaxiRouteFormatter.CleanTaxiwaySequence(route));
 
     /// <summary>
     /// Builds the readable TAXI command pasted by the ground draw-route "Copy to command input"
@@ -919,7 +919,7 @@ public partial class GroundViewModel : ObservableObject
     /// the aircraft at the drawn endpoint instead of running to the end of the last taxiway; CROSS
     /// clauses authorize any runways the drawn route crosses.
     /// </summary>
-    public string BuildDrawRouteCopyCommand(TaxiRoute route, TaxiSpotDestination? spot)
+    public static string BuildDrawRouteCopyCommand(TaxiRoute route, TaxiSpotDestination? spot)
     {
         string readablePath = TaxiRouteFormatter.BuildReadableTaxiPath(route, hasNamedTerminus: spot is not null);
         List<(string Label, string Command, TaxiRoute Preview)> variants = BuildTaxiCrossingVariants(route, spot: spot, pathOverride: readablePath);
@@ -1008,7 +1008,7 @@ public partial class GroundViewModel : ObservableObject
     /// Routes with no crossings return a single entry.
     /// Each entry: (displayLabel, command).
     /// </summary>
-    public List<(string Label, string Command, TaxiRoute Preview)> BuildTaxiCrossingVariants(
+    public static List<(string Label, string Command, TaxiRoute Preview)> BuildTaxiCrossingVariants(
         TaxiRoute route,
         TaxiSpotDestination? spot,
         string? pathOverride
@@ -1080,7 +1080,7 @@ public partial class GroundViewModel : ObservableObject
     ///   (separator)
     ///   HS 28R  |  CROSS 28R HS 28L  |  CROSS 28R 28L HS 30
     /// </summary>
-    public List<(string Label, string Command, TaxiRoute Preview)?> BuildTaxiDestVariants(
+    public static List<(string Label, string Command, TaxiRoute Preview)?> BuildTaxiDestVariants(
         TaxiRoute route,
         string destRunway,
         TaxiSpotDestination? spot
@@ -1185,7 +1185,7 @@ public partial class GroundViewModel : ObservableObject
         return results;
     }
 
-    public string GetTaxiwayDisplayName(TaxiRoute route)
+    public static string GetTaxiwayDisplayName(TaxiRoute route)
     {
         List<string> names = TaxiRouteFormatter.CleanTaxiwaySequence(route);
         return names.Count > 0 ? $"via {string.Join(" ", names)}" : "direct";
@@ -1368,7 +1368,7 @@ public partial class GroundViewModel : ObservableObject
     /// background thread and reads only the request. An origin that is neither a stand nor a held pose throws out
     /// unlogged: it is a bug, not a failed plan.
     /// </summary>
-    private IReadOnlyList<MenuPushTarget>? PlanLiveOrLog(LivePushPlanRequest request, string callsign)
+    private List<MenuPushTarget>? PlanLiveOrLog(LivePushPlanRequest request, string callsign)
     {
         Func<IReadOnlyList<PrecomputedPushTarget>?> plan = request.Origin switch
         {
@@ -1423,7 +1423,7 @@ public partial class GroundViewModel : ObservableObject
             : [];
 
     /// <summary><see cref="GetPresetTaxiChoices"/>'s rows from <paramref name="start"/>, each with the preset it was built from.</summary>
-    private List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> PresetTaxiRows(AirportGroundLayout layout, GroundNode start, AircraftModel ac)
+    private static List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> PresetTaxiRows(AirportGroundLayout layout, GroundNode start, AircraftModel ac)
     {
         if (NavigationDatabase.InstanceOrNull is not { } navDb)
         {

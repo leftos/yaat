@@ -75,7 +75,7 @@ public class ClientMenuHostTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-        IMenuHost host = new ClientMenuHost(main, null, new Border());
+        var host = new ClientMenuHost(main, null, new Border());
 
         // Not connected to a server, so the send throws; the host shows it rather than letting it escape the click.
         await host.SendAsync("AAL123", "FH 270", "AB");
@@ -174,7 +174,7 @@ public class ClientMenuHostTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         main.Aircraft.Add(new AircraftModel { Callsign = "DAL2" });
-        IMenuHost host = new ClientMenuHost(main, new AircraftModel { Callsign = "UAL1" }, new Border());
+        var host = new ClientMenuHost(main, new AircraftModel { Callsign = "UAL1" }, new Border());
         try
         {
             host.OpenFlightPlanEditor("DAL2");
@@ -262,7 +262,7 @@ public class ClientMenuHostTests
                 Situation = AircraftSituation.IfrEnroute,
             };
             main.Aircraft.Add(ac);
-            IMenuHost host = new ClientMenuHost(main, ac, new Border());
+            var host = new ClientMenuHost(main, ac, new Border());
             var context = new MenuContext(new MenuClick(ac.Callsign, null, null, []), host.Session);
             List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Left traffic", "MLT", null, MenuFlightRules.Both)];
             MenuCatalogEntry entry = Assert.Single(QuickCommandResolver.Resolve(entries, ac, context, _ => true).Text);
@@ -357,7 +357,7 @@ public class ClientMenuHostTests
     // Opens a fresh client-host menu on the aircraft and returns what its single quick command sends.
     private static string? MenuSend(MainViewModel main, AircraftModel ac)
     {
-        IMenuHost host = new ClientMenuHost(main, ac, new Border());
+        var host = new ClientMenuHost(main, ac, new Border());
         var context = new MenuContext(new MenuClick(ac.Callsign, null, null, []), host.Session);
         MenuCatalogEntry entry = Assert.Single(QuickCommandResolver.Resolve(ac, context, _ => true).Text);
         return MenuCommandText.GetCommand(Assert.IsType<MenuItem>(entry.Build(ac, context, host)));

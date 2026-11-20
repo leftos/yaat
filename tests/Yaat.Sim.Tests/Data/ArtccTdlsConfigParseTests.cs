@@ -6,6 +6,8 @@ namespace Yaat.Sim.Tests.Data;
 
 public sealed class ArtccTdlsConfigParseTests
 {
+    private static readonly string[] TdlsFacilityIds = ["OAK", "RNO", "SFO", "SJC", "SMF"];
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static ArtccConfigRoot LoadZoaSnapshot()
@@ -38,7 +40,7 @@ public sealed class ArtccTdlsConfigParseTests
             .OrderBy(id => id, StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(new[] { "OAK", "RNO", "SFO", "SJC", "SMF" }, tdlsFacilities);
+        Assert.Equal(TdlsFacilityIds, tdlsFacilities);
     }
 
     [Fact]

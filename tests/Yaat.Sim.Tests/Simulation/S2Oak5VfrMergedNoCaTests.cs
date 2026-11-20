@@ -30,7 +30,7 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
     private const string CallsignA = "N436MS";
     private const string CallsignB = "N10194";
 
-    private SimulationEngine? BuildEngine()
+    private static SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
         NavigationDatabase? navDb = TestVnasData.NavigationDb;

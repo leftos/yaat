@@ -78,7 +78,7 @@ public class AtpaProcessorExclusionTests
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 4, owner4A), MakeApproachAircraft("UAL202", 6, owner4A)];
         AtpaVolumeConfig volume = MakeVolume([TcpUlid4A]);
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [volume], MakeStarsConfig());
 
         // Both aircraft are owned by the excluded TCP 4A — the volume drops to fewer than two
         // eligible aircraft, so no in-trail pairing (and no result) is produced.
@@ -93,7 +93,7 @@ public class AtpaProcessorExclusionTests
         // Exclude a different TCP (9Z) that neither aircraft is owned by.
         AtpaVolumeConfig volume = MakeVolume([TcpUlid9Z]);
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [volume], MakeStarsConfig());
 
         // The trailing aircraft is paired against the lead — exclusion must not over-fire.
         Assert.True(results.ContainsKey("UAL202"));
@@ -112,7 +112,7 @@ public class AtpaProcessorExclusionTests
         ];
         AtpaVolumeConfig volume = MakeVolume([TcpUlid9Z]);
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [volume], MakeStarsConfig());
 
         Assert.False(results.ContainsKey("DAL150"));
         Assert.True(results.ContainsKey("UAL202"));
@@ -146,7 +146,7 @@ public class AtpaProcessorExclusionTests
             },
         ];
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process(snapshot, [volume], MakeStarsConfig());
 
         // The matched middle track never gets a cone of its own, regardless of type.
         Assert.False(results.ContainsKey("DAL150"));

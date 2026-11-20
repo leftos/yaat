@@ -37,7 +37,7 @@ public class SfoT9AB1ConnectorTests
     private const double StartLon = -122.39263533007237;
     private const double StartHeading = 348.03;
 
-    private AirportGroundLayout? LoadLayout()
+    private static AirportGroundLayout? LoadLayout()
     {
         if (!File.Exists(FixturePath) || TestVnasData.NavigationDb is null)
         {

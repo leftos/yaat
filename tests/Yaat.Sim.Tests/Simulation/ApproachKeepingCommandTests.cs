@@ -175,7 +175,7 @@ public class ApproachKeepingCommandTests(ITestOutputHelper output)
         Assert.DoesNotContain(ac.PendingWarnings, w => w.Contains("cancelled by", StringComparison.Ordinal));
     }
 
-    private (AircraftState Aircraft, PhaseList Phases, Phase Current) Establish(SimulationEngine engine, ApproachLeg leg)
+    private static (AircraftState Aircraft, PhaseList Phases, Phase Current) Establish(SimulationEngine engine, ApproachLeg leg)
     {
         AircraftState ac = OnLeg(engine, leg);
         return (ac, ac.Phases!, ac.Phases!.CurrentPhase!);

@@ -66,7 +66,7 @@ public class CommandRunDelayTests
         double? delay = ReactionDelayPolicy.Decide(engine.Scenario!, engine.World, ac, compound, baked: null);
         if (delay is double seconds)
         {
-            engine.DeferForReaction(ac, compound, seconds, DispatchOrigin.Human);
+            SimulationEngine.DeferForReaction(ac, compound, seconds, DispatchOrigin.Human);
         }
 
         return delay;

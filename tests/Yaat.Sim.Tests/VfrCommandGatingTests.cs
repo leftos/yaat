@@ -58,7 +58,7 @@ public class VfrCommandGatingTests : IDisposable
         return ac;
     }
 
-    private CommandResult Dispatch(AircraftState aircraft, ParsedCommand command) =>
+    private static CommandResult Dispatch(AircraftState aircraft, ParsedCommand command) =>
         CommandDispatcher.Dispatch(command, aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
     [Theory]

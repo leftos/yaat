@@ -171,7 +171,7 @@ public static class WakeDirectiveLoader
         return false;
     }
 
-    private static bool TryParseEffects(IReadOnlyList<string> values, string location, List<string> warnings, out List<WakeDirectiveEffect> effects)
+    private static bool TryParseEffects(List<string> values, string location, List<string> warnings, out List<WakeDirectiveEffect> effects)
     {
         effects = [];
         if (values.Count == 0)

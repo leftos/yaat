@@ -386,7 +386,7 @@ public static class SoloAdvisoryModel
             ? new AdvisorySegment("type ✓", AdvisoryTone.Good)
             : new AdvisorySegment($"type ≈ is {target.BaseAircraftType}", AdvisoryTone.Off);
 
-    private static IReadOnlyDictionary<AdvisoryPart, string>? PatternTruth(TrafficAdvisoryCandidate target)
+    private static Dictionary<AdvisoryPart, string>? PatternTruth(TrafficAdvisoryCandidate target)
     {
         if ((target.PatternPosition is not { } position) || (target.AssignedRunwayId is not { } runway))
         {

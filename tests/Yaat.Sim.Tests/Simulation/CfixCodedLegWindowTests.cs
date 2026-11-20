@@ -777,7 +777,7 @@ public class CfixCodedLegWindowTests
     }
 
     /// <summary>The COAST9 departure off a via, with no ARTCC config and the SID hold altitude set to <see cref="HoldFt"/> by hand.</summary>
-    private Departure TdlsMaintainCoast9() => StartDeparture(artccConfig: null, Coast9(), HoldFt);
+    private static Departure TdlsMaintainCoast9() => StartDeparture(artccConfig: null, Coast9(), HoldFt);
 
     private Departure StartInDeparturePhase(Departure departure)
     {
@@ -794,7 +794,7 @@ public class CfixCodedLegWindowTests
     /// initial climb, its TDLS initial altitude resolved from <paramref name="artccConfig"/>; with <paramref name="holdFt"/>
     /// the SID hold altitude is set to it by hand, as the TDLS-maintain tests of ClimbViaTopAltitudeTests do.
     /// </summary>
-    private Departure StartDeparture(ArtccConfigRoot? artccConfig, DepartureSpec spec, int? holdFt)
+    private static Departure StartDeparture(ArtccConfigRoot? artccConfig, DepartureSpec spec, int? holdFt)
     {
         RunwayInfo rwy = Runway(spec.Airport, spec.Runway);
         var ac = new AircraftState

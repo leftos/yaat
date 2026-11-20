@@ -87,6 +87,40 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>Roll-in time of a jet: seconds from wings level to the full turn rate under the ramp turn model.</summary>
+    public const double JetRollInSeconds = 5.0;
+
+    /// <summary>Roll-in time of a turboprop, in seconds.</summary>
+    public const double TurbopropRollInSeconds = 4.0;
+
+    /// <summary>Roll-in time of a piston aircraft, in seconds.</summary>
+    public const double PistonRollInSeconds = 3.0;
+
+    /// <summary>Roll-in time of a helicopter in forward flight, in seconds.</summary>
+    public const double HelicopterRollInSeconds = 2.0;
+
+    /// <summary>
+    /// Below this indicated airspeed (knots) an airborne helicopter (hovering, air-taxiing, or slow) keeps the instant turn
+    /// model: whether a turn is banked depends on airspeed, and below it the steering rate is a yaw, not a banked turn.
+    /// </summary>
+    public const double HelicopterInstantTurnBelowIndicatedAirspeedKts = 30.0;
+
+    /// <summary>
+    /// Seconds the ramp turn model takes to go from wings level to the full turn rate (<see cref="TurnRate"/> or an
+    /// override), so the roll acceleration is the full rate over this time.
+    /// </summary>
+    public static double RollInSeconds(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => JetRollInSeconds,
+            AircraftCategory.Turboprop => TurbopropRollInSeconds,
+            AircraftCategory.Piston => PistonRollInSeconds,
+            AircraftCategory.Helicopter => HelicopterRollInSeconds,
+            _ => PistonRollInSeconds,
+        };
+    }
+
     public static double ClimbRate(AircraftCategory cat, double altitude)
     {
         bool belowTenK = altitude < 10000;

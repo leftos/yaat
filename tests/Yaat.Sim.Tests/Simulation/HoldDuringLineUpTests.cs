@@ -84,7 +84,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     }
 
     /// <summary>Issues LUAW and ticks until the aircraft is rolling into the line-up.</summary>
-    private bool DriveIntoLineUp(SimulationEngine engine)
+    private static bool DriveIntoLineUp(SimulationEngine engine)
     {
         Assert.True(engine.SendCommand(Callsign, "LUAW").Success);
         for (int t = 1; t <= 20; t++)

@@ -173,6 +173,38 @@ public sealed record DispatchContext
     public int? AltitudeAssignedLaterInBlock { get; internal init; }
 
     /// <summary>
+    /// The altitude (feet) the last altitude assignment later in the command's own block assigns, or null when none follows:
+    /// the altitude the aircraft is assigned once the block is applied, which a REPORT REACHING / LEAVING is judged against
+    /// (<c>REPORT REACHING 050, CM 090, CM 070</c> is judged at 7,000).
+    /// </summary>
+    public int? LastAltitudeAssignedLaterInBlock { get; internal init; }
+
+    /// <summary>
+    /// The pilot's answers to the REPORT REACHING / LEAVING requests in the transmission's first block, one per report (by
+    /// trigger and altitude), decided at issue and carried by the reaction delay now firing
+    /// (<see cref="DeferredDispatch.ReportPledges"/>); the handler obeys them. Empty in every later block
+    /// (<see cref="CommandDispatcher"/> drops them there) and in every other dispatch.
+    /// </summary>
+    public IReadOnlyList<ReportPledge> ReportPledges { get; internal init; } = [];
+
+    /// <summary>
+    /// Who answers pilot calls this session (<see cref="SimScenarioState.PilotContacts"/>), <see cref="PilotContactRoster.Empty"/>
+    /// outside a scenario: a pilot answer said at once is routed by it (<see cref="PilotReportRouting.From(DispatchContext)"/>), as
+    /// the report pass routes its calls.
+    /// </summary>
+    public PilotContactRoster PilotContacts { get; internal init; } = PilotContactRoster.Empty;
+
+    /// <summary>
+    /// The commands of the transmission's first block when the pilot's readback answers a REPORT REACHING / LEAVING among them
+    /// (<see cref="PilotProactive.IsAnsweredAtIssue"/>) and they apply as the transmission is issued, or when its reaction delay
+    /// fires carrying those answers (<see cref="ReportPledges"/>); else null. Set once per transmission by
+    /// <see cref="CommandDispatcher.DispatchCompound"/> and matched by reference, so a REPORT in a later block, a block peeled
+    /// off ahead of it or a block queued for later is never in it. For a REPORT in it the handler obeys the pledge and says
+    /// nothing of its own; for any other it says an answer other than the wilco at once.
+    /// </summary>
+    public IReadOnlyList<ParsedCommand>? ReportsAnsweredByReadback { get; internal init; }
+
+    /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
     /// for the verbs whose answer carries a time of day.
     /// </summary>

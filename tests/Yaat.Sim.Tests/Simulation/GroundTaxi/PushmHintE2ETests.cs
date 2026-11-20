@@ -233,7 +233,10 @@ public class PushmHintE2ETests(ITestOutputHelper output)
     private static (LatLon Position, double OutHeadingDeg) SpotRest(AirportGroundLayout layout, string spotName)
     {
         GroundNode spot = Spot(layout, spotName);
-        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outBearingDeg), $"spot '{spotName}' has no outbound heading in the layout");
+        Assert.True(
+            AirportGroundLayout.TryGetSpotOutboundHeading(spot, out double outBearingDeg),
+            $"spot '{spotName}' has no outbound heading in the layout"
+        );
         double halfLengthNm = (Assert.IsType<double>(FaaAircraftDatabase.Get(AircraftType)?.LengthFt) / 2.0) / GeoMath.FeetPerNm;
         return (GeoMath.ProjectPoint(spot.Position, new TrueHeading(outBearingDeg).ToReciprocal(), halfLengthNm), outBearingDeg);
     }

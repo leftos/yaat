@@ -92,7 +92,7 @@ public partial class ScopeView
 
     partial void AddDisplaySection(List<Control> items, ScopeViewModel vm, AircraftModel? ac, MenuContext context);
 
-    partial void AddDrawRouteSection(List<Control> items, ScopeViewModel vm, AircraftModel? ac, MenuContext context);
+    static partial void AddDrawRouteSection(List<Control> items, ScopeViewModel vm, AircraftModel? ac, MenuContext context);
 
     /// <summary>Offers a canvas key to each feature ahead of the entry's keys. Returns whether one took it.</summary>
     private bool RunKeyHooks(KeyEventArgs e)

@@ -25,7 +25,7 @@ The non-negotiable rules, each detailed below:
 3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData, CIFP and the committed aircraft tables are hard preconditions.** `ModuleInit` throws if it cannot resolve `NavData.dat` or the CIFP, because most of this suite asserts against real navdata and procedures, and a run without them reports green having proved nothing.
 
    `LoadAircraftSpecs`, `LoadAircraftCwt` and `LoadFaaAcd` likewise throw when `AircraftSpecs.json`, `AircraftCwt.json` or `FaaAcd.json` is missing from the test data folder or holds no entries (a broken checkout or a wrong `SetTestDataDir`), so no test runs on a half-loaded table. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
-4. **Run suites under a 120 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test`) so soft hangs surface as failures.
+4. **Run suites under a 660 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 660 -Slot heavy -- dotnet test`) so soft hangs surface as failures.
 5. **Runner options go after `--`** (Microsoft.Testing.Platform): `dotnet test -- --filter-method "*Name*"`; see [Running tests](#running-tests).
 6. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
 
@@ -650,7 +650,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   return early — **no `Assert.Skip`, no exception** — so CI stays green. `TestVnasData.NavigationDb`, `TestAirportGroundData.GetLayout`,
   and `TestArtccConfig.LoadZoa` all return `null` for exactly this.
 - **CIFP decompression is content-keyed and shared.** A pinned resolve writes `%TEMP%/yaat-test-cifp/FAACIFP18-{cycle}-{hash}.dat` once for all test processes; there is no per-process file or sweep. **Don't add another decompress helper — route through the resolver.**
-- **Run under a 120 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test`). A suite that the gate kills as `STALLED` or `TIMED OUT` is usually stuck on broken graph topology or an infinite pathfinder loop, not slow.
+- **Run under a 660 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 660 -Slot heavy -- dotnet test`). A suite that the gate kills as `STALLED` or `TIMED OUT` is usually stuck on broken graph topology or an infinite pathfinder loop, not slow.
 - **Use `pwsh tools/test-all.ps1`, not bare `dotnet test`, for full-suite confidence.** Bare `dotnet test` from yaat never builds the
   sibling yaat-server, so a `Yaat.Sim` signature change that breaks the server passes locally and fails in CI. The heavy
   `Nightly`/`PathfinderGrid` categories are excluded by default; pass `-Full` for the complete set.

@@ -934,14 +934,18 @@ public sealed class FinalApproachPhase : Phase
         double turnRate = _isPatternTraffic
             ? CategoryPerformance.PatternTurnRate(ctx.Category)
             : (ctx.Aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category));
-        double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
+        double turnRadiusNm = TurnShape.RadiusNm(ctx.Aircraft.GroundSpeed, turnRate);
 
         // Blend: at large XTE, lead = turnRadius (kinematic intercept arc).
         // At small XTE, lead → proportional to turn radius (prevents heading oscillation).
         // Floor at 30% of turn radius keeps correction angles gentle near centerline.
         double xteRatio = turnRadiusNm > 0.01 ? Math.Clamp(absXte / turnRadiusNm, 0.0, 1.0) : 1.0;
         double minLead = Math.Max(turnRadiusNm * 0.3, AimPointMinNm);
-        double leadNm = Math.Max((turnRadiusNm * xteRatio) + (absXte * (1.0 - xteRatio)), minLead);
+        // Under the ramp turn model the aim point moves out by the roll-in lead of the turn onto the course.
+        double rollInLeadNm = TurnShape.LeadNm(
+            TurnLeadInput.Of(ctx.Aircraft, ctx.Aircraft.TrueHeading.SignedAngleTo(lateralCourse), turnRate, ctx.Category, ctx.TurnModel)
+        );
+        double leadNm = Math.Max((turnRadiusNm * xteRatio) + (absXte * (1.0 - xteRatio)), minLead) + rollInLeadNm;
 
         double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, lateralAnchor, lateralCourse);
         double aimAlongTrack = alongTrack + leadNm;

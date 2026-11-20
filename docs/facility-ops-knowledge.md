@@ -12,7 +12,8 @@ generic, 7110.65-conservative rules everywhere and refine decisions where a know
 - `FacilityOpsDatabase` (`src/Yaat.Sim/ControllerAi/Knowledge/`) is a process-wide static like `NavigationDatabase`:
   `Initialize(directory, navigation)` at startup — `ServerDataBootstrap.InitializeNavigationAsync` on the server and
   the headless tools, `TestVnasData.EnsureInitialized` in tests — `SetInstance` for hand-built sets, `For(airportId)`
-  (FAA or ICAO form) at every consult site. No file for an airport ⇒ `null` ⇒ the generic rule.
+  (FAA or ICAO form) at every consult site (the Ground brain's `RunwayInUseState`, and `ImpliedActiveRunways`, which
+  runs the same `FacilityRunwayKnowledge.Select` step to offer a scenario's active runways). No file for an airport ⇒ `null` ⇒ the generic rule.
 - Parsing is strict (`FacilityOpsJson.Options`: unknown properties and unknown enum values are errors) and
   `FacilityOpsValidator` cross-checks against navdata: every airport and runway must resolve, configuration names must
   be declared, a partner coupling must name runways at the partner, every entry needs a `source` citation. A failure

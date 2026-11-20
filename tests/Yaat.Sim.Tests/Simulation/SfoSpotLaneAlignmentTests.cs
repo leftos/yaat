@@ -20,6 +20,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
 {
+    private static readonly double[] SideOffsetsDeg = [90.0, 270.0];
+
     /// <summary>Recorded session the live-dispatch case replays from: S1-SFO-2 Ground Control 28/01.</summary>
     private const string RecordingPath = "TestData/sfo-gc-28-01-spot-lanes-recording.zip";
 
@@ -141,7 +143,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     private static bool RollsAlongTheSpotsLane(TaxiRouteSegment leg, GroundNode spot) =>
         VirtualNode.IsVirtualEdge(leg.Edge.Edge) && RampZeroSegmentRoll.IsOnLaneFacing(spot, leg.Edge.FromNode.Position, leg.Edge.DepartureBearing);
 
-    private int TickToRest(SimulationEngine engine, AircraftState aircraft, int maxSeconds) =>
+    private static int TickToRest(SimulationEngine engine, AircraftState aircraft, int maxSeconds) =>
         SfoGroundHarness.TickUntil(
             engine,
             () => (aircraft.GroundSpeed < AtRestKts) && (aircraft.Phases?.CurrentPhase is HoldingInPositionPhase or AtParkingPhase),
@@ -1119,7 +1121,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         (double wingtipFt, int second) = rampSide
             .Select(t =>
                 (
-                    new[] { 90.0, 270.0 }.Min(side =>
+                    SideOffsetsDeg.Min(side =>
                         SfoGroundHarness.DistanceToTaxiwayFt(
                             layout,
                             neighbour,

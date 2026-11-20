@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
@@ -52,7 +53,7 @@ public sealed class MainViewModelAutomationState(MainViewModel viewModel) : IAut
 
     public IReadOnlyList<TerminalEntry> TerminalEntriesSince(long cursor)
     {
-        IList<TerminalEntry> entries = viewModel.TerminalEntries;
+        ObservableCollection<TerminalEntry> entries = viewModel.TerminalEntries;
         int first = entries.Count;
         while ((first > 0) && (entries[first - 1].Sequence > cursor))
         {

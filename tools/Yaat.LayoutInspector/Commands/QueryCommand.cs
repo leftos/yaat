@@ -12,7 +12,7 @@ namespace Yaat.LayoutInspector.Commands;
 /// --pathfinder, --parking, --spots, --intersection, --validate) and writes
 /// results through an <see cref="IFormatter"/> (text or json).
 /// </summary>
-public sealed class QueryCommand : ICommand
+public sealed partial class QueryCommand : ICommand
 {
     /// <summary>The longest CWT fallback length (an A388's), the aircraft length for routes resolved with no aircraft type.</summary>
     internal static readonly double LongestFallbackLengthFt = AircraftLength.CwtFallbackLengthFt("A388");
@@ -317,7 +317,7 @@ public sealed class QueryCommand : ICommand
     /// Returns the seeds in input order followed by any newly-discovered ids in BFS
     /// order. <paramref name="depth"/> = 0 returns the seeds unchanged.
     /// </summary>
-    private static List<int> ExpandNodeIds(LayoutAnalyzer analyzer, IReadOnlyList<int> seedIds, int depth)
+    private static List<int> ExpandNodeIds(LayoutAnalyzer analyzer, List<int> seedIds, int depth)
     {
         if (depth <= 0 || seedIds.Count == 0)
         {
@@ -536,14 +536,8 @@ public sealed class QueryCommand : ICommand
     private static int ComputeExplicitWalkCount(int total, IReadOnlyList<string> diagLog)
     {
         int extensionCount = 0;
-        var cachedRe = new System.Text.RegularExpressions.Regex(
-            @"cached Shortest extension \((\d+) segments?",
-            System.Text.RegularExpressions.RegexOptions.Compiled
-        );
-        var liRe = new System.Text.RegularExpressions.Regex(
-            @"\[LI\] Extension via FindRoute.*?: (\d+) segment",
-            System.Text.RegularExpressions.RegexOptions.Compiled
-        );
+        Regex cachedRe = CachedExtensionSegmentsRegex();
+        Regex liRe = FindRouteExtensionSegmentsRegex();
         foreach (string line in diagLog)
         {
             Match m = cachedRe.Match(line);
@@ -565,7 +559,7 @@ public sealed class QueryCommand : ICommand
 
     private static void ScanRouteForAnomalies(
         LayoutAnalyzer analyzer,
-        IReadOnlyList<PathfinderSegment> segments,
+        List<PathfinderSegment> segments,
         IReadOnlyList<string> authorizedTaxiways,
         int explicitWalkCount,
         List<string> diagLog
@@ -652,4 +646,10 @@ public sealed class QueryCommand : ICommand
 
         return false;
     }
+
+    [GeneratedRegex(@"cached Shortest extension \((\d+) segments?")]
+    private static partial Regex CachedExtensionSegmentsRegex();
+
+    [GeneratedRegex(@"\[LI\] Extension via FindRoute.*?: (\d+) segment")]
+    private static partial Regex FindRouteExtensionSegmentsRegex();
 }

@@ -46,6 +46,12 @@ public sealed class SessionRecording
     /// </summary>
     public bool FinalApproachSpeedVarietyEnabled { get; init; }
 
+    /// <summary>
+    /// The turn model the recorded session flew (read from the initial snapshot's scenario block). Replay restores it into
+    /// <c>SimScenarioState.TurnModel</c>; defaults to <see cref="TurnModel.Instant"/> for recordings made before the ramp.
+    /// </summary>
+    public TurnModel TurnModel { get; init; }
+
     public required List<RecordedAction> Actions { get; init; }
 
     /// <summary>

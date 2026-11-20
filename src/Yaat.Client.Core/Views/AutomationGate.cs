@@ -28,7 +28,7 @@ namespace Yaat.Client.Views;
 /// <c>Yaat.Client</c>'s <c>AutomationMode.IsEnabled</c> is the only
 /// writer outside tests; this assembly cannot reference <c>Yaat.Client</c>, so the flag lives here.
 /// </summary>
-public static class AutomationGate
+public static partial class AutomationGate
 {
     private static readonly ILogger Log = AppLog.CreateLogger("AutomationGate");
 
@@ -340,13 +340,13 @@ public static class AutomationGate
         return false;
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+    private static partial bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    private static partial IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 }

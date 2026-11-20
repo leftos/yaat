@@ -2,9 +2,10 @@ using System.Text.RegularExpressions;
 
 namespace Yaat.Sim;
 
-public static class Callsign
+public static partial class Callsign
 {
-    private static readonly Regex Pattern = new(@"^[A-Z0-9\-]{1,7}$", RegexOptions.Compiled);
+    [GeneratedRegex(@"^[A-Z0-9\-]{1,7}$")]
+    private static partial Regex CallsignRegex();
 
-    public static bool IsValid(string? callsign) => !string.IsNullOrEmpty(callsign) && Pattern.IsMatch(callsign);
+    public static bool IsValid(string? callsign) => !string.IsNullOrEmpty(callsign) && CallsignRegex().IsMatch(callsign);
 }

@@ -192,7 +192,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         }
     }
 
-    private bool HeadingEstablished(PhaseContext ctx, ProcedureLeg leg)
+    private static bool HeadingEstablished(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.CourseMagnetic is not { } course)
         {
@@ -212,7 +212,8 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     {
         SteerHeadingOrTrack(ctx, leg, asTrack);
 
-        // Intercept when within turn-radius lead of the next leg's course line (or it flips across).
+        // Intercept when within the turn-radius lead of the next leg's course line, plus under the ramp turn model the
+        // roll-in lead's cross-track component L × sin(theta) (TurnShape.InterceptLeadNm), or when it flips across.
         if (_legIndex + 1 >= Legs.Count)
         {
             return false;
@@ -226,7 +227,9 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         TrueHeading courseTrue = new MagneticHeading(nextCourse).ToTrue(ctx.Aircraft.Declination);
         double signed = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, anchor, courseTrue);
         double turnRate = ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
-        double leadNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
+        double leadNm = TurnShape.InterceptLeadNm(
+            TurnLeadInput.Of(ctx.Aircraft, ctx.Aircraft.TrueHeading.SignedAngleTo(courseTrue), turnRate, ctx.Category, ctx.TurnModel)
+        );
 
         bool flipped = _previousSignedCrossTrack is { } prev && ((prev > 0 && signed <= 0) || (prev < 0 && signed >= 0));
         _previousSignedCrossTrack = signed;
@@ -248,7 +251,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         return Math.Abs(signed) <= leadNm || flipped;
     }
 
-    private bool TrackCourseToFix(PhaseContext ctx, ProcedureLeg leg)
+    private static bool TrackCourseToFix(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.FixPosition is not { } fix || leg.CourseMagnetic is not { } course)
         {
@@ -544,7 +547,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         );
     }
 
-    private bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
+    private static bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.FixPosition is not { } fix)
         {

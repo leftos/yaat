@@ -22,6 +22,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
 {
     private const string M1NotInClearance = "M1 not in clearance";
+    private static readonly string[] TaxiwaysAAndM1 = ["A", "M1"];
 
     /// <summary>
     /// WJA1508's clearance from the bug bundle: <c>TAXI T A @B2</c> after exiting 28R resolved as <c>T A M2 M5 @B2</c>,
@@ -335,7 +336,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
 
         AssertReachesParking(layout, route, "B2");
         Assert.True(DrivesStraight(route, "A"), "the route drives A");
-        foreach (string taxiway in new[] { "A", "M1" }.Where(t => DrivesStraight(route, t)))
+        foreach (string taxiway in TaxiwaysAAndM1.Where(t => DrivesStraight(route, t)))
         {
             Assert.Contains(RouteMaterialiser.NotInRouteIssuedWarning(taxiway), route.Warnings);
         }

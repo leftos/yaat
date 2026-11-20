@@ -105,6 +105,8 @@ All Commands
     Report when… alias:REPORT
       Report when… · AAL202 [disabled]
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
     ---
     Ask pilot to say…
       Altitude

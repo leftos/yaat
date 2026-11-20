@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -91,10 +92,25 @@ public sealed partial class SpeechBenchmarkViewModel : ObservableObject, IDispos
     /// <summary>The table's rows.</summary>
     public ObservableCollection<SpeechBenchmarkRowViewModel> Rows { get; } = [];
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Reached by name from an Avalonia XAML binding in SpeechBenchmarkWindow.axaml"
+    )]
     public string IntroText => IntroMessage;
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Reached by name from an Avalonia XAML binding in SpeechBenchmarkWindow.axaml"
+    )]
     public string PushToTalkNote => PushToTalkMessage;
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Reached by name from an Avalonia XAML binding in SpeechBenchmarkWindow.axaml"
+    )]
     public string GpuRuntimeNote => GpuRuntimeMessage;
 
     [ObservableProperty]

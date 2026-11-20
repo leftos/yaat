@@ -182,7 +182,7 @@ public sealed class TelemetryTranscriptRegressionTests
         );
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ToRunways(IReadOnlyDictionary<string, IReadOnlyList<string>>? source)
+    private static Dictionary<string, IReadOnlyList<string>> ToRunways(IReadOnlyDictionary<string, IReadOnlyList<string>>? source)
     {
         var runways = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         if (source is null)

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
@@ -165,7 +166,7 @@ public class AsdexAlertStepTests
         engine.TickAsdexAlerts(spine);
 
         // What the CRC initial-data build does off the tick thread: take the reference once, enumerate it later.
-        IReadOnlyDictionary<string, AsdexSafetyAlert> captured = engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(
+        ImmutableSortedDictionary<string, AsdexSafetyAlert> captured = engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(
             "OAK",
             SimScenarioState.NoAsdexAlerts
         );

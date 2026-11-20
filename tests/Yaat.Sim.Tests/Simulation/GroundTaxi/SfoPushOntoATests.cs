@@ -65,7 +65,8 @@ public class SfoPushOntoATests(ITestOutputHelper output)
     {
         GroundNode stand = layout.FindParkingByName(gate) ?? throw new InvalidOperationException($"SFO gate {gate} missing");
         GroundNode exit = layout.FindExitByTaxiway(stand.Position, "A") ?? throw new InvalidOperationException($"no A exit off {gate}");
-        double lineDeg = layout.GetEdgeBearingForTaxiway(exit, "A", ac.TrueHeading.Degrees) ?? throw new InvalidOperationException("no A edge");
+        double lineDeg =
+            AirportGroundLayout.GetEdgeBearingForTaxiway(exit, "A", ac.TrueHeading.Degrees) ?? throw new InvalidOperationException("no A edge");
         double fromExitFt = GeoMath.DistanceNm(exit.Position, ac.Position) * GeoMath.FeetPerNm;
         double offFt = Math.Abs(fromExitFt * Math.Sin((GeoMath.BearingTo(exit.Position, ac.Position) - lineDeg) * Math.PI / 180.0));
         double standDeg = Assert.NotNull(stand.TrueHeading).Degrees;

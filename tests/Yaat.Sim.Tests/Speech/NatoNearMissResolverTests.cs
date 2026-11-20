@@ -7,7 +7,7 @@ public class NatoNearMissResolverTests
 {
     private static readonly IReadOnlySet<string> NoProtection = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    private static IReadOnlySet<string> Protect(params string[] fixes) => new HashSet<string>(fixes, StringComparer.OrdinalIgnoreCase);
+    private static HashSet<string> Protect(params string[] fixes) => new(fixes, StringComparer.OrdinalIgnoreCase);
 
     [Fact]
     public void Empty_Input_Returns_Empty()

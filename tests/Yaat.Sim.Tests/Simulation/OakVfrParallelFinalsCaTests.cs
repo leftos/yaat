@@ -22,7 +22,7 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/4d4344011a72.zip";
     private const int RestoreAtSeconds = 785;
 
-    private SimulationEngine? BuildEngine()
+    private static SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
         NavigationDatabase? navDb = TestVnasData.NavigationDb;

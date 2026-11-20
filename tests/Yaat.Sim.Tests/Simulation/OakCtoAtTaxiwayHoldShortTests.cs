@@ -1281,7 +1281,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         return result;
     }
 
-    private void TickUnableHoldCheck(SimulationEngine engine)
+    private static void TickUnableHoldCheck(SimulationEngine engine)
     {
         for (int t = 0; t < UnableHoldCheckSeconds; t++)
         {

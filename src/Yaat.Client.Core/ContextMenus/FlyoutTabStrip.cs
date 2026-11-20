@@ -350,8 +350,8 @@ public sealed class FlyoutTabStrip : Border
         }
 
         /// <summary>A 9 px ring with a bright quarter, as the mock's small spinner draws it.</summary>
-        private static Control SpinnerView() =>
-            new Grid
+        private static Grid SpinnerView() =>
+            new()
             {
                 Name = SpinnerName,
                 Width = 9,

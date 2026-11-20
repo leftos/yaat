@@ -86,6 +86,8 @@ All Commands
       Report when… · AAL208 · RWY 30 [disabled]
       Mile final — ···
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
     ---
     Ask pilot to say…
       Altitude

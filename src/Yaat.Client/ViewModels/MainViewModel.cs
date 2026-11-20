@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -2620,7 +2621,7 @@ public partial class MainViewModel : ObservableObject
     /// layout because it's the view that reconstructs it from the server DTO; this borrows a reference so
     /// the dropdown tracks the airport the user is currently looking at. Empty when none is loaded.
     /// </summary>
-    private HashSet<string> CollectLoadedNodeNames(IReadOnlySet<GroundNodeType> types)
+    private HashSet<string> CollectLoadedNodeNames(HashSet<GroundNodeType> types)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Primary-only by design: the extra Ground View windows mirror this same layout.
@@ -3321,6 +3322,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The CommunityToolkit RelayCommand source generator builds ExitCommand on it, bound in MainWindow.axaml"
+    )]
     private void Exit()
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)

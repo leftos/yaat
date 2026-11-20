@@ -32,7 +32,7 @@ macOS builds require macOS 14 (Sonoma) or newer. Pick the package matching your 
 
 Flight strips are also available in any browser at [yaat1.leftos.dev/vstrips/](https://yaat1.leftos.dev/vstrips/) (no install — just open the URL).
 
-**Just want to point CRC at YAAT?** The standalone [`yaat-crc-config`](tools/yaat-crc-config/README.md) tool (~200 KB single binary, no install) adds the YAAT environments to CRC's `DevEnvironments.json` for students who only want to observe a YAAT session. Download it from the [`crc-config-v*` releases](https://github.com/leftos/yaat/releases?q=crc-config-v).
+**Just want to point CRC at YAAT?** The standalone [`yaat-crc-config`](tools/yaat-crc-config/README.md) tool (~200 KB single binary, no install) adds the YAAT environments to CRC's `DevEnvironments.json` for students who only want to observe a YAAT session. Download it from the [`crc-config-v*` releases](https://github.com/leftos/yaat/releases/tag/crc-config-v0.1.2).
 
 Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either one connects to YAAT1, which is selected on first launch.
 

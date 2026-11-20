@@ -615,7 +615,7 @@ public static class AircraftGenerator
     /// estimates from the flying distance to the destination airport. The derived estimates are
     /// clamped to a sane band; all results snap to a 1000-ft step.
     /// </summary>
-    private static double ComputeDefaultEstablishmentAltitude(AircraftState state, IReadOnlyDictionary<string, int> altByFix, string airport)
+    private static double ComputeDefaultEstablishmentAltitude(AircraftState state, Dictionary<string, int> altByFix, string airport)
     {
         const double GradientFtPerNm = 300.0; // ~3:1; AIM 5-4-2.b descent window is 250–350 ft/nm
         const double FloorFt = 4000.0;

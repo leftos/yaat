@@ -94,6 +94,8 @@ All Commands
       Report when… · N309AB · RWY 28R [disabled]
       Mile final — ···
       Passing a fix — ···
+      Reaching an altitude — ···
+      Leaving an altitude — ···
       Reporting points · nearest first [disabled]
       OAK30NUM · 1.1 NM · 155° — REPORT OAK30NUM
       VPBCQ · 1.5 NM · 114° — REPORT VPBCQ

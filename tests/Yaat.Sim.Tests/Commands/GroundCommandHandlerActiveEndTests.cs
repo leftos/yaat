@@ -20,6 +20,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
     private const string Callsign = "UAL1";
     private const string Lead = "UAL2";
     private const string AllActive = "ARWY SFO 01L 01R 28L 28R";
+    private static readonly string[] SfoRunwayEnds = ["01L", "01R", "28L", "28R"];
 
     /// <summary>The SFO harness with <paramref name="arwy"/> issued, or null when the SFO layout or navdata is missing.</summary>
     private SfoGround? Sfo(string arwy)
@@ -237,10 +238,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
     public void CrossWithNoCrossingRoute_IsRefusedNamingTheActiveEnd()
     {
         TestVnasData.EnsureInitialized();
-        ActiveRunways active = ActiveRunways.Empty.With(
-            "SFO",
-            [.. new[] { "01L", "01R", "28L", "28R" }.Select(end => new ActiveRunway(end, ActiveRunwayUse.Both))]
-        );
+        ActiveRunways active = ActiveRunways.Empty.With("SFO", [.. SfoRunwayEnds.Select(end => new ActiveRunway(end, ActiveRunwayUse.Both))]);
         RunwayInfo threshold = NavigationDatabase.Instance.GetRunway("SFO", "19L") ?? throw new InvalidOperationException("SFO 19L missing");
         var position = new LatLon(threshold.ThresholdLatitude, threshold.ThresholdLongitude);
         var layout = new AirportGroundLayout { AirportId = "SFO" };

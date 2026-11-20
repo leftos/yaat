@@ -69,7 +69,7 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
         return aircraft;
     }
 
-    private void AddScenario(SimulationEngine engine, string id)
+    private static void AddScenario(SimulationEngine engine, string id)
     {
         engine.Scenario = new SimScenarioState
         {

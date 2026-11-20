@@ -65,7 +65,7 @@ internal static class ActionArms
         CommandResult result;
         if (delay is double seconds)
         {
-            engine.DeferForReaction(aircraft, compound, seconds, origin);
+            SimulationEngine.DeferForReaction(aircraft, compound, seconds, origin);
             ctx.ReactionDelaySeconds = seconds;
             // In solo training mode the student is the pilot's only audience: showing the exact sampled delay would
             // reveal how long the aircraft will take to comply. The pilot's read-back is the acknowledgement.
@@ -90,7 +90,7 @@ internal static class ActionArms
             // gets a layout.
             if ((aircraft.Phases?.LandingClearance is not null) || (aircraft.Pattern.PendingLandingClearance is not null))
             {
-                engine.DropLayoutOfAnotherField(aircraft);
+                SimulationEngine.DropLayoutOfAnotherField(aircraft);
                 aircraft.Ground.Layout ??= engine.ResolveGroundLayout(aircraft);
             }
 

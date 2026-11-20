@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -137,4 +139,20 @@ public sealed class DeferredDispatchDto
 
     // Optional — defaults false so older snapshots deserialize as live/controller-origin deferrals.
     public bool IsScenarioScripted { get; init; }
+
+    /// <summary>
+    /// A reaction delay's REPORT REACHING / LEAVING answers, one per report (<see cref="DeferredDispatch.ReportPledges"/>).
+    /// Written only when there is one, so a snapshot with none serializes as before; absent, the deferral restores with none.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ReportPledgeDto>? ReportPledges { get; init; }
+}
+
+/// <summary>A reaction delay's REPORT REACHING / LEAVING answer (<see cref="Yaat.Sim.ReportPledge"/>).</summary>
+public sealed class ReportPledgeDto
+{
+    public required ReportTrigger Trigger { get; init; }
+    public required int AltitudeFt { get; init; }
+    public required PilotProactive.ReportAltitudeAnswer Answer { get; init; }
+    public required double IssueAltitudeFt { get; init; }
 }

@@ -210,7 +210,7 @@ internal sealed class FeedRoom
     /// The entities the feed's other clips give <paramref name="callsign"/>: every non-callsign gold slot of each clip other than
     /// <paramref name="clipId"/> whose first callsign is it, resolved and deduplicated in clip-id order.
     /// </summary>
-    private IReadOnlyList<ContextEntity> OwnEntities(string callsign, string clipId)
+    private List<ContextEntity> OwnEntities(string callsign, string clipId)
     {
         IEnumerable<string> clips = _clipsByFirstCallsign.TryGetValue(callsign, out List<string>? ids) ? ids : [];
         return ResolveAll(clips.Where(id => id != clipId).SelectMany(id => _sources.Slots[id]));

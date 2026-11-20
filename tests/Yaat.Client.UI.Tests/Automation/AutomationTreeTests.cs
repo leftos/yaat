@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
@@ -452,6 +453,11 @@ public sealed class AutomationTreeTests : AutomationHostFixture
     /// <summary>A view model whose property has a setter and no getter.</summary>
     public sealed class WriteOnlyRow
     {
+        [SuppressMessage(
+            "Performance",
+            "CA1822:Mark members as static",
+            Justification = "Read by name by the dc.Secret selector, which reflects over instance properties"
+        )]
         public string Secret
         {
             set { }

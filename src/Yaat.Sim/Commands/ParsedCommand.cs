@@ -153,8 +153,8 @@ public record SayCommand(string Text) : ParsedCommand;
 
 /// <summary>
 /// What a <see cref="ReportCommand"/> arms (or, for <see cref="Cancel"/>, undoes). The four pattern
-/// legs and <see cref="Midfield"/> (midfield downwind) re-arm every circuit; <see cref="MileFinal"/>
-/// and <see cref="AtFix"/> are one-shot.
+/// legs and <see cref="Midfield"/> (midfield downwind) re-arm every circuit; <see cref="MileFinal"/>,
+/// <see cref="AtFix"/>, <see cref="ReachingAltitude"/> and <see cref="LeavingAltitude"/> are one-shot.
 /// </summary>
 public enum ReportTrigger
 {
@@ -166,6 +166,12 @@ public enum ReportTrigger
     MileFinal,
     AtFix,
     Cancel,
+
+    /// <summary><c>REPORT REACHING {altitude}</c>: the pilot calls when the climb or descent reaches the altitude.</summary>
+    ReachingAltitude,
+
+    /// <summary><c>REPORT LEAVING {altitude}</c>: the pilot calls once the climb or descent has left the altitude.</summary>
+    LeavingAltitude,
 }
 
 /// <summary>
@@ -174,10 +180,16 @@ public enum ReportTrigger
 /// <see cref="ReportTrigger.Cancel"/>, <see cref="CancelTarget"/> names the single report to stop —
 /// a pattern leg, <see cref="ReportTrigger.MileFinal"/> (with <see cref="DistanceNm"/>), or
 /// <see cref="ReportTrigger.AtFix"/> (with <see cref="FixName"/>) — or is null to cancel all
-/// standing reports.
+/// standing reports. <see cref="AltitudeFt"/> is the MSL altitude of <see cref="ReportTrigger.ReachingAltitude"/> and
+/// <see cref="ReportTrigger.LeavingAltitude"/>.
 /// </summary>
-public record ReportCommand(ReportTrigger Trigger, int? DistanceNm = null, string? FixName = null, ReportTrigger? CancelTarget = null)
-    : ParsedCommand;
+public record ReportCommand(
+    ReportTrigger Trigger,
+    int? DistanceNm = null,
+    string? FixName = null,
+    ReportTrigger? CancelTarget = null,
+    int? AltitudeFt = null
+) : ParsedCommand;
 
 public record SaySpeedCommand : ParsedCommand;
 

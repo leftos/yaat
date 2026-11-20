@@ -287,7 +287,7 @@ public sealed class HeadingRose : Control
         SetPointing(null);
     }
 
-    private int? HeadingUnder(Point point) => HeadingFlyout.HeadingAt(point.X - Centre, point.Y - Centre);
+    private static int? HeadingUnder(Point point) => HeadingFlyout.HeadingAt(point.X - Centre, point.Y - Centre);
 
     private void SetPointing(int? heading)
     {

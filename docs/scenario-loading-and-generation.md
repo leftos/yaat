@@ -272,7 +272,7 @@ files via `DA`/`VP`.
 `StartingConditions.NavigationPath` into the aircraft's `Targets.NavigationRoute`. It expands the path with
 `RouteExpander.Expand(navigationPath, navDb, includeAllTransitionsOnMismatch: false)`, resolves each fix to a position (dropping
 unresolvable fixes with a warning, collapsing adjacent duplicates), appends CIFP STAR runway-transition fixes
-(`AppendStarRunwayTransition`), then chains the remaining filed route via `RouteChainer.AppendRouteRemainder`.
+(`AppendStarRunwayTransition`), then chains the remaining filed route via `RouteChainer.AppendRouteRemainder`. `AppendStarRunwayTransition` also returns the STAR's published terminal (FM/VM) courses by fix name, so the spawned route's last fix keeps the course it hands off on and the aircraft awaits vectors there instead of turning direct to the destination. The courses are read from the common route's legs and from the runway transition's, a transition's course replacing a common-route one on the same fix; a STAR that publishes its FM leg in the common route and has no runway transitions (BRIXX4 into KSJC) is a distinct shape, pinned by `Brixx4CommonRouteFmCourseTests`.
 
 > **`ArrivalRouteResolver` is shared.** `PopulateNavigationRoute`, `ApplyAltitudeProfile` and `ApplyStarSpeedRestrictions` (below) were extracted from
 > `ScenarioLoader` into this helper so the `ADD … {wpt}.{star}[.{rwy}]` on-STAR spawn variant (`AircraftGenerator.GenerateOnStar`)

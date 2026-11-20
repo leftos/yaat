@@ -448,7 +448,7 @@ public sealed class Yaat2299ReclearedWhileEstablishedTests(ITestOutputHelper out
     /// A go-around flown unattended (recorded actions would intervene) until the published missed approach is the current
     /// phase, which is returned.
     /// </summary>
-    private static Phase FlyTheMissedApproach(Session session, string callsign)
+    private static ApproachNavigationPhase FlyTheMissedApproach(Session session, string callsign)
     {
         if (session.Aircraft().Phases?.ActiveApproach?.MissedApproachFixes is not { Count: > 0 })
         {

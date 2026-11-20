@@ -418,7 +418,7 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
     }
 
     /// <summary>An EC35 parked on KOAK's HELI pad, in an engine loaded with the real OAK layout.</summary>
-    private (SimulationEngine Engine, AirportGroundLayout Layout, AircraftState Heli)? Setup()
+    private static (SimulationEngine Engine, AirportGroundLayout Layout, AircraftState Heli)? Setup()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)

@@ -100,7 +100,8 @@ public class SfoPushOntoT7AFromF5Tests(ITestOutputHelper output)
 
         double toSpotFt = FeetBetween(ac.Position, spot.Position);
         double lineDeg =
-            ground.Layout.GetEdgeBearingForTaxiway(spot, "T7A", ac.TrueHeading.Degrees) ?? throw new InvalidOperationException("no T7A edge at 7A");
+            AirportGroundLayout.GetEdgeBearingForTaxiway(spot, "T7A", ac.TrueHeading.Degrees)
+            ?? throw new InvalidOperationException("no T7A edge at 7A");
         double offLineDeg = GeoMath.AbsBearingDifference(ac.TrueHeading.Degrees, lineDeg);
         output.WriteLine(
             $"taxi stopped at t={second}s in {ac.Phases?.CurrentPhase?.GetType().Name}: {toSpotFt:F1} ft from spot 7A, nose "

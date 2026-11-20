@@ -143,7 +143,7 @@ public class AtpaVolumeAssociationTests
         AircraftState lead = Arrival("SWA1", "B738", GeoMath.ProjectPoint(threshold, outbound, 6.0), heading);
         AircraftState trail = Arrival("SWA2", "B738", GeoMath.ProjectPoint(threshold, outbound, 9.0), heading);
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process([lead, trail], volumes, new StarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process([lead, trail], volumes, new StarsConfig());
         output.WriteLine($"results: {string.Join(", ", results.Select(r => $"{r.Key}->{r.Value.TargetTrackId}"))}");
 
         Assert.True(results.ContainsKey("SWA2"), "Trailing SFO 28 arrival must get an in-trail cone despite the overlapping disabled twin");
@@ -172,7 +172,7 @@ public class AtpaVolumeAssociationTests
         AircraftState lead = Arrival("SWA1", "B738", GeoMath.ProjectPoint(threshold, outbound, 6.0), heading);
         AircraftState trail = Arrival("SWA2", "B738", GeoMath.ProjectPoint(threshold, outbound, 9.0), heading);
 
-        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process([lead, trail], [disabled], new StarsConfig());
+        Dictionary<string, AtpaResult> results = AtpaProcessor.Process([lead, trail], [disabled], new StarsConfig());
         Assert.Empty(results);
     }
 
@@ -197,13 +197,13 @@ public class AtpaVolumeAssociationTests
 
         AircraftState leadIn = Arrival("N1", "C172", GeoMath.ProjectPoint(threshold, outbound, 5.0), heading);
         AircraftState trailIn = Arrival("N2", "C172", GeoMath.ProjectPoint(threshold, outbound, 8.0), heading);
-        Dictionary<string, AtpaResult> inside = new AtpaProcessor().Process([leadIn, trailIn], [vol], new StarsConfig());
+        Dictionary<string, AtpaResult> inside = AtpaProcessor.Process([leadIn, trailIn], [vol], new StarsConfig());
         output.WriteLine($"within 10nm: allowed={inside["N2"].AllowedSeparation}");
         Assert.Equal(2.5, inside["N2"].AllowedSeparation, 1);
 
         AircraftState leadOut = Arrival("N3", "C172", GeoMath.ProjectPoint(threshold, outbound, 12.0), heading);
         AircraftState trailOut = Arrival("N4", "C172", GeoMath.ProjectPoint(threshold, outbound, 15.0), heading);
-        Dictionary<string, AtpaResult> outside = new AtpaProcessor().Process([leadOut, trailOut], [vol], new StarsConfig());
+        Dictionary<string, AtpaResult> outside = AtpaProcessor.Process([leadOut, trailOut], [vol], new StarsConfig());
         output.WriteLine($"beyond 10nm: allowed={outside["N4"].AllowedSeparation}");
         Assert.Equal(3.0, outside["N4"].AllowedSeparation, 1);
     }

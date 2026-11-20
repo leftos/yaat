@@ -21,7 +21,7 @@ namespace Yaat.Client.Views;
 ///   <item><description><b>macOS:</b> no-op. macOS has no equivalent per-window system menu.</description></item>
 /// </list>
 /// </summary>
-public sealed class WindowSystemMenuHelper(Window window, WindowGeometryHelper geometryHelper, UserPreferences preferences, string windowName)
+public sealed partial class WindowSystemMenuHelper(Window window, WindowGeometryHelper geometryHelper, UserPreferences preferences, string windowName)
 {
     private const uint MF_BYCOMMAND = 0x0000_0000;
     private const uint MF_BYPOSITION = 0x0000_0400;
@@ -152,24 +152,25 @@ public sealed class WindowSystemMenuHelper(Window window, WindowGeometryHelper g
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, UIntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, UIntPtr dwRefData);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr GetSystemMenu(IntPtr hWnd, [MarshalAs(UnmanagedType.Bool)] bool bRevert);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    private static partial IntPtr GetSystemMenu(IntPtr hWnd, [MarshalAs(UnmanagedType.Bool)] bool bRevert);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    // CharSet.Unicode without ExactSpelling bound the W export, which LibraryImport has to name.
+    [LibraryImport("user32.dll", EntryPoint = "InsertMenuW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool InsertMenu(IntPtr hMenu, uint uPosition, uint uFlags, UIntPtr uIDNewItem, string? lpNewItem);
+    private static partial bool InsertMenu(IntPtr hMenu, uint uPosition, uint uFlags, UIntPtr uIDNewItem, string? lpNewItem);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint CheckMenuItem(IntPtr hMenu, uint uIDCheckItem, uint uCheck);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    private static partial uint CheckMenuItem(IntPtr hMenu, uint uIDCheckItem, uint uCheck);
 
-    [DllImport("comctl32.dll", SetLastError = true)]
+    [LibraryImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass, UIntPtr dwRefData);
+    private static partial bool SetWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass, UIntPtr dwRefData);
 
-    [DllImport("comctl32.dll", SetLastError = true)]
+    [LibraryImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool RemoveWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass);
+    private static partial bool RemoveWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass);
 
-    [DllImport("comctl32.dll")]
-    private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, UIntPtr wParam, IntPtr lParam);
+    [LibraryImport("comctl32.dll")]
+    private static partial IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, UIntPtr wParam, IntPtr lParam);
 }

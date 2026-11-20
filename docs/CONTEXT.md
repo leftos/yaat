@@ -171,7 +171,7 @@ is still the host's.
 _Avoid_: handler, branch, case
 
 **Armed report**:
-A pilot report the controller has requested (`REPORT` a pattern leg, a mile final, or a fix) that the sim holds until the pilot makes it or it is cancelled. Carried on the wire as `ArmedReports`.
+A pilot report the controller has requested (`REPORT` a pattern leg, a mile final, a fix, or reaching or leaving an altitude) that the sim holds until the pilot makes it or it is cancelled. Carried on the wire as `ArmedReports`.
 
 **Scope**:
 What the router resolves before an arm runs — nothing, a callsign, a present aircraft, or the acting
@@ -662,6 +662,12 @@ The altitude at which a constant Mach number and a constant indicated airspeed c
 
 **Mmo**:
 A type's maximum operating Mach number (`AircraftPerformance.MaxOperatingMach`), null for a helicopter. With Vmo it is the fastest the type may be flown: a speed past it is refused as unable and physics holds every speed to it.
+
+**Roll-in (turn)**:
+Under the ramp turn model, the time an airborne turn takes to go from wings level to its full turn rate (`CategoryPerformance.RollInSeconds`: jet 5 s, turboprop 4 s, piston 3 s, helicopter 2 s, judgement values). The roll-out mirrors it, so the wings are level on the target heading; a turn-start point moves back by the lead the roll-in costs (`TurnShape.LeadNm`). Not the stand roll-in (the last leg into a parking stand, under Ground movement). See `docs/flight-physics.md`, Heading integration.
+
+**Turn model**:
+The scenario setting (`SimScenarioState.TurnModel`) for how airborne aircraft enter and leave a turn: `Instant` (the full rate from the first tick, stopping dead on the heading) or `Ramp` (a roll-in and roll-out). A fresh live load flies `Ramp`; a recording, checkpoint or rebuild keeps its own, and one made before the field existed reads `Instant`.
 
 **Vmo**:
 A type's maximum operating indicated airspeed in KCAS, from a type-certificate or OpenAP override figure or its pybada speed envelope class, raised to what the type's own profile schedule flies. See `docs/aircraft-performance.md`, Speed limits.

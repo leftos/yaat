@@ -22,7 +22,7 @@ namespace Yaat.Sim.Tests;
 /// tests drive the navigator with <see cref="FlightPhysics.Update"/> in the loop for that reason.
 /// </summary>
 [Collection("NavDbMutator")]
-public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
+public partial class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
 {
     /// <summary>The shipping sim runs four physics sub-ticks per second.</summary>
     private const double SubTick = 0.25;
@@ -449,7 +449,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
             s => s.Contains("unable to hold short", StringComparison.OrdinalIgnoreCase)
         );
         Assert.True(cancel.PastStopFt > 0, $"rested {cancel.PastStopFt:F1} ft past the placed stop — short of it, no overrun to warn of");
-        System.Text.RegularExpressions.Match warning = Assert.Single(cancel.Warnings.Select(w => OverrunWarning.Match(w)), m => m.Success);
+        System.Text.RegularExpressions.Match warning = Assert.Single(cancel.Warnings.Select(w => OverrunWarning().Match(w)), m => m.Success);
         Assert.Single(cancel.Warnings, w => w.Contains("could not stop short", StringComparison.Ordinal));
         double noseFt = double.Parse(warning.Groups["nose"].Value, System.Globalization.CultureInfo.InvariantCulture);
         double cancelledFt = double.Parse(warning.Groups["cancelled"].Value, System.Globalization.CultureInfo.InvariantCulture);
@@ -514,7 +514,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
 
         Assert.NotNull(cancel.SecondAtFt);
         Assert.Single(cancel.Warnings, w => w.Contains("could not stop short", StringComparison.Ordinal));
-        System.Text.RegularExpressions.Match warning = Assert.Single(cancel.Warnings.Select(w => OverrunWarning.Match(w)), m => m.Success);
+        System.Text.RegularExpressions.Match warning = Assert.Single(cancel.Warnings.Select(w => OverrunWarning().Match(w)), m => m.Success);
         double noseFt = double.Parse(warning.Groups["nose"].Value, System.Globalization.CultureInfo.InvariantCulture);
         double cancelledFt = double.Parse(warning.Groups["cancelled"].Value, System.Globalization.CultureInfo.InvariantCulture);
         Assert.InRange(noseFt, cancel.PastStopFt - 1.0, cancel.PastStopFt + 1.0);
@@ -522,10 +522,11 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     }
 
     /// <summary>The instructor warning a cancelled takeoff clearance's overrun raises, with its three figures captured.</summary>
-    private static readonly System.Text.RegularExpressions.Regex OverrunWarning = new(
+    [System.Text.RegularExpressions.GeneratedRegex(
         @"^TEST1 could not stop short of runway 28R after its takeoff clearance was cancelled: nose (?<nose>\d+) ft past the hold line"
             + @"(, on the runway)? \(cancelled (?<cancelled>\d+) ft out, needed (?<needed>\d+) ft\)$"
-    );
+    )]
+    private static partial System.Text.RegularExpressions.Regex OverrunWarning();
 
     /// <summary>One taxi run to the 28R bar: which aircraft, whether it gets a takeoff clearance two seconds in,
     /// whether that clearance is cancelled again (null = never; otherwise the distance-to-bar in feet at which

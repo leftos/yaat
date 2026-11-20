@@ -111,7 +111,7 @@ public sealed class RecentErrorLogTests
         Assert.Equal("first line second line", entry.Message);
     }
 
-    private static Exception Thrown()
+    private static InvalidOperationException Thrown()
     {
         try
         {

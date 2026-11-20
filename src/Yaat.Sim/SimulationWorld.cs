@@ -73,6 +73,12 @@ public sealed class SimulationWorld
     public DateTime MagneticModelDateUtc { get; set; } = MagneticDeclination.EvaluationDateUtc;
 
     /// <summary>
+    /// Cached scenario turn model (<see cref="Simulation.SimScenarioState.TurnModel"/>) — set by <c>SimulationEngine</c>
+    /// before each tick; read by <see cref="FlightPhysics"/> for the heading integration.
+    /// </summary>
+    public TurnModel TurnModel { get; set; }
+
+    /// <summary>
     /// Cached scenario flag — set by <c>SimulationEngine</c> before each tick. When true (and
     /// <see cref="SoloTrainingMode"/> is false), sim-initiated pilot transmissions are routed
     /// to <c>PendingPilotSpeech</c> instead of <c>PendingWarnings</c>.
@@ -301,7 +307,7 @@ public sealed class SimulationWorld
 
             WeatherProfile? weather = Weather;
             Tcp? studentTcp = StudentTcp;
-            var physicsOptions = new PhysicsTickOptions(SoloTrainingMode, RpoShowPilotSpeech, MagneticModelDateUtc);
+            var physicsOptions = new PhysicsTickOptions(SoloTrainingMode, RpoShowPilotSpeech, MagneticModelDateUtc, TurnModel);
             foreach (AircraftState ac in _aircraft)
             {
                 // Student TCP accepts don't trigger ONHO conditions

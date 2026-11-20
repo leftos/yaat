@@ -17,7 +17,6 @@ public partial class LoadWeatherWindow : Window
     private static readonly ILogger Log = AppLog.CreateLogger<LoadWeatherWindow>();
 
     private readonly UserPreferences _preferences;
-    private readonly TrainingDataService _trainingData = new();
     private readonly string _artccId;
     private readonly IFilePickerService _filePicker;
 
@@ -90,7 +89,7 @@ public partial class LoadWeatherWindow : Window
     private async Task LoadArtccWeatherAsync()
     {
         _artccStatusText.Text = "Loading…";
-        List<WeatherProfileDto> profiles = await _trainingData.GetWeatherProfilesAsync(_artccId);
+        List<WeatherProfileDto> profiles = await TrainingDataService.GetWeatherProfilesAsync(_artccId);
 
         if (profiles.Count == 0)
         {
