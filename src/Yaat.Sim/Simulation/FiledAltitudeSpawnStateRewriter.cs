@@ -5,11 +5,13 @@ namespace Yaat.Sim.Simulation;
 
 /// <summary>
 /// Seeds the pilot's filed altitude (<see cref="Snapshots.AircraftSnapshotDto.FiledCruiseAltitudeFt"/>) on the live-traffic
-/// shadow spawn states (<see cref="RecordedLiveTrafficSample.SpawnState"/>) and the <c>ADD</c> spawns
-/// (<see cref="RecordedCommand.SpawnedAircraft"/>) of a tape written before snapshot schema
+/// shadow spawn states (<see cref="RecordedLiveTrafficSample.SpawnState"/>), the <c>ADD</c> spawns
+/// (<see cref="RecordedCommand.SpawnedAircraft"/>) and the generated-aircraft spawns
+/// (<see cref="RecordedAircraftSpawn.Aircraft"/>, real or synthetic) of a tape written before snapshot schema
 /// <see cref="FiledCruiseAltitudeSchemaVersion"/>, which carried none: each takes its plan's altitude (null without one), as
 /// <see cref="Snapshots.SnapshotSchemaMigrator"/> seeds the snapshots, so a replayed shadow spawns with the altitude it was
-/// filed at and the assume keeps it, and a recorded <c>ADD</c> agrees with the generator's derivation, which seeds its own.
+/// filed at and the assume keeps it, a recorded <c>ADD</c> agrees with the generator's derivation, which seeds its own, and a
+/// replayed generated aircraft climbs to the altitude a seek to its snapshot gives it.
 /// No <c>ADD</c> path files a plan altitude, so the <c>ADD</c> seed is defensive.
 ///
 /// <para>Not safe on a tape written from that schema on, where a null is what was recorded (the feed filed no altitude when
@@ -19,8 +21,8 @@ namespace Yaat.Sim.Simulation;
 public static class FiledAltitudeSpawnStateRewriter
 {
     /// <summary>
-    /// The snapshot schema from which a recorded spawn (a shadow spawn state, an <c>ADD</c>'s spawned aircraft) carries the
-    /// pilot's filed altitude.
+    /// The snapshot schema from which a recorded spawn (a shadow spawn state, an <c>ADD</c>'s spawned aircraft, a generated
+    /// aircraft's spawn) carries the pilot's filed altitude.
     /// </summary>
     private const int FiledCruiseAltitudeSchemaVersion = 55;
 
@@ -33,8 +35,9 @@ public static class FiledAltitudeSpawnStateRewriter
     public static bool PredatesFiledCruiseAltitude(int schemaVersion) => schemaVersion < FiledCruiseAltitudeSchemaVersion;
 
     /// <summary>
-    /// Seeds every recorded shadow spawn state and every <c>ADD</c>'s spawned aircraft (<see cref="RecordedCommand.SpawnedAircraft"/>)
-    /// with no filed altitude from its plan's altitude; returns whether any changed.
+    /// Seeds every recorded shadow spawn state, every <c>ADD</c>'s spawned aircraft (<see cref="RecordedCommand.SpawnedAircraft"/>)
+    /// and every generated-aircraft spawn (<see cref="RecordedAircraftSpawn.Aircraft"/>) with no filed altitude from its
+    /// plan's altitude; returns whether any changed.
     /// </summary>
     public static bool SeedRecordedSpawnStates(List<RecordedAction> actions)
     {
@@ -45,6 +48,7 @@ public static class FiledAltitudeSpawnStateRewriter
             {
                 RecordedLiveTrafficSample sample => sample.SpawnState,
                 RecordedCommand command => command.SpawnedAircraft,
+                RecordedAircraftSpawn generated => generated.Aircraft,
                 _ => null,
             };
             if (SeedFromPlan(spawn))

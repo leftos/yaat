@@ -6,9 +6,9 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// <see cref="FiledAltitudeSpawnStateRewriter.SeedRecordedSpawnStates"/> on a tape written before snapshot schema 55: each
-/// recorded spawn with no pilot's filed altitude (a live-traffic shadow's spawn state, an <c>ADD</c>'s spawned aircraft)
-/// takes its plan's altitude, and nothing else changes. No <c>ADD</c> path files a plan altitude, so the
-/// <c>ADD</c> case is a defensive seed.
+/// recorded spawn with no pilot's filed altitude (a live-traffic shadow's spawn state, an <c>ADD</c>'s spawned aircraft, a
+/// generated aircraft's spawn) takes its plan's altitude, and nothing else changes. No <c>ADD</c> path files a plan
+/// altitude, so the <c>ADD</c> case is a defensive seed.
 /// </summary>
 public class FiledAltitudeSpawnStateRewriterTests
 {
@@ -76,10 +76,22 @@ public class FiledAltitudeSpawnStateRewriterTests
         Assert.Equal(5500, spawned.FiledCruiseAltitudeFt);
     }
 
+    /// <summary>A pre-55 generated-aircraft spawn recorded no pilot's filed altitude: its aircraft takes its plan's.</summary>
+    [Fact]
+    public void SeedRecordedSpawnStates_SeedsAGeneratedSpawnsAircraftFromItsPlan()
+    {
+        RecordedAircraftSpawn spawn = ShadowSpawnSamples.GeneratedSpawn(23000);
+
+        Assert.True(FiledAltitudeSpawnStateRewriter.SeedRecordedSpawnStates([spawn]));
+
+        Assert.Equal(23000, spawn.Aircraft.FiledCruiseAltitudeFt);
+    }
+
     /// <summary>
     /// No checked-in non-zip tape holds a recorded spawn (a live-traffic shadow spawn state, an <c>ADD</c>'s spawned
-    /// aircraft). <see cref="RecordingLoader"/> returns a non-zip tape as it was written, without the pre-55 seeding a server
-    /// load or an archive read gives it, so such a tape would replay its spawns with no pilot's filed altitude.
+    /// aircraft, a generated-aircraft spawn). <see cref="RecordingLoader"/> returns a non-zip tape as it was written,
+    /// without the pre-55 seeding a server load or an archive read gives it, so such a tape would replay its spawns with no
+    /// pilot's filed altitude.
     /// </summary>
     [Fact]
     public void NoCheckedInNonZipTape_HoldsARecordedSpawn()
@@ -95,7 +107,9 @@ public class FiledAltitudeSpawnStateRewriterTests
             SessionRecording recording = Assert.IsType<SessionRecording>(RecordingLoader.Load(tape));
             Assert.False(
                 recording.Actions.Any(action =>
-                    (action is RecordedLiveTrafficSample { SpawnState: not null }) || (action is RecordedCommand { SpawnedAircraft: not null })
+                    (action is RecordedLiveTrafficSample { SpawnState: not null })
+                    || (action is RecordedCommand { SpawnedAircraft: not null })
+                    || (action is RecordedAircraftSpawn)
                 ),
                 $"{tape} holds a recorded spawn: RecordingLoader must seed it "
                     + "(FiledAltitudeSpawnStateRewriter.SeedRecordedSpawnStates, gated on its first snapshot's schema) before it replays"

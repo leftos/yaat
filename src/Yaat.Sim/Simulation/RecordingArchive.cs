@@ -123,7 +123,8 @@ public sealed class RecordingArchive : IDisposable
     /// (<see cref="DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar"/>) has its CTO/LUAW text rewritten by
     /// <see cref="DepartureGrammarCanonicalRewriter"/>, so it replays as it was recorded; one whose first snapshot predates
     /// the pilot's filed altitude (<see cref="FiledAltitudeSpawnStateRewriter.PredatesFiledCruiseAltitude"/>) has its shadow
-    /// spawn states and <c>ADD</c> spawns seeded from their plans by <see cref="FiledAltitudeSpawnStateRewriter"/>.
+    /// spawn states, <c>ADD</c> spawns and generated-aircraft spawns seeded from their plans by
+    /// <see cref="FiledAltitudeSpawnStateRewriter"/>.
     /// </summary>
     public List<RecordedAction> ReadActions()
     {
@@ -808,7 +809,10 @@ public sealed class RecordingArchive : IDisposable
     /// generator/late-spawned traffic, so synthesize a spawn at the first snapshot in which each
     /// unknown callsign appears. Only those aircraft are deserialized: every other snapshot entry
     /// is skipped at the JSON-element level (a full <see cref="StateSnapshotDto"/> decode per
-    /// snapshot dominated recording load time and allocation).
+    /// snapshot dominated recording load time and allocation). On a tape that predates the pilot's
+    /// filed altitude (<see cref="FiledAltitudeSpawnStateRewriter.PredatesFiledCruiseAltitude"/>) the
+    /// synthesized spawns are seeded from their plans too, as a seek to their snapshot seeds the
+    /// aircraft it restores.
     /// </summary>
     private List<RecordedAction> AddSyntheticAircraftSpawnsFromSnapshots(List<RecordedAction> actions, HashSet<string> scenarioAircraftCallsigns)
     {
@@ -830,6 +834,11 @@ public sealed class RecordingArchive : IDisposable
                     result.Add(new RecordedAircraftSpawn(elapsedSeconds, aircraft) { IsSynthetic = true });
                 }
             }
+        }
+
+        if (ActionsPredateFiledCruiseAltitude)
+        {
+            _ = FiledAltitudeSpawnStateRewriter.SeedRecordedSpawnStates(result);
         }
 
         return

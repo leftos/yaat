@@ -1292,6 +1292,52 @@ public class RecordingArchiveTests
         Assert.Equal(expected, Assert.IsType<AircraftSnapshotDto>(sample.SpawnState).FiledCruiseAltitudeFt);
     }
 
+    /// <summary>
+    /// Before snapshot schema 55 a generated-aircraft spawn's aircraft carried no pilot filed altitude: a recording made
+    /// before it reads the spawn seeded from the plan's altitude, so playing through agrees with seeking to a snapshot. From
+    /// 55 on a null is what was recorded and stays null.
+    /// </summary>
+    [Theory]
+    [InlineData(54, 23000)]
+    [InlineData(SnapshotSchemaMigrator.CurrentSchemaVersion, null)]
+    public void ReadActionsForReplay_SeedsAGeneratedSpawnsFiledAltitudeOnlyForAPre55Recording(int firstSnapshotSchema, int? expected)
+    {
+        SessionRecording recording = CreateTestRecording(1);
+        recording.Actions.Clear();
+        recording.Actions.Add(ShadowSpawnSamples.GeneratedSpawn(23000));
+        recording.Snapshots![0].State.SchemaVersion = firstSnapshotSchema;
+
+        using var archive = RecordingArchive.Open(new MemoryStream(RecordingArchiveWriter.WriteToBytes(recording)));
+
+        RecordedAircraftSpawn spawn = Assert.Single(archive.ReadActionsForReplay().OfType<RecordedAircraftSpawn>());
+        Assert.False(spawn.IsSynthetic);
+        Assert.Equal(expected, spawn.Aircraft.FiledCruiseAltitudeFt);
+    }
+
+    /// <summary>
+    /// A tape written before aircraft spawns were logged as actions synthesizes a spawn for each callsign first seen after
+    /// its first snapshot. Before snapshot schema 55 such a snapshot carried no pilot filed altitude: the synthesized spawn's
+    /// aircraft is seeded from its plan's altitude too, so playing through agrees with seeking to the snapshot. From 55 on a
+    /// null is what was recorded and stays null.
+    /// </summary>
+    [Theory]
+    [InlineData(54, 23000)]
+    [InlineData(SnapshotSchemaMigrator.CurrentSchemaVersion, null)]
+    public void ReadActionsForReplay_SeedsASyntheticSpawnsFiledAltitudeOnlyForAPre55Recording(int firstSnapshotSchema, int? expected)
+    {
+        SessionRecording recording = CreateTestRecording(snapshotCount: 2);
+        recording.Actions.Clear();
+        recording.Snapshots![0].State.SchemaVersion = firstSnapshotSchema;
+        recording.Snapshots[1].State.SchemaVersion = firstSnapshotSchema;
+        recording.Snapshots[1].State.Aircraft.Add(ShadowSpawnSamples.GeneratedSpawn(23000).Aircraft);
+
+        using var archive = RecordingArchive.Open(new MemoryStream(RecordingArchiveWriter.WriteToBytes(recording)));
+
+        RecordedAircraftSpawn spawn = Assert.Single(archive.ReadActionsForReplay().OfType<RecordedAircraftSpawn>());
+        Assert.True(spawn.IsSynthetic);
+        Assert.Equal(expected, spawn.Aircraft.FiledCruiseAltitudeFt);
+    }
+
     [Fact]
     public void SchemaUpgrader_KeepsWindGridEntries()
     {

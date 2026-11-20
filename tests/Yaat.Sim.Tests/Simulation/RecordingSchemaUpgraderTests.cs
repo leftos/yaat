@@ -288,6 +288,24 @@ public class RecordingSchemaUpgraderTests
         Assert.Equal(23000, Assert.IsType<AircraftSnapshotDto>(sample.SpawnState).FiledCruiseAltitudeFt);
     }
 
+    /// <summary>
+    /// Before V55 a generated-aircraft spawn carried no pilot filed altitude; the upgrade seeds its aircraft's
+    /// <c>FiledCruiseAltitudeFt</c> from its plan altitude, as the V55 snapshot migration does, in an archive and in a
+    /// non-zip recording alike.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Upgrade_SeedsAGeneratedSpawnsFiledAltitude(bool archive)
+    {
+        List<RecordedAction> actions = [ShadowSpawnSamples.GeneratedSpawn(23000)];
+
+        List<RecordedAction> upgraded = archive ? UpgradeArchiveActions(actions) : UpgradeNonZipActions(actions);
+
+        RecordedAircraftSpawn spawn = Assert.IsType<RecordedAircraftSpawn>(Assert.Single(upgraded));
+        Assert.Equal(23000, spawn.Aircraft.FiledCruiseAltitudeFt);
+    }
+
     private static List<RecordedAction> UpgradeArchiveActions(List<RecordedAction> actions)
     {
         RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(BuildArchive(EmptySnapshotAt(PreFiledCruiseAltitudeVersion), actions));
