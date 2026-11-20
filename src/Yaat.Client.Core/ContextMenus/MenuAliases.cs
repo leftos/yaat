@@ -232,7 +232,7 @@ public static class MenuAliases
     /// <paramref name="verb"/> as the scheme's primary verb for its command type, as the command bar completes it; the verb as
     /// listed when the registry knows no such verb or the scheme has no aliases for its type.
     /// </summary>
-    private static string PrimaryVerb(string verb, CommandScheme scheme) =>
+    public static string PrimaryVerb(string verb, CommandScheme scheme) =>
         CommandRegistry.AliasToCanonicType.TryGetValue(verb, out CanonicalCommandType type)
         && scheme.Patterns.TryGetValue(type, out CommandPattern? pattern)
         && (pattern.Aliases.Count > 0)

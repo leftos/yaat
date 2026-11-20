@@ -23,7 +23,8 @@ public class ScopeEntryStagingTests
     [InlineData("$ UAL1", "$ UAL1 SPD 250")]
     [InlineData("+100", "$ UAL1 SPD 250")]
     [InlineData(".rbl", "$ UAL1 SPD 250")]
-    public void Text_ReplacesOrAppends(string preview, string expected) => Assert.Equal(expected, ScopeEntryStaging.Text(preview, "UAL1", "SPD 250"));
+    public void Text_ReplacesOrAppends(string preview, string expected) =>
+        Assert.Equal(expected, ScopeEntryStaging.Text(preview, "UAL1", "SPD 250", CommandScheme.Default()));
 
     [Theory]
     [InlineData("DM 60", ScopeProfileKind.Eram)]
@@ -32,11 +33,34 @@ public class ScopeEntryStagingTests
     [InlineData("LA", ScopeProfileKind.Mixed)]
     public void StagedEramVerb_ReadsAsPilot(string command, ScopeProfileKind profile)
     {
-        string staged = ScopeEntryStaging.Text("", "UAL1", command);
+        string staged = ScopeEntryStaging.Text("", "UAL1", command, CommandScheme.Default());
 
         Assert.Equal($"$ UAL1 {command}", staged);
         ScopeEntryReading reading = ScopeEntryClassifier.Classify(staged, profile, null, CommandScheme.Default());
         Assert.Equal(ScopeEntryKind.Pilot, reading.Kind);
         Assert.Equal($"UAL1 {command}", reading.SendText);
+    }
+
+    [Fact]
+    public void Text_StagesTheCommandInTheUsersRenamedVerb()
+    {
+        var scheme = CommandScheme.Default();
+        scheme.Patterns[CommandRegistry.AliasToCanonicType["SPD"]].Aliases = ["VEL"];
+
+        string staged = ScopeEntryStaging.Text("", "UAL1", "SPD 250", scheme);
+
+        Assert.Equal("$ UAL1 VEL 250", staged);
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(staged, ScopeProfileKind.Stars, null, scheme);
+        Assert.Equal(ScopeEntryKind.Pilot, reading.Kind);
+        Assert.Equal("UAL1 VEL 250", reading.SendText);
+    }
+
+    [Fact]
+    public void Text_AppendsACommandInItsOwnVerb()
+    {
+        var scheme = CommandScheme.Default();
+        scheme.Patterns[CommandRegistry.AliasToCanonicType["SPD"]].Aliases = ["VEL"];
+
+        Assert.Equal("$ UAL1 VEL 250, CM 80", ScopeEntryStaging.Text("$ UAL1 VEL 250", "UAL1", "CM 80", scheme));
     }
 }

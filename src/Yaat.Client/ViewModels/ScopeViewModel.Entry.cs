@@ -215,7 +215,7 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal void StageEntry(string callsign, string command)
     {
-        SetEntry(ScopeEntryStaging.Text(EntryText, callsign, command));
+        SetEntry(ScopeEntryStaging.Text(EntryText, callsign, command, Main.Preferences.CommandScheme));
         _entryHistoryIndex = -1;
     }
 
