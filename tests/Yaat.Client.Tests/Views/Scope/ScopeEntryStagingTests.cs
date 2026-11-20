@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Profiles;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
@@ -34,7 +35,7 @@ public class ScopeEntryStagingTests
         string staged = ScopeEntryStaging.Text("", "UAL1", command);
 
         Assert.Equal($"$ UAL1 {command}", staged);
-        ScopeEntryReading reading = ScopeEntryClassifier.Classify(staged, profile, null);
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(staged, profile, null, CommandScheme.Default());
         Assert.Equal(ScopeEntryKind.Pilot, reading.Kind);
         Assert.Equal($"UAL1 {command}", reading.SendText);
     }

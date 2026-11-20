@@ -56,7 +56,7 @@ public class MainViewModelScopeSinkTests
     private static async Task<RecordingSink> SendAsync(MainViewModel vm, string text)
     {
         var sink = new RecordingSink();
-        await vm.SendTextAsync(text, sink);
+        await vm.SendTextAsync(text, sink, vm.Preferences.CommandScheme);
         Dispatcher.UIThread.RunJobs();
         return sink;
     }

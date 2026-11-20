@@ -2905,9 +2905,12 @@ public partial class MainViewModel : ObservableObject
         return result;
     }
 
-    /// <summary>Sends the main command line's text through <see cref="SendTextAsync"/>, reporting to the command line.</summary>
+    /// <summary>
+    /// Sends the main command line's text through <see cref="SendTextAsync(string, ICommandTextSink, CommandScheme)"/> in the
+    /// user's command scheme, reporting to the command line.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
-    private Task SendCommandAsync() => SendTextAsync(CommandText, new CommandLineSink(this));
+    private Task SendCommandAsync() => SendTextAsync(CommandText, new CommandLineSink(this), _preferences.CommandScheme);
 
     private async Task HandleGlobalCommand(ParsedInput parsed, ICommandTextSink sink)
     {

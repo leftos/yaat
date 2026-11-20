@@ -9,6 +9,7 @@ using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.ViewModels;
 
@@ -37,7 +38,7 @@ internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
 
 /// <summary>
 /// Typing on the Scope: the entry being typed, the Scope's own entry history and the response to the last entry. Enter runs
-/// the entry through <see cref="MainViewModel.SendTextAsync"/> with a sink of the Scope's own, so the main command line's
+/// the entry through <see cref="MainViewModel.SendTextAsync(string, ICommandTextSink, CommandScheme)"/> with a sink of the Scope's own, so the main command line's
 /// text and status are never touched. A STARS entry sends the YAAT command it translates to, resolved here from the
 /// selected aircraft's state where it needs it (bare <c>HND</c>, <c>*J</c>/<c>*P</c>); a STARS entry with no YAAT command
 /// is refused with <c>NOT SUPPORTED</c> and nothing is sent. An ERAM entry goes to the server's ERAM dispatch
@@ -117,7 +118,11 @@ public sealed partial class ScopeViewModel
     public bool IsEramEntryLayout => ProfileKind != ScopeProfileKind.Stars;
 
     /// <summary>How the entry being typed reads.</summary>
-    internal ScopeEntryReading EntryReading => ScopeEntryClassifier.Classify(EntryText, ProfileKind, SelectedOwnerTemplateId);
+    internal ScopeEntryReading EntryReading =>
+        ScopeEntryClassifier.Classify(EntryText, ProfileKind, SelectedOwnerTemplateId, Main.Preferences.CommandScheme);
+
+    // How a click on the track callsign reads the entry it fills: in its owner's dialect, with the user's command scheme.
+    private ScopeEntryContext FillContext(string callsign) => new(ProfileKind, OwnerTemplateIdOf(callsign), Main.Preferences.CommandScheme);
 
     /// <summary>
     /// The owner kind of the selected track (<see cref="ScopeOwnerKind.TemplateIdFor"/>), which picks an entry's dialect on a
@@ -157,10 +162,10 @@ public sealed partial class ScopeViewModel
     internal Func<ScopeEramEntryDto, Task<ScopeEramEntryResultDto>>? EramEntrySender { get; set; }
 
     /// <summary>
-    /// Sends a non-ERAM entry's YAAT command through the pilot path with the Scope's sink: <see cref="MainViewModel.SendTextAsync"/>
-    /// unless set. Test seam.
+    /// Sends a non-ERAM entry's YAAT command through the pilot path with the Scope's sink, read in the command scheme it is
+    /// written in: <see cref="MainViewModel.SendTextAsync(string, ICommandTextSink, CommandScheme)"/> unless set. Test seam.
     /// </summary>
-    internal Func<string, ICommandTextSink, Task>? YaatEntrySender { get; set; }
+    internal Func<string, ICommandTextSink, CommandScheme, Task>? YaatEntrySender { get; set; }
 
     /// <summary>Adds typed <paramref name="text"/> to the entry; control characters are dropped.</summary>
     /// <returns>False when nothing printable was typed.</returns>
@@ -233,7 +238,7 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal void FillTrack(string callsign)
     {
-        SetEntry(ScopeEntryFill.Track(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign));
+        SetEntry(ScopeEntryFill.Track(EntryText, callsign, FillContext(callsign), IsKnownCallsign));
         _pickedCallsign = callsign;
         _entryHistoryIndex = -1;
     }
@@ -291,7 +296,7 @@ public sealed partial class ScopeViewModel
         && (
             (callsign is null)
             || CompletesMinSep(callsign)
-            || ScopeEntryFill.ChangesTrack(EntryText, callsign, ProfileKind, OwnerTemplateIdOf(callsign), IsKnownCallsign)
+            || ScopeEntryFill.ChangesTrack(EntryText, callsign, FillContext(callsign), IsKnownCallsign)
         );
 
     private bool IsKnownCallsign(string word) => Main.Aircraft.Any(a => string.Equals(a.Callsign, word, StringComparison.OrdinalIgnoreCase));
@@ -405,7 +410,7 @@ public sealed partial class ScopeViewModel
         }
 
         // An unsupported STARS entry and an entry that reads as nothing send nothing but still run, to be answered.
-        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId);
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId, Main.Preferences.CommandScheme);
         if ((reading.Kind is not (ScopeEntryKind.Stars or ScopeEntryKind.None)) && (reading.SendText.Length == 0))
         {
             return false;
@@ -426,7 +431,7 @@ public sealed partial class ScopeViewModel
 
     private async Task RunEntryAsync(string entry, string? ownerTemplateId, int seq)
     {
-        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId);
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId, Main.Preferences.CommandScheme);
         string? pickedCallsign = TakeEntry(entry);
 
         if (reading.Kind == ScopeEntryKind.Eram)
@@ -449,8 +454,13 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        await SendEntryAsync(entry, sendText, seq);
+        await SendEntryAsync(entry, sendText, SendSchemeFor(reading.Kind), seq);
     }
+
+    // The command scheme an entry's YAAT command is written in: a STARS entry's translation in the default verbs, any other
+    // entry in the user's own.
+    private CommandScheme SendSchemeFor(ScopeEntryKind kind) =>
+        (kind == ScopeEntryKind.Stars) ? CommandScheme.Default() : Main.Preferences.CommandScheme;
 
     // Puts the entry Enter ran in the Scope's history and empties the preview; returns the clicked track the entry held.
     private string? TakeEntry(string entry)
@@ -482,14 +492,15 @@ public sealed partial class ScopeViewModel
             _ => (reading.SendText, null),
         };
 
-    // Sends sendText, the entry's YAAT command, through the pilot path with the Scope's own sink; its answer the response.
-    private async Task SendEntryAsync(string entry, string sendText, int seq)
+    // Sends sendText, the entry's YAAT command written in scheme, through the pilot path with the Scope's own sink; its answer
+    // the response.
+    private async Task SendEntryAsync(string entry, string sendText, CommandScheme scheme, int seq)
     {
         var sink = new ScopeEntrySink(Main);
         try
         {
             LastSentEntryText = sendText;
-            await ((YaatEntrySender is { } send) ? send(sendText, sink) : Main.SendTextAsync(sendText, sink));
+            await ((YaatEntrySender is { } send) ? send(sendText, sink, scheme) : Main.SendTextAsync(sendText, sink, scheme));
         }
         catch (Exception ex)
         {

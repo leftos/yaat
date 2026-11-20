@@ -25,7 +25,7 @@ public class ScopeCaInhibitResponseTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ProfileKind = ScopeProfileKind.Stars;
         main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
-        scope.YaatEntrySender = (_, sink) =>
+        scope.YaatEntrySender = (_, sink, _) =>
         {
             sink.ReportStatus(simText);
             return Task.CompletedTask;
@@ -48,7 +48,7 @@ public class ScopeCaInhibitResponseTests
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         scope.ProfileKind = ScopeProfileKind.Stars;
         main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
-        scope.YaatEntrySender = (_, sink) =>
+        scope.YaatEntrySender = (_, sink, _) =>
         {
             sink.ReportError(simError);
             return Task.CompletedTask;

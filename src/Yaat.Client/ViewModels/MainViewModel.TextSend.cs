@@ -6,7 +6,7 @@ using Yaat.Sim.Commands;
 namespace Yaat.Client.ViewModels;
 
 /// <summary>
-/// Where <see cref="MainViewModel.SendTextAsync"/> reports every outcome of a line, so the line can come from an entry other
+/// Where <see cref="MainViewModel.SendTextAsync(string, ICommandTextSink, CommandScheme)"/> reports every outcome of a line, so the line can come from an entry other
 /// than the main command line: its own steps (say-again guard, chat, the dot-command fallthrough, bare-callsign select,
 /// callsign resolution, RPO control, parse errors, the VFR and compound gates, the send to an aircraft) and the handlers it
 /// hands the line to (the global verbs, the dot commands <c>.scope</c>, <c>.view</c>, scope markers, measure and CRC aliases,
@@ -39,11 +39,12 @@ public partial class MainViewModel
     /// <summary>
     /// Runs one typed line as the main command line runs it on Enter: the staged say-again guard, the <c>** </c> override,
     /// chat, client dot commands, global verbs, a bare callsign that selects, then a command to an aircraft. Every outcome,
-    /// the handlers' included, goes to <paramref name="sink"/>.
+    /// the handlers' included, goes to <paramref name="sink"/>. Its verbs are read in <paramref name="scheme"/>.
     /// </summary>
     /// <param name="text">The line as typed.</param>
     /// <param name="sink">Where the line's status, errors, clear, history and warnings go.</param>
-    internal async Task SendTextAsync(string text, ICommandTextSink sink)
+    /// <param name="scheme">The command scheme the line is written in: the user's own for a typed line.</param>
+    internal async Task SendTextAsync(string text, ICommandTextSink sink, CommandScheme scheme)
     {
         string trimmed = text.Trim();
         if (string.IsNullOrEmpty(trimmed))
@@ -59,7 +60,7 @@ public partial class MainViewModel
             return;
         }
 
-        var line = new TypedLine(trimmed, sink, _preferences.CommandScheme);
+        var line = new TypedLine(trimmed, sink, scheme);
         StripOverridePrefix(line);
         bool handled =
             await TrySendChatAsync(line) || TryRunClientCommand(line) || await TryRunGlobalCommandAsync(line) || TrySelectBareCallsign(line);

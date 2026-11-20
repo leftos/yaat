@@ -32,7 +32,7 @@ public class MainViewModelActiveMeasureViewTests
         AddAircraft(main, "UAL2", 6000);
 
         var sink = new StatusSink();
-        await main.SendTextAsync(".rbl UAL1 UAL2", sink);
+        await main.SendTextAsync(".rbl UAL1 UAL2", sink, main.Preferences.CommandScheme);
         Dispatcher.UIThread.RunJobs();
 
         RangeBearingLine line = Assert.Single(main.Measure.Lines);
@@ -96,7 +96,7 @@ public class MainViewModelActiveMeasureViewTests
             scope.ActivateMeasureSurface();
 
             var sink = new StatusSink();
-            await main.SendTextAsync(".rbl UAL1 UAL2", sink);
+            await main.SendTextAsync(".rbl UAL1 UAL2", sink, main.Preferences.CommandScheme);
             Dispatcher.UIThread.RunJobs();
 
             RangeBearingLine line = Assert.Single(main.Measure.Lines);

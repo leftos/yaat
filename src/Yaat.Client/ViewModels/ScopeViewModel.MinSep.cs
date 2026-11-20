@@ -66,7 +66,10 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal bool CompletesMinSep(string callsign) =>
         (StarsEntryParser.TryRead(EntryText.Trim()) is { Need: StarsEntryNeed.MinimumSeparation, Callsign: not null, SecondCallsign: null })
-        && (ScopeEntryClassifier.Classify(EntryText, ProfileKind, OwnerTemplateIdOf(callsign)).Kind == ScopeEntryKind.Stars);
+        && (
+            ScopeEntryClassifier.Classify(EntryText, ProfileKind, OwnerTemplateIdOf(callsign), Main.Preferences.CommandScheme).Kind
+            == ScopeEntryKind.Stars
+        );
 
     /// <summary>
     /// A left click on a track that fills the entry: the second track of a <c>MIN</c> entry is appended and runs it at once

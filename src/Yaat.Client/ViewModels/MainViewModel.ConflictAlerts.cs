@@ -42,16 +42,9 @@ public partial class MainViewModel
     public void ApplyConflictAlerts(List<ConflictAlertDto>? conflicts)
     {
         List<ConflictAlertDto> pairs = conflicts ?? [];
-        var pairByCallsign = new Dictionary<string, ConflictAlertDto>(StringComparer.Ordinal);
-        foreach (ConflictAlertDto c in pairs.Where(IsStarsPair))
-        {
-            pairByCallsign[c.CallsignA] = c;
-            pairByCallsign[c.CallsignB] = c;
-        }
-
         foreach (AircraftModel ac in Aircraft)
         {
-            ProjectStarsPair(ac, pairByCallsign.GetValueOrDefault(ac.Callsign));
+            ProjectStarsPair(ac, StarsPairFor(ac.Callsign, pairs));
         }
 
         ReplaceConflictAlerts(pairs);
@@ -83,18 +76,30 @@ public partial class MainViewModel
     private static bool IsStarsPair(ConflictAlertDto c) => c.Kind == ConflictAlertKind.Stars;
 
     /// <summary>
+    /// The STARS pair of <paramref name="pairs"/> that <paramref name="callsign"/> shows when it is in several: the first, in
+    /// broadcast order, that is unsuppressed and unacknowledged, else unsuppressed and acknowledged, else the first suppressed
+    /// one; null when it is in none. The broadcast and the late-add seed both pick with it.
+    /// </summary>
+    private static ConflictAlertDto? StarsPairFor(string callsign, IEnumerable<ConflictAlertDto> pairs)
+    {
+        List<ConflictAlertDto> own =
+        [
+            .. pairs.Where(c =>
+                IsStarsPair(c)
+                && (string.Equals(c.CallsignA, callsign, StringComparison.Ordinal) || string.Equals(c.CallsignB, callsign, StringComparison.Ordinal))
+            ),
+        ];
+        return own.FirstOrDefault(c => (!c.Suppressed) && (!c.Acknowledged)) ?? own.FirstOrDefault(c => !c.Suppressed) ?? own.FirstOrDefault();
+    }
+
+    /// <summary>
     /// Re-applies the current conflict set to a single aircraft. Called when an aircraft is first added
     /// to <see cref="Aircraft"/>, since a conflict broadcast that arrived before the aircraft existed
     /// would otherwise never reach it.
     /// </summary>
     private void SeedConflictPeer(Models.AircraftModel ac)
     {
-        ConflictAlertDto? pair = _conflictAlerts
-            .Where(IsStarsPair)
-            .FirstOrDefault(c =>
-                string.Equals(c.CallsignA, ac.Callsign, StringComparison.Ordinal) || string.Equals(c.CallsignB, ac.Callsign, StringComparison.Ordinal)
-            );
-        if (pair is not null)
+        if (StarsPairFor(ac.Callsign, _conflictAlerts) is { } pair)
         {
             ProjectStarsPair(ac, pair);
         }

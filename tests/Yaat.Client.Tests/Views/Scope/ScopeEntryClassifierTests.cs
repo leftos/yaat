@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
@@ -11,7 +12,34 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// </summary>
 public class ScopeEntryClassifierTests
 {
-    private static ScopeEntryReading Read(string text, ScopeProfileKind profile) => ScopeEntryClassifier.Classify(text, profile, null);
+    private static ScopeEntryReading Read(string text, ScopeProfileKind profile) =>
+        ScopeEntryClassifier.Classify(text, profile, null, CommandScheme.Default());
+
+    // A user scheme with TRACK renamed to TRK.
+    private static CommandScheme TrkScheme()
+    {
+        var scheme = CommandScheme.Default();
+        scheme.Patterns[CanonicalCommandType.TrackAircraft].Aliases = ["TRK"];
+        return scheme;
+    }
+
+    private static string TrackGloss => CommandRegistry.Get(CanonicalCommandType.TrackAircraft)!.Label.ToLowerInvariant();
+
+    [Fact]
+    public void ADollarEntry_InTheUsersOwnVerb_ReadsAsThatCommand()
+    {
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify("$ TRK UAL238", ScopeProfileKind.Stars, null, TrkScheme());
+
+        Assert.Equal(new ScopeEntryReading(ScopeEntryKind.Pilot, $"$ TRK {TrackGloss}", "TRK UAL238", true), reading);
+    }
+
+    [Fact]
+    public void ADollarEntry_InAVerbTheUserRenamed_ReadsWithNoCommandGloss()
+    {
+        ScopeEntryReading reading = ScopeEntryClassifier.Classify("$ TRACK UAL238", ScopeProfileKind.Stars, null, TrkScheme());
+
+        Assert.Equal(new ScopeEntryReading(ScopeEntryKind.Pilot, "$ TRACK", "TRACK UAL238", true), reading);
+    }
 
     // ERAM Table 16's implied forms, with the handoff sector shapes the server's ToHandoffCode takes.
     [Theory]
@@ -165,7 +193,7 @@ public class ScopeEntryClassifierTests
     // The selected track's owner decides the dialect on Mixed (a STARS-owned track reads STARS entries).
 
     private static ScopeEntryReading ReadWithSelected(string text, ScopeProfileKind profile, string ownerTemplateId) =>
-        ScopeEntryClassifier.Classify(text, profile, ownerTemplateId);
+        ScopeEntryClassifier.Classify(text, profile, ownerTemplateId, CommandScheme.Default());
 
     [Fact]
     public void Qq_OnMixed_WithAStarsOwnedTrackSelected_ReadsAsNothing() =>
@@ -377,11 +405,17 @@ public class ScopeEntryClassifierTests
 
     [Fact]
     public void Min_OnMixed_ForAStarsOwnedTrack_ReadsAsStars() =>
-        Assert.Equal(ScopeEntryKind.Stars, ScopeEntryClassifier.Classify("MIN UAL1", ScopeProfileKind.Mixed, ScopeTemplates.StarsId).Kind);
+        Assert.Equal(
+            ScopeEntryKind.Stars,
+            ScopeEntryClassifier.Classify("MIN UAL1", ScopeProfileKind.Mixed, ScopeTemplates.StarsId, CommandScheme.Default()).Kind
+        );
 
     [Fact]
     public void Min_OnMixed_ForAnEramOwnedTrack_IsNoStarsEntry() =>
-        Assert.NotEqual(ScopeEntryKind.Stars, ScopeEntryClassifier.Classify("MIN UAL1", ScopeProfileKind.Mixed, ScopeTemplates.EramId).Kind);
+        Assert.NotEqual(
+            ScopeEntryKind.Stars,
+            ScopeEntryClassifier.Classify("MIN UAL1", ScopeProfileKind.Mixed, ScopeTemplates.EramId, CommandScheme.Default()).Kind
+        );
 
     [Fact]
     public void Min_OnEram_IsNoStarsEntry() => Assert.NotEqual(ScopeEntryKind.Stars, Read("MIN UAL1 DAL2", ScopeProfileKind.Eram).Kind);

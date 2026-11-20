@@ -17,6 +17,7 @@ using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim.Commands;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -428,7 +429,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Eram;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (text, sink) => text.StartsWith('.') ? main.SendTextAsync(text, sink) : slow.Task;
+            scope.YaatEntrySender = (text, sink, scheme) => text.StartsWith('.') ? main.SendTextAsync(text, sink, scheme) : slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -480,7 +481,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Stars;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -504,7 +505,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Stars;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -525,7 +526,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Stars;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -548,7 +549,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Stars;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -571,7 +572,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Stars;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -594,7 +595,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = ScopeProfileKind.Stars;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -619,7 +620,7 @@ public class ScopeEntryTests
         {
             scope.ProfileKind = profile;
             var slow = new TaskCompletionSource();
-            scope.YaatEntrySender = (_, _) => slow.Task;
+            scope.YaatEntrySender = (_, _, _) => slow.Task;
             Assert.True(scope.TypeEntryText("$UAL238 FH 270"));
             Assert.True(scope.ExecuteEntry());
             Task slowRun = scope.LastEntryRun;
@@ -709,6 +710,65 @@ public class ScopeEntryTests
             await RunEntryAsync(scope, "INIT UAL238");
 
             Assert.Equal("UAL238 TRACK", scope.LastSentEntryText);
+        }
+    }
+
+    // A user scheme with TRACK renamed to TRK, set as the user's own.
+    private static CommandScheme UseTrkScheme(MainViewModel main)
+    {
+        var scheme = CommandScheme.Default();
+        scheme.Patterns[CanonicalCommandType.TrackAircraft].Aliases = ["TRK"];
+        main.Preferences.SetCommandScheme(scheme);
+        return scheme;
+    }
+
+    // Runs entry on a STARS Scope with UAL238 known; returns the text and scheme it reached the sender with.
+    private static async Task<(string Text, CommandScheme Scheme)> SentWithAsync(MainViewModel main, ScopeViewModel scope, string entry)
+    {
+        scope.ProfileKind = ScopeProfileKind.Stars;
+        AddAircraft(main, "UAL238", 5000);
+        var sent = new List<(string, CommandScheme)>();
+        scope.YaatEntrySender = (text, _, scheme) =>
+        {
+            sent.Add((text, scheme));
+            return Task.CompletedTask;
+        };
+
+        await RunEntryAsync(scope, entry);
+        return Assert.Single(sent);
+    }
+
+    /// <summary>A STARS entry's translation is written in the default verbs, so it is read in them whatever the user renamed.</summary>
+    [AvaloniaFact]
+    public async Task AStarsEntry_UnderARenamedVerb_ReachesTheSenderWithASchemeThatReadsItsTranslation()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            UseTrkScheme(main);
+
+            (string text, CommandScheme scheme) = await SentWithAsync(main, scope, "INIT UAL238");
+
+            Assert.Equal("UAL238 TRACK", text);
+            ParsedInput? parsed = CommandSchemeParser.Parse(text["UAL238 ".Length..], scheme);
+            Assert.NotNull(parsed);
+            Assert.Equal(CanonicalCommandType.TrackAircraft, parsed.Type);
+        }
+    }
+
+    /// <summary>A <c>$</c> entry is typed in the user's own verbs and reaches the sender with the user's scheme.</summary>
+    [AvaloniaFact]
+    public async Task ADollarEntry_InTheUsersOwnVerb_ReachesTheSenderWithTheUsersScheme()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            CommandScheme user = UseTrkScheme(main);
+
+            (string text, CommandScheme scheme) = await SentWithAsync(main, scope, "$ TRK UAL238");
+
+            Assert.Equal("TRK UAL238", text);
+            Assert.Same(user, scheme);
         }
     }
 

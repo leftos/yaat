@@ -61,8 +61,6 @@ internal static class ScopeEntryClassifier
     /// <summary>The longest bare FLID an implied ERAM entry starts with: a seven-character ACID.</summary>
     private const int MaxFlidLength = 7;
 
-    private static readonly CommandScheme Scheme = CommandScheme.Default();
-
     private static readonly char[] BlockSeparators = [',', ';'];
 
     // An entry that reads as nothing: no label, nothing to send.
@@ -70,9 +68,10 @@ internal static class ScopeEntryClassifier
 
     /// <summary>
     /// Reads <paramref name="text"/> as typed on a Scope showing a <paramref name="profile"/> profile, with
-    /// <paramref name="ownerTemplateId"/> the owner kind of the track the entry is for (which picks the dialect on Mixed).
+    /// <paramref name="ownerTemplateId"/> the owner kind of the track the entry is for (which picks the dialect on Mixed), and a
+    /// <c>$</c> entry's command read in <paramref name="scheme"/>, the user's command scheme.
     /// </summary>
-    public static ScopeEntryReading Classify(string text, ScopeProfileKind profile, string? ownerTemplateId)
+    public static ScopeEntryReading Classify(string text, ScopeProfileKind profile, string? ownerTemplateId, CommandScheme scheme)
     {
         string trimmed = text.Trim();
         if (trimmed.Length == 0)
@@ -87,7 +86,7 @@ internal static class ScopeEntryClassifier
 
         if (trimmed[0] == YaatPrefix)
         {
-            return ReadYaat(trimmed[1..].TrimStart());
+            return ReadYaat(trimmed[1..].TrimStart(), scheme);
         }
 
         string verb = FirstWord(trimmed);
@@ -97,12 +96,12 @@ internal static class ScopeEntryClassifier
     /// <summary>
     /// A <c>$</c> entry, <paramref name="text"/> the YAAT command after the <c>$</c>: it reads as a YAAT command whether or not
     /// it parses (the command pipeline answers it), labelled after its pilot command where it parses, after a <c>** </c>
-    /// override kept in what it sends; a bare <c>$</c> has nothing to send.
+    /// override kept in what it sends; a bare <c>$</c> has nothing to send. The command is read in <paramref name="scheme"/>.
     /// </summary>
-    private static ScopeEntryReading ReadYaat(string text)
+    private static ScopeEntryReading ReadYaat(string text, CommandScheme scheme)
     {
         string command = text.StartsWith(OverridePrefix, StringComparison.Ordinal) ? text[OverridePrefix.Length..].TrimStart() : text;
-        ScopeEntryReading pilot = ReadPilot(command, text);
+        ScopeEntryReading pilot = ReadPilot(command, text, scheme);
         return (pilot.Kind == ScopeEntryKind.Pilot)
             ? pilot
             : new ScopeEntryReading(ScopeEntryKind.Pilot, $"{YaatPrefix} {FirstWord(command).ToUpperInvariant()}".TrimEnd(), text, true);
@@ -223,17 +222,18 @@ internal static class ScopeEntryClassifier
 
     /// <summary>
     /// Reads <paramref name="text"/> as a pilot command, with or without a leading callsign; only its first block (up to a
-    /// comma or semicolon) names the label. None when neither parses. <paramref name="sendText"/> is what Enter sends.
+    /// comma or semicolon) names the label. None when neither parses in <paramref name="scheme"/>. <paramref name="sendText"/> is
+    /// what Enter sends.
     /// </summary>
-    private static ScopeEntryReading ReadPilot(string text, string sendText)
+    private static ScopeEntryReading ReadPilot(string text, string sendText, CommandScheme scheme)
     {
         string block = text.Split(BlockSeparators, 2)[0].Trim();
         string[] words = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        ParsedInput? parsed = (words.Length > 0) ? CommandSchemeParser.Parse(block, Scheme) : null;
+        ParsedInput? parsed = (words.Length > 0) ? CommandSchemeParser.Parse(block, scheme) : null;
         string verb = (words.Length > 0) ? words[0] : "";
         if ((parsed is null) && (words.Length > 1))
         {
-            parsed = CommandSchemeParser.Parse(string.Join(' ', words[1..]), Scheme);
+            parsed = CommandSchemeParser.Parse(string.Join(' ', words[1..]), scheme);
             verb = words[1];
         }
 

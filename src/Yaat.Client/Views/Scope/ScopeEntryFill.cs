@@ -1,8 +1,16 @@
 using System.Globalization;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views.Scope;
+
+/// <summary>
+/// How a fill reads the entry it fills (<see cref="ScopeEntryClassifier.Classify"/>): on a <paramref name="Profile"/> profile, for a
+/// track whose owner kind is <paramref name="OwnerTemplateId"/> (which picks the dialect on Mixed), with the user's command
+/// <paramref name="Scheme"/>.
+/// </summary>
+internal readonly record struct ScopeEntryContext(ScopeProfileKind Profile, string? OwnerTemplateId, CommandScheme Scheme);
 
 /// <summary>
 /// The text a click fills into the Scope's preview. A track: in a <c>$</c> YAAT command (<see cref="ScopeEntryClassifier"/>),
@@ -15,11 +23,11 @@ internal static class ScopeEntryFill
     private const string OverridePrefix = "** ";
 
     /// <summary>
-    /// <paramref name="entry"/> with <paramref name="callsign"/> filled in, read on a <paramref name="profile"/> profile with the
-    /// owner kind of the track the entry is for, <paramref name="ownerTemplateId"/> (which picks the dialect on Mixed);
+    /// <paramref name="entry"/> with <paramref name="callsign"/> filled in, read as <paramref name="context"/> says (the profile, the
+    /// owner kind of the track the entry is for, which picks the dialect on Mixed, and the user's command scheme);
     /// <paramref name="isKnownCallsign"/> says whether a word is a known aircraft's callsign.
     /// </summary>
-    public static string Track(string entry, string callsign, ScopeProfileKind profile, string? ownerTemplateId, Func<string, bool> isKnownCallsign)
+    public static string Track(string entry, string callsign, ScopeEntryContext context, Func<string, bool> isKnownCallsign)
     {
         string trimmed = entry.Trim();
         if (trimmed.Length == 0)
@@ -27,7 +35,7 @@ internal static class ScopeEntryFill
             return callsign;
         }
 
-        if (ScopeEntryClassifier.Classify(trimmed, profile, ownerTemplateId).Kind != ScopeEntryKind.Pilot)
+        if (ScopeEntryClassifier.Classify(trimmed, context.Profile, context.OwnerTemplateId, context.Scheme).Kind != ScopeEntryKind.Pilot)
         {
             return EndsWithCallsign(trimmed, callsign) ? trimmed : $"{trimmed} {callsign}";
         }
@@ -45,17 +53,11 @@ internal static class ScopeEntryFill
     /// <summary>
     /// Whether filling <paramref name="callsign"/> would change <paramref name="entry"/> (case aside): false when its <c>$</c> entry
     /// already names the track first, or its last word is the track's callsign, where a click acts as with an empty preview;
-    /// <paramref name="ownerTemplateId"/> is the owner kind of the track the entry is for.
+    /// <paramref name="context"/> reads the entry as <see cref="Track"/> does.
     /// </summary>
-    public static bool ChangesTrack(
-        string entry,
-        string callsign,
-        ScopeProfileKind profile,
-        string? ownerTemplateId,
-        Func<string, bool> isKnownCallsign
-    ) =>
+    public static bool ChangesTrack(string entry, string callsign, ScopeEntryContext context, Func<string, bool> isKnownCallsign) =>
         !EndsWithCallsign(entry.Trim(), callsign)
-        && !string.Equals(Track(entry, callsign, profile, ownerTemplateId, isKnownCallsign), entry.Trim(), StringComparison.OrdinalIgnoreCase);
+        && !string.Equals(Track(entry, callsign, context, isKnownCallsign), entry.Trim(), StringComparison.OrdinalIgnoreCase);
 
     // The leading $ with the spaces typed after it, then a leading ** override, each kept in front of the filled callsign; the
     // rest after them.
