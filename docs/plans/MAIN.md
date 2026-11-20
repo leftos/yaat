@@ -103,8 +103,6 @@
 - [ ] YAAT-2277 YAAT Scope: draw the RNAV ^ after the CWT category on line 2 (STARS and ERAM)
 - [ ] YAAT-2267 Clear YAAT Scope's highlights and block offsets on scenario load and reset
 - [ ] YAAT-2266 Highlight a Scope track from its own menu's traffic rows, and repaint on highlight
-- [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM) · release vNext
-  - [ ] YAAT-2241 Merge feat/yaat-scope to main (#1377) · release vNext
 - [ ] YAAT-2325 Decide whether the settings bundle carries the YAAT Scope's pref sets and saved state
 - [ ] YAAT-2326 Back up a YAAT Scope pref-set file whenever its read drops data
 - [ ] YAAT-2412 Show long ERAM readouts on the YAAT Scope without cutting them to five lines
@@ -139,7 +137,7 @@
 ## Bug reports and feature requests
 
 - [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext+1
-- [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
+- [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext+1
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
 ## Context-menu quick commands (#471)
@@ -751,7 +749,7 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (1/32 done)
+### 1 Defects (2/32 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -782,7 +780,6 @@
 - [ ] YAAT-2308 Restore an approach clearance's procedure and missed-approach fixes from a snapshot
 - [ ] YAAT-2368 Clear Radar and Ground per-track view state on the instructor's own rewind, as a rewind from another client does
 - [ ] YAAT-2369 Clear every view's per-track state when a recording loads, as an unload or restart does
-- [ ] YAAT-2596 Seed the filed altitude on pre-55 recorded generated spawns
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -1564,14 +1561,29 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (31/84 done)
+### 3 Hygiene and tests (42/110 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
-- [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
-  - [ ] YAAT-2343 Guard expensive log arguments (CA1873) and raise it to warning · release vNext
-  - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext
-  - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext
-  - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext
-- [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports · release vNext
+- [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext+1
+  - [ ] YAAT-2343 Guard expensive log arguments (CA1873) and raise it to warning · release vNext+1
+    - [ ] YAAT-2614 CA1873 part Y12: guard expensive log arguments in Yaat.Sim (LowApproachPhase.cs to PilotRequestTracker.cs) · release vNext+1
+    - [ ] YAAT-2612 CA1873 part Y11: guard expensive log arguments in Yaat.Sim (VfrFollowPhase.cs to LinedUpAndWaitingPhase.cs) · release vNext+1
+    - [ ] YAAT-2615 CA1873 part Y14: guard expensive log arguments in Yaat.Sim (SimulationEngine.Coordination.cs to SituationFlagCalculator.cs) · release vNext+1
+    - [ ] YAAT-2618 CA1873 part Y16: guard expensive log arguments in yaat client (AtomicFile.cs to VStripsView.axaml.cs) · release vNext+1
+    - [ ] YAAT-2617 CA1873 part Y15: guard expensive log arguments in Yaat.Sim (AircraftTypeNames.cs to WindGridRegistry.cs) · release vNext+1
+    - [ ] YAAT-2616 CA1873 part Y13: guard expensive log arguments in Yaat.Sim (TaxiInRequest.cs to SimulationEngine.Commands.cs) · release vNext+1
+    - [ ] YAAT-2619 CA1873 part Y19: guard expensive log arguments in yaat client (SherpaCudaInstaller.cs to ImportExportViewModel.cs) · release vNext+1
+    - [ ] YAAT-2622 CA1873 part Y20: guard expensive log arguments in yaat client (MainViewModel.Aircraft.cs to SttModelCardViewModel.cs) · release vNext+1
+    - [ ] YAAT-2621 CA1873 part Y17: guard expensive log arguments in yaat client (BrowserTdlsTransport.cs to AudioCaptureService.cs) · release vNext+1
+    - [ ] YAAT-2620 CA1873 part Y18: guard expensive log arguments in yaat client (CudaBackendInstaller.cs to NativeStderrCapture.cs) · release vNext+1
+    - [ ] YAAT-2623 CA1873 part Y21: guard expensive log arguments in yaat client (ArrivalGeneratorsEditorWindow.axaml.cs to MainView.axaml.cs) · release vNext+1
+    - [ ] YAAT-2626 CA1873 part S3: guard expensive log arguments in yaat-server (ShadowTrafficSync.cs to CrcBroadcastService.cs) · release vNext+1
+    - [ ] YAAT-2625 CA1873 part S2: guard expensive log arguments in yaat-server (CrcClientState.Join.cs to RoomLiveTrafficReplay.cs) · release vNext+1
+    - [ ] YAAT-2624 CA1873 part S1: guard expensive log arguments in yaat-server (AdminSessionEndpoints.cs to CrcClientState.Info.cs) · release vNext+1
+    - [ ] YAAT-2627 CA1873 part S5: guard expensive log arguments in yaat-server (UdpEntityServer.cs to UiaQuery.cs) · release vNext+1
+    - [ ] YAAT-2628 CA1873 part S4: guard expensive log arguments in yaat-server (DtoConverter.cs to SpeechTelemetryRetention.cs) · release vNext+1
+  - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext+1
+  - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext+1
+  - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext+1
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
@@ -1671,9 +1683,9 @@
 - [ ] YAAT-2532 Remove the automation copies of the command-line sink and the Scope tab index
 - [ ] YAAT-2533 Scope automation gate: a late viewer change can overwrite a take framing, and no-ARTCC loads never open it
 - [ ] YAAT-2588 Tolerate null extra-view entries and a null windowGeometries in a layout after load
-- [ ] YAAT-2597 ERAM field-E handoff labels read the live ARTCC config cache, not the room's pinned config
 - [ ] YAAT-2598 Solo natural commands parse their canonical text with the user's renamed verbs
-- [ ] YAAT-2599 Shift-staged Scope field-menu rows send default verbs under the user's renamed scheme
+- [ ] YAAT-2601 Read per-room ARTCC config from the room's pinned config in CRC broadcasts, ATPA, hubs and position lookups
+- [ ] YAAT-2602 Test the auto scratchpad projection and that broadcasts read the pinned ARTCC config, not the live cache
 
 ## Design files
 
