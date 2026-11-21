@@ -34,37 +34,76 @@ internal static class CrcGrid
 }
 
 /// <summary>
-/// CRC's FDB menu colours at the default brightness settings: each style's EramColor scaled by its brightness group
-/// (Bcg defaults) times the system brightness factor (66 + 90 / 100 × 34) / 100, truncated, as Style.Calculate does.
+/// The colours a CRC FDB menu draws in: <see cref="Eram"/>, CRC's own, or <see cref="Stars"/>, CRC's STARS DCB button colours
+/// for the STARS field menus (CRC has none of its own).
 /// </summary>
-internal static class CrcPalette
+public sealed record CrcPalette
 {
-    /// <summary>FdbMenuCurrentValue and FdbMenuPickAreaBackground text: White (243) at Bcg.Text 90 → 86 %.</summary>
-    public static readonly Color Text = Color.FromRgb(208, 208, 208);
+    /// <summary>
+    /// CRC's FDB menu colours at the default brightness settings: each style's EramColor scaled by its brightness group (Bcg
+    /// defaults) times the system brightness factor (66 + 90 / 100 × 34) / 100, truncated, as Style.Calculate does.
+    /// </summary>
+    public static CrcPalette Eram { get; } =
+        new()
+        {
+            Text = Color.FromRgb(208, 208, 208),
+            Invalid = Color.FromRgb(180, 180, 180),
+            PickBackground = Color.FromRgb(153, 153, 153),
+            Outline = Color.FromRgb(131, 131, 131),
+            Emphasis = Color.FromRgb(169, 123, 119),
+            CursorEmphasis = Color.FromRgb(213, 213, 213),
+            ScrollEnabled = Color.FromRgb(177, 177, 177),
+            ScrollDisabled = Color.FromRgb(145, 145, 145),
+            Black = Color.FromRgb(0, 0, 0),
+        };
 
-    /// <summary>FdbMenuInvalid: LightGray (210) at Bcg.Text → 86 %, for an altitude at or above 290 without RVSM.</summary>
-    public static readonly Color Invalid = Color.FromRgb(180, 180, 180);
+    /// <summary>
+    /// CRC's STARS DCB button colours (DcbButton): fill 0,44,0, pushed 0,78,0 for the lit pick area and the selected value, text
+    /// 200,200,200, edge 85,85,85; a scroll arrow in the text colour, or the edge colour when it cannot scroll. Invalid
+    /// (140,140,140) and CursorEmphasis (200,200,200) are YAAT's own choice: CRC's STARS DCB has no such colours.
+    /// </summary>
+    public static CrcPalette Stars { get; } =
+        new()
+        {
+            Text = Color.FromRgb(200, 200, 200),
+            Invalid = Color.FromRgb(140, 140, 140),
+            PickBackground = Color.FromRgb(0, 44, 0),
+            Outline = Color.FromRgb(85, 85, 85),
+            Emphasis = Color.FromRgb(0, 78, 0),
+            CursorEmphasis = Color.FromRgb(200, 200, 200),
+            ScrollEnabled = Color.FromRgb(200, 200, 200),
+            ScrollDisabled = Color.FromRgb(85, 85, 85),
+            Black = Color.FromRgb(0, 0, 0),
+        };
 
-    /// <summary>FdbMenuPickAreaBackground fill: Gray (199) at Bcg.Button 80 → 77 %.</summary>
-    public static readonly Color PickBackground = Color.FromRgb(153, 153, 153);
+    /// <summary>FdbMenuCurrentValue and FdbMenuPickAreaBackground text: on ERAM White (243) at Bcg.Text 90 → 86 %.</summary>
+    public required Color Text { get; init; }
 
-    /// <summary>FdbMenuOutlines: White (243) at Bcg.Border 56 → 54 %.</summary>
-    public static readonly Color Outline = Color.FromRgb(131, 131, 131);
+    /// <summary>FdbMenuInvalid: on ERAM LightGray (210) at Bcg.Text → 86 %, for an altitude at or above 290 without RVSM.</summary>
+    public required Color Invalid { get; init; }
 
-    /// <summary>FdbMenuEmphasisBackground: BurntCoral (220, 160, 155) at Bcg.Button → 77 %, the lit pick area and the selected value.</summary>
-    public static readonly Color Emphasis = Color.FromRgb(169, 123, 119);
+    /// <summary>FdbMenuPickAreaBackground fill: on ERAM Gray (199) at Bcg.Button 80 → 77 %.</summary>
+    public required Color PickBackground { get; init; }
 
-    /// <summary>FdbMenuCursorSelectionEmphasis: White (243) at Bcg.PairedTarget 92 → 88 %, the outline under the cursor.</summary>
-    public static readonly Color CursorEmphasis = Color.FromRgb(213, 213, 213);
+    /// <summary>FdbMenuOutlines: on ERAM White (243) at Bcg.Border 56 → 54 %.</summary>
+    public required Color Outline { get; init; }
 
-    /// <summary>CheckListViewScrollPickAreasEmphasized: White at the derived brightness, an arrow that can scroll.</summary>
-    public static readonly Color ScrollEnabled = Color.FromRgb(177, 177, 177);
+    /// <summary>
+    /// FdbMenuEmphasisBackground, the lit pick area and the selected value: on ERAM BurntCoral (220, 160, 155) at Bcg.Button → 77 %.
+    /// </summary>
+    public required Color Emphasis { get; init; }
 
-    /// <summary>CheckListViewScrollPickAreasDeemphasized: Gray at the derived brightness, an arrow that cannot.</summary>
-    public static readonly Color ScrollDisabled = Color.FromRgb(145, 145, 145);
+    /// <summary>FdbMenuCursorSelectionEmphasis, the outline under the cursor: on ERAM White (243) at Bcg.PairedTarget 92 → 88 %.</summary>
+    public required Color CursorEmphasis { get; init; }
+
+    /// <summary>CheckListViewScrollPickAreasEmphasized, an arrow that can scroll: on ERAM White at the derived brightness.</summary>
+    public required Color ScrollEnabled { get; init; }
+
+    /// <summary>CheckListViewScrollPickAreasDeemphasized, an arrow that cannot: on ERAM Gray at the derived brightness.</summary>
+    public required Color ScrollDisabled { get; init; }
 
     /// <summary>FdbMenuCurrentValue background.</summary>
-    public static readonly Color Black = Color.FromRgb(0, 0, 0);
+    public required Color Black { get; init; }
 }
 
 /// <summary>A pixel rectangle on the menu.</summary>

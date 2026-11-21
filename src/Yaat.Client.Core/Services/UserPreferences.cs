@@ -652,6 +652,12 @@ public sealed partial class UserPreferences
             : ScopeFieldMenuStyle.Tabbed;
 
     /// <summary>
+    /// Whether a click on a STARS block's altitude, speed, beacon or line-3 field opens a pick menu, in the
+    /// <see cref="ScopeFieldMenuStyle"/>; off, as in CRC's STARS, it only selects the track. Default off.
+    /// </summary>
+    public bool ScopeStarsFieldMenus => _data.ScopeStarsFieldMenus;
+
+    /// <summary>
     /// The column the last command sent or staged from an ERAM field menu came from, which a tabbed menu opens on. Default
     /// <see cref="ScopeFieldMenuMode.Eram"/>.
     /// </summary>
@@ -1364,6 +1370,12 @@ public sealed partial class UserPreferences
     public void SetScopeFieldMenuStyle(ScopeFieldMenuStyle style)
     {
         _data.ScopeFieldMenuStyle = style.ToString();
+        Save();
+    }
+
+    public void SetScopeStarsFieldMenus(bool enabled)
+    {
+        _data.ScopeStarsFieldMenus = enabled;
         Save();
     }
 
@@ -2603,6 +2615,7 @@ public sealed partial class UserPreferences
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             ScopeFieldMenuStyle = GetFieldOr(obj, "scopeFieldMenuStyle", nameof(Services.ScopeFieldMenuStyle.Tabbed)),
             ScopeFieldMenuLastMode = GetFieldOr(obj, "scopeFieldMenuLastMode", nameof(ScopeFieldMenuMode.Eram)),
+            ScopeStarsFieldMenus = GetFieldOr(obj, "scopeStarsFieldMenus", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", true),
             ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
@@ -3032,6 +3045,7 @@ public sealed partial class UserPreferences
         // ScopeFieldMenuStyle and ScopeFieldMenuMode names, stored as strings so enum reordering can't misassign them.
         public string ScopeFieldMenuStyle { get; set; } = nameof(Services.ScopeFieldMenuStyle.Tabbed);
         public string ScopeFieldMenuLastMode { get; set; } = nameof(ScopeFieldMenuMode.Eram);
+        public bool ScopeStarsFieldMenus { get; set; }
 
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; } = true;

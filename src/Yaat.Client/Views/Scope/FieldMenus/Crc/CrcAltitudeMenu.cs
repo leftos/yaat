@@ -80,14 +80,26 @@ public sealed class CrcAltitudeMenu : CrcFdbMenu
     private readonly List<(int Value, bool Selected)> _altitudes;
     private readonly SelectedKind _kind;
     private readonly CrcPageScroll _scroll = new();
+    private readonly bool _pilotOnly;
     private bool _localTaltLit;
     private bool _procedureLit;
 
     /// <summary>Opens the menu as CRC does: the selected altitude in the list, the list centred on it.</summary>
     public CrcAltitudeMenu(string callsign, CrcAltitudeValues values, CrcMenuMode mode, bool showModeChip)
-        : base(callsign, 14, mode, showModeChip)
+        : this(callsign, values, CrcPalette.Eram, new Form(mode, showModeChip, PilotOnly: false)) { }
+
+    /// <summary>
+    /// Opens the menu for PILOT picks alone, as the STARS field menus do: no ERAM | PILOT chip, none of the pick areas above the
+    /// list (FP, <c>nnn T</c>, LOCAL TALT, PROCEDURE) and no T column, in <paramref name="palette"/>.
+    /// </summary>
+    public CrcAltitudeMenu(string callsign, CrcAltitudeValues values, CrcPalette palette)
+        : this(callsign, values, palette, new Form(CrcMenuMode.Pilot, ShowModeChip: false, PilotOnly: true)) { }
+
+    private CrcAltitudeMenu(string callsign, CrcAltitudeValues values, CrcPalette palette, Form form)
+        : base(callsign, 14, form.Mode, form.ShowModeChip, palette)
     {
         _values = values;
+        _pilotOnly = form.PilotOnly;
         (int selected, _kind) = SelectedAltitude(values);
         _altitudes = BuildAltitudes(selected, out int selectedIndex);
         _scroll.Reset(_altitudes.Count, selectedIndex - 3);
@@ -99,6 +111,9 @@ public sealed class CrcAltitudeMenu : CrcFdbMenu
 
     /// <summary>Raised on a pick.</summary>
     public event Action<CrcAltitudePick>? Picked;
+
+    // The chip mode at open, whether the chip row shows, and whether the menu is PILOT-only (no ERAM-only parts).
+    private sealed record Form(CrcMenuMode Mode, bool ShowModeChip, bool PilotOnly);
 
     private enum SelectedKind
     {
@@ -156,6 +171,22 @@ public sealed class CrcAltitudeMenu : CrcFdbMenu
 
     private protected override IEnumerable<CrcNode> BuildContents()
     {
+        if (!_pilotOnly)
+        {
+            foreach (CrcNode area in PreListAreas())
+            {
+                yield return area;
+            }
+        }
+        yield return ScrollWrapper(_scroll.Window(_altitudes).Select(AltitudeRow), _scroll);
+    }
+
+    /// <summary>
+    /// The pick areas above the list: FP and <c>nnn T</c> when they apply, LOCAL TALT and PROCEDURE. A PILOT-only menu shows
+    /// none of them, since none sends a pilot command.
+    /// </summary>
+    private IEnumerable<CrcNode> PreListAreas()
+    {
         bool anyTemporary =
             (_values.InterimAltitude is not null) || (_values.LocalInterimAltitude is not null) || (_values.ProcedureAltitude is not null);
         if (anyTemporary)
@@ -168,7 +199,6 @@ public sealed class CrcAltitudeMenu : CrcFdbMenu
         }
         yield return PickArea("LOCAL TALT", _ => ToggleLocalTalt(), _localTaltLit);
         yield return PickArea("PROCEDURE", _ => ToggleProcedure(), _procedureLit);
-        yield return ScrollWrapper(_scroll.Window(_altitudes).Select(AltitudeRow), _scroll);
     }
 
     /// <summary>CRC's GetFlightPlanAssignedAltitudeLabel.</summary>
@@ -180,19 +210,19 @@ public sealed class CrcAltitudeMenu : CrcFdbMenu
     /// <summary>CRC's AltitudeValuePickArea: the altitude, and its T column drawn over the row from the same left edge.</summary>
     private CrcNode AltitudeRow((int Value, bool Selected) altitude)
     {
-        Color color = (!altitude.Selected && !_values.IsRvsmCapable && (altitude.Value >= 290)) ? CrcPalette.Invalid : CrcPalette.Text;
+        Color color = (!altitude.Selected && !_values.IsRvsmCapable && (altitude.Value >= 290)) ? Palette.Invalid : Palette.Text;
         string text = Format(altitude.Value);
         var value = new CrcText(text, color)
         {
-            CircleFill = altitude.Selected ? CrcPalette.Emphasis : null,
+            CircleFill = altitude.Selected ? Palette.Emphasis : null,
             PickKey = text,
             Pick = s => PickAltitude(altitude.Value, false, s),
         };
         var interimColumn = new CrcText(InterimColumnText(altitude.Selected), color)
         {
             Absolute = true,
-            CircleFill = (altitude.Selected && (_kind != SelectedKind.FlightPlan)) ? CrcPalette.Emphasis : null,
-            Visibility = (_localTaltLit || _procedureLit) ? CrcVisibility.Collapsed : CrcVisibility.Visible,
+            CircleFill = (altitude.Selected && (_kind != SelectedKind.FlightPlan)) ? Palette.Emphasis : null,
+            Visibility = (_pilotOnly || _localTaltLit || _procedureLit) ? CrcVisibility.Collapsed : CrcVisibility.Visible,
             PickKey = text + " T",
             Pick = s => PickAltitude(altitude.Value, true, s),
         };

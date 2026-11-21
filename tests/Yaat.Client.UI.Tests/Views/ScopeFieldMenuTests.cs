@@ -35,7 +35,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// its one catalog entry's submenu already open; a field without one only selects; ERAM Field A keeps its dwell-lock click;
 /// the armed Rings tool wins; the EuroScope owner takes control. A row of a field menu sends for the clicked aircraft.
 /// </summary>
-public class ScopeFieldMenuTests
+public partial class ScopeFieldMenuTests
 {
     private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string templateId) =>
         ShowScope(templateId, 800, 600);
@@ -161,7 +161,7 @@ public class ScopeFieldMenuTests
             ScopeTemplates.StarsId,
             ScopeFieldSlot.Altitude,
             _ => { },
-            _ => { }
+            StarsMenusSideBySide
         );
         try
         {
@@ -2037,7 +2037,17 @@ public class ScopeFieldMenuTests
 
     private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window, AircraftModel Aircraft)> OpenSpeedMenuAsync(
         Action<ScopeViewModel> beforeClick
-    ) => ClickFieldAsync(ScopeTemplates.StarsId, ScopeFieldSlot.GroundSpeed, Speedy, beforeClick);
+    ) =>
+        ClickFieldAsync(
+            ScopeTemplates.StarsId,
+            ScopeFieldSlot.GroundSpeed,
+            Speedy,
+            s =>
+            {
+                StarsMenusSideBySide(s);
+                beforeClick(s);
+            }
+        );
 
     /// <summary>Shift held on a row inside the speed flyout, a submenu popup: the row stages its command and sends nothing.</summary>
     [AvaloniaFact]
@@ -2708,7 +2718,7 @@ public class ScopeFieldMenuTests
             ScopeTemplates.StarsId,
             ScopeFieldSlot.Altitude,
             _ => { },
-            _ => { }
+            StarsMenusSideBySide
         );
         try
         {

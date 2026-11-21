@@ -437,11 +437,18 @@ public partial class ScopeView : UserControl
         new(vm.Main, ac, Canvas) { Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command) };
 
     // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them. A
-    // EuroScope tag opens its own flyout for the fields that have one (OpenEuroScopeFlyout).
+    // EuroScope tag opens its own flyout for the fields that have one (OpenEuroScopeFlyout); a STARS block's altitude and ground
+    // speed open the menu of the field-menu style (OpenStarsStyledMenu).
     private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
     {
         _fieldMenuShift = false;
-        if ((ScopeOwnerKind.Resolve(vm.TemplateId, ac) == ScopeTemplates.EuroScopeId) && OpenEuroScopeFlyout(vm, ac, action, pos))
+        string kind = ScopeOwnerKind.Resolve(vm.TemplateId, ac);
+        if ((kind == ScopeTemplates.EuroScopeId) && OpenEuroScopeFlyout(vm, ac, action, pos))
+        {
+            return;
+        }
+
+        if ((kind == ScopeTemplates.StarsId) && OpenStarsStyledMenu(vm, ac, action))
         {
             return;
         }
@@ -577,7 +584,7 @@ public partial class ScopeView : UserControl
                     ? CrcPickAction.Eram(CrcMenuCommands.EramAltitude(pick, ac), pick.Area, pick.Shift)
                     : CrcPickAction.Pilot(CrcMenuCommands.PilotAltitude(pick, ac.AltitudeFeet, ac.AssignedAltitude), pick.Area, pick.Shift)
             );
-        ShowCrcMenu(menu, ac.Callsign, action);
+        ShowCrcMenu(menu, ac.Callsign, action, Canvas.FdbLineMiddleY(ac.Callsign, menu.FdbAlignLine));
     }
 
     // CRC's heading menu, as the altitude menu (CrcMenuCommands.EramHeading, PilotHeading).
@@ -592,7 +599,7 @@ public partial class ScopeView : UserControl
                     ? CrcPickAction.Eram([CrcMenuCommands.EramHeading(pick, ac.Callsign)], pick.Area, pick.Shift)
                     : CrcPickAction.Pilot(CrcMenuCommands.PilotHeading(pick), pick.Area, pick.Shift)
             );
-        ShowCrcMenu(menu, ac.Callsign, action);
+        ShowCrcMenu(menu, ac.Callsign, action, Canvas.FdbLineMiddleY(ac.Callsign, menu.FdbAlignLine));
     }
 
     // CRC's speed menu, as the altitude menu (CrcMenuCommands.EramSpeed, PilotSpeed).
@@ -607,12 +614,110 @@ public partial class ScopeView : UserControl
                     ? CrcPickAction.Eram([CrcMenuCommands.EramSpeed(pick, ac.Callsign)], pick.Area, pick.Shift)
                     : CrcPickAction.Pilot(CrcMenuCommands.PilotSpeed(pick), pick.Area, pick.Shift)
             );
-        ShowCrcMenu(menu, ac.Callsign, action);
+        ShowCrcMenu(menu, ac.Callsign, action, Canvas.FdbLineMiddleY(ac.Callsign, menu.FdbAlignLine));
     }
 
-    // A CRC menu as the one open surface, its list level with the middle of its FDB line (CrcMenuPopup).
-    private void ShowCrcMenu(CrcFdbMenu menu, string callsign, ScopeFieldAction action) =>
-        ShowFieldPopup(new CrcMenuPopup(menu, Canvas.FdbLineMiddleY(callsign, menu.FdbAlignLine)), callsign, action);
+    // A CRC menu as the one open surface, its list level with `alignY` (CrcMenuPopup); at the pointer when that is null.
+    private void ShowCrcMenu(CrcFdbMenu menu, string callsign, ScopeFieldAction action, double? alignY) =>
+        ShowFieldPopup(new CrcMenuPopup(menu, alignY), callsign, action);
+
+    // The field a STARS CRC-style menu aligns with: the altitude or the ground speed, whatever line the drawn block puts it on
+    // (line 2 of a full block, line 1 of a limited or partial one).
+    private static ScopeFieldSlot StarsSlotFor(ScopeFieldAction action) =>
+        (action == ScopeFieldAction.OpenAltitudeMenu) ? ScopeFieldSlot.Altitude : ScopeFieldSlot.GroundSpeed;
+
+    // The vertical middle of the callsign's drawn field in the slot, in canvas coordinates; null when the frame draws none.
+    private double? FieldMiddleY(string callsign, ScopeFieldSlot slot) => FieldMiddleY(Canvas.CurrentFrame, callsign, slot);
+
+    /// <summary>
+    /// The vertical middle of <paramref name="callsign"/>'s field in <paramref name="slot"/> as <paramref name="frame"/> draws it,
+    /// on whatever line its block puts it; null when the frame draws no such field.
+    /// </summary>
+    internal static double? FieldMiddleY(ScopeFrame frame, string callsign, ScopeFieldSlot slot) =>
+        frame
+            .Tracks.Where(t => t.Aircraft.Callsign == callsign)
+            .SelectMany(t => t.Block.Fields)
+            .Where(f => f.Slot == slot)
+            .Select(f => (double?)f.Rect.MidY)
+            .FirstOrDefault();
+
+    // A STARS block's altitude or ground speed with the "STARS field menus" setting on, in the "ERAM field menus" style: Tabbed
+    // opens a popup with one PILOT tab, Simple CRC's compact menu in STARS colours, PILOT picks only. False for Side by side and
+    // any other field, which open their catalog menu as before, and for an altitude with no PILOT panel to show.
+    private bool OpenStarsStyledMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        if (action is not (ScopeFieldAction.OpenAltitudeMenu or ScopeFieldAction.OpenSpeedMenu))
+        {
+            return false;
+        }
+
+        bool altitude = (action == ScopeFieldAction.OpenAltitudeMenu);
+        switch (vm.Main.Preferences.ScopeFieldMenuStyle)
+        {
+            case ScopeFieldMenuStyle.Tabbed:
+                return OpenStarsPilotPopup(vm, ac, action, altitude ? StarsPilotPopupKind.Altitude : StarsPilotPopupKind.Speed);
+            case ScopeFieldMenuStyle.Simple when altitude:
+                OpenStarsCrcAltitudeMenu(vm, ac, action);
+                return true;
+            case ScopeFieldMenuStyle.Simple:
+                OpenStarsCrcSpeedMenu(vm, ac, action);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // The STARS tabbed popup: its PILOT panel sends, or with Shift stages, as a field menu's row does; it remembers no column.
+    private bool OpenStarsPilotPopup(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, StarsPilotPopupKind kind)
+    {
+        var hooks = new ScopeDataPopupHooks(shift => _fieldMenuShift = shift, _ => { });
+        if (ScopeStarsPilotPopup.Create(ac, FieldMenuHost(vm, ac), hooks, kind) is not { } popup)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("ScopeView: no PILOT {Kind} panel for {Callsign}; the catalog menu opens instead", kind, ac.Callsign);
+            }
+
+            return false;
+        }
+
+        ShowFieldPopup(popup, ac.Callsign, action);
+        return true;
+    }
+
+    // CRC's compact altitude menu in STARS colours, PILOT only: a pick sends the climb or descent (CrcMenuCommands.PilotAltitude).
+    private void OpenStarsCrcAltitudeMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcAltitudeMenu(ac.Callsign, CrcMenuCommands.AltitudeValues(ac), CrcPalette.Stars);
+        menu.Picked += pick =>
+            SendStarsPilotPick(vm, ac, CrcMenuCommands.PilotAltitude(pick, ac.AltitudeFeet, ac.AssignedAltitude), pick.Area, pick.Shift);
+        ShowCrcMenu(menu, ac.Callsign, action, FieldMiddleY(ac.Callsign, StarsSlotFor(action)));
+    }
+
+    // CRC's compact speed menu in STARS colours, PILOT only: a pick sends the speed (CrcMenuCommands.PilotSpeed).
+    private void OpenStarsCrcSpeedMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcSpeedMenu(ac.Callsign, CrcMenuCommands.SpeedValues(ac), CrcPalette.Stars);
+        menu.Picked += pick => SendStarsPilotPick(vm, ac, CrcMenuCommands.PilotSpeed(pick), pick.Area, pick.Shift);
+        ShowCrcMenu(menu, ac.Callsign, action, FieldMiddleY(ac.Callsign, StarsSlotFor(action)));
+    }
+
+    // A STARS CRC-style menu pick: the pilot command sent, or with Shift staged, the menu closing either way; the remembered
+    // ERAM | PILOT mode is the ERAM menus' and stays as it was. A pick with no pilot command leaves the menu open.
+    private void SendStarsPilotPick(ScopeViewModel vm, AircraftModel ac, string? command, Enum area, bool stage)
+    {
+        if (command is null)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("ScopeView: the STARS pick {Area} for {Callsign} has no pilot command", area, ac.Callsign);
+            }
+
+            return;
+        }
+
+        SendOrStagePilot(vm, ac, command, stage);
+    }
 
     // The chip mode a CRC menu opens on: the remembered one.
     private static CrcMenuMode CrcModeNow(ScopeViewModel vm) =>

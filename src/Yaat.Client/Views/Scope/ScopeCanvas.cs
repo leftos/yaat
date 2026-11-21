@@ -1268,7 +1268,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             palette.AssignedToOther is not null,
             Viewer,
             EramLine4Type: line4,
-            EramLine4Destination: line4
+            EramLine4Destination: line4,
+            StarsFieldMenus: prefs?.ScopeStarsFieldMenus ?? false
         );
     }
 
