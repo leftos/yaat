@@ -372,6 +372,7 @@ public static class CommandRegistry
                 ["DCT"],
                 [O(null, [R("fix", "fix name")], "Proceed direct to fix")]
             ),
+            Bare(OnCourse, "On Course", "Navigation", CommandDimension.Lateral, false, ["OC"]),
             Cmd(
                 ForceDirectTo,
                 "Force Direct To Fix",

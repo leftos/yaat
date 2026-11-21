@@ -35,6 +35,7 @@
 - Radar conflict alerts keep the pair's blocks full, draw CA rings (ERAM rings under the DB menu's CA RING) and label list rows CA, MCI or ERAM.
 - Suppressed Radar CAs draw steady and dimmed, acknowledged ones steady; a CA inhibited from the Radar marks the STARS block and says "(student display)".
 - The Radar's DB menu splits ATPA into DIST, ALERT CONES and MONITOR CONES, and STARS blocks show the in-trail distance at line 2's end.
+- `OC` (menu: Proceed on course) puts an airborne aircraft on course: IFR rejoins its filed route at the next fix ahead, VFR heads direct to its destination.
 
 ### Changed
 

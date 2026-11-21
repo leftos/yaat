@@ -418,6 +418,16 @@ public sealed class QuickCommandSimAcceptanceTests
         AssertRefused(Dispatch(aircraft, clearance), $"{clearance} during VFR Follow", "pending approach");
     }
 
+    /// <summary>The aircraft menu's Proceed on course sends a bare <c>OC</c>, which an airborne aircraft with a destination takes.</summary>
+    [Fact]
+    public void ProceedOnCourse_Airborne_IsAccepted()
+    {
+        AircraftState aircraft = AirborneNearOak(new VfrFollowPhase("LEAD1", null));
+        aircraft.FlightPlan.Destination = "KSJC";
+
+        AssertAccepted(Dispatch(aircraft, "OC"), "OC airborne");
+    }
+
     // --- Option clearances on the pattern final and downwind ---
     //
     // A closed-traffic aircraft is in the Final situation from its turn to final, so the Final list carries Cleared for the

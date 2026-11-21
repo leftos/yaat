@@ -71,6 +71,9 @@ internal sealed record EnterPatternRequest
 
 internal static class PatternCommandHandler
 {
+    /// <summary>The refusal of a pattern instruction inside the entry point on final, where the aircraft is committed to land.</summary>
+    internal const string ShortFinalRefusal = "Unable, short final";
+
     private static readonly ILogger Log = SimLog.CreateLogger("PatternCommandHandler");
 
     // Falls back through assigned runway → filed destination → spawn-time airport
@@ -696,7 +699,7 @@ internal static class PatternCommandHandler
                     aircraft.Phases.AssignedRunway = previousAssignedRunway;
                     NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, previousAssignedRunway.Designator);
                 }
-                return new CommandResult(false, "Unable, short final");
+                return new CommandResult(false, ShortFinalRefusal);
             }
         }
 

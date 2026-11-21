@@ -443,7 +443,8 @@ public sealed class HoldingPatternPhase : Phase
             return CommandAcceptance.Allowed;
         }
 
-        return CommandAcceptance.ClearsPhase;
+        // A plain hold ends on OC, exiting direct from present position; a hold-in-lieu is the approach and keeps it.
+        return ((cmd == CanonicalCommandType.OnCourse) && IsHoldInLieu) ? OnCourseOnApproach : CommandAcceptance.ClearsPhase;
     }
 
     public override PhaseDto ToSnapshot() =>

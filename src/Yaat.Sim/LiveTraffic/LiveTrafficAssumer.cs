@@ -715,32 +715,18 @@ public static class LiveTrafficAssumer
             return (null, false);
         }
 
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-        var resolved = new List<ResolvedFix>();
-        foreach (string name in RouteExpander.Expand(ac.FlightPlan.Route, navDb, includeAllTransitionsOnMismatch: false))
-        {
-            if (navDb.ResolveFixOrFrd(name) is { } pos)
-            {
-                resolved.Add(new ResolvedFix(name, pos.Lat, pos.Lon));
-            }
-        }
-
+        (List<ResolvedFix> resolved, int candidate) = FindRouteRejoin(ac);
         if (resolved.Count == 0)
         {
             return ("filed route has no resolvable fixes", false);
         }
 
-        int candidate = NextFixAhead(ac, resolved);
         if (candidate < 0)
         {
             return ("assumed on vectors — no route fix ahead within the rejoin cone", false);
         }
 
-        ac.Targets.NavigationRoute.Clear();
-        foreach (ResolvedFix? fix in resolved.Skip(candidate))
-        {
-            ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
-        }
+        InstallRouteFrom(ac, resolved, candidate);
 
         var warnings = new List<string>();
         if (IsWithinOfAirport(ac, ac.FlightPlan.Destination, ArrivalProfileDistanceNm))
@@ -823,6 +809,99 @@ public static class LiveTrafficAssumer
     }
 
     /// <summary>
+    /// The filed route expanded (SIDs, STARs and airways) and resolved fix by fix, unresolvable names dropped, with the
+    /// index of the fix to rejoin it at (<see cref="NextFixAhead"/>); -1 when the route resolves no fix or none is ahead.
+    /// Shared by an assume's route rejoin and a proceed on course (<c>OC</c>).
+    /// </summary>
+    internal static (List<ResolvedFix> Resolved, int Candidate) FindRouteRejoin(AircraftState ac)
+    {
+        var resolved = new List<ResolvedFix>();
+        if (string.IsNullOrWhiteSpace(ac.FlightPlan.Route))
+        {
+            return (resolved, -1);
+        }
+
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        foreach (string name in RouteExpander.Expand(ac.FlightPlan.Route, navDb, includeAllTransitionsOnMismatch: false))
+        {
+            if (navDb.ResolveFixOrFrd(name) is { } pos)
+            {
+                resolved.Add(new ResolvedFix(name, pos.Lat, pos.Lon));
+            }
+        }
+
+        return (resolved, (resolved.Count == 0) ? -1 : NextFixAhead(ac, resolved));
+    }
+
+    /// <summary>
+    /// Index of the fix a proceed on course (<c>OC</c>) rejoins the route at, whatever the track: the end fix of the closest
+    /// route leg, skipping each fix the aircraft is already past along its leg or within the rejoin distance of. -1 only when
+    /// that runs past the last fix. Unlike <see cref="NextFixAhead"/> there is no cone: a vector off the route still rejoins it.
+    /// </summary>
+    internal static int NextFixAlongRoute(AircraftState ac, IReadOnlyList<ResolvedFix> route)
+    {
+        if (route.Count == 0)
+        {
+            return -1;
+        }
+
+        int candidate = (route.Count == 1) ? 0 : ClosestLeg(ac, route) + 1;
+        double minNm = Math.Max(RejoinMinDistanceNm, ac.GroundSpeed * RejoinMinSeconds / 3600.0);
+        while ((candidate < route.Count) && IsPassedOrTooClose(ac, route, candidate, minNm))
+        {
+            candidate++;
+        }
+
+        return (candidate < route.Count) ? candidate : -1;
+    }
+
+    /// <summary>Whether the aircraft is within <paramref name="minNm"/> of fix <paramref name="index"/> or past it along the leg into it.</summary>
+    private static bool IsPassedOrTooClose(AircraftState ac, IReadOnlyList<ResolvedFix> route, int index, double minNm)
+    {
+        LatLon fix = Point(route[index]);
+        if (GeoMath.DistanceNm(ac.Position, fix) < minNm)
+        {
+            return true;
+        }
+
+        if (index == 0)
+        {
+            return false;
+        }
+
+        var legCourse = new TrueHeading(GeoMath.BearingTo(Point(route[index - 1]), fix));
+        return GeoMath.AlongTrackDistanceNm(ac.Position, fix, legCourse) >= 0;
+    }
+
+    /// <summary>Index of the route leg (from fix i to fix i + 1) closest to the aircraft; the route has at least two fixes.</summary>
+    private static int ClosestLeg(AircraftState ac, IReadOnlyList<ResolvedFix> route)
+    {
+        int closestLeg = 0;
+        double closestFt = double.MaxValue;
+        for (int i = 0; i < route.Count - 1; i++)
+        {
+            double d = GeoMath.DistanceToSegmentFt(ac.Position, Point(route[i]), Point(route[i + 1]));
+            if (d < closestFt)
+            {
+                closestFt = d;
+                closestLeg = i;
+            }
+        }
+
+        return closestLeg;
+    }
+
+    /// <summary>Replaces the route with <paramref name="resolved"/> from <paramref name="candidate"/> on.</summary>
+    internal static void InstallRouteFrom(AircraftState ac, IReadOnlyList<ResolvedFix> resolved, int candidate)
+    {
+        ac.Targets.NavigationRoute.Clear();
+        foreach (ResolvedFix fix in resolved.Skip(candidate))
+        {
+            ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
+        }
+    }
+
+    /// <summary>
     /// Index of the fix to rejoin at: the fix after the closest route leg, skipping at most one fix
     /// the aircraft is already past or abeam (bearing outside ±90° of track). Requires the candidate
     /// within <see cref="RejoinConeDeg"/> of the track and at least the rejoin distance ahead. -1 when none.
@@ -836,19 +915,7 @@ public static class LiveTrafficAssumer
         }
         else
         {
-            int closestLeg = 0;
-            double closestFt = double.MaxValue;
-            for (int i = 0; i < route.Count - 1; i++)
-            {
-                double d = GeoMath.DistanceToSegmentFt(ac.Position, Point(route[i]), Point(route[i + 1]));
-                if (d < closestFt)
-                {
-                    closestFt = d;
-                    closestLeg = i;
-                }
-            }
-
-            candidate = closestLeg + 1;
+            candidate = ClosestLeg(ac, route) + 1;
         }
 
         if (IsBehind(ac, route[candidate]))

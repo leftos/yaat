@@ -389,7 +389,7 @@ public sealed class ProcedureTurnPhase : Phase
             return CommandAcceptance.Allowed;
         }
 
-        return CommandAcceptance.ClearsPhase;
+        return (cmd == CanonicalCommandType.OnCourse) ? OnCourseOnApproach : CommandAcceptance.ClearsPhase;
     }
 
     public override PhaseDto ToSnapshot() =>

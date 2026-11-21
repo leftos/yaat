@@ -384,6 +384,7 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
             or CanonicalCommandType.TurnRightDirectTo
             or CanonicalCommandType.ForceDirectTo
             or CanonicalCommandType.AppendForceDirectTo
+            or CanonicalCommandType.OnCourse
             or CanonicalCommandType.FlyHeading
             or CanonicalCommandType.TurnLeft
             or CanonicalCommandType.TurnRight
@@ -397,8 +398,47 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
         };
     }
 
+    /// <summary>
+    /// A proceed on course (<c>OC</c>) on the SID with no vector while the departure route is still pending: the aircraft is
+    /// already on course, so the next <see cref="OnCommandAccepted"/> of it keeps the turn gate and the pending route.
+    /// </summary>
+    public bool TryKeepOnCourse()
+    {
+        _onCourseKept = PendingRoute is not null;
+        return _onCourseKept;
+    }
+
+    private bool _onCourseKept;
+
+    /// <summary>
+    /// OC with the departure route pending: below the turn gate the gate stays and loads the route when it is reached. A
+    /// radar-vectors SID's heading hold ends, as its hand-off would end it, and the departure route loads now when the gate
+    /// is behind; the SID stays.
+    /// </summary>
+    private void KeepOnCourse(PhaseContext ctx)
+    {
+        if (!_rvSidActive)
+        {
+            return;
+        }
+
+        _rvSidActive = false;
+        if (_deferredTurnApplied)
+        {
+            SetupDepartureNavigation(ctx);
+        }
+    }
+
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
+        bool keptOnCourse = (cmd == CanonicalCommandType.OnCourse) && _onCourseKept;
+        _onCourseKept = false;
+        if (keptOnCourse)
+        {
+            KeepOnCourse(ctx);
+            return;
+        }
+
         // Heading and direct-to commands update Targets without clearing the phase.
         // If the RV SID heading hold or deferred-turn gate is still active, OnTick
         // would re-apply the published hold heading every tick (and _rvSidActive
@@ -418,7 +458,8 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
                 or CanonicalCommandType.ForceDirectTo
                 or CanonicalCommandType.AppendForceDirectTo
                 or CanonicalCommandType.TurnLeftDirectTo
-                or CanonicalCommandType.TurnRightDirectTo;
+                or CanonicalCommandType.TurnRightDirectTo
+                or CanonicalCommandType.OnCourse;
 
         if (releasesRvSidHold)
         {

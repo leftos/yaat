@@ -858,6 +858,7 @@ public static class CommandParser
             AppendForceDirectTo => ParseAppendForceDirectTo(arg, aircraftRoute, ctx),
             TurnLeftDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Left, ctx),
             TurnRightDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Right, ctx),
+            OnCourse when arg is null => PR.Ok(new ProceedOnCourseCommand()),
             // Sim control
             Delete when arg is null => PR.Ok(new DeleteCommand()),
             Assume when arg is null => PR.Ok(new AssumeCommand()),

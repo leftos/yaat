@@ -1366,6 +1366,8 @@ Before a scenario or ARTCC is loaded the Radar has no video maps to offer; it ta
 
   A fix the aircraft has passed greys to "passed" for as long as the flyout stays open but still sends; with no navigating-to fix the list is the whole route. Typing narrows the route rows and adds "All fixes · nearest first": the 50 nearest other fixes starting with your text, however far; an FRD (`RBL184031`) gets its own row with its distance and bearing.
 
+  **Proceed on course** (`OC`, in the same Vectors › Route block) sends an airborne aircraft back to its filed route: an IFR aircraft rejoins at the next fix ahead and flies the rest of the route, keeping an active SID or STAR when the rejoin fix is on it; a VFR aircraft, or one with no route fix ahead, goes direct to its destination. It keeps its assigned altitude and speed, drops its heading, and ends a hold or leaves the pattern; it is refused on the final, on an approach and on a military route. The row shows for a VFR aircraft only when its destination differs from its departure field, and for an IFR aircraft with a filed route or such a destination.
+
   The box has focus when the flyout opens. Typing outlines the first row, and Enter sends it (with no row, Enter sends the typed fix). Down moves from the box into the rows (onto the ● row when it shows), Up and Down walk them, Up from the top row returns to the box, Enter sends the focused row, and Escape goes back to the strip.
 
   **Cross fix…** and **Depart fix…** (Vectors › Route; Cross fix also a strip icon, Depart fix with its own glyph) each open one flyout, titled "Cross fix" or "Depart fix" with "→ {next fix}" while the aircraft navigates to a fix. The Fix box ("Fix name") takes a fix's own name; an FRD is "Not a known fix" for these two.

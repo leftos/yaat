@@ -340,6 +340,7 @@ public static class RecordedCommandClassifier
                 or DescendMaintainCommand
                 or DescendViaCommand
                 or DirectToCommand
+                or ProceedOnCourseCommand
                 or EnterFinalCommand
                 or EnterLeftBaseCommand
                 or EnterLeftCrosswindCommand

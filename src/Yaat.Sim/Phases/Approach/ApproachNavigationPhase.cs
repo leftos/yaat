@@ -361,6 +361,7 @@ public sealed class ApproachNavigationPhase : Phase
             // FOLLOW is routed by the dispatcher: it keeps the approach and only records the lead, or replaces
             // the phase list itself for a re-sequence; clearing the phase first would drop the approach.
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
+            CanonicalCommandType.OnCourse => OnCourseOnApproach,
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,
         };

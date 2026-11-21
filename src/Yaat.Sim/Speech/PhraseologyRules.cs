@@ -350,6 +350,10 @@ public static class PhraseologyRules
             ),
             new(["direct", "to?", "{fix}"], "DCT {fix}", DirectTo),
             new(["fly", "direct", "{fix}"], "DCT {fix}", DirectTo),
+            // Proceed on course (7110.65 4-3-2, 9-2-10): the handler builds the readback, naming the fix it rejoined at
+            // (OnCourseDirect, OnCourseToDestination).
+            new(["proceed", "on", "course"], "OC", OnCourse, SttOnly: true),
+            new(["on", "course"], "OC", OnCourse),
             new(
                 ["turn", "left", "direct", "to?", "{fix}"],
                 "TLDCT {fix}",
@@ -455,6 +459,20 @@ public static class PhraseologyRules
             // 7110.65 3-9-10 full-length departure: "RUNWAY 28R FULL LENGTH, cleared for takeoff".
             new(["runway", "{rwy}", "full", "length", "cleared", "for", "takeoff"], "CTO {rwy}", ClearedForTakeoff),
             new(["cleared", "for", "takeoff", "runway", "{rwy}"], "CTO {rwy}", ClearedForTakeoff),
+            // "cleared for takeoff, on course": on course is the takeoff clearance's own modifier (CTO OC), so the longer
+            // match keeps it from mapping to a standalone airborne OC.
+            new(["runway", "{rwy}", "cleared", "for", "takeoff", "on", "course"], "CTO {rwy} OC", ClearedForTakeoff, SttOnly: true),
+            new(["cleared", "for", "takeoff", "runway", "{rwy}", "on", "course"], "CTO {rwy} OC", ClearedForTakeoff, SttOnly: true),
+            new(["runway", "{rwy}", "clear", "for", "takeoff", "on", "course"], "CTO {rwy} OC", ClearedForTakeoff, SttOnly: true),
+            new(
+                ["runway", "{rwy}", "at", "{taxiway}", "cleared", "for", "takeoff", "on", "course"],
+                "CTO {rwy} OC",
+                ClearedForTakeoff,
+                SttOnly: true
+            ),
+            new(["runway", "{rwy}", "full", "length", "cleared", "for", "takeoff", "on", "course"], "CTO {rwy} OC", ClearedForTakeoff, SttOnly: true),
+            new(["cleared", "for", "takeoff", "on", "course"], "CTO OC", ClearedForTakeoff, SttOnly: true),
+            new(["clear", "for", "takeoff", "on", "course"], "CTO OC", ClearedForTakeoff, SttOnly: true),
             new(["cleared", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["clear", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["cancel", "takeoff", "clearance"], "CTOC", CancelTakeoffClearance),
@@ -1531,6 +1549,34 @@ public static class PhraseologyRules
             ["cleared", "visual", "approach", "to", "{apt},", "landing", "runway", "{rwy}", "{side}"],
             ClearedVisualApproach,
             PilotVariantSet.BusyOnly(new PilotVariant("cleared visual to {apt}, landing runway {rwy} {side}", PilotVariantTags.None))
+        );
+
+    /// <summary>
+    /// "on course, direct {fix}", proceed on course rejoining the filed route at {fix}: the pilot names the fix so the
+    /// instructor sees where it rejoins (a vector's end, 7110.65 5-6-2.a.5); a busy pilot keeps only the direct.
+    /// </summary>
+    public static BuilderVariantSet OnCourseDirect { get; } =
+        new(
+            "on course direct",
+            ["on", "course,", "direct", "{fix}"],
+            OnCourse,
+            new PilotVariantSet(
+                [new PilotVariant("proceeding on course, direct {fix}, {cs}", PilotVariantTags.None)],
+                [],
+                [new PilotVariant("direct {fix}", PilotVariantTags.None)]
+            )
+        );
+
+    /// <summary>
+    /// "on course", proceed on course direct to the destination (VFR, or no route fix ahead): never names the airport, which
+    /// would sound like a clearance limit.
+    /// </summary>
+    public static BuilderVariantSet OnCourseToDestination { get; } =
+        new(
+            "on course",
+            ["on", "course"],
+            OnCourse,
+            new PilotVariantSet([new PilotVariant("proceeding on course, {cs}", PilotVariantTags.None)], [], [])
         );
 
     /// <summary>"follow the traffic", an airborne follow (7110.65 7-2-1, AIM 5-5-12): a busy pilot keeps "the traffic" and the callsign.</summary>

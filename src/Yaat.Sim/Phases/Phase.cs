@@ -112,6 +112,12 @@ public abstract class Phase
     public virtual CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.ClearsPhase;
 
     /// <summary>
+    /// A proceed on course (<c>OC</c>) refused on an approach leg, a hold-in-lieu, or final: the aircraft keeps the
+    /// approach until ATC cancels it (AIM 5-4-6.j). The dispatcher names the cleared approach first when it has one.
+    /// </summary>
+    protected static CommandAcceptance OnCourseOnApproach { get; } = CommandAcceptance.Rejected("Unable, on the approach");
+
+    /// <summary>
     /// Called after the dispatcher accepts a command (CanAcceptCommand returned Allowed)
     /// and before the command handler runs. Override to release internal state machines
     /// that would otherwise fight a controller-issued change (e.g., a heading hold that

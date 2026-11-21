@@ -234,6 +234,20 @@ internal static class ArrivalRouteResolver
     }
 
     /// <summary>
+    /// Whether the aircraft's route still reaches a fix of the STAR named in <paramref name="navigationPath"/> (its common
+    /// legs or runway transition): false when the path names no STAR NavData resolves, or every STAR fix is behind.
+    /// </summary>
+    internal static bool RouteReachesFiledStar(AircraftState state, string? navigationPath)
+    {
+        if (ResolveStarConstraints(state, navigationPath, [], "") is not { } resolved)
+        {
+            return false;
+        }
+
+        return state.Targets.NavigationRoute.Exists(t => resolved.ConstraintsByFix.ContainsKey(t.Name));
+    }
+
+    /// <summary>
     /// Finds the STAR named in the navigation path and resolves its published crossing restrictions (common legs + runway
     /// transition) by fix name. Returns null when the path is empty or names no STAR, when the destination is unknown,
     /// when the STAR is not in NavData, or when it resolves no legs — and warns about a procedure-shaped token that

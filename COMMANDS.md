@@ -390,6 +390,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Direct to fix | `DCT SUNOL` | — | — |
+| Proceed on course | `OC` | — | — |
 | Turn left direct to | `TLDCT SUNOL` | — | — |
 | Turn right direct to | `TRDCT OAK` | — | — |
 | Force direct to | `DCTF SJC` | — | — |
@@ -1801,6 +1802,7 @@ In solo training with a radar student, the IFR pilot asks for further clearance 
 |---------|--------|
 | `DCT SUNOL` | Direct to fix SUNOL |
 | `DCT SUNOL CEDES MYCOB` | Direct to multiple fixes in sequence |
+| `OC` | Proceed on course (airborne, no argument) — see [Proceed on course](#proceed-on-course-oc) |
 | `TLDCT SUNOL` | Turn left, direct to fix SUNOL |
 | `TRDCT OAK` | Turn right, direct to fix OAK |
 | `DCTF SJC` | Force direct to — bypasses route validation |
@@ -1823,6 +1825,17 @@ In solo training with a radar student, the IFR pilot asks for further clearance 
 | `CVIA` | Climb via SID — clears the assigned altitude, enables altitude/speed constraint following and climbs to the SID's top altitude, and cancels a speed assigned earlier, unless a speed in force when it fires was applied in the same transmission or later; a speed still queued or refused does not count; a minimum the aircraft crossed at a published "at or above" speed stays; self-activates the filed SID if none is active (e.g. after `CTO RH` or vectors) |
 | `CVIA 190` | Climb via SID, except maintain FL190 (the top altitude is 19000 ft) |
 | `DEPART SUNOL 270` | Depart fix SUNOL on heading 270. When SUNOL is ahead on the aircraft's route, the aircraft keeps flying the route to SUNOL, drops the fixes after it, and turns to 270 at SUNOL (readback "Depart SUNOL heading 270"); otherwise it proceeds direct to SUNOL and then turns |
+
+#### Proceed on course (OC)
+
+`OC` (also "on course" / "proceed on course" by speech, and the **Proceed on course** menu row) sends an airborne aircraft back to its filed route. It is distinct from `CTO OC` / `CTOPP OC`, which are takeoff modifiers; any takeoff clearance followed by "on course" by speech is `CTO … OC`.
+
+- **IFR**: rejoins the filed route at the next fix ahead (the end fix of the closest route leg, whatever the aircraft's track), then flies the rest of the route. Readback "on course, direct {fix}" (variants "proceeding on course, direct {fix}, {callsign}"; a busy pilot says "direct {fix}").
+- **Procedures**: an active SID or STAR, with its climb via / descend via, stays when no heading is assigned and the rejoin fix is on that procedure's body or filed transition; otherwise it ends. When the remainder reaches the filed STAR it is re-activated with its published speeds (no descend via). Past the SID's end under a climb via, the aircraft keeps climbing to the via's top altitude. Still on the SID's coded legs (departure phase) it answers "Proceed on course: already on the {SID} departure".
+- **No route fix ahead, or no route**: clearance-limit direct to the destination, where it holds. **VFR**: plain direct to the destination, flown past. Readback "on course".
+- **Kept and cleared**: the assigned altitude and speed stay; the assigned heading and turn direction are cleared. A plain hold ends; a VFR aircraft leaves the pattern on upwind, crosswind, downwind or base.
+- **Refused**: "Unable, short final" on a pattern final; "Unable, on the approach" in the approach phases; "Unable, cleared {approach} approach" or "Unable, cleared for the approach, say intentions" with an approach clearance; "Unable, on the route" on a military route; "OC is an airborne command: {callsign} is on the ground"; "OC: {callsign} has no filed route fix ahead and no destination to proceed to".
+- **Menu**: **Proceed on course** shows for a VFR aircraft only with a destination different from its departure field, and for an IFR aircraft with a filed route or such a destination.
 
 `JARR` also accepts aliases `ARR`, `STAR`, `JSTAR`. `JRADO` also accepts `JRAD`. `JRADI` also accepts `JICRS`. `DEPART` also accepts `DEP` and `D`.
 
@@ -2531,7 +2544,7 @@ ownership) and seeds a controllable state for whatever it is doing, in this orde
 - **Established on a final** inside the approach gate: the coded approach is installed — no landing clearance is implied,
   so `CLAND` it (or it goes around like any arrival). Aligned in VMC but not established: a visual approach. Aligned but
   outside the gate: heading hold, with a note that it is on vectors to that runway's final.
-- **On its filed route**: direct to the next fix ahead (never a fix behind), then the remainder of the route; STAR
+- **On its filed route**: rejoins at the next fix ahead within a cone of its track (skipping at most one fix behind or abeam; vectors when none qualifies), then the remainder of the route; STAR
   restrictions come along near the destination.
 - **Initial climb**: cleared heading, else runway heading. **No route ahead**: heading hold ("assumed on vectors").
 - **VFR** (VFR plan or 1200 with no plan): maintains VFR — level at its altitude, or climbing/descending to the next VFR

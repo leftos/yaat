@@ -788,6 +788,128 @@ public class MenuCatalogCommandTests
         Assert.Equal("SFO · fix", rows[0].NoteLine.Text);
     }
 
+    /// <summary>
+    /// IFR: Proceed on course is offered airborne only when it has somewhere to go, a filed route or a destination other than
+    /// the departure field.
+    /// </summary>
+    [AvaloniaFact]
+    public void ProceedOnCourse_Ifr_OfferedOnlyWithARouteOrAnotherDestination()
+    {
+        MenuCatalogEntry onCourse = MenuCatalog.Get(MenuIds.NavigationOnCourse);
+
+        Assert.True(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "IFR",
+                    Departure = "OAK",
+                    Route = "SAC RBL",
+                },
+                Context()
+            )
+        );
+        Assert.True(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "IFR",
+                    Departure = "OAK",
+                    Destination = "SMF",
+                },
+                Context()
+            )
+        );
+        Assert.False(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "IFR",
+                    Departure = "OAK",
+                    Destination = "oak",
+                },
+                Context()
+            )
+        );
+        Assert.False(onCourse.IsApplicable(new FakeMenuAircraft { FlightRules = "IFR", Departure = "OAK" }, Context()));
+        Assert.False(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "IFR",
+                    IsOnGround = true,
+                    Destination = "SMF",
+                },
+                Context()
+            )
+        );
+    }
+
+    /// <summary>
+    /// VFR: the sim flies a VFR aircraft's OC to its destination and never along its route, so the row needs a destination
+    /// other than the departure field; a route alone does not offer it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ProceedOnCourse_Vfr_OfferedOnlyWithAnotherDestination()
+    {
+        MenuCatalogEntry onCourse = MenuCatalog.Get(MenuIds.NavigationOnCourse);
+
+        Assert.True(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "VFR",
+                    Departure = "OAK",
+                    Destination = "SMF",
+                },
+                Context()
+            )
+        );
+        Assert.False(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "VFR",
+                    Departure = "OAK",
+                    Route = "SAC RBL",
+                },
+                Context()
+            )
+        );
+        Assert.False(
+            onCourse.IsApplicable(
+                new FakeMenuAircraft
+                {
+                    FlightRules = "VFR",
+                    Departure = "OAK",
+                    Destination = "OAK",
+                    Route = "SAC RBL",
+                },
+                Context()
+            )
+        );
+    }
+
+    /// <summary>
+    /// The menu half of the menu/sim agreement on a VFR aircraft with a route and no destination: the sim refuses its OC for
+    /// want of a destination (<c>ProceedOnCourseTests.VfrRouteNoDestination_RefusedForWantOfADestination</c>), so the menu
+    /// does not offer the row.
+    /// </summary>
+    [AvaloniaFact]
+    public void ProceedOnCourse_VfrRouteNoDestination_NotOffered() =>
+        Assert.False(
+            MenuCatalog
+                .Get(MenuIds.NavigationOnCourse)
+                .IsApplicable(
+                    new FakeMenuAircraft
+                    {
+                        FlightRules = "VFR",
+                        Departure = "KOAK",
+                        Route = "SAC RBL",
+                    },
+                    Context()
+                )
+        );
+
     /// <summary>Warp… is not offered on the ground: WARP leaves the aircraft airborne; Warp here at a taxi node is the ground warp.</summary>
     [AvaloniaFact]
     public void Warp_HiddenOnTheGround()
@@ -1467,7 +1589,6 @@ public class MenuCatalogCommandTests
     /// <summary>The Route block's rows after Direct to… and Append direct to….</summary>
     private static readonly string[] RouteTail =
     [
-        "Proceed on course",
         "Cross fix…",
         "Depart fix…",
         "Join airway…",

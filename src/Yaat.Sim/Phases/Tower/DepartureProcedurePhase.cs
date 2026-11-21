@@ -721,6 +721,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
             or CanonicalCommandType.TurnRightDirectTo
             or CanonicalCommandType.ForceDirectTo
             or CanonicalCommandType.AppendForceDirectTo
+            or CanonicalCommandType.OnCourse
             or CanonicalCommandType.FlyHeading
             or CanonicalCommandType.TurnLeft
             or CanonicalCommandType.TurnRight
@@ -738,27 +739,46 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         };
     }
 
+    /// <summary>
+    /// A proceed on course (<c>OC</c>) on the coded legs with no vector: the aircraft is already on course, so the next
+    /// <see cref="OnCommandAccepted"/> of it keeps the legs and the pending post-route. False once a lateral instruction took
+    /// the aircraft off them or the post-route is loaded.
+    /// </summary>
+    public bool TryKeepOnCourse()
+    {
+        _onCourseKept = (PendingRoute is not null) && !_handedOver;
+        return _onCourseKept;
+    }
+
+    private bool _onCourseKept;
+
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
+        bool keptOnCourse = (cmd == CanonicalCommandType.OnCourse) && _onCourseKept;
+        _onCourseKept = false;
+
         // A lateral instruction (heading or direct-to) takes the aircraft off the coded procedure;
         // altitude/speed adjustments are additive and leave the procedure flying.
-        bool lateralOverride = cmd switch
-        {
-            CanonicalCommandType.FlyHeading
-            or CanonicalCommandType.TurnLeft
-            or CanonicalCommandType.TurnRight
-            or CanonicalCommandType.RelativeLeft
-            or CanonicalCommandType.RelativeRight
-            or CanonicalCommandType.FlyPresentHeading
-            or CanonicalCommandType.ForceHeading
-            or CanonicalCommandType.DirectTo
-            or CanonicalCommandType.AppendDirectTo
-            or CanonicalCommandType.ForceDirectTo
-            or CanonicalCommandType.AppendForceDirectTo
-            or CanonicalCommandType.TurnLeftDirectTo
-            or CanonicalCommandType.TurnRightDirectTo => true,
-            _ => false,
-        };
+        bool lateralOverride =
+            !keptOnCourse
+            && cmd switch
+            {
+                CanonicalCommandType.FlyHeading
+                or CanonicalCommandType.TurnLeft
+                or CanonicalCommandType.TurnRight
+                or CanonicalCommandType.RelativeLeft
+                or CanonicalCommandType.RelativeRight
+                or CanonicalCommandType.FlyPresentHeading
+                or CanonicalCommandType.ForceHeading
+                or CanonicalCommandType.DirectTo
+                or CanonicalCommandType.AppendDirectTo
+                or CanonicalCommandType.ForceDirectTo
+                or CanonicalCommandType.AppendForceDirectTo
+                or CanonicalCommandType.TurnLeftDirectTo
+                or CanonicalCommandType.TurnRightDirectTo
+                or CanonicalCommandType.OnCourse => true,
+                _ => false,
+            };
         if (lateralOverride && !_overridden && !_handedOver)
         {
             // The instruction abandons the post-route: the speed reverts a crossing in the climb window left on it apply now,

@@ -1558,6 +1558,8 @@ public static class CommandDispatcher
                 return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes), aircraft);
             case ForceDirectToCommand cmd:
                 return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft), aircraft);
+            case ProceedOnCourseCommand:
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyOnCourse(aircraft), aircraft);
             case ConstrainedForceDirectToCommand cmd:
                 return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft, ctx), aircraft);
             case AppendDirectToCommand cmd:
@@ -2889,12 +2891,9 @@ public static class CommandDispatcher
         int driverIdx = FindPhaseGateDriverIndex(gateBlock);
         ParsedCommand firstCmd = gateBlock.Commands[driverIdx];
 
-        // Bail out immediately for unsupported commands — they must never interact
-        // with phases (the old default fallback in ToCanonicalType mapped them to
-        // FlyHeading, which triggered ClearsPhase and destroyed pattern state).
-        if (firstCmd is UnsupportedCommand unsupported)
+        if (PrePhaseGateRefusal(firstCmd, aircraft) is { } refusal)
         {
-            return new CommandResult(false, $"Command not yet supported: {unsupported.RawText}");
+            return refusal;
         }
 
         CanonicalCommandType cmdType = PhaseGateType(CommandDescriber.ToCanonicalType(firstCmd));
@@ -2973,6 +2972,20 @@ public static class CommandDispatcher
         // validation/apply failure does not release internal state (e.g. RV SID hold).
         return null;
     }
+
+    /// <summary>
+    /// The refusal a phase-gate driver gets before the phase is consulted, or null. An unsupported command must never
+    /// interact with phases (the old default fallback in ToCanonicalType mapped it to FlyHeading, which triggered
+    /// ClearsPhase and destroyed pattern state). An OC refused for an approach, a pending approach clearance or the ground
+    /// is refused before any phase can clear, naming the approach the phase gate cannot see.
+    /// </summary>
+    private static CommandResult? PrePhaseGateRefusal(ParsedCommand firstCmd, AircraftState aircraft) =>
+        firstCmd switch
+        {
+            UnsupportedCommand unsupported => new CommandResult(false, $"Command not yet supported: {unsupported.RawText}"),
+            ProceedOnCourseCommand when FlightCommandHandler.OnCourseRefusal(aircraft) is { } onCourse => WithRejectedCommand(onCourse, firstCmd),
+            _ => null,
+        };
 
     /// <summary>
     /// After the gate block's tower driver applied: dispatches the other parallel commands in the same block (e.g. CLAND after
@@ -5445,7 +5458,11 @@ public static class CommandDispatcher
         }
 
         // PTAC always assigns an altitude (explicit or PA), so it counts as an altitude assignment here
-        bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand or PositionTurnAltitudeClearanceCommand);
+        // An OC keeps the assigned altitude (an OC that ends a climb via with no vector assigns the via's top), so with one
+        // in force it vectors nothing off a procedure altitude
+        bool hasAltCmd =
+            commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand or PositionTurnAltitudeClearanceCommand)
+            || (commands.Any(c => c is ProceedOnCourseCommand) && (aircraft.Targets.AssignedAltitude is not null));
         bool procedureCleared = aircraft.Procedure.ActiveSidId is null && aircraft.Procedure.ActiveStarId is null;
 
         // Only a lateral command (a heading or a direct) vectors the aircraft: a CFIX that writes an altitude does not
@@ -5462,6 +5479,7 @@ public static class CommandDispatcher
                     or ConstrainedForceDirectToCommand
                     or TurnLeftDirectToCommand
                     or TurnRightDirectToCommand
+                    or ProceedOnCourseCommand
         );
 
         if (procedureCleared)

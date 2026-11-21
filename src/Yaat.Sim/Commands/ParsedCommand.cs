@@ -1461,6 +1461,12 @@ public record DeleteCommand : ParsedCommand;
 public record AssumeCommand : ParsedCommand;
 
 /// <summary>
+/// Proceed on course (<c>OC</c>), airborne: direct to the next fix ahead on the filed route and the rest of it, else direct
+/// to the destination. Distinct from <see cref="OnCourseDeparture"/>, the takeoff clearance's on-course modifier.
+/// </summary>
+public record ProceedOnCourseCommand : ParsedCommand;
+
+/// <summary>
 /// Hands an aircraft that was assumed from live traffic back to the feed: it leaves the world the way <c>DEL</c>
 /// removes an aircraft, but without the feed suppression, so the next sync re-spawns it as a shadow.
 /// </summary>

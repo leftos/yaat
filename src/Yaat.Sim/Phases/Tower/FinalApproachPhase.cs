@@ -1916,6 +1916,13 @@ public sealed class FinalApproachPhase : Phase
             return CommandAcceptance.Allowed;
         }
 
+        // OC on final: the pattern's final answers as the pattern does inside its entry point; an approach's final keeps the
+        // approach.
+        if (cmd == CanonicalCommandType.OnCourse)
+        {
+            return _isPatternTraffic ? CommandAcceptance.Rejected(PatternCommandHandler.ShortFinalRefusal) : OnCourseOnApproach;
+        }
+
         // Speed-class commands are additive only when the aircraft is still
         // outside SpeedCommandFinalGateNm. Inside that gate the aircraft is
         // committed to the final approach speed: the pilot declines ("unable")

@@ -2,13 +2,16 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Commands;
 
@@ -1230,6 +1233,309 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
+    /// <summary>
+    /// Proceed on course (<c>OC</c>), airborne. IFR: direct to the next fix ahead on the filed route, then the rest of it, as
+    /// a vector ends with "resume own navigation ... proceed direct" (7110.65 5-6-2.a.5); the filed STAR is active again
+    /// when the rest of the route reaches it, laterally and with its published speeds, never a descend via (AIM 5-4-1.a.2;
+    /// 7110.65 5-6-2.a.6). VFR, or IFR with no route fix ahead: direct to the destination, a plain fix for VFR and the
+    /// clearance-limit direct for IFR. The assigned altitude and speed stay; the heading and any forced turn end.
+    /// </summary>
+    internal static CommandResult ApplyOnCourse(AircraftState aircraft)
+    {
+        if (OnCourseRefusal(aircraft) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (KeepsDepartureOnCourse(aircraft))
+        {
+            return OnCourseResult(
+                $"Proceed on course: already on the {aircraft.Procedure.ActiveSidId} departure",
+                new PilotSpeechText("on course", "on course"),
+                PhraseologyRules.OnCourseToDestination,
+                null
+            );
+        }
+
+        if (!aircraft.FlightPlan.IsVfr)
+        {
+            List<ResolvedFix> resolved = LiveTrafficAssumer.FindRouteRejoin(aircraft).Resolved;
+            int candidate = LiveTrafficAssumer.NextFixAlongRoute(aircraft, resolved);
+            if (candidate >= 0)
+            {
+                return RejoinFiledRoute(aircraft, resolved, candidate);
+            }
+        }
+
+        return ProceedOnCourseToDestination(aircraft);
+    }
+
+    /// <summary>
+    /// Whether the aircraft is still flying its SID's departure phase toward the route it hands over to, not vectored: OC
+    /// asks for what it is already doing, so the phase, the SID and the pending route stay (the phase records it for its
+    /// <see cref="Phase.OnCommandAccepted"/>).
+    /// </summary>
+    private static bool KeepsDepartureOnCourse(AircraftState aircraft)
+    {
+        if ((aircraft.Procedure.ActiveSidId is null) || (aircraft.Targets.AssignedMagneticHeading is not null))
+        {
+            return false;
+        }
+
+        return aircraft.Phases?.CurrentPhase switch
+        {
+            DepartureProcedurePhase procedure => procedure.TryKeepOnCourse(),
+            InitialClimbPhase climb => climb.TryKeepOnCourse(),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Why the aircraft cannot proceed on course, or null: an aircraft on the ground (operator guidance, shown in the
+    /// terminal only: OC is an airborne command), an active military route, which takes priority, or an approach
+    /// (<see cref="OnCourseApproachRefusal"/>). A live-traffic shadow never gets here: the dispatcher's shadow gate assumes
+    /// or refuses it first.
+    /// </summary>
+    internal static CommandResult? OnCourseRefusal(AircraftState aircraft)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return new CommandResult(false, $"OC is an airborne command: {aircraft.Callsign} is on the ground") { IsOperatorGuidance = true };
+        }
+
+        return aircraft.MilitaryRoute.IsActive ? new CommandResult(false, "Unable, on the route") : OnCourseApproachRefusal(aircraft);
+    }
+
+    /// <summary>
+    /// The refusal of OC by an aircraft cleared for an approach, which keeps flying it until ATC cancels the clearance (AIM
+    /// 5-4-6.j), or holding a pending approach clearance; null otherwise.
+    /// </summary>
+    private static CommandResult? OnCourseApproachRefusal(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.ActiveApproach is { } approach)
+        {
+            PilotSpeechText name =
+                ApproachReadbackName.ForShorthand(approach.ApproachId) ?? new PilotSpeechText(approach.ApproachId, approach.ApproachId);
+            return new CommandResult(false, $"Unable, cleared {name.Terminal} approach")
+            {
+                PilotUnable = PilotResponder.BuildUnable(aircraft, $"cleared {name.Tts} approach") with
+                {
+                    Terminal = $"unable, cleared {name.Terminal} approach.",
+                },
+            };
+        }
+
+        return (aircraft.Approach.PendingClearance is not null) ? new CommandResult(false, "Unable, cleared for the approach, say intentions") : null;
+    }
+
+    /// <summary>
+    /// The filed route from <paramref name="candidate"/> on. With no heading assigned and that fix on the active SID or STAR,
+    /// the aircraft has not left the procedure: it stays, with any climb or descend via in force, and the route runs from
+    /// that fix. Otherwise the procedure ends as a direct ends it (a vector already cancelled it: AIM 5-2-9.l.3, 5-4-1.a.2),
+    /// the destination runway kept. Either way the filed STAR the route still reaches is active again with its published
+    /// speeds, and the route ends at the cleared destination.
+    /// </summary>
+    private static CommandResult RejoinFiledRoute(AircraftState aircraft, List<ResolvedFix> resolved, int candidate)
+    {
+        ResolvedFix fix = resolved[candidate];
+        bool notVectored = aircraft.Targets.AssignedMagneticHeading is null;
+        bool keepsSid = notVectored && IsOnFiledSid(aircraft, fix.Name);
+        bool keepsStar = notVectored && IsOnFiledStar(aircraft, fix.Name);
+        EndProceduresNotKept(aircraft, keepsSid, keepsStar);
+
+        if (!((keepsSid || keepsStar) && TruncateRouteBefore(aircraft, fix.Name)))
+        {
+            NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
+            LiveTrafficAssumer.InstallRouteFrom(aircraft, resolved, candidate);
+            RestoreKeptProcedureRestrictions(aircraft, keepsSid, keepsStar);
+        }
+
+        if ((aircraft.Procedure.ActiveStarId is null) && ArrivalRouteResolver.RouteReachesFiledStar(aircraft, aircraft.FlightPlan.Route))
+        {
+            ArrivalRouteResolver.ApplyStarSpeedRestrictions(aircraft, aircraft.FlightPlan.Route, []);
+        }
+
+        if (string.IsNullOrEmpty(aircraft.ClearedDestination))
+        {
+            aircraft.ClearedDestination = aircraft.FlightPlan.Destination;
+        }
+
+        EndLateralInstructions(aircraft);
+        string spoken = PhraseologyVerbalizer.SpellFix(fix.Name);
+        var readback = new PilotSpeechText($"on course, direct {fix.Name}", $"on course, direct {spoken}");
+        return OnCourseResult($"Proceed on course, direct {fix.Name}, then filed route", readback, PhraseologyRules.OnCourseDirect, spoken);
+    }
+
+    /// <summary>
+    /// Ends the active SID and STAR that OC does not keep, each on its own. A SID ended with no vector under a climb via
+    /// leaves its top altitude assigned, so the aircraft keeps climbing to it rather than levelling off (the vector, when
+    /// there was one, already stopped the climb via). The destination runway outlives a STAR ended here, so the STAR the
+    /// route reaches again reads its runway transition. The last published speed crossed stays while a kept procedure is
+    /// still active, though the half that ends the other one clears it.
+    /// </summary>
+    private static void EndProceduresNotKept(AircraftState aircraft, bool keepsSid, bool keepsStar)
+    {
+        double? lastCrossedKts = aircraft.Procedure.LastCrossedPublishedSpeedKts;
+
+        // Only a SID that is active ends here: ending none must not drop the last published speed a kept STAR crossed
+        if (!keepsSid && (aircraft.Procedure.ActiveSidId is not null))
+        {
+            CarryClimbViaTop(aircraft);
+            ClearActiveSid(aircraft);
+        }
+
+        // Only a STAR that is active ends here: ending none must not drop the last published speed a kept SID crossed
+        if (!keepsStar && (aircraft.Procedure.ActiveStarId is not null))
+        {
+            string? destinationRunway = aircraft.Procedure.DestinationRunway;
+            ClearActiveStar(aircraft);
+            aircraft.Procedure.DestinationRunway = destinationRunway;
+        }
+
+        if (KeptProcedureStillActive(aircraft, keepsSid, keepsStar))
+        {
+            aircraft.Procedure.LastCrossedPublishedSpeedKts = lastCrossedKts;
+        }
+    }
+
+    /// <summary>Whether OC keeps a procedure that is still active after <see cref="EndProceduresNotKept"/>.</summary>
+    private static bool KeptProcedureStillActive(AircraftState aircraft, bool keepsSid, bool keepsStar) =>
+        (keepsSid && (aircraft.Procedure.ActiveSidId is not null)) || (keepsStar && (aircraft.Procedure.ActiveStarId is not null));
+
+    /// <summary>
+    /// An OC that ends the SID with no vector, under a climb via, leaves the via's top altitude assigned, so the aircraft
+    /// keeps climbing to it rather than levelling off (a vector, when there was one, already stopped the climb via). Shared
+    /// by the route rejoin (<see cref="EndProceduresNotKept"/>) and the direct to the destination.
+    /// </summary>
+    private static void CarryClimbViaTop(AircraftState aircraft)
+    {
+        if ((aircraft.Targets.AssignedMagneticHeading is null) && (aircraft.Procedure.ClimbViaTargetFt is { } top))
+        {
+            aircraft.Targets.AssignedAltitude = top;
+            aircraft.Targets.TargetAltitude = top;
+        }
+    }
+
+    /// <summary>
+    /// A kept procedure on a route rebuilt from plain fixes gets its published restrictions back: a STAR under a descend
+    /// via its altitude profile, a STAR without one its published speeds, and a SID the published restrictions its
+    /// activation overlays (<see cref="NavigationCommandHandler.TryActivateFiledSid"/>), its altitudes in force only under
+    /// a climb via. The SID id and the last published speed crossed stay as they were.
+    /// </summary>
+    private static void RestoreKeptProcedureRestrictions(AircraftState aircraft, bool keepsSid, bool keepsStar)
+    {
+        string? route = aircraft.FlightPlan.Route;
+        if (keepsStar && aircraft.Procedure.StarViaMode)
+        {
+            ArrivalRouteResolver.ApplyAltitudeProfile(aircraft, route, []);
+        }
+        else if (keepsStar)
+        {
+            ArrivalRouteResolver.ApplyStarSpeedRestrictions(aircraft, route, []);
+        }
+
+        if (keepsSid)
+        {
+            string? sidId = aircraft.Procedure.ActiveSidId;
+            double? lastCrossed = aircraft.Procedure.LastCrossedPublishedSpeedKts;
+            NavigationCommandHandler.TryActivateFiledSid(aircraft, transmissionId: 0);
+            aircraft.Procedure.ActiveSidId = sidId;
+            aircraft.Procedure.LastCrossedPublishedSpeedKts = lastCrossed;
+        }
+    }
+
+    /// <summary>Whether <paramref name="fixName"/> is on the active SID as the filed route expands it.</summary>
+    private static bool IsOnFiledSid(AircraftState aircraft, string fixName) =>
+        (aircraft.Procedure.ActiveSidId is { } sid) && IsInFiledProcedureSpan(aircraft, sid, isSid: true, fixName);
+
+    /// <summary>Whether <paramref name="fixName"/> is on the active STAR as the filed route expands it.</summary>
+    private static bool IsOnFiledStar(AircraftState aircraft, string fixName) =>
+        (aircraft.Procedure.ActiveStarId is { } star) && IsInFiledProcedureSpan(aircraft, star, isSid: false, fixName);
+
+    /// <summary>
+    /// Whether <paramref name="fixName"/> lies in the span the route expansion emits for the procedure in the filed route
+    /// (<see cref="RouteExpander.ProcedureSpans"/>): the same join rule, transition selection included, as the route OC
+    /// rejoins. The procedure matches by id, or by base name for one renumbered by a navdata cycle.
+    /// </summary>
+    private static bool IsInFiledProcedureSpan(AircraftState aircraft, string procedureId, bool isSid, string fixName)
+    {
+        string baseName = NavigationDatabase.StripTrailingDigits(procedureId);
+        return RouteExpander
+            .ProcedureSpans(aircraft.FlightPlan.Route ?? "", NavigationDatabase.Instance, includeAllTransitionsOnMismatch: false)
+            .Exists(span =>
+                (span.IsSid == isSid)
+                && NavigationDatabase.StripTrailingDigits(span.ProcedureId).Equals(baseName, StringComparison.OrdinalIgnoreCase)
+                && span.Fixes.Contains(fixName, StringComparer.OrdinalIgnoreCase)
+            );
+    }
+
+    /// <summary>
+    /// Drops the route's fixes before <paramref name="fixName"/>, applying the speed reverts they held, so a kept procedure
+    /// keeps the restrictions on its fixes; false, the route untouched, when the route does not hold the fix.
+    /// </summary>
+    private static bool TruncateRouteBefore(AircraftState aircraft, string fixName)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int index = route.FindIndex(t => string.Equals(t.Name, fixName, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        List<NavigationTarget> reverts = NavigationCommandHandler.TakePendingSpeedReverts(route.GetRange(0, index));
+        route.RemoveRange(0, index);
+        NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, reverts);
+        return true;
+    }
+
+    /// <summary>
+    /// OC with no route fix ahead, or VFR: direct to the cleared destination (else the filed one). VFR has no clearance
+    /// limit, so it flies a plain fix on past the field; IFR gets the clearance-limit direct and holds there (AIM 5-3-8.c.3).
+    /// Refused as operator guidance when there is no destination with a position.
+    /// </summary>
+    private static CommandResult ProceedOnCourseToDestination(AircraftState aircraft)
+    {
+        string? destination = string.IsNullOrEmpty(aircraft.ClearedDestination) ? aircraft.FlightPlan.Destination : aircraft.ClearedDestination;
+        NavigationTarget? direct = string.IsNullOrWhiteSpace(destination)
+            ? null
+            : FlightPhysics.ClearanceLimitDirectTo(destination, aircraft.Position);
+        if (direct is null)
+        {
+            return new CommandResult(false, $"OC: {aircraft.Callsign} has no filed route fix ahead and no destination to proceed to")
+            {
+                IsOperatorGuidance = true,
+            };
+        }
+
+        bool vfr = aircraft.FlightPlan.IsVfr;
+        CarryClimbViaTop(aircraft);
+        ClearActiveProcedure(aircraft);
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
+        aircraft.Targets.NavigationRoute.Add(vfr ? AsClearedFix(direct) : direct);
+        EndLateralInstructions(aircraft);
+        string message = vfr
+            ? $"Proceed on course, direct {destination}"
+            : $"Proceed on course: no filed route fix ahead, direct {destination} (clearance limit)";
+        return OnCourseResult(message, new PilotSpeechText("on course", "on course"), PhraseologyRules.OnCourseToDestination, null);
+    }
+
+    /// <summary>OC replaces a vector: the assigned heading and any forced turn direction end.</summary>
+    private static void EndLateralInstructions(AircraftState aircraft)
+    {
+        aircraft.Targets.AssignedMagneticHeading = null;
+        aircraft.Targets.PreferredTurnDirection = null;
+    }
+
+    private static CommandResult OnCourseResult(string message, PilotSpeechText readback, BuilderVariantSet variants, string? spokenFix) =>
+        new(true, message)
+        {
+            PilotReadback = new HandlerReadback(CanonicalCommandType.OnCourse, readback)
+            {
+                Variants = variants,
+                Captures = (spokenFix is null) ? [] : new Dictionary<string, string> { ["fix"] = spokenFix },
+            },
+        };
+
     internal static CommandResult ApplyTurnDirectTo(List<ResolvedFix> fixes, AircraftState aircraft, bool validateDctFixes, TurnDirection direction)
     {
         if (validateDctFixes)
@@ -2220,17 +2526,30 @@ internal static class FlightCommandHandler
 
     private static void ClearActiveProcedure(AircraftState aircraft)
     {
+        ClearActiveSid(aircraft);
+        ClearActiveStar(aircraft);
+    }
+
+    /// <summary>The SID half of <see cref="ClearActiveProcedure"/>: the SID, its climb via and the departure runway.</summary>
+    private static void ClearActiveSid(AircraftState aircraft)
+    {
         aircraft.Procedure.ActiveSidId = null;
-        aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.ClimbViaTopFromTdls = false;
-        aircraft.Procedure.StarViaMode = false;
-        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.ClimbViaTransmissionId = null;
-        aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
+    }
+
+    /// <summary>The STAR half of <see cref="ClearActiveProcedure"/>: the STAR, its descend via and the destination runway.</summary>
+    private static void ClearActiveStar(AircraftState aircraft)
+    {
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
+        aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DestinationRunway = null;
         aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
     }

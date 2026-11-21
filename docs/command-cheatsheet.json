@@ -63,6 +63,7 @@
         { "verb": "ADCT", "aliases": [], "description": "Append direct to fix" },
         { "verb": "ADCTF", "aliases": [], "description": "Append force direct to" },
         { "verb": "TLDCT / TRDCT", "aliases": [], "description": "Turn L/R then direct to fix" },
+        { "verb": "OC", "aliases": [], "description": "Proceed on course: rejoin the filed route (VFR: direct to destination)" },
         { "verb": "CMTR", "aliases": ["cir"], "description": "Cleared into military route (opt. alt, B prefix = at or below)" },
         { "verb": "MTRA", "aliases": ["mra"], "description": "Maintain the route's published altitudes" },
         { "verb": "XMTR", "aliases": ["emtr"], "description": "Cleared out of route: dest [alt] [VIA route]" },

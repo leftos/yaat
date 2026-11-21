@@ -564,6 +564,26 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // "On course" after a takeoff clearance is the clearance's own modifier (CTO OC), never a standalone OC; on its own it
+    // is the airborne proceed on course.
+    [Theory]
+    [InlineData("runway two eight right cleared for takeoff, on course", "CTO 28R OC")]
+    [InlineData("runway two eight right cleared for takeoff on course", "CTO 28R OC")]
+    [InlineData("cleared for takeoff runway two eight right, on course", "CTO 28R OC")]
+    [InlineData("cleared for takeoff, on course", "CTO OC")]
+    [InlineData("runway two eight right clear for takeoff, on course", "CTO 28R OC")]
+    [InlineData("runway two eight right at echo cleared for takeoff, on course", "CTO 28R OC")]
+    [InlineData("runway two eight right full length cleared for takeoff, on course", "CTO 28R OC")]
+    [InlineData("clear for takeoff, on course", "CTO OC")]
+    [InlineData("proceed on course", "OC")]
+    [InlineData("on course", "OC")]
+    public void OnCourse_Rules(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Approach rules ---
 
     [Theory]

@@ -413,7 +413,7 @@ public static class MenuCatalog
             MenuIds.NavigationOnCourse,
             "Proceed on course",
             MenuFlightRules.Both,
-            (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac),
+            (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac) && HasOnCourse(ac),
             (_, context, host) => BuildSend("Proceed on course", "OC", context, host)
         ),
         new(
@@ -424,6 +424,16 @@ public static class MenuCatalog
             (ac, context, host) => HoldFlyout.BuildPattern("Hold at fix…", ac, context, host)
         ),
     ];
+
+    /// <summary>
+    /// Whether Proceed on course has somewhere to go: a destination that is not the departure field, or for IFR a filed route
+    /// (the sim flies a VFR aircraft's OC to its destination and never along its route).
+    /// </summary>
+    private static bool HasOnCourse(IMenuAircraft ac) =>
+        HasOtherDestination(ac) || (!AircraftCommandApplicability.IsVfr(ac) && !string.IsNullOrWhiteSpace(ac.Route));
+
+    private static bool HasOtherDestination(IMenuAircraft ac) =>
+        (ac.Destination.Trim().Length > 0) && !string.Equals(ac.Destination.Trim(), ac.Departure.Trim(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// A VFR maneuver in the air: make closed traffic (<c>MLT</c> / <c>MRT</c>, which puts the aircraft into the pattern) and

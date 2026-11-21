@@ -320,4 +320,8 @@ public enum CanonicalCommandType
 
     // Ground taxi to the flight-plan-remark gate (TTP), expanded to TAXI ... @GATE at parse time; appended last so no stored value shifts
     TaxiToParking,
+
+    // Airborne proceed on course (OC): rejoin the filed route at the next fix ahead, else direct to the destination;
+    // appended last so no stored value shifts
+    OnCourse,
 }

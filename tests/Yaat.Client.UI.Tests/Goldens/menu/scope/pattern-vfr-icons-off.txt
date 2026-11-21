@@ -57,7 +57,6 @@ All Commands
     Route [disabled]
     Direct to… alias:DCT
       direct to flyout
-    Proceed on course alias:OC
     Cross fix… alias:CFIX
       cross fix flyout
     Depart fix… alias:DEPART

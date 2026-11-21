@@ -30,7 +30,25 @@ public static class RouteExpander
     /// through every transition on radar-vectors SIDs whose vNAS protobuf carries adapted-route hints
     /// as synthetic "transitions" (e.g. NIMI5's [OAK,CCR], [OAK,PYE], ...).
     /// </param>
-    public static List<string> Expand(string route, NavigationDatabase navDb, bool includeAllTransitionsOnMismatch = true)
+    public static List<string> Expand(string route, NavigationDatabase navDb, bool includeAllTransitionsOnMismatch = true) =>
+        ExpandCore(route, navDb, includeAllTransitionsOnMismatch, spans: null);
+
+    /// <summary>A SID or STAR in an expanded route, and the fixes the expansion emitted for it (body and transition).</summary>
+    internal readonly record struct ProcedureSpan(string ProcedureId, bool IsSid, List<string> Fixes);
+
+    /// <summary>
+    /// The SIDs and STARs <see cref="Expand(string, NavigationDatabase, bool)"/> expands in <paramref name="route"/>, each with
+    /// the fixes it emitted for them: the same join point and transition selection, so a fix is on the procedure as filed
+    /// exactly when it is in its span. A first fix dropped as a repeat of the fix before it is not in the span.
+    /// </summary>
+    internal static List<ProcedureSpan> ProcedureSpans(string route, NavigationDatabase navDb, bool includeAllTransitionsOnMismatch)
+    {
+        var spans = new List<ProcedureSpan>();
+        ExpandCore(route, navDb, includeAllTransitionsOnMismatch, spans);
+        return spans;
+    }
+
+    private static List<string> ExpandCore(string route, NavigationDatabase navDb, bool includeAllTransitionsOnMismatch, List<ProcedureSpan>? spans)
     {
         if (string.IsNullOrWhiteSpace(route))
         {
@@ -53,19 +71,9 @@ public static class RouteExpander
                 continue;
             }
 
-            // 1. SID check
-            string? resolvedSidId = navDb.ResolveSidId(rawName);
-            if (resolvedSidId is not null)
+            // 1–2. SID, then STAR
+            if (TryExpandProcedure(result, new ProcedureToken(rawName, tokens, i), navDb, includeAllTransitionsOnMismatch, spans))
             {
-                ExpandSid(result, resolvedSidId, tokens, i, navDb, includeAllTransitionsOnMismatch);
-                continue;
-            }
-
-            // 2. STAR check
-            string? resolvedStarId = navDb.ResolveStarId(rawName);
-            if (resolvedStarId is not null)
-            {
-                ExpandStar(result, resolvedStarId, navDb);
                 continue;
             }
 
@@ -127,6 +135,45 @@ public static class RouteExpander
 
         return result;
     }
+
+    /// <summary>A route token at <see cref="Index"/> in <see cref="Tokens"/>, its procedure name without a dot suffix.</summary>
+    private readonly record struct ProcedureToken(string RawName, string[] Tokens, int Index);
+
+    /// <summary>
+    /// Expands <paramref name="token"/> when it names a SID (checked first) or a STAR, recording the fixes it emitted in
+    /// <paramref name="spans"/>; false, nothing emitted, when it names neither. A STAR's span starts at the fix the route
+    /// meets it at when the STAR publishes that fix (its body or a transition), since the route emitted it already.
+    /// </summary>
+    private static bool TryExpandProcedure(
+        List<string> result,
+        ProcedureToken token,
+        NavigationDatabase navDb,
+        bool includeAllTransitionsOnMismatch,
+        List<ProcedureSpan>? spans
+    )
+    {
+        if (navDb.ResolveSidId(token.RawName) is { } sidId)
+        {
+            int sidStart = result.Count;
+            ExpandSid(result, sidId, token.Tokens, token.Index, navDb, includeAllTransitionsOnMismatch);
+            spans?.Add(new ProcedureSpan(sidId, true, result.GetRange(sidStart, result.Count - sidStart)));
+            return true;
+        }
+
+        if (navDb.ResolveStarId(token.RawName) is not { } starId)
+        {
+            return false;
+        }
+
+        int starStart = ((result.Count > 0) && StarPublishesFix(navDb, starId, result[^1])) ? result.Count - 1 : result.Count;
+        ExpandStar(result, starId, navDb);
+        spans?.Add(new ProcedureSpan(starId, false, result.GetRange(starStart, result.Count - starStart)));
+        return true;
+    }
+
+    private static bool StarPublishesFix(NavigationDatabase navDb, string starId, string fix) =>
+        (navDb.GetStarBody(starId) ?? []).Contains(fix, StringComparer.OrdinalIgnoreCase)
+        || (navDb.GetStarTransitions(starId) ?? []).Any(t => t.Fixes.Contains(fix, StringComparer.OrdinalIgnoreCase));
 
     private static void ExpandSid(
         List<string> result,
