@@ -33,7 +33,7 @@
 - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2673 YAATEdit M3.1b: Navdata route source (SID and STAR pairs) (sub-issue of YAAT-1989) · release vNext
+- [/] YAAT-2673 YAATEdit M3.1b: Navdata route source (SID and STAR pairs) (sub-issue of YAAT-1989) · release vNext
 
 ### M4 Airport editor (2/10 done)
 - [/] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim (sub-issue of YAAT-1989) · release vNext
@@ -79,8 +79,11 @@
   - [ ] YAAT-2519 YAATEdit M4.7: per-corner fillet overrides in Yaat.Sim (sidecar, report, simulation) · release vNext
   - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext
   - [ ] YAAT-2671 Merge feat/yaatedit to main (#1392)
-  - [ ] YAAT-2673 YAATEdit M3.1b: Navdata route source (SID and STAR pairs) · release vNext
+  - [/] YAAT-2673 YAATEdit M3.1b: Navdata route source (SID and STAR pairs) · release vNext
   - [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON
+  - [ ] YAAT-2692 Break the Data.Vnas and Authoring namespace cycle in Yaat.Sim (shared atomic write and id rule) · release vNext
+  - [ ] YAAT-2693 Make the GuideCapture load-scenario dialog deterministic and regenerate its screenshot · release vNext
+  - [ ] YAAT-2694 Enforce the minimum line vertices in MapFeature itself, not only in NewFeature · release vNext
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -1199,7 +1202,6 @@
 ### 1 Defects (4/19 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext
   - [ ] YAAT-2668 Keep uncleared VFR pattern entries and approaches out of Class B (shelf cap, orbit in front of the phase) · release vNext
-  - [/] YAAT-2670 Add RMOB [minutes]: remain outside Bravo airspace, expect clearance · release vNext
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext
 - [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request · release vNext
@@ -1214,7 +1216,7 @@
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext
 - [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext
 
-### 2 Refinements and rulings (8/23 done)
+### 2 Refinements and rulings (9/23 done)
 - [ ] YAAT-2287 Solo: an IFR arrival told to expect an approach but never cleared queries the clearance near final or the IAF
 - [ ] YAAT-2288 Solo: time the approach-assignment request to the approach gate and skip it in visual weather
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext
@@ -1229,7 +1231,6 @@
 - [ ] YAAT-2260 Decide the further-clearance request's re-ask interval (300 s vs 120/150 s)
 - [ ] YAAT-2676 Solo Class B clearance survives pattern work just outside the boundary (exit timer resets on each projected re-entry)
 - [ ] YAAT-2687 RMOB refinements: 30 NM from the airport, the silent orbit after an unprompted RMOB, compound altitude, "remain clear" phrasing
-- [/] YAAT-2670 Add RMOB [minutes]: remain outside Bravo airspace, expect clearance (sub-issue of YAAT-175) · release vNext
 
 ### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext
@@ -1576,9 +1577,8 @@
 
 ## Docs, agent tooling and repo hygiene
 
-### 1 Defects (4/16 done)
+### 1 Defects (5/16 done)
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
-- [!] YAAT-2685 Release macOS signing races another repo's signing on the mac-mini keychain search list · release vNext
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-1550 Make GuideCapture's load-weather and connected-empty scenes wait for their shown state before capturing
 - [ ] YAAT-1963 Fix yaat-server's docs README entries for docs that live in yaat/docs
