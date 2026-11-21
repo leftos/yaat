@@ -36,13 +36,19 @@ public static class TdlsFreqToken
         PositionConfig? position = artcc.FindPositionByCallsign(student.Callsign, student.FacilityId);
         if (position is null)
         {
-            Log.LogDebug("No position {Callsign} in the ARTCC configuration; {Token} stays literal", student.Callsign, Token);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("No position {Callsign} in the ARTCC configuration; {Token} stays literal", student.Callsign, Token);
+            }
             return null;
         }
 
         if (position.Frequency <= 0)
         {
-            Log.LogDebug("Position {Callsign} has no frequency; {Token} stays literal", student.Callsign, Token);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Position {Callsign} has no frequency; {Token} stays literal", student.Callsign, Token);
+            }
             return null;
         }
 

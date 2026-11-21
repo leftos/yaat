@@ -131,7 +131,10 @@ public static class ExpectedFinalGeometry
 
         if (FafOutNm(procedure, frame, navDb) is not { } fafOutNm)
         {
-            Log.LogTrace("[ExpectedFinal] {ApproachId}: no coded final approach fix, skipped", procedure.ApproachId);
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace("[ExpectedFinal] {ApproachId}: no coded final approach fix, skipped", procedure.ApproachId);
+            }
             return false;
         }
 

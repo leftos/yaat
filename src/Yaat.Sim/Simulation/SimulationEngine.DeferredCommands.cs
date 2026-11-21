@@ -97,7 +97,10 @@ public sealed partial class SimulationEngine
                     if (justExpired)
                     {
                         string command = DescribeDeferredPayload(d);
-                        _logger.LogDebug("[Deferred] {Callsign}: {Command} held until pushback completes", aircraft.Callsign, command);
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug("[Deferred] {Callsign}: {Command} held until pushback completes", aircraft.Callsign, command);
+                        }
                         EmitTerminal("System", aircraft.Callsign, $"{command} held until pushback completes");
                     }
 
@@ -154,7 +157,10 @@ public sealed partial class SimulationEngine
                         conditionDesc = "WAIT expired";
                     }
 
-                    _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
+                    if (_logger.IsEnabled(LogLevel.Information))
+                    {
+                        _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
+                    }
                     EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
                 }
 
@@ -353,11 +359,14 @@ public sealed partial class SimulationEngine
             }
         }
 
-        _logger.LogDebug(
-            "[TrackBlock] {Callsign}: could not disambiguate restored track block from source '{Source}'",
-            aircraft.Callsign,
-            block.SourceCommandText
-        );
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "[TrackBlock] {Callsign}: could not disambiguate restored track block from source '{Source}'",
+                aircraft.Callsign,
+                block.SourceCommandText
+            );
+        }
         return [];
     }
 
@@ -470,7 +479,7 @@ public sealed partial class SimulationEngine
     {
         if (PreviewDeferredTaxiRoute(aircraft, taxi, deferral.IsScenarioScripted) is not { } route)
         {
-            if (FlightPhysics.LatchGiveWayJudgement(deferral, verdict: null, nodeId: null))
+            if (FlightPhysics.LatchGiveWayJudgement(deferral, verdict: null, nodeId: null) && _logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(
                     "Deferred GIVEWAY for {Callsign} behind {Target}: left to the geometry, its taxi route does not build",
@@ -484,7 +493,7 @@ public sealed partial class SimulationEngine
 
         GroundConflictDetector.GiveWayRouteVerdict? verdict = GroundConflictDetector.GiveWayRouteVerdictOf(aircraft, target, route);
         bool? clear = verdict?.Clear;
-        if (FlightPhysics.LatchGiveWayJudgement(deferral, clear, verdict?.Junction.NodeId))
+        if (FlightPhysics.LatchGiveWayJudgement(deferral, clear, verdict?.Junction.NodeId) && _logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
                 "Deferred GIVEWAY for {Callsign} behind {Target}: clear={Clear}, deciding node {Node}, "

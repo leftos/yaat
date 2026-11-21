@@ -126,12 +126,15 @@ public sealed partial class SimulationEngine
                 state.NextSpawnSeconds = Math.Min(state.NextSpawnSeconds, scenario.ElapsedSeconds);
             }
 
-            _logger.LogInformation(
-                "Generator '{Id}' {Transition} at t={T}s",
-                config.Id,
-                isActive ? "activated" : "deactivated",
-                scenario.ElapsedSeconds
-            );
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Generator '{Id}' {Transition} at t={T}s",
+                    config.Id,
+                    isActive ? "activated" : "deactivated",
+                    scenario.ElapsedSeconds
+                );
+            }
             state.WasActive = isActive;
         }
 
@@ -254,14 +257,17 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            _logger.LogDebug(
-                "Generator '{Id}' holds its spawn at {Dist:F1}nm: {Callsign} is {Lateral:F2}nm / {Vertical:F0}ft from the spawn point",
-                gen.Config.Id,
-                distanceNm,
-                other.Callsign,
-                GeoMath.DistanceNm(position.Lat, position.Lon, other.Position.Lat, other.Position.Lon),
-                Math.Abs(other.Altitude - altitudeFt)
-            );
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Generator '{Id}' holds its spawn at {Dist:F1}nm: {Callsign} is {Lateral:F2}nm / {Vertical:F0}ft from the spawn point",
+                    gen.Config.Id,
+                    distanceNm,
+                    other.Callsign,
+                    GeoMath.DistanceNm(position.Lat, position.Lon, other.Position.Lat, other.Position.Lon),
+                    Math.Abs(other.Altitude - altitudeFt)
+                );
+            }
             return false;
         }
         return true;
@@ -671,14 +677,17 @@ public sealed partial class SimulationEngine
         }
 
         aircraft.Targets.TargetSpeed = desiredKts;
-        _logger.LogDebug(
-            "Arrival spacing restores {Callsign} ({Role}) from {Ias:F0} kt to {Target:F0} kt at {Dist:F1}nm",
-            aircraft.Callsign,
-            isStreamLead ? "stream lead" : "follower",
-            aircraft.IndicatedAirspeed,
-            desiredKts,
-            distanceNm
-        );
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Arrival spacing restores {Callsign} ({Role}) from {Ias:F0} kt to {Target:F0} kt at {Dist:F1}nm",
+                aircraft.Callsign,
+                isStreamLead ? "stream lead" : "follower",
+                aircraft.IndicatedAirspeed,
+                desiredKts,
+                distanceNm
+            );
+        }
     }
 
     /// <summary>
@@ -1443,20 +1452,24 @@ public sealed partial class SimulationEngine
         }
 
         StampProtectionCeiling(follower, ceiling, displaced);
-        _logger.LogDebug(
-            "[SameRunwayProtection] {Follower} ({Dist:F1}nm) behind {Leader}: followerEta={FollowerEta:F0}s leaderEta={LeaderEta:F0}s required={Required:F0}s → ceiling {Ceiling:F0}kt (vref {Vref:F0}, scheduled {Scheduled:F0}, fas={Fas:F0}, tower={Tower})",
-            follower.Callsign,
-            followerDistanceNm,
-            leader.Callsign,
-            followerEta,
-            leaderEta,
-            required,
-            follower.Targets.SpeedCeiling,
-            vref,
-            scheduled,
-            finalApproachSpeed,
-            towerAuthority
-        );
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "[SameRunwayProtection] {Follower} ({Dist:F1}nm) behind {Leader}: followerEta={FollowerEta:F0}s leaderEta={LeaderEta:F0}s "
+                    + "required={Required:F0}s → ceiling {Ceiling:F0}kt (vref {Vref:F0}, scheduled {Scheduled:F0}, fas={Fas:F0}, tower={Tower})",
+                follower.Callsign,
+                followerDistanceNm,
+                leader.Callsign,
+                followerEta,
+                leaderEta,
+                required,
+                follower.Targets.SpeedCeiling,
+                vref,
+                scheduled,
+                finalApproachSpeed,
+                towerAuthority
+            );
+        }
         return true;
     }
 
@@ -1719,15 +1732,18 @@ public sealed partial class SimulationEngine
 
         EmitTerminal("System", state.Callsign, $"[Spawn] Generated ({gen.Config.Id})");
 
-        _logger.LogInformation(
-            "Generator '{Id}' spawned {Callsign} ({Type}) at {Dist:F1}nm on RWY {Runway}, t={T}s",
-            gen.Config.Id,
-            state.Callsign,
-            state.AircraftType,
-            distanceNm,
-            gen.Config.Runway,
-            scenario.ElapsedSeconds
-        );
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Generator '{Id}' spawned {Callsign} ({Type}) at {Dist:F1}nm on RWY {Runway}, t={T}s",
+                gen.Config.Id,
+                state.Callsign,
+                state.AircraftType,
+                distanceNm,
+                gen.Config.Runway,
+                scenario.ElapsedSeconds
+            );
+        }
 
         return state;
     }
@@ -1916,19 +1932,34 @@ public sealed partial class SimulationEngine
         }
 
         EmitTerminal("System", state.Callsign, $"[Spawn] Generated VFR arrival ({config.Id})");
-        _logger.LogInformation(
-            "VFR arrival generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, direct {Direct}, t={T}s",
-            config.Id,
-            state.Callsign,
-            state.AircraftType,
-            site.Value.DistanceNm,
-            site.Value.BearingMagnetic,
-            site.Value.AltitudeFt,
-            directTo,
-            scenario.ElapsedSeconds
-        );
+        LogVfrArrivalSpawned(config.Id, state, site.Value, directTo, scenario.ElapsedSeconds);
 
         return state;
+    }
+
+    /// <summary>Logs at Information that a VFR arrival generator spawned <paramref name="state"/> at <paramref name="site"/>.</summary>
+    private void LogVfrArrivalSpawned(
+        string generatorId,
+        AircraftState state,
+        (LatLon Position, double BearingTrue, double BearingMagnetic, double DistanceNm, double AltitudeFt) site,
+        string directTo,
+        double elapsedSeconds
+    )
+    {
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "VFR arrival generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, direct {Direct}, t={T}s",
+                generatorId,
+                state.Callsign,
+                state.AircraftType,
+                site.DistanceNm,
+                site.BearingMagnetic,
+                site.AltitudeFt,
+                directTo,
+                elapsedSeconds
+            );
+        }
     }
 
     /// <summary>
@@ -2028,19 +2059,22 @@ public sealed partial class SimulationEngine
         RecordGeneratedAircraftSpawn(state);
 
         EmitTerminal("System", state.Callsign, $"[Spawn] Generated overflight ({config.Id})");
-        _logger.LogInformation(
-            "Overflight generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, "
-                + "exiting on the {Exit:F0} radial at {ExitDist:F0}nm, t={T}s",
-            config.Id,
-            state.Callsign,
-            state.AircraftType,
-            site.Value.DistanceNm,
-            site.Value.BearingMagnetic,
-            altitudeFt,
-            exitBearingMagnetic,
-            exitDistanceNm,
-            scenario.ElapsedSeconds
-        );
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Overflight generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, "
+                    + "exiting on the {Exit:F0} radial at {ExitDist:F0}nm, t={T}s",
+                config.Id,
+                state.Callsign,
+                state.AircraftType,
+                site.Value.DistanceNm,
+                site.Value.BearingMagnetic,
+                altitudeFt,
+                exitBearingMagnetic,
+                exitDistanceNm,
+                scenario.ElapsedSeconds
+            );
+        }
 
         return state;
     }

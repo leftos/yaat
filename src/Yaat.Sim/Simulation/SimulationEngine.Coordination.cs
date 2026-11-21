@@ -150,7 +150,10 @@ public sealed partial class SimulationEngine
             if (removed > 0)
             {
                 MarkCoordinationChanged();
-                _logger.LogDebug("Removed {Count} coordination items for {Callsign} on radar acquisition", removed, callsign);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("Removed {Count} coordination items for {Callsign} on radar acquisition", removed, callsign);
+                }
             }
         }
     }
@@ -177,7 +180,10 @@ public sealed partial class SimulationEngine
         if (channels.Count > 0)
         {
             MarkCoordinationChanged();
-            _logger.LogInformation("Loaded {Count} coordination channels for scenario '{Name}'", channels.Count, scenario.ScenarioName);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation("Loaded {Count} coordination channels for scenario '{Name}'", channels.Count, scenario.ScenarioName);
+            }
         }
     }
 
@@ -197,7 +203,7 @@ public sealed partial class SimulationEngine
         TowerListTracker.Initialize(config);
 
         int listCount = TowerListTracker.GetLists().Count;
-        if (listCount > 0)
+        if (listCount > 0 && _logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation("Initialized {Count} tower list(s) for scenario '{Name}'", listCount, scenario.ScenarioName);
         }

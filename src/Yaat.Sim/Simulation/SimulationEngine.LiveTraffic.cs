@@ -127,7 +127,10 @@ public sealed partial class SimulationEngine
                 {
                     ac.CompletionReason = CompletionReason.Landed;
                     ac.CompletedAtSeconds = Scenario?.ElapsedSeconds;
-                    _logger.LogInformation("{Callsign} (live) landed at {Airport}", ac.Callsign, Scenario?.PrimaryAirportId);
+                    if (_logger.IsEnabled(LogLevel.Information))
+                    {
+                        _logger.LogInformation("{Callsign} (live) landed at {Airport}", ac.Callsign, Scenario?.PrimaryAirportId);
+                    }
                 }
             }
 

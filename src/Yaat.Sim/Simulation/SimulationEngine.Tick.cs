@@ -418,12 +418,15 @@ public sealed partial class SimulationEngine
         }
 
         plan.AltitudeFixPassed = true;
-        _logger.LogDebug(
-            "{Callsign} passed altitude fix {Fix}; ERAM altitude now {Feet} ft",
-            ac.Callsign,
-            plan.Altitude.AltitudeFix,
-            plan.EramAltitudeFeet
-        );
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "{Callsign} passed altitude fix {Fix}; ERAM altitude now {Feet} ft",
+                ac.Callsign,
+                plan.Altitude.AltitudeFix,
+                plan.EramAltitudeFeet
+            );
+        }
     }
 
     /// <summary>
@@ -513,29 +516,35 @@ public sealed partial class SimulationEngine
                 {
                     ac.Approach.HasReportedFieldInSight = true;
                     ac.PendingNotifications.Add($"{ac.Callsign} has the field in sight");
-                    _logger.LogInformation(
-                        "Field acquisition: {Callsign} acquired {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL)",
-                        ac.Callsign,
-                        airport,
-                        scenario.ElapsedSeconds,
-                        ac.Altitude,
-                        visibilitySm,
-                        primaryCeilingForLogs
-                    );
+                    if (_logger.IsEnabled(LogLevel.Information))
+                    {
+                        _logger.LogInformation(
+                            "Field acquisition: {Callsign} acquired {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL)",
+                            ac.Callsign,
+                            airport,
+                            scenario.ElapsedSeconds,
+                            ac.Altitude,
+                            visibilitySm,
+                            primaryCeilingForLogs
+                        );
+                    }
                 }
                 else
                 {
-                    _logger.LogDebug(
-                        "Field acquisition attempt failed: {Callsign} cannot see {Airport} at t={T}s (alt={Alt}ft, "
-                            + "vis={Vis}sm, ceil={Ceil}ft AGL, bank={Bank}°)",
-                        ac.Callsign,
-                        airport,
-                        scenario.ElapsedSeconds,
-                        ac.Altitude,
-                        visibilitySm,
-                        primaryCeilingForLogs,
-                        ac.BankAngle
-                    );
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "Field acquisition attempt failed: {Callsign} cannot see {Airport} at t={T}s (alt={Alt}ft, "
+                                + "vis={Vis}sm, ceil={Ceil}ft AGL, bank={Bank}°)",
+                            ac.Callsign,
+                            airport,
+                            scenario.ElapsedSeconds,
+                            ac.Altitude,
+                            visibilitySm,
+                            primaryCeilingForLogs,
+                            ac.BankAngle
+                        );
+                    }
                 }
             }
             else
@@ -621,14 +630,17 @@ public sealed partial class SimulationEngine
                                 scenario.RpoShowPilotSpeech,
                                 PilotResponder.BuildTrafficInSight(ac, followCs)
                             );
-                            _logger.LogInformation(
-                                "Traffic acquisition: {Callsign} acquired {Target} at t={T}s (dist={Dist}nm, maxRange={MaxRange}nm)",
-                                ac.Callsign,
-                                followCs,
-                                scenario.ElapsedSeconds,
-                                acquireTrafficResult.DistanceNm,
-                                acquireTrafficResult.MaxRangeNm
-                            );
+                            if (_logger.IsEnabled(LogLevel.Information))
+                            {
+                                _logger.LogInformation(
+                                    "Traffic acquisition: {Callsign} acquired {Target} at t={T}s (dist={Dist}nm, maxRange={MaxRange}nm)",
+                                    ac.Callsign,
+                                    followCs,
+                                    scenario.ElapsedSeconds,
+                                    acquireTrafficResult.DistanceNm,
+                                    acquireTrafficResult.MaxRangeNm
+                                );
+                            }
                         }
                     }
                     else
@@ -663,12 +675,15 @@ public sealed partial class SimulationEngine
                 }
                 else
                 {
-                    _logger.LogDebug(
-                        "Traffic acquisition attempt: {Callsign} following {Target}, but target not found at t={T}s",
-                        ac.Callsign,
-                        followCs,
-                        scenario.ElapsedSeconds
-                    );
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "Traffic acquisition attempt: {Callsign} following {Target}, but target not found at t={T}s",
+                            ac.Callsign,
+                            followCs,
+                            scenario.ElapsedSeconds
+                        );
+                    }
                 }
             }
 
@@ -749,12 +764,15 @@ public sealed partial class SimulationEngine
                     ConflictAlerts.LatchedSuppressions[id] = new LatchedConflictSuppression(cleared.CallsignA, cleared.CallsignB);
                 }
 
-                _logger.LogInformation(
-                    "Conflict alert cleared: {CallsignA} <-> {CallsignB} at t={T}s",
-                    cleared.CallsignA,
-                    cleared.CallsignB,
-                    Scenario?.ElapsedSeconds ?? 0
-                );
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(
+                        "Conflict alert cleared: {CallsignA} <-> {CallsignB} at t={T}s",
+                        cleared.CallsignA,
+                        cleared.CallsignB,
+                        Scenario?.ElapsedSeconds ?? 0
+                    );
+                }
             }
         }
 
@@ -787,7 +805,10 @@ public sealed partial class SimulationEngine
         conflicts[pair.Id] = conflict;
         if (latched)
         {
-            _logger.LogDebug("Conflict alert re-detected under a latched CASUP: {CallsignA} <-> {CallsignB}", pair.CallsignA, pair.CallsignB);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Conflict alert re-detected under a latched CASUP: {CallsignA} <-> {CallsignB}", pair.CallsignA, pair.CallsignB);
+            }
             return;
         }
 
@@ -1149,16 +1170,19 @@ public sealed partial class SimulationEngine
 
             if (shouldDelete)
             {
-                _logger.LogDebug(
-                    "AutoDelete: {Callsign} marked for deletion (phase={Phase})",
-                    ac.Callsign,
-                    ac.Phases?.CurrentPhase?.GetType().Name ?? "none"
-                );
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "AutoDelete: {Callsign} marked for deletion (phase={Phase})",
+                        ac.Callsign,
+                        ac.Phases?.CurrentPhase?.GetType().Name ?? "none"
+                    );
+                }
                 toDelete.Add(ac);
             }
         }
 
-        if (toDelete.Count > 0)
+        if (toDelete.Count > 0 && _logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug("AutoDelete: {Count} aircraft pending deletion at t={T}s", toDelete.Count, scenario.ElapsedSeconds);
         }
@@ -1182,13 +1206,16 @@ public sealed partial class SimulationEngine
 
             RegisterDisconnectCoast(ac);
             RemoveFromWorld(ac.Callsign);
-            _logger.LogInformation(
-                "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",
-                ac.Callsign,
-                mode,
-                scenario.ScenarioName,
-                scenario.ElapsedSeconds
-            );
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",
+                    ac.Callsign,
+                    mode,
+                    scenario.ScenarioName,
+                    scenario.ElapsedSeconds
+                );
+            }
         }
 
         return toDelete;

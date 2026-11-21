@@ -126,7 +126,7 @@ public static class SituationFlagCalculator
     private static bool IsEstablishedOnExpectedFinal(AircraftState ac, bool clearedForDescent, SituationFlags previous)
     {
         bool established = ExpectedFinalGeometry.IsEstablished(ac, clearedForDescent);
-        if (established && (!Had(previous, SituationFlags.EstablishedOnExpectedFinal)))
+        if (established && (!Had(previous, SituationFlags.EstablishedOnExpectedFinal)) && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug(
                 "[ExpectedFinal] {Callsign} established on the final of its expected approach {Expected}",

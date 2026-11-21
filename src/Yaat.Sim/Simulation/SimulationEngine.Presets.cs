@@ -89,7 +89,7 @@ public sealed partial class SimulationEngine
             if (!scenario.SoloTrainingMode)
             {
                 ac.Ground.ReleasedForDeparture = false;
-                _logger.LogDebug("{Callsign} released in an RPO room: no automatic takeoff clearance", ac.Callsign);
+                LogReleasedInRpoRoom(ac.Callsign);
                 continue;
             }
 
@@ -116,6 +116,15 @@ public sealed partial class SimulationEngine
 
             ac.Ground.ReleasedForDeparture = false;
             AutoIssueTakeoffClearance(ac, "[HFR] Released — cleared for takeoff");
+        }
+    }
+
+    /// <summary>Logs at Debug that <paramref name="callsign"/> was released in an RPO room, with no automatic takeoff clearance.</summary>
+    private void LogReleasedInRpoRoom(string callsign)
+    {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("{Callsign} released in an RPO room: no automatic takeoff clearance", callsign);
         }
     }
 
@@ -197,7 +206,10 @@ public sealed partial class SimulationEngine
         }
 
         _simulatedTowerWaitReasons[callsign] = reason;
-        _logger.LogDebug("[Sim tower] {Callsign} waits for its takeoff clearance: {Reason}", callsign, reason);
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("[Sim tower] {Callsign} waits for its takeoff clearance: {Reason}", callsign, reason);
+        }
     }
 
     private static bool IsAtItsDepartureRunway(AircraftState aircraft) =>
@@ -299,7 +311,10 @@ public sealed partial class SimulationEngine
         aircraft.HasAnnouncedLinedUpReady = true;
         if (!scenario.SoloTrainingMode)
         {
-            _logger.LogDebug("{Callsign} lined up in an RPO room: call-up closed, waiting for the RPO's takeoff clearance", aircraft.Callsign);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("{Callsign} lined up in an RPO room: call-up closed, waiting for the RPO's takeoff clearance", aircraft.Callsign);
+            }
             return;
         }
 
@@ -335,13 +350,19 @@ public sealed partial class SimulationEngine
         aircraft.HasAnnouncedLinedUpReady = true;
         if (!scenario.SoloTrainingMode)
         {
-            _logger.LogDebug("{Callsign} released at the spawn gate in an RPO room: waiting for the RPO's takeoff clearance", aircraft.Callsign);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("{Callsign} released at the spawn gate in an RPO room: waiting for the RPO's takeoff clearance", aircraft.Callsign);
+            }
             return;
         }
 
         aircraft.Ground.ReleasedForDeparture = true;
         aircraft.Ground.ReleasedAtSeconds = scenario.ElapsedSeconds;
-        _logger.LogDebug("{Callsign} released at the spawn gate: the released departure's takeoff clock starts", aircraft.Callsign);
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("{Callsign} released at the spawn gate: the released departure's takeoff clock starts", aircraft.Callsign);
+        }
     }
 
     /// <summary>

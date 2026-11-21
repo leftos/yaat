@@ -65,6 +65,14 @@ public sealed partial class SimulationEngine
         }
 
         eram.ReachedAssignedAltitude = true;
-        _logger.LogDebug("{Callsign} reached its ERAM assigned altitude {Feet} ft at {Altitude:F0} ft", ac.Callsign, key.AssignedFeet, ac.Altitude);
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "{Callsign} reached its ERAM assigned altitude {Feet} ft at {Altitude:F0} ft",
+                ac.Callsign,
+                key.AssignedFeet,
+                ac.Altitude
+            );
+        }
     }
 }

@@ -42,7 +42,10 @@ public sealed partial class SimulationEngine
 
         scenario.IsPaused = true;
         MarkSimStateChanged();
-        _logger.LogInformation("Scenario '{Name}' paused", scenario.ScenarioName);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("Scenario '{Name}' paused", scenario.ScenarioName);
+        }
         return new CommandResult(true, "Simulation paused");
     }
 
@@ -56,7 +59,10 @@ public sealed partial class SimulationEngine
 
         scenario.IsPaused = false;
         MarkSimStateChanged();
-        _logger.LogInformation("Scenario '{Name}' resumed", scenario.ScenarioName);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("Scenario '{Name}' resumed", scenario.ScenarioName);
+        }
         return new CommandResult(true, "Simulation resumed");
     }
 
@@ -78,7 +84,10 @@ public sealed partial class SimulationEngine
         }
 
         scenario.SimRate = clampedRate;
-        _logger.LogInformation("Sim rate set to {Rate}x for scenario '{Name}'", clampedRate, scenario.ScenarioName);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("Sim rate set to {Rate}x for scenario '{Name}'", clampedRate, scenario.ScenarioName);
+        }
         MarkSimStateChanged();
         return new CommandResult(true, null);
     }

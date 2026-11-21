@@ -154,7 +154,7 @@ public sealed partial class SimulationEngine
                 new StripBaySlot(bay.Bay.Id, 0),
                 new StripPrintTarget(bay.Owner.Id, showDest)
             );
-            if (record is not null)
+            if (record is not null && _logger.IsEnabled(LogLevel.Information))
             {
                 _logger.LogInformation(
                     "Auto-printed approach departure strip for {Callsign} on takeoff roll to bay {Bay}",
@@ -302,7 +302,15 @@ public sealed partial class SimulationEngine
         // the existing printer-queue path.
         record ??= StripMutations.RequestDepartureStripForAircraft(Strips, ac, scenario, new StripPrintTarget(ownBay.Owner.Id, showDest));
 
-        _logger.LogInformation("Auto-printed departure strip {StripId} for {Callsign} to {Destination}", record.Id, ac.Callsign, destinationLabel);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Auto-printed departure strip {StripId} for {Callsign} to {Destination}",
+                record.Id,
+                ac.Callsign,
+                destinationLabel
+            );
+        }
     }
 
     /// <summary>
@@ -341,7 +349,10 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        _logger.LogInformation("Placed departure strip for {Callsign} into scenario-configured bay {Bay}", ac.Callsign, bay.Bay.Name);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("Placed departure strip for {Callsign} into scenario-configured bay {Bay}", ac.Callsign, bay.Bay.Name);
+        }
         return true;
     }
 

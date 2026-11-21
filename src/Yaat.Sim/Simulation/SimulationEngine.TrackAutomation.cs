@@ -265,9 +265,37 @@ public sealed partial class SimulationEngine
         List<(string AirportId, TrackOwner FormerOwner)> stolen = ApplyAutoTrackDelta(scenario, atcPos, change.Entries);
         List<string> airports = atcPos.Source.AutoTrackAirportIds;
 
+        LogAutoTrackChange(change.PositionId, atcPos, airports, stolen);
+
+        if (airports.Count > 0)
+        {
+            ClaimUntrackedDepartures(scenario, atcPos);
+            EmitTerminal("System", "", $"Auto-track airports for {TrackEngine.FormatOwner(atcPos.Owner)}: {string.Join(", ", airports)}");
+        }
+        else
+        {
+            EmitTerminal("System", "", $"Auto-track airports cleared for {TrackEngine.FormatOwner(atcPos.Owner)}");
+        }
+
+        return new CommandResult(true);
+    }
+
+    /// <summary>Logs at Information the auto-track airports <paramref name="atcPos"/> holds and each one it took from another owner.</summary>
+    private void LogAutoTrackChange(
+        string positionId,
+        ResolvedAtcPosition atcPos,
+        List<string> airports,
+        List<(string AirportId, TrackOwner FormerOwner)> stolen
+    )
+    {
+        if (!_logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
         _logger.LogInformation(
             "Auto-track airports for {PositionId} ({Owner}): [{Airports}]",
-            change.PositionId,
+            positionId,
             TrackEngine.FormatOwner(atcPos.Owner),
             string.Join(", ", airports)
         );
@@ -281,18 +309,6 @@ public sealed partial class SimulationEngine
                 TrackEngine.FormatOwner(formerOwner)
             );
         }
-
-        if (airports.Count > 0)
-        {
-            ClaimUntrackedDepartures(scenario, atcPos);
-            EmitTerminal("System", "", $"Auto-track airports for {TrackEngine.FormatOwner(atcPos.Owner)}: {string.Join(", ", airports)}");
-        }
-        else
-        {
-            EmitTerminal("System", "", $"Auto-track airports cleared for {TrackEngine.FormatOwner(atcPos.Owner)}");
-        }
-
-        return new CommandResult(true);
     }
 
     /// <summary>
@@ -357,12 +373,15 @@ public sealed partial class SimulationEngine
 
             ac.Track.Owner = atcPos.Owner;
             ScratchpadRuleEngine.Apply(ac, starsConfig);
-            _logger.LogInformation(
-                "[AutoTrack] {Callsign} auto-owned by {Owner} (departure {Dep})",
-                ac.Callsign,
-                TrackEngine.FormatOwner(atcPos.Owner),
-                dep
-            );
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "[AutoTrack] {Callsign} auto-owned by {Owner} (departure {Dep})",
+                    ac.Callsign,
+                    TrackEngine.FormatOwner(atcPos.Owner),
+                    dep
+                );
+            }
             return;
         }
     }
@@ -506,13 +525,16 @@ public sealed partial class SimulationEngine
                 if (ac.Track.Owner is not null)
                 {
                     ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
-                    _logger.LogInformation(
-                        "[DeferredAutoTrack] {Callsign} appeared on STARS — owned by {Owner} (departure {Dep}, matched {Airport})",
-                        ac.Callsign,
-                        TrackEngine.FormatOwner(atcPos.Owner),
-                        dep,
-                        matchedAirportId
-                    );
+                    if (_logger.IsEnabled(LogLevel.Information))
+                    {
+                        _logger.LogInformation(
+                            "[DeferredAutoTrack] {Callsign} appeared on STARS — owned by {Owner} (departure {Dep}, matched {Airport})",
+                            ac.Callsign,
+                            TrackEngine.FormatOwner(atcPos.Owner),
+                            dep,
+                            matchedAirportId
+                        );
+                    }
                     EmitTerminal(
                         "System",
                         ac.Callsign,
@@ -560,12 +582,15 @@ public sealed partial class SimulationEngine
             ac.Track.Owner = creator;
             ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
 
-            _logger.LogInformation(
-                "[FlightPlanCreatorAutoTrack] {Callsign} squawking assigned code {Code:D4} — owned by {Owner} (FP creator)",
-                ac.Callsign,
-                ac.Transponder.Code,
-                TrackEngine.FormatOwner(creator)
-            );
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "[FlightPlanCreatorAutoTrack] {Callsign} squawking assigned code {Code:D4} — owned by {Owner} (FP creator)",
+                    ac.Callsign,
+                    ac.Transponder.Code,
+                    TrackEngine.FormatOwner(creator)
+                );
+            }
             EmitTerminal("System", ac.Callsign, $"[AutoTrack] Squawking assigned code — owned by {TrackEngine.FormatOwner(creator)} (FP creator)");
         }
     }
@@ -617,12 +642,15 @@ public sealed partial class SimulationEngine
             }
             else if (owner.MatchesPosition(entry.Target))
             {
-                _logger.LogInformation(
-                    "[AutoTrack] Delayed handoff for {Callsign} to {Target} dropped at t={T}s: already owned by the target",
-                    entry.Callsign,
-                    TrackEngine.FormatOwner(entry.Target),
-                    scenario.ElapsedSeconds
-                );
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(
+                        "[AutoTrack] Delayed handoff for {Callsign} to {Target} dropped at t={T}s: already owned by the target",
+                        entry.Callsign,
+                        TrackEngine.FormatOwner(entry.Target),
+                        scenario.ElapsedSeconds
+                    );
+                }
             }
             else
             {
@@ -688,13 +716,16 @@ public sealed partial class SimulationEngine
                     $"[Pointout] {pointout.Sender} → {pointout.Recipient}: no action taken — point-out withdrawn, "
                         + "coordinate verbally before entering their airspace"
                 );
-                _logger.LogInformation(
-                    "Point-out withdrawn (no action): {Callsign} {Sender}→{Recipient} at t={T}s",
-                    aircraft.Callsign,
-                    pointout.Sender,
-                    pointout.Recipient,
-                    scenario.ElapsedSeconds
-                );
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(
+                        "Point-out withdrawn (no action): {Callsign} {Sender}→{Recipient} at t={T}s",
+                        aircraft.Callsign,
+                        pointout.Sender,
+                        pointout.Recipient,
+                        scenario.ElapsedSeconds
+                    );
+                }
             }
         }
     }
@@ -730,7 +761,7 @@ public sealed partial class SimulationEngine
         bool soloMode = scenario.SoloTrainingMode;
         if (!soloMode && scenario.AutoAcceptDelay <= TimeSpan.Zero)
         {
-            _logger.LogTrace("TickAutoAccept: auto-accept disabled (delay={Delay})", scenario.AutoAcceptDelay);
+            LogAutoAcceptDisabled(scenario.AutoAcceptDelay);
             return;
         }
 
@@ -740,7 +771,7 @@ public sealed partial class SimulationEngine
 
         List<AircraftState> snapshot = World.GetSnapshot();
         var pendingHandoffs = snapshot.Where(a => a.Track.HandoffPeer is not null && a.Track.HandoffInitiatedAt is not null).ToList();
-        if (pendingHandoffs.Count > 0)
+        if (pendingHandoffs.Count > 0 && _logger.IsEnabled(LogLevel.Trace))
         {
             _logger.LogTrace("TickAutoAccept: {Count} pending handoffs at t={T}s", pendingHandoffs.Count, scenario.ElapsedSeconds);
         }
@@ -761,7 +792,7 @@ public sealed partial class SimulationEngine
 
             if (TrackEngine.IsHandoffPeerControlledByCrc(aircraft.Track.HandoffPeer, scenario, Attendance, ConsolidationState))
             {
-                _logger.LogTrace("TickAutoAccept: {Callsign} handoff pending to CRC-controlled position, skipping", aircraft.Callsign);
+                LogAutoAcceptSkippedCrcPeer(aircraft.Callsign);
                 continue;
             }
 
@@ -772,7 +803,7 @@ public sealed partial class SimulationEngine
             // after the coverage coast has expired, which only keeps the handoff pending longer.
             if (TrackEngine.IsAutoAcceptWithheld(aircraft, NavigationDatabase.Instance))
             {
-                _logger.LogTrace("TickAutoAccept: {Callsign} handoff withheld below ERAM coverage or on a QT coast, skipping", aircraft.Callsign);
+                LogAutoAcceptWithheld(aircraft.Callsign);
                 continue;
             }
 
@@ -780,7 +811,7 @@ public sealed partial class SimulationEngine
             // accepts it by hand (in non-solo an RPO does). Every other position auto-accepts below.
             if (soloMode && scenario.StudentPosition is { } student && aircraft.Track.HandoffPeer.MatchesPosition(student))
             {
-                _logger.LogTrace("TickAutoAccept: {Callsign} handoff pending to student position, leaving for manual accept", aircraft.Callsign);
+                LogAutoAcceptLeftForStudent(aircraft.Callsign);
                 continue;
             }
 
@@ -809,15 +840,60 @@ public sealed partial class SimulationEngine
                 string toLabel = TrackEngine.FormatOwner(newOwner);
                 EmitTerminal("System", aircraft.Callsign, $"[AutoAccept] Handoff accepted " + $"({fromLabel} \u2192 {toLabel})");
 
-                _logger.LogInformation(
-                    "Auto-accepted handoff: {Callsign} ({From} -> {To}) after {Elapsed}s at t={T}s",
-                    aircraft.Callsign,
-                    fromLabel,
-                    toLabel,
-                    elapsed,
-                    scenario.ElapsedSeconds
-                );
+                LogHandoffAutoAccepted(aircraft.Callsign, fromLabel, toLabel, elapsed, scenario.ElapsedSeconds);
             }
+        }
+    }
+
+    /// <summary>Logs at Trace that auto-accept is disabled by a non-positive <paramref name="delay"/>.</summary>
+    private void LogAutoAcceptDisabled(TimeSpan delay)
+    {
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("TickAutoAccept: auto-accept disabled (delay={Delay})", delay);
+        }
+    }
+
+    /// <summary>Logs at Trace that <paramref name="callsign"/>'s handoff is skipped because its peer is CRC-controlled.</summary>
+    private void LogAutoAcceptSkippedCrcPeer(string callsign)
+    {
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("TickAutoAccept: {Callsign} handoff pending to CRC-controlled position, skipping", callsign);
+        }
+    }
+
+    /// <summary>Logs at Trace that <paramref name="callsign"/>'s handoff is withheld below ERAM coverage or on a QT coast.</summary>
+    private void LogAutoAcceptWithheld(string callsign)
+    {
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("TickAutoAccept: {Callsign} handoff withheld below ERAM coverage or on a QT coast, skipping", callsign);
+        }
+    }
+
+    /// <summary>Logs at Trace that <paramref name="callsign"/>'s handoff to the student position is left for a manual accept.</summary>
+    private void LogAutoAcceptLeftForStudent(string callsign)
+    {
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("TickAutoAccept: {Callsign} handoff pending to student position, leaving for manual accept", callsign);
+        }
+    }
+
+    /// <summary>Logs at Information that <paramref name="callsign"/>'s handoff was auto-accepted after <paramref name="elapsed"/> seconds.</summary>
+    private void LogHandoffAutoAccepted(string callsign, string fromLabel, string toLabel, double elapsed, double scenarioSeconds)
+    {
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Auto-accepted handoff: {Callsign} ({From} -> {To}) after {Elapsed}s at t={T}s",
+                callsign,
+                fromLabel,
+                toLabel,
+                elapsed,
+                scenarioSeconds
+            );
         }
     }
 }

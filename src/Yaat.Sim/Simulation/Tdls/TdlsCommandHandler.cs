@@ -215,7 +215,10 @@ public static class TdlsCommandHandler
         }
 
         engine.World.AcknowledgeControllerResponse(callsign);
-        Log.LogDebug("TDLSS answered the clearance request of {Callsign} at {Facility}", callsign, facility);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("TDLSS answered the clearance request of {Callsign} at {Facility}", callsign, facility);
+        }
     }
 
     // ── TDLSW — mark Sent → Wilco ─────────────────────────────────

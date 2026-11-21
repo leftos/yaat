@@ -395,7 +395,10 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        _logger.LogInformation("Auto-queued PDC for {Callsign} at facility {FacilityId}", queued.AircraftId, queued.FacilityId);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("Auto-queued PDC for {Callsign} at facility {FacilityId}", queued.AircraftId, queued.FacilityId);
+        }
     }
 
     /// <summary>
