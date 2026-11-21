@@ -147,6 +147,7 @@ public partial class ScopeView : UserControl
         if (_vm is null)
         {
             _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+            _flyoutPrefs?.ScopeTextChanged -= OnScopeTextChanged;
             _flyoutPrefs = null;
             return;
         }
@@ -163,9 +164,18 @@ public partial class ScopeView : UserControl
     private void WatchFlyoutFontSize(UserPreferences prefs)
     {
         _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _flyoutPrefs?.ScopeTextChanged -= OnScopeTextChanged;
         _flyoutPrefs = prefs;
         prefs.FontSizesChanged += ApplyFlyoutFontSize;
+        prefs.ScopeTextChanged += OnScopeTextChanged;
         ApplyFlyoutFontSize();
+    }
+
+    // The STARS and ERAM datablock text settings are read at frame build, so a change rebuilds the frame.
+    private void OnScopeTextChanged()
+    {
+        Canvas.DropCachedFrame();
+        Canvas.MarkDirty();
     }
 
     private void ApplyFlyoutFontSize()
@@ -208,6 +218,7 @@ public partial class ScopeView : UserControl
         _topLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         _topLevel = null;
         _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _flyoutPrefs?.ScopeTextChanged -= OnScopeTextChanged;
         _flyoutPrefs = null;
         _activeFieldPopup?.Close();
         _activeEntryPopup?.Close();

@@ -696,6 +696,33 @@ public sealed partial class UserPreferences
     /// </summary>
     public bool ScopeStarsFieldMenus => _data.ScopeStarsFieldMenus;
 
+    /// <summary>The highest CRC STARS text size (the ladder runs 0 to this).</summary>
+    public const int MaxStarsScopeTextSize = 6;
+
+    /// <summary>The highest CRC ERAM text size (the ladder runs 0 to this).</summary>
+    public const int MaxEramScopeTextSize = 4;
+
+    /// <summary>CRC's default STARS text size.</summary>
+    public const int DefaultStarsScopeTextSize = 2;
+
+    /// <summary>CRC's default ERAM text size.</summary>
+    public const int DefaultEramScopeTextSize = 1;
+
+    /// <summary>How a Scope draws STARS datablock text. Default <see cref="ScopeTextStyle.Compact"/>.</summary>
+    public ScopeTextStyle StarsScopeTextStyle => ParseScopeTextStyle(_data.StarsScopeTextStyle);
+
+    /// <summary>The CRC STARS text size (0-6) realistic STARS text draws at. Default 2.</summary>
+    public int StarsScopeTextSize => _data.StarsScopeTextSize;
+
+    /// <summary>How a Scope draws ERAM datablock text. Default <see cref="ScopeTextStyle.Compact"/>.</summary>
+    public ScopeTextStyle EramScopeTextStyle => ParseScopeTextStyle(_data.EramScopeTextStyle);
+
+    /// <summary>The CRC ERAM text size (0-4) realistic ERAM text draws at. Default 1.</summary>
+    public int EramScopeTextSize => _data.EramScopeTextSize;
+
+    private static ScopeTextStyle ParseScopeTextStyle(string stored) =>
+        (Enum.TryParse<ScopeTextStyle>(stored, out ScopeTextStyle style) && Enum.IsDefined(style)) ? style : ScopeTextStyle.Compact;
+
     /// <summary>
     /// The column the last command sent or staged from an ERAM field menu came from, which a tabbed menu opens on. Default
     /// <see cref="ScopeFieldMenuMode.Eram"/>.
@@ -1099,6 +1126,9 @@ public sealed partial class UserPreferences
     /// <summary>Raised when any font-size preference changes (debounced via the single Save call).</summary>
     public event Action? FontSizesChanged;
 
+    /// <summary>Raised when the Scope's STARS or ERAM datablock text style or realistic size changes.</summary>
+    public event Action? ScopeTextChanged;
+
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
         _data.SavedServers = [.. servers];
@@ -1410,6 +1440,24 @@ public sealed partial class UserPreferences
     {
         _data.ScopeFieldMenuStyle = style.ToString();
         Save();
+    }
+
+    /// <summary>
+    /// Sets the Scope's STARS and ERAM datablock text styles and realistic sizes, clamping each size to its CRC ladder
+    /// (STARS 0-6, ERAM 0-4), and raises <see cref="ScopeTextChanged"/> when any of the four changed.
+    /// </summary>
+    public void SetScopeText(ScopeTextStyle starsStyle, int starsSize, ScopeTextStyle eramStyle, int eramSize)
+    {
+        (string, int, string, int) before = (_data.StarsScopeTextStyle, _data.StarsScopeTextSize, _data.EramScopeTextStyle, _data.EramScopeTextSize);
+        _data.StarsScopeTextStyle = starsStyle.ToString();
+        _data.StarsScopeTextSize = Math.Clamp(starsSize, 0, MaxStarsScopeTextSize);
+        _data.EramScopeTextStyle = eramStyle.ToString();
+        _data.EramScopeTextSize = Math.Clamp(eramSize, 0, MaxEramScopeTextSize);
+        Save();
+        if (before != (_data.StarsScopeTextStyle, _data.StarsScopeTextSize, _data.EramScopeTextStyle, _data.EramScopeTextSize))
+        {
+            ScopeTextChanged?.Invoke();
+        }
     }
 
     public void SetScopeStarsFieldMenus(bool enabled)
@@ -2655,6 +2703,10 @@ public sealed partial class UserPreferences
             ScopeFieldMenuStyle = GetFieldOr(obj, "scopeFieldMenuStyle", nameof(Services.ScopeFieldMenuStyle.Tabbed)),
             ScopeFieldMenuLastMode = GetFieldOr(obj, "scopeFieldMenuLastMode", nameof(ScopeFieldMenuMode.Eram)),
             ScopeStarsFieldMenus = GetFieldOr(obj, "scopeStarsFieldMenus", false),
+            StarsScopeTextStyle = GetFieldOr(obj, "starsScopeTextStyle", nameof(Services.ScopeTextStyle.Compact)),
+            StarsScopeTextSize = Math.Clamp(GetFieldOr(obj, "starsScopeTextSize", DefaultStarsScopeTextSize), 0, MaxStarsScopeTextSize),
+            EramScopeTextStyle = GetFieldOr(obj, "eramScopeTextStyle", nameof(Services.ScopeTextStyle.Compact)),
+            EramScopeTextSize = Math.Clamp(GetFieldOr(obj, "eramScopeTextSize", DefaultEramScopeTextSize), 0, MaxEramScopeTextSize),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", true),
             ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
@@ -3085,6 +3137,12 @@ public sealed partial class UserPreferences
         public string ScopeFieldMenuStyle { get; set; } = nameof(Services.ScopeFieldMenuStyle.Tabbed);
         public string ScopeFieldMenuLastMode { get; set; } = nameof(ScopeFieldMenuMode.Eram);
         public bool ScopeStarsFieldMenus { get; set; }
+
+        // ScopeTextStyle names, stored as strings so enum reordering can't misassign them; sizes are CRC's ladder indices.
+        public string StarsScopeTextStyle { get; set; } = nameof(Services.ScopeTextStyle.Compact);
+        public int StarsScopeTextSize { get; set; } = DefaultStarsScopeTextSize;
+        public string EramScopeTextStyle { get; set; } = nameof(Services.ScopeTextStyle.Compact);
+        public int EramScopeTextSize { get; set; } = DefaultEramScopeTextSize;
 
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; } = true;
@@ -3578,6 +3636,24 @@ public static class ScopeFieldMenuStyleLabels
 {
     /// <summary>One label per <see cref="ScopeFieldMenuStyle"/> value, indexed by the value.</summary>
     public static IReadOnlyList<string> Options { get; } = ["Simple (CRC)", "Tabbed", "Side by side"];
+}
+
+/// <summary>
+/// How a Scope draws STARS or ERAM datablock text: compact (the monospace system font at the CHAR size) or realistic
+/// (Terminus Bold from its bitmap strikes at CRC's size ladder). Stored by name; the Settings choice follows this order
+/// (<see cref="ScopeTextStyleLabels"/>).
+/// </summary>
+public enum ScopeTextStyle
+{
+    Compact,
+    Realistic,
+}
+
+/// <summary>The words the "STARS text" and "ERAM text" choices show for each <see cref="ScopeTextStyle"/>.</summary>
+public static class ScopeTextStyleLabels
+{
+    /// <summary>One label per <see cref="ScopeTextStyle"/> value, indexed by the value.</summary>
+    public static IReadOnlyList<string> Options { get; } = ["Compact", "Realistic"];
 }
 
 /// <summary>Which column of an ERAM field menu a command came from: the ERAM scope-data entry or the pilot command.</summary>

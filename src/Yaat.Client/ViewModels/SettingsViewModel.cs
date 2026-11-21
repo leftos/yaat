@@ -528,6 +528,30 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _radarDatablockFontSize;
 
+    /// <summary>The "STARS text" choice, a <see cref="ScopeTextStyle"/> by index.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStarsScopeTextSizeEnabled))]
+    private int _selectedStarsScopeTextStyleIndex;
+
+    /// <summary>The "STARS size" box: the CRC STARS text size (0-6) realistic STARS text draws at.</summary>
+    [ObservableProperty]
+    private int _starsScopeTextSize;
+
+    /// <summary>The "ERAM text" choice, a <see cref="ScopeTextStyle"/> by index.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEramScopeTextSizeEnabled))]
+    private int _selectedEramScopeTextStyleIndex;
+
+    /// <summary>The "ERAM size" box: the CRC ERAM text size (0-4) realistic ERAM text draws at.</summary>
+    [ObservableProperty]
+    private int _eramScopeTextSize;
+
+    /// <summary>Whether the "STARS size" box is editable: only while STARS text is realistic.</summary>
+    public bool IsStarsScopeTextSizeEnabled => SelectedStarsScopeTextStyleIndex == (int)ScopeTextStyle.Realistic;
+
+    /// <summary>Whether the "ERAM size" box is editable: only while ERAM text is realistic.</summary>
+    public bool IsEramScopeTextSizeEnabled => SelectedEramScopeTextStyleIndex == (int)ScopeTextStyle.Realistic;
+
     /// <summary>Instructor TPA Cone half-angle in degrees (2° = CRC-exact needle; larger = wider wedge).</summary>
     [ObservableProperty]
     private double _tpaConeHalfAngleDegrees;
@@ -758,6 +782,9 @@ public partial class SettingsViewModel : ObservableObject
     // Indexed by the ScopeFieldMenuStyle value, so SelectedScopeFieldMenuStyleIndex maps directly to the enum.
     public static IReadOnlyList<string> ScopeFieldMenuStyleOptions => ScopeFieldMenuStyleLabels.Options;
 
+    // Indexed by the ScopeTextStyle value, so the STARS and ERAM text style indices map directly to the enum.
+    public static IReadOnlyList<string> ScopeTextStyleOptions => ScopeTextStyleLabels.Options;
+
     public bool IsMacOs { get; } = OperatingSystem.IsMacOS();
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -983,6 +1010,10 @@ public partial class SettingsViewModel : ObservableObject
         _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
+        _selectedStarsScopeTextStyleIndex = (int)_preferences.StarsScopeTextStyle;
+        _starsScopeTextSize = _preferences.StarsScopeTextSize;
+        _selectedEramScopeTextStyleIndex = (int)_preferences.EramScopeTextStyle;
+        _eramScopeTextSize = _preferences.EramScopeTextSize;
         _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _tpaConeHalfAngleDegrees = _preferences.TpaConeHalfAngleDegrees;
         _scrollSensitivityPercent = _preferences.ScrollSensitivity * 100.0;
@@ -1288,6 +1319,12 @@ public partial class SettingsViewModel : ObservableObject
                 Terminal: TerminalFontSize,
                 Interface: InterfaceFontSize
             )
+        );
+        _preferences.SetScopeText(
+            (ScopeTextStyle)SelectedStarsScopeTextStyleIndex,
+            StarsScopeTextSize,
+            (ScopeTextStyle)SelectedEramScopeTextStyleIndex,
+            EramScopeTextSize
         );
         _preferences.SetStripsZoomPercent(StripsZoomPercent);
         _preferences.SetTdlsZoomPercent(TdlsZoomPercent);
@@ -2030,6 +2067,10 @@ public partial class SettingsViewModel : ObservableObject
     {
         DataGridFontSize = defaults.DataGridFontSize;
         RadarDatablockFontSize = defaults.RadarDatablockFontSize;
+        SelectedStarsScopeTextStyleIndex = (int)defaults.StarsScopeTextStyle;
+        StarsScopeTextSize = defaults.StarsScopeTextSize;
+        SelectedEramScopeTextStyleIndex = (int)defaults.EramScopeTextStyle;
+        EramScopeTextSize = defaults.EramScopeTextSize;
         RadarFlyoutFontSize = defaults.RadarFlyoutFontSize;
         GroundDatablockFontSize = defaults.GroundDatablockFontSize;
         GroundLabelFontSize = defaults.GroundLabelFontSize;

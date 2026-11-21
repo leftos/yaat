@@ -20,10 +20,12 @@ public static class SettingsSearchCatalog
     private static readonly string[] Verb = ["verb", "alias"];
     private static readonly string[] Macro = ["macro"];
     private static readonly string[] QuickCommand = ["quick commands", "context menu", "right-click", "icon strip", "menu commands"];
+    private static readonly string[] ScopeTextWords = ["font", "size", "datablock", "scope", "terminus", "realistic", "compact"];
     private static readonly string[] None = [];
 
     private const string AlwaysOnTop = "Always on Top";
     private const string FontSizes = "Font Sizes";
+    private const string ScopeText = "Scope text";
     private const string CommandRunDelay = "Command run delay (seconds):";
     private const string AutoClearToLand = "Auto-clear aircraft to land";
     private const string ArrivalSpacing = "Auto arrival spacing behind traffic on the runway";
@@ -102,6 +104,10 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "InterfaceFontSize", "Interface (tabs, buttons, lists)", FontSizes, Font),
             SettingWithin(s, "StripsZoomPercent", "Strips Zoom %", FontSizes, Zoom),
             SettingWithin(s, "TdlsZoomPercent", "vTDLS Zoom %", FontSizes, Zoom),
+            SettingWithin(s, "SelectedStarsScopeTextStyleIndex", "STARS text", ScopeText, ScopeTextWords),
+            SettingWithin(s, "StarsScopeTextSize", "STARS size", ScopeText, ScopeTextWords),
+            SettingWithin(s, "SelectedEramScopeTextStyleIndex", "ERAM text", ScopeText, ScopeTextWords),
+            SettingWithin(s, "EramScopeTextSize", "ERAM size", ScopeText, ScopeTextWords),
             SettingWithin(s, "SelectedRendererModeIndex", "Renderer:", "Graphics", None),
         ];
     }

@@ -86,6 +86,10 @@ public sealed partial class UserPreferences
         ("unassignedTintColor", Color),
         ("selectedColor", Color),
         ("radarDatablockFontSize", IntRange(8, 24)),
+        ("starsScopeTextStyle", EnumName<ScopeTextStyle>()),
+        ("starsScopeTextSize", IntRange(0, MaxStarsScopeTextSize)),
+        ("eramScopeTextStyle", EnumName<ScopeTextStyle>()),
+        ("eramScopeTextSize", IntRange(0, MaxEramScopeTextSize)),
         ("radarFlyoutFontSize", IntRange(8, 24)),
         ("groundDatablockFontSize", IntRange(8, 24)),
         ("groundLabelFontSize", IntRange(8, 24)),
@@ -321,6 +325,14 @@ public sealed partial class UserPreferences
             Save();
             TerminalColorsChanged?.Invoke();
             FontSizesChanged?.Invoke();
+            if (
+                accepted.Keys.Any(key =>
+                    (key.EndsWith("ScopeTextStyle", StringComparison.Ordinal)) || (key.EndsWith("ScopeTextSize", StringComparison.Ordinal))
+                )
+            )
+            {
+                ScopeTextChanged?.Invoke();
+            }
         }
 
         return result;
