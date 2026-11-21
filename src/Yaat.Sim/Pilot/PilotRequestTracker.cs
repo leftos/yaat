@@ -489,22 +489,36 @@ public static class PilotRequestTracker
 
     /// <summary>
     /// How <paramref name="command"/> answers the open <paramref name="request"/> of <paramref name="aircraft"/>: as
-    /// <see cref="ResolveResponse(PilotPendingRequestKind, ParsedCommand)"/> says, except that under <c>RMOB</c> for the
-    /// request's Class B an implied-clearance command (a vector, direct, pattern entry or approach) grants nothing, so it
-    /// is no answer (7110.65 §2-1-18: approve, unable or stand by) and the request stays open with its one repeat.
+    /// <see cref="ResolveResponse(PilotPendingRequestKind, ParsedCommand)"/> says, except that a landing clearance (a
+    /// pattern entry, traffic direction or approach clearance) answers a Class B airspace-entry request only once it has
+    /// cleared the aircraft into the Class B the request names, and any implied-clearance command under <c>RMOB</c> for it
+    /// answers nothing. Both are no answer (7110.65 §2-1-18: approve, unable or stand by) and the request stays open with
+    /// its repeats. A vector or direct answers as it always has.
     /// </summary>
     private static PilotPendingRequestResponseState ResolveResponse(PilotPendingRequest request, AircraftState aircraft, ParsedCommand command) =>
-        IsNoAnswerUnderRemainOutside(request, aircraft, command) ? PilotPendingRequestResponseState.None : ResolveResponse(request.Kind, command);
+        LeavesAirspaceEntryOpen(request, aircraft, command) ? PilotPendingRequestResponseState.None : ResolveResponse(request.Kind, command);
 
     /// <summary>
-    /// Whether <paramref name="command"/> is an implied-clearance command given while the pilot is told to remain outside
-    /// the Class B <paramref name="request"/> asks to enter.
+    /// Whether <paramref name="command"/> is no answer to the open airspace-entry request <paramref name="request"/>: one
+    /// for the Class B it names, given as an implied-clearance instruction without the grant it would stand as.
     /// </summary>
-    private static bool IsNoAnswerUnderRemainOutside(PilotPendingRequest request, AircraftState aircraft, ParsedCommand command) =>
+    private static bool LeavesAirspaceEntryOpen(PilotPendingRequest request, AircraftState aircraft, ParsedCommand command) =>
         (request.Kind == PilotPendingRequestKind.AirspaceEntry)
+        && (request.AirspaceClass == nameof(AirspaceClass.Bravo))
         && (request.AirspaceIdent is { } ident)
-        && aircraft.IsRemainOutsideBravo(ident)
-        && ImplicitBravoClearance.IsImpliedClearanceCommand(command);
+        && LacksImpliedGrant(command, aircraft, ident);
+
+    /// <summary>
+    /// Whether the implied-clearance instruction <paramref name="command"/> lacks the grant it would stand as: it is given
+    /// under <c>RMOB</c> for the Class B <paramref name="ident"/>, or it is a pattern entry, traffic direction or approach
+    /// clearance whose airport lies outside that Class B and so cleared nothing. A vector or direct is never judged here:
+    /// it answers the request whether or not it enters the Bravo.
+    /// </summary>
+    private static bool LacksImpliedGrant(ParsedCommand command, AircraftState aircraft, string ident) =>
+        ImplicitBravoClearance.IsImpliedClearanceCommand(command)
+        && (
+            aircraft.IsRemainOutsideBravo(ident) || (ImplicitBravoClearance.IsLandingClearanceCommand(command) && !aircraft.IsClearedIntoBravo(ident))
+        );
 
     private static PilotPendingRequestResponseState ResolveResponse(PilotPendingRequestKind kind, ParsedCommand command) =>
         kind switch

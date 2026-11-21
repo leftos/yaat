@@ -11,10 +11,10 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// Solo training: a VFR aircraft outside the SFO Class B orbits at the boundary until it is cleared in. A controller
-/// instruction that applies now and can only be flown by entering the Bravo (a vector or a direct into it, a pattern
-/// entry or an approach clearance at an airport inside it, or, while the pilot waits on the Bravo, a vector toward it or
-/// any pattern entry or approach clearance) is read as the clearance: the pilot reads it back as one and the boundary
-/// hold never re-arms. Approaching the boundary, a pilot in contact with the student asks for the clearance first.
+/// instruction that applies now and can only be flown by entering the Bravo (a vector or a direct into it, or a pattern
+/// entry or an approach clearance at an airport inside it; while the pilot waits on the Bravo, also a vector or direct
+/// toward it) is read as the clearance: the pilot reads it back as one and the boundary hold never re-arms. Approaching
+/// the boundary, a pilot in contact with the student asks for the clearance first.
 /// </summary>
 public sealed class SoloBravoImplicitClearanceTests
 {
@@ -262,6 +262,10 @@ public sealed class SoloBravoImplicitClearanceTests
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.ClearedBravoIdent);
         AssertNoBravoClause(ac);
+        // A vector answers the waiting pilot's request whether or not it grants a clearance, so the pilot does not keep
+        // repeating it while flying away.
+        PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        Assert.False(request.IsOpen);
     }
 
     [Fact]
@@ -297,6 +301,72 @@ public sealed class SoloBravoImplicitClearanceTests
         Assert.Equal("SFO", ac.ClearedBravoIdent);
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.Equal("fly heading 090, cleared through the bravo", readback.Text);
+    }
+
+    /// <summary>
+    /// The convenience stops at the airport the clearance lands at: KHAF lies under the SFO Class B shelves, not inside
+    /// its surface area, so a pattern entry there is no clearance into the Bravo. The waiting pilot's request stays open
+    /// and its repeats continue.
+    /// </summary>
+    [Fact]
+    public void WaitingThenPatternEntryAtSatelliteOutsideBravo_GrantsNothingAndKeepsTheRequestOpen()
+    {
+        AircraftState ac = Airborne(FarWestRing, trueHeading: 270, destination: "KHAF");
+        // The pattern entry resolves its runway against the filed destination (KHAF), and the runway table is keyed by
+        // the navdata's FAA id (HAF); the assigned runway pins that id and proves the runway exists.
+        ac.Phases = new PhaseList { AssignedRunway = Yaat.Sim.Data.NavigationDatabase.Instance.GetRunway("HAF", "30") };
+        Assert.NotNull(ac.Phases.AssignedRunway);
+        Assert.False(ImplicitBravoClearance.IsAirportInsideClassB("HAF", AirspaceDatabase.Default, LookupAirport, identFilter: null));
+        (SimulationEngine engine, _) = SoloEngine(ac);
+        RecordBravoWait(ac);
+
+        CommandResult result = engine.SendCommand(Callsign, "ERD 30");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.ClearedBravoIdent);
+        AssertNoBravoClause(ac);
+        PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        Assert.Equal(PilotPendingRequestKind.AirspaceEntry, request.Kind);
+        Assert.True(request.IsOpen, "a satellite airport's pattern entry is no answer to the Class B request");
+    }
+
+    /// <summary>
+    /// As <see cref="WaitingThenPatternEntryAtSatelliteOutsideBravo_GrantsNothingAndKeepsTheRequestOpen"/>, for an approach
+    /// clearance.
+    /// </summary>
+    [Fact]
+    public void WaitingThenApproachClearanceAtSatelliteOutsideBravo_GrantsNothingAndKeepsTheRequestOpen()
+    {
+        AircraftState ac = Airborne(FarWestRing, trueHeading: 270, destination: "KHAF");
+        Assert.False(ImplicitBravoClearance.IsAirportInsideClassB("HAF", AirspaceDatabase.Default, LookupAirport, identFilter: null));
+        (SimulationEngine engine, _) = SoloEngine(ac);
+        RecordBravoWait(ac);
+
+        CommandResult result = engine.SendCommand(Callsign, "CAPP R30 HAF");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.ClearedBravoIdent);
+        AssertNoBravoClause(ac);
+        PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        Assert.Equal(PilotPendingRequestKind.AirspaceEntry, request.Kind);
+        Assert.True(request.IsOpen, "a satellite airport's approach clearance is no answer to the Class B request");
+    }
+
+    /// <summary>A pattern entry at an airport inside the Bravo still grants, and that grant answers the waiting pilot's request.</summary>
+    [Fact]
+    public void WaitingThenPatternEntryAtBravoAirport_GrantsAndAnswersTheRequest()
+    {
+        AircraftState ac = Airborne(FarWestRing, trueHeading: 270, destination: "KSFO");
+        (SimulationEngine engine, _) = SoloEngine(ac);
+        RecordBravoWait(ac);
+
+        CommandResult result = engine.SendCommand(Callsign, "ERD 28R");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
+        PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        Assert.Equal(PilotPendingRequestResponseState.Satisfied, request.ResponseState);
+        Assert.False(request.IsOpen);
     }
 
     [Fact]
@@ -383,6 +453,21 @@ public sealed class SoloBravoImplicitClearanceTests
         return zoa;
     }
 
+    /// <summary>The open airspace-entry request for the SFO Class B that the boundary tick records for a waiting pilot.</summary>
+    private static void RecordBravoWait(AircraftState ac)
+    {
+        PilotSpeechText through = PilotResponder.BuildBravoClearanceRequest(ac, BravoClearanceWording.Through);
+        PilotRequestTracker
+            .RecordRequest(
+                ac,
+                PilotPendingRequestKind.AirspaceEntry,
+                nowSeconds: 0,
+                through,
+                PilotRequestContext.Airspace(AirspaceClass.Bravo, "SFO", new LatLon(37.6213, -122.3790))
+            )
+            .BravoWording = BravoClearanceWording.Through;
+    }
+
     private static (SimulationEngine Engine, SimScenarioState Scenario) SoloEngine(AircraftState ac)
     {
         SimScenarioState scenario = SoloScenario();
@@ -446,6 +531,8 @@ public sealed class SoloBravoImplicitClearanceTests
         {
             "OAK" or "KOAK" => new LatLon(37.7213, -122.2208),
             "SFO" or "KSFO" => new LatLon(37.6213, -122.3790),
+            // Half Moon Bay: under the SFO Class B shelves, outside its surface area.
+            "HAF" or "KHAF" => new LatLon(37.5133, -122.5008),
             _ => null,
         };
 }
