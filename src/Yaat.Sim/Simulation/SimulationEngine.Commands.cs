@@ -162,7 +162,7 @@ public sealed partial class SimulationEngine
             if (result.Success)
             {
                 taxied++;
-                _logger.LogInformation("[TaxiAll] {Callsign}: {Message}", aircraft.Callsign, result.Message);
+                LogTaxiAllTaxied(aircraft, result);
             }
             else
             {
@@ -173,6 +173,15 @@ public sealed partial class SimulationEngine
 
         string message = failed > 0 ? $"TAXIALL: {taxied} aircraft taxied, {failed} failed" : $"TAXIALL: {taxied} aircraft taxied";
         return new CommandResult(true, message);
+    }
+
+    /// <summary>Logs at Information that TAXIALL taxied <paramref name="aircraft"/>, with the dispatch's message.</summary>
+    private void LogTaxiAllTaxied(AircraftState aircraft, CommandResult result)
+    {
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("[TaxiAll] {Callsign}: {Message}", aircraft.Callsign, result.Message);
+        }
     }
 
     /// <summary>
@@ -796,7 +805,10 @@ public sealed partial class SimulationEngine
         }
         if (!ac.FlightPlan.HasFlightPlan)
         {
-            _logger.LogDebug("RequestNewBeaconCode for {Callsign} draws no code: no flight plan", callsign);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("RequestNewBeaconCode for {Callsign} draws no code: no flight plan", callsign);
+            }
             return 0;
         }
 

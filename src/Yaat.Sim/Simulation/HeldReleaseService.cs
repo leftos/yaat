@@ -282,7 +282,10 @@ public static class HeldReleaseService
         }
 
         world.AcknowledgeControllerResponse(aircraft.Callsign);
-        Log.LogDebug("The release answered the release request of {Callsign}; the frequency gate is cleared", aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("The release answered the release request of {Callsign}; the frequency gate is cleared", aircraft.Callsign);
+        }
     }
 
     /// <summary>

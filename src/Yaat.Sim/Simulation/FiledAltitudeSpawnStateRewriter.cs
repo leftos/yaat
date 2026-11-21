@@ -57,7 +57,7 @@ public static class FiledAltitudeSpawnStateRewriter
             }
         }
 
-        if (seeded > 0)
+        if ((seeded > 0) && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("Seeded the filed altitude of {Count} pre-55 recorded spawn(s) from their plans", seeded);
         }

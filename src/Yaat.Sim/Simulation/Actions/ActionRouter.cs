@@ -493,13 +493,7 @@ public sealed class ActionRouter
     {
         if (!result.Success)
         {
-            Log.LogDebug(
-                "replay: '{Command}' for {Callsign} at t={Seconds} was rejected — {Message}",
-                record.Command,
-                record.Callsign,
-                record.ElapsedSeconds,
-                result.Message ?? "(no message)"
-            );
+            LogReplayRejection(record, result);
         }
 
         if (record.Accepted is bool accepted && accepted != result.Success)
@@ -511,6 +505,21 @@ public sealed class ActionRouter
                 record.ElapsedSeconds,
                 accepted ? "accepted" : "rejected",
                 result.Success ? "accepted" : "rejected",
+                result.Message ?? "(no message)"
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug that the recorded command was rejected on replay, with the rejection's message.</summary>
+    private static void LogReplayRejection(RecordedCommand record, CommandResult result)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "replay: '{Command}' for {Callsign} at t={Seconds} was rejected — {Message}",
+                record.Command,
+                record.Callsign,
+                record.ElapsedSeconds,
                 result.Message ?? "(no message)"
             );
         }

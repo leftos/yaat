@@ -480,7 +480,10 @@ public sealed class RecordingArchive : IDisposable
         }
         catch (Exception ex) when (ex is (InvalidOperationException or InvalidDataException or IOException) and not ObjectDisposedException)
         {
-            Log.LogDebug(ex, "Recorded GFS wind grid {Hash} cannot be read for its size check; the load skips it with a warning", hash);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Recorded GFS wind grid {Hash} cannot be read for its size check; the load skips it with a warning", hash);
+            }
             return false;
         }
     }

@@ -44,10 +44,19 @@ public sealed class Attendance
             Tcp? tcp = config?.GetTcpForPosition(positionId);
             if (owner is null && tcp is null)
             {
-                Log.LogDebug("Attended position {PositionId} is not in the room's ARTCC config; keeping it by id only", positionId);
+                LogUnresolvedPosition(positionId);
             }
 
             _positions.Add(new AttendedPosition(positionId, owner, tcp));
+        }
+    }
+
+    /// <summary>Logs at Debug that the room's ARTCC configuration cannot place <paramref name="positionId"/>, so it is kept by id only.</summary>
+    private static void LogUnresolvedPosition(string positionId)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Attended position {PositionId} is not in the room's ARTCC config; keeping it by id only", positionId);
         }
     }
 

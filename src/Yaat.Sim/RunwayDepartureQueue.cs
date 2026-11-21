@@ -87,17 +87,20 @@ public static class RunwayDepartureQueue
             members[i].Aircraft.Ground.RunwayQueuePosition = i + 1;
             members[i].Aircraft.Ground.RunwayQueueRunway = runway;
             members[i].Aircraft.Ground.RunwayQueueIntersection = intersection;
-            Log.LogTrace(
-                "[RunwayQueue] {Callsign}: #{Position} for {Runway}{Intersection} at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
-                members[i].Aircraft.Callsign,
-                i + 1,
-                runway,
-                intersection.Length > 0 ? $"@{intersection}" : "",
-                members[i].NodeId,
-                members[i].AirportId,
-                members[i].Tier,
-                members[i].DistanceNm
-            );
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace(
+                    "[RunwayQueue] {Callsign}: #{Position} for {Runway}{Intersection} at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
+                    members[i].Aircraft.Callsign,
+                    i + 1,
+                    runway,
+                    intersection.Length > 0 ? $"@{intersection}" : "",
+                    members[i].NodeId,
+                    members[i].AirportId,
+                    members[i].Tier,
+                    members[i].DistanceNm
+                );
+            }
         }
     }
 
@@ -252,18 +255,27 @@ public static class RunwayDepartureQueue
         bool holdingAtBar = (ac.Phases?.CurrentPhase is HoldingShortPhase hold) && (hold.HoldShort.NodeId == leader.NodeId);
         int tier = holdingAtBar ? 0 : 1;
         double ownDistanceNm = GeoMath.DistanceNm(ac.Position, barPosition);
-        Log.LogTrace(
-            "[RunwayQueue] {Callsign}: following {Leader}, joins the {Runway} line at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
-            ac.Callsign,
-            leaderCallsign,
-            leader.Runway,
-            leader.NodeId,
-            leader.AirportId,
-            tier,
-            ownDistanceNm
-        );
+        LogFollowerJoinsLine(ac, leaderCallsign, leader, tier, ownDistanceNm);
 
         return new Member(ac, leader.Layout, leader.AirportId, leader.NodeId, leader.Runway, tier, ownDistanceNm, ac.Ground.StationarySeconds);
+    }
+
+    /// <summary>Logs at Trace that the follower joins its leader's runway line, with its tier and its own distance to the bar.</summary>
+    private static void LogFollowerJoinsLine(AircraftState ac, string leaderCallsign, Member leader, int tier, double ownDistanceNm)
+    {
+        if (Log.IsEnabled(LogLevel.Trace))
+        {
+            Log.LogTrace(
+                "[RunwayQueue] {Callsign}: following {Leader}, joins the {Runway} line at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
+                ac.Callsign,
+                leaderCallsign,
+                leader.Runway,
+                leader.NodeId,
+                leader.AirportId,
+                tier,
+                ownDistanceNm
+            );
+        }
     }
 
     /// <summary>

@@ -103,19 +103,14 @@ public static class PilotObservationUpdater
         {
             aircraft.Approach.HasReportedTrafficInSight = true;
             aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
-            Log.LogDebug(
-                "Traffic observation acquired: {Follower} has {Target} in sight at {Distance:F1} nm",
-                aircraft.Callsign,
-                obs.TargetCallsign,
-                result.DistanceNm
-            );
+            LogTrafficAcquired(aircraft, obs, result);
             Pilot.PilotResponder.RouteRpoSayReadback(
                 aircraft,
                 tick.Options.SoloTrainingMode,
                 tick.Options.RpoShowPilotSpeech,
                 Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign)
             );
-            Log.LogDebug("Traffic in sight readback queued for {Follower}, reporting {Target}", aircraft.Callsign, obs.TargetCallsign);
+            LogTrafficInSightQueued(aircraft, obs);
             return true;
         }
 
@@ -129,6 +124,29 @@ public static class PilotObservationUpdater
         return false;
     }
 
+    /// <summary>Logs at Debug that the follower acquired the observed traffic, with the distance it was acquired at.</summary>
+    private static void LogTrafficAcquired(AircraftState aircraft, TrafficAcquisitionObservation obs, VisualAcquisitionResult result)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Traffic observation acquired: {Follower} has {Target} in sight at {Distance:F1} nm",
+                aircraft.Callsign,
+                obs.TargetCallsign,
+                result.DistanceNm
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug that the follower's traffic-in-sight readback is queued.</summary>
+    private static void LogTrafficInSightQueued(AircraftState aircraft, TrafficAcquisitionObservation obs)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Traffic in sight readback queued for {Follower}, reporting {Target}", aircraft.Callsign, obs.TargetCallsign);
+        }
+    }
+
     /// <summary>
     /// Ends a lookout that ran its course or landed with the traffic still unseen, the pilot keying up once with
     /// "still negative contact on that traffic" so the controller hears the traffic was never acquired instead of being
@@ -137,13 +155,16 @@ public static class PilotObservationUpdater
     /// </summary>
     private static void EndLookout(AircraftState aircraft, TrafficAcquisitionObservation obs, string reason, TickContext tick)
     {
-        Log.LogDebug(
-            "Traffic observation ended: {Follower} never acquired {Target} — {Reason} at {SimTime:F1}s",
-            aircraft.Callsign,
-            obs.TargetCallsign,
-            reason,
-            tick.SimTimeSeconds
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Traffic observation ended: {Follower} never acquired {Target} — {Reason} at {SimTime:F1}s",
+                aircraft.Callsign,
+                obs.TargetCallsign,
+                reason,
+                tick.SimTimeSeconds
+            );
+        }
         Pilot.PilotResponder.ReportNegativeContact(
             aircraft,
             tick.Options.SoloTrainingMode,

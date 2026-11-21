@@ -48,7 +48,10 @@ public static class TaxiInRequest
         string? parking = PickParking(ctx);
         if (LayoutHasNoParking(ctx, parking))
         {
-            Log.LogDebug("[TaxiIn] {Callsign}: no parking in the layout to ask for; no taxi-in call", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[TaxiIn] {Callsign}: no parking in the layout to ask for; no taxi-in call", aircraft.Callsign);
+            }
             aircraft.Ground.AwaitingTaxiInCall = false;
             return false;
         }
@@ -66,7 +69,15 @@ public static class TaxiInRequest
         answering.MarkInitialContact(aircraft);
         aircraft.Ground.AwaitingTaxiInCall = false;
         aircraft.Ground.ReleasedToGround = false;
-        Log.LogDebug("[TaxiIn] {Callsign}: asked {Facility} for taxi to {Parking}", aircraft.Callsign, facilityCallName, DescribeParking(parking));
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TaxiIn] {Callsign}: asked {Facility} for taxi to {Parking}",
+                aircraft.Callsign,
+                facilityCallName,
+                DescribeParking(parking)
+            );
+        }
         return true;
     }
 

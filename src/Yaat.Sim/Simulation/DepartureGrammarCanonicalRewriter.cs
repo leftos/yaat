@@ -59,7 +59,10 @@ public static partial class DepartureGrammarCanonicalRewriter
                 continue;
             }
 
-            Log.LogDebug("Pre-runway-grammar recorded command '{Old}' rewritten as '{New}'", command.Command, rewritten);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Pre-runway-grammar recorded command '{Old}' rewritten as '{New}'", command.Command, rewritten);
+            }
             actions[i] = command with { Command = rewritten };
             changed = true;
         }

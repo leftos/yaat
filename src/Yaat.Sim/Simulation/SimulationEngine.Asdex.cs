@@ -106,11 +106,14 @@ public sealed partial class SimulationEngine
     {
         if (Scenario is not { } scenario)
         {
-            _logger.LogDebug(
-                "ASDE-X safety-logic push for facility {FacilityId} at t={Seconds} dropped: no scenario is loaded",
-                change.FacilityId,
-                change.ElapsedSeconds
-            );
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "ASDE-X safety-logic push for facility {FacilityId} at t={Seconds} dropped: no scenario is loaded",
+                    change.FacilityId,
+                    change.ElapsedSeconds
+                );
+            }
             return;
         }
 
@@ -554,12 +557,15 @@ public sealed partial class SimulationEngine
 
         AsdexHoldBarFacility built = BuildHoldBarFacility(runways, layout) with { ReportedActive = held?.ReportedActive ?? NoActiveHoldBars };
         _asdexHoldBars = _asdexHoldBars.SetItem(facilityId, built);
-        _logger.LogDebug(
-            "ASDE-X hold bars for {FacilityId}: {Count} built from the {Airport} layout",
-            facilityId,
-            built.Bars.Count,
-            layout.AirportId
-        );
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "ASDE-X hold bars for {FacilityId}: {Count} built from the {Airport} layout",
+                facilityId,
+                built.Bars.Count,
+                layout.AirportId
+            );
+        }
         return built;
     }
 

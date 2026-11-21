@@ -119,7 +119,7 @@ public static class ScenarioRunwaySignals
             return null;
         }
 
-        if (parsed.Value is null)
+        if ((parsed.Value is null) && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("{Callsign}: preset '{Preset}' does not parse ({Reason}); no runway read from it", state.Callsign, text, parsed.Reason);
         }
@@ -220,7 +220,7 @@ public static class ScenarioRunwaySignals
             {
                 Add(new AircraftRunwaySignal(runway, ActiveRunwayUse.Arrival), mention: null);
             }
-            else
+            else if (Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug("{Callsign}: expected approach {Approach} names no runway", state.Callsign, expected);
             }
@@ -247,7 +247,7 @@ public static class ScenarioRunwaySignals
             {
                 Add(signal, mention);
             }
-            else
+            else if (Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug("{Callsign}: preset '{Preset}' names no runway the navigation data resolves; skipped", state.Callsign, preset);
             }
@@ -267,7 +267,7 @@ public static class ScenarioRunwaySignals
                     _expectedApproach = ApproachIds.Visual(visualRunway.Designator);
                     _destinationRunway = visualRunway.Designator;
                 }
-                else
+                else if (Log.IsEnabled(LogLevel.Debug))
                 {
                     Log.LogDebug(
                         "{Callsign}: preset '{Preset}' expects a visual to no known runway; expected approach unchanged",
@@ -290,7 +290,7 @@ public static class ScenarioRunwaySignals
                 _expectedApproach = procedure.ApproachId;
                 _destinationRunway = runway.Designator;
             }
-            else
+            else if (Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug("{Callsign}: preset '{Preset}' expects no approach that resolves; expected approach unchanged", state.Callsign, preset);
             }
@@ -306,7 +306,10 @@ public static class ScenarioRunwaySignals
         {
             if (!NavigationDatabase.Instance.TryResolveAirport(airport, out string canonical))
             {
-                Log.LogDebug("{Callsign}: preset '{Preset}' names an unknown airport; destination unchanged", state.Callsign, preset);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("{Callsign}: preset '{Preset}' names an unknown airport; destination unchanged", state.Callsign, preset);
+                }
                 return;
             }
 

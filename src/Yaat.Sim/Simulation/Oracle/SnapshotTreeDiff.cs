@@ -241,7 +241,10 @@ public static class SnapshotTreeDiff
             // The caller falls back to comparing the raw strings, which is honest but unlocalized. Both sides of a
             // real sweep are produced by JsonSerializer, so a property that does not parse means something upstream
             // already wrote something unexpected — worth a line rather than passing silently.
-            Log.LogDebug(ex, "Embedded-JSON property {Property} did not parse; comparing it as a plain string.", propertyName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Embedded-JSON property {Property} did not parse; comparing it as a plain string.", propertyName);
+            }
             return null;
         }
     }

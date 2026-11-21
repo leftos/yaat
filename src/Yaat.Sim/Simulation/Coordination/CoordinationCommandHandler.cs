@@ -121,7 +121,10 @@ public static class CoordinationCommandHandler
 
         channel.Items.Add(item);
         engine.MarkCoordinationChanged();
-        Log.LogInformation("Coordination release: {Callsign} on list {ListId} (status={Status})", callsign, channel.ListId, item.Status);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Coordination release: {Callsign} on list {ListId} (status={Status})", callsign, channel.ListId, item.Status);
+        }
 
         bool autoAcked = item.Status == StarsCoordinationStatus.Acknowledged;
         string msg = autoAcked
@@ -159,7 +162,10 @@ public static class CoordinationCommandHandler
             // Send a held message
             existing.Status = StarsCoordinationStatus.Unacknowledged;
             engine.MarkCoordinationChanged();
-            Log.LogInformation("Coordination hold-send: {Callsign} on list {ListId}", callsign, channel.ListId);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Coordination hold-send: {Callsign} on list {ListId}", callsign, channel.ListId);
+            }
             return new CommandResult(true, $"Hold sent for {callsign} on list {channel.ListId}");
         }
 
@@ -177,7 +183,10 @@ public static class CoordinationCommandHandler
         channel.Items.Add(item);
         engine.MarkCoordinationChanged();
 
-        Log.LogInformation("Coordination hold-create: {Callsign} on list {ListId}", callsign, channel.ListId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Coordination hold-create: {Callsign} on list {ListId}", callsign, channel.ListId);
+        }
         return new CommandResult(true, $"Hold created for {callsign} on list {channel.ListId}");
     }
 
@@ -214,14 +223,20 @@ public static class CoordinationCommandHandler
         if (item.Status == StarsCoordinationStatus.Unsent)
         {
             channel.Items.Remove(item);
-            Log.LogInformation("Coordination recall-delete: {Callsign} on list {ListId}", callsign, channel.ListId);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Coordination recall-delete: {Callsign} on list {ListId}", callsign, channel.ListId);
+            }
             msg = $"Recalled {callsign} from list {channel.ListId} (removed)";
         }
         else
         {
             item.Status = StarsCoordinationStatus.Recalled;
             item.ExpireTime = scenario.ElapsedSeconds + SimScenarioState.CoordinationRecallLingerSeconds;
-            Log.LogInformation("Coordination recall: {Callsign} on list {ListId}", callsign, channel.ListId);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Coordination recall: {Callsign} on list {ListId}", callsign, channel.ListId);
+            }
             msg = $"Recalled {callsign} on list {channel.ListId}";
         }
 
@@ -267,7 +282,10 @@ public static class CoordinationCommandHandler
         item.ExpireTime = scenario.ElapsedSeconds + SimScenarioState.CoordinationAckExpirySeconds;
         engine.MarkCoordinationChanged();
 
-        Log.LogInformation("Coordination acknowledge: {Callsign} on list {ListId}", callsign, channel.ListId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Coordination acknowledge: {Callsign} on list {ListId}", callsign, channel.ListId);
+        }
         return new CommandResult(true, $"Acknowledged {callsign} on list {channel.ListId}");
     }
 
@@ -376,7 +394,10 @@ public static class CoordinationCommandHandler
 
         channel.Items.Remove(item);
         engine.MarkCoordinationChanged();
-        Log.LogInformation("Coordination delete: {Callsign} on list {ListId}", callsign, channel.ListId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Coordination delete: {Callsign} on list {ListId}", callsign, channel.ListId);
+        }
         return new CommandResult(true, $"Deleted {callsign} from list {channel.ListId}");
     }
 
@@ -393,7 +414,10 @@ public static class CoordinationCommandHandler
         int index = Math.Clamp(position - 1, 0, channel.Items.Count);
         channel.Items.Insert(index, item);
         engine.MarkCoordinationChanged();
-        Log.LogInformation("Coordination reorder: {Callsign} to line {Position} on list {ListId}", callsign, position, channel.ListId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Coordination reorder: {Callsign} to line {Position} on list {ListId}", callsign, position, channel.ListId);
+        }
         return new CommandResult(true, $"Moved {callsign} to line {position} on list {channel.ListId}");
     }
 
@@ -413,7 +437,10 @@ public static class CoordinationCommandHandler
 
         item.Message = text;
         engine.MarkCoordinationChanged();
-        Log.LogInformation("Coordination modify: {Callsign} text on list {ListId}", callsign, channel.ListId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Coordination modify: {Callsign} text on list {ListId}", callsign, channel.ListId);
+        }
         return new CommandResult(true, $"Set message text for {callsign} on list {channel.ListId}");
     }
 

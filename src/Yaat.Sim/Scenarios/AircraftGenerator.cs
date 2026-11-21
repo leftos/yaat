@@ -116,12 +116,15 @@ public static class AircraftGenerator
         {
             throw new InvalidOperationException("AircraftGenerator data validation failed:\n  - " + string.Join("\n  - ", problems));
         }
-        Log.LogInformation(
-            "AircraftGenerator type table validated: {Count} types across {Buckets} buckets, {Airlines} airlines",
-            TypeTable.Sum(kv => kv.Value.Length),
-            TypeTable.Count,
-            Airlines.Length
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "AircraftGenerator type table validated: {Count} types across {Buckets} buckets, {Airlines} airlines",
+                TypeTable.Sum(kv => kv.Value.Length),
+                TypeTable.Count,
+                Airlines.Length
+            );
+        }
     }
 
     /// <summary>
@@ -198,18 +201,22 @@ public static class AircraftGenerator
         {
             AircraftState s = result.State;
             AircraftCategory cat = AircraftCategorization.Categorize(s.AircraftType);
-            Log.LogInformation(
-                "[ArrivalGen] spawned {Callsign} type={Type} cat={Cat} (req={Weight}/{Engine}) on {Position} rwy={Runway} alt={Alt:F0}ft ias={Ias:F0}kts",
-                s.Callsign,
-                s.AircraftType,
-                cat,
-                request.Weight,
-                request.Engine,
-                request.PositionType,
-                request.RunwayId ?? "-",
-                s.Altitude,
-                s.IndicatedAirspeed
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[ArrivalGen] spawned {Callsign} type={Type} cat={Cat} (req={Weight}/{Engine}) on {Position} "
+                        + "rwy={Runway} alt={Alt:F0}ft ias={Ias:F0}kts",
+                    s.Callsign,
+                    s.AircraftType,
+                    cat,
+                    request.Weight,
+                    request.Engine,
+                    request.PositionType,
+                    request.RunwayId ?? "-",
+                    s.Altitude,
+                    s.IndicatedAirspeed
+                );
+            }
         }
         return result;
     }
@@ -936,13 +943,16 @@ public static class AircraftGenerator
         {
             return;
         }
-        Log.LogInformation(
-            "[ArrivalGen] bucket fallback: requested {ReqWeight}/{ReqEngine} resolved via {ResWeight}/{ResEngine}",
-            requested.Weight,
-            requested.Engine,
-            resolved.Weight,
-            resolved.Engine
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[ArrivalGen] bucket fallback: requested {ReqWeight}/{ReqEngine} resolved via {ResWeight}/{ResEngine}",
+                requested.Weight,
+                requested.Engine,
+                resolved.Weight,
+                resolved.Engine
+            );
+        }
     }
 
     /// <summary>
