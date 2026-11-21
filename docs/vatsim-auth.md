@@ -88,6 +88,10 @@ scenario's `artccId` against the same set *before* the rating gate, so a scenari
 public catalog can't be loaded from a room of a different ARTCC. `GetMyPermittedArtccs` returns the set (home
 first) so the desktop client shows an ARTCC picker on Create Room only when there is more than one.
 
+`GetMyEditableArtccs` is a separate, sorted list: the ARTCCs the caller may **edit scenarios** for, a UI filter for the scenario editor that vNAS enforces on upload. It is the vNAS ARTCCs where the caller's VATUSA roles include INS, TA, ATM, DATM, FE or WM (a mentor, MTR, does not qualify; a facility that is not a vNAS ARTCC is dropped), else the token's home ARTCC for a caller VATUSA does not know, plus the operator grants and the authorized-editor entries for the CID; every ARTCC under dev auth. It never feeds `GetMyPermittedArtccs`, `CreateRoom` or `GetScenarioJsonById`. `VatusaService` remembers each CID's last lookup (every sign-in, refresh and feed call writes it); the hub call uses a remembered success as is and a remembered failure (a 404 or an unreachable VATUSA) for 5 minutes before asking again. The desktop client's `ArtccEditAccess` caches the answer on the stored session (`EditableArtccs` in `auth-sessions.json`), falls back to that cache, else the Settings ARTCC, when the hub call fails, and drops the cache on sign-out or a new login.
+
+Authorized editors are a second operator file beside the grants file: `src/Yaat.Server/Data/artcc-editors.json` (`yaat-artcc-editors/1`: `editors` maps an ARTCC id to the CIDs that may edit its scenarios), read once at startup from the grants file's folder (so `Yaat:ArtccGrantsPath` moves both), by the same `ArtccGrantList` loader. Each loader refuses the other's format, and a missing or malformed editors file means no editor entries.
+
 Grants are the hand-vetted visiting-mentor list — e.g. a ZOA-home controller the ZMA Training Administrator has
 approved to mentor at ZMA. They live in the **private yaat-server repo** at `src/Yaat.Server/Data/artcc-grants.json`
 (`yaat-artcc-grants/1`: `grants[].cid`, `artccs`, plus free-text `name`/`note` for audit), ship inside the Docker
@@ -166,7 +170,7 @@ client** with its own callback. Config (secrets via env / `appsettings.Local.jso
 | `Yaat:Vnas:RefreshTokenLifetimeHours` | Lifetime of a vEDST refresh token (default 24) |
 | `Yaat:Auth:RequireVatsimAuth` | `true` (default, fail-secure). `false` enables `/auth/dev` for local dev |
 | `Yaat:Auth:JwtSigningKey` | HS256 key (≥32 bytes). Required in Production; a fixed dev key is used if blank in Development |
-| `Yaat:ArtccGrantsPath` | Operator ARTCC grants file (visiting mentors); blank → the committed `Data/artcc-grants.json` in the image |
+| `Yaat:ArtccGrantsPath` | Operator ARTCC grants file (visiting mentors); blank → the committed `Data/artcc-grants.json` in the image. The authorized-editors file `artcc-editors.json` is read from the same folder |
 
 ### Multi-domain Docker deployment
 
@@ -207,7 +211,7 @@ By default it pulls the CI-built ghcr image with the `docker-compose.image.yml` 
 
 Why the gate would bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted without the ARTCC stays ARTCC-less forever.
 
-`GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally, register an `http://localhost:5130/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and set `RequireVatsimAuth=true` + the `Vatsim:*` config.
+`GetMyPermittedArtccs` and `GetMyEditableArtccs` both return every vNAS ARTCC under dev auth, so the pickers list them all. To test the real flow locally, register an `http://localhost:5130/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 ## vEDST sign-in (`/vnas`)
 

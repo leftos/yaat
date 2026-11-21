@@ -406,6 +406,17 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<List<string>>("GetMyPermittedArtccs");
     }
 
+    /// <summary>
+    /// The ARTCCs this controller may edit scenarios for, sorted: the server's answer from VATUSA roles, the home ARTCC for
+    /// a controller VATUSA does not know, operator grants and authorized editors; every ARTCC under dev auth. A UI filter
+    /// only (vNAS enforces on upload); <see cref="ArtccEditAccess"/> caches it with the stored session.
+    /// </summary>
+    public async Task<List<string>> GetMyEditableArtccsAsync(CancellationToken ct)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<string>>("GetMyEditableArtccs", ct);
+    }
+
     // --- Scenario lifecycle ---
 
     public async Task<LoadScenarioResultDto> LoadScenarioAsync(

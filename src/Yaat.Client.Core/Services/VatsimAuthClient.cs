@@ -147,6 +147,30 @@ public sealed class VatsimAuthClient
     public VatsimIdentity? GetIdentity(string serverUrl) =>
         TryGetSession(NormalizeServer(serverUrl), out StoredSession? session) ? ToIdentity(session) : null;
 
+    /// <summary>
+    /// The ARTCCs the server last said this session may edit scenarios for, kept with the stored session across restarts and
+    /// token refreshes; null when there is no session or the server has not been asked yet.
+    /// </summary>
+    public IReadOnlyList<string>? GetEditableArtccs(string serverUrl) =>
+        TryGetSession(NormalizeServer(serverUrl), out StoredSession? session) ? session.EditableArtccs : null;
+
+    /// <summary>
+    /// Stores the server's editable-ARTCC list with the session, only while that session is still <paramref name="expectedCid"/>'s
+    /// (the CID signed in when the list was asked for); does nothing when there is no session or another CID signed in since.
+    /// </summary>
+    public void SetEditableArtccs(string serverUrl, string expectedCid, IReadOnlyList<string> artccs)
+    {
+        string key = NormalizeServer(serverUrl);
+        lock (_gate)
+        {
+            if (_sessions.TryGetValue(key, out StoredSession? session) && string.Equals(session.Cid, expectedCid, StringComparison.Ordinal))
+            {
+                _sessions[key] = session with { EditableArtccs = [.. artccs] };
+                SaveSessions();
+            }
+        }
+    }
+
     public void SignOut(string serverUrl)
     {
         string key = NormalizeServer(serverUrl);
@@ -385,7 +409,8 @@ public sealed class VatsimAuthClient
             ReadString(root, "rating") ?? "",
             ReadString(root, "subdivision"),
             root.TryGetProperty("isTrainingStaff", out JsonElement staff) && (staff.ValueKind == JsonValueKind.True),
-            ReadString(root, "artcc")
+            ReadString(root, "artcc"),
+            EditableArtccs: null
         );
     }
 
@@ -544,6 +569,7 @@ public sealed class VatsimAuthClient
         string Rating,
         string? Subdivision,
         bool IsTrainingStaff,
-        string? Artcc
+        string? Artcc,
+        IReadOnlyList<string>? EditableArtccs
     );
 }
