@@ -232,7 +232,9 @@ Tower Cab 3D (a third-party vNAS client) connects as a negotiated joiner over th
 
 A kick removes the whole CID from the room, this viewer included, and bans the CID from the room until an instructor pulls it back in (`PullRpo`/`PullCrcClient`); a banned CID is neither offered nor attached to the room.
 
-Tower Cab 3D signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`.
+Tower Cab 3D signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`. vEDST's serverless login does the same with the token its own code exchange returns.
+
+`/vnas/auth/refresh` verifies a VATSIM token at production userinfo (`VatsimAuthService.FetchUserByAccessTokenAsync`). Only when production refuses it and `Yaat:Vatsim:SandboxUserInfoUrl` is set (appsettings.Development.json sets it; a deployed server leaves it unset) is it asked of the VATSIM Connect sandbox (`FetchUserBySandboxAccessTokenAsync`), as `GET /feed/rooms` does, so a local server accepts a sandbox client's token. An outage of either answers 503 and never falls through; a YAAT token is never sent to either.
 
 The room session's rules (`TowerCabRooms`, `CrcClientState.TowerCab.cs`):
 
