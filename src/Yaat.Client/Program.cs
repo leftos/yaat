@@ -48,8 +48,11 @@ public static class Program
 
         AppLog.Initialize("yaat-client.log");
         ILogger log = AppLog.CreateLogger("Program");
-        log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
-        log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
+        if (log.IsEnabled(LogLevel.Information))
+        {
+            log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
+            log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
+        }
 
         // Read before CUDA or LM-Kit start: a refused YAAT_CLOAK exits here, ahead of the native teardown that hung an exit in GitHub #347.
         AutomationMode.IsEnabled = AutomationMode.ReadFromEnvironment();
@@ -98,7 +101,10 @@ public static class Program
         if (CudaBackendInstaller.IsInstalledOnDisk())
         {
             Runtime.BackendDirectory = CudaBackendInstaller.InstallRoot;
-            log.LogInformation("CUDA backend directory set to {Path}", CudaBackendInstaller.InstallRoot);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("CUDA backend directory set to {Path}", CudaBackendInstaller.InstallRoot);
+            }
         }
 
         // Before anything touches sherpa-onnx: its statically linked C runtime binds stderr when the DLL loads.
@@ -115,7 +121,7 @@ public static class Program
         {
             log.LogWarning(licenseError, "LM-Kit license setup failed (non-fatal; will run with defaults)");
         }
-        else
+        else if (log.IsEnabled(LogLevel.Information))
         {
             log.LogInformation("LM-Kit {Tier} initialized from {Source}", licenseResult.Tier, licenseResult.Source);
         }
@@ -304,10 +310,13 @@ public static class Program
             Environment.Exit(CloakWithoutAutomationExitCode);
         }
 
-        log.LogInformation(
-            "Window cloaking on ({Variable}=1): every window is DWM-cloaked before its first show",
-            AutomationMode.CloakEnvironmentVariable
-        );
+        if (log.IsEnabled(LogLevel.Information))
+        {
+            log.LogInformation(
+                "Window cloaking on ({Variable}=1): every window is DWM-cloaked before its first show",
+                AutomationMode.CloakEnvironmentVariable
+            );
+        }
         AutomationGate.CloakWindows = true;
     }
 

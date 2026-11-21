@@ -390,7 +390,10 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
             }
 
             double milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            Log.LogDebug("Pause trigger {Trigger} paused in {Ms} ms", cause.Trigger, Math.Round(milliseconds));
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Pause trigger {Trigger} paused in {Ms} ms", cause.Trigger, Math.Round(milliseconds));
+            }
         }
         catch (Exception ex)
         {

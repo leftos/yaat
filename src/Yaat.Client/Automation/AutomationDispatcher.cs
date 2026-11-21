@@ -140,7 +140,10 @@ public sealed class AutomationDispatcher
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Log.LogDebug("Automation method {Method} (request {Id}) cancelled", handler.Method, id);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Automation method {Method} (request {Id}) cancelled", handler.Method, id);
+            }
             throw;
         }
         catch (Exception ex)

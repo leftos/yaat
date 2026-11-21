@@ -65,11 +65,17 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         }
         catch (OperationCanceledException)
         {
-            Log.LogDebug("Automation pipe {PipeName} stopped listening: host shutdown", pipeName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Automation pipe {PipeName} stopped listening: host shutdown", pipeName);
+            }
         }
         catch (Exception ex) when (IsShutdownClose(ex, ct))
         {
-            Log.LogDebug(ex, "Automation pipe {PipeName} stopped listening: host shutdown closed the pending instance", pipeName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Automation pipe {PipeName} stopped listening: host shutdown closed the pending instance", pipeName);
+            }
         }
         catch (Exception ex)
         {
@@ -153,15 +159,24 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         }
         catch (OperationCanceledException)
         {
-            Log.LogDebug("Automation pipe {PipeName}: connection closed by host shutdown", pipeName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Automation pipe {PipeName}: connection closed by host shutdown", pipeName);
+            }
         }
         catch (Exception ex) when (IsShutdownClose(ex, ct))
         {
-            Log.LogDebug(ex, "Automation pipe {PipeName}: connection closed by host shutdown", pipeName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Automation pipe {PipeName}: connection closed by host shutdown", pipeName);
+            }
         }
         catch (IOException ex)
         {
-            Log.LogDebug(ex, "Automation pipe {PipeName}: client disconnected", pipeName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Automation pipe {PipeName}: client disconnected", pipeName);
+            }
         }
         catch (Exception ex)
         {
@@ -220,6 +235,9 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
             }
         }
 
-        Log.LogDebug("Automation pipe {PipeName}: closed {Count} server instance(s) on dispose", pipeName, open.Count);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Automation pipe {PipeName}: closed {Count} server instance(s) on dispose", pipeName, open.Count);
+        }
     }
 }

@@ -64,7 +64,10 @@ public sealed class SelectorRequestHelper(SelectorEngine engine, NodeRegistry re
         }
         catch (SelectorParseException ex)
         {
-            Log.LogDebug(ex, "Automation selector {Selector} does not parse", selector);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Automation selector {Selector} does not parse", selector);
+            }
             parsed = null;
             error = HandlerResult.InvalidSelector(selector, ex.Message, ex.Position);
             return false;

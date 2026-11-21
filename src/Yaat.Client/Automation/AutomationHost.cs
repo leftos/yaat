@@ -34,7 +34,10 @@ public sealed class AutomationHost(string pipeName, string discoveryDirectory, A
     {
         _transport.Start(HandleConnection);
         _discoveryFile.Write();
-        Log.LogInformation("Automation host listening on pipe {PipeName}; discovery file {DiscoveryFile}", pipeName, _discoveryFile.FilePath);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Automation host listening on pipe {PipeName}; discovery file {DiscoveryFile}", pipeName, _discoveryFile.FilePath);
+        }
     }
 
     private async Task HandleConnection(Stream stream, CancellationToken ct)
@@ -78,7 +81,10 @@ public sealed class AutomationHost(string pipeName, string discoveryDirectory, A
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            Log.LogDebug("Automation request cancelled on pipe {PipeName}: the client disconnected", pipeName);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Automation request cancelled on pipe {PipeName}: the client disconnected", pipeName);
+            }
             return null;
         }
     }
@@ -96,6 +102,9 @@ public sealed class AutomationHost(string pipeName, string discoveryDirectory, A
 
         _transport.Dispose();
         _discoveryFile.Dispose();
-        Log.LogInformation("Automation host on pipe {PipeName} stopped", pipeName);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Automation host on pipe {PipeName} stopped", pipeName);
+        }
     }
 }

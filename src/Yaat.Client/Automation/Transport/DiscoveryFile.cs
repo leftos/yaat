@@ -149,7 +149,10 @@ public sealed class DiscoveryFile(string directory, string pipeName) : IDisposab
         try
         {
             File.Delete(file);
-            Log.LogInformation("Removed stale automation discovery file {File}: {Reason}", file, reason);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Removed stale automation discovery file {File}: {Reason}", file, reason);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

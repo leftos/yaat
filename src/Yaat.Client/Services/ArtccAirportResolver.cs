@@ -53,7 +53,10 @@ public sealed class ArtccAirportResolver
 
         List<string> airports = ExtractUnderlyingAirports(json);
         _airportCache[artccId] = airports;
-        _log.LogInformation("Resolved {Count} airports for {Artcc}", airports.Count, artccId);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Resolved {Count} airports for {Artcc}", airports.Count, artccId);
+        }
         return airports;
     }
 

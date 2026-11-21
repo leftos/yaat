@@ -29,7 +29,7 @@ public static class AutomationMode
         get => AutomationGate.SuppressActivation;
         set
         {
-            if (value && !AutomationGate.SuppressActivation)
+            if (value && !AutomationGate.SuppressActivation && Log.IsEnabled(LogLevel.Information))
             {
                 Log.LogInformation(
                     "Automation mode on ({Variable}=1): windows show never-activated; key hook and Discord presence off",

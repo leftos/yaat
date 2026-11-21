@@ -1494,7 +1494,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         }
 
         LogLevel level = _warnedTurnAboutShapes.Add(wire) ? LogLevel.Warning : LogLevel.Debug;
-        Log.Log(level, "{Callsign}: unknown taxi turn-about shape '{Shape}' from the server; drawing no turn about", Callsign, wire);
+        if (Log.IsEnabled(level))
+        {
+            Log.Log(level, "{Callsign}: unknown taxi turn-about shape '{Shape}' from the server; drawing no turn about", Callsign, wire);
+        }
         return TaxiTurnAboutShape.None;
     }
 
@@ -1519,7 +1522,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         }
 
         LogLevel level = _warnedStandDepartures.Add(wire) ? LogLevel.Warning : LogLevel.Debug;
-        log.Log(level, "{Callsign}: unknown stand departure '{Departure}' from the server; treating the aircraft as on no stand", Callsign, wire);
+        if (log.IsEnabled(level))
+        {
+            log.Log(level, "{Callsign}: unknown stand departure '{Departure}' from the server; treating the aircraft as on no stand", Callsign, wire);
+        }
         return null;
     }
 

@@ -107,7 +107,10 @@ public sealed class AudioCaptureService(UserPreferences preferences) : IAudioCap
                 );
                 _stream.Start();
                 _isCapturing = true;
-                Log.LogInformation("Audio capture started on device {Index} ({Name})", deviceIndex, info.name);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Audio capture started on device {Index} ({Name})", deviceIndex, info.name);
+                }
                 return true;
             }
             catch (Exception ex)
@@ -135,7 +138,14 @@ public sealed class AudioCaptureService(UserPreferences preferences) : IAudioCap
             StopStreamUnsafe();
             float[] samples = [.. _capturedSamples];
             _capturedSamples = [];
-            Log.LogInformation("Audio capture stopped: {SampleCount} samples ({Seconds:F2}s)", samples.Length, samples.Length / (float)SampleRate);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Audio capture stopped: {SampleCount} samples ({Seconds:F2}s)",
+                    samples.Length,
+                    samples.Length / (float)SampleRate
+                );
+            }
             return samples;
         }
     }
@@ -208,7 +218,10 @@ public sealed class AudioCaptureService(UserPreferences preferences) : IAudioCap
 
         PortAudio.Initialize();
         _portAudioInitialized = true;
-        Log.LogInformation("PortAudio initialized: {Version}", PortAudio.VersionInfo.versionText);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("PortAudio initialized: {Version}", PortAudio.VersionInfo.versionText);
+        }
     }
 
     private static int ResolveInputDevice(string preferred)

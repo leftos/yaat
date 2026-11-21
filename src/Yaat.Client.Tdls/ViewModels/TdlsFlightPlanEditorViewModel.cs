@@ -323,11 +323,14 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         (string? filedSidId, string? filedTransitionId) = MatchSidFromFiledRoute(_config, plan?.Route, _opConfigId);
         if (ResolveSid(filedSidId) is not { } sid)
         {
-            Log.LogDebug(
-                "Amended route '{Route}' for {Callsign} names no configured SID — leaving the selections as composed",
-                plan?.Route,
-                Callsign
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Amended route '{Route}' for {Callsign} names no configured SID — leaving the selections as composed",
+                    plan?.Route,
+                    Callsign
+                );
+            }
             return;
         }
 
@@ -722,7 +725,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             )
             : null;
 
-        if (numeric is null)
+        if (numeric is null && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug(
                 "TDLS value '{Value}' has no match in [{Options}] — leaving the field unset",

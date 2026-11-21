@@ -581,14 +581,19 @@ public partial class VTdlsViewModel : ObservableObject
         }
     }
 
-    private void LogSelectionChange(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue) =>
-        _log.LogDebug(
-            "Selection {OldAircraftId}/{OldStatus} -> {NewAircraftId}/{NewStatus}",
-            oldValue?.AircraftId,
-            oldValue?.Status,
-            newValue?.AircraftId,
-            newValue?.Status
-        );
+    private void LogSelectionChange(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
+    {
+        if (_log.IsEnabled(LogLevel.Debug))
+        {
+            _log.LogDebug(
+                "Selection {OldAircraftId}/{OldStatus} -> {NewAircraftId}/{NewStatus}",
+                oldValue?.AircraftId,
+                oldValue?.Status,
+                newValue?.AircraftId,
+                newValue?.Status
+            );
+        }
+    }
 
     partial void OnSelectedPendingItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue) => OnListSelectionChanged(oldValue, newValue);
 
@@ -612,7 +617,14 @@ public partial class VTdlsViewModel : ObservableObject
             bool changesSelection = (newValue is not null) ? !ReferenceEquals(newValue, SelectedItem) : ReferenceEquals(oldValue, SelectedItem);
             if (changesSelection)
             {
-                _log.LogDebug("Row {AircraftId} ignored: the editor for {OpenAircraftId} is open", newValue?.AircraftId, SelectedItem?.AircraftId);
+                if (_log.IsEnabled(LogLevel.Debug))
+                {
+                    _log.LogDebug(
+                        "Row {AircraftId} ignored: the editor for {OpenAircraftId} is open",
+                        newValue?.AircraftId,
+                        SelectedItem?.AircraftId
+                    );
+                }
 
                 // Posted: the ListBox is still inside its own selection change and would overwrite a synchronous write.
                 Dispatcher.UIThread.Post(() => MirrorListSelections(SelectedItem));
@@ -789,7 +801,10 @@ public partial class VTdlsViewModel : ObservableObject
 
         if (generation != _pageGeneration)
         {
-            _log.LogDebug("TDLS facility view for {Facility} superseded before it arrived; not applied", facilityId);
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug("TDLS facility view for {Facility} superseded before it arrived; not applied", facilityId);
+            }
             return false;
         }
         Dispatcher.UIThread.Post(() =>

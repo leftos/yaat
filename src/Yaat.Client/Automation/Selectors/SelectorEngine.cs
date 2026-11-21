@@ -197,7 +197,10 @@ public sealed class SelectorEngine(NodeRegistry registry)
         }
         catch (Exception ex) when (ex is AmbiguousMatchException or TargetInvocationException)
         {
-            Log.LogDebug(ex, "Selector could not read property {Property} of {Type}; treating it as no match", name, target.GetType().Name);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Selector could not read property {Property} of {Type}; treating it as no match", name, target.GetType().Name);
+            }
             return null;
         }
     }
