@@ -1,7 +1,4 @@
-using Yaat.Sim;
-using Yaat.Sim.Data.Airport;
-
-namespace Yaat.LayoutInspector;
+namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
 /// Validates airport ground layout geometry and reports warnings about
@@ -16,6 +13,7 @@ public sealed class LayoutValidator(AirportGroundLayout layout)
     private readonly AirportGroundLayout _layout = layout;
     private readonly List<ValidationWarning> _warnings = [];
 
+    /// <summary>Runs every check over the layout and returns the warnings found, in check order.</summary>
     public List<ValidationWarning> Validate()
     {
         _warnings.Clear();

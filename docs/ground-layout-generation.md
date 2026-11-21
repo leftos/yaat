@@ -580,11 +580,15 @@ dotnet run --project tools/Yaat.LayoutInspector -- <airport-geojson-path> [optio
 
 ### Validation Warnings
 
-Enabled via `--validate` on LayoutInspector:
+`LayoutValidator` (`src/Yaat.Sim/Data/Airport/LayoutValidator.cs`, `Validate()` returns `ValidationWarning(Code, Message, Origin)`) is shared by LayoutInspector's `--validate` and the tests. Codes:
 
-- **arc-tangent-misaligned** (0 at OAK, 0 at SFO): Arc tangent deviates >15° from construction bearing (Issue #4 — fixed)
-- **degenerate-arc** (radius < 5ft): Arc collapsed after node merge, removed
-- **disconnected-subgraph**: Node orphaned (Issue #12)
+- **arc-missing-node** / **edge-missing-node**: an arc's or edge's node id is not in `layout.Nodes`
+- **arc-stale-node-ref** / **edge-stale-node-ref**: an arc's or edge's node object sits away from `layout.Nodes` for the same id (stale reference after a node moved)
+- **arc-tangent-misaligned**: arc tangent deviates more than 15° from the stored construction bearing (parallel or anti-parallel both accepted; arcs with no stored bearing are skipped)
+- **arc-degenerate-radius**: a genuine turn (more than 30°) whose minimum radius of curvature is under 5 ft (corrupt bezier)
+- **self-loop-edge** / **self-loop-arc**: both endpoints are the same node
+- **orphan-node**: a node with no edges
+- **disconnected-subgraph**: a connected component other than the largest, over non-runway-centerline edges plus arcs
 
 ### Test Coverage
 
@@ -758,6 +762,7 @@ LayoutInputs.cs                # LayoutInputs(StandLeadIns, VideoMap, SpotEdges)
 TowerCabVideoMap.cs            # TowerCabVideoMap.Read(geoJson): the two-point segments (LineString and MultiLineString parts, painted hold-short bars) of a tower-cab videomap GeoJSON, in file order, with a SHA-256 Hash of them (the precompute key's VideoMapHash); a skipped feature or malformed position is logged at Warning, a non-FeatureCollection root throws JsonException; VideoMapSegment(A, B)
 TowerCabMapDownloader.cs       # The one downloader for a tower-cab videomap, shared by the client's ground view and yaat-server's layout build: FetchAsync(baseUrl, artccId, videoMapId) → HttpCacheResult via HttpFileCache (HeadLastModified), cached at %LOCALAPPDATA%/yaat/cache/towercab-maps/{ARTCC}/{id}.geojson; an empty base URL makes no request and serves the cached file (or none)
 GroundMapIssue.cs              # GroundMapIssue + GroundMapIssueKind: one feature GeoJsonParser left out of a layout (unknown/missing type, malformed), for the scenario validator's ground-map check
+LayoutValidator.cs             # LayoutValidator.Validate: post-fillet sanity checks over a layout (stale/missing node refs, tangent misalignment, degenerate arcs, self-loops, orphan nodes, disconnected subgraphs) as ValidationWarning(Code, Message, Origin); shared by LayoutInspector --validate. See "Validation Warnings"
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayPaintPairing.cs          # Internal: pairs a crossing's generated hold-short point with a painted tower-cab videomap bar on its taxiway (Candidates, innermost first; snap band D_rule-60..+100 ft; PaintPair, PaintSource); RunwayCrossingDetector seats the bar on the first the placement can seat, see docs/ground/hold-short-placement.md
 RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; PlanRunway resolves each runway's S (HoldShortStandoff) and seats hold-short bars at D, S plus the angled-taxiway term (MeasureCrossingAngleDeg), clamped short of where the path from S first enters another runway's holding area (CrossingStandoffNm), or at the paired painted bar's D_paint (SeatCrossing, PairWithPaint; GroundNode.PaintSegmentIndex), splitting twin-named edges between the same node pair at each bar (SplitTwinEdgesAtNode); `MarkShortBars` flags each bar hold line vs short bar as the last build step — see docs/ground/hold-short-placement.md
