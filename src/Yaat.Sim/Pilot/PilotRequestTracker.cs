@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
@@ -245,6 +246,7 @@ public static class PilotRequestTracker
         }
 
         RefreshFurtherClearanceLine(pending, aircraft);
+        RefreshBravoBoundaryLine(pending, aircraft);
 
         // Re-queue both forms independently — the terminal (SAY) form is callsign-free (the SAY
         // column carries the callsign) and the spoken form spells it. RpoTerminal is null for every
@@ -316,6 +318,50 @@ public static class PilotRequestTracker
         if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("{Callsign}: re-asks for further clearance holding over {Airport}: {Line}", aircraft.Callsign, hold.FixName, line.Terminal);
+        }
+        pending.LastPilotLine = line.Terminal;
+        pending.LastPilotLineTts = line.Tts;
+    }
+
+    /// <summary>The boundary hold the pilot flies outside the Class B its request named, or null (no hold, or another one).</summary>
+    private static AirspaceBoundaryHoldPhase? HoldOutsideRequestedBravo(PilotPendingRequest pending, AircraftState aircraft) =>
+        (
+            (aircraft.Phases?.CurrentPhase is AirspaceBoundaryHoldPhase { AirspaceClass: AirspaceClass.Bravo } hold)
+            && string.Equals(hold.Ident, pending.AirspaceIdent, StringComparison.OrdinalIgnoreCase)
+        )
+            ? hold
+            : null;
+
+    /// <summary>
+    /// Rebuilds the re-ask of a Class B request from the boundary hold, so that it says where the pilot waits: orbiting
+    /// outside the Class B, or levelled below its shelf. Away from a hold the re-ask is the request as first asked.
+    /// </summary>
+    private static void RefreshBravoBoundaryLine(PilotPendingRequest pending, AircraftState aircraft)
+    {
+        if ((pending.Kind != PilotPendingRequestKind.AirspaceEntry) || (pending.AirspaceClass != nameof(AirspaceClass.Bravo)))
+        {
+            return;
+        }
+
+        BravoClearanceWording wording = pending.BravoWording ?? BravoClearanceWording.Into;
+        PilotSpeechText line;
+        if (HoldOutsideRequestedBravo(pending, aircraft) is { } hold)
+        {
+            line = PilotResponder.BuildBravoBoundaryReask(aircraft, wording, hold);
+        }
+        else if (pending.BravoWording is not null)
+        {
+            // A re-ask voiced from a hold rewrote the stored line; once the hold is over the request is asked as first worded.
+            line = PilotResponder.BuildBravoClearanceRequest(aircraft, wording);
+        }
+        else
+        {
+            return;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: re-asks for the Class B clearance: {Line}", aircraft.Callsign, line.Terminal);
         }
         pending.LastPilotLine = line.Terminal;
         pending.LastPilotLineTts = line.Tts;

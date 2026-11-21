@@ -69,7 +69,6 @@ public class SnapshotRoundTripTests
             Voice = new AircraftVoice { Type = 1 },
             HasMadeInitialContact = true,
             HasControllerAcknowledgedInitialContact = true,
-            IsClearedIntoBravo = true,
             HasAnnouncedLinedUpReady = true,
             PendingPilotRequest = new PilotPendingRequest
             {
@@ -82,8 +81,12 @@ public class SnapshotRoundTripTests
                 LastPilotLineTts = "approach, american one hundred ten miles to land runway two eight right.",
                 RunwayId = "28R",
                 FacilityCallName = "approach",
+                BravoWording = BravoClearanceWording.Through,
             },
         };
+        ac.GrantBravoClearance("SFO");
+        ac.MarkClearedBravoEntered();
+        ac.MarkOutsideClearedBravo(1000);
         ac.Ground.InitialCallupDecisionProcessed = true;
         ac.Ground.InitialCallup = InitialCallupPlan.AfterPush;
         ac.Ground.SpawnTaxiway = "K";
@@ -126,7 +129,9 @@ public class SnapshotRoundTripTests
         Assert.Equal(ac.Targets.AssignedAltitude, restored.Targets.AssignedAltitude);
         Assert.True(restored.HasMadeInitialContact);
         Assert.True(restored.HasControllerAcknowledgedInitialContact);
-        Assert.True(restored.IsClearedIntoBravo);
+        Assert.Equal("SFO", restored.ClearedBravoIdent);
+        Assert.True(restored.HasEnteredClearedBravo);
+        Assert.Equal(1000, restored.BravoExitSinceSeconds);
         Assert.True(restored.HasAnnouncedLinedUpReady);
         Assert.True(restored.Ground.InitialCallupDecisionProcessed);
         Assert.Equal(InitialCallupPlan.AfterPush, restored.Ground.InitialCallup);
@@ -143,6 +148,7 @@ public class SnapshotRoundTripTests
         Assert.Equal("approach, ten miles to land runway two eight right.", restored.PendingPilotRequest.LastPilotLine);
         Assert.Equal("approach, american one hundred ten miles to land runway two eight right.", restored.PendingPilotRequest.LastPilotLineTts);
         Assert.Equal("28R", restored.PendingPilotRequest.RunwayId);
+        Assert.Equal(BravoClearanceWording.Through, restored.PendingPilotRequest.BravoWording);
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 

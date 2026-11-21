@@ -150,6 +150,12 @@ public sealed class PilotPendingRequest
     /// </summary>
     public bool AskedInStepDownBand { get; set; }
 
+    /// <summary>
+    /// How a Class B request asked for its clearance, "into" or "through", which a later implied clearance and the
+    /// boundary re-ask repeat; null for any other request.
+    /// </summary>
+    public BravoClearanceWording? BravoWording { get; set; }
+
     public bool IsOpen => ResponseState is PilotPendingRequestResponseState.None or PilotPendingRequestResponseState.Standby;
 
     /// <summary>
@@ -185,6 +191,7 @@ public sealed class PilotPendingRequest
             FollowUpsVoiced = FollowUpsVoiced,
             ReopenedAfterCap = ReopenedAfterCap,
             AskedInStepDownBand = AskedInStepDownBand,
+            BravoWording = BravoWording is { } wording ? (int)wording : null,
         };
 
     public static PilotPendingRequest FromSnapshot(PilotPendingRequestDto dto) =>
@@ -212,5 +219,7 @@ public sealed class PilotPendingRequest
             ReopenedAfterCap = dto.ReopenedAfterCap,
             // Snapshots from before the field restore the 1,000 ft band.
             AskedInStepDownBand = dto.AskedInStepDownBand,
+            // Snapshots from before the field restore no wording, which a Class B request reads as "into".
+            BravoWording = dto.BravoWording is { } wording ? (BravoClearanceWording)wording : null,
         };
 }

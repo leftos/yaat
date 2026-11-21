@@ -9,6 +9,8 @@
 ### Fixed
 
 - AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
+- Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.
+- Solo: a VFR pilot waiting at the Class B boundary now says it is orbiting outside, or level below, the bravo when it asks again.
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
 
 ## v0.19.0-beta [2026/11/20]

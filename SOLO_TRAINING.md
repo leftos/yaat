@@ -294,7 +294,7 @@ Structured `RFIS` is the solo-mode way to give field-position information for vi
 
 Solo Training keeps several aviation-facing safeguards active:
 
-- VFR aircraft ask for a Class B clearance about two minutes before the boundary and repeat the request if unanswered; they hold outside until cleared with `CLBRV`, or until you vector them (heading, direct, pattern entry, approach clearance) into the Bravo, which counts as the clearance and is read back as "cleared into the bravo".
+- VFR aircraft ask for a Class B clearance about two minutes before the boundary and repeat the request if unanswered (while holding at the boundary the repeat says where they wait: "orbiting outside the bravo, still request clearance into the bravo" or "level 2,000 below the bravo, still request clearance into the bravo"); they hold outside until cleared with `CLBRV`, or until you vector them (heading, direct, pattern entry, approach clearance) into the Bravo, which counts as the clearance and is read back as "cleared into the bravo". A clearance is for one Class B: a pilot cleared into one asks again for another. It ends when the aircraft lands to a full stop, or once it has entered the Class B and then stayed outside it for two minutes with no re-entry ahead; a touch-and-go, a frequency change or climbing out under a shelf keeps it.
 - VFR aircraft hold outside Class C airspace until two-way communications are established.
 - Aircraft on a published approach warn near DA/MDA if no landing clearance exists, then go around at minimums if still uncleared.
 - Aircraft on approaches without published minimums keep the legacy short-final warning and 200 ft AGL no-clearance go-around.

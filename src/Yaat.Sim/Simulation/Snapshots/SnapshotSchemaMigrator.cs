@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 55;
+    public const int CurrentSchemaVersion = 56;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -477,6 +477,11 @@ public static class SnapshotSchemaMigrator
                 ac.FiledCruiseAltitudeFt ??= ac.FlightPlan?.AltitudeCruiseFeet;
             }
         }
+
+        // V55→V56: AircraftSnapshotDto.IsClearedIntoBravo removed; ClearedBravoIdent, HasEnteredClearedBravo and
+        //   BravoExitSinceSeconds added (nullable / WhenWritingDefault), and PilotPendingRequestDto gained BravoWording. No
+        //   data transformation — the old flag named no Class B, so a pre-56 snapshot restores no Class B clearance and the
+        //   pilot asks again; a pre-56 open request restores 'into' wording. The removed field is ignored on read.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

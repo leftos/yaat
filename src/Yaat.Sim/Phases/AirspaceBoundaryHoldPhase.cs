@@ -275,7 +275,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     private bool GateSatisfied(AircraftState aircraft) =>
         AirspaceClass switch
         {
-            AirspaceClass.Bravo => aircraft.IsClearedIntoBravo,
+            AirspaceClass.Bravo => aircraft.IsClearedIntoBravo(Ident),
             AirspaceClass.Charlie => aircraft.HasMadeInitialContact && aircraft.HasControllerAcknowledgedInitialContact,
             _ => true,
         };

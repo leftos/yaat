@@ -240,28 +240,32 @@ boolean gate flags on `AircraftState`:
 
 | Class | Gate condition | Backing field(s) |
 |---|---|---|
-| `Bravo` | explicit Class B clearance issued, or (solo) an implicit one — see below | `IsClearedIntoBravo` |
+| `Bravo` | cleared into **this** Class B: an explicit `CLBRV` or (solo) an implicit clearance, see below | `AircraftState.IsClearedIntoBravo(ident)`, reading `ClearedBravoIdent` |
 | `Charlie` | two-way comms established | `HasMadeInitialContact && HasControllerAcknowledgedInitialContact` |
 | _other_ | `true` (no gate) | — |
 
-These flags live on `AircraftState` (`IsClearedIntoBravo` at `AircraftState.cs:219`,
-`HasControllerAcknowledgedInitialContact` at `:169`, `HasMadeInitialContact` at `:162`) and are
-snapshot-serialized so replays preserve gate state.
+These fields live on `AircraftState` (`ClearedBravoIdent`, `HasControllerAcknowledgedInitialContact`,
+`HasMadeInitialContact`) and are snapshot-serialized so replays preserve gate state.
 
 ### Solo Class B request and implicit clearance
 
-Solo training only (RPO and Class C unchanged), `src/Yaat.Sim/Pilot/ImplicitBravoClearance.cs` + `PilotProactive.TryRequestBravoClearance`:
+Solo training only for the implicit grant and the request (RPO and Class C unchanged), `src/Yaat.Sim/Pilot/ImplicitBravoClearance.cs` + `PilotProactive.TryRequestBravoClearance`.
 
-- **Request.** When the first **lateral** Class B entry within 120 s (`FindFirstProjectedEntry` filtered to Bravo, so an earlier Charlie/Delta entry does not hide it) is into a volume the aircraft is not cleared into, the pilot calls `request clearance into the bravo.` (destination inside that Class B at the surface) or `…through the bravo.`, recorded as a `PilotPendingRequestKind.AirspaceEntry` request that `PilotRequestTracker` repeats every 120 s (150 s after STBY/ROGER).
+**The clearance is per Class B.** `AircraftState.ClearedBravoIdent` holds the cleared Class B's area name (`AirspaceDatabase.ClassBAreaName`: the volume's Ident, else its ICAO id; every shelf of one Class B shares it, and `ClassBAreas` / `ClassBArea` group them), and `IsClearedIntoBravo(ident)` is true only for that name. It never carries to another Class B: a pilot cleared into one still asks for a different one ahead. `GrantBravoClearance` sets it and resets the entry and exit state, `EndBravoClearance` clears it.
+
+- **Request.** When the first **lateral** Class B entry within 120 s (`FindFirstProjectedEntry` filtered to Bravo, so an earlier Charlie/Delta entry does not hide it) is into a Class B the aircraft is not cleared into, the pilot calls `request clearance into the bravo.` (destination inside that Class B at the surface) or `…through the bravo.`, recorded as a `PilotPendingRequestKind.AirspaceEntry` request that `PilotRequestTracker` repeats every 120 s (150 s after STBY/ROGER). The request keeps its wording in `PilotPendingRequest.BravoWording`.
+- **Repeat at the boundary.** While the pilot waits in the boundary hold of the Class B it asked for, `PilotRequestTracker` rewrites the re-ask (`PilotResponder.BuildBravoBoundaryReask`) to say where it waits: `{callsign}, orbiting outside the bravo, still request clearance {into|through} the bravo.` in `Orbit` mode, `{callsign}, level {altitude} below the bravo, still request clearance {into|through} the bravo.` in `LevelOff` mode. Away from the hold the re-ask is the request as first worded.
+- **Explicit clearance.** `CLBRV` (`ImplicitBravoClearance.GrantExplicit`) clears the Class B `ResolveCleared` picks: the one the pilot waits on (`CaptureWait`), else the one it is laterally inside, else the first projected entry within 120 s, else nothing changes.
 
   Gated on initial contact, not having been tuned away from the student (`AircraftState.IsTunedAwayFrom`), an empty transmission queue and no other open request. A climb into a shelf from below stays silent (issue #154).
 - **Implicit clearance.**
 
   In solo a heading/turn, DCT, pattern entry, MLT/MRT or approach clearance is a Bravo clearance (7110.65 §7-9-2 NOTE 1 says otherwise for real ops; deliberate sim convenience) when the pilot is waiting (open Bravo request or active Bravo hold, captured before dispatch in `ActionArms.Aviation`) and — for a heading/DCT — its level ray enters the waited-on Bravo within 300 s (pattern/approach grant unconditionally while waiting).
 
-  It is also one when, not waiting, a heading/DCT ray enters an uncleared Bravo within 120 s, or when a pattern entry/approach clearance is for an airport inside a Bravo.
+  It is also one when, not waiting, a heading/DCT ray enters a Class B it is not cleared into within 120 s, or when a pattern entry/approach clearance is for an airport inside a Class B. The grant names the Class B entered, the airport's, or the waited-on one.
 
-  Only the immediately applied part of a compound grants (`AT …` and later `;` blocks do not). The readback gains `, cleared into the bravo` (`, cleared through the bravo` when the open request asked to go through). With `IsClearedIntoBravo` set, the boundary hold's gate is satisfied, so a vector no longer ends the orbit only for the next second to re-arm it.
+  Only the immediately applied part of a compound grants (`AT …` and later `;` blocks do not). The readback gains `, cleared into the bravo` (`, cleared through the bravo` when the open request asked to go through). With the clearance held for that Class B, the boundary hold's gate is satisfied, so a vector no longer ends the orbit only for the next second to re-arm it.
+- **Ending.** A full-stop landing ends it (`LandingPhase` and `HelicopterLandingPhase` touchdown call `EndBravoClearance`; 7110.65 §7-9-3.b, AIM §3-2-3.d.2.b). Otherwise `PilotProactive.TickBravoClearanceExpiry` runs each tick on airborne aircraft. Laterally inside any volume of the cleared Class B, at any altitude, it marks the Class B entered (`HasEnteredClearedBravo`). Before that first entry nothing ends the clearance, so one given while turning or minutes out is kept until used. After entry it ends once the aircraft has been laterally outside every volume, with no re-entry into that Class B projected within 120 s (`FindFirstProjectedEntry` over `ImplicitBravoClearance.VolumesOf`), for `ImplicitBravoClearance.ExitGraceSeconds` (120 s) in a row. `BravoExitSinceSeconds` stamps the start of the outside stretch, and a re-entry or a projected entry resets it. A touch-and-go, a frequency change and a vertical exit under a shelf keep the clearance.
 
 `HasControllerAcknowledgedInitialContact` is set whenever the student issues a successful command
 (`RoomEngine.SendCommandAsync`, mirrored in `SimulationEngine.SendCommand`). `HasMadeInitialContact` is
@@ -363,7 +367,7 @@ One entry per file; paths are relative to `src/Yaat.Sim/`.
 
 ```
 # Data/
-Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry, under-a-Bravo-shelf test for the 91.117(c) speed cap.
+Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry (FindFirstProjectedEntry, also public over a given volume list), the Class B area grouping (ClassBAreaName / ClassBAreas / ClassBArea), under-a-Bravo-shelf test for the 91.117(c) speed cap.
 Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs # Airspace model primitives plus crossing result (point-in-polygon via shared GeoMath.PointInRing + LatLonBounds).
 Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off altitude beneath a shelf floor (round hundred, 91.159-conforming above 3000 AGL) and the turn-away direction.Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/Artcc/ArtccBoundaryDatabase.cs # Lateral ARTCC boundaries (one polygon per center) from Data/Artcc/*.geojson[.br]; FindById / FindContaining; same bundled-fixture + bbox + PointInRing shape as AirspaceDatabase. Center-room live-traffic scoping.

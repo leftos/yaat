@@ -39,6 +39,12 @@ public static class ImplicitBravoClearance
     public const double WaitingEntryLookaheadSeconds = 300.0;
 
     /// <summary>
+    /// How long an aircraft that has entered its cleared Class B may be outside it, with no re-entry projected, before the
+    /// clearance ends: a brief excursion past a boundary does not cancel it.
+    /// </summary>
+    public const double ExitGraceSeconds = 120.0;
+
+    /// <summary>
     /// The instructions that can stand as a Class B clearance: headings and turns, directs, pattern entries and
     /// traffic-pattern direction, and approach clearances. A frequency change is not one. The pending-request tracker
     /// counts these as the answer to a pilot's airspace-entry request.
@@ -76,10 +82,7 @@ public static class ImplicitBravoClearance
             } request
         )
         {
-            BravoClearanceWording asked = request.LastPilotLine.Contains(PilotResponder.BravoThroughRequest, StringComparison.Ordinal)
-                ? BravoClearanceWording.Through
-                : BravoClearanceWording.Into;
-            return new BravoClearanceWait(requested, asked);
+            return new BravoClearanceWait(requested, request.BravoWording ?? BravoClearanceWording.Into);
         }
 
         return aircraft.Phases?.CurrentPhase is AirspaceBoundaryHoldPhase { AirspaceClass: AirspaceClass.Bravo, Ident: { Length: > 0 } held }
@@ -88,8 +91,85 @@ public static class ImplicitBravoClearance
     }
 
     /// <summary>
-    /// Sets <see cref="AircraftState.IsClearedIntoBravo"/> when an instruction <paramref name="compound"/> applies at
-    /// issue time can stand as the clearance. While the pilot waits on a Class B (<paramref name="wait"/>), a pattern
+    /// The area name a Class B clearance is held by: the volume's Ident, else its ICAO id. Every shelf volume of one Class B
+    /// shares it, so one clearance covers them all.
+    /// </summary>
+    public static string AreaName(AirspaceVolume volume) => AirspaceDatabase.ClassBAreaName(volume);
+
+    /// <summary>Whether <paramref name="position"/> is laterally inside any volume of the Class B named <paramref name="ident"/>.</summary>
+    public static bool IsLaterallyInside(LatLon position, string ident, AirspaceDatabase airspace) =>
+        ContainsLateral(VolumesOf(ident, airspace), position);
+
+    /// <summary>
+    /// Every volume (shelf) of the Class B named <paramref name="ident"/>, matched case-insensitively on its area name, from
+    /// the database's cached lookup; empty for an unknown name.
+    /// </summary>
+    public static IReadOnlyList<AirspaceVolume> VolumesOf(string ident, AirspaceDatabase airspace) => airspace.ClassBArea(ident);
+
+    private static bool ContainsLateral(IReadOnlyList<AirspaceVolume> volumes, LatLon position)
+    {
+        for (int i = 0; i < volumes.Count; i++)
+        {
+            if (volumes[i].ContainsLateral(position))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The area name of the Class B laterally around <paramref name="position"/>, or null when it is inside none.</summary>
+    private static string? ClassBLaterallyAround(LatLon position, AirspaceDatabase airspace)
+    {
+        foreach ((string area, IReadOnlyList<AirspaceVolume> volumes) in airspace.ClassBAreas)
+        {
+            if (ContainsLateral(volumes, position))
+            {
+                return area;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The Class B a bare <c>CLBRV</c> clears the aircraft into: the one it is waiting on (<see cref="CaptureWait"/>), else
+    /// one it is laterally inside, else the first it is projected to enter within <see cref="EntryLookaheadSeconds"/>; null
+    /// when there is none.
+    /// </summary>
+    public static string? ResolveCleared(AircraftState aircraft, AirspaceDatabase airspace)
+    {
+        if (CaptureWait(aircraft) is { } wait)
+        {
+            return wait.Ident;
+        }
+
+        if (ClassBLaterallyAround(aircraft.Position, airspace) is { } inside)
+        {
+            return inside;
+        }
+
+        AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(aircraft, EntryLookaheadSeconds, AirspaceClass.Bravo);
+        return crossing is null ? null : AreaName(crossing.Volume);
+    }
+
+    /// <summary>
+    /// The controller's explicit Class B clearance (<c>CLBRV</c>): grants the Class B <see cref="ResolveCleared"/> names,
+    /// and changes nothing when it names none.
+    /// </summary>
+    public static void GrantExplicit(AircraftState aircraft, AirspaceDatabase airspace)
+    {
+        if (ResolveCleared(aircraft, airspace) is { } ident)
+        {
+            aircraft.GrantBravoClearance(ident);
+        }
+    }
+
+    /// <summary>
+    /// Grants the Class B clearance (<see cref="AircraftState.GrantBravoClearance"/>) when an instruction
+    /// <paramref name="compound"/> applies at issue time can stand as the clearance into a Class B the aircraft is not
+    /// already cleared into. While the pilot waits on a Class B (<paramref name="wait"/>), a pattern
     /// entry or approach clearance grants outright and a vector or direct grants only when it points into that Class B
     /// within <see cref="WaitingEntryLookaheadSeconds"/>; a vector away from it grants nothing. Otherwise a vector or
     /// direct grants when it enters Class B within <see cref="EntryLookaheadSeconds"/>, and a pattern entry or approach
@@ -120,39 +200,58 @@ public static class ImplicitBravoClearance
                 continue;
             }
 
-            BravoClearanceWording? wording = IsVectorOrDirect(command)
+            BravoGrant? grant = IsVectorOrDirect(command)
                 ? GrantForNewTrack(aircraft, command, wait, scenario, airspace)
                 : GrantForLanding(aircraft, command, wait, airspace, airportLookup);
-            if (wording is not null)
+            if ((grant is not null) && !aircraft.IsClearedIntoBravo(grant.Ident))
             {
-                aircraft.IsClearedIntoBravo = true;
-                return wording;
+                aircraft.GrantBravoClearance(grant.Ident);
+                return grant.Wording;
             }
         }
 
         return null;
     }
 
-    /// <summary>Solo training, an airborne VFR aircraft, and no Class B clearance held yet.</summary>
+    /// <summary>A Class B clearance an instruction stands as: how the pilot words it, and the Class B (its area name).</summary>
+    private sealed record BravoGrant(BravoClearanceWording Wording, string Ident);
+
+    /// <summary>Solo training and an airborne VFR aircraft.</summary>
     private static bool IsEligibleForImplicitGrant(AircraftState aircraft, SimScenarioState scenario) =>
-        scenario.SoloTrainingMode && !aircraft.IsClearedIntoBravo && !aircraft.IsOnGround && aircraft.FlightPlan.IsVfr;
+        scenario.SoloTrainingMode && !aircraft.IsOnGround && aircraft.FlightPlan.IsVfr;
 
     /// <summary>
     /// True when <paramref name="airportId"/> sits inside a Class B surface area — narrowed to the Class B named
     /// <paramref name="identFilter"/> when it is given — so an aircraft landing there must enter that Class B. An
     /// unknown airport is inside none.
     /// </summary>
-    public static bool IsAirportInsideClassB(string? airportId, AirspaceDatabase airspace, Func<string, LatLon?> airportLookup, string? identFilter)
+    public static bool IsAirportInsideClassB(
+        string? airportId,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup,
+        string? identFilter
+    ) => ClassBAtAirport(airportId, airspace, airportLookup, identFilter) is not null;
+
+    /// <summary>
+    /// The Class B surface area <paramref name="airportId"/> sits inside (narrowed to <paramref name="identFilter"/> when
+    /// given), or null for an unknown airport or one inside none.
+    /// </summary>
+    private static AirspaceVolume? ClassBAtAirport(
+        string? airportId,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup,
+        string? identFilter
+    )
     {
         if (string.IsNullOrWhiteSpace(airportId) || airportLookup(airportId) is not { } position)
         {
-            return false;
+            return null;
         }
 
         double elevation = Data.NavigationDatabase.Instance?.GetAirportElevation(airportId) ?? 0;
         return airspace
             .FindClassBContaining(position, elevation)
-            .Any(volume => identFilter is null || string.Equals(volume.Ident, identFilter, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(volume => (identFilter is null) || string.Equals(AreaName(volume), identFilter, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>"Into" when the flight plan's destination is inside the Class B named <paramref name="ident"/>, else "through".</summary>
@@ -166,7 +265,7 @@ public static class ImplicitBravoClearance
             ? BravoClearanceWording.Into
             : BravoClearanceWording.Through;
 
-    private static BravoClearanceWording? GrantForNewTrack(
+    private static BravoGrant? GrantForNewTrack(
         AircraftState aircraft,
         ParsedCommand command,
         BravoClearanceWait? wait,
@@ -188,14 +287,14 @@ public static class ImplicitBravoClearance
             lookahead,
             wait?.Ident
         );
-        return entered is null ? null : wait?.Wording ?? BravoClearanceWording.Into;
+        return entered is null ? null : new BravoGrant(wait?.Wording ?? BravoClearanceWording.Into, AreaName(entered));
     }
 
     /// <summary>
     /// A pattern entry, traffic direction or approach clearance ends in a landing at the clearance's airport: it grants
-    /// while the pilot waits on a Class B, or when that airport lies inside one.
+    /// the Class B that airport lies inside, else, while the pilot waits on a Class B, that one.
     /// </summary>
-    private static BravoClearanceWording? GrantForLanding(
+    private static BravoGrant? GrantForLanding(
         AircraftState aircraft,
         ParsedCommand command,
         BravoClearanceWait? wait,
@@ -203,12 +302,12 @@ public static class ImplicitBravoClearance
         Func<string, LatLon?> airportLookup
     )
     {
-        if (IsAirportInsideClassB(ClearanceAirport(aircraft, command), airspace, airportLookup, wait?.Ident))
+        if (ClassBAtAirport(ClearanceAirport(aircraft, command), airspace, airportLookup, wait?.Ident) is { } volume)
         {
-            return BravoClearanceWording.Into;
+            return new BravoGrant(BravoClearanceWording.Into, AreaName(volume));
         }
 
-        return wait?.Wording;
+        return wait is null ? null : new BravoGrant(wait.Wording, wait.Ident);
     }
 
     /// <summary>

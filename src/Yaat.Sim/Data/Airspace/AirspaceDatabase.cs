@@ -17,6 +17,47 @@ public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
 
     private readonly List<AirspaceVolume> _bravoVolumes = [.. volumes.Where(v => v.Class == AirspaceClass.Bravo)];
 
+    private readonly Dictionary<string, IReadOnlyList<AirspaceVolume>> _classBAreas = BuildClassBAreas(volumes);
+
+    /// <summary>
+    /// The name a Class B is known by across all of its shelf volumes: the volume's <see cref="AirspaceVolume.Ident"/>, else
+    /// its <see cref="AirspaceVolume.IcaoId"/>.
+    /// </summary>
+    public static string ClassBAreaName(AirspaceVolume volume) => string.IsNullOrWhiteSpace(volume.Ident) ? volume.IcaoId : volume.Ident;
+
+    /// <summary>
+    /// The Class B volumes grouped by <see cref="ClassBAreaName"/> (case-insensitive), in fixture order; built once when the
+    /// database is constructed, so a per-tick lookup allocates nothing.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<AirspaceVolume>> ClassBAreas => _classBAreas;
+
+    /// <summary>Every volume of the Class B named <paramref name="areaName"/> (case-insensitive); empty for an unknown name.</summary>
+    public IReadOnlyList<AirspaceVolume> ClassBArea(string areaName) =>
+        ClassBAreas.TryGetValue(areaName, out IReadOnlyList<AirspaceVolume>? area) ? area : [];
+
+    private static Dictionary<string, IReadOnlyList<AirspaceVolume>> BuildClassBAreas(IReadOnlyList<AirspaceVolume> volumes)
+    {
+        var areas = new Dictionary<string, List<AirspaceVolume>>(StringComparer.OrdinalIgnoreCase);
+        foreach (AirspaceVolume volume in volumes)
+        {
+            if (volume.Class != AirspaceClass.Bravo)
+            {
+                continue;
+            }
+
+            string name = ClassBAreaName(volume);
+            if (!areas.TryGetValue(name, out List<AirspaceVolume>? list))
+            {
+                list = [];
+                areas[name] = list;
+            }
+
+            list.Add(volume);
+        }
+
+        return areas.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<AirspaceVolume>)pair.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
     public IEnumerable<AirspaceVolume> FindContaining(LatLon position, double altitudeFtMsl) =>
         Volumes.Where(v => v.Contains(position, altitudeFtMsl));
 
@@ -51,7 +92,7 @@ public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
     /// <paramref name="groundSpeedKts"/> enters within <paramref name="lookaheadSeconds"/>, or null. Volumes the start
     /// point already lies in are skipped, and so are volumes whose altitude band does not hold
     /// <paramref name="altitudeFtMsl"/>: a level track under a shelf never enters it. <paramref name="identFilter"/>,
-    /// when given, keeps only the volumes of that Class B (<see cref="AirspaceVolume.Ident"/>).
+    /// when given, keeps only the volumes of the Class B with that area name (<see cref="ClassBAreaName"/>, case-insensitive).
     /// </summary>
     public AirspaceVolume? FindLevelTrackClassBEntry(
         LatLon from,
@@ -71,7 +112,7 @@ public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
         LatLon to = GeoMath.ProjectPoint(from, track, distanceNm);
         foreach (AirspaceVolume volume in _bravoVolumes)
         {
-            if ((identFilter is not null) && !string.Equals(volume.Ident, identFilter, StringComparison.OrdinalIgnoreCase))
+            if ((identFilter is not null) && !string.Equals(ClassBAreaName(volume), identFilter, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -112,7 +153,11 @@ public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
             onlyClass == AirspaceClass.Bravo ? _bravoVolumes : [.. Volumes.Where(v => v.Class == onlyClass)]
         );
 
-    private static AirspaceBoundaryCrossing? FindFirstProjectedEntry(
+    /// <summary>
+    /// <see cref="FindFirstProjectedEntry(AircraftState, double)"/> over <paramref name="volumes"/> only, so an earlier entry
+    /// into any other volume does not hide one of them (one Class B's shelves, for a clearance held into that Class B).
+    /// </summary>
+    public static AirspaceBoundaryCrossing? FindFirstProjectedEntry(
         AircraftState aircraft,
         double lookaheadSeconds,
         IReadOnlyList<AirspaceVolume> volumes

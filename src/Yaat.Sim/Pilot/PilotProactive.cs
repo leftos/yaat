@@ -1186,7 +1186,7 @@ public static class PilotProactive
         TryRequestBravoClearance(aircraft, scenario, airspace, airportLookup);
 
         AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60);
-        if (crossing is null || EntryGateSatisfied(aircraft, crossing.Volume.Class))
+        if (crossing is null || EntryGateSatisfied(aircraft, crossing.Volume))
         {
             return;
         }
@@ -1223,12 +1223,71 @@ public static class PilotProactive
     }
 
     /// <summary>
-    /// The pilot is free to call the student for a Class B clearance: not cleared yet, in contact with the student and
-    /// not sent to another frequency, nothing queued to say, and no request open that holds its calls back.
+    /// Ends the solo Class B clearance once the aircraft has left that Class B (7110.65 §7-9-3.b). Before it has first
+    /// been laterally inside the cleared Class B nothing here ends it: a clearance given while turning, on the outbound
+    /// half of an orbit or minutes out is kept until it is used. Once it has been inside, the clearance ends when the
+    /// aircraft has been laterally outside every volume of that Class B, with no entry into it projected within
+    /// <see cref="ImplicitBravoClearance.EntryLookaheadSeconds"/>, for <see cref="ImplicitBravoClearance.ExitGraceSeconds"/>
+    /// without a break. Laterally inside, whatever the altitude, it marks the Class B entered. A frequency change does not
+    /// end it, and on the ground it is left alone.
+    /// </summary>
+    public static void TickBravoClearanceExpiry(AircraftState aircraft, AirspaceDatabase airspace, double nowSeconds)
+    {
+        if ((aircraft.ClearedBravoIdent is not { } ident) || aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        if (ImplicitBravoClearance.IsLaterallyInside(aircraft.Position, ident, airspace))
+        {
+            aircraft.MarkClearedBravoEntered();
+            return;
+        }
+
+        if (!aircraft.HasEnteredClearedBravo)
+        {
+            return;
+        }
+
+        if (IsClearedBravoEntryProjected(aircraft, ident, airspace))
+        {
+            aircraft.ClearBravoExit();
+            return;
+        }
+
+        double outsideSeconds = aircraft.MarkOutsideClearedBravo(nowSeconds);
+        if (outsideSeconds < ImplicitBravoClearance.ExitGraceSeconds)
+        {
+            return;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: Class B clearance into {Ident} ends, {Seconds:F0}s outside it", aircraft.Callsign, ident, outsideSeconds);
+        }
+
+        aircraft.EndBravoClearance();
+    }
+
+    /// <summary>
+    /// Whether an entry into the Class B named <paramref name="ident"/> is projected within
+    /// <see cref="ImplicitBravoClearance.EntryLookaheadSeconds"/>, whatever other Class B the track crosses first.
+    /// </summary>
+    private static bool IsClearedBravoEntryProjected(AircraftState aircraft, string ident, AirspaceDatabase airspace) =>
+        AirspaceDatabase.FindFirstProjectedEntry(
+            aircraft,
+            ImplicitBravoClearance.EntryLookaheadSeconds,
+            ImplicitBravoClearance.VolumesOf(ident, airspace)
+        )
+            is not null;
+
+    /// <summary>
+    /// The pilot is free to call the student for a Class B clearance: in contact with the student and not sent to another
+    /// frequency, nothing queued to say, and no request open that holds its calls back. Whether it already holds the
+    /// clearance into the Class B ahead is asked of that Class B (<see cref="TryRequestBravoClearance"/>).
     /// </summary>
     private static bool CanRequestBravoClearance(AircraftState aircraft, TrackOwner? studentPosition) =>
-        !aircraft.IsClearedIntoBravo
-        && aircraft.HasMadeInitialContact
+        aircraft.HasMadeInitialContact
         && !aircraft.IsTunedAwayFrom(studentPosition)
         && (aircraft.PendingPilotTransmissions.Count == 0)
         && (aircraft.PendingPilotRequest is not { BlocksOtherCalls: true });
@@ -1262,25 +1321,29 @@ public static class PilotProactive
             ImplicitBravoClearance.EntryLookaheadSeconds,
             AirspaceClass.Bravo
         );
-        if ((crossing is null) || crossing.Volume.ContainsLateral(aircraft.Position))
+        // A pilot cleared into one Class B still asks for a different one ahead.
+        if (
+            (crossing is null)
+            || crossing.Volume.ContainsLateral(aircraft.Position)
+            || aircraft.IsClearedIntoBravo(ImplicitBravoClearance.AreaName(crossing.Volume))
+        )
         {
             return;
         }
 
         AirspaceVolume volume = crossing.Volume;
-        string ident = string.IsNullOrWhiteSpace(volume.Ident) ? volume.IcaoId : volume.Ident;
-        PilotSpeechText line = PilotResponder.BuildBravoClearanceRequest(
-            aircraft,
-            ImplicitBravoClearance.WordingFor(aircraft, volume.Ident, airspace, airportLookup)
-        );
+        string ident = ImplicitBravoClearance.AreaName(volume);
+        BravoClearanceWording wording = ImplicitBravoClearance.WordingFor(aircraft, volume.Ident, airspace, airportLookup);
+        PilotSpeechText line = PilotResponder.BuildBravoClearanceRequest(aircraft, wording);
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
-        PilotRequestTracker.RecordRequest(
+        PilotPendingRequest request = PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.AirspaceEntry,
             scenario.ElapsedSeconds,
             line,
             PilotRequestContext.Airspace(AirspaceClass.Bravo, ident, ResolveReference(crossing, airportLookup))
         );
+        request.BravoWording = wording;
     }
 
     /// <summary>
@@ -1316,10 +1379,10 @@ public static class PilotProactive
         return AirspaceAvoidance.LevelOffCeilingFt(volume.LowerFtMsl, magneticCourse, surfaceElevation);
     }
 
-    private static bool EntryGateSatisfied(AircraftState aircraft, AirspaceClass airspaceClass) =>
-        airspaceClass switch
+    private static bool EntryGateSatisfied(AircraftState aircraft, AirspaceVolume volume) =>
+        volume.Class switch
         {
-            AirspaceClass.Bravo => aircraft.IsClearedIntoBravo,
+            AirspaceClass.Bravo => aircraft.IsClearedIntoBravo(ImplicitBravoClearance.AreaName(volume)),
             AirspaceClass.Charlie => aircraft.HasMadeInitialContact && aircraft.HasControllerAcknowledgedInitialContact,
             _ => true,
         };

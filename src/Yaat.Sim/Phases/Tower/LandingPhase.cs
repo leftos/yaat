@@ -974,6 +974,8 @@ public sealed class LandingPhase : Phase
     private bool TickTouchdown(PhaseContext ctx, LandingPlan plan)
     {
         ctx.Aircraft.IsOnGround = true;
+        // Landing ends a VFR Class B clearance (AIM 3-2-3.d.2.b): a departure asks for a new one.
+        ctx.Aircraft.EndBravoClearance();
         SetTouchdownField(ctx.Aircraft, ctx.Runway);
         ctx.Aircraft.Altitude = plan.FieldElevation;
         ctx.Aircraft.VerticalSpeed = 0;

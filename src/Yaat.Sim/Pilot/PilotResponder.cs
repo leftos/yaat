@@ -3262,6 +3262,31 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// The re-ask of a Class B request while the pilot waits at the boundary (<paramref name="hold"/>), saying where it
+    /// waits: orbiting outside the Class B, or levelled below its shelf at the hold's level-off altitude. Output:
+    /// <c>"orbiting outside the bravo, still request clearance through the bravo."</c> /
+    /// <c>"november one two three alpha bravo, level two thousand below the bravo, still request clearance into the bravo."</c>
+    /// </summary>
+    public static PilotSpeechText BuildBravoBoundaryReask(AircraftState aircraft, BravoClearanceWording wording, AirspaceBoundaryHoldPhase hold)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string request = $"still request clearance {BravoPreposition(wording)} the bravo.";
+        if (hold.Mode == AirspaceHoldMode.LevelOff)
+        {
+            int level =
+                hold.LevelOffCeilingFtMsl
+                ?? throw new InvalidOperationException($"{aircraft.Callsign}: a Class B level-off hold carries no level-off altitude");
+            return new PilotSpeechText(
+                $"level {PhraseologyVerbalizer.CompactAltitude(level)} below the bravo, {request}",
+                NormalizeForTts($"{spoken}, level {PhraseologyVerbalizer.AltitudeWords(level)} below the bravo, {request}")
+            );
+        }
+
+        string orbiting = $"orbiting outside the bravo, {request}";
+        return new PilotSpeechText(orbiting, NormalizeForTts($"{spoken}, {orbiting}"));
+    }
+
+    /// <summary>
     /// A readback of an instruction the pilot took as its Class B clearance, saying so: the terminal form gains
     /// <c>", cleared into the bravo"</c> (or <c>"through"</c>) at the end (<c>"fly heading 090, cleared into the bravo"</c>),
     /// the spoken form gains it ahead of the closing callsign (<c>"fly heading zero nine zero, cleared into the bravo,
