@@ -1380,8 +1380,14 @@ _Avoid_: video map (the radar's facility video maps are a different thing)
 **Route source**:
 One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
 
+**Server mirror**:
+The on-disk copy of an ARTCC's scenarios exactly as vNAS last served them (`scenarios/{ARTCC}/server/{id}.json` under `YaatPaths`), rewritten by a download; the Load Scenario window lists it offline.
+
 **Snap target**:
 A point on an airport map the editor's cursor can snap to (a `SnapTargetKind`: parking, spot, helipad, runway vertex or taxiway vertex) within `SnapOptions.ThresholdFt` feet; the vertex being dragged is never one.
+
+**Working copy**:
+A locally edited scenario (`scenarios/{ARTCC}/local/{id}.json` with an `{id}.meta.json` sidecar), kept apart from the server mirror and never deleted or overwritten by a download.
 
 ## Flight strips
 

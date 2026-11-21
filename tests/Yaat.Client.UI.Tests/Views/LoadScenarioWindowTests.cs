@@ -6,6 +6,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.Views;
+using Yaat.Sim.Authoring;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -308,6 +309,329 @@ public class LoadScenarioWindowTests : IDisposable
             Assert.Empty(((IEnumerable<RecentScenarioItem>)recentList.ItemsSource!));
             Assert.False(remove.IsEnabled);
             Assert.DoesNotContain(new UserPreferences().RecentScenarios, r => r.Key == existing);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private const string IdA = "01H06NVK7VN8BS7MCDXHKJZ7MQ";
+    private const string IdB = "01H08FSWF5NCDXTQMQ3BWB0BND";
+
+    /// <summary>
+    /// Preferences naming a fresh ARTCC, and its downloaded mirror seeded with the given real scenarios through the store
+    /// at its default root (under this process's YAAT_APPDATA_DIR).
+    /// </summary>
+    private static (UserPreferences Prefs, string Artcc, LocalScenarioStore Store) SeedMirror(params string[] ids)
+    {
+        string artcc = "T" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        var prefs = new UserPreferences();
+        prefs.SetArtccId(artcc);
+        var store = new LocalScenarioStore();
+        foreach (string id in ids)
+        {
+            string json = File.ReadAllText(Path.Combine(FindRepoRoot(), "docs", "atctrainer-scenario-examples", id + ".json"));
+            Assert.Equal(ServerApplyOutcome.Added, store.ApplyServerBody(artcc, id, json).Outcome);
+        }
+
+        return (prefs, artcc, store);
+    }
+
+    private static List<ArtccScenarioItem> ArtccItems(Window window) =>
+        [.. (IEnumerable<ArtccScenarioItem>)window.FindControl<ListBox>("ArtccScenarioList")!.ItemsSource!];
+
+    private static string TextOf(Window window, string name) => window.FindControl<TextBlock>(name)!.Text ?? "";
+
+    [AvaloniaFact]
+    public async Task ArtccTab_NotConnected_ListsDownloadedScenarios()
+    {
+        (UserPreferences prefs, _, _) = SeedMirror(IdA, IdB);
+        var window = new LoadScenarioWindow(prefs, null, _ => new FakeFilePickerService());
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            List<ArtccScenarioItem> items = ArtccItems(window);
+            Assert.Equal([IdA, IdB], items.Select(i => i.Id).Order(StringComparer.Ordinal));
+            Assert.Equal("Offline: 2 downloaded scenarios", TextOf(window, "ArtccStatusText"));
+            Assert.False(window.FindControl<TextBlock>("ArtccGateText")!.IsVisible);
+            Assert.True(window.FindControl<Button>("DownloadButton")!.IsEnabled);
+            Assert.All(items, i => Assert.True(File.Exists(i.MirrorPath)));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ArtccTab_NotConnected_NoDownloads_SaysSo()
+    {
+        (UserPreferences prefs, string artcc, _) = SeedMirror();
+        var window = new LoadScenarioWindow(prefs, null, _ => new FakeFilePickerService());
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            Assert.Empty(ArtccItems(window));
+            Assert.Equal($"Offline: no downloaded scenarios for {artcc}", TextOf(window, "ArtccStatusText"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ArtccTab_ShowsStoreProblems_ByFileName()
+    {
+        (UserPreferences prefs, string artcc, LocalScenarioStore store) = SeedMirror(IdA, IdB);
+        File.WriteAllText(store.GetMirrorPath(artcc, IdA), "{ broken");
+        var window = new LoadScenarioWindow(prefs, null, _ => new FakeFilePickerService());
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            TextBlock notice = window.FindControl<TextBlock>("ArtccGateText")!;
+            Assert.True(notice.IsVisible);
+            Assert.Contains($"server/{IdA}.json", notice.Text, StringComparison.Ordinal);
+            Assert.Equal([IdB], ArtccItems(window).Select(i => i.Id));
+            Assert.Equal("Offline: 1 downloaded scenario", TextOf(window, "ArtccStatusText"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ArtccTab_PickMirroredScenario_ClosesWithItsMirrorPath()
+    {
+        (UserPreferences prefs, string artcc, LocalScenarioStore store) = SeedMirror(IdA);
+        Window owner = ShowOwner();
+        var window = new LoadScenarioWindow(prefs, null, _ => new FakeFilePickerService());
+        try
+        {
+            Task<ScenarioLoadResult?> pending = DialogPresenter.ShowModalAsync<ScenarioLoadResult?>(window, owner);
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            window.FindControl<ListBox>("ArtccScenarioList")!.SelectedItem = Assert.Single(ArtccItems(window));
+            Dispatcher.UIThread.RunJobs();
+            Click(window, "LoadButton");
+
+            ScenarioLoadResult? result = await pending;
+            Assert.NotNull(result);
+            Assert.Equal(store.GetMirrorPath(artcc, IdA), result!.FilePath);
+            Assert.Null(result.ApiScenarioId);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    private static readonly Func<Task<ScenarioCatalogResponseDto>> NoHub = () =>
+        Task.FromException<ScenarioCatalogResponseDto>(new InvalidOperationException("The hub is down."));
+
+    private static readonly Func<string, IProgress<DownloadProgress>, CancellationToken, Task<DownloadReport>> NoDownload = (_, _, _) =>
+        Task.FromException<DownloadReport>(new InvalidOperationException("No download in this test."));
+
+    private static DownloadReport OneDownloaded(string artcc) => new(artcc, null, [IdA], [], [], [], [], [], []);
+
+    private static LoadScenarioWindow WindowOver(UserPreferences prefs, ArtccTabSources sources) =>
+        new(prefs, _ => new FakeFilePickerService(), sources);
+
+    [AvaloniaFact]
+    public async Task ArtccTab_ConnectionNotUp_ListsDownloadedScenarios()
+    {
+        (UserPreferences prefs, _, _) = SeedMirror(IdA);
+        await using var connection = new ServerConnection();
+        var window = new LoadScenarioWindow(prefs, connection, _ => new FakeFilePickerService());
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            Assert.Equal([IdA], ArtccItems(window).Select(i => i.Id));
+            Assert.Equal("Offline: 1 downloaded scenario", TextOf(window, "ArtccStatusText"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ArtccTab_HubThrows_ListsDownloadedScenarios()
+    {
+        (UserPreferences prefs, _, _) = SeedMirror(IdA, IdB);
+        LoadScenarioWindow window = WindowOver(prefs, new ArtccTabSources(() => true, NoHub, NoDownload));
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            Assert.Equal([IdA, IdB], ArtccItems(window).Select(i => i.Id).Order(StringComparer.Ordinal));
+            Assert.Equal("Offline: 2 downloaded scenarios", TextOf(window, "ArtccStatusText"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [Fact]
+    public void Summarize_ListsFailuresThenStoreProblems_ByFileName()
+    {
+        var report = new DownloadReport(
+            "ZOA",
+            null,
+            [IdA],
+            [],
+            [],
+            [],
+            [],
+            [new DownloadFailure(IdB, "Scenario B", "data-api answered HTTP 500 (Internal Server Error)")],
+            [new StoreProblem("index.json", "corrupt; kept as index.json.corrupt-1 and rebuilt")]
+        );
+
+        (string status, List<string> notices) = LoadScenarioWindow.Summarize(report);
+
+        Assert.Equal("1 downloaded, 0 updated, 1 failed", status);
+        Assert.Equal(
+            ["Scenario B: data-api answered HTTP 500 (Internal Server Error)", "index.json: corrupt; kept as index.json.corrupt-1 and rebuilt"],
+            notices
+        );
+    }
+
+    [AvaloniaFact]
+    public async Task Download_RunThrows_ReEnablesTheButton_AndSaysWhy()
+    {
+        (UserPreferences prefs, _, _) = SeedMirror(IdA);
+        var sources = new ArtccTabSources(
+            () => false,
+            NoHub,
+            (_, _, _) => Task.FromException<DownloadReport>(new NullReferenceException("a summary was null"))
+        );
+        LoadScenarioWindow window = WindowOver(prefs, sources);
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            Click(window, "DownloadButton");
+            await window.DownloadDone;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("Download failed: a summary was null", TextOf(window, "ArtccStatusText"));
+            Assert.True(window.FindControl<Button>("DownloadButton")!.IsEnabled);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Download_ClickedTwiceWhileRunning_RunsOnce()
+    {
+        (UserPreferences prefs, string artcc, _) = SeedMirror(IdA);
+        var release = new TaskCompletionSource<DownloadReport>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int runs = 0;
+        var sources = new ArtccTabSources(
+            () => false,
+            NoHub,
+            (_, _, _) =>
+            {
+                Interlocked.Increment(ref runs);
+                return release.Task;
+            }
+        );
+        LoadScenarioWindow window = WindowOver(prefs, sources);
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            Click(window, "DownloadButton");
+            Task first = window.DownloadDone;
+            Click(window, "DownloadButton");
+            Assert.Same(first, window.DownloadDone);
+            release.SetResult(OneDownloaded(artcc));
+            await window.DownloadDone;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(1, runs);
+            Assert.Equal("1 downloaded, 0 updated, 0 failed", TextOf(window, "ArtccStatusText"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Download_WindowClosed_CancelsTheRun()
+    {
+        (UserPreferences prefs, _, _) = SeedMirror(IdA);
+        var sources = new ArtccTabSources(
+            () => false,
+            NoHub,
+            async (_, _, ct) =>
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+                throw new InvalidOperationException("The delay only ends by a cancel.");
+            }
+        );
+        LoadScenarioWindow window = WindowOver(prefs, sources);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        await window.ArtccListReady;
+
+        Click(window, "DownloadButton");
+        window.Close();
+        await window.DownloadDone;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Download cancelled.", TextOf(window, "ArtccStatusText"));
+    }
+
+    [AvaloniaFact]
+    public async Task HubReply_DuringADownload_LeavesTheDownloadsStatus()
+    {
+        (UserPreferences prefs, string artcc, _) = SeedMirror();
+        var hub = new TaskCompletionSource<ScenarioCatalogResponseDto>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<DownloadReport>(TaskCreationOptions.RunContinuationsAsynchronously);
+        LoadScenarioWindow window = WindowOver(prefs, new ArtccTabSources(() => true, () => hub.Task, (_, _, _) => release.Task));
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Click(window, "DownloadButton");
+
+            hub.SetResult(new ScenarioCatalogResponseDto([new ScenarioSummaryDto(IdA, "ZOA-SFO Scenario", artcc, "SFO", null)], 0));
+            await window.ArtccListReady;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("Downloading…", TextOf(window, "ArtccStatusText"));
+            Assert.Single(ArtccItems(window));
+
+            release.SetResult(OneDownloaded(artcc));
+            await window.DownloadDone;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("1 downloaded, 0 updated, 0 failed", TextOf(window, "ArtccStatusText"));
         }
         finally
         {

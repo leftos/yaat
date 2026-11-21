@@ -25,6 +25,7 @@ using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views;
 
@@ -611,11 +612,19 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 log.LogInformation("Fetching scenario {ScenarioId} from vNAS API", scenarioId);
             }
             vm.StatusText = $"Fetching scenario {scenarioId}...";
-            string? json = await TrainingDataService.GetScenarioJsonAsync(scenarioId);
-
-            if (json is null)
+            VnasFetchResult<string> fetched;
+            using (var training = new VnasTrainingClient())
             {
-                log.LogWarning("Failed to fetch scenario {ScenarioId}", scenarioId);
+                fetched = await training.GetScenarioJsonAsync(scenarioId, CancellationToken.None);
+            }
+
+            if (!fetched.Succeeded)
+            {
+                if (log.IsEnabled(LogLevel.Warning))
+                {
+                    log.LogWarning("Failed to fetch scenario {ScenarioId}: {Reason}", scenarioId, fetched.Failure);
+                }
+
                 vm.StatusText = $"--scenario: failed to fetch scenario '{scenarioId}'";
                 return;
             }
@@ -624,7 +633,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 log.LogInformation("Auto-loading scenario {ScenarioId}", scenarioId);
             }
-            await vm.AutoLoadScenarioFromJsonAsync(json, scenarioId, scenarioId);
+            await vm.AutoLoadScenarioFromJsonAsync(fetched.Value, scenarioId, scenarioId);
         }
         catch (Exception ex)
         {

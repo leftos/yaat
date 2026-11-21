@@ -31,9 +31,12 @@
               <TextBlock Text="Facility:" VerticalAlignment="Center" />
               <ComboBox x:Name="ArtccFacilityFilter" MinWidth="100" />
             </StackPanel>
+            <Button Content="Download for offline use" x:Name="DownloadButton" IsEnabled="False" />
             <TextBlock x:Name="ArtccStatusText" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
           </StackPanel>
 
+          <!-- Notice line: the rating-gate count online; offline, each unreadable downloaded file by name; after a
+               download, each scenario that failed with its reason. -->
           <TextBlock
             x:Name="ArtccGateText"
             DockPanel.Dock="Top"
