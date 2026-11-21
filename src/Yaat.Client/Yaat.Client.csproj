@@ -100,7 +100,19 @@
   <!-- Terminus TTF Bold (OFL 1.1, see NOTICE), the Scope's realistic datablock font, read by ScopeTextFonts. -->
   <ItemGroup>
     <EmbeddedResource Include="Assets\Fonts\TerminusTTF-Bold.ttf" LogicalName="Yaat.Client.Fonts.TerminusTTF-Bold.ttf" />
-    <None Include="Assets\Fonts\TerminusTTF-OFL.txt" Pack="false" />
+  </ItemGroup>
+
+  <!-- OFL 1.1 asks that each bundled font's licence travel with the font. NOTICE and both font
+       licences are copied beside the EXE on build and publish, so every packager (vpk packs the
+       whole publish folder) ships them without a per-script copy. Pack="false" keeps them out of
+       a NuGet package. -->
+  <ItemGroup>
+    <None Include="..\..\NOTICE" Link="NOTICE" Pack="false"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="Assets\Fonts\TerminusTTF-OFL.txt" Link="licenses\TerminusTTF-OFL.txt" Pack="false"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Client.Strips\Resources\Fonts\OFL.txt" Link="licenses\JetBrainsMono-OFL.txt" Pack="false"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Ship the generated cheatsheet HTML next to the EXE so Help → Command Cheatsheet

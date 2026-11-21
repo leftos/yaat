@@ -84,7 +84,7 @@ without the version).
 
   Upstream: https://files.ax86.net/terminus-ttf/
   License:  SIL Open Font License, Version 1.1 (OFL-1.1)
-  Full text: src/Yaat.Client/Assets/Fonts/TerminusTTF-OFL.txt
+  Full text: licenses/TerminusTTF-OFL.txt (repo: src/Yaat.Client/Assets/Fonts/TerminusTTF-OFL.txt)
 
 Copyright (c) 2010 Dimitar Toshkov Zhekov,
 with Reserved Font Name "Terminus Font".
@@ -99,7 +99,7 @@ from `src/Yaat.Client.Strips/Resources/Fonts/`.
 
   Upstream: https://github.com/JetBrains/JetBrainsMono
   License:  SIL Open Font License, Version 1.1 (OFL-1.1)
-  Full text: src/Yaat.Client.Strips/Resources/Fonts/OFL.txt
+  Full text: licenses/JetBrainsMono-OFL.txt (repo: src/Yaat.Client.Strips/Resources/Fonts/OFL.txt)
 
 Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
 
