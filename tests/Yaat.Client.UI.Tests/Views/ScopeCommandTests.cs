@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
@@ -21,7 +22,7 @@ public class ScopeCommandTests
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + " | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist <0-10>"
+        + " | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all> | .scope hist <0-10>"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
@@ -30,6 +31,8 @@ public class ScopeCommandTests
         + " | .scope dcnf <off|snap|free>";
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
+
+    private const string VectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8> | .scope vector <own|all>";
 
     private const string BriteUsage =
         "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings, lens 0-100; line4 -20-0; dwell 0-20";
@@ -122,6 +125,53 @@ public class ScopeCommandTests
 
             Assert.Equal("Usage: .scope others <full|partial>", main.StatusText);
             Assert.Equal(ScopeBandPins.None, scope.Pins);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(0.5)]
+    [InlineData(2.5)]
+    public async Task Vector_PinsTheHalfMinuteLengths_AndEchoes(double minutes)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand($".scope vector {minutes.ToString(CultureInfo.InvariantCulture)}");
+
+            Assert.Equal(minutes, scope.Pins.VectorMin);
+            Assert.Equal(minutes, scope.EffectiveBand.VectorMin);
+            Assert.Equal($"Radar vector {minutes.ToString(CultureInfo.InvariantCulture)} MIN (pinned)", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("5")]
+    [InlineData("0,5")]
+    [InlineData("-1")]
+    [InlineData("1e0")]
+    [InlineData("+1")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    public async Task Vector_OffTheGrid_IsRefusedWithTheAllowedValues(string minutes)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            scope.PinVectorMin(1);
+            main.StatusText = "";
+
+            main.RunScopeCommand($".scope vector {minutes}");
+
+            Assert.Equal(VectorUsage, main.StatusText);
+            Assert.Equal(1, scope.Pins.VectorMin);
         }
         finally
         {

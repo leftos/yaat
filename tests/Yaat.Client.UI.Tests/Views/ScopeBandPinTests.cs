@@ -305,6 +305,16 @@ public class ScopeBandPinTests : IDisposable
             Assert.Equal(2, captured.PinVectorMin);
             Assert.Equal(7, captured.PinHistory);
             Assert.Equal("dri", captured.PinRings);
+
+            ScopePrefSet half = pinned with { PinVectorMin = 1.5 };
+            ScopePrefSet readHalf = JsonSerializer.Deserialize<ScopePrefSet>(
+                JsonSerializer.Serialize(half, ScopePrefSet.JsonOptions),
+                ScopePrefSet.JsonOptions
+            )!;
+            scope.ApplyPrefSet(readHalf);
+
+            Assert.Equal(1.5, scope.Pins.VectorMin);
+            Assert.Equal(1.5, scope.CapturePrefSet(null).PinVectorMin);
         }
         finally
         {
