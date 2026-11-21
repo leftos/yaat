@@ -324,4 +324,7 @@ public enum CanonicalCommandType
     // Airborne proceed on course (OC): rejoin the filed route at the next fix ahead, else direct to the destination;
     // appended last so no stored value shifts
     OnCourse,
+
+    // VFR remain outside Bravo airspace (RMOB [minutes]), FAA 7110.65 §7-9-2.a; appended last so no stored value shifts
+    RemainOutsideBravo,
 }

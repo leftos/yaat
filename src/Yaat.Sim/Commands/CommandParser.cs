@@ -1016,6 +1016,11 @@ public static class CommandParser
             CanonicalCommandType.Contact => PR.Ok(new ContactCommand(arg.Trim().ToUpperInvariant())),
             CanonicalCommandType.FrequencyChangeApproved when arg is null => PR.Ok(new FrequencyChangeApprovedCommand()),
             CanonicalCommandType.ClearedBravoAirspace when arg is null => PR.Ok(new ClearedBravoAirspaceCommand()),
+            CanonicalCommandType.RemainOutsideBravo when string.IsNullOrWhiteSpace(arg) => PR.Ok(new RemainOutsideBravoCommand(null)),
+            CanonicalCommandType.RemainOutsideBravo
+                when (int.TryParse(arg.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int minutes)) && (minutes is >= 1 and <= 60) =>
+                PR.Ok(new RemainOutsideBravoCommand(minutes)),
+            CanonicalCommandType.RemainOutsideBravo => PR.Fail("RMOB takes the minutes to expect clearance, 1 to 60"),
             CanonicalCommandType.AcknowledgePilotContact when arg is null => PR.Ok(new AcknowledgePilotContactCommand()),
             CanonicalCommandType.SayAgain when arg is null => PR.Ok(new SayAgainCommand(false)),
             CanonicalCommandType.SayAgain when string.Equals(arg.Trim(), "CS", StringComparison.OrdinalIgnoreCase) => PR.Ok(

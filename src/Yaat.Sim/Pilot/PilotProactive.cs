@@ -1270,6 +1270,54 @@ public static class PilotProactive
     }
 
     /// <summary>
+    /// The one "{callsign}, any estimate on the bravo?" of a pilot told to remain outside a Class B it was waiting on,
+    /// once its ask is due (<see cref="ImplicitBravoClearance.ApplyRemainOutside"/>). It is recorded as an open
+    /// airspace-entry request for that Class B, so the controller can answer it: a second <c>RMOB</c> denies it, a
+    /// <c>CLBRV</c> clears the aircraft in, and the tracker repeats it once if it goes unanswered. Like the Class B request,
+    /// it waits for the pilot to be free to call the student; on the ground it waits. A pilot sent to another frequency
+    /// drops the ask and keeps the instruction (AIM 4-4-10.a).
+    /// </summary>
+    public static void TickRemainOutsideBravoAsk(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
+    {
+        if ((aircraft.RemainOutsideBravo is not { AskDueSeconds: { } due } remain) || aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        if (aircraft.IsTunedAwayFrom(scenario.StudentPosition))
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: off the frequency, the RMOB ask for {Ident} is cancelled", aircraft.Callsign, remain.Ident);
+            }
+
+            aircraft.CancelRemainOutsideAsk();
+            return;
+        }
+
+        if ((scenario.ElapsedSeconds < due) || !CanRequestBravoClearance(aircraft, scenario.StudentPosition))
+        {
+            return;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: asks for an estimate on {Ident} under RMOB", aircraft.Callsign, remain.Ident);
+        }
+
+        PilotSpeechText line = PilotResponder.BuildBravoEstimateAsk(aircraft);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.AirspaceEntry,
+            scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Airspace(AirspaceClass.Bravo, remain.Ident, airportLookup(remain.Ident) ?? aircraft.Position)
+        );
+        aircraft.MarkRemainOutsideAskVoiced();
+    }
+
+    /// <summary>
     /// Whether an entry into the Class B named <paramref name="ident"/> is projected within
     /// <see cref="ImplicitBravoClearance.EntryLookaheadSeconds"/>, whatever other Class B the track crosses first.
     /// </summary>
@@ -1321,11 +1369,13 @@ public static class PilotProactive
             ImplicitBravoClearance.EntryLookaheadSeconds,
             AirspaceClass.Bravo
         );
-        // A pilot cleared into one Class B still asks for a different one ahead.
+        // A pilot cleared into one Class B still asks for a different one ahead. One told to remain outside a Class B does
+        // not ask for it again: its one ask is scheduled (TickRemainOutsideBravoAsk).
         if (
             (crossing is null)
             || crossing.Volume.ContainsLateral(aircraft.Position)
             || aircraft.IsClearedIntoBravo(ImplicitBravoClearance.AreaName(crossing.Volume))
+            || aircraft.IsRemainOutsideBravo(ImplicitBravoClearance.AreaName(crossing.Volume))
         )
         {
             return;

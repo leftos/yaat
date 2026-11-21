@@ -321,6 +321,7 @@ public static class RecordedCommandClassifier
                 or ClearedApproachCommand
                 or ClearedApproachStraightInCommand
                 or ClearedBravoAirspaceCommand
+                or RemainOutsideBravoCommand
                 or ClearedForOptionCommand
                 or ClearedForTakeoffCommand
                 or ClearedIntoMilitaryRouteCommand

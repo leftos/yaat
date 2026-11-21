@@ -38,7 +38,7 @@ disjoint polygons, e.g. the surface area plus the shelf rings of a Class C). All
 
 ## Fixture loading & discovery
 
-`AirspaceDatabase.Default` is a process-wide `Lazy<AirspaceDatabase>` (`AirspaceDatabase.cs:12`) populated by
+`AirspaceDatabase.Default` is a process-wide `Lazy<AirspaceDatabase>` populated by
 `LoadDefault()` on first access. `LoadDefault` runs a **3-tier file search** for `*.geojson` and `*.geojson.br`:
 
 1. `AppContext.BaseDirectory/Data/Airspace` (the content-copied fixture next to the built assembly).
@@ -78,7 +78,7 @@ the parser would discard any other class even if the fixture carried it.
 - Reads `IDENT`, `ICAO_ID`, `NAME` (falling back to `IDENT`).
 - Resolves the altitude band via `ResolveAltitudeFt(props, "LOWER", 0)` and `ResolveAltitudeFt(props, "UPPER", int.MaxValue)`.
 
-`ResolveAltitudeFt` (`AirspaceDatabase.cs:318`) reads the `{PREFIX}_CODE` / `{PREFIX}_VAL` property pair:
+`AirspaceDatabase.ResolveAltitudeFt` reads the `{PREFIX}_CODE` / `{PREFIX}_VAL` property pair:
 `_CODE == "SFC"` → `0`; a missing value or a sentinel `<= -9990` → the supplied default
 (`0` for LOWER, `int.MaxValue` for UPPER); otherwise `round(_VAL)`.
 
@@ -111,7 +111,7 @@ go through `Contains` / `FindLateralIntersections` so the pre-filter applies.
 
 ## Projected-entry detection — `FindFirstProjectedEntry`
 
-`FindFirstProjectedEntry(aircraft, lookaheadSeconds)` (`AirspaceDatabase.cs:26`) returns the **earliest**
+`FindFirstProjectedEntry(aircraft, lookaheadSeconds)` returns the **earliest**
 boundary crossing along the aircraft's projected straight-line track, or `null`. It projects the endpoint
 position (`ProjectPosition`) and altitude (`ProjectAltitude`) for the full lookahead, then for each volume
 considers **three candidate modes** and keeps the one with the smallest `TimeToEntrySeconds`:
@@ -135,7 +135,7 @@ aircraft is *already* in (`volume.Contains(from, aircraft.Altitude)`). So this m
 `ProjectPosition` advances along `TrueTrack` by `max(GroundSpeed, 0) * lookahead / 3600` NM via
 `GeoMath.ProjectPoint`. `ProjectAltitude` advances by `VerticalSpeed * lookahead / 60`, then **clamps toward
 the altitude goal** from `ResolveAltitudeGoal` so a climbing/descending aircraft does not overshoot its
-target/floor/ceiling. `ResolveAltitudeGoal` (private, `AirspaceDatabase.cs:152`) folds
+target/floor/ceiling. `ResolveAltitudeGoal` (private, in `AirspaceDatabase`) folds
 `Targets.TargetAltitude` together with `AltitudeFloor`/`AltitudeCeiling`.
 
 This is one of two `ResolveAltitudeGoal` implementations — the other is inside `FlightPhysics.UpdateAltitude`
@@ -148,7 +148,7 @@ this doc does not re-derive it. This is also flagged in
 ## Consumer 1: VFR boundary respect (the hold)
 
 `PilotProactive.TickAirspaceBoundaryRespect(aircraft, scenario, airspace, airportLookup)`
-(`src/Yaat.Sim/Pilot/PilotProactive.cs:175`) models AIM §3-2-1.4 pilot responsibility: a VFR student must
+models AIM §3-2-1.4 pilot responsibility: a VFR student must
 meet Class B/C entry requirements before crossing the boundary. It early-returns unless **all** of:
 
 - `scenario.SoloTrainingMode` is on,
@@ -200,7 +200,7 @@ nothing.
 | Mode | Exit conditions |
 |---|---|
 | both | `GateSatisfied` (Bravo clearance / two-way for Charlie) |
-| `Orbit` | the controller assigned a heading or added a nav route (they have taken responsibility — otherwise the orbit overwrites the vector every tick and the aircraft circles forever), or `HeldVolumeCanStillBeEntered` goes false |
+| `Orbit` | the controller assigned a heading or added a nav route (they have taken responsibility — otherwise the orbit overwrites the vector every tick and the aircraft circles forever), or `HeldVolumeCanStillBeEntered` goes false. Not under `RMOB` for this Class B while the new track still enters it (`VectorEntersRemainOutsideBravo`): the pilot holds through the vector (`HoldThroughVector`) |
 | `LevelOff` | `AltitudeCeiling` no longer matches the phase's own cap (a controller altitude command nulls it), or the aircraft is laterally clear of the footprint now and 60 s ahead |
 
 The `LevelOff` exit deliberately does **not** re-run `FindFirstProjectedEntry`: `ProjectAltitude` honours
@@ -212,7 +212,7 @@ controller altitude command cleanly takes over.
 On completion `OnEnd` in `Orbit` mode **restores the original route/heading only if the controller has not
 since assigned an explicit magnetic heading and has not added a new navigation route** (a non-empty
 `NavigationRoute` at `OnEnd` means a `DCT`/direct command was issued during the hold, which must survive
-the release), and restores the original speed only if there is no explicit speed command. In `LevelOff`
+the release), except that a hold that held through a vector under `RMOB` resumes the assigned heading (`ResumeAssignedHeading`) and flies a held-through direct from the route it stashed, and restores the original speed only if there is no explicit speed command. In `LevelOff`
 mode it lifts its own ceiling (leaving a controller-issued "maintain VFR at or below" in place) and puts
 back the pre-hold `TargetAltitude` — `FlightPhysics.UpdateAltitude` nulls that field when the aircraft
 captures the capped goal, so without the restore the climb never resumes. `CanAcceptCommand` returns
@@ -240,11 +240,11 @@ boolean gate flags on `AircraftState`:
 
 | Class | Gate condition | Backing field(s) |
 |---|---|---|
-| `Bravo` | cleared into **this** Class B: an explicit `CLBRV` or (solo) an implicit clearance, see below | `AircraftState.IsClearedIntoBravo(ident)`, reading `ClearedBravoIdent` |
+| `Bravo` | cleared into **this** Class B: an explicit `CLBRV` or (solo) an implicit clearance, see below | `AircraftState.IsClearedIntoBravo(ident)`, reading `ClearedBravoIdent`; never satisfied while `IsRemainOutsideBravo(ident)` |
 | `Charlie` | two-way comms established | `HasMadeInitialContact && HasControllerAcknowledgedInitialContact` |
 | _other_ | `true` (no gate) | — |
 
-These fields live on `AircraftState` (`ClearedBravoIdent`, `HasControllerAcknowledgedInitialContact`,
+These fields live on `AircraftState` (`ClearedBravoIdent`, `RemainOutsideBravo`, `HasControllerAcknowledgedInitialContact`,
 `HasMadeInitialContact`) and are snapshot-serialized so replays preserve gate state.
 
 ### Solo Class B request and implicit clearance
@@ -265,6 +265,17 @@ Solo training only for the implicit grant and the request (RPO and Class C uncha
   It is also one when, not waiting, a heading/DCT ray enters a Class B it is not cleared into within 120 s, or when a pattern entry/approach clearance is for an airport inside a Class B. The grant names the Class B entered, the airport's, or the waited-on one.
 
   Only the immediately applied part of a compound grants (`AT …` and later `;` blocks do not). The readback gains `, cleared into the bravo` (`, cleared through the bravo` when the open request asked to go through). With the clearance held for that Class B, the boundary hold's gate is satisfied, so a vector no longer ends the orbit only for the next second to re-arm it.
+- **Remain outside.** `RMOB [minutes]` (7110.65 §7-9-2.a, minutes 1 to 60) is `ImplicitBravoClearance.ApplyRemainOutside`. `ResolveRemainOutside` picks the Class B: the one the pilot waits on, else one it already remains outside, else `ResolveCleared`'s, else the nearest within `RemainOutsideReachNm` (30 NM); none means the pilot says "say again, we're not near the bravo" and nothing changes.
+
+  Inside it in 3D (so a pilot levelled under a shelf is outside) the pilot says "we're inside the bravo, say intentions", keeps its clearance and sets nothing. Otherwise `AircraftState.StartRemainOutsideBravo` ends any clearance for that Class B and stores `RemainOutsideBravo` (area name, minutes, ask schedule; snapshot-serialized), read through `IsRemainOutsideBravo(ident)`.
+
+  While it stands, no implicit grant (`TryGrant`) reaches that Class B and the pilot raises no request of its own for it. Landing, leaving the area and `TickBravoClearanceExpiry` leave it alone; an explicit `CLBRV` (`GrantBravoClearance`) ends it, and a frequency change keeps it (AIM 4-4-10.a).
+
+  The pilot reads back "remain outside the bravo" (with minutes: "expect clearance in one five minutes", digit by digit). An open airspace-entry request for that Class B closes as Denied, ending its repeats (`PilotRequestTracker.ResolveResponse`).
+
+  When the pilot was waiting on that Class B, `PilotProactive.TickRemainOutsideBravoAsk` has it ask once "{callsign}, any estimate on the bravo?" at `RemainOutsideAskSeconds` (300 s) after the instruction, or at the minutes plus `RemainOutsideAskAfterExpectSeconds` (60 s), recorded as an `AirspaceEntry` request that repeats once if unanswered; a spent ask closes silently, a second `RMOB` denies it, `STBY` leaves the pilot holding (7110.65 §2-1-18.d), a frequency change cancels a pending ask, and an `RMOB` with no waiting pilot schedules none.
+
+  A vector or direct into that Class B is read back in the compound's order with the advisory in its place (`PilotResponder.AppliedCompound.NotClearedIntoBravo`, `ImplicitBravoClearance.FindRemainOutsideConflict`): "heading zero niner zero takes us into the bravo, we're not cleared" (§7-9-2 NOTE 1); such a command grants nothing and does not answer the open ask, and the boundary hold keeps the pilot outside until `CLBRV`, then the stored heading or direct is flown.
 - **Ending.** A full-stop landing ends it (`LandingPhase` and `HelicopterLandingPhase` touchdown call `EndBravoClearance`; 7110.65 §7-9-3.b, AIM §3-2-3.d.2.b). Otherwise `PilotProactive.TickBravoClearanceExpiry` runs each tick on airborne aircraft. Laterally inside any volume of the cleared Class B, at any altitude, it marks the Class B entered (`HasEnteredClearedBravo`). Before that first entry nothing ends the clearance, so one given while turning or minutes out is kept until used. After entry it ends once the aircraft has been laterally outside every volume, with no re-entry into that Class B projected within 120 s (`FindFirstProjectedEntry` over `ImplicitBravoClearance.VolumesOf`), for `ImplicitBravoClearance.ExitGraceSeconds` (120 s) in a row. `BravoExitSinceSeconds` stamps the start of the outside stretch, and a re-entry or a projected entry resets it. A touch-and-go, a frequency change and a vertical exit under a shelf keep the clearance.
 
 `HasControllerAcknowledgedInitialContact` is set whenever the student issues a successful command
@@ -280,7 +291,7 @@ clear when a tower student directs an approach-owned VFR arrival into the Class 
 ## Consumer 2: separation-minima selection
 
 `SoloTrainingEvaluator.ResolveRequirement(a, b, airspace, lookaheadSeconds)`
-(`src/Yaat.Sim/Training/SoloTrainingEvaluator.cs:693`) picks which separation standard a pair must meet. The
+(`src/Yaat.Sim/Training/SoloTrainingEvaluator.cs`) picks which separation standard a pair must meet. The
 airspace database drives the VFR-involved branches:
 
 - **Both IFR** → IFR radar separation (3 NM / 1,000 ft), no airspace lookup.
@@ -292,14 +303,14 @@ airspace database drives the VFR-involved branches:
     Class C target-resolution / 500 ft (§7-8-2/3, AIM §3-2-4).
 
 Note that `SoloTrainingEvaluator` has its **own private** `ProjectPosition`/`ProjectAltitude`
-(`SoloTrainingEvaluator.cs:1391`+) — they are *not* the `AirspaceDatabase` ones, and `ProjectAltitude` here
+(in `SoloTrainingEvaluator.cs`) — they are *not* the `AirspaceDatabase` ones, and `ProjectAltitude` here
 does no goal clamping. See [solo-training-evaluation.md](solo-training-evaluation.md) (the Separation criteria
 section) for how these requirements feed the scorer and the per-tick `Evaluate` entry point.
 
 ### The synthetic Class C outer area
 
 The Class C "outer area" (the 20 NM ring used to extend §7-8 separation responsibility) is **not a polygon in
-the GeoJSON**. `IsInClassCOuterArea` (`SoloTrainingEvaluator.cs:756`) groups the Charlie volumes by airport id
+the GeoJSON**. `SoloTrainingEvaluator.IsInClassCOuterArea` groups the Charlie volumes by airport id
 (`IcaoId` else `Ident`), looks the airport fix up in `NavigationDatabase` trying both the raw id and a
 `"K"`-prefixed variant, takes the group's max `UpperFtMsl` as the ceiling, and returns true when the projected
 position is within a **hardcoded 20.0 NM radius** and at-or-below that ceiling. If the airport fix is missing
@@ -309,11 +320,11 @@ from navdata, the outer-area check silently returns `false`.
 
 `TickAirspaceBoundaryRespect` is called once per aircraft in **PostPhysics** in *both* repos:
 
-- yaat: `SimulationEngine.TickPostPhysics` (`src/Yaat.Sim/Simulation/SimulationEngine.cs:542`).
-- yaat-server: `TickProcessor` (`../yaat-server/src/Yaat.Server/Simulation/TickProcessor.cs:287`).
+- yaat: `SimulationEngine.TickPostPhysics` (`src/Yaat.Sim/Simulation/SimulationEngine.Tick.cs`).
+- yaat-server: `TickProcessor` (`../yaat-server/src/Yaat.Server/Simulation/TickProcessor.cs`).
 
 Both pass `AirspaceDatabase.Default`. The separation path is wired separately in yaat-server at
-`TickProcessor.cs:309` (`SoloTrainingEvaluator.Evaluate(..., AirspaceDatabase.Default, ...)`). See
+`TickProcessor` (`SoloTrainingEvaluator.Evaluate(..., AirspaceDatabase.Default, ...)`). See
 [tick-loop.md](tick-loop.md) for where PostPhysics sits relative to physics sub-ticks. Adding or removing a
 proactive airspace tick must be mirrored across both call sites or solo behavior diverges between the local
 sim and server rooms.

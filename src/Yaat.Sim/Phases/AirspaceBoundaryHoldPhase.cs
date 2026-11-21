@@ -37,6 +37,10 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     private TrueHeading _lastHeading;
     private bool _started;
 
+    // Whether the hold held through a controller vector under RMOB (HoldThroughVector): only then does it resume the
+    // assigned heading when it ends.
+    private bool _heldThroughVector;
+
     public AirspaceClass AirspaceClass { get; init; }
     public string Ident { get; init; } = "";
     public string NameText { get; init; } = "";
@@ -93,6 +97,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             CumulativeTurn = _cumulativeTurn,
             LastHeadingDeg = _lastHeading.Degrees,
             Started = _started,
+            HeldThroughVector = _heldThroughVector,
         };
 
     public static AirspaceBoundaryHoldPhase FromSnapshot(AirspaceBoundaryHoldPhaseDto dto)
@@ -125,6 +130,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         phase._cumulativeTurn = dto.CumulativeTurn;
         phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
         phase._started = dto.Started;
+        phase._heldThroughVector = dto.HeldThroughVector;
         return phase;
     }
 
@@ -175,10 +181,16 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
 
         // An explicit vector or navigation command means the controller has taken responsibility for
         // keeping the aircraft clear. Without this the orbit overwrites TargetTrueHeading every tick and
-        // the aircraft circles through the vector until it is cleared into the airspace.
+        // the aircraft circles through the vector until it is cleared into the airspace. A pilot told to remain outside
+        // this Class B keeps holding while the vector still takes it in.
         if ((ctx.Targets.AssignedMagneticHeading is not null) || ctx.Targets.HasRouteToFly)
         {
-            return true;
+            if (!VectorEntersRemainOutsideBravo(ctx))
+            {
+                return true;
+            }
+
+            HoldThroughVector(ctx);
         }
 
         if (!HeldVolumeCanStillBeEntered(ctx.Aircraft))
@@ -250,6 +262,11 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             ctx.Targets.TargetTrueHeading = _originalTargetHeading;
             ctx.Targets.PreferredTurnDirection = _originalTurnDirection;
         }
+        else if (_heldThroughVector)
+        {
+            // Only a hold that held through the vector under RMOB overwrote it; any other hold leaves the target alone.
+            ResumeAssignedHeading(ctx);
+        }
 
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
@@ -270,6 +287,81 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         double offset = OrbitDirection == TurnDirection.Left ? -180 : 180;
         ctx.Targets.TargetTrueHeading = ctx.Aircraft.TrueHeading + offset;
         ctx.Targets.PreferredTurnDirection = OrbitDirection;
+    }
+
+    /// <summary>
+    /// A vector the pilot held through (<see cref="HoldThroughVector"/>) is flown once the hold ends: the orbit overwrote
+    /// the target heading, so it is set back to the assigned heading. A route the controller gave is not touched.
+    /// </summary>
+    private static void ResumeAssignedHeading(PhaseContext ctx)
+    {
+        if ((ctx.Targets.AssignedMagneticHeading is not { } assigned) || ctx.Targets.HasRouteToFly)
+        {
+            return;
+        }
+
+        TrueHeading target = assigned.ToTrue(ctx.Aircraft.Declination);
+        if ((ctx.Targets.TargetTrueHeading is { } current) && (Math.Abs(current.SignedAngleTo(target)) <= 1.0))
+        {
+            return;
+        }
+
+        ctx.Targets.TargetTrueHeading = target;
+        ctx.Targets.PreferredTurnDirection = null;
+    }
+
+    /// <summary>The track a controller vector gives: the assigned heading, else toward the route's next fix; null for neither.</summary>
+    private static TrueHeading? VectorTrack(PhaseContext ctx)
+    {
+        if (ctx.Targets.AssignedMagneticHeading is { } assigned)
+        {
+            return assigned.ToTrue(ctx.Aircraft.Declination);
+        }
+
+        return ctx.Targets.NavigationRoute.FirstOrDefault() is { } next
+            ? new TrueHeading(GeoMath.BearingTo(ctx.Aircraft.Position, next.Position))
+            : null;
+    }
+
+    /// <summary>
+    /// Whether a controller vector or direct still takes the pilot into the Class B it is told to remain outside
+    /// (<c>RMOB</c>): its new track, level at its altitude, enters this Class B within
+    /// <see cref="Pilot.ImplicitBravoClearance.WaitingEntryLookaheadSeconds"/>. The pilot then keeps holding through it
+    /// (<see cref="HoldThroughVector"/>).
+    /// </summary>
+    private bool VectorEntersRemainOutsideBravo(PhaseContext ctx)
+    {
+        if ((AirspaceClass != AirspaceClass.Bravo) || !ctx.Aircraft.IsRemainOutsideBravo(Ident) || (VectorTrack(ctx) is not { } newTrack))
+        {
+            return false;
+        }
+
+        return AirspaceDatabase.Default.FindLevelTrackClassBEntry(
+            ctx.Aircraft.Position,
+            ctx.Aircraft.Altitude,
+            newTrack,
+            ctx.Aircraft.GroundSpeed,
+            Pilot.ImplicitBravoClearance.WaitingEntryLookaheadSeconds,
+            Ident
+        )
+            is not null;
+    }
+
+    /// <summary>
+    /// Keeps holding through a controller vector or direct into the Class B the pilot is told to remain outside, and marks
+    /// the hold as having done so. A direct is stashed for the end of the hold: its route moves into the route the hold
+    /// restores, so the orbit is not flown over by it, and the pilot flies it once cleared in. An assigned heading stays
+    /// assigned and is resumed then (<see cref="ResumeAssignedHeading"/>).
+    /// </summary>
+    private void HoldThroughVector(PhaseContext ctx)
+    {
+        _heldThroughVector = true;
+        if (ctx.Targets.HasRouteToFly)
+        {
+            _originalRoute.Clear();
+            _originalRoute.AddRange(ctx.Targets.NavigationRoute.Select(CloneNavigationTarget));
+            ctx.Targets.NavigationRoute.Clear();
+        }
     }
 
     private bool GateSatisfied(AircraftState aircraft) =>

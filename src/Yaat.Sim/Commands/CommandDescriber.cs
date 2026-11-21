@@ -268,6 +268,7 @@ public static class CommandDescriber
             ContactCommand => CanonicalCommandType.Contact,
             FrequencyChangeApprovedCommand => CanonicalCommandType.FrequencyChangeApproved,
             ClearedBravoAirspaceCommand => CanonicalCommandType.ClearedBravoAirspace,
+            RemainOutsideBravoCommand => CanonicalCommandType.RemainOutsideBravo,
             AcknowledgePilotContactCommand => CanonicalCommandType.AcknowledgePilotContact,
             SayAgainCommand => CanonicalCommandType.SayAgain,
             SayAgainUnaddressedCommand => CanonicalCommandType.SayAgainUnaddressed,
@@ -838,6 +839,7 @@ public static class CommandDescriber
             ContactCommand cmd => cmd.Target is not null ? $"CT {cmd.Target}" : "CT",
             FrequencyChangeApprovedCommand => "FCA",
             ClearedBravoAirspaceCommand => "CLBRV",
+            RemainOutsideBravoCommand cmd => cmd.Minutes is { } minutes ? $"RMOB {minutes}" : "RMOB",
             AcknowledgePilotContactCommand => "STBY",
             SayAgainCommand cmd => cmd.CallsignOnly ? "AGAIN CS" : "AGAIN",
             SayAgainUnaddressedCommand cmd => cmd.CallsignOnly ? "AGAINU CS" : "AGAINU",
@@ -1335,6 +1337,9 @@ public static class CommandDescriber
             ContactCommand cmd => cmd.Target is not null ? $"Contact {cmd.Target}" : "Contact next controller",
             FrequencyChangeApprovedCommand => "Frequency change approved",
             ClearedBravoAirspaceCommand => "Cleared into Bravo airspace",
+            RemainOutsideBravoCommand cmd => cmd.Minutes is { } minutes
+                ? $"Remain outside Bravo airspace, expect clearance in {minutes} min"
+                : "Remain outside Bravo airspace",
             AcknowledgePilotContactCommand => "Standby",
             SayAgainCommand cmd => cmd.CallsignOnly ? "Say again callsign" : "Say again",
             SayAgainUnaddressedCommand cmd => cmd.CallsignOnly ? "Aircraft calling, say again your call sign" : "Aircraft calling, say again",
@@ -1793,6 +1798,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.Contact
                 or CanonicalCommandType.FrequencyChangeApproved
                 or CanonicalCommandType.ClearedBravoAirspace
+                or CanonicalCommandType.RemainOutsideBravo
                 or CanonicalCommandType.AcknowledgePilotContact
                 or CanonicalCommandType.SayAgain
                 // CIFR only flips the flight rules; it does not change the path flown, so it may not cancel the phase

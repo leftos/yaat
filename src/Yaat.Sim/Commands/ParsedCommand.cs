@@ -1003,6 +1003,14 @@ public record FrequencyChangeApprovedCommand : ParsedCommand;
 public record ClearedBravoAirspaceCommand : ParsedCommand;
 
 /// <summary>
+/// RMOB [minutes] — FAA 7110.65 §7-9-2.a "REMAIN OUTSIDE BRAVO AIRSPACE", with §7-9-2.c's time to expect clearance when
+/// given. Solo training: the VFR pilot stays outside that Class B, and takes no implicit clearance into it, until an
+/// explicit <c>CLBRV</c>.
+/// </summary>
+/// <param name="Minutes">The minutes until the pilot can expect clearance, 1 to 60; null when the controller gave none.</param>
+public record RemainOutsideBravoCommand(int? Minutes) : ParsedCommand;
+
+/// <summary>
 /// STBY / ROGER - controller response that uses the aircraft callsign and establishes
 /// two-way radio communications for VFR Class C/D entry without issuing a maneuver.
 /// </summary>

@@ -121,6 +121,7 @@ public static class CompoundPolicy
                 or FrequencyChangeApprovedCommand
                 or AcknowledgePilotContactCommand
                 or ClearedBravoAirspaceCommand
+                or RemainOutsideBravoCommand
                 or CancelIfrCommand
                 or SquawkCommand
                 or SquawkVfrCommand

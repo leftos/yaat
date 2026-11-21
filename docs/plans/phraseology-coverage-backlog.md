@@ -3084,7 +3084,7 @@ Implementation sessions should pull these first — one rule addition per cluste
 
 - **`MaintainPresentSpeed`** — analog to `FlyPresentHeading`. Multiple sections.
 - **`MonitorFrequency`** — listen-only frequency transfer, distinct from `Contact`. Multiple sections.
-- **`RemainOutsideAirspace`** — Class B/C entry-denial; `ClearedBravoAirspace` is the affirmative, no negative analog. AIM §7-8 (Charlie), §7-9 (Bravo).
+- **`RemainOutsideAirspace`** — Class B/C entry-denial; `ClearedBravoAirspace` is the affirmative. The Bravo half shipped as `RemainOutsideBravo` (`RMOB [minutes]`); the Charlie half (AIM §7-8) has no canonical command yet.
 - **`RadarServiceTerminated`** — recurring across §7-6, §7-7, §7-9, AIM §5-3.
 - **`ResumeOwnNavigation`** / **`ResumeAppropriateVfrAltitudes`** / **`ResumePublishedSpeed`** — vector/altitude/speed release family. Multiple sections.
 - **`CancelApproachClearance`** — enum has cancel-takeoff and cancel-landing but not approach. 7110.65 §4-8, AIM §5-4.

@@ -1295,6 +1295,18 @@ public static class CommandRegistry
             ),
             Bare(FrequencyChangeApproved, "Frequency Change Approved", "Track Operations", CommandDimension.None, false, ["FCA"]),
             Bare(ClearedBravoAirspace, "Cleared Bravo Airspace", "Track Operations", CommandDimension.None, false, ["CLBRV", "CBRV", "BRAVO"]),
+            Cmd(
+                RemainOutsideBravo,
+                "Remain Outside Bravo",
+                "Track Operations",
+                CommandDimension.None,
+                false,
+                ["RMOB"],
+                [
+                    O(null, [], "Remain outside Bravo airspace"),
+                    O("Minutes", [R("minutes", "minutes until clearance can be expected, 1 to 60")], "Remain outside, expect clearance in N minutes"),
+                ]
+            ),
             Bare(
                 AcknowledgePilotContact,
                 "Acknowledge Pilot Contact",

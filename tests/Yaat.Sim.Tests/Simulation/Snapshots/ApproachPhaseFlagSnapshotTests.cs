@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -38,6 +40,23 @@ public class ApproachPhaseFlagSnapshotTests
 
         Assert.True(restored.IsHoldInLieu);
         Assert.True(restored.IsMissedApproachHold);
+    }
+
+    /// <summary>
+    /// A boundary hold that held through a controller vector under RMOB keeps that flag through a snapshot, so a rewind or
+    /// seek mid-hold still resumes the assigned heading when the hold ends. A fresh hold's snapshot carries no such key.
+    /// </summary>
+    [Fact]
+    public void AirspaceBoundaryHoldPhase_HeldThroughVector_SurvivesSnapshotRoundTrip()
+    {
+        string fresh = JsonSerializer.Serialize<PhaseDto>(BoundaryHold().ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.DoesNotContain("HeldThroughVector", fresh, StringComparison.Ordinal);
+
+        string held = JsonSerializer.Serialize<PhaseDto>(HeldThroughVectorDto(), RecordingJsonOptions.Default);
+        string restored = Resnapshot(held);
+
+        Assert.Contains("\"HeldThroughVector\":true", restored, StringComparison.Ordinal);
+        Assert.Contains("\"HeldThroughVector\":true", Resnapshot(restored), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -106,6 +125,42 @@ public class ApproachPhaseFlagSnapshotTests
 
         Assert.False(restored.IsMissedApproachHold);
         Assert.True(restored.IsHoldInLieu);
+    }
+
+    private static AirspaceBoundaryHoldPhase BoundaryHold() =>
+        new()
+        {
+            AirspaceClass = AirspaceClass.Bravo,
+            Ident = "SFO",
+            NameText = "SFO",
+            ReferencePosition = new LatLon(37.62, -122.885),
+            OrbitDirection = TurnDirection.Right,
+        };
+
+    /// <summary>The snapshot of a boundary hold that held through a controller vector under RMOB.</summary>
+    private static AirspaceBoundaryHoldPhaseDto HeldThroughVectorDto() =>
+        new()
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 0,
+            AirspaceClass = (int)AirspaceClass.Bravo,
+            Ident = "SFO",
+            NameText = "SFO",
+            ReferenceLat = 37.62,
+            ReferenceLon = -122.885,
+            OrbitDirection = (int)TurnDirection.Right,
+            CumulativeTurn = 0,
+            LastHeadingDeg = 90,
+            Started = true,
+            HeldThroughVector = true,
+        };
+
+    private static string Resnapshot(string json)
+    {
+        AirspaceBoundaryHoldPhaseDto dto = Assert.IsType<AirspaceBoundaryHoldPhaseDto>(
+            JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default)
+        );
+        return JsonSerializer.Serialize<PhaseDto>(AirspaceBoundaryHoldPhase.FromSnapshot(dto).ToSnapshot(), RecordingJsonOptions.Default);
     }
 
     private static HoldingPatternPhase RoundTrip(HoldingPatternPhase phase)

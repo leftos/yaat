@@ -176,6 +176,26 @@ public sealed class AircraftSnapshotDto
     public double? BravoExitSinceSeconds { get; init; }
 
     /// <summary>
+    /// The Class B the pilot is told to remain outside (<see cref="AircraftState.RemainOutsideBravo"/>), by area name.
+    /// Optional and left out of the JSON while null: earlier snapshots restore none, so no SnapshotSchemaMigrator step or
+    /// SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemainOutsideBravoIdent { get; init; }
+
+    /// <summary>The minutes the pilot was told to expect clearance in under that instruction; null when none were given.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RemainOutsideBravoMinutes { get; init; }
+
+    /// <summary>When the pilot's "any estimate on the bravo?" ask is due, in scenario-elapsed seconds; null for none.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? RemainOutsideBravoAskDueSeconds { get; init; }
+
+    /// <summary>The pilot has voiced its one ask under that instruction. Optional and left out of the JSON while false.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RemainOutsideBravoAskVoiced { get; init; }
+
+    /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder has fired once.
     /// Non-required so older snapshots deserialize cleanly with the default
     /// <see langword="false"/>.

@@ -266,6 +266,7 @@ public sealed partial class SimulationEngine
                 Pilot.PilotProactive.TickDescentRequest(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickFurtherClearanceRequest(ac, scenario);
                 Pilot.PilotProactive.TickBravoClearanceExpiry(ac, AirspaceDatabase.Default, scenario.ElapsedSeconds);
+                Pilot.PilotProactive.TickRemainOutsideBravoAsk(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
             }
 

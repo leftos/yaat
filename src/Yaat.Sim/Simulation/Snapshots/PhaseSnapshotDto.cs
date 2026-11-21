@@ -1429,6 +1429,10 @@ public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
     public required double CumulativeTurn { get; init; }
     public required double LastHeadingDeg { get; init; }
     public required bool Started { get; init; }
+
+    /// <summary>Whether the hold held through a controller vector under RMOB, so it resumes the assigned heading when it ends.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HeldThroughVector { get; init; }
 }
 
 public sealed class MilitaryRoutePhaseDto : PhaseDto

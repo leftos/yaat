@@ -35,6 +35,19 @@ public sealed record PreDispatchCapture(BravoClearanceWait? BravoWait, IReadOnly
         );
 }
 
+/// <summary>
+/// What a successful dispatch changes in the pilot's readback about Class B: the implicit clearance it granted
+/// (<see cref="ImplicitBravoClearance.TryGrant"/>), and the vector or direct that takes the pilot into a Class B it is told to
+/// remain outside (<see cref="ImplicitBravoClearance.FindRemainOutsideConflict"/>), whose clause is the advisory.
+/// </summary>
+/// <param name="Grant">How the pilot words the clearance it took, or null when none was granted.</param>
+/// <param name="NotCleared">The instruction whose clause the pilot reads back as the "we're not cleared" advisory, or null.</param>
+internal sealed record BravoReadback(BravoClearanceWording? Grant, ParsedCommand? NotCleared)
+{
+    /// <summary>No grant and no advisory.</summary>
+    public static BravoReadback None { get; } = new(null, null);
+}
+
 // Command entry points and the aircraft mutations they drive. Routing is the ActionRouter's (Simulation/Actions/);
 // this file holds the entry points that call it and the bodies its aviation arm shares with every run kind.
 public sealed partial class SimulationEngine
@@ -223,7 +236,7 @@ public sealed partial class SimulationEngine
         bool answering = Scenario?.PilotContacts.AnyAnswering ?? false;
         bool human = origin == DispatchOrigin.Human;
         double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
-        BravoClearanceWording? bravoGrant = null;
+        BravoReadback bravo = BravoReadback.None;
         // Whether the controller had acknowledged the pilot's contact before this command, so the read-back to the command
         // that acknowledges it keeps the full callsign: read before the registration below, and false for a compound
         // carrying a STBY/ROGER, whose dispatch has already set the flag.
@@ -233,9 +246,14 @@ public sealed partial class SimulationEngine
 
         if (result.Success)
         {
-            bravoGrant = Scenario is { } scenario
-                ? ImplicitBravoClearance.TryGrant(aircraft, compound, capture.BravoWait, scenario, AirspaceDatabase.Default, LookupAirportPosition)
-                : null;
+            // A vector or direct into a Class B the pilot is told to remain outside draws the NOTE 1 advisory instead of
+            // the readback; it never grants (TryGrant skips that Class B).
+            bravo = Scenario is { } scenario
+                ? new BravoReadback(
+                    ImplicitBravoClearance.TryGrant(aircraft, compound, capture.BravoWait, scenario, AirspaceDatabase.Default, LookupAirportPosition),
+                    ImplicitBravoClearance.FindRemainOutsideConflict(aircraft, compound, scenario, AirspaceDatabase.Default)
+                )
+                : BravoReadback.None;
 
             if (human)
             {
@@ -245,7 +263,7 @@ public sealed partial class SimulationEngine
 
             if (answering)
             {
-                AnswerAcceptedCommand(aircraft, compound, result, elapsedSeconds, acknowledgedBefore, bravoGrant);
+                AnswerAcceptedCommand(aircraft, compound, result, elapsedSeconds, acknowledgedBefore, bravo);
             }
         }
         else if (answering)
@@ -281,7 +299,7 @@ public sealed partial class SimulationEngine
         CommandResult result,
         double elapsedSeconds,
         bool acknowledgedBefore,
-        BravoClearanceWording? bravoGrant
+        BravoReadback bravo
     )
     {
         if (!PilotRepeat.IsSayAgainOnly(compound))
@@ -311,7 +329,7 @@ public sealed partial class SimulationEngine
             elapsedSeconds,
             ControllerAirtimeSeconds(compound, result, aircraft, Scenario?.ActiveRunways ?? ActiveRunways.Empty)
         );
-        QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravoGrant);
+        QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravo);
     }
 
     /// <summary>
@@ -366,18 +384,25 @@ public sealed partial class SimulationEngine
     /// read-back queues nothing.
     /// </summary>
     /// <param name="acknowledgedBefore">Whether the controller had acknowledged the pilot's contact before this command.</param>
-    /// <param name="bravoGrant">The implicit Class B clearance this dispatch granted, if any.</param>
+    /// <param name="bravo">
+    /// The implicit Class B clearance this dispatch granted, if any, and the vector or direct that takes the pilot into a
+    /// Class B it is told to remain outside, whose clause the pilot reads back as the advisory, the rest of the compound
+    /// read back in order around it.
+    /// </param>
     private void QueueAppliedReadback(
         AircraftState aircraft,
         CompoundCommand compound,
         CommandResult result,
         bool acknowledgedBefore,
-        BravoClearanceWording? bravoGrant
+        BravoReadback bravo
     )
     {
         PilotSpeechContext speechContext = PilotSpeechContextFor(aircraft, acknowledgedBefore);
-        ActiveRunways activeRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty;
-        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext, activeRunways);
+        var applied = new PilotResponder.AppliedCompound(compound, result, Scenario?.ActiveRunways ?? ActiveRunways.Empty)
+        {
+            NotClearedIntoBravo = bravo.NotCleared,
+        };
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(applied, aircraft, speechContext);
         if (readback is null)
         {
             return;
@@ -385,11 +410,11 @@ public sealed partial class SimulationEngine
 
         // The same read-back without load variation, whose length the frequency meter records.
         PilotSpeechText canonical =
-            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotSpeechContext.Canonical, activeRunways)
+            PilotResponder.BuildReadbackAsApplied(applied, aircraft, PilotSpeechContext.Canonical)
             ?? throw new InvalidOperationException(
                 $"{aircraft.Callsign}: the read-back of '{compound.SourceText}' verbalized with a varied context but not canonically"
             );
-        if (bravoGrant is { } wording)
+        if (bravo.Grant is { } wording)
         {
             readback = PilotResponder.WithBravoClearance(aircraft, readback, wording, speechContext);
             canonical = PilotResponder.WithBravoClearance(aircraft, canonical, wording, PilotSpeechContext.Canonical);

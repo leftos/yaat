@@ -152,6 +152,27 @@ public class SnapshotRoundTripTests
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 
+    /// <summary>
+    /// The remain-outside-Bravo state (RMOB) round-trips with its minutes and ask schedule, then with its ask voiced; an
+    /// aircraft without it writes none of its fields.
+    /// </summary>
+    [Fact]
+    public void Snapshot_RoundTripsTheRmobState()
+    {
+        var ac = new AircraftState { Callsign = "N436MS", AircraftType = "C182" };
+        Assert.False(JsonNode.Parse(JsonSerializer.Serialize(ac.ToSnapshot()))!.AsObject().ContainsKey("RemainOutsideBravoIdent"));
+
+        ac.StartRemainOutsideBravo("SFO", minutes: 15, askDueSeconds: 960);
+        var scheduled = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
+
+        Assert.Equal(new RemainOutsideBravoState("SFO", 15, 960, AskVoiced: false), scheduled.RemainOutsideBravo);
+
+        ac.MarkRemainOutsideAskVoiced();
+        var voiced = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
+
+        Assert.Equal(new RemainOutsideBravoState("SFO", 15, null, AskVoiced: true), voiced.RemainOutsideBravo);
+    }
+
     /// <summary>The last crossed published speed round-trips both ways: a value after a crossing, and null before any.</summary>
     [Fact]
     public void AircraftProcedure_LastCrossedPublishedSpeed_RoundTrips()

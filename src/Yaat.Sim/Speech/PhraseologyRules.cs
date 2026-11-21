@@ -535,6 +535,30 @@ public static class PhraseologyRules
             new(["cleared", "into", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
             new(["cleared", "out", "of", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
             new(["cleared", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            // FAA 7110.65 §7-9-2.a REMAIN OUTSIDE BRAVO AIRSPACE, and §7-9-2.c's time to expect clearance. The forms with the
+            // minutes are SttOnly: the pilot's readback is built by PilotResponder, which says the minutes digit by digit.
+            new(
+                ["remain", "outside", "bravo", "airspace", "expect", "clearance", "in", "{minutes}", "minutes?", "minute?"],
+                "RMOB {minutes}",
+                RemainOutsideBravo,
+                SttOnly: true
+            ),
+            new(
+                ["remain", "outside", "the", "bravo", "expect", "clearance", "in", "{minutes}", "minutes?", "minute?"],
+                "RMOB {minutes}",
+                RemainOutsideBravo,
+                SttOnly: true
+            ),
+            new(["remain", "outside", "bravo", "airspace"], "RMOB", RemainOutsideBravo),
+            new(["remain", "outside", "the", "bravo"], "RMOB", RemainOutsideBravo),
+            // Letter twins of the forms above, for the NATO collapse of "bravo" into "B".
+            new(
+                ["remain", "outside", "the?", "class?", "b", "airspace?", "expect", "clearance", "in", "{minutes}", "minutes?", "minute?"],
+                "RMOB {minutes}",
+                RemainOutsideBravo,
+                SttOnly: true
+            ),
+            new(["remain", "outside", "the?", "class?", "b", "airspace?"], "RMOB", RemainOutsideBravo, SttOnly: true),
             // AIM 3-2-4 / 3-2-5 and 7110.65 7-8-4: "(aircraft callsign) standby"
             // establishes two-way radio communications for Class C/D entry.
             new(["standby"], "STBY", AcknowledgePilotContact),

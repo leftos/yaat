@@ -461,12 +461,67 @@ public class AircraftState
     /// <summary>Whether the pilot holds a Class B clearance into the Class B named <paramref name="ident"/> (case-insensitive).</summary>
     public bool IsClearedIntoBravo(string ident) => string.Equals(ClearedBravoIdent, ident, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Grants the Class B clearance into the Class B named <paramref name="ident"/>, replacing any other; not yet entered.</summary>
+    /// <summary>
+    /// Grants the Class B clearance into the Class B named <paramref name="ident"/>, replacing any other; not yet entered.
+    /// It also ends a <see cref="RemainOutsideBravo"/> instruction for that Class B: the clearance is what it waited for.
+    /// </summary>
     public void GrantBravoClearance(string ident)
     {
         ClearedBravoIdent = ident;
         HasEnteredClearedBravo = false;
         BravoExitSinceSeconds = null;
+        if (IsRemainOutsideBravo(ident))
+        {
+            RemainOutsideBravo = null;
+        }
+    }
+
+    /// <summary>
+    /// The controller's "remain outside Bravo airspace" (<c>RMOB</c>, FAA 7110.65 §7-9-2.a) the pilot is under: the Class
+    /// B (its area name), the minutes it was told to expect clearance in, and its one "any estimate on the bravo?" ask;
+    /// null when there is none. While it stands the pilot takes no implicit clearance into that Class B and raises no
+    /// request of its own for it. It never coexists with a clearance into the same Class B:
+    /// <see cref="StartRemainOutsideBravo"/> ends that clearance, and <see cref="GrantBravoClearance"/> (an explicit
+    /// <c>CLBRV</c>) ends it. A landing, leaving the area and the clearance-expiry tick leave it alone. Snapshot-serialized.
+    /// </summary>
+    public Pilot.RemainOutsideBravoState? RemainOutsideBravo { get; private set; }
+
+    /// <summary>Whether the pilot is told to remain outside the Class B named <paramref name="ident"/> (case-insensitive).</summary>
+    public bool IsRemainOutsideBravo(string ident) =>
+        (RemainOutsideBravo is { } remain) && string.Equals(remain.Ident, ident, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tells the pilot to remain outside the Class B named <paramref name="ident"/>, ending any clearance into it. The ask
+    /// is scheduled at <paramref name="askDueSeconds"/> (scenario-elapsed seconds; null for none) unless the pilot has
+    /// already voiced its ask under an earlier instruction for the same Class B: it asks once only.
+    /// </summary>
+    public void StartRemainOutsideBravo(string ident, int? minutes, double? askDueSeconds)
+    {
+        if (IsClearedIntoBravo(ident))
+        {
+            EndBravoClearance();
+        }
+
+        bool askVoiced = (RemainOutsideBravo is { AskVoiced: true }) && IsRemainOutsideBravo(ident);
+        RemainOutsideBravo = new Pilot.RemainOutsideBravoState(ident, minutes, askVoiced ? null : askDueSeconds, askVoiced);
+    }
+
+    /// <summary>The pilot has asked "any estimate on the bravo?": no further ask is scheduled.</summary>
+    public void MarkRemainOutsideAskVoiced()
+    {
+        if (RemainOutsideBravo is { } remain)
+        {
+            RemainOutsideBravo = remain with { AskDueSeconds = null, AskVoiced = true };
+        }
+    }
+
+    /// <summary>Cancels a scheduled ask (the pilot left the frequency), keeping the instruction itself.</summary>
+    public void CancelRemainOutsideAsk()
+    {
+        if (RemainOutsideBravo is { AskDueSeconds: not null } remain)
+        {
+            RemainOutsideBravo = remain with { AskDueSeconds = null };
+        }
     }
 
     /// <summary>
@@ -709,6 +764,14 @@ public class AircraftState
             ClearedBravoIdent = dto.ClearedBravoIdent,
             HasEnteredClearedBravo = dto.HasEnteredClearedBravo,
             BravoExitSinceSeconds = dto.BravoExitSinceSeconds,
+            RemainOutsideBravo = dto.RemainOutsideBravoIdent is { } remainIdent
+                ? new Pilot.RemainOutsideBravoState(
+                    remainIdent,
+                    dto.RemainOutsideBravoMinutes,
+                    dto.RemainOutsideBravoAskDueSeconds,
+                    dto.RemainOutsideBravoAskVoiced
+                )
+                : null,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
@@ -836,6 +899,10 @@ public class AircraftState
             ClearedBravoIdent = ClearedBravoIdent,
             HasEnteredClearedBravo = HasEnteredClearedBravo,
             BravoExitSinceSeconds = BravoExitSinceSeconds,
+            RemainOutsideBravoIdent = RemainOutsideBravo?.Ident,
+            RemainOutsideBravoMinutes = RemainOutsideBravo?.Minutes,
+            RemainOutsideBravoAskDueSeconds = RemainOutsideBravo?.AskDueSeconds,
+            RemainOutsideBravoAskVoiced = RemainOutsideBravo?.AskVoiced ?? false,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),

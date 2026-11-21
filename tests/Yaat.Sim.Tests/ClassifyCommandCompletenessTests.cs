@@ -164,6 +164,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "RandomSquawkCommand",
         "RejectPointoutCommand",
         "ReleaseDepartureCommand",
+        "RemainOutsideBravoCommand",
         "ReportCommand",
         "ReportFieldAdvisoryCommand",
         "ReportFieldInSightCommand",

@@ -84,7 +84,7 @@ public static class PilotRequestTracker
                 continue;
             }
 
-            PilotPendingRequestResponseState response = ResolveResponse(pending.Kind, command);
+            PilotPendingRequestResponseState response = ResolveResponse(pending, aircraft, command);
             switch (response)
             {
                 case PilotPendingRequestResponseState.Satisfied:
@@ -224,7 +224,7 @@ public static class PilotRequestTracker
             return false;
         }
 
-        if (IsMoot(pending, aircraft, studentPosition, airportLookup))
+        if (ClosesUnvoiced(pending, aircraft, nowSeconds, studentPosition, airportLookup))
         {
             pending.ResponseState = PilotPendingRequestResponseState.Superseded;
             return false;
@@ -265,6 +265,37 @@ public static class PilotRequestTracker
         RememberDescentCap(aircraft, pending);
         return true;
     }
+
+    /// <summary>
+    /// Whether the open <paramref name="request"/> closes without its follow-up: it is moot (<see cref="IsMoot"/>), or it is a
+    /// spent "any estimate on the bravo?" ask (<see cref="IsSpentRemainOutsideAsk"/>).
+    /// </summary>
+    private static bool ClosesUnvoiced(
+        PilotPendingRequest request,
+        AircraftState aircraft,
+        double nowSeconds,
+        TrackOwner? studentPosition,
+        Func<string, LatLon?> airportLookup
+    ) => IsMoot(request, aircraft, studentPosition, airportLookup) || IsSpentRemainOutsideAsk(request, aircraft, nowSeconds);
+
+    /// <summary>
+    /// Whether <paramref name="request"/> is the "any estimate on the bravo?" ask of a pilot told to remain outside that
+    /// Class B (<see cref="PilotProactive.TickRemainOutsideBravoAsk"/>).
+    /// </summary>
+    private static bool IsRemainOutsideAsk(PilotPendingRequest request, AircraftState aircraft) =>
+        (request.Kind == PilotPendingRequestKind.AirspaceEntry)
+        && (aircraft.RemainOutsideBravo is { AskVoiced: true } remain)
+        && string.Equals(request.AirspaceIdent, remain.Ident, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the "any estimate on the bravo?" ask has used its one repeat, or was answered with a standby (7110.65
+    /// §2-1-18.d: the controller owes the answer), and its next follow-up is due: it closes silently instead, and the pilot
+    /// keeps holding.
+    /// </summary>
+    private static bool IsSpentRemainOutsideAsk(PilotPendingRequest request, AircraftState aircraft, double nowSeconds) =>
+        (nowSeconds >= request.NextFollowUpDueSeconds)
+        && ((request.FollowUpsVoiced >= 1) || (request.ResponseState == PilotPendingRequestResponseState.Standby))
+        && IsRemainOutsideAsk(request, aircraft);
 
     /// <summary>
     /// Once a request for lower reaches its cap, the aircraft remembers it: re-openable once when it was asked from the
@@ -338,7 +369,12 @@ public static class PilotRequestTracker
     /// </summary>
     private static void RefreshBravoBoundaryLine(PilotPendingRequest pending, AircraftState aircraft)
     {
-        if ((pending.Kind != PilotPendingRequestKind.AirspaceEntry) || (pending.AirspaceClass != nameof(AirspaceClass.Bravo)))
+        // The "any estimate on the bravo?" ask is repeated as it was asked.
+        if (
+            (pending.Kind != PilotPendingRequestKind.AirspaceEntry)
+            || (pending.AirspaceClass != nameof(AirspaceClass.Bravo))
+            || IsRemainOutsideAsk(pending, aircraft)
+        )
         {
             return;
         }
@@ -451,6 +487,25 @@ public static class PilotRequestTracker
                 or HoldingInPositionPhase
                 or HoldingShortPhase { ProtectsARunway: false };
 
+    /// <summary>
+    /// How <paramref name="command"/> answers the open <paramref name="request"/> of <paramref name="aircraft"/>: as
+    /// <see cref="ResolveResponse(PilotPendingRequestKind, ParsedCommand)"/> says, except that under <c>RMOB</c> for the
+    /// request's Class B an implied-clearance command (a vector, direct, pattern entry or approach) grants nothing, so it
+    /// is no answer (7110.65 §2-1-18: approve, unable or stand by) and the request stays open with its one repeat.
+    /// </summary>
+    private static PilotPendingRequestResponseState ResolveResponse(PilotPendingRequest request, AircraftState aircraft, ParsedCommand command) =>
+        IsNoAnswerUnderRemainOutside(request, aircraft, command) ? PilotPendingRequestResponseState.None : ResolveResponse(request.Kind, command);
+
+    /// <summary>
+    /// Whether <paramref name="command"/> is an implied-clearance command given while the pilot is told to remain outside
+    /// the Class B <paramref name="request"/> asks to enter.
+    /// </summary>
+    private static bool IsNoAnswerUnderRemainOutside(PilotPendingRequest request, AircraftState aircraft, ParsedCommand command) =>
+        (request.Kind == PilotPendingRequestKind.AirspaceEntry)
+        && (request.AirspaceIdent is { } ident)
+        && aircraft.IsRemainOutsideBravo(ident)
+        && ImplicitBravoClearance.IsImpliedClearanceCommand(command);
+
     private static PilotPendingRequestResponseState ResolveResponse(PilotPendingRequestKind kind, ParsedCommand command) =>
         kind switch
         {
@@ -519,6 +574,8 @@ public static class PilotRequestTracker
             PilotPendingRequestKind.AirspaceEntry => command switch
             {
                 ClearedBravoAirspaceCommand or ContactCommand or FrequencyChangeApprovedCommand => PilotPendingRequestResponseState.Satisfied,
+                // "Remain outside Bravo airspace" refuses the entry (7110.65 §7-9-2.a), ending the request's repeats.
+                RemainOutsideBravoCommand => PilotPendingRequestResponseState.Denied,
                 _ when ImplicitBravoClearance.IsImpliedClearanceCommand(command) => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },

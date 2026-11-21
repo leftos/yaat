@@ -1815,6 +1815,20 @@ public class PhraseologyMapperTests
     }
 
     [Theory]
+    // FAA 7110.65 §7-9-2.a REMAIN OUTSIDE BRAVO AIRSPACE, with the expected-clearance minutes when given.
+    [InlineData("remain outside bravo airspace", "RMOB")]
+    [InlineData("remain outside the bravo", "RMOB")]
+    [InlineData("remain outside the class bravo airspace", "RMOB")]
+    [InlineData("remain outside bravo airspace expect clearance in five minutes", "RMOB 5")]
+    [InlineData("remain outside the bravo expect clearance in five minutes", "RMOB 5")]
+    public void RemainOutsideBravo_Rules(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
     // "runway" itself must not fill the {rwy} slot of the shorter rule and veto the longer one.
     [InlineData("cleared visual approach runway two eight right", "CVA 28R")]
     [InlineData("cleared visual approach two eight right", "CVA 28R")]

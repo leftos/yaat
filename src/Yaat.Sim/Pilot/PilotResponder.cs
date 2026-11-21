@@ -157,31 +157,51 @@ public static partial class PilotResponder
         AircraftState aircraft,
         PilotSpeechContext speechContext,
         ActiveRunways activeRunways
-    )
+    ) => BuildReadbackAsApplied(new AppliedCompound(compound, result, activeRunways), aircraft, speechContext);
+
+    /// <summary>
+    /// A compound as the dispatch applied it, for <see cref="BuildReadbackAsApplied(AppliedCompound, AircraftState, PilotSpeechContext)"/>:
+    /// the compound the controller issued, the dispatch's result and the room's active runways.
+    /// </summary>
+    /// <param name="Compound">The compound the controller issued.</param>
+    /// <param name="Result">The dispatch's result: its effective command and its handler-built push readback.</param>
+    /// <param name="ActiveRunways">The room's active runways, which decide the end a runway the pilot names itself is read as.</param>
+    public sealed record AppliedCompound(CompoundCommand Compound, CommandResult Result, ActiveRunways ActiveRunways)
     {
-        HandlerReadback? pilotReadback = result.PilotReadback;
-        compound = WithReRouteAsTaxi(compound, result.ReRouteAppliedAs);
+        /// <summary>
+        /// The issued vector or direct (matched by reference) that takes the pilot into the Class B it is told to remain
+        /// outside (<see cref="ImplicitBravoClearance.FindRemainOutsideConflict"/>): its clause is the 7110.65 §7-9-2 NOTE 1
+        /// advisory, every other clause reads back as usual; null for none.
+        /// </summary>
+        public ParsedCommand? NotClearedIntoBravo { get; init; }
+    }
+
+    /// <summary>
+    /// <see cref="BuildReadbackAsApplied(CompoundCommand, CommandResult, AircraftState, PilotSpeechContext, ActiveRunways)"/>,
+    /// with the clause of <see cref="AppliedCompound.NotClearedIntoBravo"/> replaced by the "takes us into the bravo, we're
+    /// not cleared" advisory in its place in the sequence (AIM 4-4-7.b.2).
+    /// </summary>
+    public static PilotSpeechText? BuildReadbackAsApplied(AppliedCompound applied, AircraftState aircraft, PilotSpeechContext speechContext)
+    {
+        CommandResult result = applied.Result;
+        ActiveRunways activeRunways = applied.ActiveRunways;
+        var sources = new ClauseSources(result.PilotReadback, applied.NotClearedIntoBravo);
+        CompoundCommand compound = WithReRouteAsTaxi(applied.Compound, result.ReRouteAppliedAs);
         if (
             (result.EffectiveCommand is TaxiAutoCommand effectiveAuto)
             && (compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiAutoCommand>().FirstOrDefault() is { } issuedAuto)
         )
         {
-            return BuildReadback(WithReplaced(compound, issuedAuto, effectiveAuto), aircraft, speechContext, pilotReadback, activeRunways);
+            return BuildReadback(WithReplaced(compound, issuedAuto, effectiveAuto), aircraft, speechContext, sources, activeRunways);
         }
 
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
         if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
-            return BuildReadback(compound, aircraft, speechContext, pilotReadback, activeRunways);
+            return BuildReadback(compound, aircraft, speechContext, sources, activeRunways);
         }
 
-        PilotSpeechText? readback = BuildReadback(
-            WithReplaced(compound, issuedTaxi, effectiveTaxi),
-            aircraft,
-            speechContext,
-            pilotReadback,
-            activeRunways
-        );
+        PilotSpeechText? readback = BuildReadback(WithReplaced(compound, issuedTaxi, effectiveTaxi), aircraft, speechContext, sources, activeRunways);
         if (readback is null)
         {
             return null;
@@ -233,7 +253,16 @@ public static partial class PilotResponder
         AircraftState aircraft,
         PilotSpeechContext speechContext,
         ActiveRunways activeRunways
-    ) => BuildReadback(compound, aircraft, speechContext, null, activeRunways);
+    ) => BuildReadback(compound, aircraft, speechContext, ClauseSources.None, activeRunways);
+
+    /// <summary>
+    /// Where clauses come from other than the verbalizer: the handler's readback (<see cref="CommandResult.PilotReadback"/>),
+    /// and the vector or direct whose clause is the not-cleared-into-the-bravo advisory.
+    /// </summary>
+    private sealed record ClauseSources(HandlerReadback? Handler, ParsedCommand? NotClearedIntoBravo)
+    {
+        public static ClauseSources None { get; } = new(null, null);
+    }
 
     /// <summary>Whether <paramref name="cmd"/> is a command of canonical type <paramref name="type"/>; an unsupported command is none.</summary>
     private static bool IsCommandOfType(ParsedCommand cmd, CanonicalCommandType type) =>
@@ -241,17 +270,19 @@ public static partial class PilotResponder
 
     /// <summary>
     /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotSpeechContext, ActiveRunways)"/>, with the
-    /// clause of the compound's first command of the type that produced <paramref name="handlerReadback"/> taken from it when
-    /// the handler built one.
+    /// clause of the compound's first command of the type that produced the handler's readback taken from it when the
+    /// handler built one, and the clause of the vector or direct into a Class B the pilot must remain outside replaced by the
+    /// advisory (<see cref="ClauseSources"/>).
     /// </summary>
     private static PilotSpeechText? BuildReadback(
         CompoundCommand compound,
         AircraftState aircraft,
         PilotSpeechContext speechContext,
-        HandlerReadback? handlerReadback,
+        ClauseSources sources,
         ActiveRunways activeRunways
     )
     {
+        HandlerReadback? handlerReadback = sources.Handler;
         // Per-block clause lists are joined internally with ", " (parallel commands within
         // a `,`-separated block); blocks themselves are joined with ", then " to mark the
         // `;` (sequential) boundary the controller dictated. Without "then", TTS reads
@@ -263,6 +294,7 @@ public static partial class PilotResponder
         {
             Chained = IsChained(compound, covered),
             IssueBlock = PilotProactive.BlockAnsweredAtIssue(compound),
+            NotClearedIntoBravo = sources.NotClearedIntoBravo,
         };
         PilotSpeechContext clauseContext = assembly.Chained ? ChainedClauseContext(speechContext) : speechContext;
         var blocks = new List<BlockClauses>();
@@ -288,9 +320,9 @@ public static partial class PilotResponder
         string termBody = string.Join(", then ", blocks.Select(block => block.Terminal));
         string spokenBody = string.Join(", then ", blocks.Select(block => block.Tts));
         // A Quiet pick that offered rows beside the canonical takes its quiet courtesy from them, and a chained readback is
-        // never chatty, so either skips the flavour.
+        // never chatty, so either skips the flavour; nor is a readback that says the pilot is not cleared into the bravo.
         string ttsBody =
-            (assembly.OfferedQuietRows || assembly.Chained)
+            (assembly.OfferedQuietRows || assembly.Chained || (assembly.NotClearedIntoBravo is not null))
                 ? spokenBody
                 : ApplyQuietFlavor(aircraft.Callsign, spokenBody, termBody, compound, speechContext);
         string rpoBody = string.Join(", then ", blocks.Select(block => block.Rpo));
@@ -377,6 +409,9 @@ public static partial class PilotResponder
         /// (<see cref="PilotProactive.BlockAnsweredAtIssue"/>), else null: a REPORT anywhere else reads back as the plain wilco.
         /// </summary>
         public ParsedBlock? IssueBlock { get; init; }
+
+        /// <summary>The issued command (matched by reference) whose clause is the not-cleared-into-the-bravo advisory; null for none.</summary>
+        public ParsedCommand? NotClearedIntoBravo { get; init; }
     }
 
     /// <summary>One block's clauses, joined with ", ", in the terminal, spoken and RPO forms.</summary>
@@ -434,6 +469,11 @@ public static partial class PilotResponder
         if (TakeCovered(issued, assembly))
         {
             return null;
+        }
+
+        if (ReferenceEquals(issued, assembly.NotClearedIntoBravo))
+        {
+            return NotClearedIntoBravoClause(issued);
         }
 
         var trace = new ClauseTrace(assembly.WholeReadback) { ReportAnswer = ReportAnswerAtIssue(cmd, assembly) };
@@ -760,6 +800,7 @@ public static partial class PilotResponder
             ReportCommand report => BuildReportAnswerClause(report, trace.ReportAnswer, aircraft),
             SpeedMaxCommand => BuildMaximumForwardSpeed(),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
+            RemainOutsideBravoCommand rmob => BuildRemainOutsideBravoClause(rmob, aircraft),
             MaintainMilitaryRouteAltitudesCommand => BuildMaintainRouteAltitudesClause(aircraft),
             ClearedOutOfMilitaryRouteCommand xmtr => BuildClearedOutOfMilitaryRouteClause(aircraft, xmtr),
             ClearedToConductRefuelingCommand car => BuildClearedToConductRefuelingClause(car),
@@ -3241,6 +3282,82 @@ public static partial class PilotResponder
             $"{spoken}, unable {PhraseologyVerbalizer.AltitudeWords(assignedFt)}, that'd put us in the {airspaceName}; "
                 + $"we can do {PhraseologyVerbalizer.AltitudeWords(levelOffFt)}."
         );
+    }
+
+    /// <summary>
+    /// The pilot's answer to <c>RMOB [minutes]</c> (7110.65 §7-9-2.a), by where <see cref="ImplicitBravoClearance.ResolveRemainOutside"/>
+    /// finds the aircraft. Outside the Class B it reads it back, with the minutes to expect clearance spoken digit by digit
+    /// as 7110.65 says minute counts (§4-6-1.c "one five minute"): <c>"remain outside the bravo, expect clearance in one five
+    /// minutes"</c>, the terminal form keeping the number (<c>"... in 15 minutes"</c>). Already inside it, the pilot asks
+    /// <c>"we're inside the bravo, say intentions"</c>; near no Class B, <c>"say again, we're not near the bravo"</c>.
+    /// </summary>
+    private static PilotSpeechText BuildRemainOutsideBravoClause(RemainOutsideBravoCommand rmob, AircraftState aircraft)
+    {
+        const string RemainOutside = "remain outside the bravo";
+        return ImplicitBravoClearance.ResolveRemainOutside(aircraft, Data.Airspace.AirspaceDatabase.Default).Outcome switch
+        {
+            RemainOutsideOutcome.Inside => new PilotSpeechText("we're inside the bravo, say intentions", "we're inside the bravo, say intentions"),
+            RemainOutsideOutcome.NoBravo => new PilotSpeechText("say again, we're not near the bravo", "say again, we're not near the bravo"),
+            _ when rmob.Minutes is { } minutes => new PilotSpeechText(
+                $"{RemainOutside}, expect clearance in {minutes} {MinuteNoun(minutes)}",
+                $"{RemainOutside}, expect clearance in {PhraseologyVerbalizer.DigitsWords(minutes)} {MinuteNoun(minutes)}"
+            ),
+            _ => new PilotSpeechText(RemainOutside, RemainOutside),
+        };
+    }
+
+    private static string MinuteNoun(int minutes) => minutes == 1 ? "minute" : "minutes";
+
+    /// <summary>
+    /// The one re-ask of a pilot told to remain outside the Class B it was waiting on
+    /// (<see cref="PilotProactive.TickRemainOutsideBravoAsk"/>). Output: <c>"any estimate on the bravo?"</c> /
+    /// <c>"november one two three alpha bravo, any estimate on the bravo?"</c>
+    /// </summary>
+    public static PilotSpeechText BuildBravoEstimateAsk(AircraftState aircraft)
+    {
+        const string Ask = "any estimate on the bravo?";
+        return new PilotSpeechText(Ask, NormalizeForTts($"{SpokenOwnCallsign(aircraft)}, {Ask}"));
+    }
+
+    /// <summary>
+    /// The clause a vector or direct that takes the pilot into the Class B it is told to remain outside reads back as, in its
+    /// place in the readback: 7110.65 §7-9-2.a NOTE 1 expects a VFR pilot to advise ATC when compliance would break a rule,
+    /// AIM 4-4-1.b makes it the pilot's responsibility to request an amended clearance, and AIM 3-2-1.d puts meeting the
+    /// clearance requirement on the pilot before entering Class B. It reads the instruction's number back (AIM 4-4-7.b) in
+    /// the owner's wording. Output: <c>"heading 090 takes us into the bravo, we're not cleared"</c> /
+    /// <c>"heading zero niner zero takes us into the bravo, we're not cleared"</c>; a direct says <c>"direct SFO ..."</c>,
+    /// a relative turn <c>"turn left three zero degrees ..."</c>, and an instruction with no number <c>"that turn ..."</c>.
+    /// </summary>
+    private static PilotSpeechText NotClearedIntoBravoClause(ParsedCommand vector)
+    {
+        (string terminal, string spoken) = vector switch
+        {
+            FlyHeadingCommand c => HeadingWords(c.MagneticHeading),
+            TurnLeftCommand c => HeadingWords(c.MagneticHeading),
+            TurnRightCommand c => HeadingWords(c.MagneticHeading),
+            LeftTurnCommand c => TurnWords("left", c.Degrees),
+            RightTurnCommand c => TurnWords("right", c.Degrees),
+            DirectToCommand c => DirectWords(c.Fixes),
+            ForceDirectToCommand c => DirectWords(c.Fixes),
+            TurnLeftDirectToCommand c => DirectWords(c.Fixes),
+            TurnRightDirectToCommand c => DirectWords(c.Fixes),
+            _ => ("that turn", "that turn"),
+        };
+        const string NotCleared = "takes us into the bravo, we're not cleared";
+        return new PilotSpeechText($"{terminal} {NotCleared}", $"{spoken} {NotCleared}");
+
+        static string Niner(string digits) => string.Join(' ', digits.Split(' ').Select(d => d == "nine" ? "niner" : d));
+
+        static (string Terminal, string Spoken) HeadingWords(MagneticHeading heading) =>
+            ($"heading {PhraseologyVerbalizer.HeadingNumber(heading)}", $"heading {Niner(PhraseologyVerbalizer.HeadingDigits(heading))}");
+
+        static (string Terminal, string Spoken) TurnWords(string direction, int degrees) =>
+            ($"turn {direction} {degrees} degrees", $"turn {direction} {Niner(PhraseologyVerbalizer.DigitsWords(degrees))} degrees");
+
+        static (string Terminal, string Spoken) DirectWords(List<ResolvedFix> fixes) =>
+            fixes.Count == 0
+                ? ("that direct", "that direct")
+                : ($"direct {fixes[0].Name}", $"direct {PhraseologyVerbalizer.SpellFix(fixes[0].Name)}");
     }
 
     /// <summary>The words of a "through" Class B request, which a later implied clearance reads back as "cleared through".</summary>

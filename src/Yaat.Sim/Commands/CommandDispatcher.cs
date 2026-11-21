@@ -1648,6 +1648,15 @@ public static class CommandDispatcher
             case ClearedBravoAirspaceCommand:
                 ImplicitBravoClearance.GrantExplicit(aircraft, Data.Airspace.AirspaceDatabase.Default);
                 return Ok("Cleared into Bravo airspace");
+            case RemainOutsideBravoCommand rmob:
+                return Ok(
+                    ImplicitBravoClearance.ApplyRemainOutside(
+                        aircraft,
+                        rmob.Minutes,
+                        Data.Airspace.AirspaceDatabase.Default,
+                        ctx.ScenarioElapsedSeconds
+                    )
+                );
             case AcknowledgePilotContactCommand:
                 aircraft.HasControllerAcknowledgedInitialContact = true;
                 return Ok("Radio contact acknowledged");

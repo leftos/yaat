@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
@@ -21,6 +22,34 @@ public enum BravoClearanceWording
 public sealed record BravoClearanceWait(string Ident, BravoClearanceWording Wording);
 
 /// <summary>
+/// The controller's "remain outside Bravo airspace" (<c>RMOB</c>) the pilot is under (<see cref="AircraftState.RemainOutsideBravo"/>).
+/// </summary>
+/// <param name="Ident">The Class B's area name (<see cref="AirspaceDatabase.ClassBAreaName"/>).</param>
+/// <param name="Minutes">The minutes the pilot was told to expect clearance in; null when none were given.</param>
+/// <param name="AskDueSeconds">When the pilot asks "any estimate on the bravo?", in scenario-elapsed seconds; null for no ask.</param>
+/// <param name="AskVoiced">Whether the pilot has voiced that ask: it asks once only.</param>
+public sealed record RemainOutsideBravoState(string Ident, int? Minutes, double? AskDueSeconds, bool AskVoiced);
+
+/// <summary>What a <c>RMOB</c> found: the aircraft outside a Class B, inside one, or near none.</summary>
+public enum RemainOutsideOutcome
+{
+    /// <summary>Outside the Class B: the pilot remains outside it.</summary>
+    Outside,
+
+    /// <summary>Already inside the Class B (in 3D): the pilot asks for intentions and keeps its clearance.</summary>
+    Inside,
+
+    /// <summary>No Class B in reach: the pilot asks the controller to say again.</summary>
+    NoBravo,
+}
+
+/// <summary>
+/// The Class B a <c>RMOB</c> names (its area name; null with <see cref="RemainOutsideOutcome.NoBravo"/>) and where the
+/// aircraft is against it.
+/// </summary>
+public sealed record RemainOutsideResolution(RemainOutsideOutcome Outcome, string? Ident);
+
+/// <summary>
 /// Solo training: a controller instruction that can only be flown by entering Class B is taken as the Class B
 /// clearance for a VFR aircraft that does not hold one yet. The student playing controller vectors, clears direct, or
 /// clears for an approach or pattern entry at an airport inside the Bravo; without this the pilot flies the
@@ -29,6 +58,8 @@ public sealed record BravoClearanceWait(string Ident, BravoClearanceWording Word
 /// </summary>
 public static class ImplicitBravoClearance
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("ImplicitBravoClearance");
+
     /// <summary>How far ahead a vector or direct is projected when deciding whether it enters Class B.</summary>
     public const double EntryLookaheadSeconds = 120.0;
 
@@ -160,10 +191,166 @@ public static class ImplicitBravoClearance
     /// </summary>
     public static void GrantExplicit(AircraftState aircraft, AirspaceDatabase airspace)
     {
-        if (ResolveCleared(aircraft, airspace) is { } ident)
+        // A pilot told to remain outside a Class B it is neither waiting at nor heading for is cleared into that one.
+        if ((ResolveCleared(aircraft, airspace) ?? aircraft.RemainOutsideBravo?.Ident) is { } ident)
         {
+            if (aircraft.IsRemainOutsideBravo(ident) && Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign}: CLBRV into {Ident} ends its RMOB", aircraft.Callsign, ident);
+            }
+
             aircraft.GrantBravoClearance(ident);
         }
+    }
+
+    /// <summary>
+    /// How far a Class B may be from the aircraft for a <c>RMOB</c> that names no other to mean it: the Mode C veil radius
+    /// (AIM 3-2-3.b.6).
+    /// </summary>
+    public const double RemainOutsideReachNm = 30.0;
+
+    /// <summary>When the pilot under <c>RMOB</c> asks "any estimate on the bravo?" with no minutes given, in seconds after it.</summary>
+    public const double RemainOutsideAskSeconds = 300.0;
+
+    /// <summary>How long past the minutes a <c>RMOB {minutes}</c> gave the pilot waits before it asks, in seconds.</summary>
+    public const double RemainOutsideAskAfterExpectSeconds = 60.0;
+
+    /// <summary>
+    /// The Class B a <c>RMOB</c> names and where the aircraft is against it. The Class B is the one the pilot waits on
+    /// (<see cref="CaptureWait"/>), else the one it already remains outside, else the one <see cref="ResolveCleared"/>
+    /// finds (laterally around it, else projected ahead), else the nearest within <see cref="RemainOutsideReachNm"/>.
+    /// Inside means inside a volume of that Class B in 3D, so a pilot levelled under a shelf is outside (AIM 3-2-3.a,
+    /// 3-2-3.d.2(a)).
+    /// </summary>
+    public static RemainOutsideResolution ResolveRemainOutside(AircraftState aircraft, AirspaceDatabase airspace)
+    {
+        if (RemainOutsideTarget(aircraft, airspace) is not { } ident)
+        {
+            return new RemainOutsideResolution(RemainOutsideOutcome.NoBravo, null);
+        }
+
+        bool inside = airspace
+            .FindClassBContaining(aircraft.Position, aircraft.Altitude)
+            .Any(volume => string.Equals(AreaName(volume), ident, StringComparison.OrdinalIgnoreCase));
+        return new RemainOutsideResolution(inside ? RemainOutsideOutcome.Inside : RemainOutsideOutcome.Outside, ident);
+    }
+
+    /// <summary>
+    /// The controller's <c>RMOB [minutes]</c>: outside the Class B <see cref="ResolveRemainOutside"/> names, the pilot is
+    /// told to remain outside it (its clearance into it ends) and, when it was waiting on that Class B, schedules its one
+    /// ask at <see cref="RemainOutsideAskSeconds"/>, or at the minutes plus <see cref="RemainOutsideAskAfterExpectSeconds"/>.
+    /// Inside it, or near none, nothing changes.
+    /// </summary>
+    /// <returns>The dispatch message.</returns>
+    public static string ApplyRemainOutside(AircraftState aircraft, int? minutes, AirspaceDatabase airspace, double nowSeconds)
+    {
+        RemainOutsideResolution resolution = ResolveRemainOutside(aircraft, airspace);
+        if (resolution is not { Outcome: RemainOutsideOutcome.Outside, Ident: { } ident })
+        {
+            return resolution.Outcome == RemainOutsideOutcome.Inside
+                ? $"Inside the {resolution.Ident} Class B: the pilot asks for intentions"
+                : $"No Class B within {RemainOutsideReachNm:F0} nm: the pilot asks to say again";
+        }
+
+        bool waiting = string.Equals(CaptureWait(aircraft)?.Ident, ident, StringComparison.OrdinalIgnoreCase);
+        double askAfter = minutes is { } expect ? (expect * 60.0) + RemainOutsideAskAfterExpectSeconds : RemainOutsideAskSeconds;
+        aircraft.StartRemainOutsideBravo(ident, minutes, waiting ? nowSeconds + askAfter : null);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: RMOB for {Ident}, minutes {Minutes}, ask due {AskDue}",
+                aircraft.Callsign,
+                ident,
+                minutes,
+                aircraft.RemainOutsideBravo?.AskDueSeconds
+            );
+        }
+
+        return $"Remain outside Bravo airspace ({ident})";
+    }
+
+    /// <summary>
+    /// The first vector or direct <paramref name="compound"/> applies now that takes the aircraft into the Class B it is
+    /// told to remain outside within <see cref="WaitingEntryLookaheadSeconds"/>, the lookahead the boundary hold judges
+    /// the same vector with, so a vector the hold will stop always draws the advisory; or null. The pilot reads its clause
+    /// back as the 7110.65 §7-9-2 NOTE 1 advisory. Solo training, airborne VFR aircraft only.
+    /// </summary>
+    public static ParsedCommand? FindRemainOutsideConflict(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        SimScenarioState scenario,
+        AirspaceDatabase airspace
+    )
+    {
+        if ((aircraft.RemainOutsideBravo is not { } remain) || !IsEligibleForImplicitGrant(aircraft, scenario))
+        {
+            return null;
+        }
+
+        const double lookahead = WaitingEntryLookaheadSeconds;
+        ParsedCommand? conflict = SoloTrainingEvaluator
+            .EnumerateImmediatelyAppliedCommands(compound)
+            .FirstOrDefault(command =>
+                IsVectorOrDirect(command)
+                // The aircraft's own declination, as the boundary hold converts the same assigned heading, so the advisory
+                // and the hold agree on whether the vector enters.
+                && (NewTrack(aircraft, command, aircraft.Declination) is { } track)
+                && (
+                    airspace.FindLevelTrackClassBEntry(aircraft.Position, aircraft.Altitude, track, aircraft.GroundSpeed, lookahead, remain.Ident)
+                    is not null
+                )
+            );
+        if ((conflict is not null) && Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: {Command} takes it into {Ident} under RMOB: the advisory", aircraft.Callsign, conflict, remain.Ident);
+        }
+
+        return conflict;
+    }
+
+    /// <summary>The Class B a <c>RMOB</c> names, in the order <see cref="ResolveRemainOutside"/> gives; null for none.</summary>
+    private static string? RemainOutsideTarget(AircraftState aircraft, AirspaceDatabase airspace) =>
+        CaptureWait(aircraft)?.Ident
+        ?? aircraft.RemainOutsideBravo?.Ident
+        ?? ResolveCleared(aircraft, airspace)
+        ?? NearestClassBWithin(aircraft.Position, RemainOutsideReachNm, airspace);
+
+    /// <summary>The area name of the nearest Class B within <paramref name="reachNm"/> of <paramref name="position"/> laterally, or null.</summary>
+    private static string? NearestClassBWithin(LatLon position, double reachNm, AirspaceDatabase airspace)
+    {
+        string? nearest = null;
+        double best = reachNm;
+        foreach ((string area, IReadOnlyList<AirspaceVolume> volumes) in airspace.ClassBAreas)
+        {
+            double distance = LateralDistanceNm(volumes, position);
+            if (distance <= best)
+            {
+                best = distance;
+                nearest = area;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>The lateral distance from <paramref name="position"/> to the nearest of <paramref name="volumes"/>; zero inside one.</summary>
+    private static double LateralDistanceNm(IReadOnlyList<AirspaceVolume> volumes, LatLon position)
+    {
+        if (ContainsLateral(volumes, position))
+        {
+            return 0;
+        }
+
+        double best = double.MaxValue;
+        foreach (IReadOnlyList<LatLon> ring in volumes.SelectMany(volume => volume.Rings))
+        {
+            for (int i = 0; i < ring.Count - 1; i++)
+            {
+                best = Math.Min(best, GeoMath.DistanceToSegmentFt(position, ring[i], ring[i + 1]) / GeoMath.FeetPerNm);
+            }
+        }
+
+        return best;
     }
 
     /// <summary>
@@ -203,7 +390,8 @@ public static class ImplicitBravoClearance
             BravoGrant? grant = IsVectorOrDirect(command)
                 ? GrantForNewTrack(aircraft, command, wait, scenario, airspace)
                 : GrantForLanding(aircraft, command, wait, airspace, airportLookup);
-            if ((grant is not null) && !aircraft.IsClearedIntoBravo(grant.Ident))
+            // A Class B the pilot is told to remain outside is entered only on an explicit CLBRV.
+            if ((grant is not null) && !aircraft.IsClearedIntoBravo(grant.Ident) && !aircraft.IsRemainOutsideBravo(grant.Ident))
             {
                 aircraft.GrantBravoClearance(grant.Ident);
                 return grant.Wording;
@@ -273,7 +461,7 @@ public static class ImplicitBravoClearance
         AirspaceDatabase airspace
     )
     {
-        if (NewTrack(aircraft, command, scenario) is not { } track)
+        if (NewTrack(aircraft, command, MagneticDeclination.GetDeclination(aircraft.Position, scenario.MagneticModelDateUtc)) is not { } track)
         {
             return null;
         }
@@ -350,11 +538,12 @@ public static class ImplicitBravoClearance
                 or TurnLeftDirectToCommand
                 or TurnRightDirectToCommand;
 
-    /// <summary>The true track the instruction puts the aircraft on: the assigned heading, or the initial track to the first fix.</summary>
-    private static TrueHeading? NewTrack(AircraftState aircraft, ParsedCommand command, SimScenarioState scenario)
-    {
-        double declination = MagneticDeclination.GetDeclination(aircraft.Position, scenario.MagneticModelDateUtc);
-        return command switch
+    /// <summary>
+    /// The true track the instruction puts the aircraft on: the assigned heading (converted with
+    /// <paramref name="declination"/>), or the initial track to the first fix.
+    /// </summary>
+    private static TrueHeading? NewTrack(AircraftState aircraft, ParsedCommand command, double declination) =>
+        command switch
         {
             FlyHeadingCommand c => c.MagneticHeading.ToTrue(declination),
             TurnLeftCommand c => c.MagneticHeading.ToTrue(declination),
@@ -367,7 +556,6 @@ public static class ImplicitBravoClearance
             TurnRightDirectToCommand c => InitialTrackTo(aircraft, c.Fixes),
             _ => null,
         };
-    }
 
     private static TrueHeading? InitialTrackTo(AircraftState aircraft, List<ResolvedFix> fixes)
     {
