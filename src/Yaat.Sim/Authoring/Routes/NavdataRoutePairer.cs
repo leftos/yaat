@@ -22,7 +22,16 @@ internal static class NavdataRoutePairer
     /// <summary>How many of the first page's routes one SID, or one STAR, may hold.</summary>
     internal const int MaxRowsPerProcedureOnFirstPage = 2;
 
+    /// <summary>
+    /// A direct leg may be at most this long for an aircraft whose equipment suffix is not RNAV-capable: AIM 5-1-6c.3(b)
+    /// allows navaids "not more than 260 NM apart" off established routes from 18,000 feet MSL to FL 450, the largest of its
+    /// bands, so a longer leg fails every band whatever the filed altitude.
+    /// </summary>
+    internal const double MaxDirectLegNm = 260.0;
+
     private static readonly ILogger Log = SimLog.CreateLogger("NavdataRoutePairer");
+
+    private static readonly IReadOnlyDictionary<string, string?> NoRunwayEndFixes = new Dictionary<string, string?>(StringComparer.Ordinal);
 
     /// <summary>
     /// Equipment suffixes 7110.65 TBL 2-3-10 defines without RNAV or GNSS, which drop RNAV procedures. Its RNAV-capable
@@ -37,18 +46,26 @@ internal static class NavdataRoutePairer
     /// <param name="RunwaysNotCoded">True for a SID with neither a runway transition nor a common route.</param>
     /// <param name="JoinFixes">A SID's exit fixes or a STAR's entry fixes; a null entry means the route has no such token.</param>
     /// <param name="TwinKey">For a SID with runway transitions, its path without them: SIDs with equal keys are twins.</param>
+    /// <param name="RunwayEndFixes">
+    /// A runway-only SID's last fix per coded runway (without the "RW" prefix), since its transitions may end at different
+    /// fixes; empty for every other procedure, whose runways share one path.
+    /// </param>
     private sealed record ProcedureOption(
         string Id,
         ProcedureRouteKind Kind,
         IReadOnlyList<string> Runways,
         bool RunwaysNotCoded,
         IReadOnlyList<string?> JoinFixes,
-        string? TwinKey
+        string? TwinKey,
+        IReadOnlyDictionary<string, string?> RunwayEndFixes
     );
 
     private sealed record Candidate(ProcedureOption Sid, ProcedureOption Star, string RouteText, double LengthNm, double Ratio)
     {
         public ProcedureOption? Twin { get; init; }
+
+        /// <summary>The exit fix the route text names after the SID, or null when it names none.</summary>
+        public string? Exit { get; init; }
     }
 
     private sealed record PairingContext(
@@ -189,11 +206,44 @@ internal static class NavdataRoutePairer
             RunwayCodes(sid.RunwayTransitions),
             RunwaysNotCoded: (sid.RunwayTransitions.Count == 0) && (sid.CommonLegs.Count == 0),
             SidExits(navDb, sid, wantedRunways),
-            TwinKey: HasTwinablePath(sid) ? TwinKey(sid) : null
+            TwinKey: HasTwinablePath(sid) ? TwinKey(sid) : null,
+            RunwayEndFixes: RunwayOnlyEndFixes(sid)
         );
 
+    /// <summary>
+    /// A runway-only SID's last fix per coded runway: it has no common legs, no enroute transitions and is not flown on
+    /// radar vectors, so the whole path after departure is the runway transition. Empty for every other SID, whose runways
+    /// share one path.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string?> RunwayOnlyEndFixes(CifpSidProcedure sid)
+    {
+        bool runwayOnly =
+            (sid.RunwayTransitions.Count > 0)
+            && (sid.CommonLegs.Count == 0)
+            && (sid.EnrouteTransitions.Count == 0)
+            && (sid.RouteKind != ProcedureRouteKind.RadarVector);
+        if (!runwayOnly)
+        {
+            return NoRunwayEndFixes;
+        }
+
+        return sid.RunwayTransitions.ToDictionary(
+            transition => RunwayCode(transition.Key),
+            transition => LastFix(transition.Value.Legs),
+            StringComparer.Ordinal
+        );
+    }
+
     private static ProcedureOption DescribeStar(CifpStarProcedure star) =>
-        new(star.ProcedureId, star.RouteKind, RunwayCodes(star.RunwayTransitions), RunwaysNotCoded: false, StarEntries(star), TwinKey: null);
+        new(
+            star.ProcedureId,
+            star.RouteKind,
+            RunwayCodes(star.RunwayTransitions),
+            RunwaysNotCoded: false,
+            StarEntries(star),
+            TwinKey: null,
+            RunwayEndFixes: NoRunwayEndFixes
+        );
 
     private static bool IsAllowed(ProcedureOption procedure, string? equipmentSuffix, IReadOnlyList<string> wantedRunways)
     {
@@ -324,21 +374,125 @@ internal static class NavdataRoutePairer
     /// </summary>
     private static Candidate? BestPair(PairingContext ctx, ProcedureOption sid, ProcedureOption star)
     {
+        bool nonRnav = !IsRnavCapable(ctx.Query.EquipmentSuffix);
         Candidate? best = null;
         foreach (string? exit in sid.JoinFixes)
         {
             foreach (string? entry in star.JoinFixes)
             {
                 string text = RouteText(sid.Id, exit, entry, star.Id);
-                if ((Measure(ctx, text) is { } length) && IsBetter(length, text, best))
+                if (Measure(ctx, text) is not { } length)
                 {
-                    best = new Candidate(sid, star, text, length, length / ctx.GreatCircleNm);
+                    continue;
+                }
+
+                if (nonRnav && HasLongDirectLeg(ctx, text, sid))
+                {
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug("Navdata route {Route} dropped: a direct leg is over {Max} NM", text, MaxDirectLegNm);
+                    }
+
+                    continue;
+                }
+
+                if (IsBetter(length, text, best))
+                {
+                    best = new Candidate(sid, star, text, length, length / ctx.GreatCircleNm) { Exit = exit };
                 }
             }
         }
 
         return best;
     }
+
+    /// <summary>A leg of a route not flown along a published procedure: its two points and their great-circle length.</summary>
+    internal readonly record struct DirectLeg(string From, string To, double Nm);
+
+    /// <summary>
+    /// The route's direct legs, the ones not flown along a published SID, STAR or transition: the departure airport to a
+    /// radar-vector SID's first fix, then every leg from the end of the SID's path (a radar-vector SID's vNAS body only, its
+    /// adapted-route hints not being published procedure) to the STAR. Passing does not prove the route flyable at a lower
+    /// altitude, where AIM 5-1-6c.3's navaid-spacing bands are tighter.
+    /// </summary>
+    internal static List<DirectLeg> DirectLegs(NavigationDatabase navDb, string departure, string routeText, string sidId, ProcedureRouteKind sidKind)
+    {
+        List<string> path = RouteExpander.Expand(routeText, navDb, includeAllTransitionsOnMismatch: false);
+        List<RouteExpander.ProcedureSpan> spans = RouteExpander.ProcedureSpans(routeText, navDb, includeAllTransitionsOnMismatch: false);
+        int sidFixes =
+            (sidKind == ProcedureRouteKind.RadarVector)
+                ? BodyFixesAtPathHead(navDb, sidId, path)
+                : spans.Where(span => span.IsSid).Select(span => span.Fixes.Count).FirstOrDefault();
+        int starFixes = spans.Where(span => !span.IsSid).Select(span => span.Fixes.Count).FirstOrDefault();
+        List<DirectLeg> legs = [];
+        if (AirportLeg(navDb, departure, sidKind, path) is { } airportLeg)
+        {
+            legs.Add(airportLeg);
+        }
+
+        int starStart = path.Count - starFixes;
+        for (int i = 0; (i < path.Count - 1); i++)
+        {
+            if (((i + 1) < sidFixes) || (i >= starStart))
+            {
+                continue;
+            }
+
+            if (LegBetween(navDb, path[i], path[i + 1]) is { } leg)
+            {
+                legs.Add(leg);
+            }
+        }
+
+        return legs;
+    }
+
+    /// <summary>
+    /// How many fixes at the head of <paramref name="path"/> are the radar-vector SID's vNAS body: its adapted-route hints are
+    /// synthetic transitions rather than published procedure, so every leg after the body is a direct leg.
+    /// </summary>
+    private static int BodyFixesAtPathHead(NavigationDatabase navDb, string sidId, List<string> path)
+    {
+        IReadOnlyList<string> body = ((navDb.ResolveSidId(sidId) is { } vnasId) ? navDb.GetSidBody(vnasId) : null) ?? [];
+        int matched = 0;
+        string? previous = null;
+        foreach (string fix in body)
+        {
+            if (string.Equals(fix, previous, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            previous = fix;
+            if ((matched >= path.Count) || !string.Equals(path[matched], fix, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            matched++;
+        }
+
+        return matched;
+    }
+
+    /// <summary>
+    /// The departure airport to a radar-vector SID's first fix: the vectors end with a clearance direct to it, and the
+    /// airport is the only deterministic start of that leg.
+    /// </summary>
+    private static DirectLeg? AirportLeg(NavigationDatabase navDb, string departure, ProcedureRouteKind sidKind, List<string> path) =>
+        ((sidKind == ProcedureRouteKind.RadarVector) && (path.Count > 0))
+        && (navDb.GetAirportPosition(departure) is { } airport)
+        && (navDb.GetFixPosition(path[0]) is { } first)
+            ? new DirectLeg(departure, path[0], Distance(airport, first))
+            : null;
+
+    /// <summary>The leg between two fixes, or null when the navdata does not know one of them.</summary>
+    private static DirectLeg? LegBetween(NavigationDatabase navDb, string from, string to) =>
+        ((navDb.GetFixPosition(from) is { } start) && (navDb.GetFixPosition(to) is { } end)) ? new DirectLeg(from, to, Distance(start, end)) : null;
+
+    /// <summary>True when one of the route's direct legs (see <see cref="DirectLegs"/>) is longer than <see cref="MaxDirectLegNm"/>.</summary>
+    private static bool HasLongDirectLeg(PairingContext ctx, string routeText, ProcedureOption sid) =>
+        DirectLegs(ctx.NavDb, ctx.Query.Departure, routeText, sid.Id, sid.Kind).Any(leg => leg.Nm > MaxDirectLegNm);
 
     private static bool IsBetter(double length, string text, Candidate? best) =>
         (best is null) || (length < best.LengthNm) || ((length == best.LengthNm) && (string.CompareOrdinal(text, best.RouteText) < 0));
@@ -477,11 +631,32 @@ internal static class NavdataRoutePairer
             candidate.Ratio,
             candidate.Sid.Kind,
             candidate.Star.Kind,
-            candidate.Sid.Runways,
+            RunwaysEndingAt(candidate),
             candidate.Twin?.Runways ?? [],
             candidate.Star.Runways,
             candidate.Sid.RunwaysNotCoded
         );
         return new FoundRoute(candidate.RouteText, Count: 0, [sourceName], published);
+    }
+
+    /// <summary>
+    /// The SID's runways whose transition ends at the row's exit: a runway-only SID's transitions end at different fixes,
+    /// so another runway's transition does not fly this row. Every other SID, and a row with no exit fix, keeps its full
+    /// runway list.
+    /// </summary>
+    private static IReadOnlyList<string> RunwaysEndingAt(Candidate candidate)
+    {
+        if ((candidate.Exit is not { } exit) || (candidate.Sid.RunwayEndFixes.Count == 0))
+        {
+            return candidate.Sid.Runways;
+        }
+
+        return
+        [
+            .. candidate.Sid.Runways.Where(runway =>
+                candidate.Sid.RunwayEndFixes.TryGetValue(runway, out string? endFix)
+                && string.Equals(endFix, exit, StringComparison.OrdinalIgnoreCase)
+            ),
+        ];
     }
 }

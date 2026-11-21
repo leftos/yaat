@@ -265,6 +265,26 @@ public class NavdataRouteSourceTests
         Assert.Contains(routes, r => Info(r).Star == "ZUUMA4");
     }
 
+    // Row 11
+    [Fact]
+    public async Task RunwayOnlySid_WithDifferingTransitionEnds_ListsOnlyTheRunwaysEndingAtTheRowsExit()
+    {
+        CifpSidProcedure montn = Assert.IsType<CifpSidProcedure>(Db.GetSid("KSEA", "MONTN2"));
+        Assert.Empty(montn.CommonLegs);
+        Assert.Empty(montn.EnrouteTransitions);
+        Assert.Equal(6, montn.RunwayTransitions.Count);
+
+        List<FoundRoute> routes = await FindAsync(Query("KSEA", "KLAS"));
+
+        List<FoundRoute> montnRows = [.. routes.Where(r => Info(r).Sid == "MONTN2")];
+        Assert.NotEmpty(montnRows);
+        Assert.All(montnRows, r => Assert.Equal(RunwaysEndingAt(montn, r.RouteText.Split(' ')[1]), Info(r).SidRunways));
+
+        // The rows exit at PEAKK, which only the 16s' transitions reach; the 34s end at NEZUG.
+        List<string> listed = [.. montnRows.Select(r => string.Join(',', Info(r).SidRunways)).Distinct()];
+        Assert.Equal(["16C,16L,16R"], listed);
+    }
+
     // Row 12
     [Fact]
     public async Task QueryRunways_DropProceduresCodedOnlyForOtherRunways()
@@ -366,6 +386,63 @@ public class NavdataRouteSourceTests
 
     // Row 16
     [Fact]
+    public async Task NonRnavSuffix_DropsEveryPairWithADirectLegOver260Nm_AndKeepsTheRest()
+    {
+        List<FoundRoute> routes = await FindAsync(Query("KOAK", "KLAS") with { EquipmentSuffix = "/A" });
+
+        List<string> texts = [.. routes.Select(r => r.RouteText)];
+        Assert.DoesNotContain("OAK7 DAG CRESO5", texts);
+        Assert.DoesNotContain("OAK7 DAG LARKK1", texts);
+        Assert.DoesNotContain("OAK7 BTY PUMLE1", texts);
+        Assert.DoesNotContain("SUNNE1 SUNNE DAG LARKK1", texts);
+        Assert.DoesNotContain("SALAD6 ALTAM DAG LARKK1", texts);
+        Assert.Contains("SALAD6 ALTAM BTY PUMLE1", texts);
+        Assert.Contains("SUNNE1 SUNNE BTY PUMLE1", texts);
+        Assert.Contains("SKYL2 PXN DAG LARKK1", texts);
+    }
+
+    // Row 16
+    [Fact]
+    public void RadarVectorSid_LegsFromItsBodyThroughTheRouteHint_AreDirectLegs()
+    {
+        List<NavdataRoutePairer.DirectLeg> legs = NavdataRoutePairer.DirectLegs(
+            Db,
+            "KOAK",
+            "OAK7 SYRAH BTY PUMLE1",
+            "OAK7",
+            ProcedureRouteKind.RadarVector
+        );
+
+        Assert.Equal(["KOAK->OAK", "OAK->SYRAH", "SYRAH->BTY"], legs.Select(leg => $"{leg.From}->{leg.To}"));
+        Assert.InRange(legs[1].Nm, 50.0, 60.0);
+    }
+
+    // Row 16
+    [Fact]
+    public async Task NonRnavSuffix_DropsARadarVectorSidWhoseAirportLegIsOver260Nm_RnavKeepsIt()
+    {
+        // KPSM TANKR3's vNAS body opens at NFW286006, 1399.6 NM from KPSM: the vectors end direct there.
+        List<FoundRoute> nonRnav = await FindAsync(Query("KPSM", "KDFW") with { EquipmentSuffix = "/A" });
+        List<FoundRoute> rnav = await FindAsync(Query("KPSM", "KDFW") with { EquipmentSuffix = "/L" });
+
+        Assert.DoesNotContain(nonRnav, r => Info(r).Sid == "TANKR3");
+        Assert.Contains(rnav, r => Info(r).Sid == "TANKR3");
+    }
+
+    // Row 16
+    [Fact]
+    public async Task NonRnavSuffix_DropsOak7DagCreso5_WhoseDirectLegToDagIsOver260Nm_RnavKeepsIt()
+    {
+        // OAK7's body is the OAK VOR; OAK to DAG is 319 NM, over AIM 5-1-6c.3(b)'s 260 NM navaid spacing.
+        List<FoundRoute> nonRnav = await FindAsync(Query("KOAK", "KLAS") with { EquipmentSuffix = "/A" });
+        List<FoundRoute> rnav = await FindAsync(Query("KOAK", "KLAS") with { EquipmentSuffix = "/L" });
+
+        Assert.DoesNotContain(nonRnav, r => r.RouteText == "OAK7 DAG CRESO5");
+        Assert.Contains(rnav, r => r.RouteText == "OAK7 DAG CRESO5");
+    }
+
+    // Row 16
+    [Fact]
     public async Task Ranking_SortsByRatio_WithAtMostTwoRowsPerSidAndStarOnTheFirstPage()
     {
         List<FoundRoute> routes = await FindAsync(Query("KSFO", "KLAX"));
@@ -460,6 +537,18 @@ public class NavdataRouteSourceTests
         public Task<RouteSourceResult> FindAsync(RouteQuery query, CancellationToken ct) =>
             Task.FromResult(new RouteSourceResult(routes, FailureMessage: null));
     }
+
+    /// <summary>The SID's coded runways whose runway transition ends at <paramref name="exit"/>, ordinal-sorted.</summary>
+    private static List<string> RunwaysEndingAt(CifpSidProcedure sid, string exit) =>
+        [
+            .. sid
+                .RunwayTransitions.Where(t => string.Equals(EndFix(t.Value), exit, StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.Key.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? t.Key[2..] : t.Key)
+                .Order(StringComparer.Ordinal),
+        ];
+
+    private static string? EndFix(CifpTransition transition) =>
+        transition.Legs.LastOrDefault(leg => !string.IsNullOrEmpty(leg.FixIdentifier))?.FixIdentifier;
 
     private static void AssertNoRepeatedAdjacentToken(string routeText)
     {
