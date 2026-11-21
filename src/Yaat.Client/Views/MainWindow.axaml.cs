@@ -593,7 +593,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         try
         {
-            log.LogInformation("Auto-creating room for scenario {ScenarioId}", scenarioId);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("Auto-creating room for scenario {ScenarioId}", scenarioId);
+            }
             vm.StatusText = "Creating room...";
             await vm.CreateRoomCommand.ExecuteAsync(null);
 
@@ -603,7 +606,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 return;
             }
 
-            log.LogInformation("Fetching scenario {ScenarioId} from vNAS API", scenarioId);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("Fetching scenario {ScenarioId} from vNAS API", scenarioId);
+            }
             vm.StatusText = $"Fetching scenario {scenarioId}...";
             string? json = await TrainingDataService.GetScenarioJsonAsync(scenarioId);
 
@@ -614,7 +620,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 return;
             }
 
-            log.LogInformation("Auto-loading scenario {ScenarioId}", scenarioId);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("Auto-loading scenario {ScenarioId}", scenarioId);
+            }
             await vm.AutoLoadScenarioFromJsonAsync(json, scenarioId, scenarioId);
         }
         catch (Exception ex)
@@ -3890,12 +3899,15 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         // Shutdown breadcrumb (GitHub #347): the freeze reports need to show how far the close
         // path got, so every decision on this path logs.
-        Log.LogInformation(
-            "MainWindow closing: reason={Reason} programmatic={Programmatic} confirmed={Confirmed}",
-            e.CloseReason,
-            e.IsProgrammatic,
-            _isConfirmedClose
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "MainWindow closing: reason={Reason} programmatic={Programmatic} confirmed={Confirmed}",
+                e.CloseReason,
+                e.IsProgrammatic,
+                _isConfirmedClose
+            );
+        }
 
         bool hasActiveScenario = DataContext is MainViewModel vm && vm.IsConnected && vm.IsInRoom && vm.HasScenario;
         if (ShouldConfirmExit(e.CloseReason, e.IsProgrammatic, _isConfirmedClose, hasActiveScenario))

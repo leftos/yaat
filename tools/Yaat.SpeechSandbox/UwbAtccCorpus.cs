@@ -178,7 +178,10 @@ public static class UwbAtccCorpus
             }
             catch (Exception ex) when ((ex is UnauthorizedAccessException or IOException) && (attempt < MaxMoveAttempts))
             {
-                Log.LogDebug(ex, "Moving {Partial} to {Path} failed on attempt {Attempt}; retrying", partial, path, attempt);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(ex, "Moving {Partial} to {Path} failed on attempt {Attempt}; retrying", partial, path, attempt);
+                }
                 await Task.Delay(RetryStepMs * attempt, ct).ConfigureAwait(false);
             }
         }

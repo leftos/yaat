@@ -127,7 +127,10 @@ public sealed class SynthAudioCache(string root)
         }
         catch (IOException)
         {
-            Log.LogDebug("Synth-audio cache entry {Path} already exists; keeping the stored samples", path);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Synth-audio cache entry {Path} already exists; keeping the stored samples", path);
+            }
             return ReadExistingOrFallBack(path, samples);
         }
         finally
@@ -165,7 +168,10 @@ public sealed class SynthAudioCache(string root)
             }
             catch (Exception ex) when ((ex is UnauthorizedAccessException or IOException) && (attempt < MaxRenameAttempts) && !File.Exists(path))
             {
-                Log.LogDebug(ex, "Writing synth-audio cache entry {Path} failed on attempt {Attempt}; retrying", path, attempt);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(ex, "Writing synth-audio cache entry {Path} failed on attempt {Attempt}; retrying", path, attempt);
+                }
                 Thread.Sleep(RenameRetryStepMs * attempt);
             }
         }

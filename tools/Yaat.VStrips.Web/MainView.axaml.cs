@@ -153,7 +153,7 @@ public partial class MainView : UserControl
         try
         {
             string what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
-            Log.LogInformation("Connecting to {Server}", what);
+            LogConnecting(what);
             SetStatus($"Connecting to {what}...");
             await _connection.ConnectAsync(serverUrl);
             SetStatus($"Connected to {what} — looking up room...");
@@ -198,6 +198,14 @@ public partial class MainView : UserControl
         }
     }
 
+    private static void LogConnecting(string what)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Connecting to {Server}", what);
+        }
+    }
+
     private async Task JoinRoomAsync(VStripsViewModel vm, string roomId, string initials, string artcc)
     {
         try
@@ -210,14 +218,17 @@ public partial class MainView : UserControl
                 return;
             }
             int bayCount = state.FlightStripsConfig?.Bays?.Length ?? 0;
-            Log.LogInformation(
-                "Joined {RoomId} as {Initials}; scenario={Scenario}; facility={Facility}; bays={BayCount}",
-                roomId,
-                initials,
-                state.ScenarioName ?? "(none)",
-                state.FlightStripsConfig?.FacilityName ?? "(none)",
-                bayCount
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Joined {RoomId} as {Initials}; scenario={Scenario}; facility={Facility}; bays={BayCount}",
+                    roomId,
+                    initials,
+                    state.ScenarioName ?? "(none)",
+                    state.FlightStripsConfig?.FacilityName ?? "(none)",
+                    bayCount
+                );
+            }
             SetStatus(
                 state.FlightStripsConfig is null
                     ? $"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — server returned no flight-strips config (no scenario loaded?)"

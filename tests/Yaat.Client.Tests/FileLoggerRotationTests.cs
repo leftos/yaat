@@ -32,7 +32,11 @@ public class FileLoggerRotationTests : IDisposable
     private void WriteSession(string marker)
     {
         using var provider = new FileLoggerProvider(LogPath);
-        provider.CreateLogger("Test").LogInformation("{Marker}", marker);
+        ILogger logger = provider.CreateLogger("Test");
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("{Marker}", marker);
+        }
     }
 
     [Fact]

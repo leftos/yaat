@@ -77,7 +77,10 @@ public partial class WeatherTimelineEditorWindow : Window
         {
             string json = vm.BuildJson();
             await File.WriteAllTextAsync(path, json);
-            Log.LogInformation("Weather saved to {Path}", path);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Weather saved to {Path}", path);
+            }
         }
         catch (Exception ex)
         {

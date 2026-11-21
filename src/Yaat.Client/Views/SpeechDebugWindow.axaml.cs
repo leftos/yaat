@@ -147,7 +147,10 @@ public partial class SpeechDebugWindow : Window
         }
 
         int written = _viewModel.ExportSelectedBundle(path);
-        Log.LogInformation("Exported {Count} speech samples to {Path}", written, path);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Exported {Count} speech samples to {Path}", written, path);
+        }
     }
 
     private async Task<string?> PromptForBundlePath(string suggestedName)

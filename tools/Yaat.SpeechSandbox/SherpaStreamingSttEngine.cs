@@ -153,7 +153,10 @@ internal sealed class SherpaStreamingSttEngine(string modelDir, string provider)
         config.EnableEndpoint = 0;
 
         _recognizer = new OnlineRecognizer(config);
-        Log.LogInformation("sherpa-onnx NeMo streaming transducer loaded from {Dir} on {Provider}", _modelDir, provider);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("sherpa-onnx NeMo streaming transducer loaded from {Dir} on {Provider}", _modelDir, provider);
+        }
         return _recognizer;
     }
 

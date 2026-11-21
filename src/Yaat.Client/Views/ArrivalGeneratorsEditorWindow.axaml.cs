@@ -112,7 +112,10 @@ public partial class ArrivalGeneratorsEditorWindow : Window
 
             await File.WriteAllTextAsync(path, obj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             vm.StatusMessage = $"Saved to {path}";
-            Log.LogInformation("Scenario with edited generators saved to {Path}", path);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Scenario with edited generators saved to {Path}", path);
+            }
         }
         catch (Exception ex)
         {

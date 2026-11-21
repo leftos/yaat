@@ -113,7 +113,10 @@ public partial class MainView : UserControl
             // localStorage can throw under private-browsing modes or strict
             // cookie policies. Fall back to the default (light) and continue;
             // the toggle still works in-session, it just won't persist.
-            Log.LogDebug(ex, "Reading {Key} from localStorage failed; defaulting to light", DarkModeStorageKey);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Reading {Key} from localStorage failed; defaulting to light", DarkModeStorageKey);
+            }
             return false;
         }
     }
@@ -126,7 +129,10 @@ public partial class MainView : UserControl
         }
         catch (Exception ex)
         {
-            Log.LogDebug(ex, "Writing {Key} to localStorage failed", DarkModeStorageKey);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Writing {Key} to localStorage failed", DarkModeStorageKey);
+            }
         }
     }
 
@@ -212,7 +218,7 @@ public partial class MainView : UserControl
         try
         {
             string what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
-            Log.LogInformation("Connecting to {Server}", what);
+            LogConnecting(what);
             SetStatus($"Connecting to {what}...");
             await _connection.ConnectAsync(serverUrl);
             SetStatus($"Connected to {what} — looking up room...");
@@ -258,6 +264,14 @@ public partial class MainView : UserControl
         }
     }
 
+    private static void LogConnecting(string what)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Connecting to {Server}", what);
+        }
+    }
+
     private async Task JoinRoomAsync(VTdlsViewModel vm, string roomId, string initials, string artcc)
     {
         // Remembered from the start, so a connection dropped during this very join still rejoins on reconnect.
@@ -273,7 +287,10 @@ public partial class MainView : UserControl
                 return;
             }
             StopWaitingForRoom();
-            Log.LogInformation("Joined {RoomId} as {Initials}; scenario={Scenario}", roomId, initials, state.ScenarioName ?? "(none)");
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Joined {RoomId} as {Initials}; scenario={Scenario}", roomId, initials, state.ScenarioName ?? "(none)");
+            }
             string joined = $"Joined {roomId} ({state.ScenarioName ?? "no scenario"})";
             SetStatus($"{joined} — fetching TDLS state...");
             await BootstrapFacilityAsync(vm, joined);
@@ -357,7 +374,10 @@ public partial class MainView : UserControl
         {
             return;
         }
-        Log.LogInformation("Reconnected; rejoining {RoomId}", last.RoomId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Reconnected; rejoining {RoomId}", last.RoomId);
+        }
         SetStatus($"Reconnected — rejoining room {last.RoomId}...");
         _ = JoinRoomAsync(vm, last.RoomId, last.Initials, last.Artcc);
     }
