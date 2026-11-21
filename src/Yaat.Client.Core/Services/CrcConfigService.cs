@@ -128,7 +128,7 @@ public static class CrcConfigService
                 CrcEnvironmentEntry? existing = environments.Find(e => string.Equals(e.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
                 if (existing is not null)
                 {
-                    Log.LogInformation("Updating existing CRC environment '{Name}'", entry.Name);
+                    LogUpdatingEnvironment(entry);
                     existing.ClientHubUrl = entry.ClientHubUrl;
                     existing.ApiBaseUrl = entry.ApiBaseUrl;
                     existing.IsDisabled = entry.IsDisabled;
@@ -136,7 +136,7 @@ public static class CrcConfigService
                 }
                 else
                 {
-                    Log.LogInformation("Adding CRC environment '{Name}'", entry.Name);
+                    LogAddingEnvironment(entry);
                     environments.Add(
                         new CrcEnvironmentEntry
                         {
@@ -152,11 +152,38 @@ public static class CrcConfigService
 
             string output = JsonSerializer.Serialize(environments, JsonOptions);
             File.WriteAllText(jsonPath, output);
-            Log.LogInformation("CRC DevEnvironments.json updated at {Path}", jsonPath);
+            LogEnvironmentsUpdated(jsonPath);
         }
         catch (Exception ex)
         {
             Log.LogError(ex, "Failed to configure CRC DevEnvironments.json at {Path}", jsonPath);
+        }
+    }
+
+    /// <summary>Logs at Information that an existing CRC environment of the entry's name is being updated.</summary>
+    private static void LogUpdatingEnvironment(CrcEnvironmentEntry entry)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Updating existing CRC environment '{Name}'", entry.Name);
+        }
+    }
+
+    /// <summary>Logs at Information that the entry is being added as a new CRC environment.</summary>
+    private static void LogAddingEnvironment(CrcEnvironmentEntry entry)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Adding CRC environment '{Name}'", entry.Name);
+        }
+    }
+
+    /// <summary>Logs at Information that DevEnvironments.json was written at the path.</summary>
+    private static void LogEnvironmentsUpdated(string jsonPath)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("CRC DevEnvironments.json updated at {Path}", jsonPath);
         }
     }
 
@@ -175,7 +202,10 @@ public static class CrcConfigService
             }
             catch (Exception ex)
             {
-                Log.LogDebug(ex, "Error probing CRC candidate path {Path}", candidate);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(ex, "Error probing CRC candidate path {Path}", candidate);
+                }
             }
         }
 

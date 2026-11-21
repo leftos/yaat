@@ -1210,7 +1210,11 @@ public partial class VStripsViewModel : ObservableObject
             CommandResultDto result = await _transport.RequestFlightStripForAircraftAsync(trimmed);
             if (result.Success)
             {
-                _log.LogInformation("RequestStripAsync({Aircraft}): {Message}", trimmed, result.Message);
+                if (_log.IsEnabled(LogLevel.Information))
+                {
+                    _log.LogInformation("RequestStripAsync({Aircraft}): {Message}", trimmed, result.Message);
+                }
+
                 // Bring the new strip into view immediately — CRC parity so the
                 // user doesn't have to scroll the carousel to find what they
                 // just printed. Mark as pending in case the broadcast hasn't

@@ -73,7 +73,11 @@ public sealed class CrcAliasStore
         string? directory = ResolveDirectory(overrideDirectory);
         if (directory is null || !Directory.Exists(directory))
         {
-            Log.LogInformation("No CRC alias directory found (resolved {Directory}); CRC aliases unavailable", directory ?? "<none>");
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("No CRC alias directory found (resolved {Directory}); CRC aliases unavailable", directory ?? "<none>");
+            }
+
             LastLoad = new CrcAliasLoadResult(directory, [], 0, []);
             return LastLoad;
         }
@@ -94,9 +98,18 @@ public sealed class CrcAliasStore
             Log.LogWarning("{Count} CRC alias(es) are shadowed by YAAT built-in commands: {Names}", shadowed.Count, string.Join(", ", shadowed));
         }
 
-        Log.LogInformation("Loaded {Count} CRC aliases from {Files}", _aliases.Count, string.Join(", ", filesLoaded));
+        LogLoaded(filesLoaded);
         LastLoad = new CrcAliasLoadResult(directory, filesLoaded, _aliases.Count, shadowed);
         return LastLoad;
+    }
+
+    /// <summary>Logs at Information how many aliases the load left in the table and which files they came from.</summary>
+    private void LogLoaded(List<string> filesLoaded)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Loaded {Count} CRC aliases from {Files}", _aliases.Count, string.Join(", ", filesLoaded));
+        }
     }
 
     private void LoadFile(string path, List<string> filesLoaded)

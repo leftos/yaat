@@ -82,7 +82,10 @@ public sealed class UpdateService
                 return UpdateCheckResult.UpToDate();
             }
 
-            Log.LogInformation("Update available: {Version}", update.TargetFullRelease.Version);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Update available: {Version}", update.TargetFullRelease.Version);
+            }
             return UpdateCheckResult.Available(update);
         }
         catch (Exception ex)
@@ -94,14 +97,25 @@ public sealed class UpdateService
 
     public async Task DownloadUpdateAsync(UpdateInfo info, Action<int> progress)
     {
-        Log.LogInformation("Downloading update {Version}", info.TargetFullRelease.Version);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Downloading update {Version}", info.TargetFullRelease.Version);
+        }
+
         await _updateManager.DownloadUpdatesAsync(info, progress);
-        Log.LogInformation("Download complete for {Version}", info.TargetFullRelease.Version);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Download complete for {Version}", info.TargetFullRelease.Version);
+        }
     }
 
     public void ApplyUpdateAndRestart(UpdateInfo info)
     {
-        Log.LogInformation("Applying update {Version} and restarting", info.TargetFullRelease.Version);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Applying update {Version} and restarting", info.TargetFullRelease.Version);
+        }
+
         _updateManager.ApplyUpdatesAndRestart(info);
     }
 }

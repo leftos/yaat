@@ -85,7 +85,11 @@ public sealed class ClientVersionGate
             // A server that predates the endpoint answers with the /api catch-all's empty array,
             // which fails to deserialize here — indistinguishable from being unreachable, and
             // treated the same way: let the connection attempt speak for itself.
-            _log.LogDebug(ex, "Could not read the client-version gate from {Url}", serverUrl);
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug(ex, "Could not read the client-version gate from {Url}", serverUrl);
+            }
+
             return null;
         }
     }

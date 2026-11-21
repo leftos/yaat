@@ -296,7 +296,10 @@ internal sealed class FavoritesBundleImport
             bool orderChanged = RemapIdArray(root, "setOrder", idChanges);
             if (loadedChanged || orderChanged)
             {
-                Log.LogDebug("Remapped loaded favorite set ids and set order in {Entry}", name);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Remapped loaded favorite set ids and set order in {Entry}", name);
+                }
             }
         }
     }

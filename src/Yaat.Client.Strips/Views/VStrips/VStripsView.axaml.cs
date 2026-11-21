@@ -876,12 +876,15 @@ public partial class VStripsView : UserControl
         // drag threshold, never on a plain click.
         Focus();
 
-        Log.LogInformation(
-            "Strip drag start: strip={StripId} fromRack={FromRack} fromIdx={FromIdx}",
-            strip.Id,
-            _draggingFromRack?.RackIndex,
-            _draggingFromIndex
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Strip drag start: strip={StripId} fromRack={FromRack} fromIdx={FromIdx}",
+                strip.Id,
+                _draggingFromRack?.RackIndex,
+                _draggingFromIndex
+            );
+        }
     }
 
     /// <summary>
@@ -1030,14 +1033,17 @@ public partial class VStripsView : UserControl
         _dragPointer = null;
 
         DropTarget target = ResolveDropTarget(e.GetPosition(this));
-        Log.LogInformation(
-            "Strip drag end: strip={StripId} target={Kind} rack={Rack} index={Index} bay={Bay}",
-            strip.Id,
-            target.Kind,
-            target.Rack?.RackIndex,
-            target.Index,
-            target.Bay?.Name
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Strip drag end: strip={StripId} target={Kind} rack={Rack} index={Index} bay={Bay}",
+                strip.Id,
+                target.Kind,
+                target.Rack?.RackIndex,
+                target.Index,
+                target.Bay?.Name
+            );
+        }
 
         // Settle animation: the ghost flies into the open gap (rack drop)
         // or dissolves (bay push / trash) before the cleanup + optimistic
@@ -1135,7 +1141,11 @@ public partial class VStripsView : UserControl
         }
         // Same Information-level record as the drag-end line: where a release
         // that emits no canonical actually left the strip.
-        Log.LogInformation("Strip drag returned: strip={StripId}", strip.Id);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Strip drag returned: strip={StripId}", strip.Id);
+        }
+
         UpdateRackPreview(sourceBorder, sourceRack, _draggingFromIndex);
         var target = new DropTarget(DropTargetKind.Rack, sourceBorder, sourceRack, _draggingFromIndex, null, null);
         if (ComputeSettleDestination(target) is { } destination)
@@ -1275,7 +1285,11 @@ public partial class VStripsView : UserControl
             return;
         }
         _dragState = DragState.Idle;
-        Log.LogInformation("Strip drag cancelled: strip={StripId}", _draggingStrip?.Id);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Strip drag cancelled: strip={StripId}", _draggingStrip?.Id);
+        }
+
         _dragPointer?.Capture(null);
         _dragPointer = null;
         CleanupDrag();

@@ -157,7 +157,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         }
 
         string hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
-        _log.LogInformation("Connecting to {Url}", hubUrl);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Connecting to {Url}", hubUrl);
+        }
 
         _connection = new HubConnectionBuilder()
             .WithUrl(
@@ -308,7 +311,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
         _connection.Reconnected += connectionId =>
         {
-            _log.LogInformation("Reconnected with id {Id}", connectionId);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Reconnected with id {Id}", connectionId);
+            }
             Reconnected?.Invoke(connectionId);
             return Task.CompletedTask;
         };
@@ -411,7 +417,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     {
         EnsureConnected();
         int byteSize = System.Text.Encoding.UTF8.GetByteCount(scenarioJson);
-        _log.LogInformation("Sending scenario JSON to server ({ByteSize} bytes)", byteSize);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Sending scenario JSON to server ({ByteSize} bytes)", byteSize);
+        }
         return await _connection!.InvokeAsync<LoadScenarioResultDto>(
             "LoadScenario",
             scenarioJson,

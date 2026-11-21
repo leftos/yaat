@@ -91,7 +91,14 @@ public static class FavoriteLegacyMigration
         ]);
         preferences.MigrateLayoutLoadedSetNames(name => nameToId.GetValueOrDefault(name));
         preferences.ClearLegacyFavorites();
-        Log.LogInformation("Migrated {Favorites} favorite(s) and {Sets} named set(s) into the favorites store", migratedFavorites, nameToId.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Migrated {Favorites} favorite(s) and {Sets} named set(s) into the favorites store",
+                migratedFavorites,
+                nameToId.Count
+            );
+        }
     }
 
     private static FavoriteSet ResolveScopeSet(FavoriteStore store, LegacyFavoriteCommand old)

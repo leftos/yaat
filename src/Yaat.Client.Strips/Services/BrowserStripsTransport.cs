@@ -67,7 +67,10 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
         // Identify as a vStrips position tool so the server exempts this connection from the
         // mentor/instructor connect gate (students use vStrips/vTDLS like CRC).
         string hubUrl = $"{baseUrl}?clientKind={ClientKind.VStrips}";
-        Log.LogInformation("Connecting to {Url}", hubUrl);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Connecting to {Url}", hubUrl);
+        }
 
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl)
@@ -99,7 +102,10 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
         };
         _connection.Reconnected += connectionId =>
         {
-            Log.LogInformation("Reconnected with id {Id}", connectionId);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Reconnected with id {Id}", connectionId);
+            }
             Reconnected?.Invoke(connectionId);
             return Task.CompletedTask;
         };

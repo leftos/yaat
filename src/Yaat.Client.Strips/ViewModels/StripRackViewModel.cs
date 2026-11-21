@@ -60,12 +60,15 @@ public partial class StripRackViewModel(int rackIndex) : ObservableObject
             // Expected for out-of-scope ids (another facility's printer strips);
             // a rack rendering emptier than the server state is the symptom of a
             // missing item seed (issue #366), so leave a trace either way.
-            Log.LogDebug(
-                "ReplaceAll rack {RackIndex}: skipped {Count} unresolvable id(s): {Ids}",
-                RackIndex,
-                unresolved.Count,
-                string.Join(",", unresolved)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "ReplaceAll rack {RackIndex}: skipped {Count} unresolvable id(s): {Ids}",
+                    RackIndex,
+                    unresolved.Count,
+                    string.Join(",", unresolved)
+                );
+            }
         }
 
         // Drop strips that no longer appear in newOrder. Walk backward so

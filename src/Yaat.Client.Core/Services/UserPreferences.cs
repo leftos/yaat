@@ -169,7 +169,10 @@ public sealed partial class UserPreferences
 
         data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         data.LegacyWindowProfiles = null;
-        Log.LogInformation("Renamed {Count} saved window profile(s) to layouts", moved);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Renamed {Count} saved window profile(s) to layouts", moved);
+        }
     }
 
     /// <summary>
@@ -209,23 +212,19 @@ public sealed partial class UserPreferences
         if (fromVersion < 1)
         {
             _data.AutoArrivalSpacingOnOccupiedRunwayTwr = false;
-            Log.LogInformation("Preferences v{From} → v1: auto arrival spacing on occupied runway (TWR) reset to off", fromVersion);
+            LogMigratedToV1(fromVersion);
         }
 
         if (fromVersion < 2)
         {
             int changed = InsertTrackCoordinationRows();
-            Log.LogInformation(
-                "Preferences v{From} → v2: Track and coordination quick commands added to {Count} stored list(s)",
-                fromVersion,
-                changed
-            );
+            LogMigratedToV2(fromVersion, changed);
         }
 
         if (fromVersion < 3)
         {
             int changed = InsertVfrAltitudeRows();
-            Log.LogInformation("Preferences v{From} → v3: Altitude… quick command added to {Count} stored list(s)", fromVersion, changed);
+            LogMigratedToV3(fromVersion, changed);
         }
 
         if (fromVersion < 4)
@@ -240,12 +239,7 @@ public sealed partial class UserPreferences
             }
 
             bool storeChanged = MigrateTopLevelRadarWindows();
-            Log.LogInformation(
-                "Preferences v{From} → v4: Radar windows made Scope windows in {Count} layout(s); geometry store changed: {StoreChanged}",
-                fromVersion,
-                changed,
-                storeChanged
-            );
+            LogMigratedToV4(fromVersion, changed, storeChanged);
         }
 
         _data.PreferencesVersion = CurrentPreferencesVersion;
@@ -259,6 +253,51 @@ public sealed partial class UserPreferences
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.LogWarning(ex, "Could not save migrated preferences to {Path}; the migration is retried on the next launch", _filePath);
+        }
+    }
+
+    /// <summary>Logs at Information the v1 migration: auto arrival spacing on an occupied runway (TWR) reset to off.</summary>
+    private static void LogMigratedToV1(int fromVersion)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Preferences v{From} → v1: auto arrival spacing on occupied runway (TWR) reset to off", fromVersion);
+        }
+    }
+
+    /// <summary>Logs at Information the v2 migration and how many stored lists gained the Track and coordination rows.</summary>
+    private static void LogMigratedToV2(int fromVersion, int changed)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Preferences v{From} → v2: Track and coordination quick commands added to {Count} stored list(s)",
+                fromVersion,
+                changed
+            );
+        }
+    }
+
+    /// <summary>Logs at Information the v3 migration and how many stored lists gained the Altitude… row.</summary>
+    private static void LogMigratedToV3(int fromVersion, int changed)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Preferences v{From} → v3: Altitude… quick command added to {Count} stored list(s)", fromVersion, changed);
+        }
+    }
+
+    /// <summary>Logs at Information the v4 migration: how many layouts' Radar windows became Scope windows, and whether the store changed.</summary>
+    private static void LogMigratedToV4(int fromVersion, int changed, bool storeChanged)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Preferences v{From} → v4: Radar windows made Scope windows in {Count} layout(s); geometry store changed: {StoreChanged}",
+                fromVersion,
+                changed,
+                storeChanged
+            );
         }
     }
 

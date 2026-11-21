@@ -208,7 +208,11 @@ public sealed class VatsimAuthClient
         listener.Start();
 
         string startUrl = $"{serverUrl}/auth/vatsim/start?return={Uri.EscapeDataString(returnUrl)}";
-        _log.LogInformation("Opening VATSIM login for {Server}", serverUrl);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Opening VATSIM login for {Server}", serverUrl);
+        }
+
         Process.Start(new ProcessStartInfo { FileName = startUrl, UseShellExecute = true });
 
         try

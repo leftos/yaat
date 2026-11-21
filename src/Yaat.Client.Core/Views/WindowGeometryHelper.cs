@@ -277,14 +277,17 @@ public sealed class WindowGeometryHelper
         {
             ResolvedGeometry resolved = ResolveGeometry(geo, screenInfos);
 
-            Log.LogDebug(
-                "{Window} apply ({Mode}): saved={Saved} resolved={Resolved} screens=[{Screens}]",
-                _windowName,
-                isStartupRestore ? "startup" : "profile",
-                Describe(geo),
-                resolved,
-                DescribeScreens(screenInfos)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Window} apply ({Mode}): saved={Saved} resolved={Resolved} screens=[{Screens}]",
+                    _windowName,
+                    isStartupRestore ? "startup" : "profile",
+                    Describe(geo),
+                    resolved,
+                    DescribeScreens(screenInfos)
+                );
+            }
 
             if (isStartupRestore)
             {
@@ -369,7 +372,7 @@ public sealed class WindowGeometryHelper
     private void KeepWindowStateForAutomation(SavedWindowGeometry geo)
     {
         _requestedMaximized = geo.IsMaximized;
-        if (geo.IsMaximized || geo.IsMinimized || (_window.WindowState != WindowState.Normal))
+        if ((geo.IsMaximized || geo.IsMinimized || (_window.WindowState != WindowState.Normal)) && Log.IsEnabled(LogLevel.Information))
         {
             Log.LogInformation(
                 "{Window} automation mode: applying {Saved} with the window state left at {State}, since changing it would activate the window",
@@ -438,7 +441,11 @@ public sealed class WindowGeometryHelper
         // Automation mode opens a saved-maximized window Normal, so its drift is corrected like any other.
         if ((saved.IsMaximized && !AutomationGate.SuppressActivation) || (_window.WindowState != WindowState.Normal))
         {
-            Log.LogDebug("{Window} post-open verify skipped: state={State}", _windowName, _window.WindowState);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Window} post-open verify skipped: state={State}", _windowName, _window.WindowState);
+            }
+
             return;
         }
 
@@ -456,7 +463,7 @@ public sealed class WindowGeometryHelper
 
         if (IsAtResolvedGeometry(resolved, actualPosition, actualWidth, actualHeight))
         {
-            Log.LogDebug("{Window} post-open verify OK at {Position} {Width}x{Height}", _windowName, actualPosition, actualWidth, actualHeight);
+            LogVerifyOk(actualPosition, actualWidth, actualHeight);
             return;
         }
 
@@ -474,6 +481,15 @@ public sealed class WindowGeometryHelper
         _window.Width = resolved.Width;
         _window.Height = resolved.Height;
         _window.Position = new PixelPoint(resolved.X, resolved.Y);
+    }
+
+    /// <summary>Logs at Debug that the post-open verify found the window where its geometry was resolved to.</summary>
+    private void LogVerifyOk(PixelPoint actualPosition, double actualWidth, double actualHeight)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Window} post-open verify OK at {Position} {Width}x{Height}", _windowName, actualPosition, actualWidth, actualHeight);
+        }
     }
 
     private ScreenInfo[] GetScreenSnapshot()
@@ -658,7 +674,15 @@ public sealed class WindowGeometryHelper
         TimeSpan sinceOpened = DateTime.UtcNow - _openedAtUtc;
         if ((sinceOpened >= TimeSpan.Zero) && (sinceOpened < EarlyMoveLogWindow))
         {
-            Log.LogInformation("{Window} moved to {Position} within {Seconds:0}s of opening", _windowName, e.Point, EarlyMoveLogWindow.TotalSeconds);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "{Window} moved to {Position} within {Seconds:0}s of opening",
+                    _windowName,
+                    e.Point,
+                    EarlyMoveLogWindow.TotalSeconds
+                );
+            }
         }
 
         // A minimize can report its iconic position before WindowState flips to
@@ -779,14 +803,17 @@ public sealed class WindowGeometryHelper
         }
 
         SavedWindowGeometry geo = CreateSavedGeometry();
-        Log.LogDebug(
-            "{Window} save: {Saved} (state={State}, was={Previous}, trigger={Trigger})",
-            _windowName,
-            Describe(geo),
-            _window.WindowState,
-            _preferences.GetWindowGeometry(_windowName) is { } previous ? Describe(previous) : "none",
-            trigger
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Window} save: {Saved} (state={State}, was={Previous}, trigger={Trigger})",
+                _windowName,
+                Describe(geo),
+                _window.WindowState,
+                _preferences.GetWindowGeometry(_windowName) is { } previous ? Describe(previous) : "none",
+                trigger
+            );
+        }
         _preferences.SetWindowGeometry(_windowName, geo);
     }
 
