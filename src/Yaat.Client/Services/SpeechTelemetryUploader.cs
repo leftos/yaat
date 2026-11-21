@@ -49,7 +49,11 @@ public sealed class SpeechTelemetryUploader(HttpClient http, SpeechSampleStore s
 
             if (!IsOfficialServer(serverUrl))
             {
-                Log.LogDebug("Speech telemetry held for the official server; connected to {Server}", serverUrl);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Speech telemetry held for the official server; connected to {Server}", serverUrl);
+                }
+
                 return 0;
             }
 
@@ -169,7 +173,11 @@ public sealed class SpeechTelemetryUploader(HttpClient http, SpeechSampleStore s
 
             if (status == 429)
             {
-                Log.LogInformation("Speech telemetry daily limit reached at {Id}; the rest stay pending for a later pass", id);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Speech telemetry daily limit reached at {Id}; the rest stay pending for a later pass", id);
+                }
+
                 return HttpResult.Transient;
             }
 

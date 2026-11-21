@@ -186,7 +186,11 @@ public sealed class SttDownloads : IDisposable
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            Log.LogInformation(ex, "The STT download manifest {Path} pins no GPU runtime for this platform", manifestPath);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(ex, "The STT download manifest {Path} pins no GPU runtime for this platform", manifestPath);
+            }
+
             return null;
         }
     }

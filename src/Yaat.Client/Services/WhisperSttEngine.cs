@@ -151,7 +151,11 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
             }
 
             string text = sb.ToString().Trim();
-            Log.LogDebug("Whisper transcript: {Text}", text);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Whisper transcript: {Text}", text);
+            }
+
             if (text.Length == 0 || IsNoiseMarker(text))
             {
                 return null;
@@ -297,7 +301,10 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 
         try
         {
-            Log.LogInformation("Loading LM-Kit Whisper model {Source}", source);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Loading LM-Kit Whisper model {Source}", source);
+            }
 
             // Source dispatch matches LocalLlmService: rooted file path → file constructor;
             // http/https URI → URI constructor (auto-downloads); bare string → LoadFromModelID

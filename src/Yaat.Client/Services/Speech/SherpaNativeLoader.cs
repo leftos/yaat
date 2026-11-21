@@ -137,7 +137,11 @@ public static class SherpaNativeLoader
         }
         if (File.Exists(Path.Combine(nativeDir, FallbackMarkerName)))
         {
-            Log.LogInformation("{Dir} holds the stock sherpa-onnx native, which has no n-best; Accurate mode runs Fast", nativeDir);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("{Dir} holds the stock sherpa-onnx native, which has no n-best; Accurate mode runs Fast", nativeDir);
+            }
+
             return (false, NbestReason);
         }
         return (true, null);
@@ -414,7 +418,11 @@ public static class SherpaNativeLoader
                 Log.LogWarning(ex, "Failed to read the sherpa-onnx {Set} native set's manifest at {Path}", setName, path);
                 return;
             }
-            Log.LogInformation("sherpa-onnx {Set} native set loaded: {Head} ({Path})", setName, head ?? "no HEAD line", path);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("sherpa-onnx {Set} native set loaded: {Head} ({Path})", setName, head ?? "no HEAD line", path);
+            }
+
             return;
         }
 

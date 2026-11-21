@@ -279,7 +279,11 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         }
         catch (IOException ex) when (IsSharingViolation(ex))
         {
-            Log.LogInformation("The sherpa CUDA install lock {Path} is held by another writer", lockPath);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("The sherpa CUDA install lock {Path} is held by another writer", lockPath);
+            }
+
             return null;
         }
     }
@@ -452,7 +456,11 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             StatusMessage = $"Failed: {ex.Message}";
             throw;
         }
-        Log.LogInformation("Scheduled the removal of the sherpa CUDA native set at {Root} for the next start", _installRoot);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Scheduled the removal of the sherpa CUDA native set at {Root} for the next start", _installRoot);
+        }
+
         IsRemovalScheduled = true;
         StatusMessage = ScheduledMessage;
     }
@@ -498,13 +506,22 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
                 return false;
             }
             DeleteRoot(installRoot);
-            Log.LogInformation("Removed the sherpa CUDA native set at {Root}, as scheduled", installRoot);
+            LogRemovedAsScheduled(installRoot);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.LogError(ex, "Failed to remove the sherpa CUDA native set at {Root} as scheduled; retrying next start", installRoot);
             return false;
+        }
+    }
+
+    /// <summary>Logs at Information that the set scheduled for removal under the install root has been removed.</summary>
+    private static void LogRemovedAsScheduled(string installRoot)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Removed the sherpa CUDA native set at {Root}, as scheduled", installRoot);
         }
     }
 
@@ -677,7 +694,11 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             }
             catch (IOException ex) when (IsSharingViolation(ex))
             {
-                Log.LogInformation(ex, "{Path} refuses an exclusive open, so a process has it loaded", path);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation(ex, "{Path} refuses an exclusive open, so a process has it loaded", path);
+                }
+
                 return true;
             }
         }
@@ -721,7 +742,10 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             DeleteRoot(_installRoot);
             IsInstalled = false;
             IsRemovalScheduled = false;
-            Log.LogInformation("Removed the sherpa CUDA native set at {Root}", _installRoot);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Removed the sherpa CUDA native set at {Root}", _installRoot);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -770,7 +794,10 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         if (File.Exists(markerPath))
         {
             File.Delete(markerPath);
-            Log.LogInformation("The new sherpa CUDA native set at {Root} cancels the removal scheduled for the next start", _installRoot);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("The new sherpa CUDA native set at {Root} cancels the removal scheduled for the next start", _installRoot);
+            }
         }
         IsRemovalScheduled = false;
     }
@@ -818,7 +845,10 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             string content = File.ReadAllText(Path.Combine(complete[0], SetSentinelFileName));
             Directory.Move(complete[0], nativeDir);
             File.WriteAllText(SentinelPath(installRoot), content);
-            Log.LogInformation("Restored the sherpa CUDA native set from the orphaned {OldDir}", complete[0]);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Restored the sherpa CUDA native set from the orphaned {OldDir}", complete[0]);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

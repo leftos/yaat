@@ -68,7 +68,11 @@ internal sealed class VerifiedFileDownloader(HttpClient http, TimeProvider timeP
 
     private async Task DownloadVerifiedAsync(VerifiedFile file, string url, string destPath, Action<long> onBytesRead, CancellationToken ct)
     {
-        Log.LogInformation("Downloading {Name} from {Url}", file.Name, url);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Downloading {Name} from {Url}", file.Name, url);
+        }
+
         using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         long? length = response.Content.Headers.ContentLength;

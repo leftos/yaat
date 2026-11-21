@@ -90,7 +90,14 @@ public sealed partial class UiThreadWatchdog : IDisposable
             _thread.Start();
         }
 
-        Log.LogInformation("UI-thread watchdog started (poll {PollMs} ms, stall threshold {ThresholdMs} ms)", PollIntervalMs, StallWarnThresholdMs);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "UI-thread watchdog started (poll {PollMs} ms, stall threshold {ThresholdMs} ms)",
+                PollIntervalMs,
+                StallWarnThresholdMs
+            );
+        }
     }
 
     private void Loop()
@@ -191,14 +198,17 @@ public sealed partial class UiThreadWatchdog : IDisposable
 
         if (recovered)
         {
-            Log.LogInformation(
-                "UI thread responsive again after {DurationMs} ms ({DurationSec:F1}s). GC during stall: gen0+{Gen0} gen1+{Gen1} gen2+{Gen2}.",
-                durationMs,
-                durationMs / 1000.0,
-                gen0,
-                gen1,
-                gen2
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "UI thread responsive again after {DurationMs} ms ({DurationSec:F1}s). GC during stall: gen0+{Gen0} gen1+{Gen1} gen2+{Gen2}.",
+                    durationMs,
+                    durationMs / 1000.0,
+                    gen0,
+                    gen1,
+                    gen2
+                );
+            }
         }
     }
 

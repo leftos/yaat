@@ -69,7 +69,11 @@ public sealed class TowerCabImageService : IDisposable
 
                 if (headResp.StatusCode == HttpStatusCode.NotFound)
                 {
-                    _log.LogDebug("Tower cab image {AirportId} {Res}Res not found on server", airportId, resolution);
+                    if (_log.IsEnabled(LogLevel.Debug))
+                    {
+                        _log.LogDebug("Tower cab image {AirportId} {Res}Res not found on server", airportId, resolution);
+                    }
+
                     return;
                 }
 
@@ -78,11 +82,19 @@ public sealed class TowerCabImageService : IDisposable
                     DateTime? serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
                     if ((serverLastModified is { } sm) && (sm <= fileInfo.LastWriteTimeUtc))
                     {
-                        _log.LogDebug("Tower cab image {AirportId} {Res}Res is up to date", airportId, resolution);
+                        if (_log.IsEnabled(LogLevel.Debug))
+                        {
+                            _log.LogDebug("Tower cab image {AirportId} {Res}Res is up to date", airportId, resolution);
+                        }
+
                         return;
                     }
 
-                    _log.LogDebug("Tower cab image {AirportId} {Res}Res has been updated, re-downloading", airportId, resolution);
+                    if (_log.IsEnabled(LogLevel.Debug))
+                    {
+                        _log.LogDebug("Tower cab image {AirportId} {Res}Res has been updated, re-downloading", airportId, resolution);
+                    }
+
                     await DownloadAsync(url, cachePath, airportId, resolution, serverLastModified);
                     return;
                 }
@@ -106,12 +118,19 @@ public sealed class TowerCabImageService : IDisposable
 
     private async Task DownloadAsync(string url, string cachePath, string airportId, string resolution, DateTime? serverLastModified)
     {
-        _log.LogInformation("Downloading tower cab image {AirportId} {Res}Res from {Url}", airportId, resolution, url);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Downloading tower cab image {AirportId} {Res}Res from {Url}", airportId, resolution, url);
+        }
 
         using HttpResponseMessage response = await _http.GetAsync(url);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            _log.LogDebug("Tower cab image {AirportId} {Res}Res not found (404)", airportId, resolution);
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug("Tower cab image {AirportId} {Res}Res not found (404)", airportId, resolution);
+            }
+
             return;
         }
 
@@ -125,7 +144,16 @@ public sealed class TowerCabImageService : IDisposable
             File.SetLastWriteTimeUtc(cachePath, s);
         }
 
-        _log.LogInformation("Cached tower cab image {AirportId} {Res}Res ({Size:N0} bytes)", airportId, resolution, bytes.Length);
+        LogCached(airportId, resolution, bytes);
+    }
+
+    /// <summary>Logs at Information that the airport's tower cab image at the resolution is cached, with its size.</summary>
+    private void LogCached(string airportId, string resolution, byte[] bytes)
+    {
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Cached tower cab image {AirportId} {Res}Res ({Size:N0} bytes)", airportId, resolution, bytes.Length);
+        }
     }
 
     private TowerCabImage? DecodeImage(string path, string airportId)
@@ -168,14 +196,17 @@ public sealed class TowerCabImageService : IDisposable
                     return null;
                 }
 
-                _log.LogDebug(
-                    "Downscaled tower cab image {AirportId} from {OldW}x{OldH} to {NewW}x{NewH}",
-                    airportId,
-                    decoded.Width,
-                    decoded.Height,
-                    newW,
-                    newH
-                );
+                if (_log.IsEnabled(LogLevel.Debug))
+                {
+                    _log.LogDebug(
+                        "Downscaled tower cab image {AirportId} from {OldW}x{OldH} to {NewW}x{NewH}",
+                        airportId,
+                        decoded.Width,
+                        decoded.Height,
+                        newW,
+                        newH
+                    );
+                }
             }
             else
             {
@@ -198,16 +229,19 @@ public sealed class TowerCabImageService : IDisposable
 
             (double blLat, double blLon, double trLat, double trLon) = bounds.Value;
 
-            _log.LogDebug(
-                "Tower cab image {AirportId}: {W}x{H}, bounds ({BLLat:F6},{BLLon:F6})-({TRLat:F6},{TRLon:F6})",
-                airportId,
-                image.Width,
-                image.Height,
-                blLat,
-                blLon,
-                trLat,
-                trLon
-            );
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug(
+                    "Tower cab image {AirportId}: {W}x{H}, bounds ({BLLat:F6},{BLLon:F6})-({TRLat:F6},{TRLon:F6})",
+                    airportId,
+                    image.Width,
+                    image.Height,
+                    blLat,
+                    blLon,
+                    trLat,
+                    trLon
+                );
+            }
 
             return new TowerCabImage(image, blLat, blLon, trLat, trLon);
         }

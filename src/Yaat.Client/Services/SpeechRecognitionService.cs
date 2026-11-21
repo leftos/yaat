@@ -384,7 +384,10 @@ public sealed class SpeechRecognitionService(
             Task llmTask = _llmService?.PrewarmAsync(ct) ?? Task.CompletedTask;
             await Task.WhenAll(sttTask, llmTask).ConfigureAwait(false);
             sw.Stop();
-            Log.LogInformation("Speech pipeline pre-warmed in {Ms} ms", sw.ElapsedMilliseconds);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Speech pipeline pre-warmed in {Ms} ms", sw.ElapsedMilliseconds);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -539,7 +542,10 @@ public sealed class SpeechRecognitionService(
             else
             {
                 transcript = raw.Trim();
-                Log.LogInformation("PTT transcript: {Transcript}", transcript);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("PTT transcript: {Transcript}", transcript);
+                }
 
                 SetStatus(SpeechStatus.Mapping);
                 var mapSw = Stopwatch.StartNew();
@@ -864,7 +870,10 @@ public sealed class SpeechRecognitionService(
             // (already-stripped) input; if we somehow missed a callsign at the pipeline layer
             // but the rule mapper found one on a second look, prefer its result.
             callsign ??= extracted.Accept(ruleResult.Callsign);
-            Log.LogInformation("Rule engine mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Rule engine mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
+            }
         }
         else if (llmMapper is not null)
         {
@@ -890,7 +899,10 @@ public sealed class SpeechRecognitionService(
             {
                 canonical = llmResult.CanonicalCommand;
                 usedLlmFallback = true;
-                Log.LogInformation("LLM fallback mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("LLM fallback mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
+                }
             }
             else
             {
@@ -918,7 +930,10 @@ public sealed class SpeechRecognitionService(
         {
             canonical = commandText.Trim();
             isRawTextFallback = true;
-            Log.LogInformation("Both mappers failed; surfacing extracted callsign {Callsign} + raw command text", callsign);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Both mappers failed; surfacing extracted callsign {Callsign} + raw command text", callsign);
+            }
         }
 
         return (new TranscriptMapResult(commandText, canonical, callsign, usedLlmFallback, isRawTextFallback), ruleTrace, llmTrace);
@@ -970,13 +985,16 @@ public sealed class SpeechRecognitionService(
             );
         }
 
-        Log.LogDebug(
-            "Accurate decode of {Count} hypotheses: {State} on hypothesis {Index}, callsign {Callsign}",
-            hypotheses.Entries.Count,
-            decoded.State,
-            decoded.HypothesisIndex,
-            decoded.Callsign?.Entity.Value ?? "(none)"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Accurate decode of {Count} hypotheses: {State} on hypothesis {Index}, callsign {Callsign}",
+                hypotheses.Entries.Count,
+                decoded.State,
+                decoded.HypothesisIndex,
+                decoded.Callsign?.Entity.Value ?? "(none)"
+            );
+        }
 
         (TranscriptMapResult result, RuleMapperTrace ruleTrace, LlmMapperTrace? llmTrace) = await MapExtractedAsync(
                 transcript,

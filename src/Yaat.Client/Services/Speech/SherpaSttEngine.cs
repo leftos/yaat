@@ -258,7 +258,11 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
         }
 
         _loadError = null;
-        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider} ({Method})", _modelDir, provider, Decoding.Method);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider} ({Method})", _modelDir, provider, Decoding.Method);
+        }
+
         RecordProviderOutcome(fallbackReason);
         return _recognizer;
     }

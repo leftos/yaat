@@ -430,7 +430,7 @@ public partial class GroundViewModel : ObservableObject
                     highRes: true
                 );
                 BackgroundImage = image;
-                if (image is not null)
+                if ((image is not null) && _log.IsEnabled(LogLevel.Information))
                 {
                     _log.LogInformation("Tower cab background image loaded for {AirportId}", airportId);
                 }
@@ -456,7 +456,7 @@ public partial class GroundViewModel : ObservableObject
                         videoMapId
                     );
                     TowerCabMap = mapData;
-                    if (mapData is not null)
+                    if ((mapData is not null) && _log.IsEnabled(LogLevel.Information))
                     {
                         _log.LogInformation(
                             "Tower cab video map loaded for {AirportId}: {Polys} polygons, {Lines} lines",
@@ -631,7 +631,10 @@ public partial class GroundViewModel : ObservableObject
                 _isRestoring = false;
             }
 
-            _log.LogInformation("Ground layout loaded for {Id}: {Nodes} nodes, {Edges} edges", airportId, dto.Nodes.Count, dto.Edges.Count);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Ground layout loaded for {Id}: {Nodes} nodes, {Edges} edges", airportId, dto.Nodes.Count, dto.Edges.Count);
+            }
         }
         catch (Exception ex)
         {
@@ -3789,15 +3792,18 @@ public partial class GroundViewModel : ObservableObject
         LogLevel level = _warnedTurnAboutTargets.Add((ac.Callsign, ac.TaxiTurnAboutShape, ac.TaxiTurnAboutTargetNodeId))
             ? LogLevel.Warning
             : LogLevel.Debug;
-        _log.Log(
-            level,
-            "{Callsign}: turn about {Shape} toward node {Target}, which the {Airport} layout lacks; drawing the route from node {Start}",
-            ac.Callsign,
-            ac.TaxiTurnAboutShape,
-            ac.TaxiTurnAboutTargetNodeId,
-            layout.AirportId,
-            start.Id
-        );
+        if (_log.IsEnabled(level))
+        {
+            _log.Log(
+                level,
+                "{Callsign}: turn about {Shape} toward node {Target}, which the {Airport} layout lacks; drawing the route from node {Start}",
+                ac.Callsign,
+                ac.TaxiTurnAboutShape,
+                ac.TaxiTurnAboutTargetNodeId,
+                layout.AirportId,
+                start.Id
+            );
+        }
     }
 
     /// <summary>A rebuilt route whose first leg leaves more than <see cref="ReversalDeg"/> off the aircraft's nose doubles back on itself.</summary>

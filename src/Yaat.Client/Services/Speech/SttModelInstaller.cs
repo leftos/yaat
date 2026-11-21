@@ -162,7 +162,11 @@ public sealed partial class SttModelInstaller(HttpClient http, string installRoo
         }
         catch (IOException ex) when (IsSharingViolation(ex))
         {
-            Log.LogInformation("The STT model install lock {Path} is held by another writer", lockPath);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("The STT model install lock {Path} is held by another writer", lockPath);
+            }
+
             return null;
         }
     }
@@ -199,7 +203,11 @@ public sealed partial class SttModelInstaller(HttpClient http, string installRoo
         }
         catch (OperationCanceledException)
         {
-            Log.LogInformation("STT model {Id} install cancelled", _model.Id);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("STT model {Id} install cancelled", _model.Id);
+            }
+
             StatusMessage = CancelledMessage;
             DeleteDirBestEffort(stagingDir);
             throw;
@@ -360,7 +368,10 @@ public sealed partial class SttModelInstaller(HttpClient http, string installRoo
                 return;
             }
             Directory.Move(complete[0], modelDir);
-            Log.LogInformation("Restored the STT model {Id} from the orphaned {OldDir}", model.Id, complete[0]);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Restored the STT model {Id} from the orphaned {OldDir}", model.Id, complete[0]);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -614,7 +625,10 @@ public sealed partial class SttModelInstaller(HttpClient http, string installRoo
             {
                 Directory.Delete(leftover, recursive: true);
             }
-            Log.LogInformation("Removed the STT model {Id} at {Dir}", _model.Id, modelDir);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Removed the STT model {Id} at {Dir}", _model.Id, modelDir);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -93,7 +93,11 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
             _gate.Release();
         }
 
-        Log.LogInformation("Speech-recognition engine swapped to {Engine}", next.GetType().Name);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Speech-recognition engine swapped to {Engine}", next.GetType().Name);
+        }
+
         await DisposeOffThreadAsync(replaced).ConfigureAwait(false);
     }
 
@@ -146,7 +150,11 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
             {
                 if (request != Interlocked.Read(ref _latestRequest))
                 {
-                    Log.LogInformation("A later speech-recognition engine request superseded {Engine}; discarding it", next.GetType().Name);
+                    if (Log.IsEnabled(LogLevel.Information))
+                    {
+                        Log.LogInformation("A later speech-recognition engine request superseded {Engine}; discarding it", next.GetType().Name);
+                    }
+
                     await DisposeOffThreadAsync(next).ConfigureAwait(false);
                     return false;
                 }

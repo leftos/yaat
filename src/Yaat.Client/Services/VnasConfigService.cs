@@ -65,15 +65,24 @@ public sealed class VnasConfigService : IDisposable
             TowerCabImagesBaseUrl = config.TowerCabImagesBaseUrl;
             IsInitialized = true;
 
+            LogConfigUrls();
+        }
+        else
+        {
+            _log.LogWarning("No vNAS config available; tower cab layers will be unavailable");
+        }
+    }
+
+    /// <summary>Logs at Information the video-map and tower-cab image base URLs the vNAS config set.</summary>
+    private void LogConfigUrls()
+    {
+        if (_log.IsEnabled(LogLevel.Information))
+        {
             _log.LogInformation(
                 "vNAS config: VideoMapBaseUrl={VideoMapBase}, TowerCabImagesBaseUrl={TowerCabBase}",
                 VideoMapBaseUrl,
                 TowerCabImagesBaseUrl
             );
-        }
-        else
-        {
-            _log.LogWarning("No vNAS config available; tower cab layers will be unavailable");
         }
     }
 

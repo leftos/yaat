@@ -201,7 +201,11 @@ public partial class ImportExportViewModel : ObservableObject
         {
             WriteAtomically(path, stream => SettingsBundleFile.WriteExport(plan.Entries, _writtenBy, stream));
             ExportStatus = $"Exported {ItemCount(plan.Entries.Count)} to {Path.GetFileName(path)}.";
-            Log.LogInformation("Exported settings ({Items}) to {Path}", string.Join(", ", plan.Entries.Select(e => e.ItemType)), path);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Exported settings ({Items}) to {Path}", string.Join(", ", plan.Entries.Select(e => e.ItemType)), path);
+            }
+
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -287,7 +291,10 @@ public partial class ImportExportViewModel : ObservableObject
                     ImportResults.Add(new ImportSummaryRow(result, Summarize(result, plans.Single(p => p.ItemType == result.ItemType).Mode)));
                 }
             );
-            Log.LogInformation("Imported settings from {File}: {Items}", ImportFileName, string.Join("; ", ImportResults.Select(r => r.Text)));
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Imported settings from {File}: {Items}", ImportFileName, string.Join("; ", ImportResults.Select(r => r.Text)));
+            }
         }
         catch (Exception ex)
         {
@@ -335,7 +342,11 @@ public partial class ImportExportViewModel : ObservableObject
         {
             Directory.CreateDirectory(_backupsFolder);
             WriteAtomically(path, stream => SettingsBundleFile.Write(plan.Entries, _writtenBy, stream));
-            Log.LogInformation("Backed up all settings to {Path} before importing {File}", path, ImportFileName);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Backed up all settings to {Path} before importing {File}", path, ImportFileName);
+            }
+
             return fileName;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -390,7 +401,10 @@ public partial class ImportExportViewModel : ObservableObject
             if (File.Exists(temp))
             {
                 File.Delete(temp);
-                Log.LogDebug("Deleted the temporary file {Path} after a failed write", temp);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Deleted the temporary file {Path} after a failed write", temp);
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
