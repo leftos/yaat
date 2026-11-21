@@ -156,7 +156,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
@@ -602,7 +601,7 @@
 
 ## Taxi routing and airport layouts
 
-### 1 Defects (6/33 done)
+### 1 Defects (6/34 done)
 - [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
 - [ ] YAAT-1306 Get SFO's real hold-line positions; unskip the E75L-on-T exit test
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
@@ -630,6 +629,7 @@
 - [ ] YAAT-1612 Make GroundArc.IsRamp independent of the fillet's name order
 - [ ] YAAT-1623 TAXI F 28L from SFO's L/F hold short routes west and around via A, T, B, E instead of east onto F
 - [ ] YAAT-2142 Read a null airport sidecar section or entry as empty instead of aborting every sidecar load
+- [ ] YAAT-2667 Resolve @GATE and @{prefix}* destinations before previewing a deferred taxi
 
 ### 2 Refinements and rulings (2/12 done)
 - [ ] YAAT-1307 Build precompute cache entries with the tower-cab videomap the server uses
@@ -769,9 +769,8 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (2/32 done)
+### 1 Defects (3/32 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
-- [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
 - [ ] YAAT-2290 Replaying a solo server recording from t=0 loses the load-time auto-track state
 - [ ] YAAT-83 Find why live recording playback shifts pilot transmissions 1–2 s
@@ -817,7 +816,7 @@
 
 ## Command parser and queue
 
-### 1 Defects (5/24 done)
+### 1 Defects (6/24 done)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
@@ -836,7 +835,6 @@
 - [ ] YAAT-1889 Dry-run a queued or conditional block as a unit when it fires, so a refused altitude does not leave its speed half-applied
 - [ ] YAAT-2244 Keep FH 360 / TL 360 / TR 360 as 360 in canonical text (today FH 000, which does not re-parse)
 - [ ] YAAT-2398 PRA 0 is refused as an invalid altitude instead of clearing the pilot-reported altitude
-- [ ] YAAT-2600 vStrips: SEP rack-out-of-range error reports the 0-based internal rack, not the 1-based rack the user typed (StripCommandHandler.HandleSeparatorCreate)
 
 ### 2 Refinements and rulings (1/6 done)
 - [ ] YAAT-88 Give the command queue a per-dispatch frontier for independent chains
@@ -1585,24 +1583,12 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (42/114 done)
+### 3 Hygiene and tests (54/114 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
   - [ ] YAAT-2343 Guard expensive log arguments (CA1873) and raise it to warning · release vNext
-    - [ ] YAAT-2614 CA1873 part Y12: guard expensive log arguments in Yaat.Sim (LowApproachPhase.cs to PilotRequestTracker.cs) · release vNext
-    - [ ] YAAT-2612 CA1873 part Y11: guard expensive log arguments in Yaat.Sim (VfrFollowPhase.cs to LinedUpAndWaitingPhase.cs) · release vNext
-    - [ ] YAAT-2615 CA1873 part Y14: guard expensive log arguments in Yaat.Sim (SimulationEngine.Coordination.cs to SituationFlagCalculator.cs) · release vNext
-    - [ ] YAAT-2618 CA1873 part Y16: guard expensive log arguments in yaat client (AtomicFile.cs to VStripsView.axaml.cs) · release vNext
-    - [ ] YAAT-2617 CA1873 part Y15: guard expensive log arguments in Yaat.Sim (AircraftTypeNames.cs to WindGridRegistry.cs) · release vNext
-    - [ ] YAAT-2616 CA1873 part Y13: guard expensive log arguments in Yaat.Sim (TaxiInRequest.cs to SimulationEngine.Commands.cs) · release vNext
-    - [ ] YAAT-2619 CA1873 part Y19: guard expensive log arguments in yaat client (SherpaCudaInstaller.cs to ImportExportViewModel.cs) · release vNext
-    - [ ] YAAT-2622 CA1873 part Y20: guard expensive log arguments in yaat client (MainViewModel.Aircraft.cs to SttModelCardViewModel.cs) · release vNext
-    - [ ] YAAT-2621 CA1873 part Y17: guard expensive log arguments in yaat client (BrowserTdlsTransport.cs to AudioCaptureService.cs) · release vNext
-    - [ ] YAAT-2620 CA1873 part Y18: guard expensive log arguments in yaat client (CudaBackendInstaller.cs to NativeStderrCapture.cs) · release vNext
-    - [ ] YAAT-2623 CA1873 part Y21: guard expensive log arguments in yaat client (ArrivalGeneratorsEditorWindow.axaml.cs to MainView.axaml.cs) · release vNext
     - [ ] YAAT-2626 CA1873 part S3: guard expensive log arguments in yaat-server (ShadowTrafficSync.cs to CrcBroadcastService.cs) · release vNext
     - [ ] YAAT-2625 CA1873 part S2: guard expensive log arguments in yaat-server (CrcClientState.Join.cs to RoomLiveTrafficReplay.cs) · release vNext
-    - [ ] YAAT-2624 CA1873 part S1: guard expensive log arguments in yaat-server (AdminSessionEndpoints.cs to CrcClientState.Info.cs) · release vNext
     - [ ] YAAT-2627 CA1873 part S5: guard expensive log arguments in yaat-server (UdpEntityServer.cs to UiaQuery.cs) · release vNext
     - [ ] YAAT-2628 CA1873 part S4: guard expensive log arguments in yaat-server (DtoConverter.cs to SpeechTelemetryRetention.cs) · release vNext
   - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext
