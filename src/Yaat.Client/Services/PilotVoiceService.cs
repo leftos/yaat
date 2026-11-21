@@ -69,13 +69,16 @@ public sealed class PilotVoiceService : IAsyncDisposable
             return;
         }
 
-        Log.LogInformation(
-            "[Pilot TTS] {Callsign} source={SourceKind} speaker={SpeakerId}: {Text}",
-            dto.Callsign,
-            dto.SourceKind,
-            dto.SpeakerId,
-            dto.Text
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Pilot TTS] {Callsign} source={SourceKind} speaker={SpeakerId}: {Text}",
+                dto.Callsign,
+                dto.SourceKind,
+                dto.SpeakerId,
+                dto.Text
+            );
+        }
         _queue.Writer.TryWrite(new PilotVoiceRequest(dto.Callsign, dto.Text, dto.SpeakerId, volume, radioFxEnabled, speechRate));
     }
 
@@ -145,15 +148,19 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
                     OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig("", gen, null);
                     sw.Stop();
                     float[] synthesized = EspeakPhonemizer.RequireSpeech(audio.Samples, $"Pilot voice for {request.Callsign}");
-                    Log.LogDebug(
-                        "Synthesized pilot voice for {Callsign}: sid={Sid}, speed={Speed}, samples={Samples}, sampleRate={SampleRate}, latencyMs={LatencyMs}",
-                        request.Callsign,
-                        sid,
-                        gen.Speed,
-                        synthesized.Length,
-                        tts.SampleRate,
-                        sw.ElapsedMilliseconds
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "Synthesized pilot voice for {Callsign}: sid={Sid}, speed={Speed}, samples={Samples}, "
+                                + "sampleRate={SampleRate}, latencyMs={LatencyMs}",
+                            request.Callsign,
+                            sid,
+                            gen.Speed,
+                            synthesized.Length,
+                            tts.SampleRate,
+                            sw.ElapsedMilliseconds
+                        );
+                    }
                     return (synthesized, tts.SampleRate);
                 },
                 ct
@@ -213,7 +220,10 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
 
             var voice = new LoadedVoice(tts, dataDir);
             _voice = voice;
-            Log.LogInformation("Loaded pilot voice pack from {VoiceDir}; sample rate {SampleRate} Hz.", voiceDir, tts.SampleRate);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Loaded pilot voice pack from {VoiceDir}; sample rate {SampleRate} Hz.", voiceDir, tts.SampleRate);
+            }
             _ = Task.Run(() => Prewarm(voice), CancellationToken.None);
             return voice;
         }

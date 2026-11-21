@@ -75,7 +75,10 @@ public sealed class LayoutService(UserPreferences preferences)
             layout.WindowGeometries[helper.WindowName] = Clone(geo);
         }
 
-        Log.LogInformation("Captured layout '{Name}' with {Count} window geometries", layout.Name, layout.WindowGeometries.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Captured layout '{Name}' with {Count} window geometries", layout.Name, layout.WindowGeometries.Count);
+        }
         return layout;
     }
 
@@ -104,13 +107,16 @@ public sealed class LayoutService(UserPreferences preferences)
             _preferences.SetGridLayout(CloneGridLayout(layout.DataGridLayout) ?? new SavedGridLayout());
         }
 
-        Log.LogInformation(
-            "Staged {Staged} of {Total} geometries from layout '{Name}' (grid={Grid})",
-            staged,
-            layout.WindowGeometries.Count,
-            layout.Name,
-            includeGrid
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Staged {Staged} of {Total} geometries from layout '{Name}' (grid={Grid})",
+                staged,
+                layout.WindowGeometries.Count,
+                layout.Name,
+                includeGrid
+            );
+        }
     }
 
     /// <summary>
@@ -132,7 +138,10 @@ public sealed class LayoutService(UserPreferences preferences)
         // nothing can be judged, so every tab stays as it is and nothing is reported.
         if (vm.VStrips.AccessibleFacilities.Count == 0)
         {
-            Log.LogInformation("Open tabs of layout '{Name}' not applied: no accessible facilities (no room)", layout.Name);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Open tabs of layout '{Name}' not applied: no accessible facilities (no room)", layout.Name);
+            }
             return [];
         }
 
@@ -140,13 +149,16 @@ public sealed class LayoutService(UserPreferences preferences)
         await ApplyStripsTabsAsync(vm, tabs.Strips, skipped);
         await ApplyTdlsTabsAsync(vm, tabs.Tdls, skipped);
 
-        Log.LogInformation(
-            "Applied open tabs from layout '{Name}' ({Strips} strips, {Tdls} vTDLS listed, {Skipped} skipped)",
-            layout.Name,
-            tabs.Strips.Count,
-            tabs.Tdls.Count,
-            skipped.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Applied open tabs from layout '{Name}' ({Strips} strips, {Tdls} vTDLS listed, {Skipped} skipped)",
+                layout.Name,
+                tabs.Strips.Count,
+                tabs.Tdls.Count,
+                skipped.Count
+            );
+        }
         return skipped;
     }
 

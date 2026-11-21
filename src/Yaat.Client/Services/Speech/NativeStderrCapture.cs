@@ -95,10 +95,13 @@ public sealed partial class NativeStderrCapture : INativeFallbackSource
             var reader = new Thread(() => capture.ReadLines(redirect.Read)) { IsBackground = true, Name = "NativeStderr" };
             reader.Start();
             Volatile.Write(ref _installed, capture);
-            Log.LogInformation(
-                "Native stderr is captured into this log; copied to the original stderr too: {Copied}",
-                redirect.CopyToOriginal is not null
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Native stderr is captured into this log; copied to the original stderr too: {Copied}",
+                    redirect.CopyToOriginal is not null
+                );
+            }
         }
         catch (Exception ex) when (ex is IOException or ExternalException or DllNotFoundException or EntryPointNotFoundException)
         {
@@ -140,7 +143,10 @@ public sealed partial class NativeStderrCapture : INativeFallbackSource
             NativeFallbackLine previous = Volatile.Read(ref _latest);
             Volatile.Write(ref _latest, new NativeFallbackLine(previous.Sequence + 1, reason));
         }
-        Log.LogInformation("{Line}", line);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("{Line}", line);
+        }
     }
 
     /// <summary>The text after the third <c> : </c> from <c>[ONNXRuntimeError]</c>, or the status as it is without one.</summary>

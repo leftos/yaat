@@ -94,7 +94,10 @@ public static class EspeakPhonemizer
             throw new InvalidOperationException($"piper-phonemize failed to initialize from {fullPath}.");
         }
 
-        Log.LogInformation("Initialized piper-phonemize from {EspeakDataDir}; sample rate {SampleRate} Hz.", fullPath, sampleRate);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Initialized piper-phonemize from {EspeakDataDir}; sample rate {SampleRate} Hz.", fullPath, sampleRate);
+        }
         return fullPath;
     }
 

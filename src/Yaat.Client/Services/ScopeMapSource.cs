@@ -189,12 +189,15 @@ public sealed partial class ScopeMapSource(ServerConnection connection, VideoMap
     {
         _positionMapGroupMapIds = config.MapGroupMapIds;
         WeatherAirports = config.UnderlyingAirports;
-        _log.LogInformation(
-            "Scope applied position display config for TCP {TcpCode}: {MapCount} maps, {AirportCount} weather airports",
-            config.TcpCode,
-            config.MapGroupMapIds.Count,
-            config.UnderlyingAirports.Count
-        );
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation(
+                "Scope applied position display config for TCP {TcpCode}: {MapCount} maps, {AirportCount} weather airports",
+                config.TcpCode,
+                config.MapGroupMapIds.Count,
+                config.UnderlyingAirports.Count
+            );
+        }
     }
 
     /// <summary>Sets the scenario's primary airport id.</summary>
@@ -404,7 +407,10 @@ public sealed partial class ScopeMapSource(ServerConnection connection, VideoMap
             ApplyVideoMapsDto(dto);
             applied = true;
             List<VideoMapData> data = await download(dto.VideoMaps);
-            _log.LogInformation("Scope video maps loaded: {Count} maps for {Facility}", data.Count, dto.FacilityId);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Scope video maps loaded: {Count} maps for {Facility}", data.Count, dto.FacilityId);
+            }
         }
         catch (Exception ex)
         {

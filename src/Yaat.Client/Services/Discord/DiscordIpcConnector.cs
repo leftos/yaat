@@ -39,7 +39,10 @@ internal sealed class DiscordIpcConnector : IDiscordIpcConnector
             if (stream is not null)
             {
                 _absenceLogged = false;
-                Log.LogDebug("Connected to Discord IPC endpoint discord-ipc-{Index}", index);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Connected to Discord IPC endpoint discord-ipc-{Index}", index);
+                }
                 return stream;
             }
         }
@@ -70,7 +73,10 @@ internal sealed class DiscordIpcConnector : IDiscordIpcConnector
             // connection refused, the connect timeout. Trace level, and the message rather than the
             // exception object: a machine without Discord produces ten of these per sweep forever,
             // and a stack trace for each says nothing the message does not.
-            Log.LogTrace("Discord IPC endpoint {Name} did not accept a connection: {Reason}", name, ex.Message);
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace("Discord IPC endpoint {Name} did not accept a connection: {Reason}", name, ex.Message);
+            }
             return null;
         }
     }

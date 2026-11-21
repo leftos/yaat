@@ -134,7 +134,10 @@ public sealed class DiscordRichPresenceService : IRichPresencePublisher, IDispos
             }
             catch (Exception ex)
             {
-                Log.LogDebug(ex, "Discord rich presence session failed; retrying in {Seconds}s", retry.TotalSeconds);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(ex, "Discord rich presence session failed; retrying in {Seconds}s", retry.TotalSeconds);
+                }
             }
 
             try
@@ -324,7 +327,10 @@ public sealed class DiscordRichPresenceService : IRichPresencePublisher, IDispos
     {
         byte[] json = DiscordRpcJson.SetActivity(activity, Environment.ProcessId, Guid.NewGuid().ToString());
         await DiscordIpcFrame.WriteAsync(stream, DiscordIpcFrame.FrameOpcode, json, cancellationToken);
-        Log.LogDebug("Discord rich presence set to \"{Details}\"", activity.Details);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Discord rich presence set to \"{Details}\"", activity.Details);
+        }
     }
 
     /// <summary>

@@ -87,15 +87,26 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         string? canonical = NormalizeOutput(raw);
         if (canonical is null)
         {
-            Log.LogDebug("LLM output did not parse as canonical command: {Raw}", raw);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("LLM output did not parse as canonical command: {Raw}", raw);
+            }
             return (null, new LlmMapperTrace(systemPrompt, userPrompt, raw, null, "output failed canonical validation"));
         }
 
         // Rule engine matches are cheap enough that if the LLM echoes a rule-shaped string, we
         // trust it. We don't have a callsign extraction step here — the speech pipeline re-runs
         // CallsignParser on the transcript for the LLM path if needed.
-        Log.LogInformation("LLM fallback produced canonical command: {Canonical}", canonical);
+        LogCanonical(canonical);
         return (new MapResult(null, canonical, 1), new LlmMapperTrace(systemPrompt, userPrompt, raw, canonical, null));
+    }
+
+    private static void LogCanonical(string canonical)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("LLM fallback produced canonical command: {Canonical}", canonical);
+        }
     }
 
     /// <summary>
@@ -131,7 +142,10 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         string? canonical = NormalizeOutput(raw);
         if (canonical is null)
         {
-            Log.LogDebug("LLM output did not parse as canonical command (override prompt path): {Raw}", raw);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("LLM output did not parse as canonical command (override prompt path): {Raw}", raw);
+            }
             return null;
         }
 

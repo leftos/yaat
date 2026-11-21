@@ -202,7 +202,10 @@ public sealed partial class CudaBackendInstaller : ObservableObject
             if (Directory.Exists(InstallRoot))
             {
                 Directory.Delete(InstallRoot, recursive: true);
-                Log.LogInformation("Removed CUDA backend install at {Root}", InstallRoot);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Removed CUDA backend install at {Root}", InstallRoot);
+                }
             }
             IsInstalled = false;
             StatusMessage = "Removed. Restart YAAT to fall back to Vulkan / CPU.";
@@ -309,7 +312,7 @@ public sealed partial class CudaBackendInstaller : ObservableObject
     )
     {
         string url = $"https://www.nuget.org/api/v2/package/{packageId}/{version}";
-        Log.LogInformation("Downloading {PackageId} {Version} from {Url}", packageId, version, url);
+        LogDownloading(packageId, version, url);
 
         using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -370,6 +373,14 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         }
 
         File.Delete(nupkgPath);
+    }
+
+    private static void LogDownloading(string packageId, string version, string url)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Downloading {PackageId} {Version} from {Url}", packageId, version, url);
+        }
     }
 
     private static void StitchCublasLt(string stitchDir, string nativeDir)

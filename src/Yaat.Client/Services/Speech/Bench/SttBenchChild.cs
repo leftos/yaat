@@ -54,8 +54,11 @@ public static class SttBenchChild
         ILogger log = AppLog.CreateLogger(LogCategory);
         try
         {
-            log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
-            log.LogInformation("Benchmark child for {JobPath}; log file: {LogPath}", jobPath, AppLog.LogPath);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
+                log.LogInformation("Benchmark child for {JobPath}; log file: {LogPath}", jobPath, AppLog.LogPath);
+            }
 
             // Before anything touches sherpa-onnx: its statically linked C runtime binds stderr when the DLL loads.
             NativeStderrCapture.Install();
@@ -64,13 +67,19 @@ public static class SttBenchChild
             var meters = new SttBenchMeters(gpu, memory, TimeProvider.System);
             var source = new FactorySttBenchEngineSource(engine => engine.NativeProblem());
             int exitCode = RunJobAsync(jobPath, device => SetUpNatives(log, device), source, meters).GetAwaiter().GetResult();
-            log.LogInformation("Benchmark child exits with {ExitCode}", exitCode);
+            if (log.IsEnabled(LogLevel.Information))
+            {
+                log.LogInformation("Benchmark child exits with {ExitCode}", exitCode);
+            }
             AppLog.Flush();
             return exitCode;
         }
         catch (Exception ex)
         {
-            log.LogCritical(ex, "The benchmark child for {JobPath} failed outside its row", jobPath);
+            if (log.IsEnabled(LogLevel.Critical))
+            {
+                log.LogCritical(ex, "The benchmark child for {JobPath} failed outside its row", jobPath);
+            }
             AppLog.Flush();
             throw;
         }

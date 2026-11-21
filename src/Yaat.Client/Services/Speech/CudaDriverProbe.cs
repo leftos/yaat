@@ -132,13 +132,32 @@ public static class CudaDriverProbe
         string reason = supported
             ? $"{name} (compute {major}.{minor}) supports GPU speech."
             : $"{name} (compute {major}.{minor}) is too old for CUDA 13, which needs compute 7.5 or newer.";
-        Log.LogInformation("GPU check: {Name}, compute {Major}.{Minor}, driver CUDA {Driver}: {Reason}", name, major, minor, driverVersion, reason);
-        return new GpuSupport(name, major, minor, driverVersion, supported, reason);
+        var support = new GpuSupport(name, major, minor, driverVersion, supported, reason);
+        LogGpuCheck(support);
+        return support;
+    }
+
+    private static void LogGpuCheck(GpuSupport support)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "GPU check: {Name}, compute {Major}.{Minor}, driver CUDA {Driver}: {Reason}",
+                support.DeviceName,
+                support.ComputeMajor,
+                support.ComputeMinor,
+                support.DriverCudaVersion,
+                support.Reason
+            );
+        }
     }
 
     private static GpuSupport Unsupported(string reason)
     {
-        Log.LogInformation("GPU check: {Reason}", reason);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("GPU check: {Reason}", reason);
+        }
         return new GpuSupport(null, null, null, null, false, reason);
     }
 
@@ -148,7 +167,14 @@ public static class CudaDriverProbe
         {
             return true;
         }
-        Log.LogInformation("GPU check: {Call} {Outcome}", call, (result is int code) ? $"returned CUresult {code}" : "is not exported by the driver");
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "GPU check: {Call} {Outcome}",
+                call,
+                (result is int code) ? $"returned CUresult {code}" : "is not exported by the driver"
+            );
+        }
         return false;
     }
 

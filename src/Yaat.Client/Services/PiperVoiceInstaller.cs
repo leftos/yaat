@@ -108,7 +108,10 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
             if (Directory.Exists(PilotVoicePack.InstallRoot))
             {
                 Directory.Delete(PilotVoicePack.InstallRoot, recursive: true);
-                Log.LogInformation("Removed Piper voice pack at {Root}", PilotVoicePack.InstallRoot);
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation("Removed Piper voice pack at {Root}", PilotVoicePack.InstallRoot);
+                }
             }
 
             IsInstalled = false;
@@ -151,7 +154,10 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
 
     private async Task DownloadArchiveAsync(string archivePath, CancellationToken ct)
     {
-        Log.LogInformation("Downloading Piper voice pack from {Url}", DownloadUrl);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Downloading Piper voice pack from {Url}", DownloadUrl);
+        }
         using HttpResponseMessage response = await _http.GetAsync(DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 

@@ -133,6 +133,16 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
                 return result;
             }
 
+            LogCycleNotPosted(cycle, forecastHour, artccId, url);
+        }
+
+        return GfsGridFetchResult.Failure(NoCyclePosted);
+    }
+
+    private static void LogCycleNotPosted(DateTime cycle, int forecastHour, string artccId, string url)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
             Log.LogInformation(
                 "GFS cycle {Cycle:yyyy-MM-dd HH}Z f{ForecastHour:D3} not posted for {Artcc}: {Url}",
                 cycle,
@@ -141,8 +151,6 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
                 url
             );
         }
-
-        return GfsGridFetchResult.Failure(NoCyclePosted);
     }
 
     /// <summary>
@@ -187,13 +195,16 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
             return GfsGridFetchResult.Failure(OverUploadLimit);
         }
 
-        Log.LogInformation(
-            "Fetched GFS grid: {Bytes} bytes, cycle {Cycle:yyyy-MM-dd HH}Z f{ForecastHour:D3}: {Url}",
-            grib2.Length,
-            cycle,
-            forecastHour,
-            url
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Fetched GFS grid: {Bytes} bytes, cycle {Cycle:yyyy-MM-dd HH}Z f{ForecastHour:D3}: {Url}",
+                grib2.Length,
+                cycle,
+                forecastHour,
+                url
+            );
+        }
         return GfsGridFetchResult.Success(grib2, cycle, forecastHour);
     }
 

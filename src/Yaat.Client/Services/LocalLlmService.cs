@@ -176,7 +176,10 @@ public sealed class LocalLlmService(ILlmRuntimeConfig config) : IDisposable
 
             TextGenerationResult result = await chat.SubmitAsync(userPrompt, ct).ConfigureAwait(false);
             string? raw = result?.Completion?.Trim();
-            Log.LogDebug("LLM raw output for transcript: {Raw}", raw);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("LLM raw output for transcript: {Raw}", raw);
+            }
             return string.IsNullOrEmpty(raw) ? null : raw;
         }
         catch (OperationCanceledException)
@@ -307,7 +310,10 @@ public sealed class LocalLlmService(ILlmRuntimeConfig config) : IDisposable
 
         try
         {
-            Log.LogInformation("Loading LM-Kit model from {Source} (gpuLayers={GpuLayers})", source, gpuLayers);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Loading LM-Kit model from {Source} (gpuLayers={GpuLayers})", source, gpuLayers);
+            }
 
             // Explicit DeviceConfiguration only when the user has forced a specific layer count.
             // -1 (auto) → null → LM-Kit picks defaults based on available backends and VRAM.

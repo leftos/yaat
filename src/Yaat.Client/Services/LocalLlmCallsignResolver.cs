@@ -82,15 +82,23 @@ public sealed class LocalLlmCallsignResolver
         }
 
         string? resolved = ValidateAgainstActive(raw, activeCallsigns);
+        LogResolution(raw, resolved);
+        return resolved;
+    }
+
+    private static void LogResolution(string raw, string? resolved)
+    {
         if (resolved is null)
         {
-            Log.LogDebug("LLM callsign resolver output did not match any active callsign: {Raw}", raw);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("LLM callsign resolver output did not match any active callsign: {Raw}", raw);
+            }
         }
-        else
+        else if (Log.IsEnabled(LogLevel.Information))
         {
             Log.LogInformation("LLM callsign resolver mapped transcript to: {Callsign}", resolved);
         }
-        return resolved;
     }
 
     private static string BuildUserPrompt(string transcript, IReadOnlyCollection<string> activeCallsigns)
