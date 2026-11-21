@@ -6,7 +6,7 @@ The feature model, menus, canvas modes and undo actions below carry into milesto
 
 Airport ground layouts for YAAT are served by the vNAS training-airports API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and fetched on demand by `AirportLayoutDownloader` (cache: `%LOCALAPPDATA%/yaat/cache/airports/`).
 
-Layouts are currently edited in QGIS, which is cumbersome and not purpose-built for the ATCTrainer format. This plan creates a standalone Avalonia desktop app that understands the 5 feature types natively, provides full CRUD with vertex snapping, and can read/write both split per-layer files and combined GeoJSON.
+Layouts are currently edited in QGIS, which is cumbersome and not purpose-built for the ATCTrainer format. This plan creates a standalone Avalonia desktop app that understands the 5 feature types natively, provides full CRUD with vertex snapping, and can read/write combined GeoJSON (split per-layer files are YAAT-2674).
 
 ## Data Format Summary
 
@@ -52,9 +52,8 @@ src/Yaat.AirportEditor/
   Services/
     GeoJsonReader.cs                # OpenFolder (split) / OpenFile (combined) → EditorDocument
     GeoJsonWriter.cs                # SaveFolder (split) / ExportCombined; atomic writes
-    SnapEngine.cs                   # Find nearest snappable point within threshold (0.00003°)
-    LayoutValidator.cs              # Run GeoJsonParser.Parse, report connectivity issues
-    EditorPreferences.cs            # Window geometry, recent files, snap threshold
+    EditorPreferences.cs            # Window geometry, recent files, snap threshold in feet and per-type snap toggles
+    # SnapEngine, MapEdits and AirportMapValidation live in Yaat.Sim (src/Yaat.Sim/Authoring/AirportMap/); LayoutValidator in src/Yaat.Sim/Data/Airport/
 
   Views/Map/
     MapViewport.cs                  # Copy from Client (unchanged)
@@ -78,8 +77,6 @@ tests/Yaat.AirportEditor.Tests/
   Yaat.AirportEditor.Tests.csproj
   GeoJsonRoundTripTests.cs
   UndoStackTests.cs
-  SnapEngineTests.cs
-  LayoutValidatorTests.cs
 ```
 
 ## Reused Infrastructure
@@ -92,7 +89,7 @@ tests/Yaat.AirportEditor.Tests/
 | `Yaat.Client/Views/Ground/GroundCanvas.cs` | Template for EditorCanvas — same StyledProperty/snapshot/hit-test patterns |
 | `Yaat.Client/Views/Ground/GroundView.axaml.cs` | Template for context menu helpers (CreateMenuItem, ShowContextMenu) |
 | `Yaat.Client/Services/UserPreferences.cs` | Template for EditorPreferences (atomic write pattern) |
-| `Yaat.Sim/Data/Airport/GeoJsonParser.cs` | Called by validator (read-only); snap threshold constant (0.00003°) |
+| `Yaat.Sim/Data/Airport/GeoJsonParser.cs` | Called by `AirportMapValidation` (read-only, `ParseWithDiagnostics`) |
 | `Yaat.Sim/GeoMath.cs` | Haversine distance, bearing |
 
 ## Menu Bar
@@ -120,7 +117,7 @@ tests/Yaat.AirportEditor.Tests/
 | DrawRunway | Click 1: start, click 2: finish | — | Cancel | Cancel |
 | PlaceParking/Spot/Helipad | Place at cursor (snapped) | — | Cancel | Cancel |
 
-**Snap:** During place/draw/drag, `SnapEngine` finds nearest taxiway endpoint/vertex, spot, or runway endpoint within 0.00003° (~10ft). Visual crosshair drawn at snap target. Snap toggled via View menu.
+**Snap:** During place/draw/drag, `SnapEngine` finds the nearest snap target (parking, spot, helipad, runway vertex or taxiway vertex, each with its own toggle) within a threshold in feet (10 by default, 0 turns snapping off). Visual crosshair drawn at the snap target. Snap toggled via View menu.
 
 **Hit-testing priority:** (1) line vertices 8px, (2) point features 12px, (3) line segments 6px perpendicular distance.
 
@@ -149,7 +146,7 @@ tests/Yaat.AirportEditor.Tests/
 - [ ] `EditorMode.cs`, `UndoableAction.cs`, `UndoStack.cs`
 - [ ] `GeoJsonReader.cs` — OpenFolder + OpenFile
 - [ ] `GeoJsonWriter.cs` — SaveFolder + ExportCombined (atomic writes)
-- [ ] `EditorPreferences.cs` — window geometry, recent files, snap threshold
+- [ ] `EditorPreferences.cs` — window geometry, recent files, snap threshold in feet, per-type snap toggles
 - [ ] `MainWindow.axaml/.cs` — bare window with title
 - [ ] `MainViewModel.cs` — file open commands only
 - [ ] Add to `yaat.slnx`
@@ -166,7 +163,7 @@ tests/Yaat.AirportEditor.Tests/
 - [ ] Verify: open OAK folder → see airport rendered, middle-drag pan, scroll zoom
 
 ### Chunk 3 — Selection, hit-testing, property panel
-- [ ] `SnapEngine.cs`
+- [x] `SnapEngine.cs` (in `src/Yaat.Sim/Authoring/AirportMap/`)
 - [ ] `EditorCanvas` hit-testing: point features (12px), line vertices (8px), line segments (6px)
 - [ ] Selection model: click-to-select, SelectionChanged event, highlight in renderer
 - [ ] `EditorRenderer` additions: selection highlight, vertex handles on selected line, hover highlight
@@ -175,7 +172,7 @@ tests/Yaat.AirportEditor.Tests/
 - [ ] Context menus: Edit Properties, Delete
 - [ ] `MainViewModel` additions: SelectedFeature, UpdateProperty, DeleteFeature, Undo, Redo
 - [ ] Wire `MainWindow` menu bar (Edit menu: Undo/Redo/Delete/SelectAll)
-- [ ] `tests/SnapEngineTests.cs`
+- [x] `SnapEngineTests.cs` (in `tests/Yaat.Sim.Tests/Authoring/`)
 
 ### Chunk 4 — Draw/place modes, vertex editing
 - [ ] `EditorCanvas` draw modes: DrawTaxiway (click vertices, dbl-click finish), DrawRunway (2 clicks), PlaceParking/Spot/Helipad (single click)
@@ -190,12 +187,12 @@ tests/Yaat.AirportEditor.Tests/
 ### Chunk 5 — Save/export, validation, preferences
 - [ ] `MainViewModel` Save/SaveAs/ExportCombined wired to file dialogs
 - [ ] Dirty guard on window close (save prompt)
-- [ ] `LayoutValidator.cs` — runs GeoJsonParser.Parse, reports disconnected parking, duplicate names, unnamed features, single-point taxiways
+- [x] `LayoutValidator` (in `src/Yaat.Sim/Data/Airport/`) and `AirportMapValidation` (in `src/Yaat.Sim/Authoring/AirportMap/`) — run `GeoJsonParser.ParseWithDiagnostics`, report disconnected parking, duplicate names, unnamed features, single-point taxiways
 - [ ] `ValidationWindow.axaml/.cs` — issue list with severity icons
 - [ ] Recent files submenu (EditorPreferences)
 - [ ] Window geometry save/restore
 - [ ] Complete View menu toggles (labels, vertex IDs, snap guides)
-- [ ] `tests/LayoutValidatorTests.cs`
+- [x] `AirportMapValidationTests.cs` (in `tests/Yaat.Sim.Tests/Authoring/`)
 
 ### Chunk 6 — Polish and integration
 - [ ] New Airport dialog (prompt for airport code)

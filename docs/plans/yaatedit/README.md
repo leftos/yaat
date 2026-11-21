@@ -139,9 +139,11 @@ Editor logic lives under `src/Yaat.Sim/Authoring/`, so the boundary between auth
 - **Gates.** `GateRanking` ranks a layout's stands for an aircraft: size from the type's wake category and the area's `maxAdg`, airline from the sidecar gate tags, occupancy from the other aircraft's spawn and taxi times.
 - **Spawn timing and metrics.** `SpawnSchedule` (time bands with jitter, workload curve walk, fill-time placement by inverse CDF, origin deconfliction with an overflow report) and `ScenarioMetrics` (counts and rates, with the cumulative difficulty tiers) are pure functions over a scenario.
 - **Bulk tools.** `ScenarioSearch` (field-aware search and replace over working copies, plain or regex), `ProcedureFixup` (rewrites a nav path or route from the validator's procedure-version findings), `RpoSheet` (the row model of the Excel sheet; the file writer is the client's), `NNumberIndex` (built from the FAA registry download on first use, queried by type and distance from an airport).
-- **Airport map.** `AirportMapDocument` holds the raw GeoJSON features (taxiway, runway, parking, spot, helipad) with their exact coordinates and properties, reads and writes split per-layer files and a combined file, and writes atomically. `UndoStack`, `SnapEngine` and the edit operations (add, move, insert and delete vertex, split taxiway, edit property) are pure.
+- **Airport map.** `AirportMapDocument` holds the raw GeoJSON features (taxiway, runway, parking, spot, helipad) with their exact coordinates and properties, reads and writes a combined file only (split per-layer files are YAAT-2674), and writes atomically. `UndoStack`, `SnapEngine` and `MapEdits` (move, insert and delete vertex, add and delete feature, set property, split taxiway, new feature) are pure.
 
-  `LayoutValidator` moves from `tools/Yaat.LayoutInspector` into `src/Yaat.Sim/Data/Airport/`, and LayoutInspector calls it there. `AirportMapValidation` runs `GeoJsonParser.ParseWithDiagnostics` and `LayoutValidator` over the document and returns the parsed `AirportGroundLayout` with its issues.
+  `SnapEngine` snaps within `SnapOptions.ThresholdFt` feet (10 by default; a target exactly at the threshold snaps, 0 turns snapping off) with a toggle per target kind, never targets the vertex being dragged, and breaks a tie in the order parking, spot, helipad, runway vertex, taxiway vertex.
+
+  `LayoutValidator` lives in `src/Yaat.Sim/Data/Airport/` (moved from `tools/Yaat.LayoutInspector`), and LayoutInspector calls it there. `AirportMapValidation` runs `GeoJsonParser.ParseWithDiagnostics` and `LayoutValidator` over the document with caller-supplied `LayoutInputs` and returns the parsed `AirportGroundLayout` with its issues, each carrying a code (`unknown-feature-type`, `malformed-feature`, `parse-failure` or a `LayoutValidator` code) and a resolved feature index.
 - **Sidecar writing.** `AirportSidecarWriter` writes the gate tags (and the movement-area keys) of one airport's sidecar, keeping every other key and the file's key order. Gate tags extend the existing `parkingAreas` entries, which already carry stands and `maxAdg`, with an `airlines` list.
 
 ### Yaat.Client.Core
@@ -228,7 +230,7 @@ Two Task Index rows land in `docs/architecture.md`, the first with M1.1 and the 
 
 | Part | Outcome | Main files |
 |---|---|---|
-| M4.1 Airport map document | An airport map opened and saved by YAAT, split or combined, is unchanged. | `src/Yaat.Sim/Authoring/AirportMap/AirportMapDocument.cs`, `MapFeature.cs`, `GeoJsonMapReader.cs`, `GeoJsonMapWriter.cs`, `UndoStack.cs` |
+| M4.1 Airport map document | An airport map opened and saved by YAAT as a combined file is unchanged. | `src/Yaat.Sim/Authoring/AirportMap/AirportMapDocument.cs`, `MapFeature.cs`, `GeoJsonMapReader.cs`, `GeoJsonMapWriter.cs`, `UndoStack.cs` |
 | M4.2 Validation and snapping in Yaat.Sim | LayoutInspector and the editor share one validator; snapping and edit operations are ready for the canvas. | `src/Yaat.Sim/Data/Airport/LayoutValidator.cs` (moved), `tools/Yaat.LayoutInspector/`, `src/Yaat.Sim/Authoring/AirportMap/SnapEngine.cs`, `AirportMapValidation.cs`, `MapEdits.cs` |
 | M4.3 Airport Editor window and canvas | Tools > Airport Editor opens an airport from the vNAS cache, a file or a folder and shows it with selection and a property panel. | `src/Yaat.Client/Views/Authoring/AirportEditorWindow.axaml`, `AirportEditorCanvas.cs`, `AirportEditorRenderer.cs`, `src/Yaat.Client/Views/Map/MapCanvasBase.cs` |
 | M4.4 Drawing and editing with undo | The author draws taxiways and runways, places parking, spots and helipads, drags, inserts, deletes and splits, and undoes any of it. | `src/Yaat.Client/Views/Authoring/AirportEditorCanvas.cs`, `src/Yaat.Client/ViewModels/Authoring/AirportEditorViewModel.cs` |
@@ -280,7 +282,7 @@ Tests follow `tests/CLAUDE.md` and [`docs/test-harness.md`](../../test-harness.m
 
 **M4.**
 
-- Split and combined OAK files round-trip JSON-equal, coordinates exact.
+- A combined OAK file round-trips JSON-equal, coordinates exact.
 - Undo and redo through a mixed sequence returns the document to each earlier state.
 - `SnapEngine` snaps within its threshold and not beyond.
 - `LayoutValidator` gives LayoutInspector's existing results after the move (`Yaat.LayoutInspector.Tests` stays green).
