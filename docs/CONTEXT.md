@@ -1372,6 +1372,11 @@ A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules b
 The vNAS GeoJSON map CRC Tower Cab draws over the satellite image, named by the facility's `towerCabConfiguration.videoMapId`; `TowerCabVideoMap.Read` keeps its two-point line segments (painted hold-short bars), and `LayoutInputs.VideoMap` carries them to the layout build (null = none).
 _Avoid_: video map (the radar's facility video maps are a different thing)
 
+## Scenario authoring
+
+**Route source**:
+One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
+
 ## Flight strips
 
 **Auto-sorted rack**:
