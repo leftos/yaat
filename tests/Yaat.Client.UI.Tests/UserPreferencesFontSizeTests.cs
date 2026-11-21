@@ -9,7 +9,7 @@ namespace Yaat.Client.UI.Tests;
 public class UserPreferencesFontSizeTests
 {
     private static FontSizePrefs DefaultFontSizes(int terminal, int @interface) =>
-        new(RadarDatablock: 12, GroundDatablock: 12, GroundLabel: 13, DataGrid: 12, Terminal: terminal, Interface: @interface);
+        new(RadarDatablock: 12, RadarFlyout: 12, GroundDatablock: 12, GroundLabel: 13, DataGrid: 12, Terminal: terminal, Interface: @interface);
 
     [Fact]
     public void NewFontPrefs_HaveExpectedDefaults()

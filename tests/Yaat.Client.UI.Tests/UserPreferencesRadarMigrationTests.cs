@@ -615,15 +615,8 @@ public class UserPreferencesRadarMigrationTests
         JsonNode s1 = saved["radarSettings"]!["S1"]!;
         Assert.Equal(25, s1["rangeNm"]!.GetValue<double>());
         Assert.Equal("SFO270010", s1["pinnedMarkers"]![0]!.GetValue<string>());
-        string[] removed =
-        [
-            "radarDcbVisible",
-            "radarFlyoutFontSize",
-            "collapseStudentDatablocks",
-            "radarViewWindowGeometry",
-            "isRadarViewPoppedOut",
-            "extraRadarViews",
-        ];
+        string[] removed = ["radarDcbVisible", "collapseStudentDatablocks", "radarViewWindowGeometry", "isRadarViewPoppedOut", "extraRadarViews"];
         Assert.All(removed, key => Assert.False(saved.ContainsKey(key), key));
+        Assert.Equal(16, saved["radarFlyoutFontSize"]!.GetValue<int>());
     }
 }

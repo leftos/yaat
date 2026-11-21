@@ -40,7 +40,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Field-menu pilot picks.** A plain click sends; Shift+click puts the command in the Scope preview (as `$ {callsign} {command}`) for Enter to run.
 - **Pilot lens.** All pilot-lens overlays are off by default: the queued-commands badge, the intent path, check-in truth and the RPO queue view.
 - **Rollout.** YAAT Scope is built as a new view beside today's Radar (reached from the View menu). The old Radar view is deleted once the new one reaches parity; no long-lived dual renderer.
-- **EuroScope tag mode** survives as a template on the new engine. Its flyouts become the field menus.
+- **EuroScope tag mode** survives as a template on the new engine. EuroScope tags keep their own EuroScope flyouts; only STARS and ERAM use the field menus.
 - **Layout cost.** Each block's layout is cached and re-laid out only when a field changes.
 - **Step 3 views.** The dock ships with the SSA and the Conflict alert list (LA/CA/MCI); the Tab list (CRC's FLIGHT PLAN list) and the other CRC lists are not part of step 3.
 - **Step 3 toolbar, dock and pref sets** (orchestrator decisions from the canvas's boards 01, 04 and 06 and from CRC, open to the owner):

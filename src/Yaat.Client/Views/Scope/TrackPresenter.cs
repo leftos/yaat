@@ -474,6 +474,7 @@ public static class TrackPresenter
             ScopeFieldSlot.Handoff => ScopeFieldAction.OpenHandoffMenu,
             ScopeFieldSlot.Squawk or ScopeFieldSlot.Ident => ScopeFieldAction.OpenSquawkMenu,
             ScopeFieldSlot.Destination => ScopeFieldAction.StartDrawRoute,
+            ScopeFieldSlot.InstructorNote => ScopeFieldAction.OpenNoteBox,
             _ => ScopeFieldAction.None,
         };
 

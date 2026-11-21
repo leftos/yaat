@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -10,6 +11,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.EuroScopeFlyouts;
 using Yaat.Client.Views.Scope.FieldMenus;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
@@ -59,7 +61,11 @@ public partial class ScopeView : UserControl
 
     private ContextMenu? _activeContextMenu;
     private ScopeDataPopupBase? _activeFieldPopup;
+
+    // The EuroScope scratchpad or handoff entry popup a field click opened, while it is open.
+    private Popup? _activeEntryPopup;
     private ScopeViewModel? _vm;
+    private UserPreferences? _flyoutPrefs;
     private TopLevel? _topLevel;
 
     // Whether Shift was held at the last pointer press, release or key press inside the open field menu.
@@ -104,6 +110,9 @@ public partial class ScopeView : UserControl
     /// <summary>The ERAM altitude or fourth-line popup a field click opened, while it is open. Test seam.</summary>
     internal ScopeDataPopupBase? ActiveFieldPopup => _activeFieldPopup;
 
+    /// <summary>The EuroScope scratchpad or handoff entry popup a field click opened, while it is open. Test seam.</summary>
+    internal Popup? ActiveEntryPopup => _activeEntryPopup;
+
     /// <summary>
     /// The aircraft menu for <paramref name="callsign"/>: the shared aircraft menu, with relative actions aimed at
     /// <paramref name="prevSelected"/>, with the Scope's own view section (<see cref="BuildViewSection"/>) after the shared
@@ -134,14 +143,34 @@ public partial class ScopeView : UserControl
         _vm = DataContext as ScopeViewModel;
         if (_vm is null)
         {
+            _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+            _flyoutPrefs = null;
             return;
         }
 
         _vm.PropertyChanged += OnViewModelPropertyChanged;
+        WatchFlyoutFontSize(_vm.Preferences);
         Canvas.Preferences = _vm.Preferences;
         Canvas.DataBlockState = _vm.DataBlockState;
         PushMaps(_vm);
         AttachFeatures(_vm);
+    }
+
+    // The EuroScope tag flyouts take the "Radar Tag Flyouts" font size now and at each font-size change, as the Radar view did.
+    private void WatchFlyoutFontSize(UserPreferences prefs)
+    {
+        _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _flyoutPrefs = prefs;
+        prefs.FontSizesChanged += ApplyFlyoutFontSize;
+        ApplyFlyoutFontSize();
+    }
+
+    private void ApplyFlyoutFontSize()
+    {
+        if (_flyoutPrefs is { } prefs)
+        {
+            FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
+        }
     }
 
     // The maps arrive later, at each seed from the Scope's map source.
@@ -165,13 +194,20 @@ public partial class ScopeView : UserControl
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
         _topLevel?.AddHandler(KeyDownEvent, OnTopLevelKeyDown, RoutingStrategies.Tunnel);
+        if (_vm is not null)
+        {
+            WatchFlyoutFontSize(_vm.Preferences);
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _topLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         _topLevel = null;
+        _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _flyoutPrefs = null;
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         _activeContextMenu?.Close();
         base.OnDetachedFromVisualTree(e);
     }
@@ -182,6 +218,11 @@ public partial class ScopeView : UserControl
     // Ctrl+Shift+T typed in the command box or a grid stay theirs.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
+        if (TakeEntryPopupKey(e))
+        {
+            return;
+        }
+
         if ((DataContext is not ScopeViewModel vm) || ((_activeFieldPopup is not { IsOpen: true }) && (!IsKeyFocusInside())))
         {
             return;
@@ -207,6 +248,24 @@ public partial class ScopeView : UserControl
             vm.RunCommand(ScopeToolbarButtons.TdmCommand(!vm.IsTdm));
             e.Handled = true;
         }
+    }
+
+    // While the EuroScope scratchpad or handoff popup is open its keys are its box's: Esc closes it, leaving the preview's text,
+    // and no Scope shortcut runs. False while none is open.
+    private bool TakeEntryPopupKey(KeyEventArgs e)
+    {
+        if (_activeEntryPopup is not { IsOpen: true } popup)
+        {
+            return false;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            popup.Close();
+            e.Handled = true;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -355,7 +414,7 @@ public partial class ScopeView : UserControl
         }
         else
         {
-            OpenFieldMenu(vm, ac, action);
+            OpenFieldMenu(vm, ac, action, pos);
         }
     }
 
@@ -374,15 +433,96 @@ public partial class ScopeView : UserControl
     private ClientMenuHost FieldMenuHost(ScopeViewModel vm, AircraftModel ac) =>
         new(vm.Main, ac, Canvas) { Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command) };
 
-    // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them.
-    private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them. A
+    // EuroScope tag opens its own flyout for the fields that have one (OpenEuroScopeFlyout).
+    private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
     {
         _fieldMenuShift = false;
+        if ((ScopeOwnerKind.Resolve(vm.TemplateId, ac) == ScopeTemplates.EuroScopeId) && OpenEuroScopeFlyout(vm, ac, action, pos))
+        {
+            return;
+        }
+
         if (ScopeFieldMenus.Build(action, ac, FieldMenuHost(vm, ac)) is { } menu)
         {
             ScopeFieldMenus.RecordShift(menu, shift => _fieldMenuShift = shift);
             ShowContextMenu(menu);
         }
+    }
+
+    // The EuroScope tag's own flyout for the action, as the Radar view opened it: a pick menu for the altitude, speed, runway
+    // and squawk, an entry popup for the scratchpad and handoff; false for an action with none. Its rows and buttons send
+    // through the field menu's host, so Shift held on one stages its command as a field menu's row does.
+    private bool OpenEuroScopeFlyout(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
+    {
+        ClientMenuHost host = FieldMenuHost(vm, ac);
+        if (EuroScopeMenu(action, ac, host) is { } menu)
+        {
+            ScopeFieldMenus.RecordShift(menu, shift => _fieldMenuShift = shift);
+            ShowContextMenu(menu);
+            return true;
+        }
+
+        if (EuroScopePopup(action, ac, host, pos) is { } popup)
+        {
+            ShowEntryPopup(popup);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static ContextMenu? EuroScopeMenu(ScopeFieldAction action, AircraftModel ac, IMenuHost host) =>
+        action switch
+        {
+            ScopeFieldAction.OpenAltitudeMenu => EuroScopeAltitudeFlyout.Build(ac, host),
+            ScopeFieldAction.OpenSpeedMenu => EuroScopeSpeedFlyout.Build(ac, host),
+            ScopeFieldAction.OpenRunwayMenu => EuroScopeRunwayFlyout.Build(ac, host),
+            ScopeFieldAction.OpenSquawkMenu => EuroScopeSquawkFlyout.Build(ac, host),
+            _ => null,
+        };
+
+    private Popup? EuroScopePopup(ScopeFieldAction action, AircraftModel ac, IMenuHost host, Point pos) =>
+        action switch
+        {
+            ScopeFieldAction.OpenScratchpadMenu => EuroScopeScratchpadFlyout.Build(Canvas, ac, host, ScratchpadSlotAt(pos)),
+            ScopeFieldAction.OpenHandoffMenu => EuroScopeHandoffFlyout.Build(Canvas, ac, host),
+            _ => null,
+        };
+
+    // The scratchpad the click hit: 2 on the tag's second scratchpad, else 1 (a click with no field under it included).
+    private int ScratchpadSlotAt(Point pos) =>
+        Canvas.CurrentFrame.FieldAt((float)pos.X, (float)pos.Y) is { Field.Slot: ScopeFieldSlot.Scratchpad2 } ? 2 : 1;
+
+    // Closes any open menu or popup, then opens the entry popup on the canvas's overlay layer as the one open, until it closes.
+    // Shift held at a press or key inside it is recorded, so a button or Enter stages through the field menu's host.
+    private void ShowEntryPopup(Popup popup)
+    {
+        _activeContextMenu?.Close();
+        _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
+        if (OverlayLayer.GetOverlayLayer(Canvas) is not { } overlay)
+        {
+            Log.LogWarning("ScopeView: no overlay layer for the canvas; the EuroScope entry popup is not shown");
+            return;
+        }
+
+        if (popup.Child is { } content)
+        {
+            ScopeFieldMenus.RecordShift(content, shift => _fieldMenuShift = shift);
+        }
+
+        overlay.Children.Add(popup);
+        _activeEntryPopup = popup;
+        popup.Closed += (_, _) =>
+        {
+            overlay.Children.Remove(popup);
+            if (_activeEntryPopup == popup)
+            {
+                _activeEntryPopup = null;
+            }
+        };
+        popup.IsOpen = true;
     }
 
     // The ERAM altitude popup: a SCOPE DATA row runs its entry, or with Shift stages it; a PILOT row sends, or with Shift stages,
@@ -421,6 +561,7 @@ public partial class ScopeView : UserControl
     {
         _activeContextMenu?.Close();
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         Rect? block = Canvas.BlockBoundsOf(callsign);
         if (block is null)
         {
@@ -448,6 +589,7 @@ public partial class ScopeView : UserControl
     {
         bool stage = _fieldMenuShift;
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         RunOrStageEramText(vm, callsign, entry, stage);
     }
 
@@ -471,6 +613,7 @@ public partial class ScopeView : UserControl
         vm.StageEntry(callsign, command);
         _activeContextMenu?.Close();
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         Canvas.Focus();
         return true;
     }
@@ -573,6 +716,7 @@ public partial class ScopeView : UserControl
     private void ShowContextMenu(ContextMenu menu)
     {
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         _activeContextMenu?.Close();
         _activeContextMenu = menu;
         menu.Closed += (_, _) =>
