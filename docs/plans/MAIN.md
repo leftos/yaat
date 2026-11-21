@@ -5,83 +5,83 @@
 ## YAATEdit in YAAT
 
 ### M1 Scenario editor (0/8 done)
-- [ ] YAAT-2487 YAATEdit M1.1: Scenario JSON round trip (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2488 YAATEdit M1.2: vNAS training client and local store (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2490 YAATEdit M1.4: General tab (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2493 YAATEdit M1.7: Parking picker (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2487 YAATEdit M1.1: Scenario JSON round trip (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2488 YAATEdit M1.2: vNAS training client and local store (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2490 YAATEdit M1.4: General tab (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2493 YAATEdit M1.7: Parking picker (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide (sub-issue of YAAT-1989) · release vNext
 
 ### M2 Export (0/3 done)
-- [ ] YAAT-2495 YAATEdit M2.1: Export JSON (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2495 YAATEdit M2.1: Export JSON (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
 ### M3 Routes, timing and metrics (0/15 done)
-- [ ] YAAT-2498 YAATEdit M3.1: Route sources: interface, csko, navdata (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2499 YAATEdit M3.2: Preferred routes source (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2506 YAATEdit M3.9: Spawn schedule logic (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2509 YAATEdit M3.12: N-number finder (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2498 YAATEdit M3.1: Route sources: interface, csko, navdata (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2499 YAATEdit M3.2: Preferred routes source (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2506 YAATEdit M3.9: Spawn schedule logic (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2509 YAATEdit M3.12: N-number finder (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext
 
 ### M4 Airport editor (0/8 done)
-- [ ] YAAT-2513 YAATEdit M4.1: Airport map document (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2519 YAATEdit M4.7: per-corner fillet overrides in Yaat.Sim (sidecar, report, simulation) (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2513 YAATEdit M4.1: Airport map document (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2519 YAATEdit M4.7: per-corner fillet overrides in Yaat.Sim (sidecar, report, simulation) (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor (sub-issue of YAAT-1989) · release vNext
 
 ### No milestone
-- [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext+1
-  - [ ] YAAT-2487 YAATEdit M1.1: Scenario JSON round trip · release vNext+1
-  - [ ] YAAT-2488 YAATEdit M1.2: vNAS training client and local store · release vNext+1
-  - [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser · release vNext+1
-  - [ ] YAAT-2490 YAATEdit M1.4: General tab · release vNext+1
-  - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor · release vNext+1
-  - [ ] YAAT-2492 YAATEdit M1.6: Live validation · release vNext+1
-  - [ ] YAAT-2493 YAATEdit M1.7: Parking picker · release vNext+1
-  - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide · release vNext+1
-  - [ ] YAAT-2495 YAATEdit M2.1: Export JSON · release vNext+1
-  - [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download · release vNext+1
-  - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext+1
-  - [ ] YAAT-2498 YAATEdit M3.1: Route sources: interface, csko, navdata · release vNext+1
-  - [ ] YAAT-2499 YAATEdit M3.2: Preferred routes source · release vNext+1
-  - [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) · release vNext+1
-  - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext+1
-  - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext+1
-  - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext+1
-  - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext+1
-  - [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate · release vNext+1
-  - [ ] YAAT-2506 YAATEdit M3.9: Spawn schedule logic · release vNext+1
-  - [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext+1
-  - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext+1
-  - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext+1
-  - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext+1
-  - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext+1
-  - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext+1
-  - [ ] YAAT-2513 YAATEdit M4.1: Airport map document · release vNext+1
-  - [ ] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim · release vNext+1
-  - [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas · release vNext+1
-  - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext+1
-  - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext+1
-  - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save · release vNext+1
-  - [ ] YAAT-2519 YAATEdit M4.7: per-corner fillet overrides in Yaat.Sim (sidecar, report, simulation) · release vNext+1
-  - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext+1
+- [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
+  - [ ] YAAT-2487 YAATEdit M1.1: Scenario JSON round trip · release vNext
+  - [ ] YAAT-2488 YAATEdit M1.2: vNAS training client and local store · release vNext
+  - [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser · release vNext
+  - [ ] YAAT-2490 YAATEdit M1.4: General tab · release vNext
+  - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor · release vNext
+  - [ ] YAAT-2492 YAATEdit M1.6: Live validation · release vNext
+  - [ ] YAAT-2493 YAATEdit M1.7: Parking picker · release vNext
+  - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide · release vNext
+  - [ ] YAAT-2495 YAATEdit M2.1: Export JSON · release vNext
+  - [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download · release vNext
+  - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
+  - [ ] YAAT-2498 YAATEdit M3.1: Route sources: interface, csko, navdata · release vNext
+  - [ ] YAAT-2499 YAATEdit M3.2: Preferred routes source · release vNext
+  - [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) · release vNext
+  - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext
+  - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
+  - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext
+  - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
+  - [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate · release vNext
+  - [ ] YAAT-2506 YAATEdit M3.9: Spawn schedule logic · release vNext
+  - [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext
+  - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext
+  - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext
+  - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
+  - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext
+  - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext
+  - [ ] YAAT-2513 YAATEdit M4.1: Airport map document · release vNext
+  - [ ] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim · release vNext
+  - [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas · release vNext
+  - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext
+  - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext
+  - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save · release vNext
+  - [ ] YAAT-2519 YAATEdit M4.7: per-corner fillet overrides in Yaat.Sim (sidecar, report, simulation) · release vNext
+  - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -151,13 +151,13 @@
 
 ## Controller-AI coaching
 
-- [ ] YAAT-1246 Explore codifying coaching session 1's ground lessons into GroundBrain decisions · release vNext+1
-- [ ] YAAT-1536 AI Ground: a pushing tow stopped for a parked aircraft that is itself held on standby waits forever · release vNext+1
+- [ ] YAAT-1246 Explore codifying coaching session 1's ground lessons into GroundBrain decisions · release vNext
+- [ ] YAAT-1536 AI Ground: a pushing tow stopped for a parked aircraft that is itself held on standby waits forever · release vNext
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext+1
-- [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext+1
+- [ ] YAAT-2358 Taxi an arrival to any unoccupied gate in an area, instead of waiting on an occupied one · release vNext
+- [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
 ## Context-menu quick commands (#471)
@@ -200,15 +200,15 @@
 
 - [ ] YAAT-3 Scroll back through captured SWIM live traffic (DVR-style replay)
 - [ ] YAAT-23 Track the local user's accepted commands per scenario and airport
-- [ ] YAAT-25 Controller AI v1 (radio model first) · release vNext+1
-  - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences · release vNext+1
-  - [ ] YAAT-804 AI departure controller vectors or releases radar-vectors SID departures when no human works departure · release vNext+1
-- [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests · release vNext+1
+- [ ] YAAT-25 Controller AI v1 (radio model first) · release vNext
+  - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences · release vNext
+  - [ ] YAAT-804 AI departure controller vectors or releases radar-vectors SID departures when no human works departure · release vNext
+- [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests · release vNext
 - [ ] YAAT-27 Typed command arguments: audit the remaining argument slots (step 2)
-- [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop · release vNext+1
+- [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop · release vNext
 - [ ] YAAT-996 Extract the client driver into a shared Avalonia driver repo (yamv adopts it)
-- [ ] YAAT-1182 Simulate ground and local control below a solo radar student · release vNext+1
-- [ ] YAAT-1241 Solo: some pilots push off a non-movement ramp on their own and call for taxi · release vNext+1
+- [ ] YAAT-1182 Simulate ground and local control below a solo radar student · release vNext
+- [ ] YAAT-1241 Solo: some pilots push off a non-movement ramp on their own and call for taxi · release vNext
 - [ ] YAAT-1539 Give AI controllers their own TTS voice, and make AI coordination (crossing requests, approvals) audible and visible
 
 ## STT tuning
@@ -509,7 +509,7 @@
 - [ ] YAAT-2099 Prove heavies do not orbit tight ramp-connector fillets with the per-type radius
 - [ ] YAAT-2101 Bring StraightArrivalThresholdNm and LineUpGeometry.Compute within the hard limits
 - [ ] YAAT-2263 TAXI T TE @29 from KOAK stand 20 drops T with no unable-via warning
-- [ ] YAAT-2411 Rate-limit nosewheel steering so taxiing aircraft turn gradually and recentre before reversing · release vNext+1
+- [ ] YAAT-2411 Rate-limit nosewheel steering so taxiing aircraft turn gradually and recentre before reversing · release vNext
 
 ## Ground traffic: follow, give-way and conflicts
 
@@ -1195,48 +1195,48 @@
 ## Solo training: simulated controllers and call-ups
 
 ### 1 Defects (3/17 done)
-- [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext+1
-- [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext+1
-- [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext+1
-- [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request · release vNext+1
-- [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance (GND+DEL case done) · release vNext+1
-- [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio · release vNext+1
-- [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport · release vNext+1
-- [ ] YAAT-1096 Voice typed SAY answers in solo mode · release vNext+1
-- [ ] YAAT-1225 Solo: CT 3O and bare CT do not reach the simulated tower · release vNext+1
-- [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals · release vNext+1
-- [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken) · release vNext+1
-- [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers · release vNext+1
-- [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext+1
-- [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext+1
+- [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext
+- [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext
+- [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext
+- [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request · release vNext
+- [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance (GND+DEL case done) · release vNext
+- [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio · release vNext
+- [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport · release vNext
+- [ ] YAAT-1096 Voice typed SAY answers in solo mode · release vNext
+- [ ] YAAT-1225 Solo: CT 3O and bare CT do not reach the simulated tower · release vNext
+- [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals · release vNext
+- [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken) · release vNext
+- [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers · release vNext
+- [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext
+- [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext
 
 ### 2 Refinements and rulings (8/20 done)
 - [ ] YAAT-2287 Solo: an IFR arrival told to expect an approach but never cleared queries the clearance near final or the IAF
 - [ ] YAAT-2288 Solo: time the approach-assignment request to the approach gate and skip it in visual weather
-- [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext+1
-- [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range · release vNext+1
-- [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for · release vNext+1
-- [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere · release vNext+1
-- [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference · release vNext+1
-- [ ] YAAT-971 Grade the field advisory's clock and miles in RFIS · release vNext+1
-- [ ] YAAT-1223 Stagger solo parking call-ups: slower base interval with a seeded random spread · release vNext+1
-- [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi · release vNext+1
-- [ ] YAAT-2095 Have solo AI controllers handle an aircraft holding at its clearance limit on their frequency · release vNext+1
+- [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext
+- [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range · release vNext
+- [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for · release vNext
+- [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere · release vNext
+- [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference · release vNext
+- [ ] YAAT-971 Grade the field advisory's clock and miles in RFIS · release vNext
+- [ ] YAAT-1223 Stagger solo parking call-ups: slower base interval with a seeded random spread · release vNext
+- [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi · release vNext
+- [ ] YAAT-2095 Have solo AI controllers handle an aircraft holding at its clearance limit on their frequency · release vNext
 - [ ] YAAT-2260 Decide the further-clearance request's re-ask interval (300 s vs 120/150 s)
 
 ### 3 Hygiene and tests (0/2 done)
-- [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext+1
+- [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext
 - [ ] YAAT-2259 Split PilotProactive.TickArrivalApproachRequest under the complexity limit
 
 ### No milestone
-- [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight' · release vNext+1
-- [ ] YAAT-1512 Tell the sim when the student holds push-to-talk so no pilot keys over them · release vNext+1
-- [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear') · release vNext+1
-- [ ] YAAT-1958 Apply auto-track (and the tuned-position stamp) on the Sim-side replay load · release vNext+1
-- [ ] YAAT-1959 Tune the pilot to an ERAM student who converts a pointout into ownership · release vNext+1
-- [ ] YAAT-1992 Score only the student's own commands in solo evaluation, by the recorded issuer flag · release vNext+1
-- [ ] YAAT-1998 Read a CRC session's secondary positions from PositionRegistry in StudentIssuer · release vNext+1
-- [ ] YAAT-2009 Route a solo VFR pattern aircraft's short-final reminder by its tuned position · release vNext+1
+- [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight' · release vNext
+- [ ] YAAT-1512 Tell the sim when the student holds push-to-talk so no pilot keys over them · release vNext
+- [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear') · release vNext
+- [ ] YAAT-1958 Apply auto-track (and the tuned-position stamp) on the Sim-side replay load · release vNext
+- [ ] YAAT-1959 Tune the pilot to an ERAM student who converts a pointout into ownership · release vNext
+- [ ] YAAT-1992 Score only the student's own commands in solo evaluation, by the recorded issuer flag · release vNext
+- [ ] YAAT-1998 Read a CRC session's secondary positions from PositionRegistry in StudentIssuer · release vNext
+- [ ] YAAT-2009 Route a solo VFR pattern aircraft's short-final reminder by its tuned position · release vNext
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1585,29 +1585,29 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (42/112 done)
+### 3 Hygiene and tests (42/114 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
-- [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext+1
-  - [ ] YAAT-2343 Guard expensive log arguments (CA1873) and raise it to warning · release vNext+1
-    - [ ] YAAT-2614 CA1873 part Y12: guard expensive log arguments in Yaat.Sim (LowApproachPhase.cs to PilotRequestTracker.cs) · release vNext+1
-    - [ ] YAAT-2612 CA1873 part Y11: guard expensive log arguments in Yaat.Sim (VfrFollowPhase.cs to LinedUpAndWaitingPhase.cs) · release vNext+1
-    - [ ] YAAT-2615 CA1873 part Y14: guard expensive log arguments in Yaat.Sim (SimulationEngine.Coordination.cs to SituationFlagCalculator.cs) · release vNext+1
-    - [ ] YAAT-2618 CA1873 part Y16: guard expensive log arguments in yaat client (AtomicFile.cs to VStripsView.axaml.cs) · release vNext+1
-    - [ ] YAAT-2617 CA1873 part Y15: guard expensive log arguments in Yaat.Sim (AircraftTypeNames.cs to WindGridRegistry.cs) · release vNext+1
-    - [ ] YAAT-2616 CA1873 part Y13: guard expensive log arguments in Yaat.Sim (TaxiInRequest.cs to SimulationEngine.Commands.cs) · release vNext+1
-    - [ ] YAAT-2619 CA1873 part Y19: guard expensive log arguments in yaat client (SherpaCudaInstaller.cs to ImportExportViewModel.cs) · release vNext+1
-    - [ ] YAAT-2622 CA1873 part Y20: guard expensive log arguments in yaat client (MainViewModel.Aircraft.cs to SttModelCardViewModel.cs) · release vNext+1
-    - [ ] YAAT-2621 CA1873 part Y17: guard expensive log arguments in yaat client (BrowserTdlsTransport.cs to AudioCaptureService.cs) · release vNext+1
-    - [ ] YAAT-2620 CA1873 part Y18: guard expensive log arguments in yaat client (CudaBackendInstaller.cs to NativeStderrCapture.cs) · release vNext+1
-    - [ ] YAAT-2623 CA1873 part Y21: guard expensive log arguments in yaat client (ArrivalGeneratorsEditorWindow.axaml.cs to MainView.axaml.cs) · release vNext+1
-    - [ ] YAAT-2626 CA1873 part S3: guard expensive log arguments in yaat-server (ShadowTrafficSync.cs to CrcBroadcastService.cs) · release vNext+1
-    - [ ] YAAT-2625 CA1873 part S2: guard expensive log arguments in yaat-server (CrcClientState.Join.cs to RoomLiveTrafficReplay.cs) · release vNext+1
-    - [ ] YAAT-2624 CA1873 part S1: guard expensive log arguments in yaat-server (AdminSessionEndpoints.cs to CrcClientState.Info.cs) · release vNext+1
-    - [ ] YAAT-2627 CA1873 part S5: guard expensive log arguments in yaat-server (UdpEntityServer.cs to UiaQuery.cs) · release vNext+1
-    - [ ] YAAT-2628 CA1873 part S4: guard expensive log arguments in yaat-server (DtoConverter.cs to SpeechTelemetryRetention.cs) · release vNext+1
-  - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext+1
-  - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext+1
-  - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext+1
+- [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext
+  - [ ] YAAT-2343 Guard expensive log arguments (CA1873) and raise it to warning · release vNext
+    - [ ] YAAT-2614 CA1873 part Y12: guard expensive log arguments in Yaat.Sim (LowApproachPhase.cs to PilotRequestTracker.cs) · release vNext
+    - [ ] YAAT-2612 CA1873 part Y11: guard expensive log arguments in Yaat.Sim (VfrFollowPhase.cs to LinedUpAndWaitingPhase.cs) · release vNext
+    - [ ] YAAT-2615 CA1873 part Y14: guard expensive log arguments in Yaat.Sim (SimulationEngine.Coordination.cs to SituationFlagCalculator.cs) · release vNext
+    - [ ] YAAT-2618 CA1873 part Y16: guard expensive log arguments in yaat client (AtomicFile.cs to VStripsView.axaml.cs) · release vNext
+    - [ ] YAAT-2617 CA1873 part Y15: guard expensive log arguments in Yaat.Sim (AircraftTypeNames.cs to WindGridRegistry.cs) · release vNext
+    - [ ] YAAT-2616 CA1873 part Y13: guard expensive log arguments in Yaat.Sim (TaxiInRequest.cs to SimulationEngine.Commands.cs) · release vNext
+    - [ ] YAAT-2619 CA1873 part Y19: guard expensive log arguments in yaat client (SherpaCudaInstaller.cs to ImportExportViewModel.cs) · release vNext
+    - [ ] YAAT-2622 CA1873 part Y20: guard expensive log arguments in yaat client (MainViewModel.Aircraft.cs to SttModelCardViewModel.cs) · release vNext
+    - [ ] YAAT-2621 CA1873 part Y17: guard expensive log arguments in yaat client (BrowserTdlsTransport.cs to AudioCaptureService.cs) · release vNext
+    - [ ] YAAT-2620 CA1873 part Y18: guard expensive log arguments in yaat client (CudaBackendInstaller.cs to NativeStderrCapture.cs) · release vNext
+    - [ ] YAAT-2623 CA1873 part Y21: guard expensive log arguments in yaat client (ArrivalGeneratorsEditorWindow.axaml.cs to MainView.axaml.cs) · release vNext
+    - [ ] YAAT-2626 CA1873 part S3: guard expensive log arguments in yaat-server (ShadowTrafficSync.cs to CrcBroadcastService.cs) · release vNext
+    - [ ] YAAT-2625 CA1873 part S2: guard expensive log arguments in yaat-server (CrcClientState.Join.cs to RoomLiveTrafficReplay.cs) · release vNext
+    - [ ] YAAT-2624 CA1873 part S1: guard expensive log arguments in yaat-server (AdminSessionEndpoints.cs to CrcClientState.Info.cs) · release vNext
+    - [ ] YAAT-2627 CA1873 part S5: guard expensive log arguments in yaat-server (UdpEntityServer.cs to UiaQuery.cs) · release vNext
+    - [ ] YAAT-2628 CA1873 part S4: guard expensive log arguments in yaat-server (DtoConverter.cs to SpeechTelemetryRetention.cs) · release vNext
+  - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext
+  - [ ] YAAT-2345 Pass a culture and a StringComparison (CA1305, CA1310) and raise both to warning · release vNext
+  - [ ] YAAT-2348 Clear the remaining analyzer rules by hand (CA1816, CA1869, CA1806, CA2016 and the residue), then verify analyzers at info · release vNext
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
@@ -1656,6 +1656,8 @@
 - [ ] YAAT-2451 Split NavRouteOverlayProjector.BuildPendingShapeKey under the complexity limit
 - [ ] YAAT-2663 Fix the file names docs/architecture.md and five subsystem docs cite that no longer resolve
 - [ ] YAAT-2664 Re-read the subsystem docs whose named files changed most since the last docs pass
+- [ ] YAAT-2665 Route GuideCapture runs that write into the yaat docs image folders through the gate
+- [ ] YAAT-2666 Make the v0.19.0 showcase scenes fail when a Radar command is refused or picks the wrong track
 
 ### No milestone
 - [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
