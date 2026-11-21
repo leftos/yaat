@@ -66,7 +66,7 @@ public partial class ScopeView : UserControl
     // The EuroScope scratchpad or handoff entry popup a field click opened, while it is open.
     private Popup? _activeEntryPopup;
     private ScopeViewModel? _vm;
-    private UserPreferences? _flyoutPrefs;
+    private UserPreferences? _watchedPrefs;
     private TopLevel? _topLevel;
 
     // Whether Shift was held at the last pointer press, release or key press inside the open field menu.
@@ -146,31 +146,42 @@ public partial class ScopeView : UserControl
         _vm = DataContext as ScopeViewModel;
         if (_vm is null)
         {
-            _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
-            _flyoutPrefs = null;
+            _watchedPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+            _watchedPrefs?.ScopeTextChanged -= OnScopeTextChanged;
+            _watchedPrefs = null;
             return;
         }
 
         _vm.PropertyChanged += OnViewModelPropertyChanged;
-        WatchFlyoutFontSize(_vm.Preferences);
+        WatchPreferences(_vm.Preferences);
         Canvas.Preferences = _vm.Preferences;
         Canvas.DataBlockState = _vm.DataBlockState;
         PushMaps(_vm);
         AttachFeatures(_vm);
     }
 
-    // The EuroScope tag flyouts take the "Radar Tag Flyouts" font size now and at each font-size change, as the Radar view did.
-    private void WatchFlyoutFontSize(UserPreferences prefs)
+    // Watches the preferences this Scope draws from: the EuroScope tag flyouts take the "Radar Tag Flyouts" font size now and at
+    // each font-size change, as the Radar view did, and a Scope text change rebuilds the frame.
+    private void WatchPreferences(UserPreferences prefs)
     {
-        _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
-        _flyoutPrefs = prefs;
+        _watchedPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _watchedPrefs?.ScopeTextChanged -= OnScopeTextChanged;
+        _watchedPrefs = prefs;
         prefs.FontSizesChanged += ApplyFlyoutFontSize;
+        prefs.ScopeTextChanged += OnScopeTextChanged;
         ApplyFlyoutFontSize();
+    }
+
+    // The STARS and ERAM datablock text settings are read at frame build, so a change rebuilds the frame.
+    private void OnScopeTextChanged()
+    {
+        Canvas.DropCachedFrame();
+        Canvas.MarkDirty();
     }
 
     private void ApplyFlyoutFontSize()
     {
-        if (_flyoutPrefs is { } prefs)
+        if (_watchedPrefs is { } prefs)
         {
             FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
         }
@@ -199,7 +210,7 @@ public partial class ScopeView : UserControl
         _topLevel?.AddHandler(KeyDownEvent, OnTopLevelKeyDown, RoutingStrategies.Tunnel);
         if (_vm is not null)
         {
-            WatchFlyoutFontSize(_vm.Preferences);
+            WatchPreferences(_vm.Preferences);
         }
     }
 
@@ -207,8 +218,9 @@ public partial class ScopeView : UserControl
     {
         _topLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         _topLevel = null;
-        _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
-        _flyoutPrefs = null;
+        _watchedPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _watchedPrefs?.ScopeTextChanged -= OnScopeTextChanged;
+        _watchedPrefs = null;
         _activeFieldPopup?.Close();
         _activeEntryPopup?.Close();
         _activeContextMenu?.Close();

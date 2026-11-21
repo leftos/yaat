@@ -831,6 +831,10 @@ The marker that starts a YAAT command on the Scope's entry line (`$DM 110`, `$ U
 **Brightness group (Radar)**:
 One BRITE spinner's setting (`ScopeBrightnessGroup`): MAP A, MAP B, TARGETS, FDB, ALERTS (0 to 100 percent) or the modifiers LINE 4 (-20 to 0) and DWELL (0 to 20), each scaling the colours of the layer it names; per Radar window, never saved or sent.
 
+**Compact text (Radar)**:
+A Scope kind's datablock text drawn in the system monospace font at the Radar's CHAR size (`ScopeTextStyle.Compact`, the default for STARS and for ERAM); the other style is **Realistic text**.
+_Avoid_: normal text
+
 **CRC alias (YAAT)**:
 A line in a `.aliases` file that CRC, and YAAT's dot handlers, expand into a command; not a CRC dialect.
 
@@ -896,6 +900,9 @@ The part of the Scope's entry area that shows the entry being typed, with its Ki
 
 **Range data block (RDB)**:
 The small text beside an ERAM full data block's target giving the track's distance to its CRR group's point, in the group's colour, placed by CRC's RdbOrientation table.
+
+**Realistic text (Radar)**:
+A Scope kind's datablock text drawn in Terminus Bold at CRC's text size for it (`ScopeTextStyle.Realistic`; STARS 0-6, ERAM 0-4), in fixed glyph cells and with CRC's row pitches, ignoring CHAR; chosen per kind in Settings > Appearance > Scope text, so a Mixed Radar can draw one kind realistic and the other compact.
 
 **Response Area (RA)**:
 ERAM's message area above the MCA; in Radar on ERAM and Mixed an empty box above the MCA, kept for readouts.

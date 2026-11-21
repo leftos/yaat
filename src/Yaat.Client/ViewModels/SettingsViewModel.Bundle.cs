@@ -313,6 +313,18 @@ public partial class SettingsViewModel
     private static (string Key, BundledField Field)[] DisplayFields() =>
         [
             Field("radarDatablockFontSize", vm => vm.RadarDatablockFontSize, (vm, v) => vm.RadarDatablockFontSize = v),
+            Field(
+                "starsScopeTextStyle",
+                vm => ((ScopeTextStyle)vm.SelectedStarsScopeTextStyleIndex).ToString(),
+                (vm, v) => vm.SelectedStarsScopeTextStyleIndex = (int)Enum.Parse<ScopeTextStyle>(v)
+            ),
+            Field("starsScopeTextSize", vm => vm.StarsScopeTextSize, (vm, v) => vm.StarsScopeTextSize = v),
+            Field(
+                "eramScopeTextStyle",
+                vm => ((ScopeTextStyle)vm.SelectedEramScopeTextStyleIndex).ToString(),
+                (vm, v) => vm.SelectedEramScopeTextStyleIndex = (int)Enum.Parse<ScopeTextStyle>(v)
+            ),
+            Field("eramScopeTextSize", vm => vm.EramScopeTextSize, (vm, v) => vm.EramScopeTextSize = v),
             Field("radarFlyoutFontSize", vm => vm.RadarFlyoutFontSize, (vm, v) => vm.RadarFlyoutFontSize = v),
             Field("groundDatablockFontSize", vm => vm.GroundDatablockFontSize, (vm, v) => vm.GroundDatablockFontSize = v),
             Field("groundLabelFontSize", vm => vm.GroundLabelFontSize, (vm, v) => vm.GroundLabelFontSize = v),

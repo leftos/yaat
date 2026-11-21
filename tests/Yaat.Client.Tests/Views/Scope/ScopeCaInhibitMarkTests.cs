@@ -107,7 +107,7 @@ public class ScopeCaInhibitMarkTests
         float cellRight = cellLeft + font.MeasureText(TrackPresenter.EramArrowCell);
         float capHeight = font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f;
 
-        using SKPath path = ScopeRenderer.CaInhibitPath(field, font, text.Length - 1);
+        using SKPath path = ScopeRenderer.CaInhibitPath(field, font, text.Length - 1, glyphPitch: null);
         SKRect bounds = path.Bounds;
 
         Assert.Equal(3, path.PointCount);

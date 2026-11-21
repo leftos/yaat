@@ -1172,7 +1172,7 @@ By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **VEC
 
 **DB** opens a tray of datablock settings: the toggles **4TH LINE**, **DWELL**, **ATPA DIST**, **ALERT CONES**, **MONITOR CONES** and **CA RING**, then the spinner **CHAR** (`CHAR 14`). **4TH LINE** off removes the ERAM block's line 4 type and destination (HSF notes stay). **DWELL** off stops the hover dwell; a block you locked with a Field-A click still dwells, and the VCI preview still follows the pointer. **ATPA DIST** shows or hides the ATPA in-trail distance on a STARS full block, at the right end of line 2 (`230 25 D/B738 3.2 ID`); it does not touch the cones. **ALERT CONES** (on by default) draws the cone of an ATPA pair in the Warning or Alert state, and **MONITOR CONES** (on by default) that of a pair in the Monitor state. **CA RING** (on by default) draws the ring of an ERAM conflict pair on each member; it leaves the 3 NM ring of a STARS pair and the CA line alone.
 
-**CHAR** is the datablock point size, 8 to 24; roll the wheel over it, wheel up for larger, and it stops at the limits. ATPA DIST and CHAR start from your preferences when the Radar opens (unless a saved state brings others) and never write back to them, and a later preference change does not reach an open Radar. The other CRC DB items (LDR DIR, LDR, CWT, REQ ALT, PORTAL) are not built.
+**CHAR** is the datablock point size, 8 to 24; roll the wheel over it, wheel up for larger, and it stops at the limits. It sizes only the datablocks drawn in **Compact** text (the system monospace font); a kind set to **Realistic** text in **Settings › Appearance › Scope text** draws in Terminus Bold at CRC's size for it and ignores CHAR. ATPA DIST and CHAR start from your preferences when the Radar opens (unless a saved state brings others) and never write back to them, and a later preference change does not reach an open Radar. The other CRC DB items (LDR DIR, LDR, CWT, REQ ALT, PORTAL) are not built.
 
 **VIEWS** is the button after DB. Its tray holds four toggles, **SSA**, **LA/CA/MCI**, **RPO QUEUE** and **CRR**, each lit while its view is open; a press toggles the view and keeps the tray open. The views sit in a dock, a 360 px column down the right of the window under the bar, which is hidden until a view is docked in it. Opening or closing it keeps the Radar's scale, so the RANGE shown follows the Radar's width, as when you resize the window.
 
@@ -3252,7 +3252,7 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 | Setting | What it sizes | Default |
 |---------|--------------|---------|
 | **Aircraft List** | The aircraft-list rows. | 12 |
-| **Radar Datablock** | STARS/ERAM datablocks on the Radar view. | 12 |
+| **Radar Datablock** | STARS/ERAM datablocks on the Radar view, when their Scope text is Compact. | 12 |
 | **Radar Tag Flyouts** | The pop-out field editors on radar tags. | 12 |
 | **Ground Datablock** | Datablocks on the Ground view. | 12 |
 | **Ground Labels (taxi/runway/node)** | Taxiway, runway, and node labels on the Ground view. | 13 |
@@ -3260,6 +3260,8 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 | **Interface (tabs, buttons, lists)** | Tabs, buttons, lists, and the Controllers / METAR panels. | 12 |
 | **Strips Zoom %** | Page-zoom for the whole Flight Strips panel (50–200%). Also adjustable with the panel's on-screen zoom buttons. | 80% |
 | **vTDLS Zoom %** | Page-zoom for the whole vTDLS panel (50–200%). | 100% |
+
+**Scope text** — how the Radar draws datablock text, chosen separately for STARS and ERAM. **STARS text** and **ERAM text** each pick **Compact** (the system monospace font at the Radar's CHAR size; the default) or **Realistic** (Terminus Bold, the bitmap-style face CRC draws with, at CRC's text sizes). **STARS size** (0–6, default 2) and **ERAM size** (0–4, default 1) pick the realistic size and are available only while that kind is Realistic. A Mixed Radar draws each kind in its own style and size; the range readout, the pilot lens's queue badge and check-in tag follow the track's font, and speech bubbles stay Compact.
 
 **Graphics** *(macOS only)*:
 

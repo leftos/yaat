@@ -104,6 +104,84 @@ public class SettingsBundlePreferencesTests
     }
 
     [Fact]
+    public void ScopeText_DefaultsToCompact()
+    {
+        var defaults = UserPreferences.CreateDefaults();
+        Assert.Equal(ScopeTextStyle.Compact, defaults.StarsScopeTextStyle);
+        Assert.Equal(2, defaults.StarsScopeTextSize);
+        Assert.Equal(ScopeTextStyle.Compact, defaults.EramScopeTextStyle);
+        Assert.Equal(1, defaults.EramScopeTextSize);
+    }
+
+    [Fact]
+    public void ScopeText_RoundTripsThroughTheBundle_TellingListenersOnce()
+    {
+        var preferences = new UserPreferences();
+        (ScopeTextStyle StarsStyle, int StarsSize, ScopeTextStyle EramStyle, int EramSize) before = ScopeTextOf(preferences);
+        int raised = 0;
+        preferences.ScopeTextChanged += () => raised++;
+        try
+        {
+            preferences.SetScopeText(ScopeTextStyle.Compact, 0, ScopeTextStyle.Compact, 0);
+            raised = 0;
+            PreferencesImportResult result = preferences.ImportBundlePreferences(
+                new JsonObject
+                {
+                    ["starsScopeTextStyle"] = "Realistic",
+                    ["starsScopeTextSize"] = 6,
+                    ["eramScopeTextStyle"] = "Realistic",
+                    ["eramScopeTextSize"] = 4,
+                }
+            );
+
+            Assert.Equal(["starsScopeTextStyle", "starsScopeTextSize", "eramScopeTextStyle", "eramScopeTextSize"], result.AppliedKeys);
+            Assert.Equal(1, raised);
+            var reloaded = new UserPreferences();
+            Assert.Equal(ScopeTextStyle.Realistic, reloaded.StarsScopeTextStyle);
+            Assert.Equal(6, reloaded.StarsScopeTextSize);
+            Assert.Equal(ScopeTextStyle.Realistic, reloaded.EramScopeTextStyle);
+            Assert.Equal(4, reloaded.EramScopeTextSize);
+
+            JsonObject exported = preferences.ExportBundlePreferences();
+            Assert.Equal("Realistic", exported["starsScopeTextStyle"]!.GetValue<string>());
+            Assert.Equal(6, exported["starsScopeTextSize"]!.GetValue<int>());
+            Assert.Equal("Realistic", exported["eramScopeTextStyle"]!.GetValue<string>());
+            Assert.Equal(4, exported["eramScopeTextSize"]!.GetValue<int>());
+
+            raised = 0;
+            Assert.Equal(["starsScopeTextSize"], preferences.ImportBundlePreferences(new JsonObject { ["starsScopeTextSize"] = 6 }).AppliedKeys);
+            Assert.Equal(0, raised);
+        }
+        finally
+        {
+            preferences.SetScopeText(before.StarsStyle, before.StarsSize, before.EramStyle, before.EramSize);
+        }
+    }
+
+    [Fact]
+    public void ScopeText_TheBundleIgnoresAnUnknownStyle_AndAnOutOfRangeSize()
+    {
+        var preferences = new UserPreferences();
+        (ScopeTextStyle, int, ScopeTextStyle, int) before = ScopeTextOf(preferences);
+
+        PreferencesImportResult outOfRange = preferences.ImportBundlePreferences(
+            new JsonObject
+            {
+                ["starsScopeTextStyle"] = "Fancy",
+                ["starsScopeTextSize"] = 7,
+                ["eramScopeTextSize"] = 5,
+            }
+        );
+
+        Assert.Equal(["starsScopeTextStyle", "starsScopeTextSize", "eramScopeTextSize"], outOfRange.IgnoredKeys);
+        Assert.Empty(outOfRange.AppliedKeys);
+        Assert.Equal(before, ScopeTextOf(preferences));
+    }
+
+    private static (ScopeTextStyle, int, ScopeTextStyle, int) ScopeTextOf(UserPreferences preferences) =>
+        (preferences.StarsScopeTextStyle, preferences.StarsScopeTextSize, preferences.EramScopeTextStyle, preferences.EramScopeTextSize);
+
+    [Fact]
     public void PreferencesImport_AppliesAllowlistedKeys_AndIgnoresEverythingElse()
     {
         var preferences = new UserPreferences();

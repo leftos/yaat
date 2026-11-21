@@ -504,7 +504,10 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     /// <summary>The frame the last render snapshot drew, or null before the first. Test seam.</summary>
     internal ScopeFrame? LastRenderedFrame { get; private set; }
 
-    /// <summary>Drops the cached hit-test frame, as a hover change does, so the next <see cref="CurrentFrame"/> builds one. Test seam.</summary>
+    /// <summary>
+    /// Drops the cached hit-test frame, as a hover change does, so the next <see cref="CurrentFrame"/> builds one; the Scope view
+    /// calls it when the Scope text preferences change.
+    /// </summary>
     internal void DropCachedFrame() => _lastFrame = null;
 
     /// <summary>The callsign of the track the pointer dwells on, or null. Test seam.</summary>
@@ -569,7 +572,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             PlaceRblReadouts(frame, lines, pending),
             MinSep,
             Overlays: CollectOverlays(frame)
-        );
+        )
+        {
+            StarsStrikePx = RealisticText(ScopeTemplates.StarsId)?.StrikePx,
+            EramStrikePx = RealisticText(ScopeTemplates.EramId)?.StrikePx,
+        };
     }
 
     /// <summary>
@@ -1079,7 +1086,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        float pitch = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint)).LineHeight;
+        // An ERAM-look block carries the row pitch it was laid out with; any other block takes the STARS kind's.
+        float pitch = track.EramLook ? track.EramRowPitch : TextMetricsFor(ScopeTemplates.StarsId).LineHeight;
         float textTop = track.Block.TextBounds.Top + ScopeTemplates.Get(TemplateId).Padding;
         return textTop + ((line - 1) * pitch) + (pitch / 2);
     }
@@ -1191,7 +1199,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<AircraftModel> visible = FilterVisible();
         ScopeAlertOptions alerts = BuildAlertOptions();
         ScopeDisplayOptions display = BuildDisplayOptions(palette);
-        var metrics = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
+        ScopeTextMetrics metrics = TextMetricsFor(ScopeTemplates.StarsId);
+        ScopeTextMetrics eramMetrics = TextMetricsFor(ScopeTemplates.EramId);
         IReadOnlyDictionary<string, SKPoint> offsets = DataBlockState?.ManualOffsets ?? NoOffsets;
         IReadOnlySet<string> highlighted = DataBlockState?.HighlightedCallsigns ?? NoCallsigns;
         return OrderBubbledLast(
@@ -1228,7 +1237,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     CrrGroups: CrrGroups,
                     HiddenCallsigns: DataBlockState?.HiddenCallsigns,
                     SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false,
-                    EramConflicts: EramConflicts
+                    EramConflicts: EramConflicts,
+                    EramMetrics: eramMetrics
                 ),
                 stepDeconfliction
             )
@@ -1352,6 +1362,44 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
 
     // The DB settings' CHAR, else the preference; one size for the measure font and the drawn font.
     private float DatablockFontSize() => DbSettings?.CharSize ?? Preferences?.RadarDatablockFontSize ?? 12;
+
+    /// <summary>
+    /// The text metrics the tracks of one owner kind (<paramref name="templateId"/>: the ERAM template, or any other for STARS)
+    /// lay out with: CRC's ladder row for the kind's realistic size when its Scope text preference is realistic, else the
+    /// compact font at <see cref="DatablockFontSize"/>.
+    /// </summary>
+    private ScopeTextMetrics TextMetricsFor(string templateId)
+    {
+        if (RealisticText(templateId) is not { } text)
+        {
+            return ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint));
+        }
+
+        return (templateId == ScopeTemplates.EramId) ? ScopeTextFonts.EramMetrics(text.Size) : ScopeTextFonts.StarsMetrics(text.Size);
+    }
+
+    /// <summary>
+    /// One owner kind's realistic text (<paramref name="templateId"/> as in <see cref="TextMetricsFor"/>): its CRC size, which
+    /// the preference getter holds to its ladder, and the Terminus strike that size draws at; null when the kind's Scope text
+    /// preference is compact or the canvas has no preferences.
+    /// </summary>
+    private (int StrikePx, int Size)? RealisticText(string templateId)
+    {
+        if (Preferences is not { } prefs)
+        {
+            return null;
+        }
+
+        bool eram = templateId == ScopeTemplates.EramId;
+        ScopeTextStyle style = eram ? prefs.EramScopeTextStyle : prefs.StarsScopeTextStyle;
+        if (style != ScopeTextStyle.Realistic)
+        {
+            return null;
+        }
+
+        int size = eram ? prefs.EramScopeTextSize : prefs.StarsScopeTextSize;
+        return (eram ? ScopeTextFonts.EramStrikePx[size] : ScopeTextFonts.StarsStrikePx[size], size);
+    }
 
     private SKFont MeasureFont(float size)
     {

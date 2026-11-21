@@ -131,8 +131,16 @@ public sealed record ScopeFrameInput(
     IReadOnlySet<string>? HiddenCallsigns = null,
     bool SyncLeaderDirection = false,
     IReadOnlyDictionary<string, SKPoint>? DeconflictOffsets = null,
-    IReadOnlyList<ConflictAlertDto>? EramConflicts = null
-);
+    IReadOnlyList<ConflictAlertDto>? EramConflicts = null,
+    ScopeTextMetrics? EramMetrics = null
+)
+{
+    /// <summary>
+    /// The text metrics a track resolved to <paramref name="templateId"/> lays out with: <see cref="EramMetrics"/> (else
+    /// <see cref="Metrics"/>) for an ERAM-template track, <see cref="Metrics"/> for any other.
+    /// </summary>
+    public ScopeTextMetrics MetricsFor(string templateId) => (templateId == ScopeTemplates.EramId) ? (EramMetrics ?? Metrics) : Metrics;
+}
 
 /// <summary>
 /// One frame's conflict reads: the callsigns whose ERAM block flashes (<see cref="ScopeEramConflictGate.FlashingCallsigns"/>) and
@@ -463,7 +471,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             InEramConflict: inEramConflict
         );
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
-        ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
+        ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.MetricsFor(templateId));
         (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         var seed = new ScopeBlockSeed(input, ac, atOrigin, new SKPoint(sx, sy), hidden, templateId) { Level = presentation.Level };
         (ScopeBlockLayout placed, SKPoint offset) = PlaceBlock(seed);
@@ -493,7 +501,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             presentation.ShowsLeader && !hidden,
             dwelled,
             IntentPathFor(ac, input, isSelected),
-            QueueBadgeFor(ac, input, sx, sy),
+            QueueBadgeFor(ac, templateId, input, sx, sy),
             CheckInTagFor(ac, input)
         )
         {
@@ -502,7 +510,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             BlockOffset = offset,
             CrrReadout =
                 (!hidden) && (CrrReadoutFor(ac, templateId, presentation.Level, input) is { } crr)
-                    ? ScopeCrrReadout.Place(crr, new SKPoint(sx, sy), offset, input.Metrics)
+                    ? ScopeCrrReadout.Place(crr, new SKPoint(sx, sy), offset, input.MetricsFor(templateId))
                     : null,
         };
         return WithEramLook(track, templateId, input);
@@ -526,7 +534,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
             EramLook = true,
             EramSymbols = symbols,
             HistoryGlyphs = EramHistoryGlyphs.For(track.Aircraft, input.HistoryCount, symbols.Target),
-            EramRowPitch = input.Metrics.LineHeight,
+            EramRowPitch = input.MetricsFor(templateId).LineHeight,
         };
     }
 
@@ -544,9 +552,10 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// <summary>
     /// The queued-commands badge of <paramref name="ac"/> while the lens queue draws (<see cref="ScopeFrameInput.LensQueue"/>)
     /// and the aircraft has a pending line (<see cref="ScopeQueueBadge.PendingLines"/>); else null. Its text box sits below-left
-    /// of the symbol at (<paramref name="sx"/>, <paramref name="sy"/>), measured with the frame's metrics.
+    /// of the symbol at (<paramref name="sx"/>, <paramref name="sy"/>), measured with the metrics of the track's kind
+    /// (<paramref name="templateId"/>), as its text draws in the track's font.
     /// </summary>
-    private static ScopeQueueBadgeView? QueueBadgeFor(AircraftModel ac, ScopeFrameInput input, float sx, float sy)
+    private static ScopeQueueBadgeView? QueueBadgeFor(AircraftModel ac, string templateId, ScopeFrameInput input, float sx, float sy)
     {
         if (!input.LensQueue)
         {
@@ -562,7 +571,8 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         string text = lines.Count.ToString(CultureInfo.InvariantCulture);
         float right = sx - ScopeQueueBadge.SymbolGapPx;
         float top = sy + ScopeQueueBadge.SymbolGapPx;
-        var rect = new SKRect(right - input.Metrics.Measure(text), top, right, top + input.Metrics.Size);
+        ScopeTextMetrics metrics = input.MetricsFor(templateId);
+        var rect = new SKRect(right - metrics.Measure(text), top, right, top + metrics.Size);
         bool hovered = string.Equals(ac.Callsign, input.QueueHoveredCallsign, StringComparison.Ordinal);
         return new ScopeQueueBadgeView(lines.Count, lines, rect, hovered);
     }
@@ -874,7 +884,14 @@ public sealed record ScopeRenderSnapshot(
     IReadOnlyDictionary<int, SKRect> RblReadoutRects,
     ScopeMinSep? MinSep,
     ScopeOverlays? Overlays
-);
+)
+{
+    /// <summary>The Terminus strike STARS-owned tracks' text draws at when the STARS text is realistic; null draws it compact.</summary>
+    public int? StarsStrikePx { get; init; }
+
+    /// <summary>The Terminus strike ERAM-owned tracks' text draws at when the ERAM text is realistic; null draws it compact.</summary>
+    public int? EramStrikePx { get; init; }
+}
 
 /// <summary>The user-chosen colours a frame draws with; the render thread reads no preferences.</summary>
 /// <param name="AssignedToMe">The assignment tint, or null when it is off or its colour does not parse.</param>
@@ -1141,9 +1158,10 @@ public sealed partial class ScopeRenderer : IDisposable
             DrawVector(canvas, track, snapshot.Brightness.Vector);
         }
 
-        SKFont font = FontFor(snapshot.FontSize);
+        // Each track's text, its CRR readout and its lens text draw in its owner kind's font (FontOf).
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
+            SKFont font = FontOf(track, snapshot);
             DrawTrack(canvas, track, font, snapshot.Palette, snapshot.Brightness);
             DrawCrrReadout(canvas, track, font, snapshot.Brightness);
         }
@@ -1152,13 +1170,13 @@ public sealed partial class ScopeRenderer : IDisposable
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
             DrawIntentPath(canvas, track, snapshot.Brightness.Lens);
-            DrawQueueBadge(canvas, track, font, snapshot.Brightness.Lens);
-            DrawCheckInTag(canvas, track, font, snapshot.Brightness.Lens);
+            DrawQueueBadge(canvas, track, FontOf(track, snapshot), snapshot.Brightness.Lens);
+            DrawCheckInTag(canvas, track, FontOf(track, snapshot), snapshot.Brightness.Lens);
         }
 
         foreach (ScopeTrack track in snapshot.Frame.Tracks)
         {
-            DrawQueueDetail(canvas, track, font, snapshot.Brightness.Lens);
+            DrawQueueDetail(canvas, track, FontOf(track, snapshot), snapshot.Brightness.Lens);
         }
 
         DrawRouteOverlay(canvas, snapshot, vp);
@@ -1364,6 +1382,7 @@ public sealed partial class ScopeRenderer : IDisposable
         _lensRestrictionFont.Dispose();
         _lensPath.Dispose();
         _font?.Dispose();
+        DisposeTextFonts();
         DisposeFeatures();
     }
 
@@ -1408,7 +1427,7 @@ public sealed partial class ScopeRenderer : IDisposable
 
         _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
         string text = badge.Count.ToString(CultureInfo.InvariantCulture);
-        canvas.DrawText(text, badge.Rect.Left, badge.Rect.Bottom, SKTextAlign.Left, font, _lensTextPaint);
+        DrawTextAt(canvas, text, new SKPoint(badge.Rect.Left, badge.Rect.Bottom), font, _lensTextPaint);
     }
 
     /// <summary>
@@ -1424,7 +1443,7 @@ public sealed partial class ScopeRenderer : IDisposable
         }
 
         _textPaint.Color = ScopeBrightness.Apply(crr.Color, percent);
-        canvas.DrawText(crr.Text, crr.Rect.Left, crr.Rect.Bottom, SKTextAlign.Left, font, _textPaint);
+        DrawTextAt(canvas, crr.Text, new SKPoint(crr.Rect.Left, crr.Rect.Bottom), font, _textPaint);
     }
 
     /// <summary>
@@ -1441,7 +1460,7 @@ public sealed partial class ScopeRenderer : IDisposable
         _lensTextPaint.Color = ScopeBrightness.Apply(LensColor, percent);
         float left = track.Symbol.X + ScopeCheckIn.SymbolGapPx;
         float baseline = track.Symbol.Y + ScopeCheckIn.SymbolGapPx + font.Size;
-        canvas.DrawText(tag, left, baseline, SKTextAlign.Left, font, _lensTextPaint);
+        DrawTextAt(canvas, tag, new SKPoint(left, baseline), font, _lensTextPaint);
     }
 
     /// <summary>
@@ -1458,7 +1477,7 @@ public sealed partial class ScopeRenderer : IDisposable
         float width = 0f;
         foreach (string line in badge.Lines)
         {
-            width = Math.Max(width, font.MeasureText(line));
+            width = Math.Max(width, TextWidth(font, line));
         }
 
         float left = badge.Rect.Left;
@@ -1469,7 +1488,7 @@ public sealed partial class ScopeRenderer : IDisposable
         for (int i = 0; i < badge.Lines.Count; i++)
         {
             float baseline = top + QueueDetailPadPx + font.Size + (i * font.Spacing);
-            canvas.DrawText(badge.Lines[i], left + QueueDetailPadPx, baseline, SKTextAlign.Left, font, _lensTextPaint);
+            DrawTextAt(canvas, badge.Lines[i], new SKPoint(left + QueueDetailPadPx, baseline), font, _lensTextPaint);
         }
     }
 
@@ -1735,7 +1754,7 @@ public sealed partial class ScopeRenderer : IDisposable
         {
             _textPaint.Color = color;
             // A field rect spans the font's ascent budget above its baseline, so the baseline is the rect's bottom.
-            canvas.DrawText(field.Text, field.Rect.Left, field.Rect.Bottom, SKTextAlign.Left, font, _textPaint);
+            DrawTextAt(canvas, field.Text, new SKPoint(field.Rect.Left, field.Rect.Bottom), font, _textPaint);
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.Strikethrough))
@@ -1743,25 +1762,26 @@ public sealed partial class ScopeRenderer : IDisposable
             DrawStrikethrough(canvas, field, font, color);
         }
 
+        float? pitch = GlyphPitchOf(font);
         if ((field.Style & (ScopeFieldStyle.ArrowUp | ScopeFieldStyle.ArrowDown)) != 0)
         {
             bool up = field.Style.HasFlag(ScopeFieldStyle.ArrowUp);
-            DrawCellPath(canvas, field, font, color, cell => ArrowPath(field, font, cell, up));
+            DrawCellPath(canvas, field, font, color, cell => ArrowPath(field, font, cell, up, pitch));
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.HsfIndicator))
         {
-            DrawCellPath(canvas, field, font, color, cell => HsfPath(field, font, cell));
+            DrawCellPath(canvas, field, font, color, cell => HsfPath(field, font, cell, pitch));
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.Vci))
         {
-            DrawCellPath(canvas, field, font, color, cell => VciPath(field, font, cell));
+            DrawCellPath(canvas, field, font, color, cell => VciPath(field, font, cell, pitch));
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.AltitudeMismatch))
         {
-            DrawCellPath(canvas, field, font, color, cell => NotEqualPath(field, font, cell));
+            DrawCellPath(canvas, field, font, color, cell => NotEqualPath(field, font, cell, pitch));
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.CaInhibitMark))
@@ -1783,7 +1803,7 @@ public sealed partial class ScopeRenderer : IDisposable
             return;
         }
 
-        using SKPath path = CaInhibitPath(field, font, cell);
+        using SKPath path = CaInhibitPath(field, font, cell, GlyphPitchOf(font));
         _markFillPaint.Color = color;
         canvas.DrawPath(path, _markFillPaint);
     }
@@ -1792,9 +1812,9 @@ public sealed partial class ScopeRenderer : IDisposable
     /// The CA-inhibited triangle in cell <paramref name="cell"/> of <paramref name="field"/>: apex up, its base on the
     /// baseline, the cap height tall and eight tenths of the cell wide, centred in the cell.
     /// </summary>
-    internal static SKPath CaInhibitPath(FieldRect field, SKFont font, int cell)
+    internal static SKPath CaInhibitPath(FieldRect field, SKFont font, int cell, float? glyphPitch)
     {
-        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch);
         float bottom = field.Rect.Bottom;
         float x = left + (width / 2f);
         float half = width * 0.4f;
@@ -1827,12 +1847,13 @@ public sealed partial class ScopeRenderer : IDisposable
 
     /// <summary>
     /// Where cell <paramref name="cell"/> of <paramref name="field"/> sits: its left edge, its width and the font's cap height
-    /// (seven tenths of the size when the font reports none).
+    /// (seven tenths of the size when the font reports none). With <paramref name="glyphPitch"/> (realistic text) every width
+    /// is a whole number of glyph pitches, as the text draws; without it the font measures them.
     /// </summary>
-    private static (float Left, float Width, float CapHeight) CellOf(FieldRect field, SKFont font, int cell) =>
+    private static (float Left, float Width, float CapHeight) CellOf(FieldRect field, SKFont font, int cell, float? glyphPitch) =>
         (
-            field.Rect.Left + font.MeasureText(field.Text[..cell]),
-            font.MeasureText(TrackPresenter.EramArrowCell),
+            field.Rect.Left + (glyphPitch is { } before ? cell * before : font.MeasureText(field.Text[..cell])),
+            glyphPitch is { } pitch ? TrackPresenter.EramArrowCell.Length * pitch : font.MeasureText(TrackPresenter.EramArrowCell),
             font.Metrics.CapHeight > 0 ? font.Metrics.CapHeight : font.Size * 0.7f
         );
 
@@ -1840,9 +1861,9 @@ public sealed partial class ScopeRenderer : IDisposable
     /// The VCI path in cell <paramref name="cell"/> of <paramref name="field"/>: three concentric quarter arcs about the cell's
     /// bottom-left corner, opening up and right, the largest as wide as the cell or as tall as the cap height.
     /// </summary>
-    internal static SKPath VciPath(FieldRect field, SKFont font, int cell)
+    internal static SKPath VciPath(FieldRect field, SKFont font, int cell, float? glyphPitch)
     {
-        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch);
         float radius = MathF.Min(width, capHeight) * 0.9f;
         float cx = left + (width * 0.05f);
         float cy = field.Rect.Bottom;
@@ -1860,9 +1881,9 @@ public sealed partial class ScopeRenderer : IDisposable
     /// The ↴ path in cell <paramref name="cell"/> of <paramref name="field"/>: a stroke rightwards a quarter of the cap height
     /// below the cap line, then down to the baseline, with a downward head at its foot.
     /// </summary>
-    internal static SKPath HsfPath(FieldRect field, SKFont font, int cell)
+    internal static SKPath HsfPath(FieldRect field, SKFont font, int cell, float? glyphPitch)
     {
-        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch);
         float bottom = field.Rect.Bottom;
         float y = bottom - (capHeight * 0.75f);
         float x = left + (width * 0.65f);
@@ -1883,9 +1904,9 @@ public sealed partial class ScopeRenderer : IDisposable
     /// and 0.30 of the cap height above the baseline, the upper first, then a diagonal from 0.72 of the cell at 0.95 of the cap
     /// height down to 0.28 of the cell a twentieth of the cap height below the baseline.
     /// </summary>
-    internal static SKPath NotEqualPath(FieldRect field, SKFont font, int cell)
+    internal static SKPath NotEqualPath(FieldRect field, SKFont font, int cell, float? glyphPitch)
     {
-        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch);
         float baseline = field.Rect.Bottom;
         float barLeft = left + (width * 0.12f);
         float barRight = left + (width * 0.88f);
@@ -1906,9 +1927,9 @@ public sealed partial class ScopeRenderer : IDisposable
     /// The ERAM climb or descend arrow's path in cell <paramref name="cell"/> of <paramref name="field"/>: a shaft from the
     /// baseline to the cap height with a head at the pointed end.
     /// </summary>
-    internal static SKPath ArrowPath(FieldRect field, SKFont font, int cell, bool up)
+    internal static SKPath ArrowPath(FieldRect field, SKFont font, int cell, bool up, float? glyphPitch)
     {
-        (float left, float width, float capHeight) = CellOf(field, font, cell);
+        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch);
         float bottom = field.Rect.Bottom;
         float top = bottom - capHeight;
         float x = left + (width / 2f);
@@ -1938,15 +1959,15 @@ public sealed partial class ScopeRenderer : IDisposable
         int space = text.IndexOf(' ');
         string head = space < 0 ? text : text[..space];
         _textPaint.Color = color;
-        canvas.DrawText(head, x, baseline, SKTextAlign.Left, font, _textPaint);
+        DrawTextAt(canvas, head, new SKPoint(x, baseline), font, _textPaint);
         if (space < 0)
         {
             return;
         }
 
-        float headWidth = font.MeasureText(head);
+        float headWidth = TextWidth(font, head);
         _textPaint.Color = tailColor;
-        canvas.DrawText(text[space..], x + headWidth, baseline, SKTextAlign.Left, font, _textPaint);
+        DrawTextAt(canvas, text[space..], new SKPoint(x + headWidth, baseline), font, _textPaint);
     }
 
     /// <summary>A line across <paramref name="field"/> at the font's strikeout position (the ModeC strike).</summary>

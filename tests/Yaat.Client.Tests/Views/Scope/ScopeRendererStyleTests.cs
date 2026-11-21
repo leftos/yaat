@@ -338,7 +338,7 @@ public class ScopeRendererStyleTests
             ScopeFieldAction.None
         );
 
-        using SKPath path = ScopeRenderer.HsfPath(field, font, 0);
+        using SKPath path = ScopeRenderer.HsfPath(field, font, 0, glyphPitch: null);
 
         SKPoint[] p = path.Points;
         Assert.Equal(p[0].Y, p[1].Y);

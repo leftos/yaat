@@ -214,7 +214,7 @@ public class ScopeAltitudeMismatchTests
             ScopeFieldAction.None
         );
 
-        using SKPath path = ScopeRenderer.NotEqualPath(field, font, 0);
+        using SKPath path = ScopeRenderer.NotEqualPath(field, font, 0, glyphPitch: null);
 
         SKPoint[] p = path.Points;
         Assert.Equal(6, p.Length);

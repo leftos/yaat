@@ -70,7 +70,7 @@ public sealed partial record ScopeFrame
             ScopeBlockLevel.Full or ScopeBlockLevel.Dwell => EramDefaultOffset(
                 seed.Input.Viewport.PixelWidth,
                 seed.AtOrigin.TextBounds,
-                seed.Input.Metrics.LineHeight
+                seed.Input.MetricsFor(seed.TemplateId).LineHeight
             ),
             ScopeBlockLevel.Limited or ScopeBlockLevel.Partial => EramLdbOffset(seed.Symbol, seed.AtOrigin.TextBounds),
             _ => null,

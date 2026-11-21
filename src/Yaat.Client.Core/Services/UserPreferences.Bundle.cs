@@ -86,6 +86,10 @@ public sealed partial class UserPreferences
         ("unassignedTintColor", Color),
         ("selectedColor", Color),
         ("radarDatablockFontSize", IntRange(8, 24)),
+        ("starsScopeTextStyle", EnumName<ScopeTextStyle>()),
+        ("starsScopeTextSize", IntRange(0, MaxStarsScopeTextSize)),
+        ("eramScopeTextStyle", EnumName<ScopeTextStyle>()),
+        ("eramScopeTextSize", IntRange(0, MaxEramScopeTextSize)),
         ("radarFlyoutFontSize", IntRange(8, 24)),
         ("groundDatablockFontSize", IntRange(8, 24)),
         ("groundLabelFontSize", IntRange(8, 24)),
@@ -311,6 +315,7 @@ public sealed partial class UserPreferences
             _data.CommandRunDelayMinSeconds,
             _data.CommandRunDelayMaxSeconds
         );
+        (string, int, string, int) scopeTextBefore = ScopeTextValues();
         foreach ((string key, object? parsed) in accepted)
         {
             PreferenceProperties.Value[key].Set!(_data, parsed);
@@ -321,10 +326,18 @@ public sealed partial class UserPreferences
             Save();
             TerminalColorsChanged?.Invoke();
             FontSizesChanged?.Invoke();
+            if (ScopeTextValues() != scopeTextBefore)
+            {
+                ScopeTextChanged?.Invoke();
+            }
         }
 
         return result;
     }
+
+    // The four Scope text preferences as stored, so an import tells ScopeTextChanged listeners only when one of them changed.
+    private (string, int, string, int) ScopeTextValues() =>
+        (_data.StarsScopeTextStyle, _data.StarsScopeTextSize, _data.EramScopeTextStyle, _data.EramScopeTextSize);
 
     /// <summary>
     /// Reads the bundled preferences in an imported object, each as its preference's type and checked against its rule

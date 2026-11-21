@@ -72,6 +72,38 @@ Works) from the share-alike requirement, so `Yaat.Sim.dll` and the
 YAAT installer are distributed under YAAT's MIT terms.
 
 ================================================================================
+Third-party fonts bundled with this project
+================================================================================
+
+## Terminus TTF (SIL Open Font License 1.1)
+
+The Scope draws realistic STARS and ERAM datablock text in Terminus TTF Bold,
+embedded unmodified in `Yaat.Client.dll` from
+`src/Yaat.Client/Assets/Fonts/TerminusTTF-Bold.ttf` (version 4.49.3, renamed
+without the version).
+
+  Upstream: https://files.ax86.net/terminus-ttf/
+  License:  SIL Open Font License, Version 1.1 (OFL-1.1)
+  Full text: src/Yaat.Client/Assets/Fonts/TerminusTTF-OFL.txt
+
+Copyright (c) 2010 Dimitar Toshkov Zhekov,
+with Reserved Font Name "Terminus Font".
+
+Copyright (c) 2011-2023 Tilman Blumenbach,
+with Reserved Font Name "Terminus (TTF)".
+
+## JetBrains Mono (SIL Open Font License 1.1)
+
+The interface's monospace text is set in JetBrains Mono, shipped unmodified
+from `src/Yaat.Client.Strips/Resources/Fonts/`.
+
+  Upstream: https://github.com/JetBrains/JetBrainsMono
+  License:  SIL Open Font License, Version 1.1 (OFL-1.1)
+  Full text: src/Yaat.Client.Strips/Resources/Fonts/OFL.txt
+
+Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+================================================================================
 Third-party models and libraries shipped or downloaded on request
 ================================================================================
 

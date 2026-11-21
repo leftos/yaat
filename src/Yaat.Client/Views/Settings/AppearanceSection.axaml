@@ -74,6 +74,55 @@
           />
         </StackPanel>
       </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Scope text" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="200,160" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="STARS text" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+            <ComboBox
+              Grid.Row="0"
+              Grid.Column="1"
+              ItemsSource="{Binding ScopeTextStyleOptions}"
+              SelectedIndex="{Binding SelectedStarsScopeTextStyleIndex}"
+              HorizontalAlignment="Stretch"
+            />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="STARS size" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+            <NumericUpDown
+              Grid.Row="1"
+              Grid.Column="1"
+              Value="{Binding StarsScopeTextSize}"
+              IsEnabled="{Binding IsStarsScopeTextSizeEnabled}"
+              Minimum="0"
+              Maximum="6"
+              Increment="1"
+            />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="ERAM text" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+            <ComboBox
+              Grid.Row="2"
+              Grid.Column="1"
+              ItemsSource="{Binding ScopeTextStyleOptions}"
+              SelectedIndex="{Binding SelectedEramScopeTextStyleIndex}"
+              HorizontalAlignment="Stretch"
+            />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="ERAM size" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+            <NumericUpDown
+              Grid.Row="3"
+              Grid.Column="1"
+              Value="{Binding EramScopeTextSize}"
+              IsEnabled="{Binding IsEramScopeTextSizeEnabled}"
+              Minimum="0"
+              Maximum="4"
+              Increment="1"
+            />
+          </Grid>
+          <TextBlock
+            Text="Compact uses the system monospace font at each Scope's CHAR size; Realistic uses Terminus Bold at CRC's text sizes."
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            FontSize="11"
+          />
+        </StackPanel>
+      </Border>
       <Border Classes="card" IsVisible="{Binding IsMacOs}">
         <StackPanel Spacing="12">
           <TextBlock Text="Graphics" FontWeight="SemiBold" />

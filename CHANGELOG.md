@@ -5,6 +5,7 @@
 ### Added
 
 - Radar: ERAM-template tracks draw CRC's ERAM look: a target glyph per state, track symbols, glyph history, CRC's leader and ERAM yellow.
+- Settings › Appearance › Scope text draws STARS and ERAM datablocks Compact or Realistic: Terminus Bold at CRC's text sizes, sized per kind.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
 

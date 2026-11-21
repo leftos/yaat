@@ -359,7 +359,7 @@ public class ScopeEramColumn0Tests
             ScopeFieldAction.None
         );
 
-        using SKPath path = ScopeRenderer.VciPath(field, font, 0);
+        using SKPath path = ScopeRenderer.VciPath(field, font, 0, glyphPitch: null);
 
         Assert.False(path.IsEmpty);
         SKRect tight = path.TightBounds;
