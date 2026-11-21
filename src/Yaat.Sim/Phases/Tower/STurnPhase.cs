@@ -86,12 +86,15 @@ public sealed class STurnPhase : Phase
             _speed.Reduce(ctx);
         }
 
-        Log.LogDebug(
-            "[STurn] {Callsign}: started, {Count} S-turns, initial {Dir}",
-            ctx.Aircraft.Callsign,
-            Count,
-            InitialDirection == TurnDirection.Left ? "left" : "right"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[STurn] {Callsign}: started, {Count} S-turns, initial {Dir}",
+                ctx.Aircraft.Callsign,
+                Count,
+                InitialDirection == TurnDirection.Left ? "left" : "right"
+            );
+        }
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => _speed.Resume(ctx);
@@ -124,7 +127,10 @@ public sealed class STurnPhase : Phase
                 {
                     ctx.Targets.TurnRateOverride = null;
                 }
-                Log.LogDebug("[STurn] {Callsign}: complete after {Count} S-turns", ctx.Aircraft.Callsign, _turnsCompleted);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[STurn] {Callsign}: complete after {Count} S-turns", ctx.Aircraft.Callsign, _turnsCompleted);
+                }
                 return true;
             }
 

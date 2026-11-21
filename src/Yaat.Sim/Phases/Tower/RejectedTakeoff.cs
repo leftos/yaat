@@ -117,26 +117,32 @@ internal static class RejectedTakeoff
         {
             // The roll has not begun — the pilot declines the clearance and holds (§3-9-6.a is a
             // "does not begin takeoff roll" rule; there is no maneuver to abort yet).
-            Log.LogDebug(
-                "[RejectedTakeoff] {Callsign}: declining takeoff clearance, {Occupant} on runway {Runway} {Distance:F0} ft ahead",
-                dep.Callsign,
-                occupant.Callsign,
-                runway.Designator,
-                distanceFt
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[RejectedTakeoff] {Callsign}: declining takeoff clearance, {Occupant} on runway {Runway} {Distance:F0} ft ahead",
+                    dep.Callsign,
+                    occupant.Callsign,
+                    runway.Designator,
+                    distanceFt
+                );
+            }
             Route(ctx, Pilot.PilotResponder.BuildUnable(dep, "traffic on the runway"));
             Install(ctx, rollElapsedSeconds);
             return true;
         }
 
-        Log.LogDebug(
-            "[RejectedTakeoff] {Callsign}: rejecting takeoff, {Occupant} on runway {Runway} {Distance:F0} ft ahead (gs={Gs:F0} kt)",
-            dep.Callsign,
-            occupant.Callsign,
-            runway.Designator,
-            distanceFt,
-            dep.GroundSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[RejectedTakeoff] {Callsign}: rejecting takeoff, {Occupant} on runway {Runway} {Distance:F0} ft ahead (gs={Gs:F0} kt)",
+                dep.Callsign,
+                occupant.Callsign,
+                runway.Designator,
+                distanceFt,
+                dep.GroundSpeed
+            );
+        }
         Route(ctx, Pilot.PilotResponder.BuildRejectingTakeoffTrafficOnRunway(dep));
         RejectedTakeoffPhase? phase = Install(ctx, rollElapsedSeconds);
         if (phase is not null)
@@ -298,7 +304,10 @@ internal static class RejectedTakeoff
         departure.PendingWarnings.Add(
             $"{departure.Callsign} is rejecting the takeoff but cannot stop short of {occupant.Callsign} on the runway (7110.65 3-9-6.a)"
         );
-        Log.LogDebug("[RejectedTakeoff] {Callsign}: cannot stop short of {Occupant}", departure.Callsign, occupant.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RejectedTakeoff] {Callsign}: cannot stop short of {Occupant}", departure.Callsign, occupant.Callsign);
+        }
     }
 
     /// <summary>

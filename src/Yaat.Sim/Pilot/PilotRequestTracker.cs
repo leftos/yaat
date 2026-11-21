@@ -313,7 +313,10 @@ public static class PilotRequestTracker
         }
 
         PilotSpeechText line = PilotResponder.BuildHoldingFurtherClearanceRequest(aircraft, pending.FacilityCallName ?? "", hold.FixName);
-        Log.LogDebug("{Callsign}: re-asks for further clearance holding over {Airport}: {Line}", aircraft.Callsign, hold.FixName, line.Terminal);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: re-asks for further clearance holding over {Airport}: {Line}", aircraft.Callsign, hold.FixName, line.Terminal);
+        }
         pending.LastPilotLine = line.Terminal;
         pending.LastPilotLineTts = line.Tts;
     }

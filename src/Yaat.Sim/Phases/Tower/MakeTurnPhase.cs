@@ -92,13 +92,16 @@ public sealed class MakeTurnPhase : Phase
         _speed.Capture(ctx);
         _speed.Reduce(ctx);
 
-        Log.LogDebug(
-            "[MakeTurn] {Callsign}: started {Dir}{Deg}° from hdg {Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            Direction == TurnDirection.Left ? "L" : "R",
-            TargetDegrees,
-            _startHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[MakeTurn] {Callsign}: started {Dir}{Deg}° from hdg {Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                Direction == TurnDirection.Left ? "L" : "R",
+                TargetDegrees,
+                _startHeading.Degrees
+            );
+        }
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
@@ -138,7 +141,7 @@ public sealed class MakeTurnPhase : Phase
         }
 
         bool complete = _cumulativeTurn >= TargetDegrees - CompletionToleranceDeg;
-        if (complete)
+        if (complete && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("[MakeTurn] {Callsign}: complete, turned {Turn:F0}°", ctx.Aircraft.Callsign, _cumulativeTurn);
         }

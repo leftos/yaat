@@ -103,7 +103,10 @@ public sealed class FrequencyState
     {
         if (!string.IsNullOrWhiteSpace(callsign) && string.Equals(_awaitingControllerResponseTo, callsign, StringComparison.OrdinalIgnoreCase))
         {
-            Log.LogInformation("Controller acknowledged {Callsign}; releasing awaiting-controller-response gate", callsign);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Controller acknowledged {Callsign}; releasing awaiting-controller-response gate", callsign);
+            }
             _awaitingControllerResponseTo = null;
             _awaitingControllerResponseIsCheckIn = false;
         }
@@ -180,15 +183,7 @@ public sealed class FrequencyState
             _awaitingControllerResponseTo = transmission.Callsign;
             _awaitingControllerResponseIsCheckIn = transmission.IsInitialContact;
             _awaitingControllerResponseSinceSeconds = _nextAvailableAtSeconds;
-            Log.LogInformation(
-                "Awaiting controller response from {Callsign} ({Kind} ends at t={EndSeconds:F1}s, airtime={Airtime:F1}s); "
-                    + "other-pilot proactive/report transmissions held until response or {Timeout}s of silence",
-                transmission.Callsign,
-                transmission.Kind,
-                _nextAvailableAtSeconds,
-                airtime,
-                AwaitedTimeoutSeconds
-            );
+            LogAwaitingControllerResponse(transmission, _nextAvailableAtSeconds, airtime);
         }
 
         // The meter takes the canonical text's airtime, not the spoken one: a busy pilot's terser read-back must not make
@@ -196,6 +191,23 @@ public sealed class FrequencyState
         // minute's airtime up to the second the transmission goes on air.
         ActivityMeter.Record(elapsedSeconds, transmission.CanonicalAirtimeSeconds);
         return transmission with { LoadBand = ActivityMeter.PeekLoadBand(elapsedSeconds) };
+    }
+
+    /// <summary>Logs at Information that the frequency now awaits the controller's response to <paramref name="transmission"/>.</summary>
+    private static void LogAwaitingControllerResponse(PilotTransmission transmission, double endSeconds, double airtime)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Awaiting controller response from {Callsign} ({Kind} ends at t={EndSeconds:F1}s, airtime={Airtime:F1}s); "
+                    + "other-pilot proactive/report transmissions held until response or {Timeout}s of silence",
+                transmission.Callsign,
+                transmission.Kind,
+                endSeconds,
+                airtime,
+                AwaitedTimeoutSeconds
+            );
+        }
     }
 
     public void Clear()
@@ -352,12 +364,15 @@ public sealed class FrequencyState
             return buttInIndex;
         }
 
-        Log.LogInformation(
-            "Holding frequency for controller response to {Callsign} ({Waited:F1}s waited); {Count} other-pilot transmissions queued",
-            awaitingCallsign,
-            waitedSeconds,
-            _pending.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Holding frequency for controller response to {Callsign} ({Waited:F1}s waited); {Count} other-pilot transmissions queued",
+                awaitingCallsign,
+                waitedSeconds,
+                _pending.Count
+            );
+        }
         return -1;
     }
 
@@ -385,12 +400,15 @@ public sealed class FrequencyState
         {
             if (IsButtingIn(transmission, firstCallEndSecond, rngSeed))
             {
-                Log.LogInformation(
-                    "{ButtIn} butts in {Waited:F1}s after {Callsign}'s unanswered check-in",
-                    transmission.Callsign,
-                    elapsedSeconds - LastTransmissionEndSeconds(),
-                    _awaitingControllerResponseTo
-                );
+                if (Log.IsEnabled(LogLevel.Information))
+                {
+                    Log.LogInformation(
+                        "{ButtIn} butts in {Waited:F1}s after {Callsign}'s unanswered check-in",
+                        transmission.Callsign,
+                        elapsedSeconds - LastTransmissionEndSeconds(),
+                        _awaitingControllerResponseTo
+                    );
+                }
                 return index;
             }
 
@@ -453,20 +471,26 @@ public sealed class FrequencyState
             double waitedSeconds = elapsedSeconds - Math.Max(awaited.SinceSeconds, _nextAvailableAtSeconds);
             if (waitedSeconds < AwaitedTimeoutSeconds)
             {
-                Log.LogDebug(
-                    "Holding frequency for {Callsign} readback ({Waited:F1}s waited); {Count} other transmissions queued",
-                    awaited.Transmission.Callsign,
-                    waitedSeconds,
-                    _pending.Count
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Holding frequency for {Callsign} readback ({Waited:F1}s waited); {Count} other transmissions queued",
+                        awaited.Transmission.Callsign,
+                        waitedSeconds,
+                        _pending.Count
+                    );
+                }
                 return -1;
             }
 
-            Log.LogDebug(
-                "Awaited readback from {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO",
-                awaited.Transmission.Callsign,
-                waitedSeconds
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Awaited readback from {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO",
+                    awaited.Transmission.Callsign,
+                    waitedSeconds
+                );
+            }
             _awaitingReadbacks.Dequeue();
         }
 

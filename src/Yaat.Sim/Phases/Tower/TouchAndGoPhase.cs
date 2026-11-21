@@ -120,12 +120,16 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         // Decelerate briefly — the approach speed floor/ceiling and the 5nm-final gate ceiling went with the assignment.
         ctx.Targets.TargetSpeed = RolloutTargetSpeedKts(ctx.AircraftType, ctx.Category);
 
-        Log.LogDebug(
-            "[TouchAndGo] {Callsign}: started, rollout={Roll:F1}s, rwyHdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            _rolloutDuration,
-            _runwayHeading.Degrees
-        );
+        LogStarted(ctx.Aircraft.Callsign, _rolloutDuration, _runwayHeading);
+    }
+
+    /// <summary>Logs at Debug that the touch-and-go started, with its rollout time and runway heading.</summary>
+    private static void LogStarted(string callsign, double rolloutSeconds, TrueHeading runwayHeading)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TouchAndGo] {Callsign}: started, rollout={Roll:F1}s, rwyHdg={Hdg:F0}", callsign, rolloutSeconds, runwayHeading.Degrees);
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -143,7 +147,7 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         if (!_reaccelerating && _rolloutElapsed >= _rolloutDuration)
         {
             _reaccelerating = true;
-            Log.LogDebug("[TouchAndGo] {Callsign}: rollout complete, reaccelerating", ctx.Aircraft.Callsign);
+            LogReaccelerating(ctx.Aircraft.Callsign);
         }
 
         if (_reaccelerating && !_airborne)
@@ -165,7 +169,7 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
             {
                 _airborne = true;
                 GroundFrame.LeaveGround(ctx.Aircraft, vr);
-                Log.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
+                LogAirborne(ctx.Aircraft.Callsign, vr);
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
                 double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
@@ -190,6 +194,24 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         }
 
         return false;
+    }
+
+    /// <summary>Logs at Debug that the rollout is complete and the aircraft is reaccelerating.</summary>
+    private static void LogReaccelerating(string callsign)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TouchAndGo] {Callsign}: rollout complete, reaccelerating", callsign);
+        }
+    }
+
+    /// <summary>Logs at Debug that the aircraft lifted off at <paramref name="vr"/>.</summary>
+    private static void LogAirborne(string callsign, double vr)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", callsign, vr);
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

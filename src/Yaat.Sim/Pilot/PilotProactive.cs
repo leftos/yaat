@@ -66,7 +66,7 @@ public static class PilotProactive
 
         if (held && (aircraft.TunedPosition is { } tuned))
         {
-            Log.LogDebug("{Callsign}: airborne check-in held, pilot tuned to {Tuned}", aircraft.Callsign, tuned);
+            LogAirborneCheckInHeld(aircraft.Callsign, tuned);
             aircraft.PendingWarnings.Add(HeldCheckInWarning(tuned, line));
             aircraft.AirborneCheckInHeldWarned = true;
             return;
@@ -76,6 +76,15 @@ public static class PilotProactive
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: true);
         aircraft.HasMadeInitialContact = true;
         aircraft.TunedPosition = null;
+    }
+
+    /// <summary>Logs at Debug that the airborne check-in is held because the pilot is tuned to <paramref name="tuned"/>.</summary>
+    private static void LogAirborneCheckInHeld(string callsign, TrackOwner tuned)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: airborne check-in held, pilot tuned to {Tuned}", callsign, tuned);
+        }
     }
 
     /// <summary>
@@ -332,13 +341,7 @@ public static class PilotProactive
 
         string facilityCallName = StudentRadarFacilityCallName(scenario);
         PilotSpeechText line = PilotResponder.BuildDescentRequest(aircraft, facilityCallName);
-        Log.LogDebug(
-            "{Callsign}: request lower, {Above:F0} ft above the profile (threshold {Threshold:F0} ft), reopened {Reopen}",
-            aircraft.Callsign,
-            aboveFt,
-            thresholdFt,
-            reopen
-        );
+        LogDescentRequest(aircraft.Callsign, aboveFt, thresholdFt, reopen);
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotPendingRequest request = PilotRequestTracker.RecordRequest(
             aircraft,
@@ -353,6 +356,21 @@ public static class PilotProactive
         if (reopen)
         {
             aircraft.DescentRequestCap = DescentRequestCap.Spent;
+        }
+    }
+
+    /// <summary>Logs at Debug that the pilot requests lower, with its height above the profile and the threshold it crossed.</summary>
+    private static void LogDescentRequest(string callsign, double aboveFt, double thresholdFt, bool reopen)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: request lower, {Above:F0} ft above the profile (threshold {Threshold:F0} ft), reopened {Reopen}",
+                callsign,
+                aboveFt,
+                thresholdFt,
+                reopen
+            );
         }
     }
 
@@ -443,7 +461,10 @@ public static class PilotProactive
 
         string facilityCallName = StudentRadarFacilityCallName(scenario);
         PilotSpeechText line = PilotResponder.BuildFurtherClearanceRequest(aircraft, facilityCallName, direct.Name, minutes);
-        Log.LogDebug("{Callsign}: request further clearance, {Airport} {Minutes} min ahead", aircraft.Callsign, direct.Name, minutes);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: request further clearance, {Airport} {Minutes} min ahead", aircraft.Callsign, direct.Name, minutes);
+        }
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             aircraft,
@@ -497,7 +518,10 @@ public static class PilotProactive
         string facilityCallName = StudentRadarFacilityCallName(scenario);
         PilotSpeechText report = PilotResponder.BuildHoldingAtClearanceLimitReport(aircraft, facilityCallName, hold.FixName);
         PilotSpeechText reask = PilotResponder.BuildHoldingFurtherClearanceRequest(aircraft, facilityCallName, hold.FixName);
-        Log.LogDebug("{Callsign}: reports holding over {Airport}", aircraft.Callsign, hold.FixName);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: reports holding over {Airport}", aircraft.Callsign, hold.FixName);
+        }
         PilotResponder.QueueSoloPilotTransmission(aircraft, report, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             aircraft,
@@ -588,7 +612,7 @@ public static class PilotProactive
         {
             Log.LogWarning("{Callsign}: no field elevation for destination {Destination}, no request for lower", callsign, destination);
         }
-        else
+        else if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("{Callsign}: no field elevation for destination {Destination}, no request for lower", callsign, destination);
         }
@@ -807,7 +831,7 @@ public static class PilotProactive
         if (CrossedSince(approach.ReportLastSampleAltitudeFt, current, reportFt) || levelOnIt)
         {
             ClearReachingReport(approach);
-            Log.LogDebug("{Callsign}: reached the reported altitude {Altitude} at {Current:F0} ft", aircraft.Callsign, reportFt, current);
+            LogReachedReportAltitude(aircraft.Callsign, reportFt, current);
             PilotSpeechText text = PilotResponder.BuildReachingAltitudeReport(aircraft, reportFt, assigned, levelOnIt);
             PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(scenario), text);
             return;
@@ -816,11 +840,29 @@ public static class PilotProactive
         if ((assigned is { } target) && !HoldsAssignedAltitude(aircraft, target) && !LiesBetween(reportFt, current, target))
         {
             ClearReachingReport(approach);
-            Log.LogDebug("{Callsign}: report reaching {Altitude} lapsed, assigned {Assigned}", aircraft.Callsign, reportFt, target);
+            LogReachingReportLapsed(aircraft.Callsign, reportFt, target);
             return;
         }
 
         approach.ReportLastSampleAltitudeFt = current;
+    }
+
+    /// <summary>Logs at Debug that the aircraft reached its REPORT REACHING altitude at <paramref name="current"/>.</summary>
+    private static void LogReachedReportAltitude(string callsign, int reportFt, double current)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: reached the reported altitude {Altitude} at {Current:F0} ft", callsign, reportFt, current);
+        }
+    }
+
+    /// <summary>Logs at Debug that the REPORT REACHING lapsed because the aircraft is assigned <paramref name="assigned"/>.</summary>
+    private static void LogReachingReportLapsed(string callsign, int reportFt, int assigned)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: report reaching {Altitude} lapsed, assigned {Assigned}", callsign, reportFt, assigned);
+        }
     }
 
     /// <summary>
@@ -847,7 +889,7 @@ public static class PilotProactive
         if (approach.ReportLeavingNearSideSeen && IsPastAndMovingAway(aircraft, reportFt))
         {
             ClearLeavingReport(approach);
-            Log.LogDebug("{Callsign}: left the reported altitude {Altitude} at {Current:F0} ft", aircraft.Callsign, reportFt, aircraft.Altitude);
+            LogLeftReportAltitude(aircraft, reportFt);
             PilotSpeechText text = PilotResponder.BuildLeavingAltitudeReport(aircraft, reportFt, assigned);
             PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(scenario), text);
             return;
@@ -856,7 +898,25 @@ public static class PilotProactive
         if ((assigned is { } target) && !HoldsAssignedAltitude(aircraft, target) && StopsShortOf(away, target - reportFt))
         {
             ClearLeavingReport(approach);
-            Log.LogDebug("{Callsign}: report leaving {Altitude} lapsed, assigned {Assigned} stops short", aircraft.Callsign, reportFt, target);
+            LogLeavingReportLapsed(aircraft.Callsign, reportFt, target);
+        }
+    }
+
+    /// <summary>Logs at Debug that the aircraft left its REPORT LEAVING altitude, with its altitude now.</summary>
+    private static void LogLeftReportAltitude(AircraftState aircraft, int reportFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: left the reported altitude {Altitude} at {Current:F0} ft", aircraft.Callsign, reportFt, aircraft.Altitude);
+        }
+    }
+
+    /// <summary>Logs at Debug that the REPORT LEAVING lapsed because the assigned altitude <paramref name="assigned"/> stops short of it.</summary>
+    private static void LogLeavingReportLapsed(string callsign, int reportFt, int assigned)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: report leaving {Altitude} lapsed, assigned {Assigned} stops short", callsign, reportFt, assigned);
         }
     }
 

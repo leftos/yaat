@@ -77,7 +77,7 @@ public static class PilotRepeat
             AircraftState? awaitedAircraft = candidates.Find(a => string.Equals(a.Callsign, awaited, StringComparison.Ordinal));
             if (awaitedAircraft is not null)
             {
-                Log.LogDebug("Unaddressed say again goes to {Callsign}", awaitedAircraft.Callsign);
+                LogUnaddressedTarget(awaitedAircraft);
                 return awaitedAircraft;
             }
         }
@@ -87,8 +87,17 @@ public static class PilotRepeat
             .OrderByDescending(a => a.LastPilotTransmission!.AtSeconds)
             .ThenBy(a => a.Callsign, StringComparer.Ordinal)
             .FirstOrDefault();
-        Log.LogDebug("Unaddressed say again goes to {Callsign}", last?.Callsign ?? "nobody");
+        LogUnaddressedTarget(last);
         return last;
+    }
+
+    /// <summary>Logs at Debug which aircraft an unaddressed say again goes to, or nobody.</summary>
+    private static void LogUnaddressedTarget(AircraftState? target)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Unaddressed say again goes to {Callsign}", target?.Callsign ?? "nobody");
+        }
     }
 
     /// <summary>Whether <paramref name="compound"/> carries nothing but say-again requests.</summary>
@@ -122,7 +131,10 @@ public static class PilotRepeat
     {
         if (aircraft.LastPilotTransmission is not { } last)
         {
-            Log.LogDebug("{Callsign} asked to say again with nothing said; answering that it said nothing", aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("{Callsign} asked to say again with nothing said; answering that it said nothing", aircraft.Callsign);
+            }
             return ReplyLine(aircraft, PilotResponder.BuildNothingToRepeat(aircraft));
         }
 

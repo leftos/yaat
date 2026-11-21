@@ -46,7 +46,10 @@ public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
         ctx.Targets.TargetSpeed = 0;
         ctx.Targets.TargetTrueHeading = null;
 
-        Log.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
+        }
 
         Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
@@ -66,7 +69,10 @@ public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
         {
             if (req.IsSatisfied)
             {
-                Log.LogDebug("[LAHSO] {Callsign}: cleared past runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[LAHSO] {Callsign}: cleared past runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
+                }
                 return true;
             }
         }

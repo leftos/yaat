@@ -93,12 +93,15 @@ public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
         ctx.Targets.TargetSpeed = null;
         ctx.Targets.PreferredTurnDirection = null;
 
-        Log.LogDebug(
-            "[RejectedTakeoff] {Callsign}: aborting at {Gs:F0} kt groundspeed, {Reaction:F1}s reaction",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.GroundSpeed,
-            _reactionRemainingSeconds
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[RejectedTakeoff] {Callsign}: aborting at {Gs:F0} kt groundspeed, {Reaction:F1}s reaction",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.GroundSpeed,
+                _reactionRemainingSeconds
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -136,7 +139,10 @@ public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
         if (speed <= 0)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
-            Log.LogDebug("[RejectedTakeoff] {Callsign}: stopped on the runway", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[RejectedTakeoff] {Callsign}: stopped on the runway", ctx.Aircraft.Callsign);
+            }
             Pilot.PilotResponder.RouteByTunedPosition(
                 ctx.Aircraft,
                 Pilot.PilotReportRouting.From(ctx),
@@ -172,7 +178,10 @@ public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
         ctx.Aircraft.PendingWarnings.Add(
             $"{ctx.Aircraft.Callsign} overran the departure end during the rejected takeoff ({ctx.Aircraft.GroundSpeed:F0} kt at the end of the pavement)"
         );
-        Log.LogDebug("[RejectedTakeoff] {Callsign}: overran the departure end at {Gs:F0} kt", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[RejectedTakeoff] {Callsign}: overran the departure end at {Gs:F0} kt", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

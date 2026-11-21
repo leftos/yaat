@@ -108,15 +108,19 @@ public static class OccupiedRunwayGoAround
             return false;
         }
 
-        Log.LogDebug(
-            "[OccupiedRunwayGoAround] {Callsign}: going around, {Occupant} on runway {Runway} — {Reason} ({Seconds:F0}s from threshold, {Agl:F0} ft AGL)",
-            arrival.Callsign,
-            blocker.Aircraft.Callsign,
-            runway.Designator,
-            blocker.Reason,
-            seconds,
-            agl
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[OccupiedRunwayGoAround] {Callsign}: going around, {Occupant} on runway {Runway} — {Reason} "
+                    + "({Seconds:F0}s from threshold, {Agl:F0} ft AGL)",
+                arrival.Callsign,
+                blocker.Aircraft.Callsign,
+                runway.Designator,
+                blocker.Reason,
+                seconds,
+                agl
+            );
+        }
         GoAroundHelper.Trigger(ctx, Pilot.PilotResponder.BuildGoingAroundTrafficOnRunway(arrival));
         arrival.PendingWarnings.Add($"{arrival.Callsign} go-around: {blocker.Aircraft.Callsign} on {runway.Designator} ({blocker.Reason})");
         return true;
@@ -203,7 +207,7 @@ public static class OccupiedRunwayGoAround
                 double barLineFt = RunwayHoldBars.MarkingNearestFt(ownLayout, runway, judgedBar);
                 holdLineFt = (holdLineFt is { } standoffFt) ? Math.Min(standoffFt, barLineFt) : barLineFt;
             }
-            else
+            else if (Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug("[OccupiedRunwayGoAround] ignoring bar {Id}: not a bar of {Runway}", judgedBar.Id, runway.Designator);
             }

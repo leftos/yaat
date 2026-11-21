@@ -153,12 +153,15 @@ public sealed class LowApproachPhase : Phase
         ctx.Targets.SpeedFloor = null;
         ctx.Targets.SpeedCeiling = null;
 
-        Log.LogDebug(
-            "[LowApproach] {Callsign}: started, levelOffAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            CategoryPerformance.LowApproachLevelOffAgl(ctx.Category),
-            _runwayHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LowApproach] {Callsign}: started, levelOffAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                CategoryPerformance.LowApproachLevelOffAgl(ctx.Category),
+                _runwayHeading.Degrees
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -202,12 +205,15 @@ public sealed class LowApproachPhase : Phase
                 );
                 if ((alongPastGate <= 0) || (ElapsedSeconds >= LevelHoldSeconds))
                 {
-                    Log.LogDebug(
-                        "[LowApproach] {Callsign}: handing off to runway-change turn at {Agl:F0}ft AGL (pastGate={Past:F2}nm)",
-                        ctx.Aircraft.Callsign,
-                        agl,
-                        alongPastGate
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[LowApproach] {Callsign}: handing off to runway-change turn at {Agl:F0}ft AGL (pastGate={Past:F2}nm)",
+                            ctx.Aircraft.Callsign,
+                            agl,
+                            alongPastGate
+                        );
+                    }
                     return true;
                 }
 
@@ -217,7 +223,10 @@ public sealed class LowApproachPhase : Phase
             if (ElapsedSeconds >= LevelHoldSeconds)
             {
                 _climbingOut = true;
-                Log.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+                }
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
                 double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
@@ -237,14 +246,17 @@ public sealed class LowApproachPhase : Phase
         // PatternEntryPhase(B) take over the turn to the new runway.
         if (_retargetToDifferentRunway)
         {
-            Log.LogDebug("[LowApproach] {Callsign}: retarget after climb-out began, handing off to runway-change turn", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[LowApproach] {Callsign}: retarget after climb-out began, handing off to runway-change turn", ctx.Aircraft.Callsign);
+            }
             return true;
         }
 
         // The next circuit is built when this phase completes, so the cap is the circuit just flown.
         PatternCompression.HoldClimbCap(ctx, PatternCompression.FlownCircuit(ctx.Aircraft.Phases));
         bool complete = agl >= SelfClearAgl;
-        if (complete)
+        if (complete && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("[LowApproach] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
         }

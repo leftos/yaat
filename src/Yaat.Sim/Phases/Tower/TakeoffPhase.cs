@@ -125,12 +125,15 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
         // The roll starts with the phase: the line-up and any hold in position came before it.
         ctx.Aircraft.Ground.TakeoffRollStartedAtSeconds ??= ctx.ScenarioElapsedSeconds;
 
-        Log.LogDebug(
-            "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
-            ctx.Aircraft.Callsign,
-            _runwayHeading.Degrees,
-            _fieldElevation
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
+                ctx.Aircraft.Callsign,
+                _runwayHeading.Degrees,
+                _fieldElevation
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -203,7 +206,10 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
         {
             _airborne = true;
             GroundFrame.LeaveGround(ctx.Aircraft, vr);
-            Log.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts (gs={Gs:F0}kts)", ctx.Aircraft.Callsign, vr, ctx.Aircraft.GroundSpeed);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts (gs={Gs:F0}kts)", ctx.Aircraft.Callsign, vr, ctx.Aircraft.GroundSpeed);
+            }
             SetInitialClimbTargets(ctx);
             return false;
         }

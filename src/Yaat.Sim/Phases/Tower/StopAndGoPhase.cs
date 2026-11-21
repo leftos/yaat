@@ -120,12 +120,15 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
         // Decelerate to zero — the approach speed floor/ceiling and the 5nm-final gate ceiling went with the assignment.
         ctx.Targets.TargetSpeed = 0;
 
-        Log.LogDebug(
-            "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",
-            ctx.Aircraft.Callsign,
-            _pauseDuration,
-            _runwayHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                _pauseDuration,
+                _runwayHeading.Degrees
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -145,7 +148,10 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
                 _stopped = true;
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
-                Log.LogDebug("[StopAndGo] {Callsign}: full stop, pausing {Pause:F1}s", ctx.Aircraft.Callsign, _pauseDuration);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[StopAndGo] {Callsign}: full stop, pausing {Pause:F1}s", ctx.Aircraft.Callsign, _pauseDuration);
+                }
             }
             return false;
         }
@@ -156,7 +162,10 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
             if (_pauseElapsed >= _pauseDuration || _goTriggered)
             {
                 _reaccelerating = true;
-                Log.LogDebug("[StopAndGo] {Callsign}: pause complete, reaccelerating", ctx.Aircraft.Callsign);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[StopAndGo] {Callsign}: pause complete, reaccelerating", ctx.Aircraft.Callsign);
+                }
             }
             return false;
         }
@@ -180,7 +189,10 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
             {
                 _airborne = true;
                 GroundFrame.LeaveGround(ctx.Aircraft, vr);
-                Log.LogDebug("[StopAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[StopAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
+                }
 
                 double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
                 double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);

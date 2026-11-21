@@ -111,12 +111,7 @@ public sealed class VfrHoldPhase : Phase
             ctx.Targets.NavigationRoute.Clear();
             ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat!.Value, FixLon!.Value) });
 
-            Log.LogDebug(
-                "[VfrHold] {Callsign}: started, fix={Fix}, orbit={Dir}",
-                ctx.Aircraft.Callsign,
-                FixName,
-                OrbitDirection?.ToString() ?? "hover"
-            );
+            LogStartedAtFix(ctx.Aircraft.Callsign, FixName, OrbitDirection);
         }
         else
         {
@@ -135,12 +130,25 @@ public sealed class VfrHoldPhase : Phase
                 SetOrbitTarget(ctx);
             }
 
-            Log.LogDebug(
-                "[VfrHold] {Callsign}: started, orbit={Dir}, alt={Alt:F0}ft",
-                ctx.Aircraft.Callsign,
-                OrbitDirection?.ToString() ?? "hover",
-                ctx.Aircraft.Altitude
-            );
+            LogStartedInPlace(ctx.Aircraft.Callsign, OrbitDirection, ctx.Aircraft.Altitude);
+        }
+    }
+
+    /// <summary>Logs at Debug that the hold started toward its fix, with the orbit direction or hover.</summary>
+    private static void LogStartedAtFix(string callsign, string fix, TurnDirection? orbit)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[VfrHold] {Callsign}: started, fix={Fix}, orbit={Dir}", callsign, fix, orbit?.ToString() ?? "hover");
+        }
+    }
+
+    /// <summary>Logs at Debug that the hold started at present position, with the orbit direction or hover and the altitude.</summary>
+    private static void LogStartedInPlace(string callsign, TurnDirection? orbit, double altitude)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[VfrHold] {Callsign}: started, orbit={Dir}, alt={Alt:F0}ft", callsign, orbit?.ToString() ?? "hover", altitude);
         }
     }
 
@@ -155,7 +163,10 @@ public sealed class VfrHoldPhase : Phase
             {
                 _atFix = true;
                 ctx.Targets.NavigationRoute.Clear();
-                Log.LogDebug("[VfrHold] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[VfrHold] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
+                }
 
                 if (OrbitDirection is null)
                 {
