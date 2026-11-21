@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
+
 ### Fixed
 
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.

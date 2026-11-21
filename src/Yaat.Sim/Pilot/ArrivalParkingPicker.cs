@@ -159,9 +159,49 @@ public static class ArrivalParkingPicker
             return null;
         }
 
-        List<string> fitting = FittingStandNames(aircraftType, layout, match);
+        List<string> fitting = FittingStandNames(aircraftType, layout, match.Alias.MaxAdg, match.Stands);
         List<string> all = StandNames(match.Stands);
         return new ParkingAreaPool((fitting.Count > 0) ? fitting : all, all.Count, fitting.Count > 0);
+    }
+
+    /// <summary>
+    /// The stands a <c>@{prefix}*</c> destination draws from: the layout's parking whose name starts with
+    /// <paramref name="prefix"/> (case-insensitive), less the airport's sidecar <c>nonGateParking</c>, narrowed to the stands
+    /// that fit <paramref name="aircraftType"/> (<see cref="StandFit"/>), or all of them when none fits.
+    /// </summary>
+    /// <param name="aircraftType">The type whose wingspan decides which stands fit.</param>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="prefix">The stand-name prefix, without the <c>*</c>; never empty.</param>
+    /// <param name="ownStand">The stand the aircraft is parked on, left out so it moves to another; null when it holds none.</param>
+    /// <returns>The pool; null when no stand of the layout matches the prefix.</returns>
+    internal static ParkingAreaPool? PrefixPool(string aircraftType, AirportGroundLayout layout, string prefix, string? ownStand)
+    {
+        List<(GroundNode Node, string Name)> stands = PrefixStands(layout, prefix, ownStand);
+        if (stands.Count == 0)
+        {
+            return null;
+        }
+
+        List<string> fitting = FittingStandNames(aircraftType, layout, null, stands);
+        List<string> all = StandNames(stands);
+        return new ParkingAreaPool((fitting.Count > 0) ? fitting : all, all.Count, fitting.Count > 0);
+    }
+
+    /// <summary>
+    /// The layout's parking whose trimmed name starts with <paramref name="prefix"/> (case-insensitive), less the airport's
+    /// sidecar <c>nonGateParking</c> and <paramref name="ownStand"/>.
+    /// </summary>
+    private static List<(GroundNode Node, string Name)> PrefixStands(AirportGroundLayout layout, string prefix, string? ownStand)
+    {
+        AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
+        IReadOnlySet<string> nonGate = sidecars.GetNonGateParking(layout.AirportId);
+        return
+        [
+            .. layout
+                .Nodes.Values.Select(n => (Node: n, Name: n is { Type: GroundNodeType.Parking, Name: { } name } ? name.Trim() : ""))
+                .Where(s => s.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                .Where(s => !nonGate.Contains(s.Name) && !string.Equals(s.Name, ownStand, StringComparison.OrdinalIgnoreCase)),
+        ];
     }
 
     /// <summary>
@@ -180,21 +220,25 @@ public static class ArrivalParkingPicker
     }
 
     /// <summary>
-    /// The names of an area's stands that take the type's wingspan (<see cref="StandFit.MaxWingspanFt"/>), ordinal. A sidecar
-    /// <c>maxAdg</c> gives every stand of the area the same cap, so it is asked once, which also keeps its above-the-ceiling
-    /// warning to one per area.
+    /// The names of the <paramref name="stands"/> that take the type's wingspan (<see cref="StandFit.MaxWingspanFt"/>), ordinal. A
+    /// sidecar area's <c>maxAdg</c> (<paramref name="overrideAdg"/>) gives every stand the same cap, so it is asked once, which also
+    /// keeps its above-the-ceiling warning to one per area.
     /// </summary>
+    /// <param name="aircraftType">The type whose wingspan decides which stands fit.</param>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="overrideAdg">The area's <c>maxAdg</c>, or null to estimate each stand from the layout.</param>
+    /// <param name="stands">The stands to test; never empty.</param>
     private static List<string> FittingStandNames(
         string aircraftType,
         AirportGroundLayout layout,
-        (ParkingAreaAlias Alias, List<(GroundNode Node, string Name)> Stands) area
+        AirplaneDesignGroup? overrideAdg,
+        List<(GroundNode Node, string Name)> stands
     )
     {
         double spanFt = AircraftFootprint.ResolveWingspanFt(aircraftType);
         AirplaneDesignGroup ceiling = AirplaneDesignGroups.AirportCeiling(layout);
-        AirplaneDesignGroup? overrideAdg = area.Alias.MaxAdg;
-        double? areaCapFt = overrideAdg is null ? null : StandFit.MaxWingspanFt(layout, area.Stands[0].Node, ceiling, overrideAdg);
-        return StandNames(area.Stands.Where(s => spanFt <= (areaCapFt ?? StandFit.MaxWingspanFt(layout, s.Node, ceiling, null))));
+        double? areaCapFt = overrideAdg is null ? null : StandFit.MaxWingspanFt(layout, stands[0].Node, ceiling, overrideAdg);
+        return StandNames(stands.Where(s => spanFt <= (areaCapFt ?? StandFit.MaxWingspanFt(layout, s.Node, ceiling, null))));
     }
 
     /// <summary>The stands' trimmed names, each once, in ordinal order.</summary>

@@ -135,7 +135,8 @@ public static partial class PilotResponder
     /// "unable mike four, taxi via mike one, alpha …". A crew never reads back pavement it will not use, and
     /// the hearback check only works if the controller hears the substitution. A rewritten TAXIAUTO — one whose
     /// <c>@GATE</c> resolved to a stand picked inside a flight-plan parking area — reads back the area's name in
-    /// place of the stand, as a typed TAXI to the area does. Any other command, or a result with no
+    /// place of the stand, as a typed TAXI to the area does; one whose <c>@{prefix}*</c> resolved to a free stand reads back that
+    /// stand, as a typed <c>TAXIAUTO @{stand}</c> does. Any other command, or a result with no
     /// <see cref="CommandResult.EffectiveCommand"/>, reads back exactly as issued.
     /// <para>A handler-built readback (<see cref="CommandResult.PilotReadback"/>, every dispatched <c>PUSH</c> /
     /// <c>PUSHM</c>) replaces the clause of the compound's first command of the type that produced it

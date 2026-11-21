@@ -397,6 +397,80 @@ public static partial class GroundCommandHandler
         return (taxi with { DestinationParking = stand, DestinationArea = area }, null);
     }
 
+    /// <summary>
+    /// A <c>@{prefix}*</c> destination: any free stand whose name starts with the prefix. A bare <c>*</c> is not one (the parser
+    /// refuses <c>@*</c>), and no stand name of a layout carries a <c>*</c>.
+    /// </summary>
+    internal static bool IsStandPrefix([NotNullWhen(true)] string? destination) => destination is { Length: > 1 } && (destination[^1] == '*');
+
+    /// <summary>
+    /// Replaces a <c>@{prefix}*</c> destination (<see cref="IsStandPrefix"/>) with one concrete free stand, so from here on the
+    /// clearance resolves, reads back and logs exactly as one to the typed stand does, and no area is stored. The pool is
+    /// <see cref="ArrivalParkingPicker.PrefixPool"/> (the matching stands less the sidecar <c>nonGateParking</c>, those that fit
+    /// the type or all of them), less the stands other aircraft hold, drawn by callsign with salt 0
+    /// (<see cref="ArrivalParkingPicker.PickFree"/>), so the same traffic gives the same stand. Refused when no stand is free.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the clearance is for.</param>
+    /// <param name="taxi">The command as issued.</param>
+    /// <param name="layout">The layout the command resolves on.</param>
+    /// <param name="options">The clearance's options, whose traffic says which stands are taken.</param>
+    /// <returns>The command to the picked stand, or the refusal.</returns>
+    private static (TaxiCommand Command, CommandResult? Refusal) ResolveStandPrefix(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout layout,
+        TaxiCoreOptions options
+    )
+    {
+        if (!IsStandPrefix(taxi.DestinationParking))
+        {
+            return (taxi, null);
+        }
+
+        string prefix = taxi.DestinationParking[..^1].ToUpperInvariant();
+        string callsign = aircraft.Callsign;
+        ParkingAreaPool? pool = ArrivalParkingPicker.PrefixPool(aircraft.AircraftType, layout, prefix, aircraft.Ground.ParkingSpot);
+        if ((pool is null) || (ArrivalParkingPicker.PickFree(callsign, pool.Names, TrafficOf(options)) is not { } stand))
+        {
+            return (taxi, NoFreeStandRefusal(callsign, prefix, pool));
+        }
+
+        LogStandPrefixPick(callsign, prefix, pool, stand);
+        return (taxi with { DestinationParking = stand }, null);
+    }
+
+    /// <summary>Every aircraft in the clearance's world, or none when the caller has no world.</summary>
+    private static IReadOnlyList<AircraftState> TrafficOf(TaxiCoreOptions options) => options.ListAircraft?.Invoke() ?? [];
+
+    /// <summary>What a <c>@{prefix}*</c> destination is refused with when no stand of <paramref name="pool"/> is free, logged.</summary>
+    private static CommandResult NoFreeStandRefusal(string callsign, string prefix, ParkingAreaPool? pool)
+    {
+        string noFree = $"No free stand matching {prefix}* at this airport";
+        int poolCount = pool?.Names.Count ?? 0;
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason} (pool {Pool})", callsign, noFree, poolCount);
+        }
+        return CommandDispatcher.OperatorGuidanceRefusal(noFree);
+    }
+
+    /// <summary>The debug line for the stand a <c>@{prefix}*</c> destination resolved to (<see cref="ResolveStandPrefix"/>).</summary>
+    private static void LogStandPrefixPick(string callsign, string prefix, ParkingAreaPool pool, string stand)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: @{Prefix}*: pool {Pool} of {Matching} stand(s){Fallback}, picked {Stand}",
+                callsign,
+                prefix,
+                pool.Names.Count,
+                pool.AreaStandCount,
+                pool.Fits ? " that fit the type" : " (none fits the type: every matching stand)",
+                stand
+            );
+        }
+    }
+
     private static CommandResult TryTaxiCore(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiCoreOptions options)
     {
         if (!aircraft.IsOnGround)
@@ -478,6 +552,14 @@ public static partial class GroundCommandHandler
         }
 
         taxi = remarkGateCommand;
+
+        (TaxiCommand prefixCommand, CommandResult? prefixRefusal) = ResolveStandPrefix(aircraft, taxi, groundLayout, options);
+        if (prefixRefusal is { } noFreeStand)
+        {
+            return new TaxiPrepareOutcome(null, noFreeStand);
+        }
+
+        taxi = prefixCommand;
 
         TaxiPreparation preparation = ResolveTaxiFromPosition(aircraft, taxi, groundLayout, options, ClearanceLogLevels);
         if (preparation.Prepared is not { } prepared)
@@ -3646,7 +3728,42 @@ public static partial class GroundCommandHandler
             Expedite: autoTaxi.Expedite
         );
 
-        return TryTaxiCore(aircraft, taxi, groundLayout, TaxiCoreOptions.For(dispatch, isTaxiAuto: true));
+        return TryTaxiAutoToStandPrefix(aircraft, autoTaxi, taxi, groundLayout, TaxiCoreOptions.For(dispatch, isTaxiAuto: true));
+    }
+
+    /// <summary>
+    /// A TAXIAUTO run as <paramref name="taxi"/>. A <c>TAXIAUTO @{prefix}*</c> (<see cref="IsStandPrefix"/>) resolves to one free
+    /// stand first (<see cref="ResolveStandPrefix"/>), and the TAXIAUTO to that stand is applied and read back as the typed
+    /// <c>TAXIAUTO @{stand}</c> (its <see cref="CommandResult.EffectiveCommand"/> names the stand), so the pilot never reads back
+    /// the wildcard. Any other destination, or an aircraft airborne or with no layout, is the plain <see cref="TryTaxiCore"/>,
+    /// which refuses the last two as it refuses any TAXIAUTO there.
+    /// </summary>
+    /// <param name="aircraft">The aircraft cleared.</param>
+    /// <param name="autoTaxi">The command as issued.</param>
+    /// <param name="taxi">The TAXI the TAXIAUTO runs as.</param>
+    /// <param name="groundLayout">The airport ground layout, or null when the aircraft has none.</param>
+    /// <param name="options">The clearance's options.</param>
+    private static CommandResult TryTaxiAutoToStandPrefix(
+        AircraftState aircraft,
+        TaxiAutoCommand autoTaxi,
+        TaxiCommand taxi,
+        AirportGroundLayout? groundLayout,
+        TaxiCoreOptions options
+    )
+    {
+        if ((!IsStandPrefix(autoTaxi.DestinationParking)) || (!aircraft.IsOnGround) || (groundLayout is null))
+        {
+            return TryTaxiCore(aircraft, taxi, groundLayout, options);
+        }
+
+        (TaxiCommand toStand, CommandResult? refusal) = ResolveStandPrefix(aircraft, taxi, groundLayout, options);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        CommandResult result = TryTaxiCore(aircraft, toStand, groundLayout, options);
+        return result.Success ? result with { EffectiveCommand = autoTaxi with { DestinationParking = toStand.DestinationParking } } : result;
     }
 
     /// <summary>What an <c>RTAXI</c> is refused with when the aircraft holds no taxi route.</summary>

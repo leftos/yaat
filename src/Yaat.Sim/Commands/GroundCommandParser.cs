@@ -649,6 +649,15 @@ internal static class GroundCommandParser
         || token.Equals("EXP", StringComparison.OrdinalIgnoreCase)
         || token.Equals("NODEL", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>What a bare <c>@*</c> destination is refused with: the wildcard needs the stand-name prefix it matches.</summary>
+    private const string BareStandWildcardMessage = "@* needs a stand-name prefix: @B* taxis to a free stand whose name starts with B";
+
+    /// <summary>
+    /// A <c>@*</c> destination: the stand wildcard (<see cref="GroundCommandHandler.IsStandPrefix"/>) with no prefix before the
+    /// <c>*</c>, which would match every stand.
+    /// </summary>
+    private static bool IsBareStandWildcard(string token) => token == "@*";
+
     private const string RepeatedTaxiMessage = "TAXI given twice: send the route once, after a single TAXI";
 
     /// <summary>
@@ -822,9 +831,14 @@ internal static class GroundCommandParser
                 continue;
             }
 
-            // @token = parking destination, $token = spot destination (strip prefix)
+            // @token = parking destination, $token = spot destination (strip prefix); @{prefix}* is any free stand by name
             if (token.StartsWith('@') && token.Length > 1)
             {
+                if (IsBareStandWildcard(token))
+                {
+                    return PR.Fail(BareStandWildcardMessage);
+                }
+
                 destParking = token[1..].ToUpperInvariant();
                 continue;
             }
@@ -920,6 +934,9 @@ internal static class GroundCommandParser
         return (null, token);
     }
 
+    /// <summary>What TAXIALL is refused with for a <c>@{prefix}*</c> or bare <c>@*</c> destination.</summary>
+    private const string TaxiAllStandPrefixMessage = "TAXIALL takes a stand name, not a prefix (@B*); use TAXIAUTO @B* per aircraft";
+
     /// <summary>
     /// Parses TAXIALL {runway|@spot}.
     /// Each parked aircraft gets A* pathfinding to the destination.
@@ -935,6 +952,12 @@ internal static class GroundCommandParser
         if (token.Length == 0)
         {
             return PR.Fail("TAXIALL requires a destination");
+        }
+
+        // TAXIALL sends every parked aircraft to one stand; a prefix (and a bare @*) is TAXIAUTO's, one aircraft at a time.
+        if (token.StartsWith('@') && token.EndsWith('*'))
+        {
+            return PR.Fail(TaxiAllStandPrefixMessage);
         }
 
         if (token.StartsWith('@') && token.Length > 1)
@@ -976,6 +999,11 @@ internal static class GroundCommandParser
         }
 
         string token = tokens[0];
+        if (IsBareStandWildcard(token))
+        {
+            return PR.Fail(BareStandWildcardMessage);
+        }
+
         if (token.StartsWith('@') && token.Length > 1)
         {
             return PR.Ok(new TaxiAutoCommand(null, token[1..].ToUpperInvariant(), null, expedite));

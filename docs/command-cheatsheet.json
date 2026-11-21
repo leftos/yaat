@@ -191,7 +191,7 @@
         { "verb": "PUSHM", "aliases": [], "description": "Tug move through 2+ points in order (1 point re-plans a tow under way) ($spot / @gate / #node / ~lat/lon[/hdg], each optionally /PUSH or /PULL) [FACE C / TAIL C]; passes each point before the last without stopping (within half a wingspan), 5 s pause at each reversal; a leg onto a runway, holding position or un-named taxiway is refused" },
         { "verb": "PUSHF / PUSHMF", "aliases": [], "description": "Forced PUSH / PUSHM, every form: skips the taxiway, parked-aircraft and object-free-area checks and never stops for parked aircraft; still refused on a runway or holding position" },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
-        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot` / `@GATE` (stand, or a free stand in the parking area, in the flight-plan remarks) (+EXP = without delay)" },
+        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `@B*` (free stand by name prefix) / `$spot` / `@GATE` (stand, or a free stand in the parking area, in the flight-plan remarks) (+EXP = without delay)" },
         { "verb": "TTP", "aliases": [], "description": "Taxi via taxiways to the flight-plan remarks gate: `TTP <path> [HS …] [CROSS …] [NODEL] [EXP]` = `TAXI <path> @GATE`" },
         { "verb": "RTAXI", "aliases": [], "description": "Re-route keeping the taxi destination (runway / `@parking` / `$spot`): `RTAXI <path> [HS …] [CROSS …] [NODEL] [EXP]`; reads back as the full TAXI; drops unstarted CROSS, HS and EXP" },
         { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position; ends a FOLLOWG follow" },
@@ -208,7 +208,7 @@
         { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
       ],
       "notes": [
-        "TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `@GATE` (the flight-plan remarks stand) `$spot` `EXP` (last; without delay, also on `TAXIAUTO` and `CROSS`)",
+        "TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `@GATE` (the flight-plan remarks stand) `@B*` (a free stand starting with B; not `TTP`/`TAXIALL`) `$spot` `EXP` (last; without delay, also on `TAXIAUTO` and `CROSS`)",
         "`TAXI <twy> CROSS <rwy>` (no dest): cross that runway and hold just past — the runway sets the direction",
         "Turn hints: `>A` = right onto A, `<A` = left onto A (best-effort; unprefixed = pathfinder's choice). In PUSH, `>`/`<` mean face/tail instead"
       ]
