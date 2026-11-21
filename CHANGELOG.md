@@ -9,6 +9,7 @@
 ### Fixed
 
 - The Radar's VECTOR and `.scope vector` take half-minute lengths again (0.5 to 3, then 4 and 8), and an old Radar's PTL setting carries over.
+- EuroScope datablocks on the Radar open their compact flyouts again, sized by the restored Radar Tag Flyouts font setting; Shift-click stages a row.
 - AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
 - Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.
 - Solo: a VFR pilot waiting at the Class B boundary now says it is orbiting outside, or level below, the bravo when it asks again.

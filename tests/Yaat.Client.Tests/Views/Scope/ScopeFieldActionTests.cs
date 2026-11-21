@@ -59,6 +59,7 @@ public class ScopeFieldActionTests
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Squawk, ScopeFieldAction.OpenSquawkMenu)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Ident, ScopeFieldAction.OpenSquawkMenu)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Destination, ScopeFieldAction.StartDrawRoute)]
+    [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.InstructorNote, ScopeFieldAction.OpenNoteBox)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Callsign, ScopeFieldAction.None)]
     [InlineData(ScopeTemplates.EuroScopeId, ScopeFieldSlot.TypeCwt, ScopeFieldAction.None)]
     public void ActionFor_TemplateAndSlot(string templateId, ScopeFieldSlot slot, ScopeFieldAction expected) =>

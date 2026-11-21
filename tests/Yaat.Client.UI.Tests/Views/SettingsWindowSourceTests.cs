@@ -56,6 +56,7 @@ public partial class SettingsWindowSourceTests
         "IsChecked={Binding RpoPilotSpeechAudibleAlert}",
         "Value={Binding DataGridFontSize}",
         "Value={Binding RadarDatablockFontSize}",
+        "Value={Binding RadarFlyoutFontSize}",
         "Value={Binding GroundDatablockFontSize}",
         "Value={Binding GroundLabelFontSize}",
         "Value={Binding TerminalFontSize}",

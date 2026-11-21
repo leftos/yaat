@@ -84,6 +84,7 @@ public sealed partial class UserPreferences
         ("unassignedTintColor", Color),
         ("selectedColor", Color),
         ("radarDatablockFontSize", IntRange(8, 24)),
+        ("radarFlyoutFontSize", IntRange(8, 24)),
         ("groundDatablockFontSize", IntRange(8, 24)),
         ("groundLabelFontSize", IntRange(8, 24)),
         ("dataGridFontSize", IntRange(8, 24)),

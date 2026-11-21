@@ -95,6 +95,7 @@ public static class SettingsSearchCatalog
         [
             SettingWithin(s, "DataGridFontSize", "Aircraft List", FontSizes, Font),
             SettingWithin(s, "RadarDatablockFontSize", "Radar Datablock", FontSizes, Font),
+            SettingWithin(s, "RadarFlyoutFontSize", "Radar Tag Flyouts", FontSizes, Font),
             SettingWithin(s, "GroundDatablockFontSize", "Ground Datablock", FontSizes, Font),
             SettingWithin(s, "GroundLabelFontSize", "Ground Labels (taxi/runway/node)", FontSizes, Font),
             SettingWithin(s, "TerminalFontSize", "Terminal (output + input)", FontSizes, Font),

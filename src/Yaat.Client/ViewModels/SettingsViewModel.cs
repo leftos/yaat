@@ -529,6 +529,9 @@ public partial class SettingsViewModel : ObservableObject
     private double _scrollSensitivityPercent;
 
     [ObservableProperty]
+    private int _radarFlyoutFontSize;
+
+    [ObservableProperty]
     private int _groundDatablockFontSize;
 
     [ObservableProperty]
@@ -967,6 +970,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
+        _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _tpaConeHalfAngleDegrees = _preferences.TpaConeHalfAngleDegrees;
         _scrollSensitivityPercent = _preferences.ScrollSensitivity * 100.0;
         _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
@@ -1262,6 +1266,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFontSizes(
             new FontSizePrefs(
                 RadarDatablock: RadarDatablockFontSize,
+                RadarFlyout: RadarFlyoutFontSize,
                 GroundDatablock: GroundDatablockFontSize,
                 GroundLabel: GroundLabelFontSize,
                 DataGrid: DataGridFontSize,
@@ -2010,6 +2015,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         DataGridFontSize = defaults.DataGridFontSize;
         RadarDatablockFontSize = defaults.RadarDatablockFontSize;
+        RadarFlyoutFontSize = defaults.RadarFlyoutFontSize;
         GroundDatablockFontSize = defaults.GroundDatablockFontSize;
         GroundLabelFontSize = defaults.GroundLabelFontSize;
         TerminalFontSize = defaults.TerminalFontSize;
@@ -2262,6 +2268,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnRadarDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnTpaConeHalfAngleDegreesChanged(double value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnRadarFlyoutFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 

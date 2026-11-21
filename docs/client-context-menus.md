@@ -740,6 +740,7 @@ Views/
   MenuPopups.cs                 # The one popup service every menu host calls: code-built input (placeholder, seeded text, caret, callback; trims, and a blank submit closes; Custom taxi only), command and note flyouts, each opened at the pointer in the anchor's overlay layer
   TextEntryPopup.cs             # Static popup builder: a focused text box plus preset/action buttons; shared by every view's menus
   NoteFlyout.cs                 # Instructor-note text-entry popup (focused box pre-filled with the current note); shared by every view's menus
+  FlyoutAppearance.cs           # Internal static: the "Radar Tag Flyouts" font size the Scope's EuroScope tag flyouts (Scope/EuroScopeFlyouts/, which build on TextEntryPopup for the scratchpad and handoff) apply to their menu items
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
 ```

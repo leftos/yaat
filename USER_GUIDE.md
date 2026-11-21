@@ -1324,7 +1324,7 @@ On an ERAM track the altitude opens one popup with two columns, just below the b
 
 A click runs the entry at once and the answer shows in the feedback area; **Shift+click** puts the bare entry in the preview, focus goes to the Radar, and Enter sends it with the track as the pick. **PILOT** (gold, "sends a pilot command") is the Maintain altitude panel: a click sends, Shift+click stages `$ {callsign} CM nnnn` (a further Shift+click for the same aircraft appends `, {command}` to that entry). The popup closes after either, and Esc closes it. A click outside closes it and still reaches the Radar.
 
-Only one field menu, popup or aircraft menu is open at a time. With no ERAM position the column still shows and the server answers `NOT ADAPTED`. STARS and EuroScope tracks keep the single-entry altitude menu; on Mixed the track's resolved template decides.
+Only one field menu, popup or aircraft menu is open at a time. With no ERAM position the column still shows and the server answers `NOT ADAPTED`. STARS tracks keep the single-entry altitude menu, and the EuroScope template its own altitude flyout; Mixed resolves each track to STARS or ERAM.
 
 - **STARS**: altitude opens Maintain altitude, ground speed Assign speed, squawk and ident Squawk…, line 3 Scratchpad…, and the instructor note opens the note box. The callsign and other fields only select.
 - **ERAM**: altitude opens the two-column popup above, ground speed the Speed popup below, ident Squawk…, line 3 the handoff entry, and each token of line 4 its own popup. Field A still toggles the hold and opens no menu.
@@ -1337,8 +1337,8 @@ SCOPE DATA in these popups holds a box and two rows, each showing its entry. Hea
 
 Heading and speed take what the server takes (`H300`, `20L`; `S230`, `250-`, `M78`, `PS`); free text is upper-cased, 1 to 8 characters, no spaces. A Set row is disabled while its box is invalid. A Clear row is enabled only while its value is stored, reads "none set" otherwise, and follows the stored value once a second. A click runs the entry; **Shift+click** stages the bare entry with the track as the pick, as on the altitude popup.
 
-While free text is set, line 4 shows only it, so the heading and speed are cleared through Clear all HSF. STARS and EuroScope keep their speed menus.
-- **EuroScope**: the owner takes control; altitude and assigned altitude open Maintain altitude; assigned speed opens Assign speed; assigned heading starts the heading vector (below); assigned runway opens a Runway menu (the current runway, clear, and the airport's runways); the scratchpads open Scratchpad…; handoff opens the handoff entry; squawk and ident open Squawk…; destination starts drawing a route (below).
+While free text is set, line 4 shows only it, so the heading and speed are cleared through Clear all HSF. STARS keeps its speed menu, and EuroScope its own speed flyout.
+- **EuroScope**: the owner takes control; altitude, assigned altitude, assigned speed, assigned runway, squawk, ident, the scratchpads and handoff open the EuroScope flyouts, not the catalog menus ([EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); assigned heading starts the heading vector (below); destination starts drawing a route (below).
 - **Mixed** follows each track's own kind. Ground targets only select.
 
 The handoff entry is Accept handoff for a handoff to the position you act as, Cancel handoff for one from it, and Initiate handoff… on an owned track with none; otherwise the click only selects. A field whose entry does not apply opens no menu. With the Rings tool armed, a click places a ring instead.
@@ -1651,14 +1651,16 @@ Empty assigned fields show their identifier (`ASP`, `AHDG`, `(---)`) so the clic
 |---|---|
 | **Owner** initials (or `--` if no RPO assigned) | **Left-click**: take RPO control (assign aircraft to yourself). **Right-click**: opens the RPO assignment menu — Take control / Give up control / Give control to *(submenu of other RPOs in the room)* / Unassign. |
 | **Destination** field | Enters **draw-route** mode — left-click waypoints on the map; right-click the last waypoint to confirm, Esc to cancel. |
-| Current or assigned **altitude** field | Altitude flyout (FL010..FL400 in 1000-ft steps). Opens scrolled to the current altitude with a roughly ±5,000 ft window visible; the rest is reachable by scrolling. Selection dispatches `CM` or `DM` based on whether the picked FL is above or below the aircraft. |
-| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed + **Reduce to final approach speed** at the bottom, labelled with the aircraft-specific speed, e.g. `Reduce to final approach speed - 144 kt`). Opens scrolled to the current speed with a ±60 kt window visible. Dispatches `SPD`, `RNS`, or `RFAS`. While the aircraft holds its maximum forward speed (`SMAX`) the field reads `SMAX`. |
+| Current or assigned **altitude** field | **Altitude — {callsign}** flyout (FL400 down to FL010 in 1000-ft steps, the assigned level marked ▶). At most 280 px tall, opening scrolled to the assigned level, or the current one when none is assigned; the rest is reachable by scrolling. Selection dispatches `CM` or `DM` based on whether the picked FL is above or below the aircraft. |
+| Current or assigned **speed** / `ASP` | **Speed — {callsign}** flyout (Resume Normal Speed (RNS) first, then 350 down to 80 kt, then **Reduce to final approach speed** at the bottom, labelled with the aircraft-specific speed, e.g. `Reduce to final approach speed - 144 kt`). At most 280 px tall, opening scrolled to the assigned speed, or the current one when none is assigned. Dispatches `SPD`, `RNS`, or `RFAS`. While the aircraft holds its maximum forward speed (`SMAX`) the field reads `SMAX`. |
 | **AHDG** field | Enters **heading mode** — see below. |
-| Assigned **runway** field | Runway flyout listing every runway end at the aircraft's departure (if on ground) or destination (if airborne) airport, sorted numerically. Dispatches `RWY <designator>`. Includes a Clear option. |
+| Assigned **runway** field | **Runway — {callsign}** flyout: a "Currently assigned" line when one is set, **Clear assigned runway** (`RWY`), then every runway end at the aircraft's departure (if on ground) or destination (if airborne) airport, sorted numerically, and a hint to type `RWY 28L` for another airport. Dispatches `RWY <designator>`. |
 | **Scratchpad 1/2** (`.XXX` / `+XXX`) | Text-entry popup with the current value pre-filled, plus EuroScope-convention preset chips (CLEA / NOTC / ST-UP / PUSH / TAXI / DEPA). Enter submits, Esc cancels. |
 | **Note** line (amber, bottom of tag when set) | Text-entry popup pre-filled with the current note. Enter submits, the Clear button (or a bare submit) clears it. |
-| **Squawk** | VFR / Standby / Normal / Ident / Random Squawk quick actions. For specific 4-digit codes use the typed command bar (`SQ 1234`). |
-| **Handoff** indicator | Text-entry popup for `HO <position>`. When an inbound handoff is pending, an "Accept handoff" button appears. |
+| **Squawk** / **ident** | **Squawk — {callsign}** flyout: Squawk Normal (`SN`), Squawk Standby (`SS`), Squawk VFR (`SQVFR`), Ident (`IDENT`) and Random Squawk (`RANDSQ`). For specific 4-digit codes use the typed command bar (`SQ 1234`), as the flyout's hint says. |
+| **Handoff** indicator | Text-entry popup ("Position alias") for `HO <position>`. While a handoff is pending, an "Accept handoff" button appears. |
+
+The flyouts take their font size from **Settings › Appearance › Font Sizes › Radar Tag Flyouts**. **Shift+click** a flyout row or button (or Shift+Enter on it) stages `$ {callsign} {command}` in the Radar's preview instead of sending, as on the field menus. STARS, ERAM and Mixed keep the field menus.
 
 ##### Heading Mode
 
@@ -3239,6 +3241,7 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 |---------|--------------|---------|
 | **Aircraft List** | The aircraft-list rows. | 12 |
 | **Radar Datablock** | STARS/ERAM datablocks on the Radar view. | 12 |
+| **Radar Tag Flyouts** | The pop-out field editors on radar tags. | 12 |
 | **Ground Datablock** | Datablocks on the Ground view. | 12 |
 | **Ground Labels (taxi/runway/node)** | Taxiway, runway, and node labels on the Ground view. | 13 |
 | **Terminal (output + input)** | The terminal panel and command-input box. | 12 |

@@ -38,7 +38,15 @@ public sealed partial class SavedServer : ObservableObject
 /// Bundled into one record so <see cref="UserPreferences.SetFontSizes"/> stays a
 /// single-parameter call rather than a long positional list.
 /// </summary>
-public readonly record struct FontSizePrefs(int RadarDatablock, int GroundDatablock, int GroundLabel, int DataGrid, int Terminal, int Interface);
+public readonly record struct FontSizePrefs(
+    int RadarDatablock,
+    int RadarFlyout,
+    int GroundDatablock,
+    int GroundLabel,
+    int DataGrid,
+    int Terminal,
+    int Interface
+);
 
 public sealed partial class UserPreferences
 {
@@ -1011,6 +1019,7 @@ public sealed partial class UserPreferences
     public bool AutoExpandSuggestionOnEnter => _data.AutoExpandSuggestionOnEnter;
     public int DataGridFontSize => _data.DataGridFontSize;
     public int RadarDatablockFontSize => _data.RadarDatablockFontSize;
+    public int RadarFlyoutFontSize => _data.RadarFlyoutFontSize;
     public int GroundDatablockFontSize => _data.GroundDatablockFontSize;
     public int GroundLabelFontSize => _data.GroundLabelFontSize;
     public int TerminalFontSize => _data.TerminalFontSize;
@@ -1917,6 +1926,7 @@ public sealed partial class UserPreferences
     public void SetFontSizes(FontSizePrefs sizes)
     {
         _data.RadarDatablockFontSize = Math.Clamp(sizes.RadarDatablock, 8, 24);
+        _data.RadarFlyoutFontSize = Math.Clamp(sizes.RadarFlyout, 8, 24);
         _data.GroundDatablockFontSize = Math.Clamp(sizes.GroundDatablock, 8, 24);
         _data.GroundLabelFontSize = Math.Clamp(sizes.GroundLabel, 8, 24);
         _data.DataGridFontSize = Math.Clamp(sizes.DataGrid, 8, 24);
@@ -2709,6 +2719,7 @@ public sealed partial class UserPreferences
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
             RadarDatablockFontSize = GetFieldOr(obj, "radarDatablockFontSize", 12),
+            RadarFlyoutFontSize = GetFieldOr(obj, "radarFlyoutFontSize", 12),
             GroundDatablockFontSize = GetFieldOr(obj, "groundDatablockFontSize", 12),
             GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
@@ -3173,6 +3184,7 @@ public sealed partial class UserPreferences
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
         public int RadarDatablockFontSize { get; set; } = 12;
+        public int RadarFlyoutFontSize { get; set; } = 12;
         public int GroundDatablockFontSize { get; set; } = 12;
         public int GroundLabelFontSize { get; set; } = 13;
         public int TerminalFontSize { get; set; } = 12;
