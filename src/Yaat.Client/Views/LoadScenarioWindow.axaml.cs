@@ -41,6 +41,10 @@ public partial class LoadScenarioWindow : Window
     // True when the ARTCC tab lists the downloaded mirror (no connection, or the hub call failed).
     private bool _artccOffline;
     private bool _downloading;
+
+    // True once a finished download has shown its summary: the status line and the notices then stay as the download
+    // left them until the user starts another download.
+    private bool _downloadSummaryShown;
     private bool _closed;
 
     // Local tab state
@@ -227,10 +231,11 @@ public partial class LoadScenarioWindow : Window
         ShowListStatus((_allArtccItems.Count > 0 && filtered.Count == 0) ? "No scenarios match the filter." : ArtccCountText());
     }
 
-    // While a download runs it owns the status line: a list load or a filter change leaves it alone.
+    // A running download, and the summary of a finished one, own the status line: a list load or a filter change leaves
+    // it alone.
     private void ShowListStatus(string text)
     {
-        if (!_downloading)
+        if (!_downloading && !_downloadSummaryShown)
         {
             _artccStatusText.Text = text;
         }
@@ -257,10 +262,17 @@ public partial class LoadScenarioWindow : Window
 
     // Lists the mirror of the preference ARTCC from the local store, read off the UI thread. A picked entry loads as a
     // file. Each unreadable store file is listed by name on the notice line.
+    // A finished download's notices stay until another download starts, so the mirror's lines give way to them.
     private async Task LoadMirrorScenariosAsync()
     {
         List<string> notices = await ListMirrorAsync();
-        await Dispatcher.UIThread.InvokeAsync(() => ShowNotices(notices));
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (!_downloadSummaryShown)
+            {
+                ShowNotices(notices);
+            }
+        });
     }
 
     // Lists the mirror and returns its notices. Any failure is logged and shown on the status line; during a download,
@@ -340,12 +352,14 @@ public partial class LoadScenarioWindow : Window
 
     // Downloads every scenario of the preference ARTCC into the local store off the UI thread; one run at a time, the
     // button disabled until it ends, however it ends. Progress and the summary go to the status text; offline, the
-    // mirror is listed again and its notices are shown before the download's failures and store problems.
+    // mirror is listed again and its notices are shown before the download's failures and store problems, with a line
+    // both name shown once.
     private async Task DownloadAsync()
     {
         string artcc = _artccId;
         CancellationToken ct = _closing.Token;
         _downloading = true;
+        _downloadSummaryShown = false;
         _downloadButton.IsEnabled = false;
         _artccStatusText.Text = "Downloading…";
         var progress = new UiThreadProgress(p =>
@@ -363,7 +377,7 @@ public partial class LoadScenarioWindow : Window
             (status, notices) = await Task.Run(() => RunDownloadAsync(_sources.Download, artcc, progress, ct));
             if (_artccOffline && !_closed)
             {
-                notices = [.. await ListMirrorAsync(), .. notices];
+                notices = DedupeLines([.. await ListMirrorAsync(), .. notices]);
             }
         }
         finally
@@ -374,8 +388,25 @@ public partial class LoadScenarioWindow : Window
                 _downloadButton.IsEnabled = true;
                 _artccStatusText.Text = status;
                 ShowNotices(notices);
+                _downloadSummaryShown = true;
             });
         }
+    }
+
+    // Drops exact duplicate lines, keeping each line where it first appeared: the mirror's lines lead the download's.
+    private static List<string> DedupeLines(List<string> lines)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        List<string> unique = [];
+        foreach (string line in lines)
+        {
+            if (seen.Add(line))
+            {
+                unique.Add(line);
+            }
+        }
+
+        return unique;
     }
 
     private static async Task<(string Status, List<string> Notices)> RunDownloadAsync(

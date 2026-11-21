@@ -639,6 +639,73 @@ public class LoadScenarioWindowTests : IDisposable
         }
     }
 
+    [AvaloniaFact]
+    public async Task HubFailsAfterADownloadFinished_KeepsTheDownloadsStatusAndNotices()
+    {
+        (UserPreferences prefs, string artcc, _) = SeedMirror(IdB);
+        var hub = new TaskCompletionSource<ScenarioCatalogResponseDto>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<DownloadReport>(TaskCreationOptions.RunContinuationsAsynchronously);
+        LoadScenarioWindow window = WindowOver(prefs, new ArtccTabSources(() => true, () => hub.Task, (_, _, _) => release.Task));
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Click(window, "DownloadButton");
+
+            release.SetResult(
+                OneDownloaded(artcc) with
+                {
+                    Problems = [new StoreProblem("index.json", "corrupt; kept as index.json.corrupt-1 and rebuilt")],
+                }
+            );
+            await window.DownloadDone;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("1 downloaded, 0 updated, 0 failed", TextOf(window, "ArtccStatusText"));
+            string notices = TextOf(window, "ArtccGateText");
+            Assert.Equal("index.json: corrupt; kept as index.json.corrupt-1 and rebuilt", notices);
+
+            hub.SetException(new HttpRequestException("The hub went away."));
+            await window.ArtccListReady;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("1 downloaded, 0 updated, 0 failed", TextOf(window, "ArtccStatusText"));
+            Assert.Equal(notices, TextOf(window, "ArtccGateText"));
+            Assert.Equal([IdB], ArtccItems(window).Select(i => i.Id));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Download_Offline_ReloadAndDownloadNamingTheSameFile_ShowsTheLineOnce()
+    {
+        (UserPreferences prefs, string artcc, LocalScenarioStore store) = SeedMirror(IdA, IdB);
+        File.WriteAllText(store.GetMirrorPath(artcc, IdA), "{ broken");
+        StoreProblem planted = Assert.Single(store.Load(artcc).Problems);
+        var report = new DownloadReport(artcc, null, [IdB], [], [], [], [], [], [planted]);
+        var sources = new ArtccTabSources(() => false, NoHub, (_, _, _) => Task.FromResult(report));
+        LoadScenarioWindow window = WindowOver(prefs, sources);
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            await window.ArtccListReady;
+
+            Click(window, "DownloadButton");
+            await window.DownloadDone;
+            Dispatcher.UIThread.RunJobs();
+
+            string[] lines = TextOf(window, "ArtccGateText").Split('\n');
+            Assert.Single(lines, line => line == $"{planted.FileName}: {planted.Reason}");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     /// <summary>Copies a real ATCTrainer scenario JSON into a fresh temp folder and returns the copy's path.</summary>
     private string CopyExampleScenario()
     {
