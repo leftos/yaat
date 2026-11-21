@@ -2160,7 +2160,11 @@ public partial class MainViewModel : ObservableObject
                 ScopeMaps.RecenterOnPrimaryAirport(primaryPosition.Lat, primaryPosition.Lon);
             }
 
-            _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
+            }
+
             StatusText = "Navigation data loaded";
         }
         catch (Exception ex)
@@ -2704,7 +2708,10 @@ public partial class MainViewModel : ObservableObject
                 // Reset caret to end of populated text so cursor-aware suggestions work on the
                 // newly populated string, not against a stale caret from an earlier entry.
                 CommandCaretIndex = CommandText.Length;
-                _log.LogInformation("Speech populated command box ({Source}): {CommandText}", source, CommandText);
+                if (_log.IsEnabled(LogLevel.Information))
+                {
+                    _log.LogInformation("Speech populated command box ({Source}): {CommandText}", source, CommandText);
+                }
             }
 
             // Auto-focus the command input box so the user can press Enter to send (or arrow-keys
@@ -3544,7 +3551,11 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        _log.LogDebug("Session settings push for {Key}: the typed value is kept while it waits to be sent", key);
+        if (_log.IsEnabled(LogLevel.Debug))
+        {
+            _log.LogDebug("Session settings push for {Key}: the typed value is kept while it waits to be sent", key);
+        }
+
         return true;
     }
 
@@ -3566,7 +3577,10 @@ public partial class MainViewModel : ObservableObject
             SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
         }
 
-        _log.LogDebug("Run-delay push while the pair waits: applied min={ApplyMin} max={ApplyMax}", applyMin, applyMax);
+        if (_log.IsEnabled(LogLevel.Debug))
+        {
+            _log.LogDebug("Run-delay push while the pair waits: applied min={ApplyMin} max={ApplyMax}", applyMin, applyMax);
+        }
     }
 
     private void OnSessionSettingsChanged(SessionSettingsDto dto) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));

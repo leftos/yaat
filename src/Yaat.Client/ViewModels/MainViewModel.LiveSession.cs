@@ -182,7 +182,11 @@ public partial class MainViewModel
 
             ApplyScenarioResult(result);
             _preferences.SetLastLiveSession(choice);
-            _log.LogInformation("Live session started: '{Name}' ({Id})", result.Name, result.ScenarioId);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Live session started: '{Name}' ({Id})", result.Name, result.ScenarioId);
+            }
+
             StatusText = $"Live session: {result.Name}";
             AddSystemEntry($"Live session started: {result.Name}");
 
@@ -208,13 +212,17 @@ public partial class MainViewModel
         try
         {
             AssumeLiveTrafficResultDto result = await _connection.AssumeLiveTrafficAsync(request);
-            _log.LogInformation(
-                "Bulk live-traffic assume ({Mode}): {Assumed} of {Considered}, error {Error}",
-                request.Mode,
-                result.Assumed,
-                result.Considered,
-                result.Error ?? "none"
-            );
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation(
+                    "Bulk live-traffic assume ({Mode}): {Assumed} of {Considered}, error {Error}",
+                    request.Mode,
+                    result.Assumed,
+                    result.Considered,
+                    result.Error ?? "none"
+                );
+            }
+
             AddSystemEntry(FormatAssumeLiveTrafficSummary(result));
         }
         catch (Exception ex)

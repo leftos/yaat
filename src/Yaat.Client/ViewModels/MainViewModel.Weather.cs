@@ -339,7 +339,11 @@ public partial class MainViewModel
 
         try
         {
-            _log.LogInformation("Loading weather from {Path}", filePath);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Loading weather from {Path}", filePath);
+            }
+
             string fileJson = await File.ReadAllTextAsync(filePath);
             PreparedWeather prepared = await PrepareSavedWeatherAsync(fileJson);
             CommandResultDto result = await _connection.LoadWeatherAsync(prepared.Json, reconstructMetars: true);
@@ -371,7 +375,11 @@ public partial class MainViewModel
     {
         try
         {
-            _log.LogInformation("Loading weather from API: {Name}", displayName);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Loading weather from API: {Name}", displayName);
+            }
+
             PreparedWeather prepared = await PrepareSavedWeatherAsync(json);
             CommandResultDto result = await _connection.LoadWeatherAsync(prepared.Json, reconstructMetars: true);
 
@@ -492,7 +500,10 @@ public partial class MainViewModel
         try
         {
             GfsGridFetchResult dropped = await gridTask;
-            _log.LogInformation("GFS grid fetch stopped without live weather to go with it ({Outcome})", dropped.FailureReason ?? "fetched");
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("GFS grid fetch stopped without live weather to go with it ({Outcome})", dropped.FailureReason ?? "fetched");
+            }
         }
         catch (Exception ex)
         {

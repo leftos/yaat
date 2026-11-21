@@ -214,7 +214,11 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
             }
         }
 
-        Log.LogDebug("Staged a copy of the favorites store in {Folder}", root);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Staged a copy of the favorites store in {Folder}", root);
+        }
+
         return new FavoriteStore(root);
     }
 
@@ -279,7 +283,11 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
         }
         catch (Win32Exception ex)
         {
-            Log.LogDebug(ex, "Could not check whether process {ProcessId} is running; treating it as running", processId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(ex, "Could not check whether process {ProcessId} is running; treating it as running", processId);
+            }
+
             return true;
         }
     }

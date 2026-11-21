@@ -207,7 +207,10 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
         }
         catch (OperationCanceledException)
         {
-            Log.LogInformation("The {Model} download was cancelled", Title);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("The {Model} download was cancelled", Title);
+            }
         }
         catch (Exception ex)
         {

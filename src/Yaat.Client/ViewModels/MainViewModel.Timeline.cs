@@ -135,7 +135,11 @@ public partial class MainViewModel
         // Every timeline jump (buttons, scrub, markers, bookmarks) comes through here; the server refuses RewindTo mid-load.
         if (IsRoomLoading)
         {
-            _log.LogInformation("Rewind to {Seconds}s not sent: a scenario is loading in the room", targetSeconds);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Rewind to {Seconds}s not sent: a scenario is loading in the room", targetSeconds);
+            }
+
             const string loading = "Rewind unavailable while a scenario loads";
             sink.ReportError(loading);
             return new RewindOutcome(false, loading);
@@ -155,7 +159,7 @@ public partial class MainViewModel
         );
         if (!outcome.Rewound && (RewindOverlay.RemoteJumpBy is { } who) && (outcome.Status == RewindOverlayViewModel.RefusalFor(who)))
         {
-            _log.LogInformation("Rewind to {Seconds}s not sent: {Who}'s jump is running in the room", targetSeconds, who);
+            LogRewindRefusedForRemoteJump(targetSeconds, who);
             sink.ReportError(outcome.Status);
         }
         else if (!ownSendRan && !sink.Equals(_lastRewindSink))
@@ -167,6 +171,14 @@ public partial class MainViewModel
         }
 
         return outcome;
+    }
+
+    private void LogRewindRefusedForRemoteJump(double targetSeconds, string who)
+    {
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Rewind to {Seconds}s not sent: {Who}'s jump is running in the room", targetSeconds, who);
+        }
     }
 
     /// <summary>A test seam: replaces the server's <c>RewindTo</c> call of a jump. Null = ask the connected server.</summary>

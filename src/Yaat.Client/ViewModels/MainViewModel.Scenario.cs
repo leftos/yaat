@@ -168,7 +168,11 @@ public partial class MainViewModel
         }
 
         string hardest = difficulties[^1];
-        _log.LogInformation("Auto-selecting difficulty: {Level}", hardest);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Auto-selecting difficulty: {Level}", hardest);
+        }
+
         return FilterAndResolve(json, hardest);
     }
 
@@ -233,11 +237,18 @@ public partial class MainViewModel
                 apiId = _pendingApiScenarioId;
                 _pendingScenarioSource = null;
                 _pendingApiScenarioId = null;
-                _log.LogInformation("Loading scenario from API: {Name}", ScenarioFilePath);
+                if (_log.IsEnabled(LogLevel.Information))
+                {
+                    _log.LogInformation("Loading scenario from API: {Name}", ScenarioFilePath);
+                }
             }
             else
             {
-                _log.LogInformation("Loading scenario from {Path}", ScenarioFilePath);
+                if (_log.IsEnabled(LogLevel.Information))
+                {
+                    _log.LogInformation("Loading scenario from {Path}", ScenarioFilePath);
+                }
+
                 json = await File.ReadAllTextAsync(ScenarioFilePath);
             }
 
@@ -418,7 +429,11 @@ public partial class MainViewModel
 
             if (result.AccessDeniedReason is { } reason)
             {
-                _log.LogInformation("Scenario load denied: {Reason}", reason);
+                if (_log.IsEnabled(LogLevel.Information))
+                {
+                    _log.LogInformation("Scenario load denied: {Reason}", reason);
+                }
+
                 StatusText = reason;
                 AddSystemEntry($"Access denied: {reason}");
                 return;
@@ -510,15 +525,18 @@ public partial class MainViewModel
             _preferences.AddRecentScenario(ScenarioFilePath, scenarioName);
         }
 
-        _log.LogInformation(
-            "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
-            result.Name,
-            result.ScenarioId,
-            result.AircraftCount,
-            result.DelayedCount,
-            result.AllAircraft.Count,
-            result.Warnings.Count
-        );
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation(
+                "Scenario loaded: '{Name}' ({Id}), {Count} aircraft, {Delayed} delayed, {All} total, {Warnings} warnings",
+                result.Name,
+                result.ScenarioId,
+                result.AircraftCount,
+                result.DelayedCount,
+                result.AllAircraft.Count,
+                result.Warnings.Count
+            );
+        }
     }
 
     /// <summary>
@@ -754,7 +772,11 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
+            }
+
             RoomLoadingBy = null;
             RelabelRoomTitle(dto.ArtccId);
             ResetPilotVoiceWarningSession();

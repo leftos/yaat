@@ -283,7 +283,11 @@ public partial class MainViewModel
             {
                 if (ActiveScenarioId != scenarioId)
                 {
-                    _log.LogDebug("Solo training reply for scenario {Sent} dropped: scenario {Now} is loaded now", scenarioId, ActiveScenarioId);
+                    if (_log.IsEnabled(LogLevel.Debug))
+                    {
+                        _log.LogDebug("Solo training reply for scenario {Sent} dropped: scenario {Now} is loaded now", scenarioId, ActiveScenarioId);
+                    }
+
                     return;
                 }
 

@@ -461,7 +461,10 @@ public partial class MainViewModel
         try
         {
             await _connection.CloseRoomAsync(roomId);
-            _log.LogInformation("Closed room {RoomId} after joining it failed", roomId);
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("Closed room {RoomId} after joining it failed", roomId);
+            }
         }
         catch (Exception ex)
         {
@@ -609,11 +612,15 @@ public partial class MainViewModel
         try
         {
             List<CrcLobbyClientDto> lobby = await _connection.GetCrcLobbyClientsAsync();
-            _log.LogInformation(
-                "[CrcLobby] Pull returned: {Count} clients ({Details})",
-                lobby.Count,
-                string.Join(", ", lobby.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
-            );
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation(
+                    "[CrcLobby] Pull returned: {Count} clients ({Details})",
+                    lobby.Count,
+                    string.Join(", ", lobby.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
+                );
+            }
+
             CrcLobbyClients.Clear();
             foreach (CrcLobbyClientDto c in lobby)
             {
@@ -1109,11 +1116,15 @@ public partial class MainViewModel
 
     private void OnCrcLobbyChanged(CrcLobbyChangedDto dto)
     {
-        _log.LogInformation(
-            "[CrcLobby] Push received: {Count} clients ({Details})",
-            dto.Clients.Count,
-            string.Join(", ", dto.Clients.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
-        );
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation(
+                "[CrcLobby] Push received: {Count} clients ({Details})",
+                dto.Clients.Count,
+                string.Join(", ", dto.Clients.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
+            );
+        }
+
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             CrcLobbyClients.Clear();

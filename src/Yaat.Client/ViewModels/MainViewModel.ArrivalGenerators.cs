@@ -79,12 +79,15 @@ public partial class MainViewModel
             LatestArrivalGenerators = dto.Generators;
             LatestVfrArrivalGenerators = dto.VfrArrivalGenerators;
             LatestOverflightGenerators = dto.OverflightGenerators;
-            _log.LogInformation(
-                "Generators updated: {Arrivals} arrival, {VfrArrivals} VFR arrival, {Overflights} overflight",
-                dto.Generators.Count,
-                dto.VfrArrivalGenerators.Count,
-                dto.OverflightGenerators.Count
-            );
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation(
+                    "Generators updated: {Arrivals} arrival, {VfrArrivals} VFR arrival, {Overflights} overflight",
+                    dto.Generators.Count,
+                    dto.VfrArrivalGenerators.Count,
+                    dto.OverflightGenerators.Count
+                );
+            }
         });
     }
 }

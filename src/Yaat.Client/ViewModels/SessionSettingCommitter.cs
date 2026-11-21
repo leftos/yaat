@@ -113,7 +113,7 @@ internal sealed class SessionSettingCommitter(
             Bump(key);
         }
 
-        if (discarded > 0)
+        if ((discarded > 0) && log.IsEnabled(LogLevel.Information))
         {
             log.LogInformation("Discarded {Count} pending session setting(s): {Reason}", discarded, reason);
         }

@@ -269,11 +269,15 @@ public partial class MainViewModel
 
         line.Command = commandText;
         line.Target = SelectedAircraft;
-        _log.LogDebug(
-            "SendCommand target resolution: SelectedAircraft={Selected}, target={Target}",
-            SelectedAircraft?.Callsign ?? "(none)",
-            line.Target?.Callsign ?? "(none)"
-        );
+        if (_log.IsEnabled(LogLevel.Debug))
+        {
+            _log.LogDebug(
+                "SendCommand target resolution: SelectedAircraft={Selected}, target={Target}",
+                SelectedAircraft?.Callsign ?? "(none)",
+                line.Target?.Callsign ?? "(none)"
+            );
+        }
+
         return true;
     }
 
@@ -391,7 +395,11 @@ public partial class MainViewModel
         try
         {
             string canonical = compound.CanonicalString;
-            _log.LogDebug("SendCommand (global half-strip): '{Canonical}' (input: '{Input}')", canonical, line.OriginalInput);
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug("SendCommand (global half-strip): '{Canonical}' (input: '{Input}')", canonical, line.OriginalInput);
+            }
+
             CommandResultDto result = await SubmitCommandAsync("", canonical);
 
             // Always drop the typed text: even when the server rejects, the RPO has
@@ -431,7 +439,11 @@ public partial class MainViewModel
         try
         {
             string canonical = line.ForceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
-            _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, line.OriginalInput);
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, line.OriginalInput);
+            }
+
             CommandResultDto result = await SubmitCommandAsync(target.Callsign, canonical);
             NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
@@ -517,12 +529,16 @@ public partial class MainViewModel
         );
         if (mappedCompound is null)
         {
-            _log.LogDebug(
-                "Solo natural mapping did not produce a dispatchable command. Input='{Input}', Mapped='{Mapped}', Reason='{Reason}'",
-                line.Command,
-                normalization.CanonicalCommand,
-                mappedFailure?.Reason ?? "parse failed"
-            );
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug(
+                    "Solo natural mapping did not produce a dispatchable command. Input='{Input}', Mapped='{Mapped}', Reason='{Reason}'",
+                    line.Command,
+                    normalization.CanonicalCommand,
+                    mappedFailure?.Reason ?? "parse failed"
+                );
+            }
+
             return false;
         }
 
@@ -577,13 +593,17 @@ public partial class MainViewModel
         try
         {
             string canonical = line.ForceOverride ? $"** {mappedCompound.CanonicalString}" : mappedCompound.CanonicalString;
-            _log.LogInformation(
-                "Solo natural command mapped: {Input} -> {Callsign} {Canonical} (LLM fallback: {UsedLlmFallback})",
-                line.OriginalInput,
-                target.Callsign,
-                canonical,
-                usedLlmFallback
-            );
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation(
+                    "Solo natural command mapped: {Input} -> {Callsign} {Canonical} (LLM fallback: {UsedLlmFallback})",
+                    line.OriginalInput,
+                    target.Callsign,
+                    canonical,
+                    usedLlmFallback
+                );
+            }
+
             CommandResultDto result = await SubmitCommandAsync(target.Callsign, canonical);
             NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 

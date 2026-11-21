@@ -181,7 +181,11 @@ public sealed partial class ScopeViewModel
         MinSepResult result = MinimumSeparation.Compute(TrackOf(a), TrackOf(b));
         if (result is MinSepInvalid)
         {
-            Log.LogDebug("Min sep {A}/{B} cleared: invalid track data", a.Callsign, b.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Min sep {A}/{B} cleared: invalid track data", a.Callsign, b.Callsign);
+            }
+
             ClearMinSep();
             return;
         }

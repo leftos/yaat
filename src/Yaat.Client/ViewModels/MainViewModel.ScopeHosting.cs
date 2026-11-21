@@ -221,7 +221,10 @@ public partial class MainViewModel
         }
 
         _preferences.RemoveRadarSettings(scenarioId);
-        _log.LogInformation("Migrated scenario {ScenarioId}'s old Radar settings into the {Facility} Scope state", scenarioId, facility);
+        if (_log.IsEnabled(LogLevel.Information))
+        {
+            _log.LogInformation("Migrated scenario {ScenarioId}'s old Radar settings into the {Facility} Scope state", scenarioId, facility);
+        }
     }
 
     /// <summary>
