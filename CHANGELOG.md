@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.19.1-beta [2026/11/21]
+
+### Added
+
+- Settings › Radar › STARS field menus (off by default, as in CRC) lets a STARS datablock field click open a menu, in the ERAM field-menus style.
+- Settings › Radar › ERAM field menus picks CRC-style compact menus, a tabbed ERAM | PILOT popup (default, opening on your last tab) or side by side.
+
+### Fixed
+
+- The Radar's VECTOR and `.scope vector` take half-minute lengths again (0.5 to 3, then 4 and 8), and an old Radar's PTL setting carries over.
+- EuroScope datablocks on the Radar open their compact flyouts again, sized by the restored Radar Tag Flyouts font setting; Shift-click stages a row.
+
 ## v0.19.0-beta [2026/11/20]
 
 ### Highlights
