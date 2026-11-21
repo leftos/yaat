@@ -185,6 +185,24 @@ public class MapEditsTests
     }
 
     [Fact]
+    public void SetProperty_OnADegenerateLineReadFromAFile_StillApplies()
+    {
+        const string Degenerate = """
+            {"type": "FeatureCollection", "features": [
+              {"type": "Feature", "properties": {"type": "taxiway", "name": "DEG"},
+               "geometry": {"type": "LineString", "coordinates": [[-122.2, 37.7]]}}
+            ]}
+            """;
+        var document = AirportMapDocument.Read(Degenerate);
+
+        AirportMapDocument edited = MapEdits.SetProperty(document, 0, "note", JsonValue.Create("edited"));
+
+        MapFeature feature = Assert.Single(edited.Features);
+        Assert.Equal("edited", feature.CloneProperties()!["note"]!.GetValue<string>());
+        Assert.Equal(new MapPosition(-122.2, 37.7), Assert.Single(feature.Coordinates));
+    }
+
+    [Fact]
     public void SetProperty_ReplacesACapitalisedKeyUnderItsAuthoredCase()
     {
         AirportMapDocument oak = Oak();

@@ -26,6 +26,10 @@ public sealed record ForeignMember(string Name, string RawJson);
 /// <c>coordinates</c>, every position two numbers; any other geometry, like a <c>properties</c> that is not an object, is
 /// kept whole in <see cref="ForeignMembers"/> and <see cref="GeometryType"/> is <c>null</c>.
 /// <para>
+/// A line string holds at least two positions unless the reader built it from a source file that holds fewer: the public
+/// constructor refuses a shorter one, so no edit can create an empty or single-vertex line.
+/// </para>
+/// <para>
 /// A feature the reader built also keeps its source <c>coordinates</c> text, written back while the feature is unedited:
 /// QGIS exports carry 17-18 significant digits that a double cannot hold, so writing the doubles would change the decimal
 /// value of every such coordinate (never the double the parser reads). A feature built through the public constructor,
@@ -34,6 +38,12 @@ public sealed record ForeignMember(string Name, string RawJson);
 /// </remarks>
 public sealed class MapFeature
 {
+    /// <summary>
+    /// The fewest positions a line string can hold: the public constructor refuses fewer, while the reader keeps a source
+    /// file's shorter line readable and round-trippable.
+    /// </summary>
+    internal const int MinLineVertices = 2;
+
     private readonly JsonObject? _properties;
 
     /// <summary>
@@ -43,6 +53,9 @@ public sealed class MapFeature
     /// <param name="geometryType"><c>Point</c> or <c>LineString</c>; <c>null</c> when the geometry is a foreign member.</param>
     /// <param name="coordinates">The geometry's positions: one for a point, each vertex in order for a line string.</param>
     /// <param name="foreignMembers">The feature's other members, in source order.</param>
+    /// <exception cref="ArgumentException">
+    /// The geometry cannot hold that many positions, or a line string has fewer than two.
+    /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">A position's longitude or latitude is not finite.</exception>
     public MapFeature(
         JsonObject? properties,
@@ -50,7 +63,14 @@ public sealed class MapFeature
         ImmutableArray<MapPosition> coordinates,
         ImmutableList<ForeignMember> foreignMembers
     )
-        : this(properties, geometryType, coordinates, foreignMembers, sourceCoordinatesJson: null) { }
+        : this(properties, geometryType, coordinates, foreignMembers, sourceCoordinatesJson: null)
+    {
+        int count = coordinates.IsDefault ? 0 : coordinates.Length;
+        if ((string.Equals(geometryType, "LineString", StringComparison.Ordinal)) && (count < MinLineVertices))
+        {
+            throw new ArgumentException($"A LineString cannot hold {count} positions; it needs at least {MinLineVertices}", nameof(coordinates));
+        }
+    }
 
     // The reader's constructor: sourceCoordinatesJson is the geometry's "coordinates" text exactly as read, and
     // coordinates are its doubles.

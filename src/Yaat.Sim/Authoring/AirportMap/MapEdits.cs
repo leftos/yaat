@@ -11,8 +11,6 @@ namespace Yaat.Sim.Authoring.AirportMap;
 /// </summary>
 public static class MapEdits
 {
-    private const int MinLineVertices = 2;
-
     private static readonly ILogger Log = SimLog.CreateLogger("MapEdits");
 
     /// <summary>
@@ -72,7 +70,7 @@ public static class MapEdits
     {
         MapFeature feature = LineAt(document, featureIndex);
         ThrowIfVertexOutOfRange(feature, vertexIndex);
-        if (feature.Coordinates.Length <= MinLineVertices)
+        if (feature.Coordinates.Length <= MapFeature.MinLineVertices)
         {
             throw new InvalidOperationException(
                 $"Deleting a vertex from feature {featureIndex} would leave fewer than two positions; delete the feature instead"
@@ -158,7 +156,7 @@ public static class MapEdits
         }
 
         LogEdit("set property", featureIndex);
-        return Replace(document, featureIndex, new MapFeature(properties, feature.GeometryType, feature.Coordinates, feature.ForeignMembers));
+        return Replace(document, featureIndex, Rebuild(feature, properties));
     }
 
     /// <summary>
@@ -227,9 +225,12 @@ public static class MapEdits
             "parking" or "spot" or "helipad" => "Point",
             _ => throw new InvalidOperationException($"The editor does not create {featureType} features"),
         };
-        if (string.Equals(geometryType, "LineString", StringComparison.Ordinal) && (positions.IsDefault || (positions.Length < MinLineVertices)))
+        if (
+            string.Equals(geometryType, "LineString", StringComparison.Ordinal)
+            && (positions.IsDefault || (positions.Length < MapFeature.MinLineVertices))
+        )
         {
-            throw new ArgumentException($"A {featureType} needs at least {MinLineVertices} positions", nameof(positions));
+            throw new ArgumentException($"A {featureType} needs at least {MapFeature.MinLineVertices} positions", nameof(positions));
         }
 
         JsonObject properties = TemplateProperties(template, featureType);
@@ -312,8 +313,13 @@ public static class MapEdits
         }
     }
 
+    // Rebuilds an existing feature through the reader's lenient constructor: a feature read from a file may hold a line
+    // string shorter than the public constructor accepts, and its edits still have to apply.
     private static MapFeature Rebuild(MapFeature feature, ImmutableArray<MapPosition> coordinates) =>
-        new(feature.CloneProperties(), feature.GeometryType, coordinates, feature.ForeignMembers);
+        new(feature.CloneProperties(), feature.GeometryType, coordinates, feature.ForeignMembers, sourceCoordinatesJson: null);
+
+    private static MapFeature Rebuild(MapFeature feature, JsonObject properties) =>
+        new(properties, feature.GeometryType, feature.Coordinates, feature.ForeignMembers, sourceCoordinatesJson: null);
 
     private static AirportMapDocument Replace(AirportMapDocument document, int featureIndex, MapFeature feature) =>
         new(document.Features.SetItem(featureIndex, feature), document.ForeignMembers);

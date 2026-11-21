@@ -224,6 +224,38 @@ public class AirportMapDocumentRoundTripTests
     }
 
     [Fact]
+    public void MapFeature_LineStringWithFewerThanTwoPositions_ThrowsArgumentException()
+    {
+        var properties = new JsonObject { ["type"] = "taxiway" };
+
+        ArgumentException none = Assert.Throws<ArgumentException>(() => new MapFeature(properties, "LineString", [], []));
+        ArgumentException one = Assert.Throws<ArgumentException>(() => new MapFeature(properties, "LineString", [new MapPosition(0, 0)], []));
+
+        Assert.Contains("cannot hold 0 positions", none.Message, StringComparison.Ordinal);
+        Assert.Contains("cannot hold 1 positions", one.Message, StringComparison.Ordinal);
+        Assert.Contains("at least 2", none.Message, StringComparison.Ordinal);
+        Assert.Contains("at least 2", one.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapReader_OneVertexLineString_StillReadsAndRoundTrips()
+    {
+        const string Original = """
+            {"type": "FeatureCollection", "features": [
+              {"type": "Feature", "properties": {"type": "taxiway", "name": "DEG"},
+               "geometry": {"type": "LineString", "coordinates": [[-122.2, 37.7]]}}
+            ]}
+            """;
+
+        var document = AirportMapDocument.Read(Original);
+
+        MapFeature feature = Assert.Single(document.Features);
+        Assert.Equal("LineString", feature.GeometryType);
+        Assert.Equal(new MapPosition(-122.2, 37.7), Assert.Single(feature.Coordinates));
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(Original), JsonNode.Parse(document.Write())), "the written map differs from the source");
+    }
+
+    [Fact]
     public void MapFeature_NonFiniteCoordinate_ThrowsArgumentOutOfRange()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new MapFeature(null, "Point", [new MapPosition(double.NaN, 0)], []));
